@@ -280,6 +280,26 @@ public class ProductApprovalService {
         );
     }
 
+    /**
+     * Provides manufacturer and supplier dropdown options for pending catalog forms
+     * from the master data tables (enabled entries first).
+     */
+    public Map<String, List<Map<String, Object>>> partnerOptions() {
+        List<Map<String, Object>> manufacturers = jdbcTemplate.queryForList("""
+                SELECT manufacturer_code AS code, manufacturer_name AS name, status
+                  FROM manufacturer
+                 WHERE deleted = 0
+                 ORDER BY status DESC, manufacturer_name, manufacturer_id
+                """);
+        List<Map<String, Object>> suppliers = jdbcTemplate.queryForList("""
+                SELECT supplier_code AS code, supplier_name AS name, status
+                  FROM supplier
+                 WHERE deleted = 0
+                 ORDER BY status DESC, supplier_name, supplier_id
+                """);
+        return Map.of("manufacturers", manufacturers, "suppliers", suppliers);
+    }
+
     @Transactional
     public Map<String, Object> createApplication(PendingProductApplicationRequest request) {
         validateRequest(request);

@@ -1,4 +1,10 @@
 import { getData, postData, putData } from './http'
+import type { PartnerOption } from './masterData'
+
+export interface PendingProductPartnerOptions {
+  manufacturers: PartnerOption[]
+  suppliers: PartnerOption[]
+}
 
 export interface PendingProductTypeCount {
   key: string
@@ -153,6 +159,10 @@ export async function fetchPendingProductApplicationDetail(applicationNo: string
 
 export async function createPendingProductApplication(payload: PendingProductApplicationPayload) {
   return postData<{ applicationNo: string }>('/pending-product-applications', payload)
+}
+
+export async function fetchPendingProductPartnerOptions() {
+  return getData<PendingProductPartnerOptions>('/pending-product-applications/partner-options')
 }
 
 export async function approvePendingProductApplication(applicationNo: string, action: string, opinion: string) {

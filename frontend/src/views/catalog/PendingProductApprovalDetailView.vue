@@ -6,10 +6,12 @@ import { ArrowLeft, CheckCircle2, FileText, PackageCheck, Save, ShieldCheck, X }
 import {
   approvePendingProductApplication,
   fetchPendingProductApplicationDetail,
+  fetchPendingProductPartnerOptions,
   resubmitPendingProductApplication,
   updatePendingProductApplication,
   type PendingProductApplicationDetail
 } from '../../api/pendingProductApplications'
+import type { PartnerOption } from '../../api/masterData'
 
 const route = useRoute()
 const router = useRouter()
@@ -277,6 +279,28 @@ const attachments = computed(() => {
 const changeItems = computed(() => detail.value?.changeItems ?? [])
 const showChangeDiff = computed(() => detail.value?.applicationType === '信息变更')
 
+const manufacturerOptions = ref<PartnerOption[]>([])
+const supplierOptions = ref<PartnerOption[]>([])
+
+function withRetainedOption(list: PartnerOption[], current: string) {
+  if (!current || list.some((item) => item.name === current)) {
+    return list
+  }
+  return [...list, { code: '-', name: current, status: 0 }]
+}
+
+async function loadPartnerOptions() {
+  try {
+    const options = await fetchPendingProductPartnerOptions()
+    manufacturerOptions.value = options.manufacturers
+    supplierOptions.value = options.suppliers
+  } catch (err) {
+    console.error('厂家与供应商选项加载失败', err)
+    manufacturerOptions.value = []
+    supplierOptions.value = []
+  }
+}
+
 async function loadDetail() {
   loading.value = true
   error.value = ''
@@ -343,6 +367,7 @@ function isPendingApprovalStatus(status?: string) {
 
 function openResubmitModal() {
   if (!detail.value) return
+  loadPartnerOptions()
   Object.assign(resubmitForm, {
     applicationType: detail.value.applicationType,
     productCode: detail.value.productCode,
@@ -552,6 +577,24 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               >
                 <span class="flabel">{{ f.label }}</span>
                 <span v-if="!isEditing || !f.key" class="fvalue">{{ f.value }}</span>
+                <select
+                  v-else-if="f.key === 'manufacturerName' || f.key === 'supplierName'"
+                  v-model="(editForm as any)[f.key]"
+                  class="edit-input"
+                >
+                  <option value="">请选择{{ f.label }}</option>
+                  <option
+                    v-for="item in withRetainedOption(
+                      f.key === 'manufacturerName' ? manufacturerOptions : supplierOptions,
+                      String((editForm as any)[f.key] || '')
+                    )"
+                    :key="item.code + item.name"
+                    :value="item.name"
+                    :disabled="item.status !== 1"
+                  >
+                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+                  </option>
+                </select>
                 <input
                   v-else
                   v-model="(editForm as any)[f.key]"
@@ -729,8 +772,34 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <label><span>商品编码</span><input v-model.trim="resubmitForm.productCode" required /></label>
             <label><span>商品名称</span><input v-model.trim="resubmitForm.productName" required /></label>
             <label><span>规格型号</span><input v-model.trim="resubmitForm.specModel" required /></label>
-            <label><span>生产厂家</span><input v-model.trim="resubmitForm.manufacturerName" /></label>
-            <label><span>供应商</span><input v-model.trim="resubmitForm.supplierName" /></label>
+            <label>
+              <span>生产厂家</span>
+              <select v-model="resubmitForm.manufacturerName">
+                <option value="">请选择生产厂家</option>
+                <option
+                  v-for="item in withRetainedOption(manufacturerOptions, resubmitForm.manufacturerName)"
+                  :key="item.code + item.name"
+                  :value="item.name"
+                  :disabled="item.status !== 1"
+                >
+                  {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>供应商</span>
+              <select v-model="resubmitForm.supplierName">
+                <option value="">请选择供应商</option>
+                <option
+                  v-for="item in withRetainedOption(supplierOptions, resubmitForm.supplierName)"
+                  :key="item.code + item.name"
+                  :value="item.name"
+                  :disabled="item.status !== 1"
+                >
+                  {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+                </option>
+              </select>
+            </label>
             <label><span>单位</span><input v-model.trim="resubmitForm.unit" required /></label>
             <label><span>采购价</span><input v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
             <label><span>注册证号</span><input v-model.trim="resubmitForm.registrationNo" /></label>

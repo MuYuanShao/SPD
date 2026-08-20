@@ -22,10 +22,12 @@ import { usePendingProductCatalogNavigation } from '../../composables/usePending
 import { usePendingProductCatalogPagination } from '../../composables/usePendingProductCatalogPagination'
 import {
   fetchPendingProductApplications,
+  fetchPendingProductPartnerOptions,
   batchApprovePendingProductApplications,
   type PendingProductApplicationRow,
   type PendingProductTypeCount
 } from '../../api/pendingProductApplications'
+import type { PartnerOption } from '../../api/masterData'
 
 const route = useRoute()
 const router = useRouter()
@@ -115,11 +117,33 @@ const {
 })
 
 const duplicateAlertVisible = ref(false)
+const manufacturerOptions = ref<PartnerOption[]>([])
+const supplierOptions = ref<PartnerOption[]>([])
 
-function openCreateModal() {
+function withRetainedOption(list: PartnerOption[], current: string | undefined) {
+  if (!current || list.some((item) => item.name === current)) {
+    return list
+  }
+  return [...list, { code: '-', name: current, status: 0 }]
+}
+
+async function loadPartnerOptions() {
+  try {
+    const options = await fetchPendingProductPartnerOptions()
+    manufacturerOptions.value = options.manufacturers
+    supplierOptions.value = options.suppliers
+  } catch (err) {
+    console.error('厂家与供应商选项加载失败', err)
+    manufacturerOptions.value = []
+    supplierOptions.value = []
+  }
+}
+
+async function openCreateModal() {
   message.value = ''
   resetCreateForm()
   showCreateModal.value = true
+  await loadPartnerOptions()
 }
 
 async function handleCreateSubmit() {
@@ -725,8 +749,34 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><span>商品名称</span><input v-model="createForm.productName" required /></label>
               <label><span>规格型号</span><input v-model="createForm.specModel" required /></label>
               <label><span>品牌</span><input v-model="createForm.brand" /></label>
-              <label><span>生产厂家</span><input v-model="createForm.manufacturerName" /></label>
-              <label><span>供应商</span><input v-model="createForm.supplierName" /></label>
+              <label>
+                <span>生产厂家</span>
+                <select v-model="createForm.manufacturerName">
+                  <option value="">请选择生产厂家</option>
+                  <option
+                    v-for="item in withRetainedOption(manufacturerOptions, createForm.manufacturerName)"
+                    :key="item.code + item.name"
+                    :value="item.name"
+                    :disabled="item.status !== 1"
+                  >
+                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>供应商</span>
+                <select v-model="createForm.supplierName">
+                  <option value="">请选择供应商</option>
+                  <option
+                    v-for="item in withRetainedOption(supplierOptions, createForm.supplierName)"
+                    :key="item.code + item.name"
+                    :value="item.name"
+                    :disabled="item.status !== 1"
+                  >
+                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+                  </option>
+                </select>
+              </label>
               <label><span>单位</span><input v-model="createForm.unit" required /></label>
               <label><span>储存条件</span><input v-model="createForm.storageCondition" /></label>
             </div>

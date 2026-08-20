@@ -44,6 +44,11 @@ public class PendingProductApplicationController {
         this.productApprovalService = productApprovalService;
     }
 
+    @GetMapping("/partner-options")
+    public ApiResponse<Map<String, List<Map<String, Object>>>> partnerOptions() {
+        return ApiResponse.ok(productApprovalService.partnerOptions());
+    }
+
     @GetMapping("/{applicationNo}")
     public ApiResponse<PendingProductApplicationDetail> detail(@PathVariable String applicationNo) {
         return ApiResponse.ok(productApprovalService.getDetail(applicationNo));

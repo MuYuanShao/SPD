@@ -20,6 +20,10 @@
 
 ## 2026-08-20 - feature/catalog-field-management
 
+- 修改内容：供应商管理、厂家管理合并为单一菜单"供应商厂家管理"，页面用页签切换（供应商/厂家），每个页签独立分页展示（每页条数可调、翻页、跳页），旧路由 /features/supplier-management 与 /features/manufacturer-management 自动重定向到合并页对应页签。
+- 修改内容：合并页权限兼容旧权限码（拥有 supplier-management 或 manufacturer-management 任一菜单权限即可访问合并页），后端 MySQL 表与接口不变，仅前端调用既有 /master-data/suppliers、/master-data/manufacturers 接口。
+- 修改内容：供应商/厂家列表补充分页控件（此前仅显示默认前 20 条，无法翻页）。
+
 - 修改内容：待审批目录重复校验改为规则驱动（V48 新增 sys_validation_rule 存储"商品名称+规格型号+生产厂家+供应商+注册证号"组合），校验命中时前端弹窗提示"该商品目录已存在！"；新增表单打开时重置，不再带出历史数据。
 - 修改内容：修复医院目录"信息变更"审批单详情 500（product 查询中误引用 pending 表别名的 supplier_name，共三处 SQL 别名错误）。
 - 修改内容：修复医院目录表单页编辑保存时误弹"定数管理改为否"确认框（仅在实际由是改否时提示）。

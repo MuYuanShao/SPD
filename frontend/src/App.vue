@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import {
@@ -40,7 +40,11 @@ function authorizedMenu(item: MenuItem): MenuItem | null {
   const children = item.children
     ?.map(authorizedMenu)
     .filter((child): child is MenuItem => child !== null)
-  if (!authStore.canAccessMenu(item.code) && !children?.length) {
+  const accessGranted =
+    item.code === 'supplier-manufacturer-management'
+      ? authStore.canAccessSupplierManufacturerManagement()
+      : authStore.canAccessMenu(item.code)
+  if (!accessGranted && !children?.length) {
     return null
   }
   return { ...item, ...(children?.length ? { children } : { children: undefined }) }

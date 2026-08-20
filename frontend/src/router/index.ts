@@ -97,6 +97,15 @@ export const router = createRouter({
       path: `/features/${from}`,
       redirect: to.startsWith('/') ? to : featureRouteTarget(to)
     })),
+    // 供应商/厂家管理已合并为“供应商厂家管理”，旧地址重定向到合并页对应页签
+    {
+      path: '/features/supplier-management',
+      redirect: { path: '/features/supplier-manufacturer-management', query: { tab: 'supplier' } }
+    },
+    {
+      path: '/features/manufacturer-management',
+      redirect: { path: '/features/supplier-manufacturer-management', query: { tab: 'manufacturer' } }
+    },
     {
       path: '/features/department-requisition/high-value',
       name: 'high-value-department-requisition',
@@ -242,6 +251,12 @@ router.beforeEach(async (to) => {
   }
 
   const requiredPermission = permissionCodeForRoute(to)
+  if (requiredPermission === 'supplier-manufacturer-management') {
+    if (!authStore.canAccessSupplierManufacturerManagement()) {
+      return { name: 'forbidden' }
+    }
+    return true
+  }
   if (requiredPermission && !authStore.canAccessMenu(requiredPermission)) {
     return { name: 'forbidden' }
   }

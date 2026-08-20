@@ -1,5 +1,5 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import Sortable from 'sortablejs'
 import {
   fetchMasterDataPage,
@@ -8,8 +8,11 @@ import {
   type MasterDataQuery
 } from '../api/masterData'
 
+const PARTNER_COMBINED_CODE = 'supplier-manufacturer-management'
+
 export function useMasterDataWorkbench() {
   const route = useRoute()
+  const router = useRouter()
   const page = ref<MasterDataPage | null>(null)
   const loading = ref(false)
   const error = ref('')
@@ -25,6 +28,8 @@ export function useMasterDataWorkbench() {
   const catalogCurrentPage = ref(1)
   const catalogPageSize = ref(15)
   const catalogPageJumpInput = ref('1')
+  const partnerCurrentPage = ref(1)
+  const partnerPageSize = ref(20)
   const tableRef = ref<any>(null)
   const columnSettingsOpen = ref(false)
   const importInput = ref<HTMLInputElement | null>(null)
@@ -101,7 +106,15 @@ export function useMasterDataWorkbench() {
     status: ''
   })
 
-  const code = computed(() => String(route.params.code ?? ''))
+  const routeCode = computed(() => String(route.params.code ?? ''))
+  const partnerTab = ref<'supplier' | 'manufacturer'>(route.query.tab === 'manufacturer' ? 'manufacturer' : 'supplier')
+  const isPartnerCombined = computed(() => routeCode.value === PARTNER_COMBINED_CODE)
+  const code = computed(() => {
+    if (routeCode.value === PARTNER_COMBINED_CODE) {
+      return partnerTab.value === 'manufacturer' ? 'manufacturer-management' : 'supplier-management'
+    }
+    return routeCode.value
+  })
   const isHospitalCatalog = computed(() => code.value === 'hospital-product-catalog')
   const isSupplierManagement = computed(() => code.value === 'supplier-management')
   const isManufacturerManagement = computed(() => code.value === 'manufacturer-management')
@@ -151,6 +164,9 @@ export function useMasterDataWorkbench() {
     } else if (isDepartmentWarehouseCatalog.value) {
       params.page = String(catalogCurrentPage.value)
       params.size = String(catalogPageSize.value)
+    } else if (isSupplierManagement.value || isManufacturerManagement.value) {
+      params.page = String(partnerCurrentPage.value)
+      params.size = String(partnerPageSize.value)
     }
     return params
   })
@@ -182,6 +198,8 @@ export function useMasterDataWorkbench() {
     Math.max(1, Math.ceil(catalogTotal.value / Math.max(1, catalogPageSize.value)))
   )
   const catalogPageSizeOptions = [15, 30, 50, 100, 200]
+  const partnerTotal = computed(() => Number(page.value?.total ?? 0))
+  const partnerPageSizeOptions = [10, 20, 50, 100, 200]
 
   const hospitalColumnGroups = [
     { key: 'all', label: '全部字段', fields: [] },
@@ -450,13 +468,40 @@ export function useMasterDataWorkbench() {
     hospitalPageJumpInput.value = '1'
     catalogCurrentPage.value = 1
     catalogPageJumpInput.value = '1'
+    partnerCurrentPage.value = 1
     loadPage()
   })
+  watch(
+    () => route.query.tab,
+    (tab) => {
+      const next = tab === 'manufacturer' ? 'manufacturer' : 'supplier'
+      if (next !== partnerTab.value) {
+        partnerTab.value = next
+      }
+    }
+  )
   watch(page, () => {
     if (isHospitalCatalog.value) {
       initColumnDrag()
     }
   })
+
+  function switchPartnerTab(tab: 'supplier' | 'manufacturer') {
+    if (partnerTab.value === tab) return
+    partnerTab.value = tab
+    void router.replace({ query: { ...route.query, tab } })
+  }
+
+  function changePartnerPage(pageNumber: number) {
+    partnerCurrentPage.value = Math.max(1, Math.floor(Number(pageNumber) || 1))
+    loadPage()
+  }
+
+  function changePartnerPageSize(size: number) {
+    partnerPageSize.value = Math.max(1, Math.floor(Number(size) || 20))
+    partnerCurrentPage.value = 1
+    loadPage()
+  }
 
   return {
     page,
@@ -511,6 +556,15 @@ export function useMasterDataWorkbench() {
     warehouseQuery,
     code,
     isHospitalCatalog,
+    isPartnerCombined,
+    partnerTab,
+    switchPartnerTab,
+    partnerCurrentPage,
+    partnerPageSize,
+    partnerTotal,
+    partnerPageSizeOptions,
+    changePartnerPage,
+    changePartnerPageSize,
     isSupplierManagement,
     isManufacturerManagement,
     isCampusManagement,

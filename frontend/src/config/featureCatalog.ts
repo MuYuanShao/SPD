@@ -121,8 +121,7 @@ export const featureCatalog = [
     nodeKind: 'navigation',
     children: [
       'product-catalog',
-      'supplier-management',
-      'manufacturer-management',
+      'supplier-manufacturer-management',
       'campus-management',
       'department-management',
       'department-warehouse-catalog',
@@ -171,6 +170,15 @@ export const featureCatalog = [
     routeTarget: '/features/manufacturer-management',
     viewFamily: 'master-data-list',
     chunkFamily: 'master-data'
+  },
+  {
+    code: 'supplier-manufacturer-management',
+    title: '供应商厂家管理',
+    icon: 'truck',
+    routeTarget: '/features/supplier-manufacturer-management',
+    viewFamily: 'master-data-list',
+    chunkFamily: 'master-data',
+    aliases: ['supplier-management', 'manufacturer-management']
   },
   {
     code: 'campus-management',

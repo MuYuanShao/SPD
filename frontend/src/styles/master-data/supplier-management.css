@@ -5,6 +5,43 @@
   overflow: visible;
 }
 
+.partner-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(27, 39, 51, 0.06);
+}
+
+.partner-tab-bar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #607486;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.partner-tab-bar button:hover {
+  background: #f3f7f8;
+}
+
+.partner-tab-bar button.active {
+  border-color: #b7ded7;
+  background: #eaf7f3;
+  color: #087f71;
+}
+
 .supplier-toolbar {
   display: flex;
   align-items: center;

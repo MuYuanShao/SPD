@@ -114,6 +114,18 @@ export const useAuthStore = defineStore('auth', () => {
     )
   }
 
+  /**
+   * 供应商厂家管理合并页的菜单可见性：拥有合并码或原供应商/厂家任一权限即可访问。
+   */
+  function canAccessSupplierManufacturerManagement() {
+    if (isAdministrator()) return true
+    const codes = currentUser.value?.menuCodes ?? []
+    if (codes.includes('*')) return true
+    return ['supplier-manufacturer-management', 'supplier-management', 'manufacturer-management'].some(
+      (code) => codes.includes(code)
+    )
+  }
+
   function canWrite(featureCode: string) {
     return hasPermission(`${featureCode}:write`)
   }
@@ -140,6 +152,7 @@ export const useAuthStore = defineStore('auth', () => {
     init,
     hasPermission,
     canAccessMenu,
+    canAccessSupplierManufacturerManagement,
     canWrite,
     hasRole,
   }

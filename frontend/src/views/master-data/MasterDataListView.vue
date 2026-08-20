@@ -4,6 +4,7 @@ import {
   Database,
   Download,
   Edit3,
+  Factory,
   FileDown,
   FileUp,
   Link2,
@@ -15,6 +16,7 @@ import {
   Send,
   Settings,
   Trash2,
+  Truck,
   Upload
 } from '@lucide/vue'
 import { useHospitalProductManagement } from '../../composables/useHospitalProductManagement'
@@ -41,6 +43,7 @@ import '../../styles/master-data/department-management.css'
 import '../../styles/master-data/department-warehouse-catalog.css'
 import { useAuthStore } from '../../stores/auth'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import PaginationControls from '../../components/common/PaginationControls.vue'
 
 const authStore = useAuthStore()
 
@@ -96,6 +99,15 @@ const {
   warehouseQuery,
   code,
   isHospitalCatalog,
+  isPartnerCombined,
+  partnerTab,
+  switchPartnerTab,
+  partnerCurrentPage,
+  partnerPageSize,
+  partnerTotal,
+  partnerPageSizeOptions,
+  changePartnerPage,
+  changePartnerPageSize,
   isSupplierManagement,
   isManufacturerManagement,
   isCampusManagement,
@@ -338,6 +350,25 @@ const {
         刷新
       </button>
     </header>
+
+    <nav v-if="isPartnerCombined" class="partner-tab-bar" aria-label="供应商厂家页签">
+      <button
+        type="button"
+        :class="{ active: partnerTab === 'supplier' }"
+        @click="switchPartnerTab('supplier')"
+      >
+        <Truck :size="16" aria-hidden="true" />
+        供应商管理
+      </button>
+      <button
+        type="button"
+        :class="{ active: partnerTab === 'manufacturer' }"
+        @click="switchPartnerTab('manufacturer')"
+      >
+        <Factory :size="16" aria-hidden="true" />
+        厂家管理
+      </button>
+    </nav>
 
     <section v-if="isHospitalCatalog" class="hospital-catalog-panel">
       <div class="hospital-action-row">
@@ -1259,6 +1290,15 @@ const {
             </tr>
           </tbody>
         </table>
+        <PaginationControls
+          :page="partnerCurrentPage"
+          :size="partnerPageSize"
+          :total="partnerTotal"
+          :loading="loading"
+          :page-size-options="partnerPageSizeOptions"
+          @change-page="changePartnerPage"
+          @change-size="changePartnerPageSize"
+        />
       </div>
 
       <div v-else-if="isManufacturerManagement && page" class="manufacturer-table-wrap">
@@ -1336,6 +1376,15 @@ const {
             </tr>
           </tbody>
         </table>
+        <PaginationControls
+          :page="partnerCurrentPage"
+          :size="partnerPageSize"
+          :total="partnerTotal"
+          :loading="loading"
+          :page-size-options="partnerPageSizeOptions"
+          @change-page="changePartnerPage"
+          @change-size="changePartnerPageSize"
+        />
       </div>
 
       <div v-else-if="isCampusManagement && page" class="campus-table-wrap">

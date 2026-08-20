@@ -101,6 +101,7 @@ export interface ProductCreatePayload {
 export interface PartnerOption {
   code: string
   name: string
+  licenseNo?: string
   status: number
 }
 

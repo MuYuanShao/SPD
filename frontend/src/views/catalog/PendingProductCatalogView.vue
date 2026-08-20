@@ -127,6 +127,17 @@ function withRetainedOption(list: PartnerOption[], current: string | undefined) 
   return [...list, { code: '-', name: current, status: 0 }]
 }
 
+/**
+ * 选择厂家时自动回填该厂家的生产许可证号。
+ */
+function handleManufacturerChange() {
+  const name = createForm.manufacturerName ?? ''
+  const option = manufacturerOptions.value.find((item) => item.name === name)
+  if (option) {
+    createForm.productionLicenseNo = option.licenseNo ?? ''
+  }
+}
+
 async function loadPartnerOptions() {
   try {
     const options = await fetchPendingProductPartnerOptions()
@@ -751,7 +762,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><span>品牌</span><input v-model="createForm.brand" /></label>
               <label>
                 <span>生产厂家</span>
-                <select v-model="createForm.manufacturerName">
+                <select v-model="createForm.manufacturerName" @change="handleManufacturerChange">
                   <option value="">请选择生产厂家</option>
                   <option
                     v-for="item in withRetainedOption(manufacturerOptions, createForm.manufacturerName)"

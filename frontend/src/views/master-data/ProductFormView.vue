@@ -5,7 +5,9 @@ import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Save } from '@luci
 import {
   createHospitalProduct,
   fetchHospitalProductDetail,
+  fetchHospitalProductPartnerOptions,
   updateHospitalProduct,
+  type PartnerOption,
   type ProductCreatePayload,
   type ProductDetail
 } from '../../api/masterData'
@@ -18,6 +20,38 @@ const error = ref('')
 const originalQuotaManaged = ref<boolean | null>(null)
 const productCode = computed(() => String(route.params.productCode ?? ''))
 const editMode = computed(() => route.name === 'hospital-product-edit')
+
+const manufacturerOptions = ref<PartnerOption[]>([])
+const supplierOptions = ref<PartnerOption[]>([])
+
+function withRetainedOption(list: PartnerOption[], current: string) {
+  if (!current || list.some((item) => item.name === current)) {
+    return list
+  }
+  return [...list, { code: '-', name: current, status: 0 }]
+}
+
+async function loadPartnerOptions() {
+  try {
+    const options = await fetchHospitalProductPartnerOptions()
+    manufacturerOptions.value = options.manufacturers
+    supplierOptions.value = options.suppliers
+  } catch (err) {
+    console.error('厂家与供应商选项加载失败', err)
+    manufacturerOptions.value = []
+    supplierOptions.value = []
+  }
+}
+
+/**
+ * 选择厂家时自动回填该厂家的生产许可证号。
+ */
+function handleManufacturerChange() {
+  const option = manufacturerOptions.value.find((item) => item.name === form.manufacturerName)
+  if (option) {
+    form.productionLicenseNo = option.licenseNo ?? ''
+  }
+}
 
 const form = reactive<ProductCreatePayload>({
   productCode: '',
@@ -151,7 +185,10 @@ async function submitForm() {
   }
 }
 
-onMounted(loadDetailForEdit)
+onMounted(() => {
+  loadDetailForEdit()
+  loadPartnerOptions()
+})
 </script>
 
 <template>
@@ -202,11 +239,31 @@ onMounted(loadDetailForEdit)
           </label>
           <label>
             <span>生产厂家</span>
-            <input v-model.trim="form.manufacturerName" type="text" placeholder="厂家名称" />
+            <select v-model="form.manufacturerName" @change="handleManufacturerChange">
+              <option value="">请选择生产厂家</option>
+              <option
+                v-for="item in withRetainedOption(manufacturerOptions, form.manufacturerName)"
+                :key="item.code + item.name"
+                :value="item.name"
+                :disabled="item.status !== 1"
+              >
+                {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+              </option>
+            </select>
           </label>
           <label>
             <span>供应商</span>
-            <input v-model.trim="form.supplierName" type="text" placeholder="供应商名称" />
+            <select v-model="form.supplierName">
+              <option value="">请选择供应商</option>
+              <option
+                v-for="item in withRetainedOption(supplierOptions, form.supplierName)"
+                :key="item.code + item.name"
+                :value="item.name"
+                :disabled="item.status !== 1"
+              >
+                {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
+              </option>
+            </select>
           </label>
           <label>
             <span>基本单位</span>

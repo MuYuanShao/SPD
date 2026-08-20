@@ -20,6 +20,9 @@
 
 ## 2026-08-20 - feature/catalog-field-management
 
+- 修改内容：医院商品目录（修改弹窗、编辑表单页）与待审批目录（新增弹窗、审批明细内联编辑、重新提交表单）中选择厂家时，自动回填厂家管理表中的生产许可证号到“生产许可证号”字段；两个 partner-options 接口的厂家选项增加 licenseNo 字段。
+- 修改内容：医院目录编辑表单页（ProductFormView）的生产厂家、供应商字段改为下拉选（与修改弹窗一致），选项取厂家/供应商主数据表。
+
 - 修改内容：供应商管理、厂家管理合并为单一菜单"供应商厂家管理"，页面用页签切换（供应商/厂家），每个页签独立分页展示（每页条数可调、翻页、跳页），旧路由 /features/supplier-management 与 /features/manufacturer-management 自动重定向到合并页对应页签。
 - 修改内容：合并页权限兼容旧权限码（拥有 supplier-management 或 manufacturer-management 任一菜单权限即可访问合并页），后端 MySQL 表与接口不变，仅前端调用既有 /master-data/suppliers、/master-data/manufacturers 接口。
 - 修改内容：供应商/厂家列表补充分页控件（此前仅显示默认前 20 条，无法翻页）。

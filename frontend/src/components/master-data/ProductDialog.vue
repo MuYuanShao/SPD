@@ -2,7 +2,7 @@
 import { X } from '@lucide/vue'
 import type { PartnerOption } from '../../api/masterData'
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   mode: 'create' | 'edit'
   form: Record<string, unknown>
@@ -14,6 +14,17 @@ defineEmits<{
   (event: 'close'): void
   (event: 'save'): void
 }>()
+
+/**
+ * 选择厂家时自动回填该厂家的生产许可证号。
+ */
+function handleManufacturerChange() {
+  const name = String(props.form.manufacturerName ?? '')
+  const option = props.manufacturerOptions.find((item) => item.name === name)
+  if (option) {
+    props.form.productionLicenseNo = option.licenseNo ?? ''
+  }
+}
 </script>
 
 <template>
@@ -48,7 +59,7 @@ defineEmits<{
               <label><span>品牌</span><input v-model.trim="form.brand" /></label>
               <label>
                 <span>生产厂家</span>
-                <select v-model="form.manufacturerName">
+                <select v-model="form.manufacturerName" @change="handleManufacturerChange">
                   <option value="">请选择生产厂家</option>
                   <option
                     v-for="item in manufacturerOptions"

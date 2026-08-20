@@ -286,7 +286,8 @@ public class ProductApprovalService {
      */
     public Map<String, List<Map<String, Object>>> partnerOptions() {
         List<Map<String, Object>> manufacturers = jdbcTemplate.queryForList("""
-                SELECT manufacturer_code AS code, manufacturer_name AS name, status
+                SELECT manufacturer_code AS code, manufacturer_name AS name,
+                       license_no AS licenseNo, status
                   FROM manufacturer
                  WHERE deleted = 0
                  ORDER BY status DESC, manufacturer_name, manufacturer_id

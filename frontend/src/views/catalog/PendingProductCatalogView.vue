@@ -138,6 +138,17 @@ function handleManufacturerChange() {
   }
 }
 
+/**
+ * 选择供应商时自动回填该供应商的经营许可证号。
+ */
+function handleSupplierChange() {
+  const name = createForm.supplierName ?? ''
+  const option = supplierOptions.value.find((item) => item.name === name)
+  if (option) {
+    createForm.businessLicenseNo = option.businessLicenseNo ?? ''
+  }
+}
+
 async function loadPartnerOptions() {
   try {
     const options = await fetchPendingProductPartnerOptions()
@@ -776,7 +787,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               </label>
               <label>
                 <span>供应商</span>
-                <select v-model="createForm.supplierName">
+                <select v-model="createForm.supplierName" @change="handleSupplierChange">
                   <option value="">请选择供应商</option>
                   <option
                     v-for="item in withRetainedOption(supplierOptions, createForm.supplierName)"

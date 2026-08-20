@@ -7,6 +7,7 @@ type SupplierForm = {
   supplierCode: string
   supplierName: string
   creditCode: string
+  businessLicenseNo: string
   supplierType: string
   grade: string
   contactName: string
@@ -146,6 +147,15 @@ function showCreditCodeValidationMessage(event: Event) {
               @invalid="showCreditCodeValidationMessage"
             />
             <small class="supplier-form-hint">18位标准代码，仅支持大写字母和数字</small>
+          </label>
+          <label>
+            <span>经营许可证号</span>
+            <input
+              v-model.trim="form.businessLicenseNo"
+              name="businessLicenseNo"
+              autocomplete="off"
+              placeholder="如：沪食药监械经营许20260001号"
+            />
           </label>
           <label>
             <span>供应商类型 <b class="required-mark" aria-hidden="true">*</b></span>

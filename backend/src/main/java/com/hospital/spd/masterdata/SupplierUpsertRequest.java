@@ -4,6 +4,7 @@ public record SupplierUpsertRequest(
         String supplierCode,
         String supplierName,
         String creditCode,
+        String businessLicenseNo,
         String supplierType,
         String grade,
         String contactName,

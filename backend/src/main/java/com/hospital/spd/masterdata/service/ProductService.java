@@ -193,7 +193,8 @@ public class ProductService {
                  ORDER BY status DESC, manufacturer_name, manufacturer_id
                 """);
         List<Map<String, Object>> suppliers = jdbcTemplate.queryForList("""
-                SELECT supplier_code AS code, supplier_name AS name, status
+                SELECT supplier_code AS code, supplier_name AS name,
+                       business_license_no AS businessLicenseNo, status
                   FROM supplier
                  WHERE deleted = 0
                  ORDER BY status DESC, supplier_name, supplier_id

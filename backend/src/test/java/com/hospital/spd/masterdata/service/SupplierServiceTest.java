@@ -128,7 +128,7 @@ class SupplierServiceTest {
 
         private SupplierUpsertRequest validRequest() {
             return new SupplierUpsertRequest(
-                    "MANUAL-SUP", "供应商A", "91110105MA01ABCD2X",
+                    "MANUAL-SUP", "供应商A", "91110105MA01ABCD2X", "沪食药监械经营许20260001号",
                     "配送商", "A级", "张三", "13800138001",
                     "test@example.com", "北京市朝阳区"
             );
@@ -146,7 +146,7 @@ class SupplierServiceTest {
 
             assertThat(result.get("supplierCode")).isEqualTo("SUP2026072800001");
             verify(jdbcTemplate).update(anyString(),
-                    eq("SUP2026072800001"), eq("供应商A"), eq("91110105MA01ABCD2X"),
+                    eq("SUP2026072800001"), eq("供应商A"), eq("91110105MA01ABCD2X"), eq("沪食药监械经营许20260001号"),
                     eq("配送商"), eq("A级"), eq("张三"), eq("13800138001"),
                     eq("test@example.com"), eq("北京市朝阳区"));
             verify(documentNumberService).next(DocumentKind.SUPPLIER);
@@ -156,7 +156,7 @@ class SupplierServiceTest {
         @DisplayName("统一社会信用代码超过18位时在执行数据库操作前拒绝")
         void should_reject_overlong_credit_code_before_database_update() {
             SupplierUpsertRequest request = new SupplierUpsertRequest(
-                    "SUP001", "供应商A", "91110105MA01ABCD2X9",
+                    "SUP001", "供应商A", "91110105MA01ABCD2X9", null,
                     "配送商", null, "张三", "13800138001",
                     null, null
             );
@@ -171,7 +171,7 @@ class SupplierServiceTest {
         @DisplayName("缺少必填字段抛出异常")
         void should_throw_when_required_fields_missing() {
             SupplierUpsertRequest request = new SupplierUpsertRequest(
-                    "", "供应商A", "", "",
+                    "", "供应商A", "", "", "",
                     null, "张三", "",
                     null, null
             );
@@ -185,7 +185,7 @@ class SupplierServiceTest {
         @DisplayName("供应商名称为空抛出异常")
         void should_throw_when_supplier_name_missing() {
             SupplierUpsertRequest request = new SupplierUpsertRequest(
-                    "SUP001", "", "91110000MA001",
+                    "SUP001", "", "91110000MA001", null,
                     "配送商", null, "张三", "13800138001",
                     null, null
             );

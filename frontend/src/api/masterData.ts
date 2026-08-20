@@ -102,6 +102,7 @@ export interface PartnerOption {
   code: string
   name: string
   licenseNo?: string
+  businessLicenseNo?: string
   status: number
 }
 
@@ -138,6 +139,7 @@ export interface SupplierPayload {
   supplierCode: string
   supplierName: string
   creditCode: string
+  businessLicenseNo: string
   supplierType: string
   grade: string
   contactName: string

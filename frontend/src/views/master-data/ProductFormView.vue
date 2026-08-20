@@ -53,6 +53,16 @@ function handleManufacturerChange() {
   }
 }
 
+/**
+ * 选择供应商时自动回填该供应商的经营许可证号。
+ */
+function handleSupplierChange() {
+  const option = supplierOptions.value.find((item) => item.name === form.supplierName)
+  if (option) {
+    form.businessLicenseNo = option.businessLicenseNo ?? ''
+  }
+}
+
 const form = reactive<ProductCreatePayload>({
   productCode: '',
   productName: '',
@@ -253,7 +263,7 @@ onMounted(() => {
           </label>
           <label>
             <span>供应商</span>
-            <select v-model="form.supplierName">
+            <select v-model="form.supplierName" @change="handleSupplierChange">
               <option value="">请选择供应商</option>
               <option
                 v-for="item in withRetainedOption(supplierOptions, form.supplierName)"

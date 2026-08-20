@@ -1228,6 +1228,7 @@ const {
               <th>供应商编码</th>
               <th>供应商名称</th>
               <th>统一社会信用代码</th>
+              <th>经营许可证号</th>
               <th>类型</th>
               <th>等级</th>
               <th>联系人</th>
@@ -1252,6 +1253,7 @@ const {
                 <strong>{{ row.name }}</strong>
               </td>
               <td class="supplier-code-cell">{{ row.creditCode }}</td>
+              <td class="supplier-code-cell">{{ row.businessLicenseNo || '-' }}</td>
               <td><span class="supplier-type-chip">{{ row.type || '-' }}</span></td>
               <td>
                 <span class="supplier-grade-chip" :class="{ 'grade-empty': row.grade === '-' }">
@@ -1286,7 +1288,7 @@ const {
               </td>
             </tr>
             <tr v-if="!page.rows.length">
-              <td class="approval-empty" colspan="11">暂无符合条件的供应商</td>
+              <td class="approval-empty" colspan="12">暂无符合条件的供应商</td>
             </tr>
           </tbody>
         </table>

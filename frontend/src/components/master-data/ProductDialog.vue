@@ -25,6 +25,17 @@ function handleManufacturerChange() {
     props.form.productionLicenseNo = option.licenseNo ?? ''
   }
 }
+
+/**
+ * 选择供应商时自动回填该供应商的经营许可证号。
+ */
+function handleSupplierChange() {
+  const name = String(props.form.supplierName ?? '')
+  const option = props.supplierOptions.find((item) => item.name === name)
+  if (option) {
+    props.form.businessLicenseNo = option.businessLicenseNo ?? ''
+  }
+}
 </script>
 
 <template>
@@ -73,7 +84,7 @@ function handleManufacturerChange() {
               </label>
               <label>
                 <span>供应商</span>
-                <select v-model="form.supplierName">
+                <select v-model="form.supplierName" @change="handleSupplierChange">
                   <option value="">请选择供应商</option>
                   <option
                     v-for="item in supplierOptions"

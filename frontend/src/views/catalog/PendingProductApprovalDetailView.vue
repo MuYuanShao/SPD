@@ -290,17 +290,18 @@ function withRetainedOption(list: PartnerOption[], current: string) {
 }
 
 /**
- * 选择厂家时自动回填该厂家的生产许可证号（内联编辑与重新提交表单共用）。
+ * 选择厂家/供应商时自动回填对应许可证号（内联编辑与重新提交表单共用）。
+ * 厂家 -> 生产许可证号；供应商 -> 经营许可证号。
  */
-function handleManufacturerSelectChange(target: 'edit' | 'resubmit') {
-  const name = target === 'edit' ? String(editForm.manufacturerName ?? '') : resubmitForm.manufacturerName
-  const option = manufacturerOptions.value.find((item) => item.name === name)
-  if (!option) return
-  const license = option.licenseNo ?? ''
-  if (target === 'edit') {
-    editForm.productionLicenseNo = license
-  } else {
-    resubmitForm.productionLicenseNo = license
+function handlePartnerSelectChange(target: 'edit' | 'resubmit', fieldKey: string) {
+  const formRef = target === 'edit' ? editForm : resubmitForm
+  const name = String((formRef as Record<string, unknown>)[fieldKey] ?? '')
+  if (fieldKey === 'manufacturerName') {
+    const option = manufacturerOptions.value.find((item) => item.name === name)
+    if (option) (formRef as Record<string, unknown>).productionLicenseNo = option.licenseNo ?? ''
+  } else if (fieldKey === 'supplierName') {
+    const option = supplierOptions.value.find((item) => item.name === name)
+    if (option) (formRef as Record<string, unknown>).businessLicenseNo = option.businessLicenseNo ?? ''
   }
 }
 
@@ -597,7 +598,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
                   v-else-if="f.key === 'manufacturerName' || f.key === 'supplierName'"
                   v-model="(editForm as any)[f.key]"
                   class="edit-input"
-                  @change="f.key === 'manufacturerName' && handleManufacturerSelectChange('edit')"
+                  @change="handlePartnerSelectChange('edit', f.key)"
                 >
                   <option value="">请选择{{ f.label }}</option>
                   <option
@@ -791,7 +792,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <label><span>规格型号</span><input v-model.trim="resubmitForm.specModel" required /></label>
             <label>
               <span>生产厂家</span>
-              <select v-model="resubmitForm.manufacturerName" @change="handleManufacturerSelectChange('resubmit')">
+              <select v-model="resubmitForm.manufacturerName" @change="handlePartnerSelectChange('resubmit', 'manufacturerName')">
                 <option value="">请选择生产厂家</option>
                 <option
                   v-for="item in withRetainedOption(manufacturerOptions, resubmitForm.manufacturerName)"
@@ -805,7 +806,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </label>
             <label>
               <span>供应商</span>
-              <select v-model="resubmitForm.supplierName">
+              <select v-model="resubmitForm.supplierName" @change="handlePartnerSelectChange('resubmit', 'supplierName')">
                 <option value="">请选择供应商</option>
                 <option
                   v-for="item in withRetainedOption(supplierOptions, resubmitForm.supplierName)"

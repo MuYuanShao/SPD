@@ -52,6 +52,7 @@ public class SupplierService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT supplier_code AS code, supplier_name AS name, credit_code AS creditCode,
+                       COALESCE(business_license_no, '-') AS businessLicenseNo,
                        supplier_type AS type, COALESCE(grade, '-') AS grade,
                        contact_name AS contactName, contact_phone AS contactPhone,
                        COALESCE(email, '-') AS email, COALESCE(address, '-') AS address,
@@ -63,7 +64,7 @@ public class SupplierService {
         return new MasterDataPage(
                 "供应商管理",
                 "供应商准入、资质、联系人、等级与启停管理。",
-                List.of("供应商编码", "供应商名称", "统一社会信用代码", "类型", "等级", "联系人", "联系电话", "邮箱", "地址", "状态"),
+                List.of("供应商编码", "供应商名称", "统一社会信用代码", "经营许可证号", "类型", "等级", "联系人", "联系电话", "邮箱", "地址", "状态"),
                 rows,
                 total == null ? 0 : total,
                 pageReq.page(),
@@ -78,13 +79,14 @@ public class SupplierService {
         String supplierCode = documentNumberService.next(DocumentKind.SUPPLIER);
         jdbcTemplate.update("""
                 INSERT INTO supplier (
-                  supplier_code, supplier_name, credit_code, supplier_type, grade,
+                  supplier_code, supplier_name, credit_code, business_license_no, supplier_type, grade,
                   contact_name, contact_phone, email, address, approval_status, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 1)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'approved', 1)
                 """,
                 supplierCode,
                 request.supplierName().trim(),
                 request.creditCode().trim(),
+                nullIfBlank(request.businessLicenseNo()),
                 request.supplierType().trim(),
                 nullIfBlank(request.grade()),
                 request.contactName().trim(),
@@ -101,12 +103,13 @@ public class SupplierService {
         validateSupplier(request);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE supplier
-                SET supplier_name = ?, credit_code = ?, supplier_type = ?, grade = ?,
+                SET supplier_name = ?, credit_code = ?, business_license_no = ?, supplier_type = ?, grade = ?,
                     contact_name = ?, contact_phone = ?, email = ?, address = ?
                 WHERE supplier_code = ? AND deleted = 0
                 """,
                 request.supplierName().trim(),
                 request.creditCode().trim(),
+                nullIfBlank(request.businessLicenseNo()),
                 request.supplierType().trim(),
                 nullIfBlank(request.grade()),
                 request.contactName().trim(),

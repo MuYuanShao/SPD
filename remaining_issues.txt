@@ -1,0 +1,16 @@
+All garbled text issues resolved. See completed task #137-138.
+
+Summary of fixes applied to `MasterDataListView.vue`:
+
+Batch 1 (10 patterns, ~20 instances):
+- 商品编码, 商品名称, 导入模板下载, 上传模板导入, 数据列表
+- 正在加载, 换算系数, 注册证号, 注册证有效期, 库房名称
+
+Batch 2 (3 patterns, 8 instances):
+- 鍏ㄩ儴 → 全部 (×4)
+- ״̬ → 状态 (×2)
+- 缁熶竴绀句細淇＄敤浠ｇ爜 → 统一社会信用代码 (×2)
+
+All remaining_issues entries (lines 522, 565, 583, 768, 1039, 1298, 1641) confirmed fixed.
+
+No other files in the project had garbled text.

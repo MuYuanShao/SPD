@@ -1,0 +1,62 @@
+.hospital-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0 2px;
+  color: #526579;
+  font-size: 13px;
+}
+
+.hospital-pagination-summary,
+.hospital-pagination-controls,
+.hospital-pagination-size,
+.hospital-page-jump {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hospital-pagination input,
+.hospital-pagination select,
+.hospital-page-jump input {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #1d2a35;
+}
+
+.hospital-pagination select {
+  min-width: 76px;
+  padding: 0 28px 0 10px;
+}
+
+.hospital-pagination-size {
+  white-space: nowrap;
+}
+
+.hospital-pagination-size input {
+  width: 76px;
+  padding: 0 10px;
+}
+
+.hospital-page-jump input {
+  width: 72px;
+  padding: 0 10px;
+}
+
+.hospital-page-indicator {
+  min-width: 98px;
+  text-align: center;
+  color: #243447;
+  font-weight: 700;
+}
+
+.hospital-pagination .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none;
+}
+

@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>审批详情 - UI 整改效果图</title>
+<style>
+  :root {
+    --surface: #ffffff;
+    --line: #dce4e8;
+    --text-muted: #667987;
+    --primary: #0f766e;
+    --primary-strong: #115e59;
+    --accent: #b45309;
+    --danger: #b42318;
+    --focus: #2563eb;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: #f5f7f8;
+    color: #1b2733;
+    padding: 32px 40px;
+  }
+
+  /* ===== 页面容器 ===== */
+  .page {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    gap: 18px;
+  }
+
+  /* ===== 返回按钮 ===== */
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    width: fit-content;
+    min-height: 36px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 0 14px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    color: #334652;
+  }
+  .back-btn:hover { background: #f8fafb; }
+
+  /* ===== Header 卡片（合并审批流程） ===== */
+  .header-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 20px 24px 16px;
+    box-shadow: 0 2px 8px rgba(27,39,51,0.08);
+    display: grid;
+    gap: 10px;
+  }
+  .header-top-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+  }
+  .header-info {
+    display: grid;
+    gap: 6px;
+  }
+  .header-info .type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+    min-height: 26px;
+    border-radius: 6px;
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #eaf1ff;
+    color: #2563eb;
+  }
+  .header-info h1 {
+    font-size: 22px;
+    color: #06152b;
+    margin: 0;
+    line-height: 1.3;
+  }
+  .header-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .header-meta .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-height: 24px;
+    border-radius: 999px;
+    padding: 0 10px;
+    font-weight: 700;
+    font-size: 12px;
+    background: #fff4e6;
+    color: #c2410c;
+  }
+  .header-meta .sep { color: #d0d8dd; }
+
+  .header-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .header-divider {
+    height: 1px;
+    background: #edf2f4;
+    margin: 2px 0;
+  }
+
+  .header-timeline .timeline-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+  }
+  .header-timeline .timeline-node {
+    flex: 1;
+    position: relative;
+    padding: 0 4px;
+  }
+  .header-timeline .timeline-node .dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 11px;
+    margin-bottom: 4px;
+    border: 2px solid var(--line);
+    background: #ffffff;
+    color: var(--text-muted);
+  }
+  .header-timeline .timeline-node.done .dot {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #ffffff;
+  }
+  .header-timeline .timeline-node.active .dot {
+    background: #fff4e6;
+    border-color: #c2410c;
+    color: #c2410c;
+  }
+  .header-timeline .timeline-node .connector {
+    position: absolute;
+    top: 11px;
+    left: 28px;
+    right: 0;
+    height: 2px;
+    background: #e2e8f0;
+  }
+  .header-timeline .timeline-node:last-child .connector { display: none; }
+  .header-timeline .timeline-node.done .connector { background: #0f766e; }
+  .header-timeline .timeline-node .info {
+    display: grid;
+    gap: 1px;
+  }
+  .header-timeline .timeline-node .info .title {
+    font-weight: 700;
+    font-size: 13px;
+    color: #1b2733;
+  }
+  .header-timeline .timeline-node .info .sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .header-timeline .timeline-node.active .info .title { color: #c2410c; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #ffffff;
+    padding: 0 16px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    color: #334652;
+  }
+  .btn-primary {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: #ffffff;
+  }
+  .btn-danger { color: var(--danger); }
+  .btn-warning { color: var(--accent); }
+
+  /* ===== 三列信息卡片 ===== */
+  .info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .info-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 18px;
+    box-shadow: 0 1px 4px rgba(27,39,51,0.06);
+  }
+  .info-card-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #edf2f4;
+  }
+  .info-card-title h3 {
+    font-size: 15px;
+    color: #102033;
+    font-weight: 800;
+  }
+  .info-card-title .icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+  }
+  .info-card-title .icon.blue { background: #eaf1ff; color: #2563eb; }
+  .info-card-title .icon.green { background: #e7f8ef; color: #059669; }
+  .info-card-title .icon.purple { background: #f3e8ff; color: #7c3aed; }
+  .info-card-title .icon.orange { background: #fff4e6; color: #c2410c; }
+
+  .info-fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+  }
+  .info-fields .field {
+    display: grid;
+    gap: 2px;
+  }
+  .info-fields .field .label {
+    font-size: 12px;
+    color: #94a3b8;
+    font-weight: 600;
+  }
+  .info-fields .field .value {
+    font-size: 14px;
+    color: #1b2733;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .info-fields .field.full { grid-column: 1 / -1; }
+  .info-fields .field.highlight .value {
+    color: var(--primary-strong);
+    font-size: 16px;
+  }
+
+  /* ===== 属性标签云 ===== */
+  .tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-height: 30px;
+    border-radius: 999px;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .tag.yes { background: #e7f8ef; color: #059669; }
+  .tag.no { background: #fff1f2; color: #dc2626; }
+  .tag.neutral { background: #f1f4f7; color: #475569; }
+
+  /* ===== 资质证照卡片 (Hero) ===== */
+  .qualification-card {
+    border: 1.5px solid #d6ebe7;
+    border-radius: 10px;
+    background: #f5fbfa;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(15,118,110,0.06);
+  }
+  .qualification-card .info-card-title {
+    border-bottom-color: #cde3df;
+  }
+  .qualification-card .info-card-title h3 { color: #0f766e; }
+
+  .qual-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 24px;
+  }
+  .qual-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.75);
+    border: 1px solid #d6ebe7;
+  }
+  .qual-item .emoji { font-size: 20px; line-height: 1; }
+  .qual-item .content { display: grid; gap: 3px; }
+  .qual-item .content .label { font-size: 12px; color: #64748b; font-weight: 600; }
+  .qual-item .content .value { font-size: 14px; color: #0f3a35; font-weight: 700; }
+  .qual-item .content .extra { font-size: 12px; color: #059669; font-weight: 600; }
+
+  .qual-attachments {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 8px;
+    margin-top: 4px;
+    border-top: 1px dashed #cde3df;
+  }
+  .qual-attachments .attach-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 30px;
+    border-radius: 8px;
+    background: #ffffff;
+    border: 1px solid #d6ebe7;
+    padding: 0 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f766e;
+    cursor: pointer;
+  }
+  .qual-attachments .attach-badge:hover { background: #eef8f6; }
+
+  /* 审批流程已合并到顶部 Header 卡片中 */
+  /* ===== 变更对比 ===== */
+  .diff-card {
+    border: 1px solid #d6ebe7;
+    border-radius: 10px;
+    background: #f5fbfa;
+    padding: 18px;
+  }
+  .diff-card .info-card-title {
+    border-bottom-color: #cde3df;
+  }
+  .diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+  }
+  .diff-table th {
+    background: #eef6f5;
+    color: #516577;
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 700;
+    font-size: 13px;
+    border-bottom: 1px solid #dce8ea;
+  }
+  .diff-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #dce8ea;
+    font-size: 14px;
+  }
+  .diff-table td:first-child { font-weight: 700; color: #102033; width: 140px; }
+  .diff-table td:nth-child(2) { color: #7a8797; }
+  .diff-table td:nth-child(3) { color: #087f71; font-weight: 700; }
+  .diff-table tr:last-child td { border-bottom: none; }
+
+  /* ===== 审批意见 ===== */
+  .opinion-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(27,39,51,0.06);
+  }
+  .opinion-card textarea {
+    width: 100%;
+    min-height: 110px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px;
+    font: inherit;
+    font-size: 14px;
+    resize: vertical;
+    margin: 12px 0;
+    background: #fafbfc;
+  }
+  .opinion-card textarea:focus {
+    outline: none;
+    border-color: var(--focus);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.1);
+  }
+  .opinion-card .actions {
+    display: flex;
+    gap: 10px;
+  }
+
+  /* ===== Section title ===== */
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title h2 {
+    font-size: 17px;
+    color: #102033;
+    font-weight: 800;
+  }
+  .section-title .icon-wrap {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 15px;
+  }
+  .section-title .icon-wrap.teal { background: #dff3ef; color: #0f766e; }
+  .section-title .icon-wrap.blue { background: #eaf1ff; color: #2563eb; }
+
+  /* ===== Status message ===== */
+  .msg {
+    margin: 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 14px;
+  }
+  .msg.success { background: #eef8f6; color: var(--primary-strong); border: 1px solid #bfe2dc; }
+  .msg.error { background: #fff1f1; color: var(--danger); border: 1px solid #f5b8b8; }
+  .msg.warning { background: #fff7ed; color: var(--accent); border: 1px solid #fed7aa; }
+
+  /* ===== Attachment preview mock ===== */
+  .attachment-strip {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .attachment-thumb {
+    width: 140px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fafbfc;
+    padding: 12px;
+    display: grid;
+    gap: 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: box-shadow 0.15s;
+  }
+  .attachment-thumb:hover { box-shadow: 0 4px 12px rgba(27,39,51,0.1); }
+  .attachment-thumb .file-icon { font-size: 28px; }
+  .attachment-thumb .file-name { font-size: 12px; font-weight: 700; color: #1b2733; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .attachment-thumb .file-type { font-size: 11px; color: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ===== 返回按钮 ===== -->
+  <button class="back-btn">← 返回待审批目录</button>
+
+  <!-- ===== Header（合并审批流程） ===== -->
+  <div class="header-card">
+    <div class="header-top-row">
+      <div class="header-info">
+        <div class="type-badge">📋 新品准入</div>
+        <h1>一次性使用输液器</h1>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-danger">驳回</button>
+        <button class="btn btn-warning">退回修改</button>
+        <button class="btn btn-primary">✓ 初审通过</button>
+      </div>
+    </div>
+    <div class="header-meta">
+      <span class="status-pill">⏳ 待初审</span>
+      <span class="sep">|</span>
+      <span>SP-APP-2026-0001</span>
+      <span class="sep">·</span>
+      <span>申请人：张三</span>
+      <span class="sep">·</span>
+      <span>2026-06-10 14:30</span>
+    </div>
+    <div class="header-divider"></div>
+    <div class="header-timeline">
+      <div class="timeline-row">
+        <div class="timeline-node done">
+          <div class="dot">✓</div>
+          <div class="connector"></div>
+          <div class="info">
+            <div class="title">提交申请</div>
+            <div class="sub">张三 · 06/10 14:30</div>
+          </div>
+        </div>
+        <div class="timeline-node active">
+          <div class="dot">●</div>
+          <div class="connector"></div>
+          <div class="info">
+            <div class="title">初审</div>
+            <div class="sub">李明 · 06/11 09:15</div>
+          </div>
+        </div>
+        <div class="timeline-node">
+          <div class="dot">○</div>
+          <div class="connector"></div>
+          <div class="info">
+            <div class="title">复审</div>
+            <div class="sub">待审批</div>
+          </div>
+        </div>
+        <div class="timeline-node">
+          <div class="dot">○</div>
+          <div class="info">
+            <div class="title">完成</div>
+            <div class="sub">待操作</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 三列信息卡片 ===== -->
+  <div class="info-grid">
+
+    <!-- 商品基础信息 -->
+    <div class="info-card">
+      <div class="info-card-title">
+        <span class="icon blue">📦</span>
+        <h3>商品基础信息</h3>
+      </div>
+      <div class="info-fields">
+        <div class="field highlight"><span class="label">商品名称</span><span class="value">一次性使用输液器</span></div>
+        <div class="field"><span class="label">商品编码</span><span class="value">P-NEW-003</span></div>
+        <div class="field"><span class="label">规格型号</span><span class="value">0.55mm</span></div>
+        <div class="field"><span class="label">品牌</span><span class="value">康莱德</span></div>
+        <div class="field"><span class="label">单位</span><span class="value">支</span></div>
+        <div class="field"><span class="label">生产厂家</span><span class="value">康德莱器械</span></div>
+        <div class="field full"><span class="label">供应商</span><span class="value">九州通医药集团</span></div>
+      </div>
+    </div>
+
+    <!-- 价格与采购 -->
+    <div class="info-card">
+      <div class="info-card-title">
+        <span class="icon orange">💰</span>
+        <h3>价格与采购</h3>
+      </div>
+      <div class="info-fields">
+        <div class="field highlight"><span class="label">采购价</span><span class="value">¥ 1.60</span></div>
+        <div class="field"><span class="label">零售价</span><span class="value">¥ 3.20</span></div>
+        <div class="field"><span class="label">最小采购量</span><span class="value">1</span></div>
+        <div class="field"><span class="label">采购单位</span><span class="value">盒</span></div>
+        <div class="field"><span class="label">换算系数</span><span class="value">1</span></div>
+        <div class="field"><span class="label">合同编码</span><span class="value">—</span></div>
+        <div class="field"><span class="label">招采子编码</span><span class="value">—</span></div>
+      </div>
+    </div>
+
+    <!-- 业务属性 -->
+    <div class="info-card">
+      <div class="info-card-title">
+        <span class="icon green">⚙️</span>
+        <h3>业务属性</h3>
+      </div>
+      <div class="tag-cloud">
+        <span class="tag yes">✓ 带量</span>
+        <span class="tag no">✗ 集采</span>
+        <span class="tag yes">✓ 国产</span>
+        <span class="tag yes">✓ 收费</span>
+        <span class="tag no">✗ 高值耗材</span>
+        <span class="tag no">✗ 冷链</span>
+        <span class="tag yes">✓ 定数管理</span>
+        <span class="tag neutral">🌡 储存：常温</span>
+      </div>
+      <div style="margin-top:12px;display:grid;gap:4px;">
+        <div style="font-size:12px;color:#94a3b8;font-weight:600;">目录分类</div>
+        <div style="font-size:14px;font-weight:700;color:#1b2733;">一级分类 &gt; 二级分类 &gt; 三级分类</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== 资质证照信息 (Hero 卡片) ===== -->
+  <div class="qualification-card">
+    <div class="info-card-title">
+      <span class="icon green" style="background:#dff3ef;color:#0f766e;">🛡️</span>
+      <h3>资质证照信息</h3>
+    </div>
+    <div class="qual-grid">
+      <div class="qual-item">
+        <span class="emoji">📜</span>
+        <div class="content">
+          <span class="label">注册证号</span>
+          <span class="value">械注准20260003</span>
+          <span class="extra">✓ 有效期至 2029-12-31（有效）</span>
+        </div>
+      </div>
+      <div class="qual-item">
+        <span class="emoji">🏭</span>
+        <div class="content">
+          <span class="label">生产许可证号</span>
+          <span class="value">XK-2025-00123</span>
+          <span class="extra">—</span>
+        </div>
+      </div>
+      <div class="qual-item">
+        <span class="emoji">📋</span>
+        <div class="content">
+          <span class="label">经营许可证号</span>
+          <span class="value">JJ-2025-00456</span>
+          <span class="extra">—</span>
+        </div>
+      </div>
+      <div class="qual-item">
+        <span class="emoji">🔖</span>
+        <div class="content">
+          <span class="label">UDI 编码</span>
+          <span class="value">(01)06901234567890(17)291231</span>
+          <span class="extra">—</span>
+        </div>
+      </div>
+      <div class="qual-attachments">
+        <span style="font-size:13px;font-weight:700;color:#0f766e;">📎 资质附件（3 个文件）</span>
+        <span class="attach-badge">📄 注册证附件.pdf</span>
+        <span class="attach-badge">📄 资质附件-2.pdf</span>
+        <span class="attach-badge">📄 资质附件-3.pdf</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 审批流程已合并到顶部 Header 卡片中 -->
+
+  <!-- ===== 信息变更对比（仅信息变更类型展示，当前为新品准入不展示） ===== -->
+
+  <!-- ===== 审批意见 ===== -->
+  <div class="opinion-card">
+    <div class="section-title">
+      <span class="icon-wrap blue">✏️</span>
+      <h2>审批意见</h2>
+    </div>
+    <textarea placeholder="退回修改/驳回必须填写原因。审批通过可填写意见（选填）"></textarea>
+    <div class="actions">
+      <button class="btn btn-danger">驳回</button>
+      <button class="btn btn-warning">退回修改</button>
+      <button class="btn btn-primary">✓ 初审通过</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

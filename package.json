@@ -1,0 +1,49 @@
+{
+  "name": "hospital-spd-platform",
+  "version": "20260701",
+  "private": true,
+  "engines": {
+    "node": ">=22 <25"
+  },
+  "scripts": {
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:backend": "mvn -f backend/pom.xml spring-boot:run",
+    "backend:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 start",
+    "backend:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 restart",
+    "backend:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 stop",
+    "backend:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 status",
+    "verify:text-encoding": "node scripts/verify-text-encoding.mjs",
+    "verify:vue-sfc-structure": "node scripts/verify-vue-sfc-structure.mjs",
+    "verify:rbac-permissions": "node scripts/verify-rbac-permissions.mjs",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "mvn -f backend/pom.xml test",
+    "test:smoke:business-ui": "playwright test tests/e2e/business-pages.smoke.spec.ts",
+    "verify:release": "node scripts/verify-release.mjs",
+    "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
+    "verify:deployment-host-prereqs": "node scripts/verify-deployment-host-prereqs.mjs",
+    "signoff:server": "node scripts/run-server-signoff.mjs",
+    "signoff:bundle": "node scripts/create-signoff-bundle.mjs",
+    "signoff:status": "node scripts/print-signoff-status.mjs",
+    "audit:signoff": "node scripts/audit-signoff.mjs",
+    "verify:signoff-audit-fixtures": "node scripts/verify-signoff-audit-fixtures.mjs",
+    "verify:signoff-runner-fixtures": "node scripts/verify-signoff-runner-fixtures.mjs",
+    "verify:signoff-bundle-fixtures": "node scripts/verify-signoff-bundle-fixtures.mjs",
+    "verify:signoff-status-fixtures": "node scripts/verify-signoff-status-fixtures.mjs",
+    "verify:release-fixtures": "node scripts/verify-release-fixtures.mjs",
+    "verify:deployment-host-prereqs-fixtures": "node scripts/verify-deployment-host-prereqs-fixtures.mjs",
+    "verify:signoff-local": "node scripts/verify-signoff-local.mjs",
+    "perf:smoke": "node perf/spd-concurrency-smoke.mjs",
+    "perf:smoke:read": "node -e \"process.env.VUS=process.env.VUS||'20'; process.env.DURATION_SECONDS=process.env.DURATION_SECONDS||'30'; import('./perf/spd-concurrency-smoke.mjs')\"",
+    "perf:smoke:write": "node -e \"process.env.MUTATING_FLOWS='1'; process.env.VUS=process.env.VUS||'10'; process.env.DURATION_SECONDS=process.env.DURATION_SECONDS||'15'; import('./perf/spd-concurrency-smoke.mjs')\""
+  },
+  "workspaces": [
+    "frontend"
+  ],
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  },
+  "allowScripts": {
+    "esbuild@0.25.12": true,
+    "vue-demi@0.14.10": true
+  }
+}

@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+target/
+
+# Volar/Vue language service type-checking artifacts
+*.vue.js
+# Compiled JS (TypeScript source files)
+src/**/*.js
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Environment
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db

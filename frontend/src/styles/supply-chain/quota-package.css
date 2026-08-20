@@ -1,0 +1,507 @@
+.quota-page {
+  position: relative;
+  gap: 16px;
+}
+
+.quota-page::before {
+  content: "";
+  position: fixed;
+  right: 32px;
+  top: 96px;
+  z-index: -1;
+  width: 360px;
+  height: 360px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(15, 118, 110, 0.14) 0 30%, transparent 31%),
+    radial-gradient(circle at 72% 28%, rgba(245, 158, 11, 0.18), transparent 22%);
+  filter: blur(4px);
+  opacity: 0.75;
+}
+
+.quota-page .breadcrumb-line {
+  margin-bottom: -4px;
+  color: #6b7f8e;
+  font-weight: 700;
+}
+
+.quota-page .detail-heading {
+  position: relative;
+  align-items: center;
+  min-height: 168px;
+  overflow: hidden;
+  border: 1px solid rgba(179, 216, 211, 0.9);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96) 0%, rgba(232, 248, 244, 0.92) 52%, rgba(255, 247, 237, 0.88) 100%),
+    #ffffff;
+  box-shadow: var(--shadow-soft);
+  padding: 26px 190px 26px 28px;
+}
+
+.quota-page .detail-heading::before {
+  content: "";
+  position: absolute;
+  right: 140px;
+  top: -92px;
+  width: 260px;
+  height: 260px;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 49%, rgba(15, 118, 110, 0.10) 50%, transparent 51%),
+    linear-gradient(0deg, transparent 49%, rgba(37, 99, 235, 0.08) 50%, transparent 51%);
+}
+
+.quota-page .detail-heading::after {
+  content: "SPD";
+  position: absolute;
+  right: 30px;
+  bottom: 22px;
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border: 1px solid rgba(15, 118, 110, 0.22);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95), transparent 30%),
+    linear-gradient(145deg, #0f766e, #15a58f);
+  color: #ffffff;
+  font-size: 21px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  box-shadow: 0 18px 36px rgba(15, 118, 110, 0.22);
+}
+
+.quota-page .detail-heading > div {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+}
+
+.quota-page .detail-heading h2 {
+  color: #102033;
+  font-size: 31px;
+  line-height: 1.16;
+}
+
+.quota-page .detail-heading small {
+  display: block;
+  max-width: 720px;
+  margin-top: 10px;
+  color: #5f7280;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.quota-page .detail-heading .btn {
+  position: relative;
+  z-index: 1;
+  margin-right: 30px;
+  min-height: 44px;
+  border-color: rgba(15, 118, 110, 0.24);
+  background: #ffffff;
+  color: var(--primary-strong);
+  box-shadow: 0 10px 22px rgba(15, 118, 110, 0.10);
+}
+
+.quota-page .quota-stat-grid {
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.quota-page .quota-stat-grid article {
+  position: relative;
+  overflow: hidden;
+  min-height: 108px;
+  border-color: rgba(198, 219, 224, 0.9);
+  background:
+    linear-gradient(135deg, #ffffff 0%, #fbfefd 58%, #fff8ee 100%);
+  box-shadow: 0 12px 28px rgba(20, 71, 82, 0.06);
+  padding: 18px 20px;
+}
+
+.quota-page .quota-stat-grid article::before {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(15, 118, 110, 0.14), rgba(37, 99, 235, 0.10));
+}
+
+.quota-page .quota-stat-grid article::after {
+  content: "";
+  position: absolute;
+  right: 29px;
+  top: 26px;
+  width: 12px;
+  height: 18px;
+  border-radius: 2px;
+  background:
+    linear-gradient(90deg, transparent 4px, #0f766e 4px 8px, transparent 8px),
+    linear-gradient(0deg, transparent 7px, #0f766e 7px 11px, transparent 11px);
+  opacity: 0.84;
+}
+
+.quota-page .quota-stat-grid span {
+  color: #60798b;
+  font-size: 14px;
+}
+
+.quota-page .quota-stat-grid strong {
+  margin-top: 12px;
+  color: #0a2c33;
+  font-size: 34px;
+}
+
+.quota-page .hospital-catalog-panel {
+  gap: 18px;
+  border-color: rgba(198, 219, 224, 0.9);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 12px 34px rgba(20, 71, 82, 0.055);
+  padding: 22px;
+}
+
+.quota-page .section-title {
+  justify-content: space-between;
+  margin-bottom: 2px;
+}
+
+.quota-page .section-title > svg {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--medical-mint);
+  color: var(--primary);
+  padding: 8px;
+  box-shadow: inset 0 0 0 1px rgba(15, 118, 110, 0.10);
+}
+
+.quota-page .section-title h3 {
+  flex: 1;
+  margin: 0;
+  color: #102033;
+  font-size: 20px;
+  letter-spacing: 0;
+}
+
+.quota-page .hospital-query-grid {
+  align-items: end;
+  border-top: 1px solid #eaf1f2;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(247, 252, 251, 0.96), rgba(255, 249, 241, 0.76));
+  padding: 16px;
+}
+
+.quota-page .hospital-query-grid.quota-query-grid {
+  grid-template-columns: repeat(5, minmax(150px, 1fr)) minmax(118px, auto);
+}
+
+.quota-page .hospital-query-grid span {
+  color: #567084;
+  font-size: 13px;
+}
+
+.quota-page .hospital-query-grid input,
+.quota-page .hospital-query-grid select {
+  min-height: 42px;
+  border-color: #d7e5e8;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+}
+
+.quota-page .hospital-query-grid input:focus,
+.quota-page .hospital-query-grid select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.quota-page .hospital-query-grid .btn-primary {
+  min-height: 56px;
+  min-width: 112px;
+  border-color: #0f766e;
+  background: linear-gradient(135deg, #0f766e, #119c8a);
+  box-shadow: 0 14px 24px rgba(15, 118, 110, 0.18);
+}
+
+.quota-page .hospital-action-row {
+  align-items: center;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f8fcfb, #fffaf3);
+  padding: 12px;
+}
+
+.quota-page .hospital-action-row .btn {
+  min-height: 40px;
+  border-color: #d9e6e9;
+  box-shadow: 0 4px 12px rgba(20, 71, 82, 0.045);
+}
+
+.quota-page .hospital-action-row .btn-primary {
+  border-color: var(--primary);
+  background: linear-gradient(135deg, #0f766e, #119c8a);
+}
+
+.quota-page .table-scroll {
+  overflow: auto;
+  border: 1px solid #e4edf0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.quota-page .master-table {
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.quota-page .master-table thead {
+  background: linear-gradient(180deg, #f2f8f8, #eef5f6);
+}
+
+.quota-page .master-table th {
+  color: #587184;
+  font-size: 14px;
+}
+
+.quota-page .master-table th,
+.quota-page .master-table td {
+  border-bottom-color: #edf3f5;
+  padding: 14px 16px;
+}
+
+.quota-page .master-table tbody tr:hover td {
+  background: #f8fcfb;
+}
+
+.quota-page .status-badge.enabled {
+  background: #dcf7ee;
+  color: #087f5b;
+  box-shadow: inset 0 0 0 1px rgba(8, 127, 91, 0.08);
+}
+
+.quota-page .status-badge.pending {
+  background: #fff3dd;
+  color: #b45309;
+}
+
+.quota-page .btn-text {
+  color: #0f766e;
+}
+
+.quota-page .btn-text-danger {
+  color: #c0352b;
+}
+
+/* Compact data-workbench mode: keep the quota page focused on filters + detail rows. */
+.quota-page > .breadcrumb-line,
+.quota-page > .detail-heading,
+.quota-page > .quota-stat-grid,
+.quota-page > .hospital-catalog-panel > .section-title {
+  display: none;
+}
+
+.quota-page {
+  gap: 10px;
+}
+
+.quota-page::before {
+  display: none;
+}
+
+.quota-page + * {
+  margin-top: 0;
+}
+
+.quota-page .hospital-catalog-panel {
+  gap: 10px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+  padding: 8px 10px;
+}
+
+.quota-page > .hospital-catalog-panel:first-of-type {
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  padding-bottom: 8px;
+}
+
+.quota-page > .hospital-catalog-panel:first-of-type + template + .hospital-catalog-panel,
+.quota-page > .hospital-catalog-panel:first-of-type + .hospital-catalog-panel {
+  border-radius: 0 0 8px 8px;
+}
+
+.quota-page .hospital-query-grid {
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: #f8fbfb;
+  padding: 8px;
+}
+
+.quota-page .hospital-query-grid.quota-query-grid {
+  grid-template-columns: repeat(5, minmax(130px, 1fr)) auto;
+}
+
+.quota-page .hospital-query-grid.quota-form-grid {
+  grid-template-columns: minmax(220px, 1.25fr) minmax(180px, 0.9fr) minmax(110px, 0.55fr) minmax(180px, 1fr) auto auto;
+  align-items: end;
+}
+
+.quota-page .packing-task-form-grid {
+  border: 1px solid #e5edf1;
+  background: #fbfdfd;
+}
+
+.quota-page .hospital-query-grid label {
+  gap: 4px;
+}
+
+.quota-page .hospital-query-grid span {
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.quota-page .hospital-query-grid input,
+.quota-page .hospital-query-grid select {
+  min-height: 34px;
+  border-radius: 6px;
+  padding: 0 9px;
+  font-size: 13px;
+}
+
+.quota-page .hospital-query-grid .btn-primary {
+  min-height: 34px;
+  min-width: 82px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+
+.quota-page .hospital-query-grid .btn {
+  min-height: 34px;
+  white-space: nowrap;
+}
+
+.quota-page .table-scroll {
+  border-color: #e6eef1;
+  border-radius: 6px;
+}
+
+.quota-page .packing-task-table {
+  min-width: 1320px;
+}
+
+.quota-page .packing-task-table th:nth-child(1),
+.quota-page .packing-task-table td:nth-child(1) {
+  width: 134px;
+}
+
+.quota-page .packing-task-table th:nth-child(2),
+.quota-page .packing-task-table td:nth-child(2) {
+  width: 104px;
+}
+
+.quota-page .packing-task-table th:nth-child(3),
+.quota-page .packing-task-table td:nth-child(3),
+.quota-page .packing-task-table th:nth-child(5),
+.quota-page .packing-task-table td:nth-child(5) {
+  width: 180px;
+}
+
+.quota-page .packing-task-table th:nth-child(4),
+.quota-page .packing-task-table td:nth-child(4) {
+  width: 140px;
+}
+
+.quota-page .packing-task-table th:nth-child(6),
+.quota-page .packing-task-table td:nth-child(6),
+.quota-page .packing-task-table th:nth-child(7),
+.quota-page .packing-task-table td:nth-child(7),
+.quota-page .packing-task-table th:nth-child(8),
+.quota-page .packing-task-table td:nth-child(8),
+.quota-page .packing-task-table th:nth-child(9),
+.quota-page .packing-task-table td:nth-child(9) {
+  width: 92px;
+}
+
+.quota-page .packing-task-table th:nth-child(10),
+.quota-page .packing-task-table td:nth-child(10) {
+  width: 280px;
+}
+
+.quota-page .packing-task-table th:nth-child(11),
+.quota-page .packing-task-table td:nth-child(11) {
+  width: 126px;
+}
+
+.quota-page .packing-task-table th:nth-child(12),
+.quota-page .packing-task-table td:nth-child(12) {
+  width: 150px;
+}
+
+.quota-page .master-table th,
+.quota-page .master-table td {
+  height: 48px;
+  border-bottom-color: #edf2f5;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.quota-page .master-table th {
+  font-size: 12px;
+}
+
+.quota-page .status-badge {
+  min-height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.quota-page .row-actions {
+  gap: 6px;
+  flex-wrap: wrap;
+  align-content: center;
+  line-height: 1.2;
+}
+
+.quota-page .btn-text {
+  font-size: 13px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.main-area:has(.quota-page) {
+  padding-top: 10px;
+}
+
+.main-area:has(.quota-page) .topbar {
+  min-height: auto;
+  margin-bottom: 8px;
+  padding: 7px 12px;
+}
+
+.main-area:has(.quota-page) .topbar h1 {
+  font-size: 20px;
+}
+
+.main-area:has(.quota-page) .topbar p {
+  font-size: 13px;
+}
+
+.main-area:has(.quota-page) .ai-assistant-entry,
+.main-area:has(.quota-page) .account-menu summary {
+  min-height: 34px;
+}
+
+@media (max-width: 1280px) {
+  .quota-page .hospital-query-grid.quota-form-grid {
+    grid-template-columns: repeat(3, minmax(160px, 1fr));
+  }
+}

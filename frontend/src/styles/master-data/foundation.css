@@ -1,0 +1,285 @@
+.foundation-page {
+  display: grid;
+  gap: 18px;
+}
+
+.foundation-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.foundation-stat-grid article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px;
+}
+
+.foundation-stat-grid span,
+.detail-heading small {
+  color: var(--text-muted);
+}
+
+.foundation-stat-grid strong {
+  display: block;
+  margin-top: 8px;
+  color: #102033;
+  font-size: 28px;
+}
+
+.inline-message {
+  margin: 0;
+  border: 1px solid #bfe2dc;
+  border-radius: 8px;
+  background: #eef8f6;
+  color: var(--primary-strong);
+  padding: 10px 12px;
+  font-weight: 700;
+}
+
+.inline-message.error {
+  border-color: #f5b8b8;
+  background: #fff1f1;
+  color: #b42318;
+}
+
+.hospital-query-grid.foundation-query-grid {
+  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+}
+
+.foundation-table {
+  min-width: 1080px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-weight: 700;
+}
+
+.status-badge.enabled {
+  background: #e7f6ef;
+  color: #087f5b;
+}
+
+.status-badge.disabled {
+  background: #fff1f1;
+  color: #c92a2a;
+}
+
+.foundation-modal {
+  width: min(760px, calc(100vw - 48px));
+}
+
+.supplier-form-grid .full-line,
+.checkbox-cloud {
+  grid-column: 1 / -1;
+}
+
+.checkbox-cloud {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.checkbox-cloud > span {
+  width: 100%;
+  color: #52677a;
+  font-weight: 700;
+}
+
+.checkbox-cloud label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f8fafb;
+  padding: 0 12px;
+}
+
+.modal-cloud {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.warehouse-location-dialog {
+  width: min(1240px, calc(100vw - 48px));
+  max-height: min(88vh, 860px);
+  overflow: hidden;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 18px 54px rgba(6, 21, 43, 0.24);
+}
+
+.warehouse-location-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 20px;
+}
+
+.warehouse-location-header p,
+.warehouse-location-header h3,
+.warehouse-location-header span {
+  margin: 0;
+}
+
+.warehouse-location-header p,
+.warehouse-location-header span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.warehouse-location-header h3 {
+  color: #06152b;
+  font-size: 22px;
+}
+
+.warehouse-location-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  max-height: calc(88vh - 76px);
+  overflow: auto;
+  padding: 16px 20px 20px;
+}
+
+.warehouse-location-form {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8fbfb;
+}
+
+.warehouse-location-form label {
+  display: grid;
+  gap: 6px;
+  color: #405367;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.warehouse-location-form input,
+.warehouse-location-form select {
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: #102033;
+  font: inherit;
+}
+
+.warehouse-location-actions,
+.warehouse-location-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.warehouse-location-actions .btn {
+  flex: 1;
+}
+
+.warehouse-location-table-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.warehouse-location-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.warehouse-location-table {
+  min-width: 860px;
+}
+
+.department-warehouse-dialog {
+  width: min(1040px, calc(100vw - 48px));
+}
+
+.department-warehouse-body {
+  display: grid;
+  gap: 12px;
+  max-height: calc(88vh - 76px);
+  overflow: auto;
+  padding: 16px 20px 20px;
+}
+
+.department-warehouse-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.department-warehouse-filter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.department-warehouse-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(280px, 36vw);
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: #718096;
+}
+
+.department-warehouse-search:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(13, 139, 139, 0.12);
+}
+
+.department-warehouse-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #102033;
+  font: inherit;
+}
+
+.department-warehouse-table {
+  min-width: 900px;
+}
+
+@media (max-width: 980px) {
+  .warehouse-location-body {
+    grid-template-columns: 1fr;
+  }
+
+  .warehouse-location-tools,
+  .department-warehouse-filter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .department-warehouse-search {
+    width: 100%;
+  }
+}

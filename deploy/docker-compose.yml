@@ -1,0 +1,53 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${SPD_DB_NAME:-ISPD}
+      MYSQL_USER: ${SPD_DB_USERNAME:-admin}
+      MYSQL_PASSWORD: ${SPD_DB_PASSWORD:-admin123}
+      MYSQL_ROOT_PASSWORD: ${SPD_DB_ROOT_PASSWORD:-root123}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - spd-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    environment:
+      SPD_DB_URL: jdbc:mysql://mysql:3306/${SPD_DB_NAME:-ISPD}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      SPD_DB_USERNAME: ${SPD_DB_USERNAME:-admin}
+      SPD_DB_PASSWORD: ${SPD_DB_PASSWORD:-admin123}
+      SPD_JWT_SECRET: ${SPD_JWT_SECRET:-change-me-to-a-strong-64-byte-secret-before-production}
+      SPD_JWT_EXPIRATION: ${SPD_JWT_EXPIRATION:-86400000}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:1818/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+    ports:
+      - "${SPD_HTTP_PORT:-1820}:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  spd-mysql-data:

@@ -1,0 +1,36 @@
+node_modules/
+
+# Build outputs
+dist/
+build/
+target/
+out/
+*.tsbuildinfo
+
+# Logs and runtime output
+*.log
+*.err.log
+logs/
+perf/results/
+
+# Local caches
+.cache/
+.vite/
+.turbo/
+.playwright-cli/
+/output/playwright/
+
+# Local IDE/agent settings
+.agents/
+.claude/
+.claude/settings.local.json
+.vscode/
+.idea/
+
+# Generated screenshots and temporary images
+output-*.png
+sidebar-measure-*.png
+
+# OS files
+.DS_Store
+Thumbs.db

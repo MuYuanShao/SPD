@@ -1,0 +1,116 @@
+﻿/* =========================================
+   Sub-navigation system (unified)
+   Consistent nav rails across all views
+   ========================================= */
+:root {
+  --subnav-btn-min-h: 32px;
+  --subnav-btn-padding-x: 12px;
+  --subnav-btn-gap: 8px;
+  --subnav-btn-radius: 8px;
+  --subnav-btn-font-size: 13px;
+  --subnav-btn-font-weight: 700;
+  --subnav-btn-border: 1px solid var(--line);
+  --subnav-btn-bg: #ffffff;
+  --subnav-btn-color: #334652;
+  --subnav-btn-active-bg: #dff3ef;
+  --subnav-btn-active-color: var(--primary-strong);
+  --subnav-btn-active-border: var(--primary);
+  --subnav-btn-icon-size: 16px;
+}
+
+/* Horizontal tab bar 鈥?first-level grouping */
+.subnav-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.subnav-tabs button,
+.subnav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--subnav-btn-gap);
+  min-height: var(--subnav-btn-min-h);
+  padding: 0 var(--subnav-btn-padding-x);
+  border: var(--subnav-btn-border);
+  border-radius: var(--subnav-btn-radius);
+  background: var(--subnav-btn-bg);
+  color: var(--subnav-btn-color);
+  font: inherit;
+  font-size: var(--subnav-btn-font-size);
+  font-weight: var(--subnav-btn-font-weight);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.subnav-tabs button:hover,
+.subnav-chip:hover {
+  border-color: var(--primary);
+  background: #f4fbf9;
+}
+.subnav-tabs button.active,
+.subnav-chip.active {
+  background: var(--subnav-btn-active-bg);
+  color: var(--subnav-btn-active-color);
+  border-color: var(--subnav-btn-active-border);
+}
+
+/* Pill chips 鈥?second-level / fine-grained */
+.subnav-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  cursor: grab;
+  scroll-behavior: smooth;
+  touch-action: pan-x;
+  user-select: none;
+}
+.subnav-chips .subnav-chip {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  min-height: 26px;
+  font-size: 12px;
+}
+
+/* Vertical navigation panel 鈥?matches sidebar style */
+.subnav-panel {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+.subnav-panel button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334652;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.subnav-panel button:hover {
+  background: #f4fbf9;
+}
+.subnav-panel button.active {
+  background: #dff3ef;
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+/* Consistent icon sizing inside subnav items */
+.subnav-tabs button svg,
+.subnav-chip svg,
+.subnav-panel button svg {
+  width: var(--subnav-btn-icon-size);
+  height: var(--subnav-btn-icon-size);
+  flex-shrink: 0;
+}
+

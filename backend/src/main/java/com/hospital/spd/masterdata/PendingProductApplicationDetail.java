@@ -1,0 +1,53 @@
+package com.hospital.spd.masterdata;
+
+import java.math.BigDecimal;
+import java.util.List;
+
+public record PendingProductApplicationDetail(
+        String applicationNo,
+        String applicationType,
+        String approvalStatus,
+        String statusLabel,
+        String productName,
+        String productCode,
+        String specModel,
+        String brand,
+        String manufacturerName,
+        String supplierName,
+        String unit,
+        BigDecimal purchasePrice,
+        BigDecimal retailPrice,
+        BigDecimal minPurchaseQty,
+        String purchaseUnit,
+        BigDecimal conversionRate,
+        String udiCode,
+        String registrationNo,
+        String registrationExpireDate,
+        String productionLicenseNo,
+        String businessLicenseNo,
+        boolean volumeBased,
+        boolean centralizedProcurement,
+        boolean domestic,
+        String contractCode,
+        String firstCategory,
+        String secondCategory,
+        String thirdCategory,
+        boolean chargeable,
+        String tenderSubCode,
+        int qualificationAttachmentCount,
+        boolean highValue,
+        boolean coldChain,
+        boolean quotaManaged,
+        String storageCondition,
+        String applicant,
+        String submitTime,
+        String approveOpinion,
+        String initialReviewOpinion,
+        String finalReviewOpinion,
+        String returnReason,
+        String rejectReason,
+        List<PendingProductChangeItem> changeItems,
+        List<ApprovalTimelineNode> timeline,
+        boolean canApprove
+) {
+}

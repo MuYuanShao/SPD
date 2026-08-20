@@ -1,0 +1,209 @@
+/* ============================================================
+   Element Plus overrides for hospital catalog table
+   ============================================================ */
+.el-table {
+  --el-table-border-color: var(--line, #e2e8f0);
+  --el-table-header-bg-color: #f6f8fa;
+  --el-table-tr-bg-color: #ffffff;
+  --el-table-header-text-color: #607285;
+  font-size: 14px;
+}
+.el-table th.el-table__cell {
+  background-color: #f6f8fa;
+  font-weight: 800;
+  color: #607285;
+}
+.el-table .el-table__cell {
+  padding: 10px 12px;
+}
+.el-table--small td.el-table__cell {
+  padding: 8px 12px;
+}
+
+/* Column settings popover */
+.column-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.column-setting-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.column-setting-item:hover {
+  background: #f0f4f8;
+}
+
+.column-nav-panel {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fbfd;
+  padding: 10px 12px;
+}
+
+.column-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.column-nav-head strong {
+  color: #102033;
+  font-size: 15px;
+}
+
+.column-nav-head span {
+  color: #607588;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Drag-scroll support for subnav-chips (column nav) */
+.subnav-chips.dragging {
+  cursor: grabbing;
+  scroll-behavior: auto;
+}
+.subnav-chips::-webkit-scrollbar {
+  height: 12px;
+}
+.subnav-chips::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #e8eef3;
+}
+.subnav-chips::-webkit-scrollbar-thumb {
+  border: 3px solid #e8eef3;
+  border-radius: 999px;
+  background: #7f94a7;
+}
+
+.hospital-product-table-wrap {
+  width: 100%;
+  min-height: 360px;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  scrollbar-width: none;
+}
+
+.hospital-product-table-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.hospital-product-table {
+  width: max-content;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.hospital-product-table th,
+.hospital-product-table td {
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 12px 14px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hospital-product-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f6f8fa;
+  color: #607285;
+  font-weight: 800;
+}
+
+.hospital-product-table td {
+  color: #1d2a35;
+}
+
+.hospital-product-table tbody tr:hover td {
+  background: #f8fbfd;
+}
+
+.hospital-selection-cell {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  width: 42px;
+  min-width: 42px;
+  max-width: 42px;
+  text-align: center;
+  background: #ffffff;
+  box-shadow: 8px 0 12px rgba(15, 23, 42, 0.05);
+}
+
+th.hospital-selection-cell {
+  z-index: 4;
+  background: #f6f8fa;
+}
+
+.hospital-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  gap: 4px;
+  width: 210px;
+  min-width: 210px;
+  max-width: 210px;
+  background: #ffffff;
+  box-shadow: -8px 0 12px rgba(15, 23, 42, 0.05);
+}
+
+th.hospital-action-cell {
+  display: table-cell;
+  z-index: 4;
+  background: #f6f8fa;
+}
+
+.hospital-table-scroll-rail {
+  width: 100%;
+  padding: 8px 14px 0 14px;
+}
+
+.hospital-table-scroll-track {
+  position: relative;
+  height: 12px;
+  border-radius: 999px;
+  background: #e8eef3;
+  cursor: pointer;
+}
+
+.hospital-table-scroll-thumb {
+  position: absolute;
+  inset-block: 2px;
+  left: 0;
+  border-radius: 999px;
+  background: #7f94a7;
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+
+.hospital-table-scroll-thumb:hover,
+.hospital-table-scroll-track.dragging .hospital-table-scroll-thumb {
+  background: #61798e;
+}
+
+.hospital-table-scroll-track.dragging .hospital-table-scroll-thumb {
+  cursor: grabbing;
+}
+

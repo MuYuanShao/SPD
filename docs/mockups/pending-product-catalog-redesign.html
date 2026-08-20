@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>待审批目录整改效果图</title>
+  <style>
+    :root {
+      --bg: #f4f7f9;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: #dce5ec;
+      --line-soft: #eaf0f4;
+      --text: #102033;
+      --muted: #607285;
+      --teal: #0f766e;
+      --teal-soft: #dff5f1;
+      --blue: #2563eb;
+      --blue-soft: #e8f0ff;
+      --orange: #d97706;
+      --orange-soft: #fff2dc;
+      --red: #dc2626;
+      --red-soft: #ffecec;
+      --green: #059669;
+      --green-soft: #e5f7ef;
+      --shadow: 0 12px 30px rgba(16, 32, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      border-right: 1px solid var(--line);
+      background: #fbfdfe;
+      padding: 24px 14px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 0 24px 0;
+    }
+
+    .brand-mark {
+      display: inline-flex;
+      width: 44px;
+      height: 44px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      background: var(--teal);
+      color: #fff;
+      font-weight: 900;
+    }
+
+    .brand strong,
+    .page-title h1,
+    .queue-title h2,
+    .list-title h2 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.25;
+    }
+
+    .brand small,
+    .page-title p,
+    .queue-title p,
+    .list-title p {
+      color: var(--muted);
+      display: block;
+      margin-top: 4px;
+    }
+
+    .nav-section {
+      border-top: 1px solid var(--line-soft);
+      padding: 16px 0;
+    }
+
+    .nav-heading {
+      color: #334652;
+      font-weight: 900;
+      margin: 0 0 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      border: 0;
+      border-radius: 7px;
+      background: transparent;
+      color: #25394d;
+      padding: 10px 12px;
+      text-align: left;
+      cursor: default;
+    }
+
+    .nav-item.active {
+      background: var(--teal-soft);
+      color: #075b53;
+      font-weight: 900;
+    }
+
+    .main {
+      padding: 26px 26px 28px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 18px;
+    }
+
+    .env {
+      color: #486175;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .account {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 8px 12px;
+      box-shadow: 0 6px 18px rgba(16, 32, 51, 0.05);
+    }
+
+    .avatar {
+      display: inline-flex;
+      width: 28px;
+      height: 28px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: var(--teal-soft);
+      color: var(--teal);
+      font-weight: 900;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      padding: 14px 16px;
+      box-shadow: 0 8px 20px rgba(16, 32, 51, 0.04);
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 10px;
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .metric small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+    }
+
+    .metric.alert strong {
+      color: var(--orange);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 276px 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .queue,
+    .list {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .queue {
+      padding: 16px;
+    }
+
+    .queue-title {
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 14px;
+      margin-bottom: 14px;
+    }
+
+    .queue-group {
+      margin-bottom: 16px;
+    }
+
+    .queue-group-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #334652;
+      font-weight: 900;
+      margin-bottom: 8px;
+    }
+
+    .queue-filter {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      justify-content: space-between;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: #334652;
+      padding: 9px 10px;
+      text-align: left;
+      cursor: default;
+    }
+
+    .queue-filter.active {
+      border-color: #98d8ce;
+      background: #eefbf8;
+      color: #075b53;
+      font-weight: 900;
+    }
+
+    .queue-filter em,
+    .queue-group-header em {
+      min-width: 28px;
+      border-radius: 999px;
+      background: #edf3f7;
+      color: #496173;
+      padding: 2px 8px;
+      font-style: normal;
+      text-align: center;
+    }
+
+    .list {
+      overflow: hidden;
+    }
+
+    .list-head {
+      display: flex;
+      align-items: start;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 18px;
+    }
+
+    .risk-hints {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border-radius: 999px;
+      background: #eef3f7;
+      color: #486175;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .chip.orange {
+      background: var(--orange-soft);
+      color: #9a4b00;
+    }
+
+    .chip.blue {
+      background: var(--blue-soft);
+      color: #174ea6;
+    }
+
+    .chip.green {
+      background: var(--green-soft);
+      color: #05764f;
+    }
+
+    .chip.red {
+      background: var(--red-soft);
+      color: #b91c1c;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      display: inline-flex;
+      min-height: 36px;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #203447;
+      padding: 0 12px;
+      font-weight: 800;
+      cursor: default;
+    }
+
+    .btn.primary {
+      border-color: var(--teal);
+      background: var(--teal);
+      color: #fff;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) 150px 150px 150px auto;
+      gap: 10px;
+      border-bottom: 1px solid var(--line-soft);
+      padding: 14px 18px;
+      background: #fbfdfe;
+    }
+
+    .field {
+      display: flex;
+      min-height: 38px;
+      align-items: center;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      padding: 0 10px;
+      color: var(--muted);
+      gap: 8px;
+    }
+
+    .field input,
+    .field select {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: #334652;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      min-width: 1040px;
+      border-collapse: collapse;
+    }
+
+    thead {
+      background: #f1f5f8;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--line-soft);
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      color: #516679;
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #fbfcfd;
+    }
+
+    tbody tr:hover {
+      background: #f7fbfc;
+    }
+
+    .check {
+      width: 38px;
+      text-align: center;
+    }
+
+    .check span {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border: 1px solid #cbd7e1;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    .order-no {
+      color: #28435a;
+      font-weight: 900;
+    }
+
+    .product strong,
+    .applicant strong {
+      display: block;
+      color: #17293b;
+      font-weight: 900;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .product small,
+    .applicant small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+    }
+
+    .type {
+      display: inline-flex;
+      min-height: 28px;
+      align-items: center;
+      border-radius: 6px;
+      padding: 0 9px;
+      font-size: 12px;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .type.new {
+      background: var(--blue-soft);
+      color: #174ea6;
+    }
+
+    .type.change {
+      background: #f0e9ff;
+      color: #6d28d9;
+    }
+
+    .type.qualification {
+      background: var(--green-soft);
+      color: #05764f;
+    }
+
+    .wait {
+      color: #334652;
+      font-weight: 900;
+    }
+
+    .wait small {
+      display: block;
+      margin-top: 4px;
+      color: var(--orange);
+      font-weight: 800;
+    }
+
+    .row-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .btn.small {
+      min-height: 30px;
+      padding: 0 10px;
+      font-size: 13px;
+    }
+
+    .batch-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-top: 1px solid var(--line-soft);
+      background: #f8fafc;
+      padding: 12px 18px;
+    }
+
+    .batch-bar strong {
+      color: #174ea6;
+    }
+
+    .batch-bar .spacer {
+      flex: 1;
+    }
+
+    .btn.danger {
+      border-color: #ffc9c9;
+      color: #b91c1c;
+    }
+
+    .btn.success {
+      border-color: #a8e4ce;
+      color: #05764f;
+    }
+
+    .scroll-track {
+      height: 12px;
+      margin: 0 18px 16px;
+      border-radius: 999px;
+      background: #e8eef3;
+      position: relative;
+    }
+
+    .scroll-thumb {
+      position: absolute;
+      left: 0;
+      top: 2px;
+      width: 62%;
+      height: 8px;
+      border-radius: 999px;
+      background: #8298aa;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">SPD</span>
+        <div>
+          <strong>院内 SPD</strong>
+          <small>供应链管理平台</small>
+        </div>
+      </div>
+
+      <section class="nav-section">
+        <p class="nav-heading">主数据与定数</p>
+        <button class="nav-item"><span>商品目录</span><span>18</span></button>
+        <button class="nav-item active"><span>待审批目录</span><span>10</span></button>
+        <button class="nav-item"><span>供应商管理</span><span></span></button>
+        <button class="nav-item"><span>厂家管理</span><span></span></button>
+        <button class="nav-item"><span>库房 / 货位管理</span><span></span></button>
+      </section>
+
+      <section class="nav-section">
+        <p class="nav-heading">供应链业务</p>
+        <button class="nav-item"><span>采购管理</span><span></span></button>
+        <button class="nav-item"><span>收货验收</span><span></span></button>
+        <button class="nav-item"><span>库存管理</span><span></span></button>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="page-title">
+          <div class="env">端口 1820 / API 1818</div>
+          <h1>待审批目录</h1>
+          <p>按风险、时效和审批类型组织商品准入、信息变更与资质更新任务。</p>
+        </div>
+        <div class="account">
+          <span class="avatar">a</span>
+          <div>
+            <strong>admin</strong>
+            <small>当前账号</small>
+          </div>
+        </div>
+      </header>
+
+      <section class="metrics">
+        <article class="metric">
+          <span>待我审批</span>
+          <strong>10</strong>
+          <small>较昨日 +3</small>
+        </article>
+        <article class="metric">
+          <span>新品准入</span>
+          <strong>5</strong>
+          <small>2 条高值耗材</small>
+        </article>
+        <article class="metric">
+          <span>信息变更</span>
+          <strong>3</strong>
+          <small>价格字段 1 条</small>
+        </article>
+        <article class="metric">
+          <span>资质更新</span>
+          <strong>2</strong>
+          <small>附件待核验</small>
+        </article>
+        <article class="metric alert">
+          <span>风险提醒</span>
+          <strong>4</strong>
+          <small>含临期 / 冷链 / 高值</small>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <aside class="queue">
+          <div class="queue-title">
+            <h2>审批队列</h2>
+            <p>按处理责任和任务类型筛选。</p>
+          </div>
+
+          <div class="queue-group">
+            <div class="queue-group-header"><span>待我审批</span><em>10</em></div>
+            <button class="queue-filter active"><span>新品准入</span><em>5</em></button>
+            <button class="queue-filter"><span>信息变更</span><em>3</em></button>
+            <button class="queue-filter"><span>资质更新</span><em>2</em></button>
+          </div>
+
+          <div class="queue-group">
+            <div class="queue-group-header"><span>我发起的</span><em>7</em></div>
+            <button class="queue-filter"><span>待审批目录</span><em>4</em></button>
+            <button class="queue-filter"><span>退回修改目录</span><em>1</em></button>
+            <button class="queue-filter"><span>审批通过目录</span><em>2</em></button>
+          </div>
+
+          <div class="queue-group">
+            <div class="queue-group-header"><span>已处理 / 抄送</span><em>16</em></div>
+          </div>
+        </aside>
+
+        <section class="list">
+          <div class="list-head">
+            <div class="list-title">
+              <h2>新品准入</h2>
+              <p>审核新商品首次进入医院目录的资料、价格、资质和监管属性。</p>
+              <div class="risk-hints">
+                <span class="chip orange">资质临期</span>
+                <span class="chip blue">价格需复核</span>
+                <span class="chip green">附件齐全</span>
+                <span class="chip red">高值 / 冷链</span>
+              </div>
+            </div>
+            <div class="actions">
+              <button class="btn primary">新增</button>
+              <button class="btn">导入</button>
+              <button class="btn">导出</button>
+            </div>
+          </div>
+
+          <div class="toolbar">
+            <label class="field"><span>搜索</span><input value="" placeholder="审批单号、商品名称、供应商" /></label>
+            <label class="field"><select><option>全部类型</option><option>新品准入</option></select></label>
+            <label class="field"><select><option>全部状态</option><option>初审中</option></select></label>
+            <label class="field"><select><option>全部风险</option><option>资质临期</option></select></label>
+            <button class="btn primary">查询</button>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="check"><span></span></th>
+                  <th>审批单号</th>
+                  <th>商品 / 规格</th>
+                  <th>申请类型</th>
+                  <th>申请方 / 供应商</th>
+                  <th>风险标签</th>
+                  <th>节点 / 等待</th>
+                  <th style="text-align:right;">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="check"><span></span></td>
+                  <td class="order-no">SP-20260612-001</td>
+                  <td class="product"><strong>一次性使用输液器</strong><small>0.55mm / 10ml / 常温</small></td>
+                  <td><span class="type new">新品准入</span></td>
+                  <td class="applicant"><strong>九州通</strong><small>申请人：王敏</small></td>
+                  <td><span class="chip red">高值耗材</span> <span class="chip orange">价格复核</span></td>
+                  <td class="wait">初审中<small>等待 18 小时</small></td>
+                  <td><div class="row-actions"><button class="btn small">查看</button><button class="btn small primary">查看并审批</button></div></td>
+                </tr>
+                <tr>
+                  <td class="check"><span></span></td>
+                  <td class="order-no">SP-20260612-002</td>
+                  <td class="product"><strong>自动验收测试耗材包</strong><small>10cm*20cm / 验证品牌</small></td>
+                  <td><span class="type new">新品准入</span></td>
+                  <td class="applicant"><strong>国药器械</strong><small>申请人：李倩</small></td>
+                  <td><span class="chip green">附件齐全</span></td>
+                  <td class="wait">复审中<small>等待 6 小时</small></td>
+                  <td><div class="row-actions"><button class="btn small">查看</button><button class="btn small primary">查看并审批</button></div></td>
+                </tr>
+                <tr>
+                  <td class="check"><span></span></td>
+                  <td class="order-no">SP-20260611-009</td>
+                  <td class="product"><strong>医用脱脂纱布块</strong><small>8cm*10cm / 灭菌 / 纱布块</small></td>
+                  <td><span class="type qualification">资质更新</span></td>
+                  <td class="applicant"><strong>迈瑞生物</strong><small>申请人：赵宁</small></td>
+                  <td><span class="chip orange">注册证 30 天内到期</span></td>
+                  <td class="wait">初审中<small>等待 1 天</small></td>
+                  <td><div class="row-actions"><button class="btn small">查看</button><button class="btn small primary">查看并审批</button></div></td>
+                </tr>
+                <tr>
+                  <td class="check"><span></span></td>
+                  <td class="order-no">SP-20260611-006</td>
+                  <td class="product"><strong>静脉留置针</strong><small>22G / 护理耗材</small></td>
+                  <td><span class="type change">信息变更</span></td>
+                  <td class="applicant"><strong>康德莱器械</strong><small>申请人：陈瑜</small></td>
+                  <td><span class="chip blue">供应商变更</span> <span class="chip orange">影响采购价</span></td>
+                  <td class="wait">初审中<small>等待 22 小时</small></td>
+                  <td><div class="row-actions"><button class="btn small">查看</button><button class="btn small primary">查看并审批</button></div></td>
+                </tr>
+                <tr>
+                  <td class="check"><span></span></td>
+                  <td class="order-no">SP-20260610-014</td>
+                  <td class="product"><strong>冷链检测试剂</strong><small>2ml / 2-8℃ / 冷藏</small></td>
+                  <td><span class="type new">新品准入</span></td>
+                  <td class="applicant"><strong>华润医药</strong><small>申请人：刘晓</small></td>
+                  <td><span class="chip red">冷链</span> <span class="chip orange">库房条件</span></td>
+                  <td class="wait">复审中<small>等待 2 天</small></td>
+                  <td><div class="row-actions"><button class="btn small">查看</button><button class="btn small primary">查看并审批</button></div></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="scroll-track"><span class="scroll-thumb"></span></div>
+
+          <div class="batch-bar">
+            <span>已选择 <strong>2</strong> 条审批单</span>
+            <button class="btn small success">批量通过</button>
+            <button class="btn small">批量退回</button>
+            <button class="btn small danger">批量驳回</button>
+            <span class="spacer"></span>
+            <button class="btn small">清除选择</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,38 @@
+server:
+  port: 1818
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: hospital-spd
+  jackson:
+    default-property-inclusion: non_null
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  datasource:
+    url: ${SPD_DB_URL:jdbc:mysql://localhost:3306/ISPD?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai}
+    username: ${SPD_DB_USERNAME:admin}
+    password: ${SPD_DB_PASSWORD:admin123}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+spd:
+  cors:
+    allowed-origins:
+      - http://localhost:1820
+      - http://127.0.0.1:1820
+  jwt:
+    secret: ${SPD_JWT_SECRET:aB3xK7mN9pQ2rT5vW8yZ0cE4fH6jL1oM8sA2dD4gG6kJ8nB0eV2rR5tY7uI9oP3}
+    expiration-ms: ${SPD_JWT_EXPIRATION:86400000}

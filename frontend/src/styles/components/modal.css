@@ -1,0 +1,45 @@
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgba(6, 21, 43, 0.42);
+  padding: 24px;
+}
+
+.supplier-modal {
+  width: min(760px, calc(100vw - 48px));
+  max-height: min(86vh, 820px);
+  overflow: auto;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 48px rgba(6, 21, 43, 0.24);
+}
+
+.supplier-modal.purchase-modal,
+.supplier-modal.foundation-modal {
+  width: min(960px, calc(100vw - 48px));
+}
+
+.modal-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding: 16px 18px;
+}
+
+.modal-heading h3 {
+  margin: 0;
+  color: #06152b;
+}
+
+.modal-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+

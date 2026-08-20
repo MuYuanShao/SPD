@@ -1,0 +1,42 @@
+USE `ISPD`;
+
+ALTER TABLE `pending_product_application`
+  ADD COLUMN `product_name` VARCHAR(100) NULL COMMENT '商品名称' AFTER `supplier_id`,
+  ADD COLUMN `supplier_name` VARCHAR(100) NULL COMMENT '供应商名称' AFTER `supplier_id`,
+  ADD COLUMN `product_code` VARCHAR(50) NULL COMMENT '商品编码' AFTER `product_name`,
+  ADD COLUMN `spec_model` VARCHAR(100) NULL COMMENT '规格型号' AFTER `product_code`,
+  ADD COLUMN `brand` VARCHAR(50) NULL COMMENT '品牌' AFTER `spec_model`,
+  ADD COLUMN `manufacturer_id` BIGINT UNSIGNED NULL COMMENT '生产厂家ID' AFTER `brand`,
+  ADD COLUMN `manufacturer_name` VARCHAR(100) NULL COMMENT '生产厂家名称' AFTER `manufacturer_id`,
+  ADD COLUMN `category_id` BIGINT UNSIGNED NULL COMMENT '商品分类ID' AFTER `manufacturer_name`,
+  ADD COLUMN `unit` VARCHAR(20) NULL COMMENT '基本单位' AFTER `category_id`,
+  ADD COLUMN `purchase_price` DECIMAL(18,4) NULL COMMENT '采购价' AFTER `unit`,
+  ADD COLUMN `retail_price` DECIMAL(18,4) NULL COMMENT '零售价' AFTER `purchase_price`,
+  ADD COLUMN `min_purchase_qty` DECIMAL(18,4) NULL COMMENT '最小采购量' AFTER `retail_price`,
+  ADD COLUMN `purchase_unit` VARCHAR(20) NULL COMMENT '采购单位' AFTER `min_purchase_qty`,
+  ADD COLUMN `conversion_rate` DECIMAL(18,6) NULL COMMENT '换算系数' AFTER `purchase_unit`,
+  ADD COLUMN `udi_code` VARCHAR(100) NULL COMMENT 'UDI编码' AFTER `conversion_rate`,
+  ADD COLUMN `registration_no` VARCHAR(100) NULL COMMENT '注册证号' AFTER `udi_code`,
+  ADD COLUMN `registration_expire_date` DATE NULL COMMENT '注册证有效期' AFTER `registration_no`,
+  ADD COLUMN `production_license_no` VARCHAR(100) NULL COMMENT '生产许可证号' AFTER `registration_expire_date`,
+  ADD COLUMN `business_license_no` VARCHAR(100) NULL COMMENT '经营许可证号' AFTER `production_license_no`,
+  ADD COLUMN `qualification_attachment_count` INT NOT NULL DEFAULT 0 COMMENT '资质附件数量' AFTER `business_license_no`,
+  ADD COLUMN `is_high_value` TINYINT NOT NULL DEFAULT 0 COMMENT '是否高值耗材' AFTER `qualification_attachment_count`,
+  ADD COLUMN `is_cold_chain` TINYINT NOT NULL DEFAULT 0 COMMENT '是否冷链' AFTER `is_high_value`,
+  ADD COLUMN `is_quota_managed` TINYINT NOT NULL DEFAULT 0 COMMENT '是否定数管理' AFTER `is_cold_chain`,
+  ADD COLUMN `storage_condition` VARCHAR(30) NULL COMMENT '储存条件' AFTER `is_quota_managed`,
+  ADD COLUMN `initial_review_by` BIGINT UNSIGNED NULL COMMENT '初审人' AFTER `approve_opinion`,
+  ADD COLUMN `initial_review_time` DATETIME NULL COMMENT '初审时间' AFTER `initial_review_by`,
+  ADD COLUMN `initial_review_opinion` VARCHAR(500) NULL COMMENT '初审意见' AFTER `initial_review_time`,
+  ADD COLUMN `final_review_by` BIGINT UNSIGNED NULL COMMENT '复审人' AFTER `initial_review_opinion`,
+  ADD COLUMN `final_review_time` DATETIME NULL COMMENT '复审时间' AFTER `final_review_by`,
+  ADD COLUMN `final_review_opinion` VARCHAR(500) NULL COMMENT '复审意见' AFTER `final_review_time`,
+  ADD COLUMN `return_reason` VARCHAR(500) NULL COMMENT '退回原因' AFTER `final_review_opinion`,
+  ADD COLUMN `reject_reason` VARCHAR(500) NULL COMMENT '驳回原因' AFTER `return_reason`;
+
+ALTER TABLE `pending_product_application`
+  ADD INDEX `idx_product_name` (`product_name`),
+  ADD INDEX `idx_product_code` (`product_code`),
+  ADD INDEX `idx_application_type_status` (`application_type`, `approval_status`),
+  ADD INDEX `idx_category_id` (`category_id`),
+  ADD INDEX `idx_submit_time` (`submit_time`);

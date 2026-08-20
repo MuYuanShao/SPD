@@ -52,6 +52,11 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 1820,
+    // Windows 下编辑文件时原生 fs.watch 会因目录改名竞态抛 EBUSY 并终止 dev server，改用轮询监视。
+    watch: {
+      usePolling: true,
+      interval: 300
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:1818',

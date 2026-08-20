@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { FileText, ShieldCheck, UserRound, X } from '@lucide/vue'
+import { fetchFieldOptions, type FieldOption } from '../../api/fieldOptions'
 
 type SupplierForm = {
   supplierCode: string
@@ -13,7 +15,7 @@ type SupplierForm = {
   address: string
 }
 
-defineProps<{
+const props = defineProps<{
   open: boolean
   mode: 'create' | 'edit'
   form: SupplierForm
@@ -23,6 +25,39 @@ const emit = defineEmits<{
   close: []
   save: []
 }>()
+
+const supplierTypeOptions = ref<FieldOption[]>([])
+const supplierGradeOptions = ref<FieldOption[]>([])
+
+function activeOptions(options: FieldOption[], currentValue: string) {
+  const active = options.filter((item) => item.status === 1)
+  if (currentValue && !active.some((item) => item.optionValue === currentValue)) {
+    const retained = options.find((item) => item.optionValue === currentValue)
+    if (retained) {
+      active.push(retained)
+    }
+  }
+  return active
+}
+
+watch(
+  () => props.open,
+  async (open) => {
+    if (!open) return
+    try {
+      const [types, grades] = await Promise.all([
+        fetchFieldOptions('supplier_type'),
+        fetchFieldOptions('supplier_grade'),
+      ])
+      supplierTypeOptions.value = types
+      supplierGradeOptions.value = grades
+    } catch (err) {
+      console.error('供应商下拉选项加载失败', err)
+      supplierTypeOptions.value = []
+      supplierGradeOptions.value = []
+    }
+  },
+)
 
 function clearCreditCodeValidity(event: Event) {
   const input = event.target as HTMLInputElement
@@ -114,23 +149,29 @@ function showCreditCodeValidationMessage(event: Event) {
           </label>
           <label>
             <span>供应商类型 <b class="required-mark" aria-hidden="true">*</b></span>
-            <input
-              v-model.trim="form.supplierType"
-              name="supplierType"
-              autocomplete="off"
-              placeholder="如：配送商、生产商"
-              aria-required="true"
-              required
-            />
+            <select v-model="form.supplierType" name="supplierType" aria-required="true" required>
+              <option value="" disabled>请选择供应商类型</option>
+              <option
+                v-for="item in activeOptions(supplierTypeOptions, form.supplierType)"
+                :key="item.optionId"
+                :value="item.optionValue"
+                :disabled="item.status !== 1"
+              >
+                {{ item.optionLabel }}{{ item.status === 1 ? '' : ' · 已停用' }}
+              </option>
+            </select>
           </label>
           <label>
             <span>供应商等级</span>
             <select v-model="form.grade" name="grade">
-              <option value="">未评级</option>
-              <option value="A">A 级</option>
-              <option value="B">B 级</option>
-              <option value="C">C 级</option>
-              <option value="D">D 级</option>
+              <option
+                v-for="item in activeOptions(supplierGradeOptions, form.grade)"
+                :key="item.optionId"
+                :value="item.optionValue"
+                :disabled="item.status !== 1"
+              >
+                {{ item.optionLabel }}{{ item.status === 1 ? '' : ' · 已停用' }}
+              </option>
             </select>
           </label>
         </section>

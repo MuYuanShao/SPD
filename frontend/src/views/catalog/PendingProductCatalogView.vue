@@ -104,6 +104,7 @@ const {
   createForm,
   createAttachments,
   attachmentInput,
+  resetCreateForm,
   handleCreateAttachments,
   removeCreateAttachment,
   submitCreateForm
@@ -112,6 +113,28 @@ const {
   showCreateModal,
   reload: loadApplications
 })
+
+const duplicateAlertVisible = ref(false)
+
+function openCreateModal() {
+  message.value = ''
+  resetCreateForm()
+  showCreateModal.value = true
+}
+
+async function handleCreateSubmit() {
+  message.value = ''
+  try {
+    await submitCreateForm()
+  } catch (err) {
+    const text = err instanceof Error ? err.message : ''
+    if (text.includes('商品目录已存在')) {
+      duplicateAlertVisible.value = true
+    } else {
+      message.value = text || '提交失败，请稍后重试'
+    }
+  }
+}
 
 const {
   importInput,
@@ -369,7 +392,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </p>
           </div>
           <div v-if="activeScope === 'todo'" class="approval-action-row">
-            <button type="button" class="btn btn-primary" @click="showCreateModal = true">
+            <button type="button" class="btn btn-primary" @click="openCreateModal">
               <Plus :size="17" />
               新增
             </button>
@@ -556,7 +579,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                     </svg>
                     <p>当前分类暂无待审批任务</p>
-                    <button v-if="activeScope === 'todo'" class="btn btn-primary" type="button" @click="showCreateModal = true">
+                    <button v-if="activeScope === 'todo'" class="btn btn-primary" type="button" @click="openCreateModal">
                       <Plus :size="17" /> 去新增
                     </button>
                   </div>
@@ -676,7 +699,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             <X :size="18" />
           </button>
         </header>
-        <form class="approval-create-form" @submit.prevent="submitCreateForm">
+        <form class="approval-create-form" @submit.prevent="handleCreateSubmit">
           <section class="approval-create-section">
             <h4>申请信息</h4>
             <div class="supplier-form-grid compact">
@@ -774,6 +797,27 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </button>
           </div>
         </form>
+      </section>
+    </div>
+
+    <div v-if="duplicateAlertVisible" class="attachment-preview-mask" @click.self="duplicateAlertVisible = false">
+      <section class="duplicate-alert-dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-alert-title">
+        <header>
+          <div>
+            <p>重复校验</p>
+            <h3 id="duplicate-alert-title">该商品目录已存在！</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="duplicateAlertVisible = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="duplicate-alert-body">
+          <AlertTriangle :size="40" aria-hidden="true" />
+          <p>商品名称、规格型号、生产厂家、供应商、注册证号完全一致的目录已存在，请核对后修改或直接使用现有目录。</p>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn btn-primary" type="button" @click="duplicateAlertVisible = false">知道了</button>
+        </div>
       </section>
     </div>
   </section>

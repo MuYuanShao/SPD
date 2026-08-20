@@ -37,6 +37,7 @@ export type FeatureViewFamily =
   | 'supply-chain-receiving-acceptance'
   | 'udi-traceability'
   | 'system-config'
+  | 'system-field-option-management'
   | 'system-config-hit-explanation'
   | 'system-approval-flow-settings'
   | 'system-user-role-management'
@@ -473,7 +474,7 @@ export const featureCatalog = [
     routeTarget: '/features/system-management',
     viewFamily: 'feature',
     nodeKind: 'navigation',
-    children: ['user-management', 'role-permission', 'approval-flow-settings', 'system-config', 'config-hit-explanation', 'audit-log']
+    children: ['user-management', 'role-permission', 'approval-flow-settings', 'system-config', 'field-option-management', 'config-hit-explanation', 'audit-log']
   },
   {
     code: 'user-management',
@@ -507,6 +508,14 @@ export const featureCatalog = [
     icon: 'settings',
     routeTarget: '/features/system-config',
     viewFamily: 'system-config',
+    chunkFamily: 'system'
+  },
+  {
+    code: 'field-option-management',
+    title: '字段管理',
+    icon: 'settings',
+    routeTarget: '/features/field-option-management',
+    viewFamily: 'system-field-option-management',
     chunkFamily: 'system'
   },
   {

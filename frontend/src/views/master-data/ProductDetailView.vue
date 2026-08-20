@@ -20,7 +20,7 @@ interface DetailSection {
   id: string
   title: string
   description: string
-  rows: DetailField[][]
+  fields: DetailField[]
 }
 
 const route = useRoute()
@@ -46,14 +46,6 @@ function yesNo(value: boolean) {
   return value ? '是' : '否'
 }
 
-function toRows(fields: DetailField[]) {
-  const rows: DetailField[][] = []
-  for (let index = 0; index < fields.length; index += 2) {
-    rows.push(fields.slice(index, index + 2))
-  }
-  return rows
-}
-
 const detailSections = computed<DetailSection[]>(() => {
   const item = detail.value
   if (!item) return []
@@ -63,7 +55,7 @@ const detailSections = computed<DetailSection[]>(() => {
       id: 'basic',
       title: '基础信息',
       description: '商品身份、分类及合作方信息',
-      rows: toRows([
+      fields: [
         { label: '商品编码', value: displayValue(item.productCode), emphasis: true },
         { label: '商品名称', value: displayValue(item.productName), emphasis: true },
         { label: '规格型号', value: displayValue(item.specModel) },
@@ -76,13 +68,13 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '二级分类', value: displayValue(item.secondCategory) },
         { label: '三级分类', value: displayValue(item.thirdCategory) },
         { label: '状态', value: displayValue(item.statusLabel), emphasis: true }
-      ])
+      ]
     },
     {
       id: 'purchase',
       title: '采购与价格',
       description: '采购单位、价格及合同招采信息',
-      rows: toRows([
+      fields: [
         { label: '采购价', value: money(item.purchasePrice), emphasis: true },
         { label: '零售价', value: money(item.retailPrice), emphasis: true },
         { label: '最小采购量', value: displayValue(item.minPurchaseQty) },
@@ -91,25 +83,25 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '合同编码', value: displayValue(item.contractCode) },
         { label: '招采子编码', value: displayValue(item.tenderSubCode) },
         { label: '附件数量', value: item.attachments.length }
-      ])
+      ]
     },
     {
       id: 'qualification',
       title: '资质与注册',
       description: 'UDI、注册证及许可证信息',
-      rows: toRows([
+      fields: [
         { label: 'UDI 编码', value: displayValue(item.udiCode), emphasis: true },
         { label: '注册证号', value: displayValue(item.registrationNo) },
         { label: '注册证有效期', value: displayValue(item.registrationExpireDate) },
         { label: '生产许可证号', value: displayValue(item.productionLicenseNo) },
         { label: '经营许可证号', value: displayValue(item.businessLicenseNo) }
-      ])
+      ]
     },
     {
       id: 'management',
       title: '管理属性',
       description: '收费、采购策略及储运管理标识',
-      rows: toRows([
+      fields: [
         { label: '定数管理', value: yesNo(item.quotaManaged) },
         { label: '带量采购', value: yesNo(item.volumeBased) },
         { label: '集中采购', value: yesNo(item.centralizedProcurement) },
@@ -118,7 +110,7 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '高值耗材', value: yesNo(item.highValue) },
         { label: '冷链管理', value: yesNo(item.coldChain) },
         { label: '储存条件', value: displayValue(item.storageCondition) }
-      ])
+      ]
     }
   ]
 })
@@ -191,26 +183,19 @@ onMounted(loadDetail)
               <h3 :id="`${section.id}-heading`">{{ section.title }}</h3>
               <p>{{ section.description }}</p>
             </div>
-            <span>{{ section.rows.flat().length }} 项</span>
           </header>
 
-          <table class="product-detail-table">
-            <caption class="sr-only">{{ section.title }}</caption>
-            <tbody>
-              <tr v-for="(row, rowIndex) in section.rows" :key="rowIndex">
-                <template v-for="field in row" :key="field.label">
-                  <th scope="row">{{ field.label }}</th>
-                  <td :class="{ emphasis: field.emphasis }" :data-label="field.label">
-                    {{ field.value }}
-                  </td>
-                </template>
-                <template v-if="row.length === 1">
-                  <th class="product-detail-empty" aria-hidden="true"></th>
-                  <td class="product-detail-empty" aria-hidden="true"></td>
-                </template>
-              </tr>
-            </tbody>
-          </table>
+          <dl class="product-detail-grid">
+            <div
+              v-for="field in section.fields"
+              :key="field.label"
+              class="product-detail-field"
+              :class="{ emphasis: field.emphasis }"
+            >
+              <dt>{{ field.label }}</dt>
+              <dd>{{ field.value }}</dd>
+            </div>
+          </dl>
         </section>
       </div>
 
@@ -319,7 +304,7 @@ onMounted(loadDetail)
 
 .product-detail-sections {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
@@ -366,15 +351,57 @@ onMounted(loadDetail)
   font-weight: 700;
 }
 
-.product-detail-table,
+/* 简洁规整的字段网格：标签在上、值在下，自动换列 */
+.product-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  margin: 0;
+}
+
+.product-detail-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 62px;
+  padding: 11px 16px;
+  border-bottom: 1px solid #eef2f5;
+  border-right: 1px solid #eef2f5;
+}
+
+.product-detail-field dt {
+  color: #607486;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.product-detail-field dd {
+  margin: 0;
+  color: #25384a;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.product-detail-field.emphasis dd {
+  color: #102033;
+  font-weight: 800;
+}
+
 .product-attachment-table {
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }
 
-.product-detail-table th,
-.product-detail-table td,
+.product-attachment-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
 .product-attachment-table th,
 .product-attachment-table td {
   border-bottom: 1px solid #e8eef1;
@@ -385,35 +412,8 @@ onMounted(loadDetail)
   overflow-wrap: anywhere;
 }
 
-.product-detail-table tr:last-child > *,
 .product-attachment-table tbody tr:last-child > * {
   border-bottom: 0;
-}
-
-.product-detail-table th {
-  width: 112px;
-  background: #fbfcfd;
-  color: #607486;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.product-detail-table td {
-  color: #25384a;
-  font-size: 13px;
-}
-
-.product-detail-table td.emphasis {
-  color: #102033;
-  font-weight: 800;
-}
-
-.product-detail-table .product-detail-empty {
-  background: #fbfcfd;
-}
-
-.product-attachment-table-wrap {
-  min-width: 0;
 }
 
 .product-attachment-table th {
@@ -492,53 +492,14 @@ button:focus-visible {
   outline-offset: 2px;
 }
 
-@media (max-width: 1080px) {
-  .product-detail-sections {
-    grid-template-columns: 1fr;
-  }
-}
-
 @media (max-width: 680px) {
-  .product-detail-page {
-    gap: 12px;
+  .product-detail-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   }
 
-  .product-detail-section-heading {
-    align-items: flex-start;
-    padding: 11px 12px;
-  }
-
-  .product-detail-table,
-  .product-detail-table tbody,
-  .product-detail-table tr,
-  .product-detail-table th,
-  .product-detail-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .product-detail-table tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    border-bottom: 1px solid #dfe7eb;
-  }
-
-  .product-detail-table tr:last-child {
-    border-bottom: 0;
-  }
-
-  .product-detail-table th {
-    border-bottom: 0;
-    padding: 9px 12px 3px;
-  }
-
-  .product-detail-table td {
-    min-height: 41px;
-    padding: 2px 12px 10px;
-  }
-
-  .product-detail-table .product-detail-empty {
-    display: none;
+  .product-detail-field {
+    padding: 9px 12px;
+    min-height: 54px;
   }
 
   .product-attachment-table,
@@ -577,7 +538,6 @@ button:focus-visible {
 }
 
 @media (max-width: 440px) {
-  .product-detail-table tr,
   .product-attachment-table tr {
     grid-template-columns: 1fr;
   }

@@ -15,6 +15,7 @@ const route = useRoute()
 const saving = ref(false)
 const loading = ref(false)
 const error = ref('')
+const originalQuotaManaged = ref<boolean | null>(null)
 const productCode = computed(() => String(route.params.productCode ?? ''))
 const editMode = computed(() => route.name === 'hospital-product-edit')
 
@@ -64,6 +65,7 @@ function normalizeNumber(value: string | number | null) {
 }
 
 function assignDetail(detail: ProductDetail) {
+  originalQuotaManaged.value = detail.quotaManaged
   Object.assign(form, {
     productCode: detail.productCode,
     productName: detail.productName,
@@ -124,7 +126,7 @@ async function submitForm() {
     error.value = '高值耗材或冷链耗材不能设置为定数管理'
     return
   }
-  if (editMode.value && form.quotaManaged === false) {
+  if (editMode.value && originalQuotaManaged.value === true && form.quotaManaged === false) {
     const confirmed = window.confirm('是否定数管理改为“否”后，将禁止后续新增定数包业务，历史已打包库存继续流转。确认提交审批吗？')
     if (!confirmed) return
   }

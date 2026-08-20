@@ -29,6 +29,7 @@ const HighValueChargeDetailView = () => import('../views/supply-chain/HighValueC
 const ColdChainMonitoringView = () => import('../views/supply-chain/ColdChainMonitoringView.vue')
 const ConfigHitExplanationView = () => import('../views/system/ConfigHitExplanationView.vue')
 const SystemConfigView = () => import('../views/system/SystemConfigView.vue')
+const FieldOptionManagementView = () => import('../views/system/FieldOptionManagementView.vue')
 const ApprovalFlowSettingsView = () => import('../views/system/ApprovalFlowSettingsView.vue')
 const UserRoleManagementView = () => import('../views/system/UserRoleManagementView.vue')
 
@@ -172,6 +173,12 @@ export const router = createRouter({
       path: featureRouteTarget('system-config'),
       name: 'system-config',
       component: SystemConfigView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('field-option-management'),
+      name: 'field-option-management',
+      component: FieldOptionManagementView,
       meta: { requiresAuth: true }
     },
     {

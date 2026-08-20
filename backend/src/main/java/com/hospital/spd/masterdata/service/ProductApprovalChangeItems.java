@@ -34,7 +34,7 @@ final class ProductApprovalChangeItems {
         List<Map<String, Object>> products = jdbcTemplate.queryForList("""
                 SELECT p.product_name, p.spec_model, p.brand,
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
-                       COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
+                       COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
                        p.purchase_unit, p.conversion_rate, p.udi_code, p.registration_no,
                        p.registration_expire_date, p.production_license_no, p.business_license_no,

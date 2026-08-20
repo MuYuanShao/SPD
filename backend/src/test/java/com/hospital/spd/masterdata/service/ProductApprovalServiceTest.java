@@ -518,8 +518,8 @@ class ProductApprovalServiceTest {
                     .hasMessageContaining("商品目录已存在");
             verify(jdbcTemplate).queryForObject(
                     argThat(sql -> sql.contains("FROM pending_product_application a")
-                            && sql.contains("COALESCE(NULLIF(TRIM(a.registration_no), ''), ?) = ?")
-                            && sql.contains("NULLIF(TRIM(a.supplier_name), '')")),
+                            && sql.contains("COALESCE(NULLIF(TRIM(a.registration_no), ''), '') = ?")
+                            && sql.contains("COALESCE(TRIM(s.supplier_name), TRIM(a.supplier_name))")),
                     eq(Integer.class),
                     any(Object[].class)
             );

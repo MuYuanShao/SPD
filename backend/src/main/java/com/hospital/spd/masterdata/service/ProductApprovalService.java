@@ -48,6 +48,7 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -663,7 +664,7 @@ public class ProductApprovalService {
                            p.production_license_no, p.business_license_no,
                            p.product_name, p.spec_model, p.brand,
                            COALESCE(m.manufacturer_name, '') AS manufacturer_name,
-                            COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
+                           COALESCE(s.supplier_name, '') AS supplier_name,
                            p.unit, p.purchase_price, p.is_volume_based,
                            p.is_centralized_procurement, p.is_domestic, p.contract_code,
                            p.first_category, p.second_category, p.third_category,
@@ -765,7 +766,7 @@ public class ProductApprovalService {
         List<Map<String, Object>> products = jdbcTemplate.queryForList("""
                 SELECT p.product_name, p.spec_model, p.brand,
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
-                       COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
+                       COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
                        p.purchase_unit, p.conversion_rate, p.udi_code, p.registration_no,
                        p.registration_expire_date, p.production_license_no, p.business_license_no,
@@ -822,72 +823,117 @@ public class ProductApprovalService {
     }
 
     private void validateNoExistingCatalogMatch(PendingProductApplicationRequest request, String excludedApplicationNo) {
-        Integer productCount = jdbcTemplate.queryForObject("""
+        List<String> fields = duplicateRuleFields();
+        if (fields.isEmpty()) {
+            return;
+        }
+        if (hospitalCatalogMatches(fields, request)) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
+        if (pendingCatalogMatches(fields, request, excludedApplicationNo)) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
+    }
+
+    /**
+     * Loads the duplicate-check field combination stored in sys_validation_rule.
+     * Falls back to the documented rule when the rule table or row is unavailable.
+     */
+    private List<String> duplicateRuleFields() {
+        try {
+            String raw = jdbcTemplate.queryForObject("""
+                    SELECT rule_fields
+                      FROM sys_validation_rule
+                     WHERE rule_code = 'pending_product_duplicate' AND status = 1
+                     LIMIT 1
+                    """, String.class);
+            if (!isBlank(raw)) {
+                List<String> fields = Arrays.stream(raw.split(","))
+                        .map(String::trim)
+                        .filter(field -> !field.isBlank() && productFieldExpression(field) != null)
+                        .toList();
+                if (!fields.isEmpty()) {
+                    return fields;
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // Rule storage unavailable; use the documented default below.
+        }
+        return List.of("product_name", "spec_model", "manufacturer_name", "supplier_name", "registration_no");
+    }
+
+    private boolean hospitalCatalogMatches(List<String> fields, PendingProductApplicationRequest request) {
+        StringBuilder where = new StringBuilder(" WHERE p.deleted = 0");
+        List<Object> args = new ArrayList<>();
+        for (String field : fields) {
+            where.append(" AND ").append(productFieldExpression(field)).append(" = ?");
+            args.add(requestFieldValue(request, field));
+        }
+        Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                   FROM product p
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
-                 WHERE p.deleted = 0
-                   AND TRIM(p.product_name) = ?
-                   AND TRIM(p.spec_model) = ?
-                   AND p.purchase_price = ?
-                   AND COALESCE(TRIM(p.registration_no), '') = ?
-                   AND COALESCE(TRIM(m.manufacturer_name), '') = ?
-                   AND COALESCE(TRIM(s.supplier_name), '') = ?
-                """,
-                Integer.class,
-                matchText(request.productName()),
-                matchText(request.specModel()),
-                defaultDecimal(request.purchasePrice(), BigDecimal.ZERO),
-                matchText(request.registrationNo()),
-                matchText(request.manufacturerName()),
-                matchText(request.supplierName())
-        );
-        if (productCount != null && productCount > 0) {
-            throw new IllegalArgumentException("商品目录已存在：商品名称、规格型号、单价、注册证号、厂家、供应商完全一致");
-        }
+                """ + where, Integer.class, args.toArray());
+        return count != null && count > 0;
+    }
 
-        String registrationNo = matchText(request.registrationNo());
-        String manufacturerName = matchText(request.manufacturerName());
-        String supplierName = matchText(request.supplierName());
-        List<Object> args = new ArrayList<>(List.of(
-                matchText(request.productName()),
-                matchText(request.specModel()),
-                defaultDecimal(request.purchasePrice(), BigDecimal.ZERO),
-                registrationNo,
-                registrationNo,
-                manufacturerName,
-                manufacturerName,
-                supplierName,
-                supplierName
-        ));
-        String excludedClause = "";
+    private boolean pendingCatalogMatches(List<String> fields, PendingProductApplicationRequest request,
+                                          String excludedApplicationNo) {
+        StringBuilder where = new StringBuilder("""
+                 WHERE a.approval_status IN ('pending_initial', 'pending_final', 'returned')
+                """);
+        List<Object> args = new ArrayList<>();
+        for (String field : fields) {
+            where.append(" AND COALESCE(NULLIF(")
+                    .append(pendingFieldExpression(field))
+                    .append(", ''), '') = ?");
+            args.add(requestFieldValue(request, field));
+        }
         if (!isBlank(excludedApplicationNo)) {
-            excludedClause = " AND a.application_no <> ?";
+            where.append(" AND a.application_no <> ?");
             args.add(excludedApplicationNo.trim());
         }
-        Integer pendingCount = jdbcTemplate.queryForObject("""
+        Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                   FROM pending_product_application a
                   LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
-                 WHERE a.approval_status IN ('pending_initial', 'pending_final', 'returned')
-                   AND TRIM(a.product_name) = ?
-                   AND TRIM(a.spec_model) = ?
-                   AND COALESCE(a.purchase_price, 0) = ?
-                   AND COALESCE(NULLIF(TRIM(a.registration_no), ''), ?) = ?
-                   AND COALESCE(NULLIF(TRIM(a.manufacturer_name), ''), ?) = ?
-                   AND COALESCE(
-                         NULLIF(COALESCE(NULLIF(TRIM(s.supplier_name), ''), NULLIF(TRIM(a.supplier_name), ''), ''), ''),
-                         ?
-                       ) = ?
-                %s
-                """.formatted(excludedClause),
-                Integer.class,
-                args.toArray()
-        );
-        if (pendingCount != null && pendingCount > 0) {
-            throw new IllegalArgumentException("商品目录已存在：商品名称、规格型号、单价、注册证号、厂家、供应商完全一致");
-        }
+                """ + where, Integer.class, args.toArray());
+        return count != null && count > 0;
+    }
+
+    private static String productFieldExpression(String field) {
+        return switch (field) {
+            case "product_name" -> "COALESCE(TRIM(p.product_name), '')";
+            case "spec_model" -> "COALESCE(TRIM(p.spec_model), '')";
+            case "manufacturer_name" -> "COALESCE(TRIM(m.manufacturer_name), '')";
+            case "supplier_name" -> "COALESCE(TRIM(s.supplier_name), '')";
+            case "registration_no" -> "COALESCE(TRIM(p.registration_no), '')";
+            default -> null;
+        };
+    }
+
+    private static String pendingFieldExpression(String field) {
+        return switch (field) {
+            case "product_name" -> "TRIM(a.product_name)";
+            case "spec_model" -> "TRIM(a.spec_model)";
+            case "manufacturer_name" -> "TRIM(a.manufacturer_name)";
+            case "supplier_name" -> "COALESCE(TRIM(s.supplier_name), TRIM(a.supplier_name))";
+            case "registration_no" -> "TRIM(a.registration_no)";
+            default -> null;
+        };
+    }
+
+    private static String requestFieldValue(PendingProductApplicationRequest request, String field) {
+        String value = switch (field) {
+            case "product_name" -> request.productName();
+            case "spec_model" -> request.specModel();
+            case "manufacturer_name" -> request.manufacturerName();
+            case "supplier_name" -> request.supplierName();
+            case "registration_no" -> request.registrationNo();
+            default -> null;
+        };
+        return value == null ? "" : value.trim();
     }
 
     private void syncToHospitalCatalog(String applicationNo) {

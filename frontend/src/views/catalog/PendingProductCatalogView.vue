@@ -689,7 +689,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
     </div>
 
     <div v-if="showCreateModal" class="attachment-preview-mask" @click.self="showCreateModal = false">
-      <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
+      <section class="supplier-dialog product-dialog approval-create-dialog" role="dialog" aria-modal="true">
         <header>
           <div>
             <p>待审批目录</p>
@@ -700,7 +700,8 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           </button>
         </header>
         <form class="approval-create-form" @submit.prevent="handleCreateSubmit">
-          <section class="approval-create-section">
+          <div class="approval-create-scroll">
+            <section class="approval-create-section">
             <h4>申请信息</h4>
             <div class="supplier-form-grid compact">
               <label>
@@ -788,8 +789,9 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><input v-model="createForm.quotaManaged" type="checkbox" /> 定数管理</label>
             </div>
           </section>
+          </div>
 
-          <div class="dialog-actions">
+          <div class="dialog-actions approval-create-actions">
             <button class="btn" type="button" @click="showCreateModal = false">取消</button>
             <button class="btn btn-primary" type="submit">
               <Send :size="18" />

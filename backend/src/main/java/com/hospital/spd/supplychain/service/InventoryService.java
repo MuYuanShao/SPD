@@ -67,11 +67,17 @@ public class InventoryService {
         appendLike(where, args, "p.product_code", params.get("productCode"));
         appendLike(where, args, "p.product_name", params.get("productName"));
         appendLike(where, args, "ib.system_batch_no", params.get("systemBatchNo"));
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
+        appendLike(where, args, "s.supplier_name", params.get("supplierName"));
 
         String fromClause = """
                   FROM inventory_balance bal
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = bal.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                 """;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
@@ -81,16 +87,25 @@ public class InventoryService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT bal.balance_id AS balanceId, w.warehouse_name AS warehouseName,
+                       COALESCE(d.dept_name, '-') AS deptName,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
+                       COALESCE(p.registration_no, '-') AS registrationNo,
+                       ib.batch_unit_price AS unitPrice, p.unit AS unit,
+                       bal.available_qty AS qty,
+                       ROUND(bal.available_qty * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
+                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       COALESCE(s.supplier_name, '-') AS supplierName,
                        ib.system_batch_no AS systemBatchNo, ib.production_batch_no AS productionBatchNo,
                        DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
-                       ib.batch_unit_price AS batchUnitPrice, bal.available_qty AS availableQty,
                        bal.locked_qty AS lockedQty, bal.in_transit_qty AS inTransitQty,
                        bal.isolated_qty AS isolatedQty, ib.ownership_type AS ownershipType,
                        ib.settlement_mode AS settlementMode, DATE_FORMAT(bal.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM inventory_balance bal
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = bal.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                 """ + where + " ORDER BY bal.update_time DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
@@ -107,6 +122,127 @@ public class InventoryService {
                     OR isolated_qty <> 0
                 """);
         return PageResponse.of(rows, total == null ? 0 : total, pageReq, summary);
+    }
+
+    /**
+     * 定数包库存查询：在库定数包标签（待打印/已打印）按库房与模板汇总，附带同商品散货数量。
+     */
+    public Map<String, Object> quotaPackageStock(Map<String, String> params) {
+        PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder("""
+                 WHERE qpl.status IN ('pending_print', 'printed')
+                """);
+        appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "qpt.template_name", params.get("packageName"));
+        appendLike(where, args, "p.product_name", params.get("productName"));
+
+        String groupKeys = "d.dept_name, w.warehouse_name, qpt.template_code, qpt.template_name, p.product_id";
+        String fromClause = """
+                  FROM quota_package_label qpl
+                  JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
+                  JOIN product p ON p.product_id = qpl.product_id
+                  JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                """;
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(DISTINCT " + groupKeys + ") " + fromClause + where, Long.class, args.toArray());
+
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
+                       qpt.template_code AS packageCode, qpt.template_name AS packageName,
+                       p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
+                       COALESCE(p.purchase_price, 0) AS unitPrice, p.unit AS unit,
+                       COUNT(qpl.label_id) AS packageCount,
+                       COALESCE(SUM(qpl.package_quantity), 0) AS packageQty,
+                       COALESCE(lo.loose_qty, 0) AS looseQty,
+                       ROUND((COALESCE(SUM(qpl.package_quantity), 0) + COALESCE(lo.loose_qty, 0))
+                             * COALESCE(p.purchase_price, 0), 2) AS amount,
+                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       COALESCE(s.supplier_name, '-') AS supplierName
+                  FROM quota_package_label qpl
+                  JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
+                  JOIN product p ON p.product_id = qpl.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
+                  JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                  LEFT JOIN (
+                    SELECT warehouse_id, product_id, SUM(available_qty) AS loose_qty
+                      FROM inventory_balance
+                     WHERE location_id IS NULL
+                     GROUP BY warehouse_id, product_id
+                  ) lo ON lo.warehouse_id = qpl.warehouse_id AND lo.product_id = qpl.product_id
+                """ + where + " GROUP BY " + groupKeys
+                + ", p.spec_model, p.registration_no, p.purchase_price, p.unit, m.manufacturer_name, s.supplier_name"
+                + ", lo.loose_qty"
+                + " ORDER BY w.warehouse_name, qpt.template_code LIMIT ? OFFSET ?",
+                queryArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    /**
+     * 唯一码库存查询：在库唯一码（UDI 追溯单元）关联批次与余额。
+     */
+    public Map<String, Object> uniqueCodeStock(Map<String, String> params) {
+        PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder("""
+                 WHERE bal.available_qty > 0 AND bal.location_id IS NULL
+                   AND utc.current_status = 'in_stock'
+                """);
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
+        appendLike(where, args, "p.product_code", params.get("productCode"));
+        appendLike(where, args, "p.product_name", params.get("productName"));
+        appendLike(where, args, "ib.system_batch_no", params.get("batchNo"));
+        appendLike(where, args, "utc.unique_code", params.get("uniqueCode"));
+        appendLike(where, args, "utc.udi_code", params.get("udiCode"));
+
+        String fromClause = """
+                  FROM inventory_batch_trace_code ibtc
+                  JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
+                  JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                  JOIN product p ON p.product_id = ib.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
+                """;
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
+
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT COALESCE(d.dept_name, '-') AS deptName, w.warehouse_name AS warehouseName,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
+                       ib.system_batch_no AS batchNo, COALESCE(ib.production_batch_no, '-') AS productionBatchNo,
+                       ib.batch_unit_price AS unitPrice, p.unit AS unit,
+                       bal.available_qty AS qty,
+                       ROUND(bal.available_qty * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
+                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       COALESCE(s.supplier_name, '-') AS supplierName,
+                       COALESCE(utc.unique_code, '-') AS uniqueCode,
+                       COALESCE(utc.udi_code, '-') AS udiCode
+                  FROM inventory_batch_trace_code ibtc
+                  JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
+                  JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                  JOIN product p ON p.product_id = ib.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
+                """ + where + " ORDER BY d.dept_name, w.warehouse_name, utc.unique_code LIMIT ? OFFSET ?",
+                queryArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     public Map<String, Object> events(Map<String, String> params) {

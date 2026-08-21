@@ -11,6 +11,8 @@ type ReceivingForm = {
   purchaseOrderNo: string
   supplierName: string
   warehouseName: string
+  receivingType: string
+  isAgent: boolean
   remark: string
   items: Array<{
     productCode: string
@@ -76,7 +78,10 @@ export function useReceivingOrderCreateActions(options: {
     options.form.purchaseOrderNo = order.purchaseOrderNo || ''
     options.form.supplierName = order.supplierName
     options.form.warehouseName = order.warehouseName
-    options.form.remark = String((order as unknown as Record<string, unknown>).remark ?? '')
+    const orderExtra = order as unknown as Record<string, unknown>
+    options.form.receivingType = String(orderExtra.receivingType ?? '')
+    options.form.isAgent = Boolean(Number(orderExtra.isAgent ?? 0) === 1)
+    options.form.remark = String(orderExtra.remark ?? '')
     options.supplierSearchQuery.value = order.supplierName
     options.form.items = data.items.map((item) => {
       const quantity = Number(item.quantity ?? 1)

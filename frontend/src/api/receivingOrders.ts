@@ -28,6 +28,8 @@ export interface ReceivingOrderPayload {
   purchaseOrderNo?: string
   supplierName?: string
   warehouseName: string
+  receivingType?: string
+  isAgent?: boolean
   remark?: string
   items: ReceivingItemPayload[]
 }

@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
   CheckCircle2,
@@ -24,6 +24,7 @@ import {
   type SupplierOption
 } from '../../api/receivingOrders'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import { fetchFieldOptions, type FieldOption } from '../../api/fieldOptions'
 import { useReceivingOrderCreateActions } from '../../composables/useReceivingOrderCreateActions'
 import { useReceivingOrderDetail } from '../../composables/useReceivingOrderDetail'
 import { useReceivingOrderForm } from '../../composables/useReceivingOrderForm'
@@ -38,6 +39,16 @@ const warehouses = ref<ReceivingOptionRow[]>([])
 const products = ref<ReceivingOptionRow[]>([])
 const suppliers = ref<SupplierOption[]>([])
 const summary = ref<Record<string, number>>({})
+const receivingTypeOptions = ref<FieldOption[]>([])
+
+async function loadReceivingTypeOptions() {
+  try {
+    const options = await fetchFieldOptions('receiving_type')
+    receivingTypeOptions.value = options.filter((item) => item.status === 1)
+  } catch {
+    receivingTypeOptions.value = []
+  }
+}
 const loading = ref(false)
 const message = ref('')
 const showCreateModal = ref(false)
@@ -177,7 +188,10 @@ async function runAction(row: ReceivingOrderRow, action: string) {
   }
 }
 
-onMounted(loadData)
+onMounted(() => {
+  loadData()
+  loadReceivingTypeOptions()
+})
 </script>
 
 <template>
@@ -380,37 +394,17 @@ onMounted(loadData)
               </select>
             </label>
             <label>
-              <span>配送商编号</span>
-              <input :value="form.supplierName || '-'" disabled />
-            </label>
-            <label>
               <span>收货类型</span>
-              <input value="采购入库" disabled />
-            </label>
-
-            <label>
-              <span>机构名称</span>
-              <input value="医大智能科技有限公司" disabled />
-            </label>
-            <label>
-              <span>验收单编号</span>
-              <input value="[自动生成]" disabled />
-            </label>
-            <label>
-              <span>验收单状态</span>
-              <input value="初始" disabled />
-            </label>
-
-            <label>
-              <span>创建时间</span>
-              <input :value="currentCreateTime" disabled />
-            </label>
-            <label>
-              <span>是否按代理商筛选</span>
-              <select>
-                <option>是</option>
-                <option>否</option>
+              <select v-model="form.receivingType">
+                <option value="">请选择收货类型</option>
+                <option v-for="option in receivingTypeOptions" :key="option.optionId" :value="option.optionValue">
+                  {{ option.optionLabel }}
+                </option>
               </select>
+            </label>
+            <label class="agent-check">
+              <span>是否代理商</span>
+              <input v-model="form.isAgent" type="checkbox" />
             </label>
             <label>
               <span>备注</span>

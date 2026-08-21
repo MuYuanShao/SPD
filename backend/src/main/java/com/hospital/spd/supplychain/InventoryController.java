@@ -24,6 +24,16 @@ public class InventoryController {
         return ApiResponse.ok(service.balances(params));
     }
 
+    @GetMapping("/quota-package-stock")
+    public ApiResponse<Map<String, Object>> quotaPackageStock(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.quotaPackageStock(params));
+    }
+
+    @GetMapping("/unique-code-stock")
+    public ApiResponse<Map<String, Object>> uniqueCodeStock(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.uniqueCodeStock(params));
+    }
+
     @GetMapping("/events")
     public ApiResponse<Map<String, Object>> events(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(service.events(params));

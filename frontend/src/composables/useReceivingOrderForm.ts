@@ -24,6 +24,8 @@ export function useReceivingOrderForm(options: {
     purchaseOrderNo: '',
     supplierName: '',
     warehouseName: '',
+    receivingType: '',
+    isAgent: false,
     remark: '',
     items: [createEmptyReceivingItem()]
   })
@@ -62,6 +64,8 @@ export function useReceivingOrderForm(options: {
     form.purchaseOrderNo = ''
     form.supplierName = ''
     form.warehouseName = ''
+    form.receivingType = ''
+    form.isAgent = false
     form.remark = ''
     supplierSearchQuery.value = ''
     form.items = [createEmptyReceivingItem()]

@@ -3,20 +3,26 @@ import { getData, postData, putData, type PageResult } from './http'
 export interface InventoryBalanceRow {
   balanceId: number
   warehouseName: string
+  deptName?: string
   productCode: string
   productName: string
   specModel: string
+  registrationNo?: string
+  unitPrice: number
+  unit?: string
+  qty: number
+  amount?: number
+  manufacturerName?: string
+  supplierName?: string
   systemBatchNo: string
   productionBatchNo?: string
   expireDate?: string
-  batchUnitPrice: number
-  availableQty: number
-  lockedQty: number
-  inTransitQty: number
-  isolatedQty: number
-  ownershipType: string
-  settlementMode: string
-  updateTime: string
+  lockedQty?: number
+  inTransitQty?: number
+  isolatedQty?: number
+  ownershipType?: string
+  settlementMode?: string
+  updateTime?: string
 }
 /**
  * 分页查询库存余额列表
@@ -28,6 +34,20 @@ export async function fetchInventoryBalances(params: Record<string, string>) {
     '/inventory/balances',
     { params }
   )
+}
+
+/**
+ * 定数包库存查询
+ */
+export async function fetchQuotaPackageStock(params: Record<string, string>) {
+  return getData<PageResult<Record<string, unknown>>>('/inventory/quota-package-stock', { params })
+}
+
+/**
+ * 唯一码库存查询
+ */
+export async function fetchUniqueCodeStock(params: Record<string, string>) {
+  return getData<PageResult<Record<string, unknown>>>('/inventory/unique-code-stock', { params })
 }
 /**
  * 查询库存交易流水记录

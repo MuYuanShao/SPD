@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CheckCircle2, ClipboardCheck, History, PackageSearch, RefreshCw, Save, Search, SlidersHorizontal } from '@lucide/vue'
+import { CheckCircle2, ClipboardCheck, History, PackageSearch, RefreshCw, Save, Search } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import {
   approveBatchPriceAdjustment,
@@ -11,7 +11,9 @@ import {
   fetchBatchPriceAdjustments,
   fetchInventoryBalances,
   fetchInventoryEvents,
+  fetchQuotaPackageStock,
   fetchStocktakingList,
+  fetchUniqueCodeStock,
   type InventoryBalanceRow
 } from '../../api/inventory'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
@@ -25,9 +27,34 @@ const loading = ref(false)
 const message = ref('')
 const inventoryPagination = reactive({
   balances: { page: 1, size: 20, total: 0 },
+  quotaStock: { page: 1, size: 20, total: 0 },
+  codeStock: { page: 1, size: 20, total: 0 },
   events: { page: 1, size: 20, total: 0 },
   stocktaking: { page: 1, size: 20, total: 0 },
   price: { page: 1, size: 20, total: 0 }
+})
+const inventoryTab = ref<'summary' | 'quota' | 'unique'>('summary')
+const inventoryTabs = [
+  { key: 'summary', label: '库存汇总查询' },
+  { key: 'quota', label: '定数包库存查询' },
+  { key: 'unique', label: '唯一码查询' }
+] as const
+const quotaStockRows = ref<Record<string, unknown>[]>([])
+const codeStockRows = ref<Record<string, unknown>[]>([])
+const quotaQuery = reactive({
+  warehouseName: '',
+  deptName: '',
+  packageName: '',
+  productName: ''
+})
+const codeQuery = reactive({
+  deptName: '',
+  warehouseName: '',
+  productCode: '',
+  productName: '',
+  batchNo: '',
+  uniqueCode: '',
+  udiCode: ''
 })
 const query = reactive({
   deptName: '',
@@ -98,8 +125,37 @@ async function loadData() {
       return
     }
 
+    if (mode.value === 'inventory') {
+      if (inventoryTab.value === 'quota') {
+        const data = await fetchQuotaPackageStock({
+          ...quotaQuery,
+          page: String(inventoryPagination.quotaStock.page),
+          size: String(inventoryPagination.quotaStock.size)
+        })
+        quotaStockRows.value = data.rows
+        inventoryPagination.quotaStock.total = data.total
+        return
+      }
+      if (inventoryTab.value === 'unique') {
+        const data = await fetchUniqueCodeStock({
+          ...codeQuery,
+          page: String(inventoryPagination.codeStock.page),
+          size: String(inventoryPagination.codeStock.size)
+        })
+        codeStockRows.value = data.rows
+        inventoryPagination.codeStock.total = data.total
+        return
+      }
+    }
+
     const balanceData = await fetchInventoryBalances({
-      ...query,
+      deptName: query.deptName,
+      warehouseName: query.warehouseName,
+      productCode: query.productCode,
+      productName: query.productName,
+      systemBatchNo: query.systemBatchNo,
+      manufacturerName: query.manufacturerName,
+      supplierName: query.supplierName,
       page: String(inventoryPagination.balances.page),
       size: String(inventoryPagination.balances.size)
     })
@@ -162,12 +218,13 @@ function resetEventQuery() {
   void loadData()
 }
 
-function fillFromBalance(row: InventoryBalanceRow) {
-  stocktakingForm.warehouseName = row.warehouseName
-  stocktakingForm.systemBatchNo = row.systemBatchNo
-  stocktakingForm.actualQty = Number(row.availableQty)
-  priceForm.systemBatchNo = row.systemBatchNo
-  priceForm.newUnitPrice = Number(row.batchUnitPrice)
+function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
+  if (tab === inventoryTab.value) return
+  inventoryTab.value = tab
+  inventoryPagination.balances.page = 1
+  inventoryPagination.quotaStock.page = 1
+  inventoryPagination.codeStock.page = 1
+  void loadData()
 }
 
 async function submitStocktaking() {
@@ -226,75 +283,229 @@ watch(mode, () => {
     <p v-if="message" class="inline-message">{{ message }}</p>
 
     <section v-if="isInventoryManagement" class="hospital-catalog-panel">
-      <div class="hospital-action-row">
-        <button class="btn" type="button" @click="loadData">
-          <Search :size="17" />
-          查询
-        </button>
-      </div>
-      <div class="hospital-query-grid purchase-query-grid">
-        <label><span>库房</span><input v-model="query.warehouseName" placeholder="模糊查询库房" /></label>
-        <label><span>商品编码</span><input v-model="query.productCode" placeholder="商品编码" /></label>
-        <label><span>商品名称</span><input v-model="query.productName" placeholder="商品名称" /></label>
-        <label><span>系统批次</span><input v-model="query.systemBatchNo" placeholder="系统批次号" /></label>
-        <button class="btn btn-primary" type="button" @click="loadData">
-          <Search :size="18" />
-          查询
+      <div class="subnav-tabs inventory-query-tabs" role="tablist" aria-label="库存查询类型">
+        <button
+          v-for="tab in inventoryTabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          :aria-selected="inventoryTab === tab.key"
+          :class="{ active: inventoryTab === tab.key }"
+          @click="changeInventoryTab(tab.key)"
+        >
+          {{ tab.label }}
         </button>
       </div>
 
-      <div class="table-scroll">
-        <table class="master-table purchase-table">
-          <thead>
-            <tr>
-              <th>库房</th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>系统批次</th>
-              <th>生产批号</th>
-              <th>效期</th>
-              <th>批次单价</th>
-              <th>可用</th>
-              <th>锁定</th>
-              <th>隔离</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="11" class="approval-empty">正在加载库存...</td>
-            </tr>
-            <tr v-for="row in balances" v-else :key="row.balanceId">
-              <td>{{ row.warehouseName }}</td>
-              <td>{{ row.productCode }}</td>
-              <td>{{ row.productName }}</td>
-              <td>{{ row.systemBatchNo }}</td>
-              <td>{{ row.productionBatchNo || '-' }}</td>
-              <td>{{ row.expireDate || '-' }}</td>
-              <td>¥ {{ Number(row.batchUnitPrice).toFixed(2) }}</td>
-              <td>{{ row.availableQty }}</td>
-              <td>{{ row.lockedQty }}</td>
-              <td>{{ row.isolatedQty }}</td>
-              <td>
-                <div class="row-actions">
-                  <button type="button" class="btn-text" @click="fillFromBalance(row)">
-                    <SlidersHorizontal :size="15" />
-                    带入
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="inventoryPagination.balances.page"
-        :size="inventoryPagination.balances.size"
-        :total="inventoryPagination.balances.total"
-        :loading="loading"
-        @change-page="changeInventoryPage('balances', $event)"
-        @change-size="changeInventoryPageSize('balances', $event)"
-      />
+      <!-- 库存汇总查询 -->
+      <template v-if="inventoryTab === 'summary'">
+        <form class="hospital-query-grid purchase-query-grid" role="search" @submit.prevent="loadData">
+          <label><span>库房</span><input v-model.trim="query.warehouseName" placeholder="模糊查询库房" /></label>
+          <label><span>科室</span><input v-model.trim="query.deptName" placeholder="科室名称" /></label>
+          <label><span>商品编码</span><input v-model.trim="query.productCode" placeholder="商品编码" /></label>
+          <label><span>商品名称</span><input v-model.trim="query.productName" placeholder="商品名称" /></label>
+          <label><span>厂家</span><input v-model.trim="query.manufacturerName" placeholder="厂家名称" /></label>
+          <label><span>供应商</span><input v-model.trim="query.supplierName" placeholder="供应商名称" /></label>
+          <button class="btn btn-primary" type="submit">
+            <Search :size="18" />
+            查询
+          </button>
+        </form>
+
+        <div class="table-scroll">
+          <table class="master-table purchase-table">
+            <thead>
+              <tr>
+                <th>库房</th>
+                <th>科室</th>
+                <th>商品编码</th>
+                <th>商品名称</th>
+                <th>规格型号</th>
+                <th>注册证号</th>
+                <th>单价</th>
+                <th>单位</th>
+                <th>数量</th>
+                <th>金额</th>
+                <th>厂家</th>
+                <th>供应商</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="12" class="approval-empty">正在加载库存...</td>
+              </tr>
+              <tr v-for="row in balances" v-else :key="row.balanceId">
+                <td>{{ row.warehouseName }}</td>
+                <td>{{ row.deptName || '-' }}</td>
+                <td class="code-cell">{{ row.productCode }}</td>
+                <td>{{ row.productName }}</td>
+                <td>{{ row.specModel || '-' }}</td>
+                <td>{{ row.registrationNo || '-' }}</td>
+                <td class="number-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
+                <td>{{ row.unit || '-' }}</td>
+                <td class="number-cell">{{ row.qty }}</td>
+                <td class="number-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
+                <td>{{ row.manufacturerName || '-' }}</td>
+                <td>{{ row.supplierName || '-' }}</td>
+              </tr>
+              <tr v-if="!balances.length && !loading">
+                <td colspan="12" class="approval-empty">暂无库存汇总数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls
+          :page="inventoryPagination.balances.page"
+          :size="inventoryPagination.balances.size"
+          :total="inventoryPagination.balances.total"
+          :loading="loading"
+          @change-page="changeInventoryPage('balances', $event)"
+          @change-size="changeInventoryPageSize('balances', $event)"
+        />
+      </template>
+
+      <!-- 定数包库存查询 -->
+      <template v-else-if="inventoryTab === 'quota'">
+        <form class="hospital-query-grid purchase-query-grid" role="search" @submit.prevent="loadData">
+          <label><span>库房</span><input v-model.trim="quotaQuery.warehouseName" placeholder="模糊查询库房" /></label>
+          <label><span>科室</span><input v-model.trim="quotaQuery.deptName" placeholder="科室名称" /></label>
+          <label><span>定数包名称</span><input v-model.trim="quotaQuery.packageName" placeholder="定数包名称" /></label>
+          <label><span>商品名称</span><input v-model.trim="quotaQuery.productName" placeholder="商品名称" /></label>
+          <button class="btn btn-primary" type="submit">
+            <Search :size="18" />
+            查询
+          </button>
+        </form>
+
+        <div class="table-scroll">
+          <table class="master-table purchase-table">
+            <thead>
+              <tr>
+                <th>库房</th>
+                <th>科室</th>
+                <th>定数包编码</th>
+                <th>定数包名称</th>
+                <th>规格型号</th>
+                <th>注册证号</th>
+                <th>单价</th>
+                <th>单位</th>
+                <th>定数包数量</th>
+                <th>散货数量</th>
+                <th>金额</th>
+                <th>厂家</th>
+                <th>供应商</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="13" class="approval-empty">正在加载定数包库存...</td>
+              </tr>
+              <tr v-for="(row, index) in quotaStockRows" v-else :key="index">
+                <td>{{ row.warehouseName }}</td>
+                <td>{{ row.deptName }}</td>
+                <td class="code-cell">{{ row.packageCode }}</td>
+                <td>{{ row.packageName }}</td>
+                <td>{{ row.specModel || '-' }}</td>
+                <td>{{ row.registrationNo || '-' }}</td>
+                <td class="number-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
+                <td>{{ row.unit || '-' }}</td>
+                <td class="number-cell">{{ row.packageCount }}</td>
+                <td class="number-cell">{{ row.looseQty }}</td>
+                <td class="number-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
+                <td>{{ row.manufacturerName }}</td>
+                <td>{{ row.supplierName }}</td>
+              </tr>
+              <tr v-if="!quotaStockRows.length && !loading">
+                <td colspan="13" class="approval-empty">暂无定数包库存数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls
+          :page="inventoryPagination.quotaStock.page"
+          :size="inventoryPagination.quotaStock.size"
+          :total="inventoryPagination.quotaStock.total"
+          :loading="loading"
+          @change-page="changeInventoryPage('quotaStock', $event)"
+          @change-size="changeInventoryPageSize('quotaStock', $event)"
+        />
+      </template>
+
+      <!-- 唯一码查询 -->
+      <template v-else>
+        <form class="hospital-query-grid purchase-query-grid" role="search" @submit.prevent="loadData">
+          <label><span>科室</span><input v-model.trim="codeQuery.deptName" placeholder="科室名称" /></label>
+          <label><span>库房</span><input v-model.trim="codeQuery.warehouseName" placeholder="库房名称" /></label>
+          <label><span>商品编码</span><input v-model.trim="codeQuery.productCode" placeholder="商品编码" /></label>
+          <label><span>商品名称</span><input v-model.trim="codeQuery.productName" placeholder="商品名称" /></label>
+          <label><span>批号</span><input v-model.trim="codeQuery.batchNo" placeholder="系统批号" /></label>
+          <label><span>唯一码</span><input v-model.trim="codeQuery.uniqueCode" placeholder="唯一码" /></label>
+          <label><span>UID码</span><input v-model.trim="codeQuery.udiCode" placeholder="UID码" /></label>
+          <button class="btn btn-primary" type="submit">
+            <Search :size="18" />
+            查询
+          </button>
+        </form>
+
+        <div class="table-scroll">
+          <table class="master-table purchase-table">
+            <thead>
+              <tr>
+                <th>科室</th>
+                <th>库房</th>
+                <th>商品编码</th>
+                <th>商品名称</th>
+                <th>规格型号</th>
+                <th>注册证号</th>
+                <th>批号</th>
+                <th>批次</th>
+                <th>单价</th>
+                <th>单位</th>
+                <th>数量</th>
+                <th>金额</th>
+                <th>厂家</th>
+                <th>供应商</th>
+                <th>唯一码</th>
+                <th>UID码</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading">
+                <td colspan="16" class="approval-empty">正在加载唯一码库存...</td>
+              </tr>
+              <tr v-for="(row, index) in codeStockRows" v-else :key="index">
+                <td>{{ row.deptName }}</td>
+                <td>{{ row.warehouseName }}</td>
+                <td class="code-cell">{{ row.productCode }}</td>
+                <td>{{ row.productName }}</td>
+                <td>{{ row.specModel || '-' }}</td>
+                <td>{{ row.registrationNo || '-' }}</td>
+                <td>{{ row.batchNo }}</td>
+                <td>{{ row.productionBatchNo }}</td>
+                <td class="number-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
+                <td>{{ row.unit || '-' }}</td>
+                <td class="number-cell">{{ row.qty }}</td>
+                <td class="number-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
+                <td>{{ row.manufacturerName }}</td>
+                <td>{{ row.supplierName }}</td>
+                <td class="code-cell">{{ row.uniqueCode }}</td>
+                <td class="code-cell">{{ row.udiCode }}</td>
+              </tr>
+              <tr v-if="!codeStockRows.length && !loading">
+                <td colspan="16" class="approval-empty">暂无唯一码库存数据</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls
+          :page="inventoryPagination.codeStock.page"
+          :size="inventoryPagination.codeStock.size"
+          :total="inventoryPagination.codeStock.total"
+          :loading="loading"
+          @change-page="changeInventoryPage('codeStock', $event)"
+          @change-size="changeInventoryPageSize('codeStock', $event)"
+        />
+      </template>
     </section>
 
     <section v-if="isInventoryTransactionLedger" class="hospital-catalog-panel">

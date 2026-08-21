@@ -119,6 +119,7 @@ public class ReceivingOrderService {
                 SELECT ro.receiving_order_id AS receivingOrderId, ro.receiving_no AS receivingNo,
                        po.order_no AS purchaseOrderNo, s.supplier_name AS supplierName,
                        w.warehouse_name AS warehouseName, ro.receiving_status AS receivingStatus,
+                       ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
                        DATE_FORMAT(ro.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        COUNT(roi.item_id) AS itemCount,
@@ -233,8 +234,8 @@ public class ReceivingOrderService {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO receiving_order (
                       receiving_no, purchase_order_id, supplier_id, warehouse_id,
-                      receiving_status, receiver_id, remark
-                    ) VALUES (?, ?, ?, ?, 'draft', ?, ?)
+                      receiving_status, receiving_type, is_agent, receiver_id, remark
+                    ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, receivingNo);
             if (purchaseOrderId == null) {
@@ -244,8 +245,10 @@ public class ReceivingOrderService {
             }
             ps.setLong(3, supplierId);
             ps.setLong(4, warehouseId);
-            ps.setLong(5, operator.userId());
-            ps.setString(6, nullIfBlank(request.remark()));
+            ps.setString(5, nullIfBlank(request.receivingType()));
+            ps.setInt(6, Boolean.TRUE.equals(request.isAgent()) ? 1 : 0);
+            ps.setLong(7, operator.userId());
+            ps.setString(8, nullIfBlank(request.remark()));
             return ps;
         }, keyHolder);
         Long receivingOrderId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -273,9 +276,13 @@ public class ReceivingOrderService {
 
         jdbcTemplate.update("""
                 UPDATE receiving_order
-                   SET purchase_order_id = ?, supplier_id = ?, warehouse_id = ?, remark = ?
+                   SET purchase_order_id = ?, supplier_id = ?, warehouse_id = ?,
+                       receiving_type = ?, is_agent = ?, remark = ?
                  WHERE receiving_order_id = ?
-                """, purchaseOrderId, supplierId, warehouseId, nullIfBlank(request.remark()), receivingOrderId);
+                """, purchaseOrderId, supplierId, warehouseId,
+                nullIfBlank(request.receivingType()),
+                Boolean.TRUE.equals(request.isAgent()) ? 1 : 0,
+                nullIfBlank(request.remark()), receivingOrderId);
         jdbcTemplate.update("DELETE FROM receiving_order_item WHERE receiving_order_id = ?", receivingOrderId);
         insertReceivingItems(receivingOrderId, request.items());
         writeAudit("update", receivingOrderId, receivingNo, "修改待验收收货单");

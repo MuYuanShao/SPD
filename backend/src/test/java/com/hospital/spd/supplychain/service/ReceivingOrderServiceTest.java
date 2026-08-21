@@ -209,6 +209,7 @@ class ReceivingOrderServiceTest {
                     "CG20260601001",
                     "测试供应商",
                     "主仓库",
+                    "normal", false,
                     "加急收货",
                     List.of(new ReceivingItemRequest("P001", "BATCH001",
                             "2026-06-01", "2028-06-01",
@@ -256,7 +257,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("draft 状态允许修改并重建明细")
         void shouldUpdateDraftReceivingOrder() {
             ReceivingOrderRequest request = new ReceivingOrderRequest(
-                    null, "测试供应商", "SPD中心库", "二次修改",
+                    null, "测试供应商", "SPD中心库", "normal", false, "二次修改",
                     List.of(new ReceivingItemRequest("P001", "BATCH002",
                             "2026-06-02", "2028-06-02",
                             BigDecimal.valueOf(12), BigDecimal.valueOf(12), BigDecimal.ZERO))
@@ -279,7 +280,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("非 draft 状态不允许修改")
         void shouldRejectUpdateWhenNotDraft() {
             ReceivingOrderRequest request = new ReceivingOrderRequest(
-                    null, "测试供应商", "SPD中心库", null,
+                    null, "测试供应商", "SPD中心库", null, false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null,
                             BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
             );
@@ -302,7 +303,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("无采购订单号时也能创建")
         void shouldCreateWithoutPurchaseOrderNo() {
             ReceivingOrderRequest noPoRequest = new ReceivingOrderRequest(
-                    null, "测试供应商", "主仓库", null,
+                    null, "测试供应商", "主仓库", "normal", false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null,
                             BigDecimal.TEN, null, null))
             );
@@ -332,7 +333,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("明细为空时抛出异常")
         void shouldThrowWhenItemsEmpty() {
             ReceivingOrderRequest empty = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "主仓库", null, List.of()
+                    "CG20260601001", "测试供应商", "主仓库", null, false, null, List.of()
             );
             assertThatThrownBy(() -> service.create(empty))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -343,7 +344,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("明细商品编码为空时抛出异常")
         void shouldThrowWhenProductCodeBlank() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "主仓库", null,
+                    "CG20260601001", "测试供应商", "主仓库", null, false, null,
                     List.of(new ReceivingItemRequest("", null, null, null,
                             BigDecimal.TEN, null, null))
             );
@@ -356,7 +357,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("仓库名为空时抛出异常")
         void shouldThrowWhenWarehouseBlank() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "", null,
+                    "CG20260601001", "测试供应商", "", null, false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null,
                             BigDecimal.TEN, null, null))
             );
@@ -372,7 +373,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("合格数与不合格数之和必须等于收货数")
         void shouldRejectInconsistentAcceptedQuantities() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "主仓库", null,
+                    "CG20260601001", "测试供应商", "主仓库", null, false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null,
                             BigDecimal.TEN, BigDecimal.valueOf(9), BigDecimal.valueOf(2)))
             );
@@ -386,7 +387,7 @@ class ReceivingOrderServiceTest {
         @DisplayName("关联采购单时合格收货数不能超过未收数量")
         void shouldRejectReceiptBeyondPurchaseOrderRemainingQuantity() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "主仓库", null,
+                    "CG20260601001", "测试供应商", "主仓库", null, false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null,
                             BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
             );

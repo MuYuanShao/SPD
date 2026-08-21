@@ -700,7 +700,7 @@ watch(
           <div class="section-title compact">
             <PackageCheck :size="18" />
             <h3>按验收单分配散货</h3>
-            <span class="muted-hint">部分分配后验收单剩余量保持散货库存；不填数量点“全部打包分配”</span>
+            <span class="muted-hint">分配数量需为每包数量的整数倍（自动增加打包数量）；部分分配后验收单剩余量保持散货库存</span>
           </div>
           <div class="receiving-allocate-form">
             <label>

@@ -442,6 +442,7 @@ public class PackingTaskService {
         }
         return jdbcTemplate.queryForList("""
                 SELECT ro.receiving_no AS receivingNo, roi.item_id AS receivingItemId,
+                       roi.product_id AS productId, ro.warehouse_id AS warehouseId,
                        p.product_code AS productCode, p.product_name AS productName,
                        ib.batch_id AS batchId, ib.system_batch_no AS systemBatchNo,
                        ib.production_batch_no AS productionBatchNo,
@@ -472,9 +473,14 @@ public class PackingTaskService {
         Long productId = ((Number) task.get("productId")).longValue();
         Long taskId = ((Number) task.get("taskId")).longValue();
 
+        // 仅分配与任务商品、库房一致的验收单散货；验收单内其它商品/库房散货保持不动
         List<Map<String, Object>> rows = receivingLooseStock(receivingNo).stream()
-                .filter(row -> ((Number) row.get("balanceId")).longValue() > 0)
+                .filter(row -> productId.equals(((Number) row.get("productId")).longValue()))
+                .filter(row -> warehouseId.equals(((Number) row.get("warehouseId")).longValue()))
                 .toList();
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("该验收单没有匹配当前打包任务商品与库房的散货库存");
+        }
         boolean fullAllocation = quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0;
         BigDecimal remaining = fullAllocation
                 ? rows.stream().map(row -> (BigDecimal) row.get("availableQty")).reduce(BigDecimal.ZERO, BigDecimal::add)
@@ -515,12 +521,19 @@ public class PackingTaskService {
             throw new IllegalArgumentException("验收单散货库存不足，仅可分配 " + allocatedTotal + "，剩余 " + remaining + " 无法满足");
         }
 
+        BigDecimal packageQuantity = (BigDecimal) task.get("packageQuantity");
+        if (allocatedTotal.remainder(packageQuantity).compareTo(BigDecimal.ZERO) != 0) {
+            throw new IllegalArgumentException("分配数量必须是每包数量的整数倍（每包 " + packageQuantity + "）");
+        }
+        BigDecimal addedPackages = allocatedTotal.divide(packageQuantity);
+        BigDecimal currentReserved = (BigDecimal) task.get("reservedLooseQty");
+        BigDecimal newReserved = currentReserved.add(allocatedTotal);
         jdbcTemplate.update("""
                 UPDATE quota_packing_task
-                   SET reserved_loose_qty = reserved_loose_qty + ?, planned_loose_qty = reserved_loose_qty + ?,
+                   SET reserved_loose_qty = ?, planned_loose_qty = ?, package_count = package_count + ?,
                        status = 'pending_confirm'
                  WHERE task_id = ?
-                """, allocatedTotal, allocatedTotal, taskId);
+                """, newReserved, newReserved, addedPackages, taskId);
         BigDecimal taskReserved = jdbcTemplate.queryForObject(
                 "SELECT reserved_loose_qty FROM quota_packing_task WHERE task_id = ?", BigDecimal.class, taskId);
         return Map.of(

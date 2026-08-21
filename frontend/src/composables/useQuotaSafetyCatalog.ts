@@ -39,9 +39,6 @@ export function useQuotaSafetyCatalog(options: {
   function selectSafetyTemplate(row: QuotaTemplateRow) {
     options.safetyForm.templateCode = row.templateCode
     options.safetyForm.productCode = row.productCode
-    if (!options.safetyForm.deptName || options.safetyForm.deptName === '-') {
-      options.safetyForm.deptName = row.deptName === '-' ? '' : row.deptName ?? ''
-    }
   }
 
   function changeSafetyCatalogPage(page: number) {

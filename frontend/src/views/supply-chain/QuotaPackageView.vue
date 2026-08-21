@@ -22,6 +22,7 @@ import {
   X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import { fetchMasterDataPage } from '../../api/masterData'
 import { useQuotaPackageDataLoader } from '../../composables/useQuotaPackageDataLoader'
 import { useQuotaPackagePagination } from '../../composables/useQuotaPackagePagination'
 import { useQuotaPackingTaskActions } from '../../composables/useQuotaPackingTaskActions'
@@ -88,11 +89,30 @@ const templateForm = reactive({
 })
 const safetyForm = reactive({
   deptName: '',
+  warehouseName: '',
   templateCode: '',
   productCode: '',
   minQty: 1,
   maxQty: 3
 })
+const safetyWarehouseOptions = ref<Array<{ name: string; dept: string }>>([])
+
+async function loadSafetyWarehouses() {
+  try {
+    const page = await fetchMasterDataPage('warehouse-location-management', { page: '1', size: '200' })
+    safetyWarehouseOptions.value = page.rows.map((row) => ({
+      name: String(row.name ?? ''),
+      dept: String(row.dept ?? '')
+    }))
+  } catch (err) {
+    safetyWarehouseOptions.value = []
+  }
+}
+
+function selectSafetyWarehouse(warehouse: { name: string; dept: string }) {
+  safetyForm.warehouseName = warehouse.name
+  safetyForm.deptName = warehouse.dept && warehouse.dept !== '-' ? warehouse.dept : ''
+}
 const packingForm = reactive({
   templateCode: '',
   warehouseName: '',
@@ -143,6 +163,13 @@ const {
   safetyCatalogQuery,
   resetSafetyCatalogQuery,
   reload: loadData
+})
+
+// 打开安全量弹窗时预加载库房选项（关联库房搜索）
+watch(safetyDialogOpen, (open) => {
+  if (open) {
+    loadSafetyWarehouses()
+  }
 })
 const selectedTemplates = computed(() =>
   templates.value.filter((item) => selectedTemplateCodes.value.includes(item.templateCode))
@@ -903,6 +930,7 @@ watch(
       :safety-form="safetyForm"
       :catalog-query="safetyCatalogQuery"
       :templates="pagedSafetyTemplates"
+      :warehouses="safetyWarehouseOptions"
       :filtered-count="filteredSafetyTemplates.length"
       :page="safetyCatalogPagination.page"
       :size="safetyCatalogPagination.size"
@@ -910,6 +938,7 @@ watch(
       @close="closeSafetyDialog"
       @submit="submitSafety"
       @select-template="selectSafetyTemplate"
+      @select-warehouse="selectSafetyWarehouse"
       @change-page="changeSafetyCatalogPage"
       @change-size="changeSafetyCatalogPageSize"
     />

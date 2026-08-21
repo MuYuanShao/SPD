@@ -125,13 +125,13 @@ public class InventoryService {
     }
 
     /**
-     * 定数包库存查询：在库定数包标签（待打印/已打印）按库房与模板汇总，附带同商品散货数量。
+     * 定数包库存查询：在库定数包标签（待打印/已打印可用）按库房与模板汇总，附带同商品散货数量。
      */
     public Map<String, Object> quotaPackageStock(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
-                 WHERE qpl.status IN ('pending_print', 'printed')
+                 WHERE qpl.status IN ('pending_print', 'available')
                 """);
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "d.dept_name", params.get("deptName"));

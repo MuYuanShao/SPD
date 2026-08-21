@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test'
 
 test('收费耗材明细支持筛选、分页、空状态和横向表格操作', async ({ page }) => {
   await page.goto('/features/high-value-consumables')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'operator01')
+  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
   await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/high-value-consumables/)
@@ -14,13 +14,13 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
   await page.getByRole('button', { name: '向右滚动' }).click()
   await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(before)
 
-  const firstCode = await page.locator('tbody tr').first().locator('td').nth(2).textContent()
-  const productCode = firstCode?.match(/P-[A-Z0-9-]+/)?.[0]
-  expect(productCode).toBeTruthy()
-  await page.getByRole('textbox', { name: '商品编码' }).fill(productCode!)
+  const firstUniqueCell = page.locator('tbody tr').first().locator('td').nth(5).locator('strong')
+  const uniqueCode = (await firstUniqueCell.textContent())?.trim()
+  expect(uniqueCode).toBeTruthy()
+  await page.getByRole('textbox', { name: 'UID/唯一码' }).fill(uniqueCode!)
   await page.getByRole('button', { name: '查询' }).click()
   await expect(page.locator('tbody tr')).toHaveCount(1)
-  await expect(page.locator('tbody')).toContainText(productCode!)
+  await expect(page.locator('tbody')).toContainText(uniqueCode!)
 
   await page.getByRole('button', { name: '重置' }).click()
   const pageSize = page.getByRole('spinbutton').first()
@@ -38,7 +38,7 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
 
 test('待审批新品准入字段导航与表头及分组保持一致', async ({ page }) => {
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'operator01')
+  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
   await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page.getByRole('heading', { name: '新品准入 · 多字段列表' })).toBeVisible()

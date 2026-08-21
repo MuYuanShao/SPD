@@ -18,6 +18,13 @@
 - 负责人：
 ```
 
+## 2026-08-21 - fix/full-flow-ab-test
+
+- 修改内容：全流程 A→B 端到端测试（scripts/verify-full-flow.mjs，46 步：采购订单→收货验收新字段→库存三页签→定数包打包/按验收单分配/确认/打印→高值收货/唯一码/计费回传/收费明细→盘点/调价/召回→库房商品绑定/科室目录/申领→字段管理/交易流水/UDI/工作台/权限回归）发现并修复：①定数包库存查询只统计待打印标签，标签打印后（available）从库存页签消失——改为统计 pending_print/available 两种在库状态。②种子账号 operator01（运营管理员）无任何角色导致零权限，3 条既有 UI 冒烟用例全部失败——V53 迁移补分配 operator 角色。③3 条 UI 冒烟用例默认账号改为 admin（保留环境变量覆盖），与打包分配用例一致。④收费耗材明细冒烟用例适配改版后列结构（改按 UID/唯一码列 strong 文本取唯一码并以此过滤，替代旧的 P-xxx 商品编码列位假设）。
+- 影响范围：InventoryService.quotaPackageStock、V53 迁移、tests/e2e 三条用例、scripts/verify-full-flow.mjs。
+- 验证方式：全流程脚本 46/46 通过；后端全量 487 用例通过、聚焦 Inventory+Receiving 39 用例通过；UI 冒烟 4 条全部通过。
+- 负责人：Admin
+
 ## 2026-08-21 - fix/packing-allocation-smoke
 
 - 修改内容：①修复定数安全量弹窗（QuotaSafetyDialog）关联库房搜索框 v-model 与 :value 同绑导致的 Vue 模板编译错误（开发模式模块加载 500，打包任务确认等定数包页面无法打开），改为选中库房后回填搜索框、编辑时回显已选库房。②新增 Playwright 冒烟用例 tests/e2e/packing-task-receiving-allocation.spec.ts 覆盖"按验收单分配散货"流程：自建收货单→审核入库→新建打包任务→页面查询验收单散货→部分分配 30→全部打包分配→分配明细与任务预占数量断言，可用散货量动态读取，支持重复/并发运行；package.json 新增 test:smoke:packing-allocation 脚本。

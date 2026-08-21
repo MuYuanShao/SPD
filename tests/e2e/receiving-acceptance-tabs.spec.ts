@@ -4,7 +4,7 @@ async function login(page: import('@playwright/test').Page) {
   await page.goto('/features/receiving-acceptance')
   const username = page.getByRole('textbox', { name: '用户名' })
   if (await username.isVisible()) {
-    await username.fill(process.env.SPD_E2E_USERNAME || 'operator01')
+    await username.fill(process.env.SPD_E2E_USERNAME || 'admin')
     await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
     await page.getByRole('button', { name: '登录' }).click()
     await expect(username).toBeHidden()

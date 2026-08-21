@@ -361,7 +361,7 @@ watch(() => filters.warehouseName, async () => {
         </div>
         <div class="dept-req-actions">
           <RouterLink class="btn" to="/features/department-requisition/high-value">
-            ??????
+            高值耗材申领
           </RouterLink>
           <button v-if="!requisitionStarted" class="btn btn-primary" type="button" @click="startRequisition">
             <UserPlus :size="16" />

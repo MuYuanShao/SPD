@@ -172,7 +172,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
       </div>
       <button class="btn" type="button" @click="loadData">
       <RouterLink class="btn btn-primary" to="/features/high-value-consumables/operations">
-        ??????
+        高值耗材计费操作
       </RouterLink>
         <RefreshCw :size="17" />
         刷新

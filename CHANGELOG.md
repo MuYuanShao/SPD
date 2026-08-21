@@ -18,6 +18,13 @@
 - 负责人：
 ```
 
+## 2026-08-20 - main
+
+- 修改内容：新增一键启动文件 start-dev.ps1（检查 MySQL、启动后端与前端、输出访问信息，支持 -SkipBackend/-SkipFrontend 参数）与双击版 start-dev.bat（Windows PowerShell 5.1 兼容，含 UTF-8 BOM）。
+- 影响范围：仓库根目录新增两个启动文件，不改变现有 npm 脚本与运行方式。
+- 验证方式：使用 Windows PowerShell 5.1 实测一键启动，后端健康检查 UP、前端 HTTP 200、admin 登录成功。
+- 负责人：Admin
+
 ## 2026-08-20 - feature/catalog-field-management
 
 - 修改内容：供应商管理前后端新增"经营许可证号"字段（V49 迁移新增 supplier.business_license_no 列，列表新增列展示、新增/修改弹窗可维护）；医院商品目录与待审批目录选择供应商时自动回填该供应商的经营许可证号到"经营许可证号"字段（修改弹窗、编辑表单页、新增弹窗、审批明细内联编辑、重新提交表单共五处），两个 partner-options 接口供应商选项增加 businessLicenseNo 字段。

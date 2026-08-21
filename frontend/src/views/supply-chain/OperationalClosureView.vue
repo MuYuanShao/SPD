@@ -376,10 +376,7 @@ async function runAction(action: string, row?: Record<string, unknown>) {
 }
 
 async function openSmartAnalysis() {
-  if (!form.deptName) {
-    message.value = '请先选择科室'
-    return
-  }
+  // 支持全院分析：未选择科室时按全院科室库房出库核算
   message.value = ''
   analysisError.value = ''
   await loadLinkedWarehouses()

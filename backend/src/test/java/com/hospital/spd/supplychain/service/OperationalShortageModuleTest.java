@@ -97,8 +97,10 @@ class OperationalShortageModuleTest {
         when(jdbcTemplate.queryForList(contains("JOIN sys_dept sd ON sd.dept_id = w.dept_id"),
                 eq(String.class), eq("Surgery"), eq("Main Warehouse")))
                 .thenReturn(List.of("Main Warehouse"));
-        when(jdbcTemplate.queryForList(contains("issue5"), eq("Main Warehouse"), eq("Surgery")))
+        when(jdbcTemplate.queryForList(contains("issue5"), any(Object[].class)))
                 .thenReturn(List.of(Map.of(
+                        "deptName", "Surgery",
+                        "warehouseName", "Main Warehouse",
                         "productCode", "PC001",
                         "productName", "Gauze",
                         "issue5", BigDecimal.valueOf(5),
@@ -153,7 +155,7 @@ class OperationalShortageModuleTest {
         when(jdbcTemplate.queryForList(contains("ORDER BY w.warehouse_id"),
                 eq(String.class), eq("Surgery")))
                 .thenReturn(List.of("Surgery Warehouse"));
-        when(jdbcTemplate.queryForList(contains("issue5"), eq("Surgery Warehouse"), eq("Surgery")))
+        when(jdbcTemplate.queryForList(contains("issue5"), any(Object[].class)))
                 .thenReturn(List.of());
         when(jdbcTemplate.queryForObject(eq("SELECT LAST_INSERT_ID()"), eq(Long.class))).thenReturn(89L);
 

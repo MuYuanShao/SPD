@@ -7,9 +7,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static com.hospital.spd.common.SqlHelper.isBlank;
 import static com.hospital.spd.common.service.DocumentKind.SHORTAGE_REPLENISHMENT_TASK;
 
 /**
@@ -85,53 +88,75 @@ public class OperationalShortageModule {
     @Transactional
     public Map<String, Object> smartAnalyze(Map<String, Object> body) {
         String deptName = text(body, "deptName");
-        if (deptName.isBlank()) {
-            throw new IllegalArgumentException("请选择科室");
-        }
         String warehouseName = text(body, "warehouseName");
-        warehouseName = resolveLinkedWarehouse(deptName, warehouseName);
+        if (!deptName.isBlank()) {
+            warehouseName = resolveLinkedWarehouse(deptName, warehouseName);
+        }
         int selectedPeriodDays = positiveInt(body, "selectedPeriodDays", 7);
         if (!SMART_PERIOD_DAYS.contains(selectedPeriodDays)) {
             selectedPeriodDays = 7;
         }
         final int periodDaysForAnalysis = selectedPeriodDays;
 
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT p.product_code AS productCode,
-                       p.product_name AS productName,
-                       COALESCE(SUM(CASE WHEN dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY) THEN dci.quantity ELSE 0 END), 0) AS issue5,
-                       COALESCE(SUM(CASE WHEN dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY) THEN dci.quantity ELSE 0 END), 0) AS issue7,
-                       COALESCE(SUM(CASE WHEN dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY) THEN dci.quantity ELSE 0 END), 0) AS issue15,
-                       COALESCE(SUM(CASE WHEN dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY) THEN dci.quantity ELSE 0 END), 0) AS issue30,
-                       COALESCE((
-                         SELECT SUM(bal.available_qty)
-                           FROM inventory_balance bal
-                           JOIN warehouse bw ON bw.warehouse_id = bal.warehouse_id
-                          WHERE bw.warehouse_name = ? AND bw.deleted = 0 AND bal.product_id = p.product_id
-                       ), 0) AS currentQty
-                  FROM department_consumption dc
-                  JOIN sys_dept sd ON sd.dept_id = dc.dept_id
-                  JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
-                  JOIN product p ON p.product_id = dci.product_id
-                 WHERE sd.dept_name = ?
-                   AND dc.status <> 'reversed'
-                   AND dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
-                 GROUP BY p.product_id, p.product_code, p.product_name
-                 ORDER BY issue30 DESC, p.product_name
-                """, warehouseName, deptName);
+        // 以点击当天为基准前移核算天数，统计科室库房出库记录（库存出库事件，事务内聚合），支持全院数据
+        List<Map<String, Object>> rows = computeDeptWarehouseOutbound(deptName, warehouseName);
 
         List<Map<String, Object>> suggestions = rows.stream()
                 .map(row -> buildSuggestion(row, periodDaysForAnalysis))
                 .toList();
-        Long analysisId = storeAnalysis(deptName, warehouseName, selectedPeriodDays, suggestions);
+        String scopeDept = deptName.isBlank() ? "全院" : deptName;
+        Long analysisId = storeAnalysis(scopeDept, warehouseName, selectedPeriodDays, suggestions);
         return Map.of(
                 "analysisId", analysisId,
-                "deptName", deptName,
+                "deptName", scopeDept,
                 "warehouseName", warehouseName,
                 "selectedPeriodDays", selectedPeriodDays,
                 "periodDays", SMART_PERIOD_DAYS,
                 "rows", suggestions
         );
+    }
+
+    /**
+     * 事务化核算科室库房出库记录：以点击当天（CURRENT_TIMESTAMP）为基准，前移 5/7/15/30 天窗口，
+     * 聚合库存出库事件（qty_change < 0）到科室库房与商品维度；科室为空时覆盖全院数据。
+     */
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> computeDeptWarehouseOutbound(String deptName, String warehouseName) {
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder("""
+                 WHERE ie.qty_change < 0
+                   AND w.deleted = 0
+                   AND w.dept_id IS NOT NULL
+                """);
+        if (!isBlank(deptName)) {
+            where.append(" AND d.dept_name = ?");
+            args.add(deptName.trim());
+        }
+        if (!isBlank(warehouseName)) {
+            where.append(" AND w.warehouse_name = ?");
+            args.add(warehouseName.trim());
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT d.dept_name AS deptName, w.warehouse_name AS warehouseName,
+                       p.product_code AS productCode,
+                       p.product_name AS productName,
+                       COALESCE(SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY) THEN -ie.qty_change ELSE 0 END), 0) AS issue5,
+                       COALESCE(SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY) THEN -ie.qty_change ELSE 0 END), 0) AS issue7,
+                       COALESCE(SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY) THEN -ie.qty_change ELSE 0 END), 0) AS issue15,
+                       COALESCE(SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY) THEN -ie.qty_change ELSE 0 END), 0) AS issue30,
+                       COALESCE((
+                         SELECT SUM(bal.available_qty)
+                           FROM inventory_balance bal
+                          WHERE bal.warehouse_id = w.warehouse_id AND bal.product_id = ie.product_id
+                       ), 0) AS currentQty
+                  FROM inventory_event ie
+                  JOIN warehouse w ON w.warehouse_id = ie.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                  JOIN product p ON p.product_id = ie.product_id
+                """ + where + """
+                 GROUP BY d.dept_name, w.warehouse_name, p.product_id, p.product_code, p.product_name
+                 ORDER BY issue30 DESC, p.product_name
+                """, args.toArray());
     }
 
     private Map<String, Object> buildSuggestion(Map<String, Object> row, int selectedPeriodDays) {
@@ -147,18 +172,20 @@ public class OperationalShortageModule {
             default -> issue7;
         };
         BigDecimal recommendedQty = selectedIssueQty.subtract(currentQty).max(BigDecimal.ZERO);
-        return Map.of(
-                "productCode", String.valueOf(row.get("productCode")),
-                "productName", String.valueOf(row.get("productName")),
-                "issue5", issue5,
-                "issue7", issue7,
-                "issue15", issue15,
-                "issue30", issue30,
-                "currentQty", currentQty,
-                "selectedIssueQty", selectedIssueQty,
-                "recommendedQty", recommendedQty,
-                "formulaText", "近" + selectedPeriodDays + "天出库量 - 当前库存"
-        );
+        Map<String, Object> suggestion = new LinkedHashMap<>();
+        suggestion.put("deptName", String.valueOf(row.get("deptName")));
+        suggestion.put("warehouseName", String.valueOf(row.get("warehouseName")));
+        suggestion.put("productCode", String.valueOf(row.get("productCode")));
+        suggestion.put("productName", String.valueOf(row.get("productName")));
+        suggestion.put("issue5", issue5);
+        suggestion.put("issue7", issue7);
+        suggestion.put("issue15", issue15);
+        suggestion.put("issue30", issue30);
+        suggestion.put("currentQty", currentQty);
+        suggestion.put("selectedIssueQty", selectedIssueQty);
+        suggestion.put("recommendedQty", recommendedQty);
+        suggestion.put("formulaText", "近" + selectedPeriodDays + "天出库量 - 当前库存");
+        return suggestion;
     }
 
     private Long storeAnalysis(String deptName, String warehouseName, int selectedPeriodDays, List<Map<String, Object>> rows) {

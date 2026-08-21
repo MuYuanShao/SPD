@@ -104,6 +104,37 @@ public class QuotaPackageController {
         return ApiResponse.ok(packingTaskService.taskReservations(taskNo));
     }
 
+    @GetMapping("/receiving-loose-stock")
+    public ApiResponse<List<Map<String, Object>>> receivingLooseStock(@RequestParam String receivingNo) {
+        return ApiResponse.ok(packingTaskService.receivingLooseStock(receivingNo));
+    }
+
+    @GetMapping("/packing-tasks/{taskNo}/allocations")
+    public ApiResponse<List<Map<String, Object>>> allocations(@PathVariable String taskNo) {
+        return ApiResponse.ok(packingTaskService.allocations(taskNo));
+    }
+
+    @PostMapping("/packing-tasks/{taskNo}/allocate-from-receiving")
+    public ApiResponse<Map<String, Object>> allocateFromReceiving(
+            @PathVariable String taskNo,
+            @RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(packingTaskService.allocateFromReceiving(
+                taskNo,
+                String.valueOf(body.get("receivingNo")),
+                decimalValue(body.get("quantity"))));
+    }
+
+    private static java.math.BigDecimal decimalValue(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        try {
+            return new java.math.BigDecimal(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
+    }
+
     @GetMapping("/labels")
     public ApiResponse<Map<String, Object>> labels(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(packingTaskService.labels(params));

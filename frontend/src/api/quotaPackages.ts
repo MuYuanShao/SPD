@@ -169,6 +169,35 @@ export async function saveQuotaSafety(payload: {
 }
 
 /**
+ * 按验收单号查询可分配的散货库存
+ */
+export async function fetchReceivingLooseStock(receivingNo: string) {
+  return getData<Array<Record<string, unknown>>>('/quota-packages/receiving-loose-stock', {
+    params: { receivingNo }
+  })
+}
+
+/**
+ * 打包任务的验收单分配明细
+ */
+export async function fetchPackingTaskAllocations(taskNo: string) {
+  return getData<Array<Record<string, unknown>>>(`/quota-packages/packing-tasks/${taskNo}/allocations`)
+}
+
+/**
+ * 按验收单号分配散货库存到打包任务（quantity 为空表示全部打包分配）
+ */
+export async function allocatePackingTaskFromReceiving(
+  taskNo: string,
+  payload: { receivingNo: string; quantity?: number | null }
+) {
+  return postData<Record<string, unknown>>(
+    `/quota-packages/packing-tasks/${taskNo}/allocate-from-receiving`,
+    payload
+  )
+}
+
+/**
  * 获取打包作业相关选项（库房、待打包候选列表）
  * @returns 打包选项
  */

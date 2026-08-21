@@ -41,7 +41,10 @@ import {
   type PackageLabelRow,
   type PackingTaskRow,
   type QuotaSafetyRow,
-  type QuotaTemplateRow
+  type QuotaTemplateRow,
+  allocatePackingTaskFromReceiving,
+  fetchPackingTaskAllocations,
+  fetchReceivingLooseStock
 } from '../../api/quotaPackages'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 import QuotaPackageOverview from '../../components/supply-chain/QuotaPackageOverview.vue'
@@ -113,6 +116,67 @@ function selectSafetyWarehouse(warehouse: { name: string; dept: string }) {
   safetyForm.warehouseName = warehouse.name
   safetyForm.deptName = warehouse.dept && warehouse.dept !== '-' ? warehouse.dept : ''
 }
+
+// ── 按验收单分配散货 ──
+const allocateTaskNo = ref('')
+const receivingNo = ref('')
+const allocateQty = ref<number | null>(null)
+const looseStockRows = ref<Record<string, unknown>[]>([])
+const receivingAllocations = ref<Record<string, unknown>[]>([])
+
+async function searchReceivingLooseStock() {
+  const no = receivingNo.value.trim()
+  if (!no) {
+    message.value = '请输入验收单号'
+    return
+  }
+  try {
+    looseStockRows.value = await fetchReceivingLooseStock(no)
+    if (!looseStockRows.value.length) {
+      message.value = '该验收单没有可分配的散货库存'
+    }
+  } catch (error: any) {
+    message.value = error?.response?.data?.message || error?.message || '验收单散货查询失败'
+  }
+}
+
+async function loadReceivingAllocations() {
+  if (!allocateTaskNo.value) {
+    receivingAllocations.value = []
+    return
+  }
+  try {
+    receivingAllocations.value = await fetchPackingTaskAllocations(allocateTaskNo.value)
+  } catch {
+    receivingAllocations.value = []
+  }
+}
+
+async function doAllocateFromReceiving(full: boolean) {
+  if (!allocateTaskNo.value || !receivingNo.value.trim()) {
+    message.value = '请先选择打包任务并输入验收单号'
+    return
+  }
+  try {
+    const result = await allocatePackingTaskFromReceiving(allocateTaskNo.value, {
+      receivingNo: receivingNo.value.trim(),
+      quantity: full ? null : allocateQty.value
+    })
+    message.value = full
+      ? `${result.taskNo} 已按验收单 ${result.receivingNo} 全部打包分配 ${result.allocatedQty}`
+      : `${result.taskNo} 已按验收单 ${result.receivingNo} 分配 ${result.allocatedQty}，剩余保持散货库存`
+    allocateQty.value = null
+    await loadReceivingAllocations()
+    await searchReceivingLooseStock()
+    await loadData()
+  } catch (error: any) {
+    message.value = error?.response?.data?.message || error?.message || '按验收单分配失败'
+  }
+}
+
+watch(allocateTaskNo, () => {
+  void loadReceivingAllocations()
+})
 const packingForm = reactive({
   templateCode: '',
   warehouseName: '',
@@ -631,6 +695,93 @@ watch(
           @change-page="changeQuotaPage('tasks', $event)"
           @change-size="changeQuotaPageSize('tasks', $event)"
         />
+
+        <div class="receiving-allocate-panel">
+          <div class="section-title compact">
+            <PackageCheck :size="18" />
+            <h3>按验收单分配散货</h3>
+            <span class="muted-hint">部分分配后验收单剩余量保持散货库存；不填数量点“全部打包分配”</span>
+          </div>
+          <div class="receiving-allocate-form">
+            <label>
+              <span>打包任务</span>
+              <select v-model="allocateTaskNo">
+                <option value="">请选择待确认打包任务</option>
+                <option v-for="task in tasks" :key="task.taskNo" :value="task.taskNo">
+                  {{ task.taskNo }}（{{ task.productName }}，已预占 {{ task.reservedLooseQty }}）
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>验收单号</span>
+              <input v-model.trim="receivingNo" placeholder="输入验收单号" @keydown.enter.prevent="searchReceivingLooseStock" />
+            </label>
+            <button class="btn" type="button" @click="searchReceivingLooseStock">
+              <Search :size="16" />
+              查询散货
+            </button>
+            <label>
+              <span>分配数量</span>
+              <input v-model.number="allocateQty" type="number" min="0" placeholder="留空为全部" />
+            </label>
+            <button class="btn" type="button" :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length" @click="doAllocateFromReceiving(false)">
+              分配
+            </button>
+            <button class="btn btn-primary" type="button" :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length" @click="doAllocateFromReceiving(true)">
+              全部打包分配
+            </button>
+          </div>
+          <div v-if="looseStockRows.length" class="table-scroll">
+            <table class="master-table compact-table">
+              <thead>
+                <tr>
+                  <th>商品</th>
+                  <th>系统批号</th>
+                  <th>生产批次</th>
+                  <th>可用散货</th>
+                  <th>批次单价</th>
+                  <th>单位</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(row, index) in looseStockRows" :key="index">
+                  <td>{{ row.productName }}（{{ row.productCode }}）</td>
+                  <td>{{ row.systemBatchNo }}</td>
+                  <td>{{ row.productionBatchNo || '-' }}</td>
+                  <td>{{ row.availableQty }}</td>
+                  <td>{{ row.unitPrice }}</td>
+                  <td>{{ row.unit }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-if="receivingAllocations.length" class="table-scroll">
+            <table class="master-table compact-table">
+              <thead>
+                <tr>
+                  <th>验收单号</th>
+                  <th>系统批号</th>
+                  <th>生产批次</th>
+                  <th>商品</th>
+                  <th>已分配</th>
+                  <th>单价</th>
+                  <th>状态</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="row in receivingAllocations" :key="String(row.reservationId)">
+                  <td>{{ row.receivingNo }}</td>
+                  <td>{{ row.systemBatchNo }}</td>
+                  <td>{{ row.productionBatchNo || '-' }}</td>
+                  <td>{{ row.productName }}（{{ row.productCode }}）</td>
+                  <td>{{ row.reservedQty }}</td>
+                  <td>{{ row.unitPrice }}</td>
+                  <td>{{ row.status }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
         <div v-if="selectedTaskNo" class="reservation-panel">
           <div class="section-title compact">
             <ClipboardList :size="18" />

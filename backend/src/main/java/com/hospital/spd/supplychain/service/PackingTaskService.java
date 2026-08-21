@@ -433,6 +433,122 @@ public class PackingTaskService {
 
     // ---- Private helpers ----
 
+    /**
+     * 按验收单号查询可分配的散货库存（该验收单合格收货后尚未打包的可用余额）。
+     */
+    public List<Map<String, Object>> receivingLooseStock(String receivingNo) {
+        if (isBlank(receivingNo)) {
+            throw new IllegalArgumentException("验收单号为必填项");
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT ro.receiving_no AS receivingNo, roi.item_id AS receivingItemId,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       ib.batch_id AS batchId, ib.system_batch_no AS systemBatchNo,
+                       ib.production_batch_no AS productionBatchNo,
+                       bal.balance_id AS balanceId, bal.available_qty AS availableQty,
+                       ib.batch_unit_price AS unitPrice, p.unit
+                  FROM receiving_order ro
+                  JOIN receiving_order_item roi ON roi.receiving_order_id = ro.receiving_order_id
+                  JOIN inventory_batch ib ON ib.receiving_item_id = roi.item_id
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN product p ON p.product_id = roi.product_id
+                 WHERE ro.receiving_no = ? AND bal.available_qty > 0
+                 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
+                """, receivingNo.trim());
+    }
+
+    /**
+     * 打包任务确认界面按验收单号分配散货库存：
+     * quantity 为空或小于等于 0 表示全部打包分配；部分分配后验收单剩余量保持散货库存。
+     */
+    @Transactional
+    public Map<String, Object> allocateFromReceiving(String taskNo, String receivingNo, BigDecimal quantity) {
+        Map<String, Object> task = findPackingTaskForUpdate(taskNo);
+        String status = String.valueOf(task.get("status"));
+        if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status)) {
+            throw new IllegalArgumentException("仅待确认或待重算的打包任务支持按验收单分配");
+        }
+        Long warehouseId = ((Number) task.get("warehouseId")).longValue();
+        Long productId = ((Number) task.get("productId")).longValue();
+        Long taskId = ((Number) task.get("taskId")).longValue();
+
+        List<Map<String, Object>> rows = receivingLooseStock(receivingNo).stream()
+                .filter(row -> ((Number) row.get("balanceId")).longValue() > 0)
+                .toList();
+        boolean fullAllocation = quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0;
+        BigDecimal remaining = fullAllocation
+                ? rows.stream().map(row -> (BigDecimal) row.get("availableQty")).reduce(BigDecimal.ZERO, BigDecimal::add)
+                : quantity;
+        if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("该验收单没有可分配的散货库存");
+        }
+
+        BigDecimal allocatedTotal = BigDecimal.ZERO;
+        List<Long> allocatedBalanceIds = new ArrayList<>();
+        for (Map<String, Object> row : rows) {
+            if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
+                break;
+            }
+            BigDecimal available = (BigDecimal) row.get("availableQty");
+            BigDecimal allocate = available.min(remaining);
+            Long balanceId = ((Number) row.get("balanceId")).longValue();
+            int affected = jdbcTemplate.update("""
+                    UPDATE inventory_balance
+                       SET available_qty = available_qty - ?, locked_qty = locked_qty + ?
+                     WHERE balance_id = ? AND available_qty >= ?
+                    """, allocate, allocate, balanceId, allocate);
+            if (affected != 1) {
+                throw new IllegalArgumentException("验收单散货库存不足，分配失败");
+            }
+            jdbcTemplate.update("""
+                    INSERT INTO quota_packing_task_reservation (
+                      task_id, balance_id, batch_id, reserved_qty, unit_price, status,
+                      receiving_no, receiving_item_id
+                    ) VALUES (?, ?, ?, ?, ?, 'reserved', ?, ?)
+                    """, taskId, balanceId, row.get("batchId"), allocate,
+                    row.get("unitPrice"), receivingNo.trim(), row.get("receivingItemId"));
+            allocatedBalanceIds.add(balanceId);
+            allocatedTotal = allocatedTotal.add(allocate);
+            remaining = remaining.subtract(allocate);
+        }
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalArgumentException("验收单散货库存不足，仅可分配 " + allocatedTotal + "，剩余 " + remaining + " 无法满足");
+        }
+
+        jdbcTemplate.update("""
+                UPDATE quota_packing_task
+                   SET reserved_loose_qty = reserved_loose_qty + ?, planned_loose_qty = reserved_loose_qty + ?,
+                       status = 'pending_confirm'
+                 WHERE task_id = ?
+                """, allocatedTotal, allocatedTotal, taskId);
+        BigDecimal taskReserved = jdbcTemplate.queryForObject(
+                "SELECT reserved_loose_qty FROM quota_packing_task WHERE task_id = ?", BigDecimal.class, taskId);
+        return Map.of(
+                "taskNo", taskNo,
+                "receivingNo", receivingNo.trim(),
+                "allocatedQty", allocatedTotal,
+                "reservedLooseQty", taskReserved,
+                "fullAllocation", fullAllocation
+        );
+    }
+
+    /** 打包任务的验收单分配明细（含来源验收单号） */
+    public List<Map<String, Object>> allocations(String taskNo) {
+        Map<String, Object> task = findPackingTask(taskNo);
+        return jdbcTemplate.queryForList("""
+                SELECT qptr.reservation_id AS reservationId, qptr.receiving_no AS receivingNo,
+                       qptr.receiving_item_id AS receivingItemId,
+                       ib.system_batch_no AS systemBatchNo, ib.production_batch_no AS productionBatchNo,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       qptr.reserved_qty AS reservedQty, qptr.unit_price AS unitPrice, qptr.status
+                  FROM quota_packing_task_reservation qptr
+                  JOIN inventory_batch ib ON ib.batch_id = qptr.batch_id
+                  JOIN product p ON p.product_id = ib.product_id
+                 WHERE qptr.task_id = ? AND qptr.status IN ('reserved', 'consumed')
+                 ORDER BY qptr.reservation_id
+                """, task.get("taskId"));
+    }
+
     private Map<String, Object> findTemplate(String templateCode) {
         List<Map<String, Object>> templates = jdbcTemplate.queryForList("""
                 SELECT t.template_id AS templateId, t.template_code AS templateCode, t.template_name AS templateName,

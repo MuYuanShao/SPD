@@ -116,13 +116,26 @@ public class InventoryService {
                  WHERE 1 = 1
                 """);
         appendLike(where, args, "ie.event_type", params.get("eventType"));
-        appendLike(where, args, "ib.system_batch_no", params.get("systemBatchNo"));
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
+        appendLike(where, args, "p.product_code", params.get("productCode"));
+        appendLike(where, args, "p.product_name", params.get("productName"));
+        appendLike(where, args, "ib.system_batch_no", params.get("batchNo"));
+        appendLike(where, args, "ib.production_batch_no", params.get("productionBatchNo"));
+        appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
+        appendLike(where, args, "s.supplier_name", params.get("supplierName"));
+        appendTimeRange(where, args, params.get("startTime"), params.get("endTime"));
 
         String fromClause = """
                   FROM inventory_event ie
                   JOIN warehouse w ON w.warehouse_id = ie.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = ie.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
                   JOIN inventory_batch ib ON ib.batch_id = ie.batch_id
+                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.batch_id = ie.batch_id
+                  LEFT JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
                 """;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
 
@@ -131,17 +144,44 @@ public class InventoryService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT ie.event_no AS eventNo, ie.event_type AS eventType,
+                       COALESCE(d.dept_name, '-') AS deptName,
                        w.warehouse_name AS warehouseName, p.product_code AS productCode,
-                       p.product_name AS productName, ib.system_batch_no AS systemBatchNo,
-                       ie.qty_change AS qtyChange, ie.qty_after AS qtyAfter,
+                       p.product_name AS productName, COALESCE(p.spec_model, '-') AS specModel,
+                       COALESCE(p.registration_no, '-') AS registrationNo,
+                       ib.system_batch_no AS batchNo, COALESCE(ib.production_batch_no, '-') AS productionBatchNo,
+                       ib.batch_unit_price AS unitPrice, p.unit AS unit,
+                       ie.qty_change AS qtyChange,
+                       ROUND(ie.qty_change * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
+                       ie.qty_after AS qtyAfter,
+                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       COALESCE(s.supplier_name, '-') AS supplierName,
+                       COALESCE(utc.udi_code, utc.unique_code, '-') AS traceCode,
+                       COALESCE(utc.udi_code, '-') AS udiCode,
                        ie.remark, DATE_FORMAT(ie.event_time, '%Y-%m-%d %H:%i') AS eventTime
                   FROM inventory_event ie
                   JOIN warehouse w ON w.warehouse_id = ie.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = ie.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
                   JOIN inventory_batch ib ON ib.batch_id = ie.batch_id
-                """ + where + " ORDER BY ie.event_time DESC LIMIT ? OFFSET ?",
+                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.batch_id = ie.batch_id
+                  LEFT JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
+                """ + where + " ORDER BY d.dept_name, ie.event_time DESC, ie.event_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    /** 时间段过滤：按发生时间区间（yyyy-MM-dd，含起止当天） */
+    private static void appendTimeRange(StringBuilder sql, List<Object> args, String startTime, String endTime) {
+        if (!isBlank(startTime)) {
+            sql.append(" AND ie.event_time >= ?");
+            args.add(startTime.trim() + " 00:00:00");
+        }
+        if (!isBlank(endTime)) {
+            sql.append(" AND ie.event_time <= ?");
+            args.add(endTime.trim() + " 23:59:59");
+        }
     }
 
     public Map<String, Object> batches(Map<String, String> params) {

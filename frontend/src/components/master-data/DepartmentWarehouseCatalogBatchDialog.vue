@@ -20,21 +20,41 @@ const emit = defineEmits<{
   save: []
   changeDept: [deptName: string]
   changeWarehouse: [warehouseName: string]
+  searchProducts: [keyword: string]
 }>()
 
-const productKeyword = ref('')
-const filteredProducts = computed(() => {
-  const keyword = productKeyword.value.trim().toLowerCase()
-  if (!keyword) return props.options.products
-  return props.options.products.filter((product) =>
-    [product.productCode, product.productName, product.specModel]
-      .some((value) => String(value ?? '').toLowerCase().includes(keyword))
+const deptKeyword = ref('')
+const deptDropdownOpen = ref(false)
+
+const filteredDepartments = computed(() => {
+  const keyword = deptKeyword.value.trim()
+  if (!keyword) return props.options.departments
+  return props.options.departments.filter(
+    (dept) => dept.deptName.includes(keyword) || dept.deptCode.includes(keyword)
   )
 })
 
+const productKeyword = ref('')
+const filteredProducts = computed(() => props.options.products)
+
 watch(() => props.open, (open) => {
-  if (open) productKeyword.value = ''
+  if (open) {
+    productKeyword.value = ''
+    deptKeyword.value = ''
+    deptDropdownOpen.value = false
+  }
 })
+
+function selectDept(deptName: string) {
+  props.form.deptName = deptName
+  deptDropdownOpen.value = false
+  deptKeyword.value = ''
+  emit('changeDept', deptName)
+}
+
+function submitProductSearch() {
+  emit('searchProducts', productKeyword.value.trim())
+}
 
 function toggleAllFiltered() {
   const filteredCodes = filteredProducts.value.map((product) => product.productCode)
@@ -77,19 +97,31 @@ function toggleAllFiltered() {
             </div>
           </div>
 
-          <label>
+          <label class="batch-dept-search">
             <span>科室 *</span>
-            <select
-              v-model="form.deptName"
-              required
-              :disabled="saving"
-              @change="emit('changeDept', form.deptName)"
-            >
-              <option value="">请选择科室</option>
-              <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptName">
-                {{ dept.deptName }}
-              </option>
-            </select>
+            <div class="batch-dept-box">
+              <input
+                v-model.trim="deptKeyword"
+                type="search"
+                placeholder="输入科室名称/编码，回车或点击放大镜搜索"
+                aria-label="搜索科室"
+                :disabled="saving"
+                @keydown.enter.prevent="deptDropdownOpen = true"
+                @focus="deptDropdownOpen = true"
+              />
+              <button class="btn-icon search-trigger" type="button" title="搜索科室" :disabled="saving" @click="deptDropdownOpen = true">
+                <Search :size="16" />
+              </button>
+            </div>
+            <ul v-if="deptDropdownOpen" class="batch-dept-results" role="listbox">
+              <li v-for="dept in filteredDepartments" :key="dept.deptCode">
+                <button type="button" role="option" @click="selectDept(dept.deptName)">
+                  {{ dept.deptName }}（{{ dept.deptCode }}）
+                </button>
+              </li>
+              <li v-if="!filteredDepartments.length" class="batch-dept-empty">未找到匹配科室</li>
+            </ul>
+            <small v-if="form.deptName" class="batch-dept-hint">已选科室：{{ form.deptName }}</small>
           </label>
 
           <label>
@@ -124,7 +156,16 @@ function toggleAllFiltered() {
             </div>
             <label class="product-search">
               <Search :size="16" />
-              <input v-model.trim="productKeyword" type="search" placeholder="搜索商品编码、名称或规格" aria-label="搜索目录商品" />
+              <input
+                v-model.trim="productKeyword"
+                type="search"
+                placeholder="输入商品编码/名称/规格，回车或点击放大镜搜索医院目录"
+                aria-label="搜索目录商品"
+                @keydown.enter.prevent="submitProductSearch"
+              />
+              <button class="btn-icon search-trigger" type="button" title="搜索商品" :disabled="saving || !form.warehouseName" @click="submitProductSearch">
+                <Search :size="16" />
+              </button>
             </label>
             <button class="btn" type="button" :disabled="saving || !filteredProducts.length" @click="toggleAllFiltered">
               <Layers3 :size="16" />
@@ -267,6 +308,77 @@ function toggleAllFiltered() {
   border: 0;
   outline: 0;
   font: inherit;
+}
+
+.product-search .search-trigger {
+  flex: 0 0 auto;
+  height: 28px;
+}
+
+.batch-dept-search {
+  position: relative;
+}
+
+.batch-dept-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.batch-dept-box input {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid #d7e5ec;
+  border-radius: 7px;
+  padding: 0 11px;
+  background: #fff;
+  color: #102033;
+  font: inherit;
+}
+
+.batch-dept-results {
+  position: absolute;
+  z-index: 30;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin: 4px 0 0;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #dbe8ee;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+  padding: 4px;
+  list-style: none;
+}
+
+.batch-dept-results li button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #25384a;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.batch-dept-results li button:hover {
+  background: #eef8f6;
+}
+
+.batch-dept-empty {
+  color: #6b7c8f;
+  padding: 8px 10px;
+}
+
+.batch-dept-hint {
+  color: #0f6f78;
+  font-size: 12px;
 }
 
 .product-picker-toolbar strong {

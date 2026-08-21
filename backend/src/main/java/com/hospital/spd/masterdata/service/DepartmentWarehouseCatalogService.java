@@ -246,6 +246,57 @@ public class DepartmentWarehouseCatalogService {
         return sequencedRows;
     }
 
+    /**
+     * 科室库房目录弹窗商品搜索：范围限医院目录内已绑定当前库房的商品，
+     * 排除该科室库房已维护的目录，支持按编码/名称/规格/厂家模糊搜索。
+     */
+    public List<Map<String, Object>> catalogProductOptions(String deptName, String warehouseName, String keyword) {
+        if (isBlank(deptName) || isBlank(warehouseName)) {
+            return List.of();
+        }
+        List<Map<String, Object>> deptRows = jdbcTemplate.queryForList(
+                "SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1", deptName.trim());
+        if (deptRows.isEmpty()) {
+            return List.of();
+        }
+        Long deptId = ((Number) deptRows.get(0).get("dept_id")).longValue();
+        List<Map<String, Object>> warehouseRows = jdbcTemplate.queryForList(
+                "SELECT warehouse_id FROM warehouse WHERE warehouse_name = ? AND deleted = 0 LIMIT 1", warehouseName.trim());
+        if (warehouseRows.isEmpty()) {
+            return List.of();
+        }
+        Long warehouseId = ((Number) warehouseRows.get(0).get("warehouse_id")).longValue();
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT p.product_code AS productCode, p.product_name AS productName,
+                       COALESCE(p.spec_model, '-') AS specModel,
+                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       p.unit
+                  FROM product p
+                  JOIN warehouse_product_binding b ON b.product_id = p.product_id
+                     AND b.warehouse_id = ? AND b.deleted = 0 AND b.status = 1
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                 WHERE p.deleted = 0 AND p.status = 1
+                   AND NOT EXISTS (
+                     SELECT 1 FROM department_warehouse_catalog dwc
+                      WHERE dwc.dept_id = ? AND dwc.warehouse_id = ? AND dwc.product_id = p.product_id AND dwc.deleted = 0
+                   )
+                """);
+        List<Object> args = new ArrayList<>(List.of(warehouseId, deptId, warehouseId));
+        if (!isBlank(keyword)) {
+            sql.append("""
+                     AND (p.product_code LIKE ? OR p.product_name LIKE ? OR p.spec_model LIKE ?
+                          OR COALESCE(m.manufacturer_name, '') LIKE ?)
+                    """);
+            String like = "%" + keyword.trim() + "%";
+            for (int i = 0; i < 4; i++) {
+                args.add(like);
+            }
+        }
+        sql.append(" ORDER BY p.product_code LIMIT 50");
+        return jdbcTemplate.queryForList(sql.toString(), args.toArray());
+    }
+
     private ResolvedCatalog resolveCatalog(DepartmentWarehouseCatalogUpsertRequest request) {
         if (request == null || isBlank(request.deptName()) || isBlank(request.warehouseName()) || isBlank(request.productCode())) {
             throw new IllegalArgumentException("科室、库房、商品编码为必填项");

@@ -12,6 +12,7 @@ import {
   deleteDepartments,
   deleteWarehouses,
   fetchCampusOptions,
+  fetchDepartmentWarehouseCatalogProductOptions,
   fetchDepartmentWarehouses,
   fetchWarehouseLocations,
   fetchWarehouseProductOptions,
@@ -340,18 +341,23 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
   async function loadCatalogProductsForWarehouse(
     warehouseName: string,
     warehouses: DepartmentWarehouseRelation[],
-    retainedProduct?: ClosureOptions['products'][number]
+    retainedProduct?: ClosureOptions['products'][number],
+    keyword = ''
   ) {
     const warehouse = warehouses.find((item) => item.name === warehouseName)
-    if (!warehouse?.code) {
+    const deptName = departmentWarehouseCatalogForm.value.deptName || departmentWarehouseCatalogBatchForm.value.deptName
+    if (!warehouse?.code || !deptName) {
       clearDepartmentWarehouseCatalogProducts()
       return
     }
     try {
-      const products = (await fetchWarehouseProducts(warehouse.code)).map((product) => ({
-        ...product,
-        purchasePrice: 0
-      }))
+      // 商品范围：医院目录内已绑定该库房、且未在该科室库房维护的商品（支持关键词搜索）
+      const products = (await fetchDepartmentWarehouseCatalogProductOptions(deptName, warehouseName, keyword)).map(
+        (product) => ({
+          ...product,
+          purchasePrice: 0
+        })
+      )
       if (retainedProduct && !products.some((product) => product.productCode === retainedProduct.productCode)) {
         products.push(retainedProduct)
       }
@@ -363,6 +369,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       clearDepartmentWarehouseCatalogProducts()
       deps.actionError.value = err instanceof Error ? err.message : '库房绑定商品加载失败'
     }
+  }
+
+  async function searchDepartmentWarehouseCatalogProducts(keyword = '') {
+    await loadCatalogProductsForWarehouse(
+      departmentWarehouseCatalogForm.value.warehouseName || departmentWarehouseCatalogBatchForm.value.warehouseName,
+      departmentWarehouseCatalogBatchDialogOpen.value
+        ? departmentWarehouseCatalogBatchWarehouses.value
+        : departmentWarehouseCatalogWarehouses.value,
+      undefined,
+      keyword
+    )
   }
 
   async function loadDepartmentWarehouseCatalogProducts(
@@ -398,6 +415,14 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
         !departmentWarehouseCatalogWarehouses.value.some((row) => row.name === departmentWarehouseCatalogForm.value.warehouseName)
       ) {
         departmentWarehouseCatalogForm.value.warehouseName = ''
+      }
+      // 关联库房直接带出科室库房关联关系：仅一个关联库房时自动选中并加载商品
+      if (
+        departmentWarehouseCatalogWarehouses.value.length === 1 &&
+        !departmentWarehouseCatalogForm.value.warehouseName
+      ) {
+        departmentWarehouseCatalogForm.value.warehouseName = departmentWarehouseCatalogWarehouses.value[0].name
+        await loadDepartmentWarehouseCatalogProducts()
       }
     } catch (err) {
       departmentWarehouseCatalogWarehouses.value = []
@@ -436,6 +461,14 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
         )
       ) {
         departmentWarehouseCatalogBatchForm.value.warehouseName = ''
+      }
+      // 关联库房直接带出：仅一个关联库房时自动选中并加载商品
+      if (
+        departmentWarehouseCatalogBatchWarehouses.value.length === 1 &&
+        !departmentWarehouseCatalogBatchForm.value.warehouseName
+      ) {
+        departmentWarehouseCatalogBatchForm.value.warehouseName = departmentWarehouseCatalogBatchWarehouses.value[0].name
+        await loadDepartmentWarehouseCatalogBatchProducts()
       }
     } catch (err) {
       departmentWarehouseCatalogBatchWarehouses.value = []
@@ -821,6 +854,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     saveDepartmentWarehouses,
     loadDepartmentWarehouseCatalogWarehouses,
     loadDepartmentWarehouseCatalogProducts,
+    searchDepartmentWarehouseCatalogProducts,
     loadDepartmentWarehouseCatalogBatchProducts,
     loadDepartmentWarehouseCatalogBatchWarehouses,
     openCreateDepartmentWarehouseCatalog,

@@ -595,6 +595,19 @@ export async function fetchWarehouseProducts(warehouseCode: string) {
   )
 }
 
+/**
+ * 科室库房目录弹窗商品搜索：医院目录内已绑定该库房、且未在该科室库房维护的商品。
+ */
+export async function fetchDepartmentWarehouseCatalogProductOptions(
+  deptName: string,
+  warehouseName: string,
+  keyword = ''
+) {
+  return getData<WarehouseProductOption[]>('/master-data/department-warehouse-catalogs/product-options', {
+    params: { deptName, warehouseName, keyword }
+  })
+}
+
 export async function importDepartments(file: File) {
   const formData = new FormData()
   formData.append('file', file)

@@ -259,6 +259,14 @@ public class MasterDataController {
         return ApiResponse.ok(departmentWarehouseCatalogService.catalogs(params));
     }
 
+    @GetMapping("/department-warehouse-catalogs/product-options")
+    public ApiResponse<List<Map<String, Object>>> departmentWarehouseCatalogProductOptions(
+            @RequestParam(required = false) String deptName,
+            @RequestParam(required = false) String warehouseName,
+            @RequestParam(required = false) String keyword) {
+        return ApiResponse.ok(departmentWarehouseCatalogService.catalogProductOptions(deptName, warehouseName, keyword));
+    }
+
     @PostMapping("/department-warehouse-catalogs")
     public ApiResponse<Map<String, Object>> createDepartmentWarehouseCatalog(
             @RequestBody DepartmentWarehouseCatalogUpsertRequest request) {

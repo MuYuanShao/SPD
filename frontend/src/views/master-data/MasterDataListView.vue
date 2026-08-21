@@ -271,6 +271,7 @@ const {
   loadDepartmentWarehouseCatalogWarehouses,
   loadDepartmentWarehouseCatalogBatchWarehouses,
   loadDepartmentWarehouseCatalogProducts,
+  searchDepartmentWarehouseCatalogProducts,
   loadDepartmentWarehouseCatalogBatchProducts,
   openCreateDepartmentWarehouseCatalog,
   openBatchDepartmentWarehouseCatalog,
@@ -1848,6 +1849,7 @@ const {
       @close="departmentWarehouseCatalogBatchDialogOpen = false"
       @change-dept="loadDepartmentWarehouseCatalogBatchWarehouses"
       @change-warehouse="loadDepartmentWarehouseCatalogBatchProducts"
+      @search-products="searchDepartmentWarehouseCatalogProducts"
       @save="saveBatchDepartmentWarehouseCatalog"
     />
 
@@ -1860,6 +1862,7 @@ const {
       @close="departmentWarehouseCatalogDialogOpen = false"
       @change-dept="loadDepartmentWarehouseCatalogWarehouses"
       @change-warehouse="loadDepartmentWarehouseCatalogProducts"
+      @search-products="searchDepartmentWarehouseCatalogProducts"
       @save="saveDepartmentWarehouseCatalog"
     />
 

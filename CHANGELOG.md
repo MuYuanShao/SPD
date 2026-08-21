@@ -18,6 +18,13 @@
 - 负责人：
 ```
 
+## 2026-08-21 - fix/packing-allocation-smoke
+
+- 修改内容：①修复定数安全量弹窗（QuotaSafetyDialog）关联库房搜索框 v-model 与 :value 同绑导致的 Vue 模板编译错误（开发模式模块加载 500，打包任务确认等定数包页面无法打开），改为选中库房后回填搜索框、编辑时回显已选库房。②新增 Playwright 冒烟用例 tests/e2e/packing-task-receiving-allocation.spec.ts 覆盖"按验收单分配散货"流程：自建收货单→审核入库→新建打包任务→页面查询验收单散货→部分分配 30→全部打包分配→分配明细与任务预占数量断言，可用散货量动态读取，支持重复/并发运行；package.json 新增 test:smoke:packing-allocation 脚本。
+- 影响范围：定数包安全量弹窗组件、tests/e2e 目录、package.json。
+- 验证方式：Playwright 冒烟用例单跑与 --repeat-each=2 并发跑均通过；前端 vue-tsc + vite 构建通过；开发模式模块编译 200。
+- 负责人：Admin
+
 ## 2026-08-21 - feature/inventory-tabs-receiving
 
 - 修改内容：①库存管理改为三个独立查询页签：库存汇总查询（库房/科室/商品编码/商品名称/规格型号/注册证号/单价/单位/数量/金额/厂家/供应商）、定数包库存查询（库房/科室/定数包编码/定数包名称/规格型号/注册证号/单价/单位/定数包数量/散货数量/金额/厂家/供应商，按库房+科室+定数包模板汇总在库标签并关联同商品散货余额）、唯一码查询（科室/库房/商品编码/商品名称/规格型号/注册证号/批号/批次/单价/单位/数量/金额/厂家/供应商/唯一码/UID码，经 inventory_batch_trace_code→udi_trace_code→inventory_batch→inventory_balance 关联在库唯一码）；三个页签各自独立数据源、独立分页与查询表单，后端新增 /inventory/quota-package-stock 与 /inventory/unique-code-stock 接口。②收货验收新增收货界面字段改为：收货库房、配送商、采购订单、收货类型（下拉选，选项取字段管理维护表 sys_field_option，键 receiving_type：正常收货/退货收货/换货收货/代理商直送）、是否代理商（勾选）、备注（V52 迁移 receiving_order 新增 receiving_type/is_agent 列并种子化字典选项；创建/修改/列表接口同步支持新字段）。

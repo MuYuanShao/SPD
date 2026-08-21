@@ -44,7 +44,7 @@ const warehouseDropdownOpen = ref(false)
 watch(
   () => props.mode,
   () => {
-    warehouseKeyword.value = ''
+    warehouseKeyword.value = props.mode === 'edit' ? props.safetyForm.warehouseName : ''
     warehouseDropdownOpen.value = false
   }
 )
@@ -59,7 +59,7 @@ const filteredWarehouses = computed(() => {
 
 function selectWarehouse(warehouse: { name: string; dept: string }) {
   warehouseDropdownOpen.value = false
-  warehouseKeyword.value = ''
+  warehouseKeyword.value = warehouse.name
   emit('select-warehouse', warehouse)
 }
 </script>
@@ -88,7 +88,6 @@ function selectWarehouse(warehouse: { name: string; dept: string }) {
               <input
                 v-model.trim="warehouseKeyword"
                 type="search"
-                :value="safetyForm.warehouseName"
                 placeholder="输入库房名称回车或点击放大镜搜索"
                 aria-label="搜索库房"
                 @keydown.enter.prevent="warehouseDropdownOpen = true"

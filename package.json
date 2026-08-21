@@ -18,6 +18,7 @@
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "mvn -f backend/pom.xml test",
     "test:smoke:business-ui": "playwright test tests/e2e/business-pages.smoke.spec.ts",
+    "test:smoke:packing-allocation": "playwright test tests/e2e/packing-task-receiving-allocation.spec.ts",
     "verify:release": "node scripts/verify-release.mjs",
     "verify:deployment-config": "node scripts/verify-deployment-config.mjs",
     "verify:deployment-host-prereqs": "node scripts/verify-deployment-host-prereqs.mjs",

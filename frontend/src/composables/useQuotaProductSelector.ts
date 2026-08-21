@@ -14,6 +14,7 @@ export type SelectedQuotaProductInfo = {
   manufacturerName: string
   unit: string
   purchasePrice: string
+  middlePackageQty: string
 }
 
 export function useQuotaProductSelector(templateForm: TemplateProductForm) {
@@ -51,9 +52,12 @@ export function useQuotaProductSelector(templateForm: TemplateProductForm) {
       brand: String(row.brand || ''),
       manufacturerName: String(row.manufacturer || ''),
       unit: String(row.unit || ''),
-      purchasePrice: String(row.price || '')
+      purchasePrice: String(row.price || ''),
+      middlePackageQty: String(row.conversionRate ?? '')
     }
-    templateForm.quantity = 1
+    // 包内数量取医院目录中的中包装数量回填，支持编辑
+    const middlePackage = Number(row.conversionRate)
+    templateForm.quantity = Number.isFinite(middlePackage) && middlePackage > 0 ? middlePackage : 1
     templateForm.unit = String(row.unit || '')
     productSelectorOpen.value = false
   }

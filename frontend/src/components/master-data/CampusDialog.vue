@@ -47,17 +47,18 @@ const emit = defineEmits<{
             院区资料
           </div>
           <label>
-            <span>院区编码 <b class="required-mark" aria-hidden="true">*</b></span>
+            <span>院区编码</span>
             <input
               v-model.trim="form.campusCode"
               name="campusCode"
               autocomplete="off"
               :readonly="mode === 'edit'"
-              :autofocus="mode === 'create'"
-              aria-required="true"
-              required
+              :disabled="mode === 'create'"
+              placeholder="保存后自动生成（XQ 开头）"
+              :autofocus="mode === 'edit'"
             />
-            <small v-if="mode === 'edit'" class="campus-form-hint">编码为稳定组织标识，编辑时不可修改</small>
+            <small v-if="mode === 'create'" class="campus-form-hint">编码由系统自动生成，无需填写</small>
+            <small v-else class="campus-form-hint">编码为稳定组织标识，编辑时不可修改</small>
           </label>
           <label>
             <span>院区名称 <b class="required-mark" aria-hidden="true">*</b></span>

@@ -76,6 +76,7 @@ const form = reactive<ProductCreatePayload>({
   minPurchaseQty: 1,
   purchaseUnit: '盒',
   conversionRate: 1,
+  purchasePackageQty: null,
   udiCode: '',
   registrationNo: '',
   registrationExpireDate: '',
@@ -123,6 +124,7 @@ function assignDetail(detail: ProductDetail) {
     minPurchaseQty: detail.minPurchaseQty,
     purchaseUnit: detail.purchaseUnit === '-' ? '' : detail.purchaseUnit,
     conversionRate: detail.conversionRate,
+    purchasePackageQty: detail.purchasePackageQty,
     udiCode: detail.udiCode === '-' ? '' : detail.udiCode,
     registrationNo: detail.registrationNo === '-' ? '' : detail.registrationNo,
     registrationExpireDate: detail.registrationExpireDate === '-' ? '' : detail.registrationExpireDate,
@@ -182,7 +184,8 @@ async function submitForm() {
       purchasePrice: normalizeNumber(form.purchasePrice) ?? 0,
       retailPrice: normalizeNumber(form.retailPrice),
       minPurchaseQty: normalizeNumber(form.minPurchaseQty) ?? 1,
-      conversionRate: normalizeNumber(form.conversionRate) ?? 1
+      conversionRate: normalizeNumber(form.conversionRate) ?? 1,
+      purchasePackageQty: normalizeNumber(form.purchasePackageQty)
     }
     const result = editMode.value
       ? await updateHospitalProduct(productCode.value, payload)
@@ -309,8 +312,12 @@ onMounted(() => {
             <input v-model.trim="form.purchaseUnit" type="text" />
           </label>
           <label>
-            <span>换算系数</span>
+            <span>中包装数量</span>
             <input v-model="form.conversionRate" type="number" min="0" step="0.000001" />
+          </label>
+          <label>
+            <span>采购包装数量</span>
+            <input v-model="form.purchasePackageQty" type="number" min="0" step="0.0001" />
           </label>
           <label>
             <span>合同编码</span>

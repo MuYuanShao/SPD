@@ -15,6 +15,7 @@ public record ProductCreateRequest(
         BigDecimal minPurchaseQty,
         String purchaseUnit,
         BigDecimal conversionRate,
+        BigDecimal purchasePackageQty,
         String udiCode,
         String registrationNo,
         String registrationExpireDate,

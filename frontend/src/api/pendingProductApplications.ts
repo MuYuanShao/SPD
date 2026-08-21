@@ -78,6 +78,7 @@ export interface PendingProductApplicationDetail {
   minPurchaseQty: number
   purchaseUnit: string
   conversionRate: number
+  purchasePackageQty: number | null
   udiCode: string
   registrationNo: string
   registrationExpireDate: string
@@ -123,6 +124,7 @@ export interface PendingProductApplicationPayload {
   minPurchaseQty: number
   purchaseUnit?: string
   conversionRate: number
+  purchasePackageQty?: number | null
   udiCode?: string
   registrationNo?: string
   registrationExpireDate?: string

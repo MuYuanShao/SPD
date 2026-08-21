@@ -118,12 +118,7 @@ class QuotaTemplateServiceTest {
                         "quotaManaged", 1, "highValue", 0, "coldChain", 0
                 ));
 
-        // ensureDept — existing dept
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString()))
-                .thenReturn(List.of(10L));
-
-        // ensureTemplateNotDuplicate — COUNT = 0
+        // ensureTemplateNotDuplicate — COUNT = 0（适用科室已取消，deptId 恒为 null）
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), eq(Integer.class), anyLong(), anyString(), any(), any()))
                 .thenReturn(0);
 
@@ -165,9 +160,6 @@ class QuotaTemplateServiceTest {
                         "conversionRate", BigDecimal.valueOf(10),
                         "quotaManaged", 1, "highValue", 0, "coldChain", 0
                 ));
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString()))
-                .thenReturn(List.of(10L));
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), eq(Integer.class), anyLong(), anyString(), any(), any()))
                 .thenReturn(0);
         when(jdbcTemplate.queryForList(
@@ -175,7 +167,7 @@ class QuotaTemplateServiceTest {
                 eq(Long.class),
                 eq("TP001")))
                 .thenReturn(List.of(42L));
-        when(jdbcTemplate.update(startsWith("UPDATE quota_package_template\n"), anyString(), any(), eq(42L)))
+        when(jdbcTemplate.update(startsWith("UPDATE quota_package_template\n"), anyString(), eq(42L)))
                 .thenReturn(1);
         when(jdbcTemplate.update(startsWith("UPDATE quota_package_template_item\n"), eq(42L)))
                 .thenReturn(1);
@@ -239,16 +231,42 @@ class QuotaTemplateServiceTest {
     }
 
     @Test
-    @DisplayName("创建模板——模板名为空时抛出异常")
-    void shouldThrowWhenTemplateNameBlank() {
+    @DisplayName("创建模板——模板名称为空时自动生成定数包名称（商品名称+定数包）")
+    void shouldAutoGenerateTemplateNameWhenBlank() throws Exception {
         QuotaTemplateRequest request = new QuotaTemplateRequest(
                 "TP001", "", null, "PC001",
                 BigDecimal.valueOf(5), "包"
         );
 
-        assertThatThrownBy(() -> service.createTemplate(request))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("template name");
+        when(jdbcTemplate.queryForMap(contains("product_code = ?"), anyString()))
+                .thenReturn(Map.of(
+                        "productId", 100L, "productCode", "PC001", "productName", "注射器",
+                        "unit", "包", "purchaseUnit", "箱",
+                        "conversionRate", BigDecimal.valueOf(10),
+                        "quotaManaged", 1, "highValue", 0, "coldChain", 0
+                ));
+
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), eq(Integer.class), anyLong(), anyString(), any(), any()))
+                .thenReturn(0);
+
+        doAnswer(invocation -> {
+            populateKeyHolder(invocation.getArgument(1), 45L);
+            return 1;
+        }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+
+        when(jdbcTemplate.queryForObject(
+                contains("SELECT template_id FROM quota_package_template WHERE template_code = ?"),
+                eq(Long.class), anyString()))
+                .thenReturn(45L);
+
+        when(jdbcTemplate.update(contains("INSERT INTO quota_package_template_item"), anyLong(), anyLong(), any(), anyString()))
+                .thenReturn(1);
+
+        Map<String, Object> result = service.createTemplate(request);
+
+        assertThat(result).containsEntry("templateCode", "TP001");
+        // 模板名称自动生成：商品名称 + 定数包
+        verify(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 
     @Test
@@ -332,10 +350,6 @@ class QuotaTemplateServiceTest {
                         "conversionRate", BigDecimal.valueOf(10),
                         "quotaManaged", 1, "highValue", 0, "coldChain", 0
                 ));
-
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString()))
-                .thenReturn(List.of(10L));
 
         // ensureTemplateNotDuplicate returns COUNT > 0
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), eq(Integer.class), anyLong(), anyString(), any(), any()))

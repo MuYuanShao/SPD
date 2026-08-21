@@ -36,7 +36,7 @@ final class ProductApprovalChangeItems {
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
                        COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
-                       p.purchase_unit, p.conversion_rate, p.udi_code, p.registration_no,
+                       p.purchase_unit, p.conversion_rate, p.purchase_package_qty, p.udi_code, p.registration_no,
                        p.registration_expire_date, p.production_license_no, p.business_license_no,
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic,
                        p.contract_code, p.first_category, p.second_category, p.third_category,
@@ -62,7 +62,8 @@ final class ProductApprovalChangeItems {
         addChange(changes, "零售价", current.get("retail_price"), application.getBigDecimal("retail_price"));
         addChange(changes, "最小采购量", current.get("min_purchase_qty"), application.getBigDecimal("min_purchase_qty"));
         addChange(changes, "采购单位", current.get("purchase_unit"), application.getString("purchase_unit"));
-        addChange(changes, "换算系数", current.get("conversion_rate"), application.getBigDecimal("conversion_rate"));
+        addChange(changes, "中包装数量", current.get("conversion_rate"), application.getBigDecimal("conversion_rate"));
+        addChange(changes, "采购包装数量", current.get("purchase_package_qty"), application.getBigDecimal("purchase_package_qty"));
         addChange(changes, "UDI编码", current.get("udi_code"), application.getString("udi_code"));
         addChange(changes, "注册证号", current.get("registration_no"), application.getString("registration_no"));
         addChange(changes, "注册证有效期", current.get("registration_expire_date"), getDateString(application, "registration_expire_date"));

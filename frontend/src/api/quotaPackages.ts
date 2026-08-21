@@ -4,7 +4,7 @@ export interface QuotaTemplateRow {
   templateId: number
   templateCode: string
   templateName: string
-  deptName: string
+  deptName?: string
   productCode: string
   productName: string
   specModel: string
@@ -113,7 +113,7 @@ export async function fetchQuotaManagedProducts(query: Record<string, string> = 
  */
 export async function saveQuotaTemplate(payload: {
   templateCode?: string
-  templateName: string
+  templateName?: string
   deptName?: string
   productCode: string
   quantity: number

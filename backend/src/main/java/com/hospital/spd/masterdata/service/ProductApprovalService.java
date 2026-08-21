@@ -106,7 +106,7 @@ public class ProductApprovalService {
                                a.product_name, a.product_code, a.spec_model, a.brand, a.manufacturer_name,
                                COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
                                a.unit, a.purchase_price, a.retail_price, a.min_purchase_qty, a.purchase_unit,
-                               a.conversion_rate, a.udi_code, a.registration_no, a.registration_expire_date,
+                               a.conversion_rate, a.purchase_package_qty, a.udi_code, a.registration_no, a.registration_expire_date,
                                a.production_license_no, a.business_license_no, a.qualification_attachment_count,
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic, a.contract_code,
                                a.first_category, a.second_category, a.third_category, a.is_chargeable, a.tender_sub_code,
@@ -319,13 +319,13 @@ public class ProductApprovalService {
                 INSERT INTO pending_product_application (
                   application_no, application_type, supplier_id, product_name, product_code, spec_model,
                   supplier_name, brand, manufacturer_id, manufacturer_name, category_id, unit, purchase_price, retail_price,
-                  min_purchase_qty, purchase_unit, conversion_rate, udi_code, registration_no,
+                  min_purchase_qty, purchase_unit, conversion_rate, purchase_package_qty, udi_code, registration_no,
                   registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
                   qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed,
                   storage_condition, product_snapshot, change_diff, approval_status, submit_by, submit_time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                   JSON_OBJECT('source','manual','changeReason', ?), JSON_OBJECT('changeReason', ?),
                   ?, ?, NOW())
                 """,
@@ -346,6 +346,7 @@ public class ProductApprovalService {
                 defaultDecimal(request.minPurchaseQty(), BigDecimal.ONE),
                 nullIfBlank(request.purchaseUnit()),
                 defaultDecimal(request.conversionRate(), BigDecimal.ONE),
+                request.purchasePackageQty(),
                 nullIfBlank(request.udiCode()),
                 nullIfBlank(request.registrationNo()),
                 parseDate(request.registrationExpireDate()),
@@ -490,7 +491,7 @@ public class ProductApprovalService {
                    SET application_type = ?, supplier_id = ?, supplier_name = ?, product_name = ?, product_code = ?,
                        spec_model = ?, brand = ?, manufacturer_id = ?, manufacturer_name = ?,
                        category_id = ?, unit = ?, purchase_price = ?, retail_price = ?,
-                       min_purchase_qty = ?, purchase_unit = ?, conversion_rate = ?,
+                       min_purchase_qty = ?, purchase_unit = ?, conversion_rate = ?, purchase_package_qty = ?,
                        udi_code = ?, registration_no = ?, registration_expire_date = ?,
                        production_license_no = ?, business_license_no = ?,
                        is_volume_based = ?, is_centralized_procurement = ?, is_domestic = ?,
@@ -522,6 +523,7 @@ public class ProductApprovalService {
                 defaultDecimal(request.minPurchaseQty(), BigDecimal.ONE),
                 nullIfBlank(request.purchaseUnit()),
                 defaultDecimal(request.conversionRate(), BigDecimal.ONE),
+                request.purchasePackageQty(),
                 nullIfBlank(request.udiCode()),
                 nullIfBlank(request.registrationNo()),
                 parseDate(request.registrationExpireDate()),
@@ -576,7 +578,7 @@ public class ProductApprovalService {
                    SET supplier_id = ?, supplier_name = ?, product_name = ?, product_code = ?,
                        spec_model = ?, brand = ?, manufacturer_id = ?, manufacturer_name = ?,
                        category_id = ?, unit = ?, purchase_price = ?, retail_price = ?,
-                       min_purchase_qty = ?, purchase_unit = ?, conversion_rate = ?,
+                       min_purchase_qty = ?, purchase_unit = ?, conversion_rate = ?, purchase_package_qty = ?,
                        udi_code = ?, registration_no = ?, registration_expire_date = ?,
                        production_license_no = ?, business_license_no = ?,
                        is_volume_based = ?, is_centralized_procurement = ?, is_domestic = ?,
@@ -600,6 +602,7 @@ public class ProductApprovalService {
                 defaultDecimal(request.minPurchaseQty(), BigDecimal.ONE),
                 nullIfBlank(request.purchaseUnit()),
                 defaultDecimal(request.conversionRate(), BigDecimal.ONE),
+                request.purchasePackageQty(),
                 nullIfBlank(request.udiCode()),
                 nullIfBlank(request.registrationNo()),
                 parseDate(request.registrationExpireDate()),
@@ -790,7 +793,7 @@ public class ProductApprovalService {
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
                        COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
-                       p.purchase_unit, p.conversion_rate, p.udi_code, p.registration_no,
+                       p.purchase_unit, p.conversion_rate, p.purchase_package_qty, p.udi_code, p.registration_no,
                        p.registration_expire_date, p.production_license_no, p.business_license_no,
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic,
                        p.contract_code, p.first_category, p.second_category, p.third_category,
@@ -819,7 +822,8 @@ public class ProductApprovalService {
         addChange(changes, "零售价", current.get("retail_price"), request.retailPrice());
         addChange(changes, "最小采购量", current.get("min_purchase_qty"), defaultDecimal(request.minPurchaseQty(), BigDecimal.ONE));
         addChange(changes, "采购单位", current.get("purchase_unit"), request.purchaseUnit());
-        addChange(changes, "换算系数", current.get("conversion_rate"), defaultDecimal(request.conversionRate(), BigDecimal.ONE));
+        addChange(changes, "中包装数量", current.get("conversion_rate"), defaultDecimal(request.conversionRate(), BigDecimal.ONE));
+        addChange(changes, "采购包装数量", current.get("purchase_package_qty"), request.purchasePackageQty());
         addChange(changes, "UDI编码", current.get("udi_code"), request.udiCode());
         addChange(changes, "注册证号", current.get("registration_no"), request.registrationNo());
         addChange(changes, "注册证有效期", current.get("registration_expire_date"), request.registrationExpireDate());
@@ -962,7 +966,7 @@ public class ProductApprovalService {
         jdbcTemplate.update("""
                 INSERT INTO product (
                   product_code, product_name, spec_model, brand, manufacturer_id, supplier_id, category_id,
-                  unit, purchase_price, retail_price, min_purchase_qty, purchase_unit, conversion_rate,
+                  unit, purchase_price, retail_price, min_purchase_qty, purchase_unit, conversion_rate, purchase_package_qty,
                   udi_code, registration_no, registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
@@ -970,7 +974,7 @@ public class ProductApprovalService {
                 )
                 SELECT product_code, product_name, spec_model, brand, manufacturer_id, supplier_id,
                        COALESCE(category_id, ?), unit, COALESCE(purchase_price, 0), retail_price,
-                       COALESCE(min_purchase_qty, 1), purchase_unit, COALESCE(conversion_rate, 1),
+                       COALESCE(min_purchase_qty, 1), purchase_unit, COALESCE(conversion_rate, 1), purchase_package_qty,
                        udi_code, registration_no, registration_expire_date, production_license_no,
                        business_license_no, is_volume_based, is_centralized_procurement, is_domestic,
                        contract_code, first_category, second_category, third_category,
@@ -984,6 +988,7 @@ public class ProductApprovalService {
                   unit = VALUES(unit), purchase_price = VALUES(purchase_price),
                   retail_price = VALUES(retail_price), min_purchase_qty = VALUES(min_purchase_qty),
                   purchase_unit = VALUES(purchase_unit), conversion_rate = VALUES(conversion_rate),
+                  purchase_package_qty = VALUES(purchase_package_qty),
                   udi_code = VALUES(udi_code), registration_no = VALUES(registration_no),
                   registration_expire_date = VALUES(registration_expire_date),
                   production_license_no = VALUES(production_license_no),

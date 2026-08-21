@@ -82,7 +82,6 @@ const query = reactive({
 const templateForm = reactive({
   templateCode: '',
   templateName: '',
-  deptName: '',
   productCode: '',
   quantity: 1,
   unit: ''
@@ -301,7 +300,6 @@ watch(
         <label><span>模板名称</span><input v-model="query.templateName" placeholder="模糊查询模板名称" /></label>
         <label><span>商品编码</span><input v-model="query.productCode" placeholder="模糊查询商品编码" /></label>
         <label><span>商品名称</span><input v-model="query.productName" placeholder="模糊查询商品名称" /></label>
-        <label><span>科室</span><input v-model="query.deptName" placeholder="模糊查询科室" /></label>
         <button class="btn btn-primary" type="button" @click="loadData">
           <Search :size="18" />
           查询
@@ -362,8 +360,7 @@ watch(
         </div>
         <div v-if="false" class="hospital-query-grid quota-form-grid">
           <label><span>模板编码</span><input v-model="templateForm.templateCode" placeholder="为空时自动生成" /></label>
-          <label><span>模板名称</span><input v-model="templateForm.templateName" placeholder="如：骨科常用定数包" /></label>
-          <label><span>适用科室</span><input v-model="templateForm.deptName" placeholder="如：骨科" /></label>
+          <label><span>模板名称</span><input v-model="templateForm.templateName" placeholder="自动生成" /></label>
           <label><span>商品编码</span><input v-model="templateForm.productCode" placeholder="启用定数管理商品" /></label>
           <label><span>包内数量</span><input v-model.number="templateForm.quantity" type="number" min="1" /></label>
           <label><span>单位</span><input v-model="templateForm.unit" placeholder="为空时取商品单位" /></label>
@@ -385,7 +382,6 @@ watch(
                 </th>
                 <th>模板编码</th>
                 <th>模板名称</th>
-                <th>科室</th>
                 <th>商品编码</th>
                 <th>商品名称</th>
                 <th>规格</th>
@@ -398,7 +394,7 @@ watch(
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="12" class="approval-empty">正在加载定数包模板...</td>
+                <td colspan="11" class="approval-empty">正在加载定数包模板...</td>
               </tr>
               <tr v-for="row in templates" v-else :key="row.templateId">
                 <td>
@@ -406,7 +402,6 @@ watch(
                 </td>
                 <td>{{ row.templateCode }}</td>
                 <td>{{ row.templateName }}</td>
-                <td>{{ row.deptName }}</td>
                 <td>{{ row.productCode }}</td>
                 <td>{{ row.productName }}</td>
                 <td>{{ row.specModel }}</td>
@@ -505,10 +500,6 @@ watch(
             <div class="info-item">
               <span class="info-label">生产厂家</span>
               <span class="info-value">{{ selectedPackingTemplate.manufacturerName }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">适用科室</span>
-              <span class="info-value">{{ selectedPackingTemplate.deptName }}</span>
             </div>
             <div class="info-item">
               <span class="info-label">每包数量</span>
@@ -943,13 +934,13 @@ watch(
               :placeholder="templateDialogMode === 'create' ? '商品编码 + 001 起自动生成' : ''"
             />
           </label>
-          <label>
-            <span>模板名称</span>
-            <input v-model="templateForm.templateName" placeholder="如：骨科常用定数包" />
-          </label>
-          <label>
-            <span>适用科室</span>
-            <input v-model="templateForm.deptName" placeholder="如：骨科，为空表示通用" />
+          <label class="wide">
+            <span>定数包名称（自动生成）</span>
+            <input
+              readonly
+              :value="templateForm.templateName || ((selectedProductInfo?.productName || '') + '定数包')"
+              placeholder="选择商品后自动生成：商品名称 + 定数包"
+            />
           </label>
           <label class="wide">
             <span>商品编码</span>
@@ -967,6 +958,7 @@ watch(
             <label><span>生产厂家</span><input :value="selectedProductInfo.manufacturerName" readonly /></label>
             <label><span>单价</span><input :value="selectedProductInfo.purchasePrice ? '¥ ' + selectedProductInfo.purchasePrice : '-'" readonly /></label>
             <label><span>基本单位</span><input :value="selectedProductInfo.unit" readonly /></label>
+            <label><span>中包装数量</span><input :value="selectedProductInfo.middlePackageQty || '-'" readonly /></label>
           </template>
           <label>
             <span>包内数量</span>

@@ -811,7 +811,8 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><span>零售价</span><input v-model.number="createForm.retailPrice" type="number" step="0.0001" min="0" /></label>
               <label><span>最小采购量</span><input v-model.number="createForm.minPurchaseQty" type="number" step="0.0001" min="0" /></label>
               <label><span>采购单位</span><input v-model="createForm.purchaseUnit" /></label>
-              <label><span>换算系数</span><input v-model.number="createForm.conversionRate" type="number" step="0.000001" min="0" /></label>
+              <label><span>中包装数量</span><input v-model.number="createForm.conversionRate" type="number" step="0.000001" min="0" /></label>
+              <label><span>采购包装数量</span><input v-model.number="createForm.purchasePackageQty" type="number" step="0.0001" min="0" /></label>
               <label><span>合同编码</span><input v-model="createForm.contractCode" /></label>
               <label><span>一级分类</span><input v-model="createForm.firstCategory" /></label>
               <label><span>二级分类</span><input v-model="createForm.secondCategory" /></label>

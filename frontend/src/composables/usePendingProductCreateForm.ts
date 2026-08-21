@@ -70,6 +70,7 @@ function emptyCreateForm(): PendingProductApplicationPayload {
     minPurchaseQty: 1,
     purchaseUnit: '盒',
     conversionRate: 1,
+    purchasePackageQty: null,
     udiCode: '',
     registrationNo: '',
     registrationExpireDate: '',

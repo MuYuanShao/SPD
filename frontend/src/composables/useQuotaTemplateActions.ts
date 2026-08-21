@@ -10,7 +10,7 @@ import { downloadCsvContent } from '../utils/downloadCsv'
 type TemplateForm = {
   templateCode: string
   templateName: string
-  deptName: string
+  deptName?: string
   productCode: string
   quantity: number
   unit: string
@@ -46,7 +46,6 @@ export function useQuotaTemplateActions(options: {
   function fillTemplate(row: QuotaTemplateRow) {
     options.templateForm.templateCode = row.templateCode
     options.templateForm.templateName = row.templateName
-    options.templateForm.deptName = row.deptName === '-' ? '' : row.deptName
     options.templateForm.productCode = row.productCode
     options.templateForm.quantity = Number(row.quantity)
     options.templateForm.unit = row.unit
@@ -64,7 +63,6 @@ export function useQuotaTemplateActions(options: {
   function resetTemplateForm() {
     options.templateForm.templateCode = ''
     options.templateForm.templateName = ''
-    options.templateForm.deptName = ''
     options.templateForm.productCode = ''
     options.templateForm.quantity = 1
     options.templateForm.unit = ''
@@ -93,16 +91,15 @@ export function useQuotaTemplateActions(options: {
   function hasDuplicateTemplate() {
     return options.templates.value.some((item) => {
       const sameRecord = item.templateCode === options.templateForm.templateCode
-      const sameDept = (item.deptName === '-' ? '' : item.deptName).trim() === options.templateForm.deptName.trim()
       const sameProduct = item.productCode.trim() === options.templateForm.productCode.trim()
-      return !sameRecord && sameDept && sameProduct
+      return !sameRecord && sameProduct
     })
   }
 
   async function submitTemplate() {
     options.templateError.value = ''
     if (hasDuplicateTemplate()) {
-      options.templateError.value = '已有记录存在：相同科室和商品的定数包模板已存在'
+      options.templateError.value = '已有记录存在：相同商品的定数包模板已存在'
       return
     }
     try {
@@ -154,9 +151,9 @@ export function useQuotaTemplateActions(options: {
   }
 
   function exportTemplates() {
-    const header = ['模板编码', '模板名称', '科室', '商品编码', '商品名称', '数量', '单位', '状态']
+    const header = ['模板编码', '模板名称', '商品编码', '商品名称', '数量', '单位', '状态']
     const lines = options.templates.value.map((item) =>
-      [item.templateCode, item.templateName, item.deptName, item.productCode, item.productName, item.quantity, item.unit, item.status]
+      [item.templateCode, item.templateName, item.productCode, item.productName, item.quantity, item.unit, item.status]
         .map((value) => `"${String(value ?? '').replace(/"/g, '""')}"`)
         .join(',')
     )
@@ -164,7 +161,7 @@ export function useQuotaTemplateActions(options: {
   }
 
   function downloadTemplateImportFile() {
-    downloadCsvContent('quota-template-import-template.csv', '模板编码,模板名称,科室,商品编码,数量,单位\n,骨科常用定数包,骨科,P0001,10,支')
+    downloadCsvContent('quota-template-import-template.csv', '模板编码,商品编码,数量,单位\n,P0001,10,支')
   }
 
   function triggerTemplateImport() {
@@ -180,14 +177,12 @@ export function useQuotaTemplateActions(options: {
       const rows = text.split(/\r?\n/).slice(1).filter(Boolean)
       let successCount = 0
       for (const line of rows) {
-        const [templateCode, templateName, deptName, productCode, quantity, unit] = line
+        const [templateCode, productCode, quantity, unit] = line
           .split(',')
           .map((item) => item.replace(/^"|"$/g, '').trim())
-        if (!templateName || !productCode) continue
+        if (!productCode) continue
         await saveQuotaTemplate({
           templateCode,
-          templateName,
-          deptName,
           productCode,
           quantity: Number(quantity || 1),
           unit

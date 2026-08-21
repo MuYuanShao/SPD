@@ -54,7 +54,6 @@ public class QuotaTemplateService {
                   ) current_item ON current_item.template_id = qpt.template_id
                   JOIN quota_package_template_item qpti ON qpti.item_id = current_item.item_id
                   JOIN product p ON p.product_id = qpti.product_id
-                  LEFT JOIN sys_dept sd ON sd.dept_id = qpt.dept_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
                 """;
@@ -65,7 +64,6 @@ public class QuotaTemplateService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpt.template_id AS templateId, qpt.template_code AS templateCode,
-                       qpt.template_name AS templateName, COALESCE(sd.dept_name, '-') AS deptName,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName,
@@ -81,7 +79,6 @@ public class QuotaTemplateService {
                   ) current_item ON current_item.template_id = qpt.template_id
                   JOIN quota_package_template_item qpti ON qpti.item_id = current_item.item_id
                   JOIN product p ON p.product_id = qpti.product_id
-                  LEFT JOIN sys_dept sd ON sd.dept_id = qpt.dept_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
                 """ + where + " ORDER BY qpt.update_time DESC LIMIT ? OFFSET ?",
@@ -92,19 +89,20 @@ public class QuotaTemplateService {
     @Transactional
     public Map<String, Object> createTemplate(QuotaTemplateRequest request) {
 
-        if (isBlank(request.templateName()) || isBlank(request.productCode())) {
-            throw new IllegalArgumentException("template name and product code are required");
+        if (isBlank(request.productCode())) {
+            throw new IllegalArgumentException("product code is required");
         }
         BigDecimal quantity = positive(request.quantity(), "定数包模板数量必须大于零");
         Map<String, Object> product = findEligibleProduct(request.productCode());
         BigDecimal normalizedQuantity = normalizeTemplateQuantity(request.quantity(), request.unit(), product);
         String baseUnit = String.valueOf(product.get("unit"));
-        Long deptId = isBlank(request.deptName()) ? null : ensureDept(request.deptName());
+        // 定数包名称由系统自动生成：商品名称 + 定数包；不再维护适用科室
+        String templateName = String.valueOf(product.get("productName")).trim() + "定数包";
         String productCode = String.valueOf(product.get("productCode")).trim();
         String templateCode = isBlank(request.templateCode())
                 ? nextTemplateCode(productCode)
                 : request.templateCode().trim();
-        ensureTemplateNotDuplicate(templateCode, deptId, ((Number) product.get("productId")).longValue());
+        ensureTemplateNotDuplicate(templateCode, null, ((Number) product.get("productId")).longValue());
 
         Long existingTemplateId = findTemplateId(templateCode);
         Long templateId;
@@ -113,15 +111,10 @@ public class QuotaTemplateService {
             jdbcTemplate.update(connection -> {
                 PreparedStatement ps = connection.prepareStatement("""
                         INSERT INTO quota_package_template (template_code, template_name, dept_id, status)
-                        VALUES (?, ?, ?, 1)
+                        VALUES (?, ?, NULL, 1)
                         """, Statement.RETURN_GENERATED_KEYS);
                 ps.setString(1, templateCode);
-                ps.setString(2, request.templateName().trim());
-                if (deptId == null) {
-                    ps.setObject(3, null);
-                } else {
-                    ps.setLong(3, deptId);
-                }
+                ps.setString(2, templateName);
                 return ps;
             }, keyHolder);
             templateId = jdbcTemplate.queryForObject(
@@ -132,9 +125,9 @@ public class QuotaTemplateService {
             templateId = existingTemplateId;
             jdbcTemplate.update("""
                     UPDATE quota_package_template
-                       SET template_name = ?, dept_id = ?, status = 1, deleted = 0
+                       SET template_name = ?, dept_id = NULL, status = 1, deleted = 0
                      WHERE template_id = ?
-                    """, request.templateName().trim(), deptId, templateId);
+                    """, templateName, templateId);
             jdbcTemplate.update("""
                     UPDATE quota_package_template_item
                        SET deleted = 1

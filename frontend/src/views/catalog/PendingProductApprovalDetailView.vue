@@ -38,6 +38,7 @@ const resubmitForm = reactive({
   minPurchaseQty: 1,
   purchaseUnit: '',
   conversionRate: 1,
+  purchasePackageQty: null as number | null,
   udiCode: '',
   registrationNo: '',
   registrationExpireDate: '',
@@ -85,6 +86,7 @@ const editForm = reactive({
   minPurchaseQty: 1,
   purchaseUnit: '',
   conversionRate: 1,
+  purchasePackageQty: null as number | null,
   udiCode: '',
   registrationNo: '',
   registrationExpireDate: '',
@@ -140,6 +142,7 @@ function initEditForm() {
   editForm.minPurchaseQty = Number(d.minPurchaseQty || 1)
   editForm.purchaseUnit = d.purchaseUnit || ''
   editForm.conversionRate = Number(d.conversionRate || 1)
+  editForm.purchasePackageQty = d.purchasePackageQty === null || d.purchasePackageQty === undefined ? null : Number(d.purchasePackageQty)
   editForm.udiCode = d.udiCode || ''
   editForm.registrationNo = d.registrationNo || ''
   editForm.registrationExpireDate = d.registrationExpireDate === '-' ? '' : d.registrationExpireDate
@@ -227,7 +230,8 @@ const approvalInfoGroups = computed(() => {
         { label: '零售价', value: item.retailPrice ? `¥ ${item.retailPrice}` : '-', key: 'retailPrice', highlight: false, full: false, inputType: 'number' },
         { label: '最小采购量', value: item.minPurchaseQty, key: 'minPurchaseQty', highlight: false, full: false },
         { label: '采购单位', value: item.purchaseUnit || '-', key: 'purchaseUnit', highlight: false, full: false },
-        { label: '换算系数', value: item.conversionRate, key: 'conversionRate', highlight: false, full: false },
+        { label: '中包装数量', value: item.conversionRate, key: 'conversionRate', highlight: false, full: false },
+        { label: '采购包装数量', value: item.purchasePackageQty ?? '-', key: 'purchasePackageQty', highlight: false, full: false },
         { label: '合同编码', value: item.contractCode || '-', key: 'contractCode', highlight: false, full: false },
         { label: '招采子编码', value: item.tenderSubCode || '-', key: 'tenderSubCode', highlight: false, full: false },
       ]
@@ -398,6 +402,10 @@ function openResubmitModal() {
     minPurchaseQty: Number(detail.value.minPurchaseQty || 1),
     purchaseUnit: detail.value.purchaseUnit || '',
     conversionRate: Number(detail.value.conversionRate || 1),
+    purchasePackageQty:
+      detail.value.purchasePackageQty === null || detail.value.purchasePackageQty === undefined
+        ? null
+        : Number(detail.value.purchasePackageQty),
     udiCode: detail.value.udiCode || '',
     registrationNo: detail.value.registrationNo || '',
     registrationExpireDate: detail.value.registrationExpireDate === '-' ? '' : detail.value.registrationExpireDate,
@@ -820,6 +828,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </label>
             <label><span>单位</span><input v-model.trim="resubmitForm.unit" required /></label>
             <label><span>采购价</span><input v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
+            <label><span>中包装数量</span><input v-model.number="resubmitForm.conversionRate" type="number" min="0" step="0.000001" /></label>
+            <label><span>采购包装数量</span><input v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
             <label><span>注册证号</span><input v-model.trim="resubmitForm.registrationNo" /></label>
             <label><span>注册证有效期</span><input v-model="resubmitForm.registrationExpireDate" type="date" /></label>
             <label><span>一级分类</span><input v-model.trim="resubmitForm.firstCategory" /></label>

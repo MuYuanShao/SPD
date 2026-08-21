@@ -111,7 +111,8 @@ function handleSupplierChange() {
               <label><span>零售价</span><input v-model="form.retailPrice" type="number" min="0" step="0.0001" /></label>
               <label><span>最小采购量</span><input v-model="form.minPurchaseQty" type="number" min="0" step="0.0001" /></label>
               <label><span>采购单位</span><input v-model.trim="form.purchaseUnit" /></label>
-              <label><span>换算系数</span><input v-model="form.conversionRate" type="number" min="0" step="0.000001" /></label>
+              <label><span>中包装数量</span><input v-model="form.conversionRate" type="number" min="0" step="0.000001" /></label>
+              <label><span>采购包装数量</span><input v-model="form.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
               <label><span>合同编码</span><input v-model.trim="form.contractCode" /></label>
               <label><span>一级分类</span><input v-model.trim="form.firstCategory" /></label>
               <label><span>二级分类</span><input v-model.trim="form.secondCategory" /></label>

@@ -79,7 +79,8 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '零售价', value: money(item.retailPrice), emphasis: true },
         { label: '最小采购量', value: displayValue(item.minPurchaseQty) },
         { label: '采购单位', value: displayValue(item.purchaseUnit) },
-        { label: '换算系数', value: displayValue(item.conversionRate) },
+        { label: '中包装数量', value: displayValue(item.conversionRate) },
+        { label: '采购包装数量', value: displayValue(item.purchasePackageQty) },
         { label: '合同编码', value: displayValue(item.contractCode) },
         { label: '招采子编码', value: displayValue(item.tenderSubCode) },
         { label: '附件数量', value: item.attachments.length }

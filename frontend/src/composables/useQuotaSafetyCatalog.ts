@@ -17,7 +17,7 @@ export function useQuotaSafetyCatalog(options: {
       return (
         (!safetyCatalogQuery.templateCode || template.templateCode.includes(safetyCatalogQuery.templateCode)) &&
         (!safetyCatalogQuery.templateName || template.templateName.includes(safetyCatalogQuery.templateName)) &&
-        (!safetyCatalogQuery.deptName || template.deptName.includes(safetyCatalogQuery.deptName)) &&
+        (!safetyCatalogQuery.deptName || (template.deptName ?? '').includes(safetyCatalogQuery.deptName)) &&
         (!safetyCatalogQuery.productName || template.productName.includes(safetyCatalogQuery.productName))
       )
     })
@@ -40,7 +40,7 @@ export function useQuotaSafetyCatalog(options: {
     options.safetyForm.templateCode = row.templateCode
     options.safetyForm.productCode = row.productCode
     if (!options.safetyForm.deptName || options.safetyForm.deptName === '-') {
-      options.safetyForm.deptName = row.deptName === '-' ? '' : row.deptName
+      options.safetyForm.deptName = row.deptName === '-' ? '' : row.deptName ?? ''
     }
   }
 

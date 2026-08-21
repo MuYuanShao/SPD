@@ -28,6 +28,7 @@ function emptyProductForm(): ProductCreatePayload {
     minPurchaseQty: 1,
     purchaseUnit: '包',
     conversionRate: 1,
+    purchasePackageQty: null,
     udiCode: '',
     registrationNo: '',
     registrationExpireDate: '',
@@ -105,6 +106,7 @@ export function useHospitalProductManagement(options: {
       minPurchaseQty: detail.minPurchaseQty,
       purchaseUnit: detail.purchaseUnit === '-' ? '' : detail.purchaseUnit,
       conversionRate: detail.conversionRate,
+      purchasePackageQty: detail.purchasePackageQty,
       udiCode: detail.udiCode === '-' ? '' : detail.udiCode,
       registrationNo: detail.registrationNo === '-' ? '' : detail.registrationNo,
       registrationExpireDate: detail.registrationExpireDate === '-' ? '' : detail.registrationExpireDate,
@@ -172,7 +174,8 @@ export function useHospitalProductManagement(options: {
       purchasePrice: normalizeProductNumber(form.purchasePrice) ?? 0,
       retailPrice: normalizeProductNumber(form.retailPrice),
       minPurchaseQty: normalizeProductNumber(form.minPurchaseQty) ?? 1,
-      conversionRate: normalizeProductNumber(form.conversionRate) ?? 1
+      conversionRate: normalizeProductNumber(form.conversionRate) ?? 1,
+      purchasePackageQty: normalizeProductNumber(form.purchasePackageQty)
     }
 
     try {

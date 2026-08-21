@@ -146,7 +146,8 @@ public class PendingProductApplicationController {
                             getCellDecimal(row, column(columns, 9, "零售价"), null),
                             getCellDecimal(row, column(columns, 10, "最小采购量"), BigDecimal.ONE),
                             getCellString(row, column(columns, 11, "采购单位"), ""),
-                            getCellDecimal(row, column(columns, 12, "换算系数"), BigDecimal.ONE),
+                            getCellDecimal(row, column(columns, 12, "换算系数", "中包装数量"), BigDecimal.ONE),
+                            null,                                     // 采购包装数量（导入暂不支持）
                             getCellString(row, column(columns, 13, "UDI编码", "UDI 编码"), ""),
                             getCellString(row, column(columns, 14, "注册证号"), ""),
                             getCellString(row, column(columns, 15, "注册证有效期"), ""),

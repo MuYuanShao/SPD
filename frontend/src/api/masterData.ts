@@ -44,6 +44,7 @@ export interface ProductDetail {
   minPurchaseQty: number | string
   purchaseUnit: string
   conversionRate: number | string
+  purchasePackageQty: number | string | null
   udiCode: string
   registrationNo: string
   registrationExpireDate: string
@@ -79,6 +80,7 @@ export interface ProductCreatePayload {
   minPurchaseQty: number | string
   purchaseUnit: string
   conversionRate: number | string
+  purchasePackageQty: number | string | null
   udiCode: string
   registrationNo: string
   registrationExpireDate: string

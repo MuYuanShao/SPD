@@ -75,13 +75,14 @@ public class CampusService {
 
     public Map<String, Object> createCampus(CampusUpsertRequest request) {
         validate(request, true);
+        String campusCode = isBlank(request.campusCode()) ? nextCampusCode() : request.campusCode().trim();
         try {
             jdbcTemplate.update("""
                     INSERT INTO campus (
                       campus_code, campus_name, address, manager_name, phone, sort_order, status
                     ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    request.campusCode().trim(),
+                    campusCode,
                     request.campusName().trim(),
                     nullIfBlank(request.address()),
                     nullIfBlank(request.managerName()),
@@ -92,7 +93,17 @@ public class CampusService {
         } catch (DuplicateKeyException ex) {
             throw new IllegalArgumentException("院区编码或院区名称已存在");
         }
-        return Map.of("campusCode", request.campusCode().trim());
+        return Map.of("campusCode", campusCode);
+    }
+
+    /** 院区编码自动生成：XQ + 三位序号（按现有编码最大值递增） */
+    private String nextCampusCode() {
+        Long maxSeq = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(MAX(CAST(SUBSTRING(campus_code, 3) AS UNSIGNED)), 0)
+                  FROM campus
+                 WHERE campus_code REGEXP '^XQ[0-9]+$'
+                """, Long.class);
+        return "XQ" + String.format("%03d", (maxSeq == null ? 0 : maxSeq) + 1);
     }
 
     public Map<String, Object> updateCampus(String campusCode, CampusUpsertRequest request) {
@@ -127,8 +138,8 @@ public class CampusService {
     }
 
     private static void validate(CampusUpsertRequest request, boolean requireCode) {
-        if ((requireCode && isBlank(request.campusCode())) || isBlank(request.campusName())) {
-            throw new IllegalArgumentException("院区编码、院区名称为必填项");
+        if (isBlank(request.campusName())) {
+            throw new IllegalArgumentException("院区名称为必填项");
         }
     }
 

@@ -62,7 +62,6 @@ function closeDialog() {
               <tr>
                 <th>模板编码</th>
                 <th>模板名称</th>
-                <th>科室</th>
                 <th>商品名称</th>
                 <th>规格</th>
                 <th>厂家</th>
@@ -80,7 +79,6 @@ function closeDialog() {
               >
                 <td>{{ row.templateCode }}</td>
                 <td><strong>{{ row.templateName }}</strong></td>
-                <td>{{ row.deptName }}</td>
                 <td>{{ row.productName }}</td>
                 <td>{{ row.specModel }}</td>
                 <td>{{ row.manufacturerName }}</td>

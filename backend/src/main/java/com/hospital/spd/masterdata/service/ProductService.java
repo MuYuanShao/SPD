@@ -233,7 +233,7 @@ public class ProductService {
                        COALESCE(m.manufacturer_name, '-') AS manufacturer_name,
                        COALESCE(s.supplier_name, '-') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
-                       p.purchase_unit, p.conversion_rate, p.udi_code, p.registration_no,
+                       p.purchase_unit, p.conversion_rate, p.purchase_package_qty, p.udi_code, p.registration_no,
                        p.registration_expire_date, p.production_license_no, p.business_license_no,
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic, p.contract_code,
                        p.first_category, p.second_category, p.third_category, p.is_chargeable,
@@ -266,6 +266,7 @@ public class ProductService {
                     rs.getBigDecimal("min_purchase_qty"),
                     fallback(rs.getString("purchase_unit")),
                     rs.getBigDecimal("conversion_rate"),
+                    rs.getBigDecimal("purchase_package_qty"),
                     fallback(rs.getString("udi_code")),
                     fallback(rs.getString("registration_no")),
                     dateString(rs.getDate("registration_expire_date")),
@@ -377,13 +378,13 @@ public class ProductService {
                 INSERT INTO pending_product_application (
                   application_no, application_type, supplier_id, product_name, product_code, spec_model,
                   brand, manufacturer_id, manufacturer_name, category_id, unit, purchase_price, retail_price,
-                  min_purchase_qty, purchase_unit, conversion_rate, udi_code, registration_no,
+                  min_purchase_qty, purchase_unit, conversion_rate, purchase_package_qty, udi_code, registration_no,
                   registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
                   qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed,
                   storage_condition, product_snapshot, change_diff, approval_status, submit_by, submit_time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                   JSON_OBJECT('source','manual','changeReason', ?), JSON_OBJECT('changeReason', ?),
                   'pending_initial', 1, NOW())
                 """,
@@ -403,6 +404,7 @@ public class ProductService {
                 defaultDecimal(request.minPurchaseQty(), BigDecimal.ONE),
                 nullIfBlank(request.purchaseUnit()),
                 defaultDecimal(request.conversionRate(), BigDecimal.ONE),
+                request.purchasePackageQty(),
                 nullIfBlank(request.udiCode()),
                 nullIfBlank(request.registrationNo()),
                 toSqlDate(request.registrationExpireDate()),
@@ -467,6 +469,7 @@ public class ProductService {
                 detail.minPurchaseQty(),
                 cleanFallback(detail.purchaseUnit()),
                 detail.conversionRate(),
+                detail.purchasePackageQty(),
                 cleanFallback(detail.udiCode()),
                 cleanFallback(detail.registrationNo()),
                 cleanFallback(detail.registrationExpireDate()),
@@ -503,6 +506,7 @@ public class ProductService {
                 base.minPurchaseQty(),
                 base.purchaseUnit(),
                 base.conversionRate(),
+                base.purchasePackageQty(),
                 base.udiCode(),
                 prefer(request.registrationNo(), base.registrationNo()),
                 base.registrationExpireDate(),
@@ -549,6 +553,7 @@ public class ProductService {
                 differentDecimal(current.minPurchaseQty(), request.minPurchaseQty()) ||
                 differentText(current.purchaseUnit(), request.purchaseUnit()) ||
                 differentDecimal(current.conversionRate(), request.conversionRate()) ||
+                differentDecimal(current.purchasePackageQty(), request.purchasePackageQty()) ||
                 differentText(current.udiCode(), request.udiCode()) ||
                 differentText(current.registrationNo(), request.registrationNo()) ||
                 differentText(current.registrationExpireDate(), request.registrationExpireDate()) ||

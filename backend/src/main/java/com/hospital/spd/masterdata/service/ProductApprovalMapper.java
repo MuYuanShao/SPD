@@ -77,6 +77,7 @@ final class ProductApprovalMapper {
                 getBigDecimal(rs, "min_purchase_qty"),
                 rs.getString("purchase_unit"),
                 getBigDecimal(rs, "conversion_rate"),
+                getBigDecimal(rs, "purchase_package_qty"),
                 rs.getString("udi_code"),
                 rs.getString("registration_no"),
                 getDateString(rs, "registration_expire_date"),

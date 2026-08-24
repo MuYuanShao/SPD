@@ -211,7 +211,7 @@ class ReceivingOrderServiceTest {
                     "主仓库",
                     "normal", false,
                     "加急收货",
-                    List.of(new ReceivingItemRequest("P001", "BATCH001",
+                    List.of(new ReceivingItemRequest("P001", "BATCH001", null,
                             "2026-06-01", "2028-06-01",
                             BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
             );
@@ -258,7 +258,7 @@ class ReceivingOrderServiceTest {
         void shouldUpdateDraftReceivingOrder() {
             ReceivingOrderRequest request = new ReceivingOrderRequest(
                     null, "测试供应商", "SPD中心库", "normal", false, "二次修改",
-                    List.of(new ReceivingItemRequest("P001", "BATCH002",
+                    List.of(new ReceivingItemRequest("P001", "BATCH002", null,
                             "2026-06-02", "2028-06-02",
                             BigDecimal.valueOf(12), BigDecimal.valueOf(12), BigDecimal.ZERO))
             );
@@ -281,7 +281,7 @@ class ReceivingOrderServiceTest {
         void shouldRejectUpdateWhenNotDraft() {
             ReceivingOrderRequest request = new ReceivingOrderRequest(
                     null, "测试供应商", "SPD中心库", null, false, null,
-                    List.of(new ReceivingItemRequest("P001", null, null, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
             );
             when(jdbcTemplate.queryForMap(anyString(), eq("RK001")))
@@ -304,7 +304,7 @@ class ReceivingOrderServiceTest {
         void shouldCreateWithoutPurchaseOrderNo() {
             ReceivingOrderRequest noPoRequest = new ReceivingOrderRequest(
                     null, "测试供应商", "主仓库", "normal", false, null,
-                    List.of(new ReceivingItemRequest("P001", null, null, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, null, null))
             );
             // findSupplierId then findWarehouseId
@@ -345,7 +345,7 @@ class ReceivingOrderServiceTest {
         void shouldThrowWhenProductCodeBlank() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
                     "CG20260601001", "测试供应商", "主仓库", null, false, null,
-                    List.of(new ReceivingItemRequest("", null, null, null,
+                    List.of(new ReceivingItemRequest("", null, null, null, null,
                             BigDecimal.TEN, null, null))
             );
             assertThatThrownBy(() -> service.create(invalid))
@@ -358,7 +358,7 @@ class ReceivingOrderServiceTest {
         void shouldThrowWhenWarehouseBlank() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
                     "CG20260601001", "测试供应商", "", null, false, null,
-                    List.of(new ReceivingItemRequest("P001", null, null, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, null, null))
             );
             when(jdbcTemplate.queryForList(anyString(), eq(Long.class), anyString()))
@@ -374,7 +374,7 @@ class ReceivingOrderServiceTest {
         void shouldRejectInconsistentAcceptedQuantities() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
                     "CG20260601001", "测试供应商", "主仓库", null, false, null,
-                    List.of(new ReceivingItemRequest("P001", null, null, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, BigDecimal.valueOf(9), BigDecimal.valueOf(2)))
             );
 
@@ -388,7 +388,7 @@ class ReceivingOrderServiceTest {
         void shouldRejectReceiptBeyondPurchaseOrderRemainingQuantity() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
                     "CG20260601001", "测试供应商", "主仓库", null, false, null,
-                    List.of(new ReceivingItemRequest("P001", null, null, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
             );
             when(jdbcTemplate.queryForList(contains("SELECT purchase_order_id"), eq(Long.class), eq("CG20260601001")))

@@ -194,6 +194,7 @@ public class ReceivingOrderService {
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        roi.production_batch_no AS productionBatchNo,
+                       roi.udi_code AS udiCode,
                        DATE_FORMAT(roi.production_date, '%Y-%m-%d') AS productionDate,
                        DATE_FORMAT(roi.expire_date, '%Y-%m-%d') AS expireDate,
                        roi.quantity, roi.qualified_quantity AS qualifiedQuantity,
@@ -390,6 +391,7 @@ public class ReceivingOrderService {
     private void approveReceiving(Long receivingOrderId, String receivingNo, Long warehouseId, Long supplierId, Object purchaseOrderIdObject) {
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT roi.item_id AS itemId, roi.product_id AS productId, roi.production_batch_no AS productionBatchNo,
+                       roi.udi_code AS udiCode,
                        roi.production_date AS productionDate, roi.expire_date AS expireDate,
                        roi.quantity, roi.qualified_quantity AS qualifiedQuantity,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
@@ -465,6 +467,8 @@ public class ReceivingOrderService {
             return;
         }
         String operatorName = operatorContextProvider.current().username();
+        // UDI 取验收录入的 UDI 字段（独立于唯一码）；未录入时留空，唯一码由系统自动生成
+        String receivingUdi = nullIfBlank(item.get("udiCode") instanceof String value ? value : null);
         for (int index = 0; index < unitCount; index++) {
             String uniqueCode = support.nextNo(HIGH_VALUE_UNIQUE_CODE);
             jdbcTemplate.update("""
@@ -473,7 +477,7 @@ public class ReceivingOrderService {
                       manufacturer_name, supplier_name, batch_no, expire_date, current_status,
                       responsible_person, risk_level, last_event_name, last_event_time
                     ) VALUES (?, ?, 'high_value', ?, ?, ?, ?, ?, ?, ?, 'in_stock', ?, 'normal', '中心库验收入库', NOW())
-                    """, uniqueCode, uniqueCode, item.get("productCode"), item.get("productName"), item.get("specModel"),
+                    """, receivingUdi, uniqueCode, item.get("productCode"), item.get("productName"), item.get("specModel"),
                     item.get("manufacturerName"), item.get("supplierName"), batch.systemBatchNo(), item.get("expireDate"),
                     operatorName);
             Long traceCodeId = jdbcTemplate.queryForObject(
@@ -543,10 +547,11 @@ public class ReceivingOrderService {
             BigDecimal latestPrice = (BigDecimal) product.get("purchasePrice");
             jdbcTemplate.update("""
                     INSERT INTO receiving_order_item (
-                      receiving_order_id, product_id, production_batch_no, production_date, expire_date,
+                      receiving_order_id, product_id, production_batch_no, udi_code, production_date, expire_date,
                       quantity, unit_price, amount, qualified_quantity, unqualified_quantity
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, receivingOrderId, productId, nullIfBlank(item.productionBatchNo()),
+                    nullIfBlank(item.udiCode()),
                     parseDate(item.productionDate()), parseDate(item.expireDate()), quantity,
                     latestPrice, qualified.multiply(latestPrice), qualified, unqualified);
         }

@@ -200,12 +200,13 @@ public class InventoryService {
         appendLike(where, args, "p.product_name", params.get("productName"));
         appendLike(where, args, "ib.system_batch_no", params.get("batchNo"));
         appendLike(where, args, "utc.unique_code", params.get("uniqueCode"));
-        appendLike(where, args, "utc.udi_code", params.get("udiCode"));
+        appendLike(where, args, "roi.udi_code", params.get("udiCode"));
 
         String fromClause = """
                   FROM inventory_batch_trace_code ibtc
                   JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
                   JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                  LEFT JOIN receiving_order_item roi ON roi.item_id = ib.receiving_item_id
                   JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
@@ -229,10 +230,11 @@ public class InventoryService {
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName,
                        COALESCE(utc.unique_code, '-') AS uniqueCode,
-                       COALESCE(utc.udi_code, '-') AS udiCode
+                       COALESCE(roi.udi_code, '-') AS udiCode
                   FROM inventory_batch_trace_code ibtc
                   JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
                   JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                  LEFT JOIN receiving_order_item roi ON roi.item_id = ib.receiving_item_id
                   JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0

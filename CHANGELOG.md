@@ -46,6 +46,13 @@
 - 验证方式：前端 vue-tsc + vite 构建通过；Playwright 回归用例实测通过（点选回填、HC021 过滤候选全部匹配断言成功）。
 - 负责人：Admin
 
+## 2026-08-24 - fix/udi-independent-from-unique-code
+
+- 修改内容：库存管理"唯一码查询"中 UDI 改为取验收录入的 UDI 字段（独立字段，不再与唯一码共用同一值）：①V58 迁移 receiving_order_item 新增 udi_code 列，udi_trace_code.udi_code 改为可空；②收货验收界面明细新增"UDI"录入列（创建/修改/明细展示），ReceivingItemRequest/ReceivingOrderService 全链路存储；③验收审核入库生成高值唯一码时 udi_code 取验收录入 UDI（未录入留空），唯一码仍由系统自动生成，两者互不影响；④唯一码查询 UDI 列与 UDI 过滤条件改从 receiving_order_item.udi_code 取值（旧数据验收无 UDI 时显示"-"）。
+- 影响范围：Flyway V58；ReceivingItemRequest/ReceivingOrderService/InventoryService；前端 ReceivingAcceptanceView、receivingOrders/useReceivingOrderForm/useReceivingOrderCreateActions；ReceivingOrderServiceTest 适配。
+- 验证方式：后端聚焦测试 ReceivingOrderServiceTest+InventoryServiceTest 通过；前端 vue-tsc + vite 构建通过；端到端实测：旧数据唯一码 20260821000011 的 UDI 列显示"-"；新建带 UDI 的验收单审核入库后唯一码查询返回 uniqueCode=20260824000001、udiCode=UDI-INDEP-20260824，两者独立 PASS。
+- 负责人：Admin
+
 ## 2026-08-21 - feat/full-flow-extended-chain
 
 - 修改内容：scripts/verify-full-flow.mjs 扩展为覆盖完整业务主链的 53 步端到端验证：新增医院目录（新品准入）→ 多步审批至最终通过（循环推进审批步骤）→ 定数包模板维护 → 库房商品绑定/科室库房目录维护 → 采购订单（创建→提交→审批→发送）→ 收货验收（exchange/isAgent 新字段回显）→ 库存三页签 → 定数包打包/按验收单部分30/全部60分配/确认10标签/打印 → 低值定数包唯一码/UDI 追溯记录 → 高值链路（收货→2唯一码→计费回传×2→收费明细→唯一码退出在库）→ 盘点(盘亏-3)/调价/召回 → 科室申领审批 → 字段管理/交易流水/UDI/工作台/operator01 权限回归；每轮自动生成全新商品/模板/单据，支持重复运行。

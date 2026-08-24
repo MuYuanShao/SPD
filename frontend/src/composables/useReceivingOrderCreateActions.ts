@@ -17,6 +17,7 @@ type ReceivingForm = {
   items: Array<{
     productCode: string
     productionBatchNo: string
+    udiCode: string
     productionDate: string
     expireDate: string
     quantity: number
@@ -44,6 +45,7 @@ export function useReceivingOrderCreateActions(options: {
     options.form.items = data.items.map((item) => ({
       productCode: String(item.productCode ?? ''),
       productionBatchNo: '',
+      udiCode: '',
       productionDate: '',
       expireDate: '',
       quantity: Number(item.pendingQuantity ?? 1),
@@ -89,6 +91,7 @@ export function useReceivingOrderCreateActions(options: {
       return {
         productCode: String(item.productCode ?? ''),
         productionBatchNo: String(item.productionBatchNo ?? ''),
+        udiCode: String(item.udiCode ?? ''),
         productionDate: String(item.productionDate ?? ''),
         expireDate: String(item.expireDate ?? ''),
         quantity,

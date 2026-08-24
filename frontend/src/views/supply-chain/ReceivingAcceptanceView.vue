@@ -434,6 +434,7 @@ onMounted(() => {
                   <th>商品名称</th>
                   <th>商品编码</th>
                   <th>生产批号</th>
+                  <th>UDI</th>
                   <th>生产日期</th>
                   <th>失效日期</th>
                   <th>医院单位数量</th>
@@ -465,6 +466,7 @@ onMounted(() => {
                     </select>
                   </td>
                   <td><input v-model="item.productionBatchNo" placeholder="生产批号" /></td>
+                  <td><input v-model.trim="item.udiCode" placeholder="录入UDI（独立于唯一码）" /></td>
                   <td><input v-model="item.productionDate" type="date" /></td>
                   <td><input v-model="item.expireDate" type="date" /></td>
                   <td><input v-model.number="item.quantity" type="number" min="1" @input="syncQualifiedQuantity(index)" /></td>
@@ -478,7 +480,7 @@ onMounted(() => {
                   </td>
                 </tr>
                 <tr v-if="!form.items.length">
-                  <td colspan="13" class="sheet-empty">无匹配数据</td>
+                  <td colspan="14" class="sheet-empty">无匹配数据</td>
                 </tr>
               </tbody>
             </table>
@@ -565,6 +567,7 @@ onMounted(() => {
                 <th>商品名称</th>
                 <th>规格型号</th>
                 <th>生产批号</th>
+                <th>UDI</th>
                 <th>生产日期</th>
                 <th>有效期</th>
                 <th>收货数量</th>
@@ -577,7 +580,7 @@ onMounted(() => {
             </thead>
             <tbody>
               <tr v-if="detailLoading">
-                <td colspan="13" class="sheet-empty">正在加载明细...</td>
+                <td colspan="14" class="sheet-empty">正在加载明细...</td>
               </tr>
               <tr v-for="(item, index) in detail.items" v-else :key="`${item.productCode}-${index}`">
                 <td>{{ (detail.page - 1) * detail.size + index + 1 }}</td>
@@ -585,6 +588,7 @@ onMounted(() => {
                 <td>{{ item.productName }}</td>
                 <td>{{ item.specModel || '-' }}</td>
                 <td>{{ item.productionBatchNo || '-' }}</td>
+                <td>{{ item.udiCode || '-' }}</td>
                 <td>{{ item.productionDate || '-' }}</td>
                 <td>{{ item.expireDate || '-' }}</td>
                 <td>{{ item.quantity }}</td>
@@ -595,7 +599,7 @@ onMounted(() => {
                 <td>{{ item.systemBatchNo || '待审核生成' }}</td>
               </tr>
               <tr v-if="!detailLoading && !detail.items.length">
-                <td colspan="13" class="sheet-empty">暂无验收明细</td>
+                <td colspan="14" class="sheet-empty">暂无验收明细</td>
               </tr>
             </tbody>
           </table>

@@ -5,6 +5,7 @@ function createEmptyReceivingItem() {
   return {
     productCode: '',
     productionBatchNo: '',
+    udiCode: '',
     productionDate: '',
     expireDate: '',
     quantity: 1,

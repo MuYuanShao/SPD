@@ -60,6 +60,13 @@
 - 验证方式：后端聚焦测试 InventoryServiceTest 通过；前端 vue-tsc + vite 构建通过；接口实测 97 条流水全部映射为 7 种交易类型（验收入库/打包入库/二级库出库等），按"二级库出库"过滤返回 33 条且全部匹配 PASS。
 - 负责人：Admin
 
+## 2026-08-24 - feat/picking-type-matched-sources
+
+- 修改内容：拣配配送按申请单申请的商品明细类型配对展示商品明细：①V59 迁移 department_requisition_item 新增 item_type（unique_code/quota_package/loose，存量数据按高值唯一码/定数管理自动回填），申领创建时按申请方式持久化类型；spd_delivery_order 新增 requisition_item_id/delivery_type（package/unique_code/loose，存量按绑定回填）。②待拣配申领单列表展示"申请类型"（唯一码/定数包/散货），选择后按类型配对展示货源：唯一码→申请单绑定的唯一码/UDI 勾选列表（新增 /picking/unique-codes）；定数包→可用定数包；散货→一级库散货批次（新增 /picking/loose-stock），定数包与散货支持混合选择展示（已选合计实时统计）。③新增散货拣配确认接口 /picking/confirm-loose（FIFO 扣减一级库散货、生成唯一单据号配送单、更新申领拣配进度）；确认拣配按类型分别提交（唯一码走配送单唯一码链路、定数包/散货可混合提交）。④拣配记录只展示唯一单据号（配送单号），不再展示申领单号，且待拣配申领单保持单选。
+- 影响范围：Flyway V59；OperationalRequisitionModule（item_type 持久化）、OperationalDeliveryModule（货源查询/散货确认/拣配进度统计）、OperationalClosureService/Controller；前端业务闭环视图拣配工作台（申请类型列、唯一码/散货面板、混合拣配提交、拣配记录去重单据号）、operationalClosure API；相关测试适配。
+- 验证方式：后端全量测试通过；前端 vue-tsc + vite 构建通过；端到端实测：散货类型申领单 itemType=loose 正确配对，散货货源返回一级库批次，散货拣配确认生成唯一单据号 PS2026082400003、库存扣减、申领进度更新（pickedQty 1/remaining 1/partial_picked），拣配记录仅展示唯一单据号 PASS。
+- 负责人：Admin
+
 ## 2026-08-21 - feat/full-flow-extended-chain
 
 - 修改内容：scripts/verify-full-flow.mjs 扩展为覆盖完整业务主链的 53 步端到端验证：新增医院目录（新品准入）→ 多步审批至最终通过（循环推进审批步骤）→ 定数包模板维护 → 库房商品绑定/科室库房目录维护 → 采购订单（创建→提交→审批→发送）→ 收货验收（exchange/isAgent 新字段回显）→ 库存三页签 → 定数包打包/按验收单部分30/全部60分配/确认10标签/打印 → 低值定数包唯一码/UDI 追溯记录 → 高值链路（收货→2唯一码→计费回传×2→收费明细→唯一码退出在库）→ 盘点(盘亏-3)/调价/召回 → 科室申领审批 → 字段管理/交易流水/UDI/工作台/operator01 权限回归；每轮自动生成全新商品/模板/单据，支持重复运行。

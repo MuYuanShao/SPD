@@ -88,10 +88,14 @@ public class OperationalRequisitionModule {
             return ps;
         }, keyHolder);
         Long requisitionId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+        // 申请明细类型与申请单保持一致：唯一码/定数包/散货，拣配时按类型配对展示商品明细
+        String itemType = resolveItemType(body, product);
         jdbcTemplate.update("""
-                INSERT INTO department_requisition_item (requisition_id, product_id, quantity, unit, unit_price, amount, remark)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, requisitionId, product.get("productId"), quantity, product.get("unit"), unitPrice, amount, "department requisition");
+                INSERT INTO department_requisition_item (
+                  requisition_id, product_id, quantity, item_type, unit, unit_price, amount, remark
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """, requisitionId, product.get("productId"), quantity, itemType,
+                product.get("unit"), unitPrice, amount, "department requisition");
         if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
             if (warehouseId == null) throw new IllegalArgumentException("高值耗材申领必须指定来源库房");
             Object rawCodes = body.get("uniqueCodes") == null ? body.get("uniqueCode") : body.get("uniqueCodes");
@@ -135,6 +139,18 @@ public class OperationalRequisitionModule {
                     ((Number) requisition.get("requisitionId")).longValue(), requisitionNo);
         }
         return Map.of("requisitionNo", requisitionNo, "status", nextStatus);
+    }
+
+    private static String resolveItemType(Map<String, Object> body, Map<String, Object> product) {
+        // 高值耗材带唯一码申领 → 唯一码类型
+        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
+            return "unique_code";
+        }
+        Object mode = body.get("requisitionMode");
+        if ("quota_package".equals(String.valueOf(mode))) {
+            return "quota_package";
+        }
+        return "loose";
     }
 
     private Map<String, Object> findProduct(String productCode) {

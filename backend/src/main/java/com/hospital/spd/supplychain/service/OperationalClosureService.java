@@ -69,6 +69,19 @@ public class OperationalClosureService {
         return deliveryModule.packageLabelDetail(labelNo);
     }
 
+    public Map<String, Object> availableUniqueCodes(Map<String, String> params) {
+        return deliveryModule.availableUniqueCodes(params);
+    }
+
+    public Map<String, Object> availableLooseStock(Map<String, String> params) {
+        return deliveryModule.availableLooseStock(params);
+    }
+
+    @Transactional
+    public Map<String, Object> confirmLoosePicking(Map<String, Object> body) {
+        return deliveryModule.confirmLoosePicking(body);
+    }
+
     @Transactional
     public Map<String, Object> generateShortage(Map<String, Object> body) {
         return shortageModule.generateShortage(body);

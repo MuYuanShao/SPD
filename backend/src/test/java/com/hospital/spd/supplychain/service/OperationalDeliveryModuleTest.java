@@ -106,8 +106,8 @@ class OperationalDeliveryModuleTest {
                         "productCode", "PC001",
                         "productName", "Syringe"
                 )));
-        when(jdbcTemplate.queryForObject(contains("FROM spd_delivery_package_binding"),
-                eq(BigDecimal.class), eq(4L)))
+        when(jdbcTemplate.queryForObject(contains("delivery_type = 'loose'"),
+                eq(BigDecimal.class), eq(4L), eq(4L), eq(4L)))
                 .thenReturn(BigDecimal.ZERO);
         when(support.nextNo(DocumentKind.DELIVERY_ORDER)).thenReturn("PS001");
         when(support.nextNo(DocumentKind.QUOTA_PACKAGE_EVENT)).thenReturn("DS001");

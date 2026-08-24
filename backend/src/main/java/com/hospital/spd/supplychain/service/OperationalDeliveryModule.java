@@ -62,8 +62,9 @@ public class OperationalDeliveryModule {
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
         jdbcTemplate.update("""
                 INSERT INTO spd_delivery_order (
-                  delivery_no, requisition_no, dept_name, warehouse_name, product_code, product_name, quantity, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'picked')
+                  delivery_no, requisition_no, dept_name, warehouse_name, product_code, product_name,
+                  quantity, status, delivery_type
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'picked', 'unique_code')
                 """, deliveryNo, nullIfBlank(requisitionNo), deptName, warehouseName, product.get("productCode"),
                 product.get("productName"), quantity);
         if (!traceUnits.isEmpty()) {
@@ -80,6 +81,105 @@ public class OperationalDeliveryModule {
         return Map.of("deliveryNo", deliveryNo, "status", "picked");
     }
 
+    /**
+     * 拣配唯一码货源：展示申请明细绑定的唯一码/UDI（配对申请单申请的商品明细类型），
+     * 仅列出未配送的在库/已申领唯一码。
+     */
+    public Map<String, Object> availableUniqueCodes(Map<String, String> params) {
+        Long itemId = longValue(params.get("itemId"));
+        if (itemId == null) {
+            return Map.of("rows", List.of());
+        }
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT utc.trace_code_id AS traceCodeId, utc.unique_code AS uniqueCode,
+                       COALESCE(utc.udi_code, '-') AS udiCode, ib.system_batch_no AS batchNo,
+                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate
+                  FROM department_requisition_trace_code rt
+                  JOIN udi_trace_code utc ON utc.trace_code_id = rt.trace_code_id
+                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = utc.trace_code_id
+                  LEFT JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                 WHERE rt.requisition_item_id = ?
+                   AND utc.current_status IN ('in_stock', 'requisitioned')
+                   AND NOT EXISTS (
+                     SELECT 1 FROM spd_delivery_trace_code dt WHERE dt.trace_code_id = rt.trace_code_id
+                   )
+                 ORDER BY rt.trace_code_id
+                """, itemId);
+        return Map.of("rows", rows);
+    }
+
+    /**
+     * 拣配散货货源：一级库（中心库）中该申请商品的无货位可用余额，按批次展示。
+     */
+    public Map<String, Object> availableLooseStock(Map<String, String> params) {
+        Long itemId = longValue(params.get("itemId"));
+        String warehouseName = params.getOrDefault("warehouseName", "").trim();
+        if (itemId == null) {
+            return Map.of("rows", List.of());
+        }
+        List<Object> args = new ArrayList<>();
+        args.add(itemId);
+        StringBuilder where = new StringBuilder("""
+                 WHERE dri.item_id = ?
+                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+                """);
+        if (!warehouseName.isBlank()) {
+            where.append(" AND w.warehouse_name = ?");
+            args.add(warehouseName);
+        }
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT bal.balance_id AS balanceId, ib.batch_id AS batchId,
+                       ib.system_batch_no AS systemBatchNo,
+                       ib.production_batch_no AS productionBatchNo,
+                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
+                       ib.batch_unit_price AS unitPrice, bal.available_qty AS availableQty
+                  FROM department_requisition_item dri
+                  JOIN inventory_balance bal ON bal.product_id = dri.product_id
+                   AND bal.location_id IS NULL AND bal.available_qty > 0
+                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
+                """ + where + " ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id",
+                args.toArray());
+        return Map.of("rows", rows);
+    }
+
+    /**
+     * 散货拣配确认：按申请明细从一级库散货中扣减库存并生成配送单，
+     * 配送单记录唯一单据号与关联申请明细。
+     */
+    @Transactional
+    public Map<String, Object> confirmLoosePicking(Map<String, Object> body) {
+        String requisitionNo = text(body, "requisitionNo", "");
+        Long itemId = longValue(body.get("itemId"));
+        String warehouseName = text(body, "warehouseName", "");
+        BigDecimal quantity = decimal(body, "quantity", null);
+        if (requisitionNo.isBlank() || itemId == null || warehouseName.isBlank()
+                || quantity == null || quantity.signum() <= 0) {
+            throw new IllegalArgumentException("requisitionNo, itemId, warehouseName and quantity are required");
+        }
+        Map<String, Object> requisition = findRequisitionItemForPicking(requisitionNo, itemId);
+        Long requisitionId = ((Number) requisition.get("requisitionId")).longValue();
+        Long productId = ((Number) requisition.get("productId")).longValue();
+        String deptName = String.valueOf(requisition.get("deptName"));
+        BigDecimal requested = (BigDecimal) requisition.get("quantity");
+        Long warehouseId = findWarehouseId(warehouseName);
+        BigDecimal picked = pickedQuantity(itemId);
+        if (picked.add(quantity).compareTo(requested) > 0) {
+            throw new IllegalArgumentException("picked quantity exceeds requisition item quantity");
+        }
+        Map<String, Object> product = findProductByProductId(productId);
+        String deliveryNo = support.nextNo(DELIVERY_ORDER);
+        Long deliveryId = insertLoosePickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
+                String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity);
+        support.consumeAvailableFifo(warehouseId, productId, quantity,
+                "delivery_loose_out", "spd_delivery_order", deliveryId,
+                "picked loose stock for requisition " + requisitionNo + ", delivery " + deliveryNo);
+        updateRequisitionPickStatus(requisitionId);
+        support.writeAudit("delivery", "confirm_loose_picking", deliveryId, deliveryNo,
+                "picked loose stock for requisition " + requisitionNo);
+        return Map.of("deliveryNo", deliveryNo, "status", "picked", "quantity", quantity);
+    }
+
     public Map<String, Object> pickingRequisitions() {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT dr.requisition_no AS requisitionNo,
@@ -89,6 +189,9 @@ public class OperationalDeliveryModule {
                        p.product_name AS productName,
                        dri.item_id AS itemId,
                        dri.quantity AS requisitionQty,
+                       COALESCE(dri.item_type, CASE WHEN p.is_high_value = 1 THEN 'unique_code'
+                                                    WHEN p.is_quota_managed = 1 THEN 'quota_package'
+                                                    ELSE 'loose' END) AS itemType,
                        COALESCE(picked.picked_qty, 0) AS pickedQty,
                        GREATEST(dri.quantity - COALESCE(picked.picked_qty, 0), 0) AS remainingQty,
                        dr.status,
@@ -108,6 +211,11 @@ public class OperationalDeliveryModule {
                           FROM department_requisition_trace_code rt
                           JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
                          GROUP BY rt.requisition_item_id
+                        UNION ALL
+                        SELECT requisition_item_id, SUM(quantity) AS picked_qty
+                          FROM spd_delivery_order
+                         WHERE delivery_type = 'loose' AND requisition_item_id IS NOT NULL
+                         GROUP BY requisition_item_id
                       ) picked_sources
                      GROUP BY requisition_item_id
                   ) picked ON picked.requisition_item_id = dri.item_id
@@ -256,7 +364,8 @@ public class OperationalDeliveryModule {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         String productCode = labels.size() == 1 ? String.valueOf(firstLabel.get("productCode")) : "MULTI";
         String productName = labels.size() == 1 ? String.valueOf(firstLabel.get("productName")) : "定数包组合";
-        Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, deptName, warehouseName, productCode, productName, totalQuantity);
+        Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
+                productCode, productName, totalQuantity);
 
         for (Map<String, Object> label : labels) {
             Long labelId = ((Number) label.get("labelId")).longValue();
@@ -394,10 +503,21 @@ public class OperationalDeliveryModule {
 
     private BigDecimal pickedQuantity(Long itemId) {
         BigDecimal picked = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*)
-                  FROM spd_delivery_package_binding
-                 WHERE requisition_item_id = ?
-                """, BigDecimal.class, itemId);
+                SELECT (
+                    SELECT COUNT(*)
+                      FROM spd_delivery_package_binding
+                     WHERE requisition_item_id = ?
+                  ) + (
+                    SELECT COUNT(*)
+                      FROM department_requisition_trace_code rt
+                      JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                     WHERE rt.requisition_item_id = ?
+                  ) + (
+                    SELECT COALESCE(SUM(quantity), 0)
+                      FROM spd_delivery_order
+                     WHERE requisition_item_id = ? AND delivery_type = 'loose'
+                  )
+                """, BigDecimal.class, itemId, itemId, itemId);
         return picked == null ? BigDecimal.ZERO : picked;
     }
 
@@ -429,25 +549,59 @@ public class OperationalDeliveryModule {
         }
     }
 
-    private Long insertPickedDelivery(String deliveryNo, String requisitionNo, String deptName, String warehouseName,
+    private Long insertPickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
+                                      String deptName, String warehouseName,
                                       String productCode, String productName, BigDecimal quantity) {
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO spd_delivery_order (
-                      delivery_no, requisition_no, dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'picked')
+                      delivery_no, requisition_no, requisition_item_id, delivery_type,
+                      dept_name, warehouse_name, product_code, product_name, quantity, status
+                    ) VALUES (?, ?, ?, 'package', ?, ?, ?, ?, ?, 'picked')
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, deliveryNo);
             ps.setString(2, requisitionNo);
-            ps.setString(3, deptName);
-            ps.setString(4, warehouseName);
-            ps.setString(5, productCode);
-            ps.setString(6, productName);
-            ps.setBigDecimal(7, quantity);
+            ps.setLong(3, requisitionItemId);
+            ps.setString(4, deptName);
+            ps.setString(5, warehouseName);
+            ps.setString(6, productCode);
+            ps.setString(7, productName);
+            ps.setBigDecimal(8, quantity);
             return ps;
         }, keyHolder);
         return Objects.requireNonNull(keyHolder.getKey()).longValue();
+    }
+
+    private Long insertLoosePickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
+                                           String deptName, String warehouseName,
+                                           String productCode, String productName, BigDecimal quantity) {
+        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                    INSERT INTO spd_delivery_order (
+                      delivery_no, requisition_no, requisition_item_id, delivery_type,
+                      dept_name, warehouse_name, product_code, product_name, quantity, status
+                    ) VALUES (?, ?, ?, 'loose', ?, ?, ?, ?, ?, 'picked')
+                    """, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, deliveryNo);
+            ps.setString(2, requisitionNo);
+            ps.setLong(3, requisitionItemId);
+            ps.setString(4, deptName);
+            ps.setString(5, warehouseName);
+            ps.setString(6, productCode);
+            ps.setString(7, productName);
+            ps.setBigDecimal(8, quantity);
+            return ps;
+        }, keyHolder);
+        return Objects.requireNonNull(keyHolder.getKey()).longValue();
+    }
+
+    private Map<String, Object> findProductByProductId(Long productId) {
+        return jdbcTemplate.queryForMap("""
+                SELECT product_code AS productCode, product_name AS productName
+                  FROM product WHERE product_id = ?
+                """, productId);
     }
 
     private void updateRequisitionPickStatus(Long requisitionId) {
@@ -465,6 +619,11 @@ public class OperationalDeliveryModule {
                           FROM department_requisition_trace_code rt
                           JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
                          GROUP BY rt.requisition_item_id
+                        UNION ALL
+                        SELECT requisition_item_id, SUM(quantity) AS picked_qty
+                          FROM spd_delivery_order
+                         WHERE delivery_type = 'loose'
+                         GROUP BY requisition_item_id
                       ) picked_sources
                      GROUP BY requisition_item_id
                   ) picked ON picked.requisition_item_id = dri.item_id

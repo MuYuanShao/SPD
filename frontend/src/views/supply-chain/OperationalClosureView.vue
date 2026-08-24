@@ -18,6 +18,7 @@ import {
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import {
   bindHighValuePatient,
+  confirmLoosePicking,
   confirmPicking,
   confirmSettlement,
   createColdChainException,
@@ -28,9 +29,11 @@ import {
   fetchClosureList,
   fetchClosureOptions,
   fetchClosureOverview,
+  fetchPickingLooseStock,
   fetchPickingPackageLabelDetail,
   fetchPickingPackageLabels,
   fetchPickingRequisitions,
+  fetchPickingUniqueCodes,
   fetchRecallBatches,
   processRequisition,
   generateShortage,
@@ -55,7 +58,11 @@ const pickingRequisitionRows = ref<Record<string, unknown>[]>([])
 const pickingPackageRows = ref<Record<string, unknown>[]>([])
 const selectedPickingRequisitionNo = ref('')
 const selectedPickingItemId = ref('')
+const selectedPickingItemType = ref('loose')
 const selectedPickingLabels = ref<string[]>([])
+const pickingUniqueCodeRows = ref<Array<Record<string, unknown>>>([])
+const selectedPickingUniqueCodes = ref<string[]>([])
+const pickingLooseRows = ref<Array<Record<string, unknown> & { pickQty?: number }>>([])
 const linkedWarehouses = ref<Array<{ code: string; name: string; selected?: boolean | number }>>([])
 const summary = ref<Record<string, number>>({})
 const analysisDialogOpen = ref(false)
@@ -260,35 +267,72 @@ async function loadPickingRequisitions() {
   } else if (!selectedStillPending) {
     selectedPickingRequisitionNo.value = ''
     selectedPickingItemId.value = ''
+    selectedPickingItemType.value = ''
     selectedPickingLabels.value = []
     pickingPackageRows.value = []
+    pickingUniqueCodeRows.value = []
+    pickingLooseRows.value = []
   } else if (selectedPickingItemId.value) {
-    await loadPickingLabels()
+    await loadPickingSources()
+  }
+}
+
+/** 申请明细类型展示：唯一码/定数包/散货，与申请单申请的商品明细类型配对 */
+function itemTypeLabel(itemType: unknown) {
+  switch (String(itemType || '')) {
+    case 'unique_code':
+      return '唯一码'
+    case 'quota_package':
+      return '定数包'
+    case 'loose':
+      return '散货'
+    default:
+      return '散货'
   }
 }
 
 async function selectPickingRequisition(row: Record<string, unknown>) {
   selectedPickingRequisitionNo.value = String(row.requisitionNo || '')
   selectedPickingItemId.value = String(row.itemId || '')
+  selectedPickingItemType.value = String(row.itemType || 'loose')
   form.requisitionNo = selectedPickingRequisitionNo.value
   form.deptName = String(row.deptName || form.deptName)
   form.productCode = String(row.productCode || form.productCode)
   form.quantity = Number(row.remainingQty || row.requisitionQty || 1)
   selectedPickingLabels.value = []
-  await loadPickingLabels()
+  selectedPickingUniqueCodes.value = []
+  await loadPickingSources()
 }
 
-async function loadPickingLabels() {
+async function loadPickingSources() {
   if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
     pickingPackageRows.value = []
+    pickingUniqueCodeRows.value = []
+    pickingLooseRows.value = []
     return
   }
-  const result = await fetchPickingPackageLabels({
+  const itemType = selectedPickingItemType.value
+  const baseParams = {
     requisitionNo: selectedPickingRequisitionNo.value,
     itemId: selectedPickingItemId.value,
     warehouseName: form.warehouseName
-  })
-  pickingPackageRows.value = result.rows || []
+  }
+  if (itemType === 'unique_code') {
+    const result = await fetchPickingUniqueCodes(baseParams)
+    pickingUniqueCodeRows.value = result.rows || []
+    pickingPackageRows.value = []
+    pickingLooseRows.value = []
+    return
+  }
+  const labelsResult = await fetchPickingPackageLabels(baseParams)
+  pickingPackageRows.value = labelsResult.rows || []
+  const looseResult = await fetchPickingLooseStock(baseParams)
+  pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
+  pickingUniqueCodeRows.value = []
+}
+
+async function loadPickingLabels() {
+  await loadPickingSources()
 }
 
 function togglePickingLabel(labelNo: string, checked: boolean) {
@@ -299,6 +343,84 @@ function togglePickingLabel(labelNo: string, checked: boolean) {
     next.delete(labelNo)
   }
   selectedPickingLabels.value = [...next]
+}
+
+function togglePickingUniqueCode(code: string, checked: boolean) {
+  const next = new Set(selectedPickingUniqueCodes.value)
+  if (checked) {
+    next.add(code)
+  } else {
+    next.delete(code)
+  }
+  selectedPickingUniqueCodes.value = [...next]
+}
+
+/** 当前已选拣配总量（定数包按包数、唯一码按个数、散货按数量） */
+const selectedPickingTotal = computed(() => {
+  const labels = selectedPickingLabels.value.length
+  const codes = selectedPickingUniqueCodes.value.length
+  const loose = pickingLooseRows.value.reduce((sum, row) => sum + Number(row.pickQty || 0), 0)
+  return labels + codes + loose
+})
+
+async function confirmSelectedPicking() {
+  if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
+    message.value = '请先选择科室申领明细'
+    return
+  }
+  if (!form.warehouseName) {
+    message.value = '请先选择中心库'
+    return
+  }
+  const itemType = selectedPickingItemType.value
+  const basePayload = {
+    requisitionNo: selectedPickingRequisitionNo.value,
+    itemId: selectedPickingItemId.value,
+    warehouseName: form.warehouseName
+  }
+
+  // 唯一码类型：按唯一码/UDI 拣配（配对申请单的唯一码）
+  if (itemType === 'unique_code') {
+    if (!selectedPickingUniqueCodes.value.length) {
+      message.value = '请先勾选唯一码/UDI'
+      return
+    }
+    const result = await createDelivery({
+      ...form,
+      requisitionNo: selectedPickingRequisitionNo.value,
+      quantity: selectedPickingUniqueCodes.value.length,
+      uniqueCodes: selectedPickingUniqueCodes.value.join(',')
+    })
+    form.deliveryNo = String(result.deliveryNo || '')
+    message.value = `拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`
+    selectedPickingUniqueCodes.value = []
+    await loadData()
+    return
+  }
+
+  // 定数包/散货类型：支持混合选择展示（定数包 + 散货）
+  const looseQty = pickingLooseRows.value.reduce((sum, row) => sum + Number(row.pickQty || 0), 0)
+  if (!selectedPickingLabels.value.length && looseQty <= 0) {
+    message.value = itemType === 'quota_package' ? '请勾选定数包标签或填写散货数量' : '请填写散货拣配数量'
+    return
+  }
+  const done: string[] = []
+  if (selectedPickingLabels.value.length) {
+    const labelResult = await confirmPicking({
+      ...basePayload,
+      labelNos: selectedPickingLabels.value
+    })
+    done.push(`定数包 ${labelResult.labelCount} 个（${labelResult.deliveryNo}）`)
+  }
+  if (looseQty > 0) {
+    const looseResult = await confirmLoosePicking({ ...basePayload, quantity: looseQty })
+    done.push(`散货 ${looseQty}（${looseResult.deliveryNo}）`)
+  }
+  form.deliveryNo = String(done[0]?.split('（')[1]?.replace('）', '') || '')
+  message.value = `拣配出库完成：${done.join('、')}`
+  selectedPickingLabels.value = []
+  pickingLooseRows.value = pickingLooseRows.value.map((row) => ({ ...row, pickQty: 0 }))
+  await loadData()
 }
 
 async function openPackageDetail(labelNo: unknown) {
@@ -319,31 +441,6 @@ async function openPackageDetail(labelNo: unknown) {
 function closePackageDetail() {
   packageDetailOpen.value = false
   packageDetail.value = null
-}
-
-async function confirmSelectedPicking() {
-  if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
-    message.value = '请先选择科室申领明细'
-    return
-  }
-  if (!form.warehouseName) {
-    message.value = '请先选择中心库'
-    return
-  }
-  if (!selectedPickingLabels.value.length) {
-    message.value = '请先勾选定数包标签'
-    return
-  }
-  const result = await confirmPicking({
-    requisitionNo: selectedPickingRequisitionNo.value,
-    itemId: selectedPickingItemId.value,
-    warehouseName: form.warehouseName,
-    labelNos: selectedPickingLabels.value
-  })
-  form.deliveryNo = String(result.deliveryNo || '')
-  message.value = `拣配出库完成：${result.deliveryNo}，绑定 ${result.labelCount} 个定数包`
-  selectedPickingLabels.value = []
-  await loadData()
 }
 
 async function changePage(page: number) {
@@ -728,6 +825,7 @@ watch(() => form.productCode, () => {
                   <th>申领单号</th>
                   <th>科室</th>
                   <th>商品</th>
+                  <th>申请类型</th>
                   <th>申领数量</th>
                   <th>已拣配</th>
                   <th>待拣配</th>
@@ -736,7 +834,7 @@ watch(() => form.productCode, () => {
               </thead>
               <tbody>
                 <tr v-if="!pickingRequisitionRows.length">
-                  <td colspan="7" class="approval-empty">暂无待拣配申领单</td>
+                  <td colspan="8" class="approval-empty">暂无待拣配申领单</td>
                 </tr>
                 <tr
                   v-for="row in pickingRequisitionRows"
@@ -752,6 +850,9 @@ watch(() => form.productCode, () => {
                     <strong>{{ row.productName }}</strong>
                     <span class="muted-cell">{{ row.productCode }}</span>
                   </td>
+                  <td>
+                    <span class="status-badge">{{ itemTypeLabel(row.itemType) }}</span>
+                  </td>
                   <td>{{ row.requisitionQty }}</td>
                   <td>{{ row.pickedQty }}</td>
                   <td>{{ row.remainingQty }}</td>
@@ -764,9 +865,50 @@ watch(() => form.productCode, () => {
           </div>
         </section>
 
+        <!-- 唯一码/UDI 类型：展示申请单绑定的唯一码 -->
+        <section v-if="selectedPickingItemType === 'unique_code'" class="picking-panel">
+          <div class="section-title compact">
+            <h3>可用唯一码 / UDI</h3>
+            <span class="muted-hint">已选 {{ selectedPickingUniqueCodes.length }} / 待拣配 {{ form.quantity }}</span>
+          </div>
+          <div class="table-scroll">
+            <table class="master-table purchase-detail-table">
+              <thead>
+                <tr>
+                  <th></th>
+                  <th>唯一码</th>
+                  <th>UDI</th>
+                  <th>系统批次</th>
+                  <th>有效期</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!pickingUniqueCodeRows.length">
+                  <td colspan="5" class="approval-empty">该申请明细没有可拣配的唯一码/UDI</td>
+                </tr>
+                <tr v-for="row in pickingUniqueCodeRows" :key="String(row.uniqueCode)">
+                  <td>
+                    <input
+                      type="checkbox"
+                      :checked="selectedPickingUniqueCodes.includes(String(row.uniqueCode))"
+                      @change="togglePickingUniqueCode(String(row.uniqueCode), ($event.target as HTMLInputElement).checked)"
+                    />
+                  </td>
+                  <td><strong>{{ row.uniqueCode }}</strong></td>
+                  <td>{{ row.udiCode }}</td>
+                  <td>{{ row.batchNo || '-' }}</td>
+                  <td>{{ row.expireDate || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <template v-else>
         <section class="picking-panel">
           <div class="section-title compact">
             <h3>可用定数包</h3>
+            <span v-if="selectedPickingItemType === 'loose'" class="muted-hint">申请类型为散货，可混合选择定数包</span>
           </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
@@ -809,6 +951,49 @@ watch(() => form.productCode, () => {
             </table>
           </div>
         </section>
+
+        <section class="picking-panel">
+          <div class="section-title compact">
+            <h3>可用散货</h3>
+            <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ form.quantity }}（可混合定数包与散货）</span>
+          </div>
+          <div class="table-scroll">
+            <table class="master-table purchase-detail-table">
+              <thead>
+                <tr>
+                  <th>系统批次</th>
+                  <th>生产批号</th>
+                  <th>有效期</th>
+                  <th>可用数量</th>
+                  <th>拣配数量</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!pickingLooseRows.length">
+                  <td colspan="5" class="approval-empty">一级库没有该商品的可用散货</td>
+                </tr>
+                <tr v-for="row in pickingLooseRows" :key="String(row.balanceId)">
+                  <td>{{ row.systemBatchNo }}</td>
+                  <td>{{ row.productionBatchNo || '-' }}</td>
+                  <td>{{ row.expireDate || '-' }}</td>
+                  <td>{{ row.availableQty }}</td>
+                  <td>
+                    <input
+                      v-model.number="row.pickQty"
+                      class="stocktaking-qty-input"
+                      type="number"
+                      min="0"
+                      :max="Number(row.availableQty)"
+                      step="0.0001"
+                      placeholder="0"
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+        </template>
       </div>
     </section>
 
@@ -950,7 +1135,12 @@ watch(() => form.productCode, () => {
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
-              <td>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</td>
+              <td>
+                <template v-if="type === 'delivery'">
+                  {{ row.deptName || '-' }}
+                </template>
+                <template v-else>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</template>
+              </td>
               <td>{{ row.productCode || '-' }}</td>
               <td>
                 <template v-if="type === 'delivery'">

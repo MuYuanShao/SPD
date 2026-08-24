@@ -64,7 +64,7 @@ class OperationalRequisitionModuleTest {
                 .containsEntry("requisitionNo", "SL20260601001")
                 .containsEntry("status", "pending_approval");
         verify(jdbcTemplate).update(contains("INSERT INTO department_requisition_item"),
-                eq(99L), eq(100L), eq(BigDecimal.valueOf(5)), eq("piece"), eq(BigDecimal.TEN),
+                eq(99L), eq(100L), eq(BigDecimal.valueOf(5)), eq("loose"), eq("piece"), eq(BigDecimal.TEN),
                 eq(BigDecimal.valueOf(50)), eq("department requisition"));
     }
 

@@ -55,6 +55,21 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.packageLabelDetail(labelNo));
     }
 
+    @GetMapping("/picking/unique-codes")
+    public ApiResponse<Map<String, Object>> availableUniqueCodes(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.availableUniqueCodes(params));
+    }
+
+    @GetMapping("/picking/loose-stock")
+    public ApiResponse<Map<String, Object>> availableLooseStock(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.availableLooseStock(params));
+    }
+
+    @PostMapping("/picking/confirm-loose")
+    public ApiResponse<Map<String, Object>> confirmLoosePicking(@RequestBody Map<String, Object> body) {
+        return ApiResponse.ok(service.confirmLoosePicking(body));
+    }
+
     @PostMapping("/shortage/generate")
     public ApiResponse<Map<String, Object>> generateShortage(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(service.generateShortage(body));

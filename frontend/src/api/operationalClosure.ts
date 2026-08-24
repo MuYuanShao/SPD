@@ -67,6 +67,21 @@ export async function fetchPickingPackageLabelDetail(labelNo: string) {
   )
 }
 
+/** 拣配唯一码/UDI 货源（配对申请明细类型） */
+export async function fetchPickingUniqueCodes(params: Record<string, string> = {}) {
+  return getData<{ rows: Array<Record<string, unknown>> }>('/operational-closure/picking/unique-codes', { params })
+}
+
+/** 拣配散货货源（一级库无货位可用余额，按批次） */
+export async function fetchPickingLooseStock(params: Record<string, string> = {}) {
+  return getData<{ rows: Array<Record<string, unknown>> }>('/operational-closure/picking/loose-stock', { params })
+}
+
+/** 散货拣配确认 */
+export async function confirmLoosePicking(payload: Record<string, unknown>) {
+  return postData<Record<string, unknown>>('/operational-closure/picking/confirm-loose', payload)
+}
+
 /**
  * 生成缺货提醒数据
  * @param payload - 生成参数

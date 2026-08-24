@@ -20,7 +20,7 @@ import {
   type StocktakingSheetItem
 } from '../../api/inventory'
 import { fetchClosureOptions, type ClosureOptions } from '../../api/operationalClosure'
-import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
+import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
 const balances = ref<InventoryBalanceRow[]>([])
@@ -185,8 +185,18 @@ const query = reactive({
   supplierName: '',
   startTime: '',
   endTime: '',
-  systemBatchNo: ''
+  systemBatchNo: '',
+  transactionType: ''
 })
+const transactionTypeOptions = [
+  '验收入库',
+  '打包入库',
+  '解包',
+  '二级库入库',
+  '三级库入库',
+  '二级库出库',
+  '三级库出库'
+] as const
 const priceForm = reactive({
   systemBatchNo: '',
   newUnitPrice: 0,
@@ -229,6 +239,7 @@ async function loadData() {
         supplierName: query.supplierName,
         startTime: query.startTime,
         endTime: query.endTime,
+        transactionType: query.transactionType,
         page: String(inventoryPagination.events.page),
         size: String(inventoryPagination.events.size)
       })
@@ -326,6 +337,7 @@ function resetEventQuery() {
   query.supplierName = ''
   query.startTime = ''
   query.endTime = ''
+  query.transactionType = ''
   inventoryPagination.events.page = 1
   void loadData()
 }
@@ -624,6 +636,13 @@ watch(mode, () => {
         <label><span>批次</span><input v-model.trim="query.productionBatchNo" placeholder="生产批次" /></label>
         <label><span>厂家</span><input v-model.trim="query.manufacturerName" placeholder="厂家名称" /></label>
         <label><span>供应商</span><input v-model.trim="query.supplierName" placeholder="供应商名称" /></label>
+        <label>
+          <span>交易类型</span>
+          <select v-model="query.transactionType">
+            <option value="">全部交易类型</option>
+            <option v-for="type in transactionTypeOptions" :key="type" :value="type">{{ type }}</option>
+          </select>
+        </label>
         <label><span>开始日期</span><input v-model="query.startTime" type="date" /></label>
         <label><span>结束日期</span><input v-model="query.endTime" type="date" /></label>
         <div class="hospital-query-actions">
@@ -659,7 +678,7 @@ watch(mode, () => {
               <th>供应商</th>
               <th>定数包码/唯一码</th>
               <th>UID码</th>
-              <th>事件类型</th>
+              <th>交易类型</th>
               <th>发生时间</th>
               <th>备注</th>
             </tr>
@@ -682,7 +701,7 @@ watch(mode, () => {
               <td>{{ row.supplierName }}</td>
               <td>{{ row.traceCode }}</td>
               <td>{{ row.udiCode }}</td>
-              <td><span class="event-type-chip">{{ formatBusinessText(row.eventType) }}</span></td>
+              <td><span class="event-type-chip">{{ row.transactionType }}</span></td>
               <td class="time-cell">{{ row.eventTime }}</td>
               <td class="remark-cell">{{ formatRemarkText(row.remark) }}</td>
             </tr>

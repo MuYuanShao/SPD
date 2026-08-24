@@ -53,6 +53,13 @@
 - 验证方式：后端聚焦测试 ReceivingOrderServiceTest+InventoryServiceTest 通过；前端 vue-tsc + vite 构建通过；端到端实测：旧数据唯一码 20260821000011 的 UDI 列显示"-"；新建带 UDI 的验收单审核入库后唯一码查询返回 uniqueCode=20260824000001、udiCode=UDI-INDEP-20260824，两者独立 PASS。
 - 负责人：Admin
 
+## 2026-08-24 - feat/inventory-transaction-types
+
+- 修改内容：库存交易流水"事件类型"改为"交易类型"，统一映射为 7 种：验收入库（purchase_receive_in）、打包入库（quota_pack_out）、解包（quota_unpack_in/quota_terminate_in）、二级库入库、三级库入库、二级库出库、三级库出库（按库房类型+数量方向归类，一级库/中心库其余出入库按方向归入验收入库/二级库出库展示）；后端 /inventory/events 返回 transactionType 字段并支持按交易类型精确过滤，前端查询区新增"交易类型"下拉（7 个选项），明细列改名"交易类型"展示映射值。
+- 影响范围：InventoryService（TRANSACTION_TYPE_EXPR 常量 + events 查询/过滤）、前端库存工作台交易流水查询与表格列、InventoryServiceTest 新增按交易类型过滤用例。
+- 验证方式：后端聚焦测试 InventoryServiceTest 通过；前端 vue-tsc + vite 构建通过；接口实测 97 条流水全部映射为 7 种交易类型（验收入库/打包入库/二级库出库等），按"二级库出库"过滤返回 33 条且全部匹配 PASS。
+- 负责人：Admin
+
 ## 2026-08-21 - feat/full-flow-extended-chain
 
 - 修改内容：scripts/verify-full-flow.mjs 扩展为覆盖完整业务主链的 53 步端到端验证：新增医院目录（新品准入）→ 多步审批至最终通过（循环推进审批步骤）→ 定数包模板维护 → 库房商品绑定/科室库房目录维护 → 采购订单（创建→提交→审批→发送）→ 收货验收（exchange/isAgent 新字段回显）→ 库存三页签 → 定数包打包/按验收单部分30/全部60分配/确认10标签/打印 → 低值定数包唯一码/UDI 追溯记录 → 高值链路（收货→2唯一码→计费回传×2→收费明细→唯一码退出在库）→ 盘点(盘亏-3)/调价/召回 → 科室申领审批 → 字段管理/交易流水/UDI/工作台/operator01 权限回归；每轮自动生成全新商品/模板/单据，支持重复运行。

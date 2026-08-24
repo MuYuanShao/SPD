@@ -246,6 +246,23 @@ public class InventoryService {
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
+    /**
+     * 交易类型映射：验收入库、打包入库、解包、二级库入库、三级库入库、二级库出库、三级库出库。
+     * 一级库（中心库）其余出入库按方向归入入库/出库类型展示。
+     */
+    private static final String TRANSACTION_TYPE_EXPR = """
+            (CASE
+               WHEN ie.event_type = 'purchase_receive_in' THEN '验收入库'
+               WHEN ie.event_type = 'quota_pack_out' THEN '打包入库'
+               WHEN ie.event_type IN ('quota_unpack_in', 'quota_terminate_in') THEN '解包'
+               WHEN w.warehouse_type LIKE '%三级%' AND ie.qty_change > 0 THEN '三级库入库'
+               WHEN w.warehouse_type LIKE '%三级%' AND ie.qty_change < 0 THEN '三级库出库'
+               WHEN w.warehouse_type LIKE '%二级%' AND ie.qty_change > 0 THEN '二级库入库'
+               WHEN w.warehouse_type LIKE '%二级%' AND ie.qty_change < 0 THEN '二级库出库'
+               WHEN ie.qty_change > 0 THEN '验收入库'
+               ELSE '二级库出库'
+             END)""";
+
     public Map<String, Object> events(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
@@ -253,6 +270,10 @@ public class InventoryService {
                  WHERE 1 = 1
                 """);
         appendLike(where, args, "ie.event_type", params.get("eventType"));
+        if (!isBlank(params.get("transactionType"))) {
+            where.append(" AND ").append(TRANSACTION_TYPE_EXPR).append(" = ?");
+            args.add(params.get("transactionType").trim());
+        }
         appendLike(where, args, "d.dept_name", params.get("deptName"));
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "p.product_code", params.get("productCode"));
@@ -281,6 +302,8 @@ public class InventoryService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT ie.event_no AS eventNo, ie.event_type AS eventType,
+                       """ + TRANSACTION_TYPE_EXPR + """
+                       AS transactionType,
                        COALESCE(d.dept_name, '-') AS deptName,
                        w.warehouse_name AS warehouseName, p.product_code AS productCode,
                        p.product_name AS productName, COALESCE(p.spec_model, '-') AS specModel,

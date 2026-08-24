@@ -12,11 +12,34 @@ const props = defineProps<{
   mode: 'create' | 'edit'
   form: WarehousePayload
   campusOptions: CampusOption[]
+  departmentOptions: Array<{ deptCode: string; deptName: string }>
   productOptions: WarehouseProductOption[]
   productsLoading: boolean
 }>()
 
+const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库'] as const
+
 const productKeyword = ref('')
+const deptKeyword = ref('')
+const deptResultsOpen = ref(false)
+
+const warehouseTypeOptions = computed(() => {
+  const current = props.form.warehouseType?.trim()
+  if (current && !WAREHOUSE_TYPES.includes(current as (typeof WAREHOUSE_TYPES)[number])) {
+    return [...WAREHOUSE_TYPES, current]
+  }
+  return WAREHOUSE_TYPES
+})
+
+const filteredDepartments = computed(() => {
+  const keyword = deptKeyword.value.trim().toLowerCase()
+  if (!keyword) return props.departmentOptions
+  return props.departmentOptions.filter((dept) =>
+    String(dept.deptName ?? '').toLowerCase().includes(keyword) ||
+    String(dept.deptCode ?? '').toLowerCase().includes(keyword)
+  )
+})
+
 const filteredProducts = computed(() => {
   const keyword = productKeyword.value.trim().toLowerCase()
   if (!keyword) return props.productOptions
@@ -27,8 +50,22 @@ const filteredProducts = computed(() => {
 })
 
 watch(() => props.open, (open) => {
-  if (open) productKeyword.value = ''
+  if (open) {
+    productKeyword.value = ''
+    deptKeyword.value = ''
+    deptResultsOpen.value = false
+  }
 })
+
+function searchDepartments() {
+  deptResultsOpen.value = true
+}
+
+function pickDepartment(deptName: string) {
+  props.form.deptName = deptName
+  deptResultsOpen.value = false
+  deptKeyword.value = ''
+}
 
 function toggleAllFiltered() {
   const filteredCodes = filteredProducts.value.map((product) => product.productCode)
@@ -70,7 +107,10 @@ const emit = defineEmits<{
         </label>
         <label>
           <span>库房类型</span>
-          <input v-model.trim="form.warehouseType" placeholder="中心库、科室二级库、虚拟库" required />
+          <select v-model.trim="form.warehouseType" required>
+            <option value="">请选择库房类型</option>
+            <option v-for="type in warehouseTypeOptions" :key="type" :value="type">{{ type }}</option>
+          </select>
         </label>
         <label>
           <span>所属院区</span>
@@ -81,9 +121,35 @@ const emit = defineEmits<{
             </option>
           </select>
         </label>
-        <label>
+        <label class="warehouse-dept-field">
           <span>关联科室</span>
-          <input v-model.trim="form.deptName" placeholder="按科室名称关联" />
+          <div class="dept-search">
+            <div class="dept-search-input">
+              <input
+                v-model.trim="deptKeyword"
+                placeholder="输入科室名称，回车或点击放大镜搜索"
+                @keyup.enter="searchDepartments"
+                @focus="searchDepartments"
+              />
+              <button class="btn-icon" type="button" aria-label="搜索科室" @click="searchDepartments">
+                <Search :size="16" />
+              </button>
+            </div>
+            <div v-if="deptResultsOpen" class="dept-results">
+              <button
+                v-for="dept in filteredDepartments"
+                :key="dept.deptCode"
+                type="button"
+                class="dept-result-option"
+                :class="{ active: form.deptName === dept.deptName }"
+                @click="pickDepartment(dept.deptName)"
+              >
+                <span>{{ dept.deptName }}</span>
+                <small>{{ dept.deptCode }}</small>
+              </button>
+              <p v-if="!filteredDepartments.length" class="dept-results-empty">未找到匹配科室</p>
+            </div>
+          </div>
         </label>
         <label>
           <span>库房状态</span>
@@ -160,6 +226,74 @@ const emit = defineEmits<{
   width: min(920px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow: auto;
+}
+
+.warehouse-dept-field {
+  position: relative;
+}
+
+.dept-search {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.dept-search-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dept-search-input input {
+  flex: 1;
+  min-width: 0;
+}
+
+.dept-results {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #cfdfe7;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(15, 42, 58, 0.12);
+}
+
+.dept-result-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  border-bottom: 1px solid #eef3f5;
+  background: #fff;
+  color: #172b3a;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dept-result-option:hover,
+.dept-result-option.active {
+  background: #eef7f8;
+}
+
+.dept-result-option small {
+  color: #6b7c8f;
+}
+
+.dept-results-empty {
+  margin: 0;
+  padding: 12px;
+  color: #6b7c8f;
+  font-size: 13px;
+  text-align: center;
 }
 
 .warehouse-product-picker {

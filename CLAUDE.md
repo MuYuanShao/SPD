@@ -72,6 +72,10 @@ npm run backend:restart
 npm run backend:status
 npm run backend:stop
 
+# One-click startup and offline deployment packaging
+npm run start:dev           # 一键启动前后端（检查 MySQL → 后端 → 前端）
+npm run package:offline     # 打包后端 jar + 前端构建产物 + JDK17 + 一键脚本到 output/offline-bundle
+
 # Release and browser verification
 npm run verify:release
 npm run test:smoke:business-ui

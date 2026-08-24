@@ -18,6 +18,20 @@
 - 负责人：
 ```
 
+## 2026-08-24 - feature/batch-11-requirements
+
+- 修改内容：①待审批目录与医院目录新增时商品编码改为选填：填写取填写值，留空取招采子编码回填，两者皆空自动生成 SPD+000001 自增编码（新增 ProductCodeService 共享服务，基于 sys_sequence 原子分配并跳过已被占用的编码；创建/重新提交/修改申请均生效，新增接口返回实际商品编码；审批通过同步医院目录逻辑保持不变）。②新增证照管理模块（V54 迁移 license_document 表 + /licenses 接口 + 前端 4 个页签：商品证照/供应商证照/厂家证照/合同管理，支持证照信息维护、附件上传/阅览/下载，附件存盘与 sys_attachment 记录）。③科室/货位管理：库房类型改为下拉（一级库/二级库/三级库）、关联科室支持回车/放大镜搜索科室表；维护货位弹窗货位类型改为下拉（整件货位/散货货位/试剂货位）、固定商品编码支持回车/放大镜搜索医院目录。④库存汇总查询改为按库房+商品聚合：数量=散货数量+在库定数包内散货数量，金额=数量×采购价。⑤新增打印模板调整菜单（V55 迁移 print_template 表 + /print-templates 接口 + 前端模板编辑器：字段勾选/排序/新增/修改、纸张预设与宽高设置），定数包标签打印（ZPL 与浏览器打印）读取模板配置生效。⑥一键启动与离线部署打包：新增 scripts/package-offline-deployment.ps1（打包后端 jar、前端构建产物、内置 JDK17、一键启动脚本与部署说明到 output/offline-bundle），后端支持 spd.web.static-dir 一体化托管前端（SpaWebConfig/SpaFallbackController，非 /api 路径放行）；package.json 新增 start:dev 与 package:offline 脚本。⑦采购管理智能补货改为独立事务，出库量取科室申请表（department_requisition/department_requisition_item 近 60 天已审批申领数量），不再取配送出库流水；与科室申领智能补货各自写入 purchase_replenishment_analysis 与 replenishment_smart_analysis。⑧科室请购：新增请购列表面板（可调整默认申领类型散货/定数包、数量与移除商品）；请购明细改为只展示当前日期向前推 15 天内有出库记录（已确认科室消耗）且未停用的商品，不再展示科室库房目录全量商品。⑨拣配配送：待拣配申领单展示部分拣配标记且二次拣配沿用原申领单号；可用定数包只展示一级库（中心库）库存；定数包标签与拣配记录中的定数包支持点击查看明细（新增 /operational-closure/picking/package-labels/{labelNo} 明细接口：来源批次/绑定去向/事件流水）。⑩补货任务/拣配配送/科室申领/科室消耗选择科室时默认带出科室所关联的库房（拣配配送仍限定一级库，关联库房为一级库时直接带出）。
+- 影响范围：Flyway V54/V55；masterdata（ProductCodeService/ProductApprovalService/ProductService）、licenses、printing 新模块；InventoryService/PurchaseOrderService/QuotaTemplateService/OperationalDeliveryModule/OperationalClosureReadModel；前端新增证照管理/打印模板调整视图，科室/货位弹窗、库存工作台、科室申领、业务闭环视图、zebraBrowserPrint；RbacAuthorizationService；SecurityConfig/SpaWebConfig/SpaFallbackController；scripts/package-offline-deployment.ps1；package.json；相关测试。
+- 验证方式：后端全量测试通过；前端 vue-tsc + vite 构建通过；verify-rbac-permissions 与 verify-vue-sfc-structure 通过；重启后端应用 V54/V55 后接口实测。
+- 负责人：Admin
+
+## 2026-08-24 - feature/batch-12-requirements
+
+- 修改内容：①科室消耗业务改为先按定数包码/UDI/唯一码查询定位商品再登记消耗（新增 GET /operational-closure/consumptions/resolve 接口：依次匹配定数包标签号、UDI 码、唯一码并返回商品信息；消耗界面商品直选替换为查询码搜索 + 已定位商品回显）。②盘点管理改为"新增盘点表"流程：弹窗多选商品范围（高值耗材/可收费耗材/不可收费耗材/定数包，选中范围以集合标签展示）→ 确认后按范围生成盘点明细表（商品编码/商品名称/规格型号/厂家/单位/库存数量/盘点数量/差异数量，差异=库存-盘点前端实时计算）；新增 POST /inventory/stocktaking/sheets、GET/PUT /inventory/stocktaking/{no}/items 接口，复核时范围盘点明细按商品聚合（盘亏 FIFO 扣减、盘盈计入最近批次）生成库存事件；V56/V57 迁移（recall_event 增加 batch_id、stocktaking 增加 dept_name、明细 balance_id/batch_id/actual_qty/diff_qty 允许为空）。③修复收费耗材明细查询界面左右滑动导航轨道：滑块宽度改为可视/内容比例、位移按可视宽度换算，点击/拖拽以跳转后位置为锚点，消除回跳与比例错位。④召回与隔离业务动作改为先选商品→再选该商品批号（新增 GET /operational-closure/recalls/batches 批次选项）→填写数量与召回原因→提交确认时按所选批次扣减库存（新增 InventoryMovementService.isolateSpecificBatch，可用库存转隔离库存并写库存事件）。
+- 影响范围：Flyway V56/V57；OperationalConsumptionModule/OperationalRiskModule/InventoryService/InventoryMovementService/SupplyChainSupport/OperationalClosureService/OperationalClosureController/InventoryController；前端业务闭环视图（科室消耗查询码搜索、召回批次选择）、库存工作台（盘点表流程）、收费耗材明细滚动轨道、inventory/operationalClosure API；OperationalRiskModuleTest 新增用例。
+- 验证方式：后端全量测试通过；前端 vue-tsc + vite 构建通过；Playwright 冒烟测试通过；接口实测：定数包码/UDI 定位商品、批次召回扣减库存、盘点表生成/保存/差异计算全部 200 code=0。
+- 负责人：Admin
+
 ## 2026-08-21 - feat/full-flow-extended-chain
 
 - 修改内容：scripts/verify-full-flow.mjs 扩展为覆盖完整业务主链的 53 步端到端验证：新增医院目录（新品准入）→ 多步审批至最终通过（循环推进审批步骤）→ 定数包模板维护 → 库房商品绑定/科室库房目录维护 → 采购订单（创建→提交→审批→发送）→ 收货验收（exchange/isAgent 新字段回显）→ 库存三页签 → 定数包打包/按验收单部分30/全部60分配/确认10标签/打印 → 低值定数包唯一码/UDI 追溯记录 → 高值链路（收货→2唯一码→计费回传×2→收费明细→唯一码退出在库）→ 盘点(盘亏-3)/调价/召回 → 科室申领审批 → 字段管理/交易流水/UDI/工作台/operator01 权限回归；每轮自动生成全新商品/模板/单据，支持重复运行。

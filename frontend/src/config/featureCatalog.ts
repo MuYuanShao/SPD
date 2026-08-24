@@ -36,11 +36,13 @@ export type FeatureViewFamily =
   | 'supply-chain-purchase-management'
   | 'supply-chain-receiving-acceptance'
   | 'udi-traceability'
+  | 'license-management'
   | 'system-config'
   | 'system-field-option-management'
   | 'system-config-hit-explanation'
   | 'system-approval-flow-settings'
   | 'system-user-role-management'
+  | 'print-template-settings'
 
 export type FeatureChunkFamily = 'catalog' | 'master-data' | 'quota-package' | 'supply-chain' | 'system'
 export type FeatureNodeKind = 'navigation' | 'deferred' | 'business'
@@ -126,6 +128,7 @@ export const featureCatalog = [
       'department-management',
       'department-warehouse-catalog',
       'warehouse-location-management',
+      'license-management',
       'quota-package-template',
       'quota-safety-stock'
     ]
@@ -213,6 +216,14 @@ export const featureCatalog = [
     chunkFamily: 'master-data'
   },
   {
+    code: 'license-management',
+    title: '证照管理',
+    icon: 'shield-check',
+    routeTarget: '/features/license-management',
+    viewFamily: 'license-management',
+    chunkFamily: 'master-data'
+  },
+  {
     code: 'quota-package-template',
     title: '定数包模板',
     icon: 'boxes',
@@ -224,7 +235,8 @@ export const featureCatalog = [
       'packing-task-confirmation',
       'quota-label-unpack',
       'quota-package-events',
-      'packable-loose-snapshot'
+      'packable-loose-snapshot',
+      'print-template-settings'
     ]
   },
   {
@@ -266,6 +278,14 @@ export const featureCatalog = [
     routeTarget: '/features/packable-loose-snapshot',
     viewFamily: 'quota-package',
     chunkFamily: 'quota-package'
+  },
+  {
+    code: 'print-template-settings',
+    title: '打印模板调整',
+    icon: 'settings',
+    routeTarget: '/features/print-template-settings',
+    viewFamily: 'print-template-settings',
+    chunkFamily: 'system'
   },
   {
     code: 'quota-safety-stock',

@@ -8,6 +8,8 @@
   "scripts": {
     "dev:frontend": "npm --prefix frontend run dev",
     "dev:backend": "mvn -f backend/pom.xml spring-boot:run",
+    "start:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File start-dev.ps1",
+    "package:offline": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-offline-deployment.ps1",
     "backend:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 start",
     "backend:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 restart",
     "backend:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 stop",

@@ -104,6 +104,13 @@ public class SupplyChainSupport {
                 .toList();
     }
 
+    public InventoryDeduction isolateSpecificBatch(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
+                                                    String sourceType, Long sourceId, String remark) {
+        InventoryMovementService.InventoryDeduction deduction = inventoryMovementService.isolateSpecificBatch(
+                warehouseId, productId, batchId, quantity, sourceType, sourceId, remark);
+        return new InventoryDeduction(deduction.batchId(), deduction.quantity(), deduction.unitPrice());
+    }
+
     public Long receiveAvailable(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
                                  String eventType, String sourceType, Long sourceId, String remark) {
         return inventoryMovementService.receiveAvailable(warehouseId, productId, batchId, quantity,

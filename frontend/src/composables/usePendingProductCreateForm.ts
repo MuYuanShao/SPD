@@ -38,7 +38,8 @@ export function usePendingProductCreateForm(options: {
   async function submitCreateForm() {
     createForm.qualificationAttachmentCount = createAttachments.value.length
     const result = await createPendingProductApplication(createForm)
-    options.message.value = `已生成待审批单：${result.applicationNo}`
+    const codeSuffix = result.productCode ? `（商品编码 ${result.productCode}）` : ''
+    options.message.value = `已生成待审批单：${result.applicationNo}${codeSuffix}`
     options.showCreateModal.value = false
     resetCreateForm()
     await options.reload()

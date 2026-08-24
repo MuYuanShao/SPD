@@ -1,4 +1,5 @@
 import type { PackageLabelRow } from '../api/quotaPackages'
+import { fetchPrintTemplate, parseTemplateFields, type PrintTemplateField } from '../api/printTemplates'
 
 type ZebraPrinterDevice = {
   name?: string
@@ -20,17 +21,84 @@ declare global {
   }
 }
 
+export interface QuotaLabelPrintConfig {
+  fields: PrintTemplateField[]
+  paperWidthMm: number
+  paperHeightMm: number
+}
+
+/**
+ * 读取当前启用的定数包标签打印模板配置，加载失败时回退为默认模板。
+ */
+export async function loadQuotaLabelPrintConfig(): Promise<QuotaLabelPrintConfig> {
+  try {
+    const template = await fetchPrintTemplate('quota_label')
+    if (template) {
+      return {
+        fields: parseTemplateFields(template.fieldsJson),
+        paperWidthMm: Number(template.paperWidthMm) || 100,
+        paperHeightMm: Number(template.paperHeightMm) || 70
+      }
+    }
+  } catch {
+    // 配置不可用时使用默认模板
+  }
+  return defaultPrintConfig()
+}
+
+export function defaultPrintConfig(): QuotaLabelPrintConfig {
+  return {
+    fields: [
+      { code: 'labelNo', label: '标签号', enabled: true },
+      { code: 'productName', label: '商品', enabled: true },
+      { code: 'templateName', label: '定数包模板', enabled: true },
+      { code: 'warehouseName', label: '库房', enabled: true },
+      { code: 'quantity', label: '包内数量', enabled: true },
+      { code: 'batches', label: '来源批次', enabled: true },
+      { code: 'footer', label: '页脚', enabled: true, value: 'Printed by SPD' }
+    ],
+    paperWidthMm: 100,
+    paperHeightMm: 70
+  }
+}
+
+function fieldValue(field: PrintTemplateField, row: PackageLabelRow) {
+  if (field.value !== undefined) return field.value
+  return switchValue(field.code, row)
+}
+
+function switchValue(code: string, row: PackageLabelRow) {
+  switch (code) {
+    case 'labelNo':
+      return row.labelNo
+    case 'productName':
+      return row.productName
+    case 'templateName':
+      return row.templateName
+    case 'warehouseName':
+      return row.warehouseName
+    case 'quantity':
+      return String(row.packageQuantity)
+    case 'batches':
+      return row.sourceBatches || '-'
+    default:
+      return '-'
+  }
+}
+
 /**
  * 优先使用工作站已注入的 Zebra Browser Print；未安装时降级为浏览器打印。
+ * 打印字段与纸张尺寸取自打印模板调整中的配置。
  */
 export async function printQuotaLabel(row: PackageLabelRow) {
+  const config = await loadQuotaLabelPrintConfig()
   if (window.BrowserPrint) {
     const printer = await getDefaultPrinter(window.BrowserPrint)
-    await sendToPrinter(printer, buildQuotaLabelZpl(row))
+    await sendToPrinter(printer, buildQuotaLabelZpl(row, config))
     return printer.name || printer.uid || 'Zebra 打印机'
   }
 
-  printQuotaLabelInBrowser(row)
+  printQuotaLabelInBrowser(row, config)
   return '浏览器打印窗口'
 }
 
@@ -60,42 +128,56 @@ function sendToPrinter(printer: ZebraPrinterDevice, zpl: string) {
   })
 }
 
-function buildQuotaLabelZpl(row: PackageLabelRow) {
+function buildQuotaLabelZpl(row: PackageLabelRow, config: QuotaLabelPrintConfig) {
+  const enabled = new Set(config.fields.filter((field) => field.enabled).map((field) => field.code))
   const labelNo = zplText(row.labelNo, 40)
-  const productName = zplText(row.productName, 28)
-  const templateName = zplText(row.templateName, 28)
-  const warehouseName = zplText(row.warehouseName, 28)
-  const quantity = zplText(String(row.packageQuantity), 16)
-  const batches = zplText(row.sourceBatches || '-', 42)
+  const width = Math.max(Math.round(config.paperWidthMm * 8), 200)
+  const height = Math.max(Math.round(config.paperHeightMm * 8), 200)
+  const lines: string[] = []
+  let y = 24
+  if (enabled.has('labelNo')) {
+    lines.push(`^FO30,${y}^A0N,26,26^FD${labelNo}^FS`)
+    y += 44
+  }
+  if (enabled.has('labelNo')) {
+    lines.push(`^FO30,${y}^BY2,2,70^BCN,70,Y,N,N^FD${labelNo}^FS`)
+    y += 90
+  }
+  const detailFields = config.fields.filter(
+    (field) => field.enabled && field.code !== 'labelNo' && field.code !== 'footer'
+  )
+  for (const field of detailFields) {
+    const text = zplText(`${field.label}: ${fieldValue(field, row)}`, 42)
+    lines.push(`^FO30,${y}^A0N,20,20^FD${text}^FS`)
+    y += 30
+  }
+  const footer = config.fields.find((field) => field.code === 'footer' && field.enabled)
+  if (footer) {
+    lines.push(`^FO30,${y + 6}^A0N,18,18^FD${zplText(fieldValue(footer, row), 42)}^FS`)
+  }
   return `^XA
 ^CI28
-^PW600
-^LL400
+^PW${width}
+^LL${height}
 ^LH0,0
-^FO30,24^A0N,34,34^FDQuota Package^FS
-^FO30,68^A0N,26,26^FD${labelNo}^FS
-^FO30,105^BY2,2,70^BCN,70,Y,N,N^FD${labelNo}^FS
-^FO30,195^A0N,22,22^FDProduct: ${productName}^FS
-^FO30,225^A0N,22,22^FDTemplate: ${templateName}^FS
-^FO30,255^A0N,22,22^FDWarehouse: ${warehouseName}^FS
-^FO30,285^A0N,22,22^FDQty: ${quantity}^FS
-^FO30,315^A0N,20,20^FDBatch: ${batches}^FS
-^FO30,350^A0N,18,18^FDPrinted by SPD^FS
+${lines.join('\n')}
 ^XZ`
 }
-function printQuotaLabelInBrowser(row: PackageLabelRow) {
+
+function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintConfig) {
   const printWindow = window.open('', '_blank', 'popup,width=720,height=560')
   if (!printWindow) {
     throw new Error('打印窗口被浏览器拦截，请允许本站弹出窗口后重试')
   }
 
+  const enabledFields = config.fields.filter((field) => field.enabled)
   const printDocument = printWindow.document
   printDocument.title = `定数包标签 ${row.labelNo}`
   const style = printDocument.createElement('style')
   style.textContent = `
-    @page { size: 100mm 70mm; margin: 4mm; }
+    @page { size: ${config.paperWidthMm}mm ${config.paperHeightMm}mm; margin: 4mm; }
     body { margin: 0; color: #111827; font-family: "Microsoft YaHei", sans-serif; }
-    main { width: 84mm; min-height: 54mm; border: 1.5px solid #111827; padding: 4mm; }
+    main { width: ${Math.max(config.paperWidthMm - 16, 40)}mm; min-height: ${Math.max(config.paperHeightMm - 16, 30)}mm; border: 1.5px solid #111827; padding: 4mm; }
     h1 { margin: 0 0 2mm; font-size: 18px; text-align: center; }
     .code { border-block: 1px solid #111827; padding: 2mm 0; font: 700 20px Consolas, monospace; text-align: center; }
     dl { display: grid; grid-template-columns: 22mm 1fr; gap: 1.5mm 2mm; margin-top: 3mm; font-size: 12px; }
@@ -109,19 +191,15 @@ function printQuotaLabelInBrowser(row: PackageLabelRow) {
   code.className = 'code'
   code.textContent = row.labelNo
   const details = printDocument.createElement('dl')
-  ;[
-    ['商品', row.productName],
-    ['模板', row.templateName],
-    ['库房', row.warehouseName],
-    ['包内数量', row.packageQuantity],
-    ['来源批次', row.sourceBatches || '-']
-  ].forEach(([name, value]) => {
-    const term = printDocument.createElement('dt')
-    const description = printDocument.createElement('dd')
-    term.textContent = String(name)
-    description.textContent = String(value)
-    details.append(term, description)
-  })
+  enabledFields
+    .filter((field) => field.code !== 'labelNo')
+    .forEach((field) => {
+      const term = printDocument.createElement('dt')
+      const description = printDocument.createElement('dd')
+      term.textContent = field.label
+      description.textContent = fieldValue(field, row)
+      details.append(term, description)
+    })
   label.append(title, code, details)
   printDocument.head.append(style)
   printDocument.body.append(label)

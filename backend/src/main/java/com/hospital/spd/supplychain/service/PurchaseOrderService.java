@@ -440,6 +440,11 @@ public class PurchaseOrderService {
         return Map.of("suppliers", suppliers, "products", products);
     }
 
+    /**
+     * 采购管理智能补货分析：独立于科室申领（缺货提醒）的智能补货事务，单独写入
+     * purchase_replenishment_analysis 表；出库量取科室申请表（一级库出二级库的实际需求来源）。
+     */
+    @Transactional
     public Map<String, Object> smartReplenishmentAnalysis(Map<String, String> params) {
         int selectedPeriodDays = smartPeriodDays(params.get("periodDays"));
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
@@ -454,26 +459,32 @@ public class PurchaseOrderService {
                          OR (parent_id = 0 AND dept_id IS NULL)
                        )
                 ),
+                requisition_out AS (
+                    SELECT dri.product_id,
+                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)
+                                    THEN dri.quantity ELSE 0 END) AS issue5,
+                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY)
+                                    THEN dri.quantity ELSE 0 END) AS issue15,
+                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
+                                    THEN dri.quantity ELSE 0 END) AS issue30,
+                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 45 DAY)
+                                    THEN dri.quantity ELSE 0 END) AS issue45,
+                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
+                                    THEN dri.quantity ELSE 0 END) AS issue60
+                      FROM department_requisition dr
+                      JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
+                     WHERE dr.status = 'approved'
+                       AND dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
+                     GROUP BY dri.product_id
+                ),
                 outbound AS (
-                    SELECT ie.warehouse_id,
-                           ie.product_id,
-                           SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)
-                                    THEN ABS(ie.qty_change) ELSE 0 END) AS issue5,
-                           SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY)
-                                    THEN ABS(ie.qty_change) ELSE 0 END) AS issue15,
-                           SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
-                                    THEN ABS(ie.qty_change) ELSE 0 END) AS issue30,
-                           SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 45 DAY)
-                                    THEN ABS(ie.qty_change) ELSE 0 END) AS issue45,
-                           SUM(CASE WHEN ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
-                                    THEN ABS(ie.qty_change) ELSE 0 END) AS issue60
-                      FROM inventory_event ie
-                      JOIN primary_warehouse pw ON pw.warehouse_id = ie.warehouse_id
-                     WHERE ie.event_type IN ('delivery_out', 'warehouse_transfer_out')
-                       AND ie.source_biz_type = 'spd_delivery_order'
-                       AND ie.qty_change < 0
-                       AND ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
-                     GROUP BY ie.warehouse_id, ie.product_id
+                    SELECT pw.warehouse_id,
+                           ro.product_id,
+                           ro.issue5, ro.issue15, ro.issue30, ro.issue45, ro.issue60
+                      FROM requisition_out ro
+                      JOIN primary_warehouse pw ON pw.warehouse_id = (
+                          SELECT warehouse_id FROM primary_warehouse ORDER BY warehouse_id LIMIT 1
+                      )
                 ),
                 stock AS (
                     SELECT ib.warehouse_id,
@@ -742,7 +753,7 @@ public class PurchaseOrderService {
         suggestion.put("selectedIssueQty", selectedIssueQty);
         suggestion.put("formulaReplenishQty", formulaQty);
         suggestion.put("recommendedQty", recommendedQty);
-        suggestion.put("formulaText", "近" + selectedPeriodDays + "天一级库出二级库数量 - 一级库当前可用库存");
+        suggestion.put("formulaText", "近" + selectedPeriodDays + "天科室申领数量 - 一级库当前可用库存");
         return suggestion;
     }
 
@@ -764,7 +775,7 @@ public class PurchaseOrderService {
             ps.setInt(3, rows.size());
             ps.setBigDecimal(4, totalFormulaQty);
             ps.setBigDecimal(5, totalRecommendedQty);
-            ps.setString(6, "基于一级库出二级库库存流水自动分析");
+            ps.setString(6, "基于科室申请表自动分析");
             return ps;
         }, keyHolder);
         Long storedId = Objects.requireNonNull(keyHolder.getKey()).longValue();

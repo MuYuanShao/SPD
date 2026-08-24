@@ -65,6 +65,10 @@ public class OperationalClosureService {
         return deliveryModule.availablePackageLabels(params);
     }
 
+    public Map<String, Object> packageLabelDetail(String labelNo) {
+        return deliveryModule.packageLabelDetail(labelNo);
+    }
+
     @Transactional
     public Map<String, Object> generateShortage(Map<String, Object> body) {
         return shortageModule.generateShortage(body);
@@ -105,6 +109,10 @@ public class OperationalClosureService {
         return consumptionModule.createConsumption(body);
     }
 
+    public Map<String, Object> resolveConsumptionProduct(String queryCode) {
+        return consumptionModule.resolveConsumptionProduct(queryCode);
+    }
+
     @Transactional
     public Map<String, Object> reverseConsumption(String consumptionNo) {
         return consumptionModule.reverseConsumption(consumptionNo);
@@ -129,6 +137,10 @@ public class OperationalClosureService {
 
     public Map<String, Object> createRecall(Map<String, Object> body) {
         return riskModule.createRecall(body);
+    }
+
+    public Map<String, Object> recallBatches(String productCode, String warehouseName) {
+        return riskModule.recallBatches(productCode, warehouseName);
     }
 
     @Transactional

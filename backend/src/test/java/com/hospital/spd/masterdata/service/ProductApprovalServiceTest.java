@@ -453,6 +453,78 @@ class ProductApprovalServiceTest {
         }
 
         @Test
+        @DisplayName("商品编码为空时取招采子编码回填")
+        void should_backfill_product_code_from_tender_sub_code_when_blank() {
+            PendingProductApplicationRequest request = new PendingProductApplicationRequest(
+                    "new", "", "测试商品", "10ml/支",
+                    "品牌A", "厂家A", "供应商A",
+                    "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
+                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
+                    "生产许可001", "经营许可001",
+                    true, true, true, "合同001",
+                    "一级", "二级", "三级", true, "招采子编码X", 2,
+                    false, false, false, "常温", "新增测试商品"
+            );
+
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+            when(jdbcTemplate.queryForList(contains("manufacturer_id FROM manufacturer"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(10L));
+            when(jdbcTemplate.queryForList(contains("supplier_id FROM supplier"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(20L));
+            when(jdbcTemplate.queryForList(contains("FROM product_category"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(30L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createApplication(request);
+
+            assertThat(result.get("productCode")).isEqualTo("招采子编码X");
+            verify(jdbcTemplate).update(contains("INSERT INTO pending_product_application"),
+                    argsCaptor.capture());
+            assertThat(argsCaptor.getValue()).contains("招采子编码X");
+        }
+
+        @Test
+        @DisplayName("商品编码与招采子编码皆为空时自动生成 SPD 编码")
+        void should_generate_spd_code_when_code_and_tender_blank() {
+            PendingProductApplicationRequest request = new PendingProductApplicationRequest(
+                    "new", "", "测试商品", "10ml/支",
+                    "品牌A", "厂家A", "供应商A",
+                    "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
+                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
+                    "生产许可001", "经营许可001",
+                    true, true, true, "合同001",
+                    "一级", "二级", "三级", true, "", 2,
+                    false, false, false, "常温", "新增测试商品"
+            );
+
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+            when(jdbcTemplate.queryForList(contains("manufacturer_id FROM manufacturer"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(10L));
+            when(jdbcTemplate.queryForList(contains("supplier_id FROM supplier"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(20L));
+            when(jdbcTemplate.queryForList(contains("FROM product_category"), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(30L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createApplication(request);
+
+            assertThat(result.get("productCode")).isEqualTo("SPD000001");
+        }
+
+        @Test
+        @DisplayName("回填的商品编码已被占用时拒绝创建")
+        void should_reject_when_resolved_product_code_already_used() {
+            PendingProductApplicationRequest request = validApplicationRequest();
+
+            when(jdbcTemplate.queryForObject(contains("FROM product WHERE product_code"),
+                    eq(Integer.class), any(Object[].class))).thenReturn(1);
+
+            assertThatThrownBy(() -> service.createApplication(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("商品编码已存在");
+        }
+
+        @Test
         @DisplayName("高值耗材设置为定数管理抛出异常")
         void should_throw_when_quota_managed_with_high_value() {
             PendingProductApplicationRequest request = new PendingProductApplicationRequest(

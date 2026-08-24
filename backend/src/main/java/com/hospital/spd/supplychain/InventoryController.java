@@ -49,6 +49,22 @@ public class InventoryController {
         return ApiResponse.ok(service.createStocktaking(request));
     }
 
+    @PostMapping("/stocktaking/sheets")
+    public ApiResponse<Map<String, Object>> createStocktakingSheet(@RequestBody StocktakingSheetRequest request) {
+        return ApiResponse.ok(service.createStocktakingSheet(request));
+    }
+
+    @GetMapping("/stocktaking/{stocktakingNo}/items")
+    public ApiResponse<Map<String, Object>> stocktakingItems(@PathVariable String stocktakingNo) {
+        return ApiResponse.ok(service.stocktakingItems(stocktakingNo));
+    }
+
+    @PutMapping("/stocktaking/{stocktakingNo}/items")
+    public ApiResponse<Map<String, Object>> updateStocktakingItems(@PathVariable String stocktakingNo,
+                                                                   @RequestBody StocktakingItemsUpdateRequest request) {
+        return ApiResponse.ok(service.updateStocktakingItems(stocktakingNo, request));
+    }
+
     @PutMapping("/stocktaking/{stocktakingNo}/approve")
     public ApiResponse<Map<String, Object>> approveStocktaking(@PathVariable String stocktakingNo) {
         return ApiResponse.ok(service.approveStocktaking(stocktakingNo));

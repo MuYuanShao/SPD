@@ -33,6 +33,8 @@ spd:
     allowed-origins:
       - http://localhost:1820
       - http://127.0.0.1:1820
+  upload:
+    dir: ${SPD_UPLOAD_DIR:./output/license-files}
   jwt:
     secret: ${SPD_JWT_SECRET:aB3xK7mN9pQ2rT5vW8yZ0cE4fH6jL1oM8sA2dD4gG6kJ8nB0eV2rR5tY7uI9oP3}
     expiration-ms: ${SPD_JWT_EXPIRATION:86400000}

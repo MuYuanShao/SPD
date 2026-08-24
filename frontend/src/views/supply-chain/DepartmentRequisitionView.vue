@@ -108,7 +108,8 @@ async function loadLinkedWarehouses() {
   if (!deptCode) return
   const warehouses = await fetchDepartmentWarehouses(deptCode)
   linkedWarehouses.value = warehouses.filter((item) => Number(item.selected ?? 0) === 1)
-  filters.warehouseName = ''
+  // 选择科室时默认带出科室所关联的库房
+  filters.warehouseName = linkedWarehouses.value[0]?.name || ''
 }
 
 async function loadCatalog() {
@@ -302,6 +303,11 @@ function toggleAllProducts(event: Event) {
   })
 }
 
+/** 从请购列表移除已选商品（取消勾选） */
+function removeFromSelection(item: RequisitionCatalogItem) {
+  item.selected = false
+}
+
 function goAutoReplenishment() {
   if (!filters.targetDept) {
     message.value = '请先选择科室'
@@ -472,7 +478,39 @@ watch(() => filters.warehouseName, async () => {
       <p v-if="message" class="inline-message">{{ message }}</p>
       <p v-if="submittedCount" class="inline-message">本次已成功提交 {{ submittedCount }} 条申领记录</p>
 
+      <section v-if="requisitionStarted && selectedItems.length" class="dept-req-selected">
+        <div class="dept-req-selected-head">
+          <strong>请购列表（{{ selectedItems.length }}）</strong>
+          <span>可调整默认申领类型与数量，不需要的商品可直接移除</span>
+        </div>
+        <ul class="dept-req-selected-list">
+          <li v-for="item in selectedItems" :key="item.productCode">
+            <span class="selected-code">{{ item.productCode }}</span>
+            <strong class="selected-name">{{ item.productName }}</strong>
+            <small class="selected-spec">{{ item.specModel }}</small>
+            <label>
+              <span>默认申领</span>
+              <select v-model="item.mode" @change="normalizeQuantity(item)">
+                <option value="loose">散货</option>
+                <option value="quota_package" :disabled="!canUseQuotaPackage(item)">定数包</option>
+              </select>
+            </label>
+            <div class="qty-stepper">
+              <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
+              <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
+              <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+            </div>
+            <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
+            <button class="btn-text btn-text-danger" type="button" @click="removeFromSelection(item)">
+              <X :size="14" />
+              移除
+            </button>
+          </li>
+        </ul>
+      </section>
+
       <section v-if="requisitionStarted" class="dept-req-tags">
+        <span class="yellow">明细仅展示近 15 天有出库记录且未停用的商品</span>
         <span class="yellow">同一商品聚合展示，散货和定数包可切换申领形式</span>
         <span class="orange">定数包缺货时可转散货申领</span>
         <span class="blue">当前库房：{{ selectedWarehouseLabel }}</span>
@@ -627,6 +665,82 @@ watch(() => filters.warehouseName, async () => {
 </template>
 
 <style scoped>
+.dept-req-selected {
+  border: 1px solid #dbe5ec;
+  border-radius: 8px;
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.dept-req-selected-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f5f9fb;
+  border-bottom: 1px solid #e5eef2;
+}
+.dept-req-selected-head strong {
+  color: #123047;
+  font-size: 14px;
+}
+.dept-req-selected-head span {
+  color: #6b7c8f;
+  font-size: 12px;
+}
+.dept-req-selected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 260px;
+  overflow: auto;
+}
+.dept-req-selected-list li {
+  display: grid;
+  grid-template-columns: 130px minmax(160px, 1fr) minmax(120px, 0.8fr) 170px 130px 100px auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #eef3f5;
+}
+.dept-req-selected-list label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dept-req-selected-list label span {
+  color: #6b7c8f;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.dept-req-selected-list select {
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 13px;
+}
+.selected-code {
+  color: #0f6f78;
+  font-weight: 700;
+  font-size: 13px;
+}
+.selected-name {
+  color: #172b3a;
+  font-size: 13px;
+}
+.selected-spec {
+  color: #6b7c8f;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.selected-total {
+  color: #33485c;
+  font-size: 13px;
+  white-space: nowrap;
+}
 .dept-req-toolbar {
   align-items: center;
   display: flex;

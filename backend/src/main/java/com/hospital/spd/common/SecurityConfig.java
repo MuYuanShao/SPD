@@ -37,11 +37,14 @@ public class SecurityConfig {
     private final JwtUtil jwtUtil;
     private final JdbcTemplate jdbcTemplate;
     private final RbacAuthorizationService rbacAuthorizationService;
+    private final boolean webEnabled;
 
-    public SecurityConfig(JwtUtil jwtUtil, JdbcTemplate jdbcTemplate, RbacAuthorizationService rbacAuthorizationService) {
+    public SecurityConfig(JwtUtil jwtUtil, JdbcTemplate jdbcTemplate, RbacAuthorizationService rbacAuthorizationService,
+                          @org.springframework.beans.factory.annotation.Value("${spd.web.static-dir:}") String webStaticDir) {
         this.jwtUtil = jwtUtil;
         this.jdbcTemplate = jdbcTemplate;
         this.rbacAuthorizationService = rbacAuthorizationService;
+        this.webEnabled = webStaticDir != null && !webStaticDir.isBlank();
     }
 
     @Bean
@@ -55,6 +58,12 @@ public class SecurityConfig {
                     throws ServletException, IOException {
 
                 String path = request.getRequestURI();
+
+                // 一体化部署：非 /api 路径为前端静态资源，直接放行
+                if (webEnabled && !path.startsWith("/api")) {
+                    chain.doFilter(request, response);
+                    return;
+                }
 
                 // 跳过公开端点（request.getRequestURI() 包含 context-path）
                 if (path.endsWith("/auth/login") || path.endsWith("/health") || path.endsWith("/actuator/health")) {
@@ -123,12 +132,16 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/login").permitAll()
-                .requestMatchers("/health").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().authenticated()
-            )
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers("/auth/login").permitAll()
+                    .requestMatchers("/health").permitAll()
+                    .requestMatchers("/actuator/health").permitAll();
+                if (webEnabled) {
+                    // 非 /api 请求（前端页面与静态资源）在 JWT 过滤器中已放行，这里保持一致
+                    auth.requestMatchers(request -> !request.getRequestURI().startsWith("/api")).permitAll();
+                }
+                auth.anyRequest().authenticated();
+            })
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

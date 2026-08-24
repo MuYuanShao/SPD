@@ -137,6 +137,7 @@ public class OperationalDeliveryModule {
                    AND NOT EXISTS (
                      SELECT 1 FROM spd_delivery_package_binding b WHERE b.label_id = qpl.label_id
                    )
+                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
                 """);
         if (!warehouseName.isBlank()) {
             where.append(" AND w.warehouse_name = ?");
@@ -145,6 +146,7 @@ public class OperationalDeliveryModule {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpl.label_no AS labelNo,
                        w.warehouse_name AS warehouseName,
+                       w.warehouse_type AS warehouseType,
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        qpl.package_quantity AS packageQuantity,
@@ -156,6 +158,66 @@ public class OperationalDeliveryModule {
                   JOIN product p ON p.product_id = qpl.product_id
                 """ + where + " ORDER BY qpl.create_time, qpl.label_id LIMIT 200", args.toArray());
         return Map.of("rows", rows);
+    }
+
+    /**
+     * 定数包明细：标签基础信息、来源批次、绑定去向与事件流水，
+     * 供拣配配送页面点击定数包时查看明细（而非汇总数量）。
+     */
+    public Map<String, Object> packageLabelDetail(String labelNo) {
+        List<Map<String, Object>> labels = jdbcTemplate.queryForList("""
+                SELECT qpl.label_id AS labelId, qpl.label_no AS labelNo, qpl.status,
+                       qpl.package_quantity AS packageQuantity, qpl.print_count AS printCount,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.unit,
+                       qpt.template_code AS templateCode, qpt.template_name AS templateName,
+                       w.warehouse_name AS warehouseName, w.warehouse_type AS warehouseType,
+                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime
+                  FROM quota_package_label qpl
+                  JOIN product p ON p.product_id = qpl.product_id
+                  LEFT JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
+                  LEFT JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                 WHERE qpl.label_no = ?
+                 LIMIT 1
+                """, labelNo.trim());
+        if (labels.isEmpty()) {
+            throw new IllegalArgumentException("定数包标签不存在");
+        }
+        Map<String, Object> detail = labels.get(0);
+        Long labelId = ((Number) detail.get("labelId")).longValue();
+        List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
+                SELECT s.batch_id AS batchId, ib.system_batch_no AS systemBatchNo,
+                       ib.production_batch_no AS productionBatchNo,
+                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
+                       s.source_qty AS sourceQty, s.unit_price AS unitPrice
+                  FROM quota_package_label_source s
+                  LEFT JOIN inventory_batch ib ON ib.batch_id = s.batch_id
+                 WHERE s.label_id = ?
+                 ORDER BY s.source_id
+                """, labelId);
+        List<Map<String, Object>> bindings = jdbcTemplate.queryForList("""
+                SELECT d.delivery_no AS deliveryNo, d.requisition_no AS requisitionNo,
+                       b.package_quantity AS packageQuantity,
+                       DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
+                  FROM spd_delivery_package_binding b
+                  JOIN spd_delivery_order d ON d.delivery_id = b.delivery_id
+                 WHERE b.label_id = ?
+                 ORDER BY b.binding_id DESC
+                """, labelId);
+        List<Map<String, Object>> events = jdbcTemplate.queryForList("""
+                SELECT event_no AS eventNo, event_type AS eventType,
+                       status_before AS statusBefore, status_after AS statusAfter,
+                       qty_change AS qtyChange, remark,
+                       DATE_FORMAT(event_time, '%Y-%m-%d %H:%i') AS createTime
+                  FROM quota_package_event
+                 WHERE label_id = ?
+                 ORDER BY event_id DESC
+                 LIMIT 20
+                """, labelId);
+        detail.put("sources", sources);
+        detail.put("bindings", bindings);
+        detail.put("events", events);
+        return detail;
     }
 
     @Transactional

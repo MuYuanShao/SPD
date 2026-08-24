@@ -28,16 +28,20 @@ import {
   fetchClosureList,
   fetchClosureOptions,
   fetchClosureOverview,
+  fetchPickingPackageLabelDetail,
   fetchPickingPackageLabels,
   fetchPickingRequisitions,
+  fetchRecallBatches,
   processRequisition,
   generateShortage,
   receiveHighValueBillingCallback,
+  resolveConsumptionProduct,
   reverseConsumption,
   signDelivery,
   smartReplenishmentAnalysis,
   uploadPdaOffline,
-  type ClosureOptions
+  type ClosureOptions,
+  type PackageLabelDetail
 } from '../../api/operationalClosure'
 import { fetchDepartmentWarehouses } from '../../api/masterData'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
@@ -63,6 +67,16 @@ const currentPage = ref(1)
 const pageSize = ref(20)
 const totalItems = ref(0)
 const options = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
+const packageDetail = ref<PackageLabelDetail | null>(null)
+const packageDetailOpen = ref(false)
+const packageDetailLoading = ref(false)
+
+/** 拣配配送只展示一级库（中心库）库房，出库来源为一级库库存 */
+const primaryWarehouses = computed(() =>
+  options.value.warehouses.filter((item) =>
+    /一级|中心/.test(String(item.warehouseType ?? ''))
+  )
+)
 
 const form = reactive({
   deptName: '',
@@ -88,6 +102,13 @@ const form = reactive({
   uniqueCodes: '',
   externalChargeNo: ''
 })
+
+const consumptionQueryCode = ref('')
+const consumptionResolved = ref<Record<string, unknown> | null>(null)
+const consumptionResolving = ref(false)
+const recallBatches = ref<Array<Record<string, unknown>>>([])
+const recallBatchesLoading = ref(false)
+const recallBatchId = ref<number | null>(null)
 
 const pageCode = computed(() => String(route.meta.operationalType || route.params.code))
 const type = computed(() => {
@@ -131,8 +152,11 @@ const stats = computed(() => [
 const replenishmentDayOptions = [5, 7, 15, 30]
 const selectedDepartment = computed(() => options.value.departments.find(item => item.deptName === form.deptName))
 const warehouseChoices = computed(() => {
-  if (type.value !== 'shortage') return options.value.warehouses
-  return linkedWarehouses.value.map(item => ({ warehouseName: item.name }))
+  if (type.value === 'delivery') return primaryWarehouses.value
+  if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
+    return linkedWarehouses.value.map(item => ({ warehouseName: item.name }))
+  }
+  return options.value.warehouses
 })
 const effectiveReplenishmentDays = computed(() => {
   const raw = form.replenishmentDays === 'custom' ? form.customReplenishmentDays : form.replenishmentDays
@@ -149,22 +173,32 @@ function shortagePayload() {
 }
 
 async function loadLinkedWarehouses() {
-  if (type.value !== 'shortage') return
   const deptCode = selectedDepartment.value?.deptCode
   if (!deptCode) {
     linkedWarehouses.value = []
-    form.warehouseName = ''
+    if (type.value !== 'delivery') form.warehouseName = ''
     return
   }
   try {
     const warehouses = await fetchDepartmentWarehouses(deptCode)
     linkedWarehouses.value = warehouses.filter(item => Number(item.selected ?? 0) === 1)
+    // 选择科室时默认带出科室所关联的库房
+    const preferred = linkedWarehouses.value[0]?.name || ''
+    if (type.value === 'delivery') {
+      // 拣配配送只允许一级库：科室关联库房为一级库时直接带出，否则保持当前一级库
+      if (preferred && primaryWarehouses.value.some(item => item.warehouseName === preferred)) {
+        form.warehouseName = preferred
+      } else if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
+        form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
+      }
+      return
+    }
     if (!linkedWarehouses.value.some(item => item.name === form.warehouseName)) {
-      form.warehouseName = linkedWarehouses.value[0]?.name || ''
+      form.warehouseName = preferred
     }
   } catch (error) {
     linkedWarehouses.value = []
-    form.warehouseName = ''
+    if (type.value !== 'delivery') form.warehouseName = ''
     message.value = error instanceof Error ? error.message : '关联库房加载失败'
   }
 }
@@ -198,13 +232,17 @@ async function loadData() {
     totalItems.value = listData.total
     if (!form.deptName && optionData.departments[0]) form.deptName = optionData.departments[0].deptName
     applyRouteSmartDefaults()
-    if (type.value === 'shortage') {
+    if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
       await loadLinkedWarehouses()
     } else if (!form.warehouseName && optionData.warehouses[0]) {
       form.warehouseName = optionData.warehouses[0].warehouseName
     }
     if (!form.productCode && optionData.products[0]) form.productCode = optionData.products[0].productCode
     if (type.value === 'delivery') {
+      // 拣配配送只允许选择一级库（中心库），展示一级库库存
+      if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
+        form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
+      }
       await loadPickingRequisitions()
     }
     await maybeOpenRouteSmartAnalysis()
@@ -263,6 +301,26 @@ function togglePickingLabel(labelNo: string, checked: boolean) {
   selectedPickingLabels.value = [...next]
 }
 
+async function openPackageDetail(labelNo: unknown) {
+  const no = String(labelNo || '').trim()
+  if (!no) return
+  packageDetailOpen.value = true
+  packageDetailLoading.value = true
+  packageDetail.value = null
+  try {
+    packageDetail.value = await fetchPickingPackageLabelDetail(no)
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '定数包明细加载失败'
+  } finally {
+    packageDetailLoading.value = false
+  }
+}
+
+function closePackageDetail() {
+  packageDetailOpen.value = false
+  packageDetail.value = null
+}
+
 async function confirmSelectedPicking() {
   if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
     message.value = '请先选择科室申领明细'
@@ -301,6 +359,52 @@ async function changePageSize(size: number) {
   pageSize.value = size
   currentPage.value = 1
   await loadData()
+}
+
+/** 科室消耗：按定数包码 / UDI / 唯一码定位商品后再登记消耗 */
+async function resolveConsumption() {
+  const code = consumptionQueryCode.value.trim()
+  if (!code) {
+    message.value = '请输入定数包码、UDI 或唯一码'
+    return
+  }
+  consumptionResolving.value = true
+  message.value = ''
+  consumptionResolved.value = null
+  try {
+    const result = await resolveConsumptionProduct(code)
+    consumptionResolved.value = result
+    form.productCode = String(result.productCode || '')
+    if (result.warehouseName) {
+      const choices = warehouseChoices.value.map(item => item.warehouseName)
+      if (choices.includes(String(result.warehouseName))) {
+        form.warehouseName = String(result.warehouseName)
+      }
+    }
+    message.value = `已定位商品：${result.productCode} / ${result.productName}（${result.sourceType === 'package' ? '定数包码' : 'UDI/唯一码'}）`
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '查询码解析失败'
+  } finally {
+    consumptionResolving.value = false
+  }
+}
+
+/** 召回隔离：选择商品后加载该商品在该库房的可用批次 */
+async function loadRecallBatches() {
+  recallBatches.value = []
+  recallBatchId.value = null
+  if (!form.productCode || !form.warehouseName) return
+  recallBatchesLoading.value = true
+  try {
+    const result = await fetchRecallBatches(form.productCode, form.warehouseName)
+    recallBatches.value = result.rows || []
+    recallBatchId.value = recallBatches.value[0] ? Number(recallBatches.value[0].batchId) : null
+  } catch (error) {
+    recallBatches.value = []
+    message.value = error instanceof Error ? error.message : '召回批次加载失败'
+  } finally {
+    recallBatchesLoading.value = false
+  }
 }
 
 async function runAction(action: string, row?: Record<string, unknown>) {
@@ -354,8 +458,8 @@ async function runAction(action: string, row?: Record<string, unknown>) {
     message.value = `冷链异常已登记：${result.eventNo}`
   }
   if (action === 'recall') {
-    result = await createRecall(form)
-    message.value = `召回隔离已登记：${result.recallNo}`
+    result = await createRecall({ ...form, batchId: recallBatchId.value })
+    message.value = `召回隔离已登记：${result.recallNo}，库存已按所选批次扣减`
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -433,14 +537,25 @@ watch(type, () => {
   loadData()
 })
 watch(() => form.deptName, () => {
-  if (type.value === 'shortage') {
+  if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
     loadLinkedWarehouses()
+  }
+  if (type.value === 'risk') {
+    loadRecallBatches()
   }
 })
 watch(() => form.warehouseName, () => {
   if (type.value === 'delivery') {
     selectedPickingLabels.value = []
     loadPickingLabels()
+  }
+  if (type.value === 'risk') {
+    loadRecallBatches()
+  }
+})
+watch(() => form.productCode, () => {
+  if (type.value === 'risk') {
+    loadRecallBatches()
   }
 })
 </script>
@@ -492,7 +607,7 @@ watch(() => form.warehouseName, () => {
             <option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option>
           </select>
         </label>
-        <label v-if="!['shortage', 'delivery'].includes(type)">
+        <label v-if="!['shortage', 'delivery', 'consumption'].includes(type)">
           <span>商品</span>
           <select v-model="form.productCode">
             <option v-for="item in options.products" :key="item.productCode" :value="item.productCode">
@@ -500,9 +615,47 @@ watch(() => form.warehouseName, () => {
             </option>
           </select>
         </label>
+        <template v-if="type === 'consumption'">
+          <label class="wide-field">
+            <span>定数包码 / UDI / 唯一码</span>
+            <div class="consumption-code-search">
+              <input
+                v-model.trim="consumptionQueryCode"
+                placeholder="扫码或输入定数包码、UDI、唯一码，点击查询定位商品"
+                @keyup.enter="resolveConsumption"
+              />
+              <button class="btn" type="button" :disabled="consumptionResolving" @click="resolveConsumption">
+                <Search :size="15" />
+                {{ consumptionResolving ? '查询中...' : '查询' }}
+              </button>
+            </div>
+          </label>
+          <label v-if="consumptionResolved" class="wide-field">
+            <span>已定位商品</span>
+            <div class="consumption-resolved">
+              <strong>{{ consumptionResolved.productCode }} / {{ consumptionResolved.productName }}</strong>
+              <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}</small>
+            </div>
+          </label>
+        </template>
         <label v-if="!['shortage', 'delivery'].includes(type)"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
-        <label v-if="type === 'risk'"><span>温度/原因</span><input v-model="form.temperature" type="number" /></label>
+        <template v-if="type === 'risk'">
+          <label><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
+          <label>
+            <span>召回批号</span>
+            <select v-model.number="recallBatchId" :disabled="recallBatchesLoading || !recallBatches.length">
+              <option :value="null" disabled>请先选择商品</option>
+              <option v-for="batch in recallBatches" :key="String(batch.batchId)" :value="Number(batch.batchId)">
+                {{ batch.systemBatchNo }}（可用 {{ batch.availableQty }}）
+              </option>
+            </select>
+          </label>
+          <label class="wide-field">
+            <span>召回原因</span>
+            <input v-model.trim="form.reason" placeholder="填写召回原因" />
+          </label>
+        </template>
         <label v-if="type === 'high-value'"><span>患者号</span><input v-model="form.patientNo" /></label>
         <label v-if="['requisition', 'delivery', 'consumption', 'high-value'].includes(type)" class="wide-field">
           <span>高值唯一码</span>
@@ -590,7 +743,10 @@ watch(() => form.warehouseName, () => {
                   :key="`${row.requisitionNo}-${row.itemId}`"
                   :class="{ selected: selectedPickingItemId === String(row.itemId) }"
                 >
-                  <td>{{ row.requisitionNo }}</td>
+                  <td>
+                    <strong>{{ row.requisitionNo }}</strong>
+                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">部分拣配</span>
+                  </td>
                   <td>{{ row.deptName }}</td>
                   <td>
                     <strong>{{ row.productName }}</strong>
@@ -636,7 +792,11 @@ watch(() => form.warehouseName, () => {
                       @change="togglePickingLabel(String(row.labelNo), ($event.target as HTMLInputElement).checked)"
                     />
                   </td>
-                  <td>{{ row.labelNo }}</td>
+                  <td>
+                    <button class="btn-link package-label-link" type="button" @click="openPackageDetail(row.labelNo)">
+                      {{ row.labelNo }}
+                    </button>
+                  </td>
                   <td>{{ row.warehouseName }}</td>
                   <td>
                     <strong>{{ row.productName }}</strong>
@@ -792,7 +952,24 @@ watch(() => form.warehouseName, () => {
               <td>{{ row.bizNo }}</td>
               <td>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</td>
               <td>{{ row.productCode || '-' }}</td>
-              <td>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</td>
+              <td>
+                <template v-if="type === 'delivery'">
+                  {{ row.productName || '-' }}
+                  <div v-if="row.labelNos" class="package-label-chips">
+                    <button
+                      v-for="labelNo in String(row.labelNos).split(', ')"
+                      :key="labelNo"
+                      class="btn-link package-label-chip"
+                      type="button"
+                      :title="`查看定数包 ${labelNo} 明细`"
+                      @click="openPackageDetail(labelNo)"
+                    >
+                      {{ labelNo }}
+                    </button>
+                  </div>
+                </template>
+                <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
+              </td>
               <td>
                 <template v-if="type === 'shortage'">
                   <strong>{{ row.quantity || '-' }}</strong>
@@ -911,6 +1088,113 @@ watch(() => form.warehouseName, () => {
             </tbody>
           </table>
         </div>
+      </section>
+    </div>
+
+    <div v-if="packageDetailOpen" class="attachment-preview-mask" @click.self="closePackageDetail">
+      <section class="supplier-dialog package-detail-dialog" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <p>定数包明细</p>
+            <h3>{{ packageDetail?.labelNo || '加载中...' }}</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="closePackageDetail">
+            <X :size="18" />
+          </button>
+        </header>
+        <p v-if="packageDetailLoading" class="approval-empty">正在加载定数包明细...</p>
+        <template v-else-if="packageDetail">
+          <div class="package-detail-info">
+            <label><span>定数包编码</span><strong>{{ packageDetail.labelNo }}</strong></label>
+            <label><span>模板</span><strong>{{ packageDetail.templateCode }} / {{ packageDetail.templateName }}</strong></label>
+            <label><span>商品</span><strong>{{ packageDetail.productCode }} / {{ packageDetail.productName }}（{{ packageDetail.specModel }}）</strong></label>
+            <label><span>包内数量</span><strong>{{ packageDetail.packageQuantity }} {{ packageDetail.unit }}</strong></label>
+            <label><span>库房</span><strong>{{ packageDetail.warehouseName }}（{{ packageDetail.warehouseType }}）</strong></label>
+            <label><span>状态</span><strong>{{ formatStatusText(packageDetail.status) }} · 打印 {{ packageDetail.printCount }} 次</strong></label>
+            <label><span>生成时间</span><strong>{{ packageDetail.createTime }}</strong></label>
+          </div>
+
+          <div class="section-title compact">
+            <h3>来源批次明细</h3>
+          </div>
+          <div class="table-scroll">
+            <table class="master-table purchase-table">
+              <thead>
+                <tr>
+                  <th>系统批次</th>
+                  <th>生产批号</th>
+                  <th>有效期</th>
+                  <th>来源数量</th>
+                  <th>批次单价</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="!packageDetail.sources.length">
+                  <td colspan="5" class="approval-empty">暂无来源批次数据</td>
+                </tr>
+                <tr v-for="source in packageDetail.sources" :key="`${source.batchId}`">
+                  <td>{{ source.systemBatchNo || '-' }}</td>
+                  <td>{{ source.productionBatchNo || '-' }}</td>
+                  <td>{{ source.expireDate || '-' }}</td>
+                  <td>{{ source.sourceQty }}</td>
+                  <td>¥ {{ Number(source.unitPrice).toFixed(2) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-if="packageDetail.bindings.length" class="section-title compact">
+            <h3>绑定去向</h3>
+          </div>
+          <div v-if="packageDetail.bindings.length" class="table-scroll">
+            <table class="master-table purchase-table">
+              <thead>
+                <tr>
+                  <th>配送单号</th>
+                  <th>申领单号</th>
+                  <th>包内数量</th>
+                  <th>绑定时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="binding in packageDetail.bindings" :key="binding.deliveryNo">
+                  <td>{{ binding.deliveryNo }}</td>
+                  <td>{{ binding.requisitionNo || '-' }}</td>
+                  <td>{{ binding.packageQuantity }}</td>
+                  <td>{{ binding.createTime }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div v-if="packageDetail.events.length" class="section-title compact">
+            <h3>事件流水</h3>
+          </div>
+          <div v-if="packageDetail.events.length" class="table-scroll">
+            <table class="master-table purchase-table">
+              <thead>
+                <tr>
+                  <th>事件编号</th>
+                  <th>事件类型</th>
+                  <th>状态变化</th>
+                  <th>数量变化</th>
+                  <th>备注</th>
+                  <th>时间</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="event in packageDetail.events" :key="event.eventNo">
+                  <td>{{ event.eventNo }}</td>
+                  <td>{{ formatBusinessText(event.eventType) }}</td>
+                  <td>{{ formatStatusText(event.statusBefore) }} → {{ formatStatusText(event.statusAfter) }}</td>
+                  <td>{{ event.qtyChange }}</td>
+                  <td>{{ event.remark || '-' }}</td>
+                  <td>{{ event.createTime }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </template>
       </section>
     </div>
   </section>

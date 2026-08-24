@@ -293,8 +293,10 @@ class ProductServiceTest {
             // Arrange
             ProductCreateRequest request = validRequest();
 
-            // mock nextApplicationNo: SELECT COUNT(*) FROM pending_product_application WHERE application_no LIKE ?
+            // 默认业务计数为 0（含商品编码占用检查），申请单号计数单独打桩
             when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class)))
+                    .thenReturn(0);
+            when(jdbcTemplate.queryForObject(contains("application_no LIKE"), eq(Integer.class), any(Object[].class)))
                     .thenReturn(5);
 
             // mock findIdByName manufacturer: SELECT manufacturer_id FROM manufacturer WHERE manufacturer_name = ? AND deleted = 0 LIMIT 1
@@ -332,12 +334,77 @@ class ProductServiceTest {
         }
 
         @Test
-        @DisplayName("缺少必填字段抛出异常")
-        void should_throw_when_required_fields_missing() {
+        @DisplayName("商品编码为空且无招采子编码时自动生成 SPD 编码")
+        void should_generate_spd_code_when_product_code_and_tender_sub_code_blank() {
             ProductCreateRequest request = new ProductCreateRequest(
                     "", "测试商品A", "10ml/支",
                     null, null, null,
                     "支", null, null,
+                    null, null, null, null,
+                    null, null, null,
+                    null, null,
+                    false, false, true, null,
+                    null, null, null, false, null,
+                    false, false, false, null
+            );
+
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class)))
+                    .thenReturn(0);
+            when(jdbcTemplate.queryForList(anyString(), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(99L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createHospitalProduct(request);
+
+            assertThat(result.get("productCode")).isEqualTo("SPD000001");
+        }
+
+        @Test
+        @DisplayName("商品编码为空时取招采子编码回填")
+        void should_backfill_product_code_from_tender_sub_code() {
+            ProductCreateRequest request = new ProductCreateRequest(
+                    "", "测试商品A", "10ml/支",
+                    null, null, null,
+                    "支", null, null,
+                    null, null, null, null,
+                    null, null, null,
+                    null, null,
+                    false, false, true, null,
+                    null, null, null, false, "招采子编码X",
+                    false, false, false, null
+            );
+
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class)))
+                    .thenReturn(0);
+            when(jdbcTemplate.queryForList(anyString(), eq(Long.class), any(Object[].class)))
+                    .thenReturn(List.of(99L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createHospitalProduct(request);
+
+            assertThat(result.get("productCode")).isEqualTo("招采子编码X");
+        }
+
+        @Test
+        @DisplayName("商品编码已被医院目录占用时拒绝创建")
+        void should_reject_when_product_code_already_used() {
+            ProductCreateRequest request = validRequest();
+
+            when(jdbcTemplate.queryForObject(contains("FROM product WHERE product_code"), eq(Integer.class), any(Object[].class)))
+                    .thenReturn(1);
+
+            assertThatThrownBy(() -> service.createHospitalProduct(request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("商品编码已存在");
+        }
+
+        @Test
+        @DisplayName("缺少必填字段抛出异常")
+        void should_throw_when_required_fields_missing() {
+            ProductCreateRequest request = new ProductCreateRequest(
+                    "P001", "测试商品A", "10ml/支",
+                    null, null, null,
+                    "", null, null,
                     null, null, null, null,
                     null, null, null,
                     null, null,

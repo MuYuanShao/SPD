@@ -95,6 +95,46 @@ export async function fetchStocktakingList(params: Record<string, string> = {}) 
   return getData<PageResult<Record<string, unknown>>>('/inventory/stocktaking', { params })
 }
 
+export interface StocktakingSheetItem {
+  itemId: number
+  productCode: string
+  productName: string
+  specModel: string
+  manufacturerName: string
+  unit: string
+  systemQty: number
+  actualQty: number | null
+  diffQty: number | null
+}
+
+/**
+ * 新增盘点表：按所选商品范围（高值/可收费/不可收费/定数包）生成盘点明细。
+ */
+export async function createStocktakingSheet(payload: {
+  warehouseName: string
+  deptName?: string
+  scopes: string[]
+}) {
+  return postData<{ stocktakingNo: string; rowCount: number }>('/inventory/stocktaking/sheets', payload)
+}
+
+/**
+ * 盘点表明细（商品、库存数量、盘点数量；差异 = 库存 - 盘点）。
+ */
+export async function fetchStocktakingItems(stocktakingNo: string) {
+  return getData<{ rows: StocktakingSheetItem[] }>(`/inventory/stocktaking/${stocktakingNo}/items`)
+}
+
+/**
+ * 保存盘点数量（写入实盘数量并计算差异）。
+ */
+export async function updateStocktakingItems(stocktakingNo: string, items: Array<{ itemId: number; actualQty: number }>) {
+  return putData<{ stocktakingNo: string; updatedRows: number }>(
+    `/inventory/stocktaking/${stocktakingNo}/items`,
+    { items }
+  )
+}
+
 /**
  * 创建批量调价申请
  * @param payload - 调价信息（批次、新单价、原因）

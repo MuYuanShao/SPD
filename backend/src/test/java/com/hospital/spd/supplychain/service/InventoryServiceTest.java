@@ -45,7 +45,7 @@ class InventoryServiceTest {
     class BalancesTest {
 
         @Test
-        @DisplayName("无筛选条件时返回全部库存余额")
+        @DisplayName("无筛选条件时返回全部库存汇总")
         void shouldReturnAllBalances() {
             Map<String, String> params = Map.of("page", "1", "size", "20");
             Map<String, Object> summaryMap = Map.of(
@@ -54,7 +54,7 @@ class InventoryServiceTest {
             );
             when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(50L);
             when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-                    Map.of("balanceId", 1L, "productCode", "P001", "availableQty", BigDecimal.valueOf(200))
+                    Map.of("productCode", "P001", "qty", BigDecimal.valueOf(200))
             ));
             when(jdbcTemplate.queryForMap(anyString())).thenReturn(summaryMap);
 
@@ -64,10 +64,11 @@ class InventoryServiceTest {
             assertThat(result.get("rows")).asList().hasSize(1);
             assertThat(result.get("summary")).isNotNull();
             verify(jdbcTemplate).queryForList(
-                    argThat((String sql) -> sql.contains("bal.available_qty <> 0")
-                            && sql.contains("bal.locked_qty <> 0")
-                            && sql.contains("bal.in_transit_qty <> 0")
-                            && sql.contains("bal.isolated_qty <> 0")),
+                    argThat((String sql) -> sql.contains("location_id IS NULL")
+                            && sql.contains("SUM(available_qty)")
+                            && sql.contains("quota_package_label")
+                            && sql.contains("package_quantity")
+                            && sql.contains("lo.loose_qty + COALESCE(qp.packaged_qty, 0)")),
                     eq(20), eq(0));
             verify(jdbcTemplate).queryForMap(
                     argThat((String sql) -> sql.contains("available_qty <> 0")

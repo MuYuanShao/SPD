@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -46,6 +47,26 @@ public class OperationalRiskModule {
         return Map.of("eventNo", eventNo, "status", "pending_dispose");
     }
 
+    /** 召回隔离批次选项：所选商品在该库房仍有可用库存的批次。 */
+    public Map<String, Object> recallBatches(String productCode, String warehouseName) {
+        Long productId = ((Number) findProduct(productCode).get("productId")).longValue();
+        Long warehouseId = findWarehouseId(warehouseName);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT ib.batch_id AS batchId, ib.system_batch_no AS systemBatchNo,
+                       ib.production_batch_no AS productionBatchNo,
+                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
+                       bal.available_qty AS availableQty
+                  FROM inventory_balance bal
+                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                 WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.available_qty > 0
+                 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
+                """, warehouseId, productId);
+        return Map.of("rows", rows);
+    }
+
+    /**
+     * 召回隔离：选定商品与批次后提交确认，立即将该批次的可用库存转为隔离库存（库存扣减）。
+     */
     @Transactional
     public Map<String, Object> createRecall(Map<String, Object> body) {
         String warehouseName = requireText(body, "warehouseName");
@@ -53,25 +74,37 @@ public class OperationalRiskModule {
         BigDecimal quantity = requirePositive(body, "quantity");
         String reason = requireText(body, "reason");
         Long warehouseId = findWarehouseId(warehouseName);
+        Long productId = ((Number) product.get("productId")).longValue();
+        Long batchId = longValue(body.get("batchId"));
         String recallNo = support.nextNo(RECALL_EVENT);
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO recall_event (
-                      recall_no, warehouse_name, product_code, product_name, affected_qty, status, reason
-                    ) VALUES (?, ?, ?, ?, ?, 'isolated', ?)
+                      recall_no, warehouse_name, product_code, product_name, batch_id, affected_qty, status, reason
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'isolated', ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, recallNo);
             ps.setString(2, warehouseName);
             ps.setString(3, String.valueOf(product.get("productCode")));
             ps.setString(4, String.valueOf(product.get("productName")));
-            ps.setBigDecimal(5, quantity);
-            ps.setString(6, reason);
+            if (batchId == null) {
+                ps.setObject(5, null);
+            } else {
+                ps.setLong(5, batchId);
+            }
+            ps.setBigDecimal(6, quantity);
+            ps.setString(7, reason);
             return ps;
         }, keyHolder);
         Long recallId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-        support.isolateAvailableFifo(warehouseId, ((Number) product.get("productId")).longValue(), quantity,
-                "recall_event", recallId, reason);
+        if (batchId != null) {
+            support.isolateSpecificBatch(warehouseId, productId, batchId, quantity,
+                    "recall_event", recallId, reason);
+        } else {
+            support.isolateAvailableFifo(warehouseId, productId, quantity,
+                    "recall_event", recallId, reason);
+        }
         return Map.of("recallNo", recallNo, "status", "isolated");
     }
 
@@ -92,6 +125,13 @@ public class OperationalRiskModule {
         BigDecimal value = new BigDecimal(requireText(body, key));
         if (value.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
         return value;
+    }
+
+    private static Long longValue(Object value) {
+        if (value == null || String.valueOf(value).isBlank()) {
+            return null;
+        }
+        return Long.valueOf(String.valueOf(value));
     }
 
     private Map<String, Object> findProduct(String productCode) {

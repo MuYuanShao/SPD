@@ -198,6 +198,42 @@ public class InventoryMovementService {
         return reservations;
     }
 
+    /**
+     * Isolates available inventory from one specific batch: available quantity moves to isolated.
+     */
+    public InventoryDeduction isolateSpecificBatch(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
+                                                    String sourceType, Long sourceId, String remark) {
+        requirePositive(quantity);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT bal.balance_id AS balanceId, bal.available_qty AS availableQty,
+                       ib.batch_unit_price AS unitPrice
+                  FROM inventory_balance bal
+                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                 WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.batch_id = ?
+                 LIMIT 1
+                 FOR UPDATE
+                """, warehouseId, productId, batchId);
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException(INSUFFICIENT_INVENTORY_MESSAGE);
+        }
+        Map<String, Object> balance = rows.get(0);
+        Long balanceId = ((Number) balance.get("balanceId")).longValue();
+        int affected = jdbcTemplate.update("""
+                UPDATE inventory_balance
+                   SET available_qty = available_qty - ?, isolated_qty = isolated_qty + ?
+                 WHERE balance_id = ? AND available_qty >= ?
+                """, quantity, quantity, balanceId, quantity);
+        if (affected != 1) {
+            throw new IllegalArgumentException(INSUFFICIENT_INVENTORY_MESSAGE);
+        }
+        BigDecimal qtyAfter = jdbcTemplate.queryForObject(
+                "SELECT available_qty FROM inventory_balance WHERE balance_id = ?", BigDecimal.class, balanceId);
+        Long eventId = recordEvent("recall_isolate", sourceType, sourceId, warehouseId, productId,
+                batchId, quantity.negate(), qtyAfter, remark);
+        finalizeBalanceMutation(balanceId, eventId);
+        return new InventoryDeduction(batchId, quantity, (BigDecimal) balance.get("unitPrice"));
+    }
+
     public List<InventoryDeduction> isolateAvailableFifo(Long warehouseId, Long productId, BigDecimal requiredQty,
                                                           String sourceType, Long sourceId, String remark) {
         requirePositive(requiredQty);

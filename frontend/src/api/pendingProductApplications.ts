@@ -160,7 +160,7 @@ export async function fetchPendingProductApplicationDetail(applicationNo: string
 }
 
 export async function createPendingProductApplication(payload: PendingProductApplicationPayload) {
-  return postData<{ applicationNo: string }>('/pending-product-applications', payload)
+  return postData<{ applicationNo: string; productCode?: string }>('/pending-product-applications', payload)
 }
 
 export async function fetchPendingProductPartnerOptions() {

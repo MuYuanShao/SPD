@@ -511,10 +511,10 @@ class PurchaseOrderServiceTest {
     class SmartReplenishmentAnalysisTest {
 
         @Test
-        @DisplayName("按一级库出二级库流水生成采购建议")
+        @DisplayName("按科室申请表出库量生成采购建议")
         void shouldAnalyzePrimaryWarehouseOutboundAndRecommendPurchaseQty() {
             when(support.nextNo(DocumentKind.PURCHASE_REPLENISHMENT_ANALYSIS)).thenReturn("CGFX2026070200001");
-            when(jdbcTemplate.queryForList(contains("warehouse_transfer_out"))).thenReturn(List.of(
+            when(jdbcTemplate.queryForList(contains("department_requisition"))).thenReturn(List.of(
                     Map.ofEntries(
                             Map.entry("warehouseCode", "WH-CENTER"),
                             Map.entry("warehouseName", "SPD中心库"),
@@ -559,7 +559,7 @@ class PurchaseOrderServiceTest {
         @DisplayName("建议量低于最小采购量时按最小采购量补货")
         void shouldUseMinPurchaseQtyWhenFormulaQtyIsPositiveButSmall() {
             when(support.nextNo(DocumentKind.PURCHASE_REPLENISHMENT_ANALYSIS)).thenReturn("CGFX2026070200002");
-            when(jdbcTemplate.queryForList(contains("warehouse_transfer_out"))).thenReturn(List.of(
+            when(jdbcTemplate.queryForList(contains("department_requisition"))).thenReturn(List.of(
                     Map.ofEntries(
                             Map.entry("warehouseCode", "WH-CENTER"),
                             Map.entry("warehouseName", "SPD中心库"),

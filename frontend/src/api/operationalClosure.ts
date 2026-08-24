@@ -2,7 +2,7 @@ import { getData, postData, putData, type PageResult } from './http'
 
 export interface ClosureOptions {
   departments: Array<{ deptCode: string; deptName: string }>
-  warehouses: Array<{ warehouseName: string }>
+  warehouses: Array<{ warehouseName: string; warehouseType?: string }>
   products: Array<{ productCode: string; productName: string; specModel: string; unit: string; purchasePrice: number }>
   balances: Array<Record<string, unknown>>
 }
@@ -40,6 +40,31 @@ export async function fetchPickingRequisitions() {
 
 export async function fetchPickingPackageLabels(params: Record<string, string> = {}) {
   return getData<{ rows: Record<string, unknown>[] }>('/operational-closure/picking/package-labels', { params })
+}
+
+export interface PackageLabelDetail {
+  labelNo: string
+  status: string
+  packageQuantity: number
+  printCount: number
+  productCode: string
+  productName: string
+  specModel: string
+  unit: string
+  templateCode: string
+  templateName: string
+  warehouseName: string
+  warehouseType: string
+  createTime: string
+  sources: Array<{ batchId: number; systemBatchNo?: string; productionBatchNo?: string; expireDate?: string; sourceQty: number; unitPrice: number }>
+  bindings: Array<{ deliveryNo: string; requisitionNo?: string; packageQuantity: number; createTime: string }>
+  events: Array<{ eventNo: string; eventType: string; statusBefore?: string; statusAfter?: string; qtyChange: number; remark?: string; createTime: string }>
+}
+
+export async function fetchPickingPackageLabelDetail(labelNo: string) {
+  return getData<PackageLabelDetail>(
+    `/operational-closure/picking/package-labels/${encodeURIComponent(labelNo)}`
+  )
 }
 
 /**
@@ -106,6 +131,20 @@ export async function signDelivery(deliveryNo: string) {
  */
 export async function createConsumption(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/consumptions', payload)
+}
+
+/** 科室消耗：按定数包码 / UDI / 唯一码定位商品 */
+export async function resolveConsumptionProduct(queryCode: string) {
+  return getData<Record<string, unknown>>('/operational-closure/consumptions/resolve', {
+    params: { queryCode }
+  })
+}
+
+/** 召回隔离：所选商品在该库房有可用库存的批次列表 */
+export async function fetchRecallBatches(productCode: string, warehouseName: string) {
+  return getData<{ rows: Array<Record<string, unknown>> }>('/operational-closure/recalls/batches', {
+    params: { productCode, warehouseName }
+  })
 }
 
 /**

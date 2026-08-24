@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import { fetchClosureList } from '../../api/operationalClosure'
@@ -101,6 +101,23 @@ function updateTableScrollState() {
   }
 }
 
+/**
+ * 轨道滑块宽度 = 可视宽度 / 内容总宽度；滑块位移按可视宽度比例换算，
+ * 保证滑块与表格滚动位置始终一一对应（修复左右滑动导航轨道错位问题）。
+ */
+const thumbWidthPercent = computed(() => {
+  const el = tableScrollRef.value
+  if (!el || el.scrollWidth <= 0) return 100
+  const ratio = el.clientWidth / el.scrollWidth
+  return Math.min(100, Math.max(8, ratio * 100))
+})
+
+const thumbTranslatePercent = computed(() => {
+  const el = tableScrollRef.value
+  if (!el || el.clientWidth <= 0) return 0
+  return (tableScrollState.value.left / el.clientWidth) * 100
+})
+
 function setChargeTableScrollLeft(left: number) {
   const el = tableScrollRef.value
   if (!el) return
@@ -131,10 +148,11 @@ function startChargeTrackDrag(event: PointerEvent) {
   const el = tableScrollRef.value
   if (!el) return
   scrollDragging.value = true
-  scrollDragStartX = event.clientX
-  scrollDragStartLeft = el.scrollLeft
   ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
   setChargeTableScrollFromTrack(event)
+  // 点击/拖拽起点以跳转后的位置为锚点，避免首次移动时回跳
+  scrollDragStartX = event.clientX
+  scrollDragStartLeft = el.scrollLeft
 }
 
 function moveChargeTrackDrag(event: PointerEvent) {
@@ -300,8 +318,8 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
           <span
             class="charge-scroll-thumb"
             :style="{
-              width: tableScrollState.max > 0 ? '34%' : '100%',
-              transform: `translateX(${tableScrollState.max > 0 ? (tableScrollState.left / tableScrollState.max) * 194 : 0}%)`
+              width: tableScrollState.max > 0 ? `${thumbWidthPercent}%` : '100%',
+              transform: `translateX(${tableScrollState.max > 0 ? thumbTranslatePercent : 0}%)`
             }"
           ></span>
         </div>

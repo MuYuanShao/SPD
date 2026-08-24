@@ -235,6 +235,7 @@ const {
   warehouseForm,
   warehouseProductOptions,
   warehouseProductOptionsLoading,
+  departmentOptions,
   departmentWarehouseDialogOpen,
   departmentWarehouseLoading,
   departmentWarehouseSaving,
@@ -1884,6 +1885,7 @@ const {
       :mode="warehouseDialogMode"
       :form="warehouseForm"
       :campus-options="campusOptions"
+      :department-options="departmentOptions"
       :product-options="warehouseProductOptions"
       :products-loading="warehouseProductOptionsLoading"
       @close="warehouseDialogOpen = false"
@@ -1898,6 +1900,7 @@ const {
       :editing-id="warehouseLocationEditingId"
       :loading="warehouseLocationLoading"
       :saving="warehouseLocationSaving"
+      :product-options="warehouseProductOptions"
       @close="closeWarehouseLocationDialog"
       @refresh="loadWarehouseLocations"
       @create="startCreateWarehouseLocation"

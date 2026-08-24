@@ -767,7 +767,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           <section class="approval-create-section">
             <h4>商品基础信息</h4>
             <div class="supplier-form-grid compact">
-              <label><span>商品编码</span><input v-model="createForm.productCode" required /></label>
+              <label><span>商品编码</span><input v-model="createForm.productCode" placeholder="选填，留空取招采子编码，均空时自动生成" /></label>
               <label><span>商品名称</span><input v-model="createForm.productName" required /></label>
               <label><span>规格型号</span><input v-model="createForm.specModel" required /></label>
               <label><span>品牌</span><input v-model="createForm.brand" /></label>

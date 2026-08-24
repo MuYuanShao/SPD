@@ -28,6 +28,8 @@ const UdiTraceabilityView = () => import('../views/supply-chain/UdiTraceabilityV
 const HighValueChargeDetailView = () => import('../views/supply-chain/HighValueChargeDetailView.vue')
 const ColdChainMonitoringView = () => import('../views/supply-chain/ColdChainMonitoringView.vue')
 const ConfigHitExplanationView = () => import('../views/system/ConfigHitExplanationView.vue')
+const LicenseManagementView = () => import('../views/master-data/LicenseManagementView.vue')
+const PrintTemplateSettingsView = () => import('../views/system/PrintTemplateSettingsView.vue')
 const SystemConfigView = () => import('../views/system/SystemConfigView.vue')
 const FieldOptionManagementView = () => import('../views/system/FieldOptionManagementView.vue')
 const ApprovalFlowSettingsView = () => import('../views/system/ApprovalFlowSettingsView.vue')
@@ -212,6 +214,18 @@ export const router = createRouter({
       path: `/features/:code(${featureCodePattern('master-data-list')})`,
       name: 'master-data-list',
       component: MasterDataListView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('license-management'),
+      name: 'license-management',
+      component: LicenseManagementView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('print-template-settings'),
+      name: 'print-template-settings',
+      component: PrintTemplateSettingsView,
       meta: { requiresAuth: true }
     },
     {

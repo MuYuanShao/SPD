@@ -50,6 +50,11 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.availablePackageLabels(params));
     }
 
+    @GetMapping("/picking/package-labels/{labelNo}")
+    public ApiResponse<Map<String, Object>> packageLabelDetail(@PathVariable String labelNo) {
+        return ApiResponse.ok(service.packageLabelDetail(labelNo));
+    }
+
     @PostMapping("/shortage/generate")
     public ApiResponse<Map<String, Object>> generateShortage(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(service.generateShortage(body));
@@ -91,6 +96,12 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.createConsumption(body));
     }
 
+    @GetMapping("/consumptions/resolve")
+    public ApiResponse<Map<String, Object>> resolveConsumptionProduct(
+            @RequestParam(defaultValue = "") String queryCode) {
+        return ApiResponse.ok(service.resolveConsumptionProduct(queryCode));
+    }
+
     @PutMapping("/consumptions/{consumptionNo}/reverse")
     public ApiResponse<Map<String, Object>> reverseConsumption(@PathVariable String consumptionNo) {
         return ApiResponse.ok(service.reverseConsumption(consumptionNo));
@@ -118,6 +129,12 @@ public class OperationalClosureController {
     @PostMapping("/recalls")
     public ApiResponse<Map<String, Object>> createRecall(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(service.createRecall(body));
+    }
+
+    @GetMapping("/recalls/batches")
+    public ApiResponse<Map<String, Object>> recallBatches(@RequestParam(defaultValue = "") String productCode,
+                                                          @RequestParam(defaultValue = "") String warehouseName) {
+        return ApiResponse.ok(service.recallBatches(productCode, warehouseName));
     }
 
     @PostMapping("/high-value/charges")

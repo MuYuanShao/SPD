@@ -13,6 +13,10 @@ out/
 logs/
 perf/results/
 
+# Runtime uploads and offline deployment artifacts
+/backend/output/
+/output/
+
 # Local caches
 .cache/
 .vite/

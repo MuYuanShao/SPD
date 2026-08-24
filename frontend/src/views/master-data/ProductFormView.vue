@@ -98,7 +98,6 @@ const form = reactive<ProductCreatePayload>({
 })
 
 const requiredFields = [
-  ['productCode', '商品编码'],
   ['productName', '商品名称'],
   ['specModel', '规格型号'],
   ['unit', '基本单位']
@@ -232,9 +231,8 @@ onMounted(() => {
             <span>商品编码</span>
             <input
               v-model.trim="form.productCode"
-              required
               type="text"
-              placeholder="如 PROD-004"
+              :placeholder="editMode ? '商品编码' : '选填，留空取招采子编码，均空时自动生成'"
               :readonly="editMode"
             />
           </label>

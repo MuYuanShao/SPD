@@ -129,6 +129,53 @@ public class OperationalConsumptionModule {
         return Map.of("flushNo", reverseNo, "status", "approved");
     }
 
+    /**
+     * 科室消耗按定数包码、UDI 或唯一码定位商品，返回商品信息与来源码信息。
+     */
+    public Map<String, Object> resolveConsumptionProduct(String queryCode) {
+        if (queryCode == null || queryCode.isBlank()) {
+            throw new IllegalArgumentException("请输入定数包码、UDI 或唯一码");
+        }
+        String code = queryCode.trim();
+
+        List<Map<String, Object>> labels = jdbcTemplate.queryForList("""
+                SELECT qpl.label_no AS labelNo, qpl.status AS labelStatus,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.unit,
+                       w.warehouse_name AS warehouseName
+                  FROM quota_package_label qpl
+                  JOIN product p ON p.product_id = qpl.product_id AND p.deleted = 0 AND p.status = 1
+                  LEFT JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                 WHERE qpl.label_no = ?
+                 LIMIT 1
+                """, code);
+        if (!labels.isEmpty()) {
+            Map<String, Object> row = labels.get(0);
+            row.put("sourceType", "package");
+            row.put("sourceCode", code);
+            return row;
+        }
+
+        List<Map<String, Object>> traces = jdbcTemplate.queryForList("""
+                SELECT utc.udi_code AS udiCode, utc.unique_code AS uniqueCode,
+                       utc.product_code AS productCode, utc.product_name AS productName,
+                       utc.spec_model AS specModel, p.unit,
+                       utc.current_location AS warehouseName
+                  FROM udi_trace_code utc
+                  LEFT JOIN product p ON p.product_code = utc.product_code AND p.deleted = 0 AND p.status = 1
+                 WHERE utc.udi_code = ? OR utc.unique_code = ?
+                 LIMIT 1
+                """, code, code);
+        if (!traces.isEmpty()) {
+            Map<String, Object> row = traces.get(0);
+            row.put("sourceType", "udi");
+            row.put("sourceCode", code);
+            return row;
+        }
+
+        throw new IllegalArgumentException("未找到该定数包码/UDI/唯一码对应的商品");
+    }
+
     private Map<String, Object> findProduct(String productCode) {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,

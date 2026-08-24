@@ -79,23 +79,28 @@ public class ProductApprovalService {
     private final OperatorContextProvider operatorContextProvider;
     private final ApprovalFlowGuard approvalFlowGuard;
     private final ProductApprovalChangeItems changeItems;
+    private final ProductCodeService productCodeService;
 
     public ProductApprovalService(JdbcTemplate jdbcTemplate) {
-        this(jdbcTemplate, OperatorContext::system, new ApprovalFlowGuard(jdbcTemplate));
+        this(jdbcTemplate, OperatorContext::system, new ApprovalFlowGuard(jdbcTemplate),
+                new ProductCodeService(jdbcTemplate));
     }
 
     public ProductApprovalService(JdbcTemplate jdbcTemplate, OperatorContextProvider operatorContextProvider) {
-        this(jdbcTemplate, operatorContextProvider, new ApprovalFlowGuard(jdbcTemplate, operatorContextProvider));
+        this(jdbcTemplate, operatorContextProvider, new ApprovalFlowGuard(jdbcTemplate, operatorContextProvider),
+                new ProductCodeService(jdbcTemplate));
     }
 
     @Autowired
     public ProductApprovalService(JdbcTemplate jdbcTemplate,
                                   OperatorContextProvider operatorContextProvider,
-                                  ApprovalFlowGuard approvalFlowGuard) {
+                                  ApprovalFlowGuard approvalFlowGuard,
+                                  ProductCodeService productCodeService) {
         this.jdbcTemplate = jdbcTemplate;
         this.operatorContextProvider = operatorContextProvider;
         this.approvalFlowGuard = approvalFlowGuard;
         this.changeItems = new ProductApprovalChangeItems(jdbcTemplate);
+        this.productCodeService = productCodeService;
     }
 
     // ======================== Public API ========================
@@ -307,6 +312,7 @@ public class ProductApprovalService {
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         String applicationType = normalizeApplicationType(request.applicationType());
+        String productCode = resolveProductCode(request, applicationType, null);
         validateNoExistingCatalogMatch(request, null);
         validateInformationChangeHasDifference(request, applicationType);
         OperatorContext operator = operatorContextProvider.current();
@@ -333,7 +339,7 @@ public class ProductApprovalService {
                 applicationType,
                 supplierId,
                 request.productName().trim(),
-                request.productCode().trim(),
+                productCode,
                 request.specModel().trim(),
                 nullIfBlank(request.supplierName()),
                 nullIfBlank(request.brand()),
@@ -372,7 +378,7 @@ public class ProductApprovalService {
                 operator.userId()
         );
 
-        return Map.of("applicationNo", applicationNo);
+        return Map.of("applicationNo", applicationNo, "productCode", productCode);
     }
 
     @Transactional
@@ -479,6 +485,7 @@ public class ProductApprovalService {
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         String applicationType = normalizeApplicationType(request.applicationType());
+        String productCode = resolveProductCode(request, applicationType, applicationNo);
         validateNoExistingCatalogMatch(request, applicationNo);
         validateInformationChangeHasDifference(request, applicationType);
 
@@ -511,7 +518,7 @@ public class ProductApprovalService {
                 supplierId,
                 nullIfBlank(request.supplierName()),
                 request.productName().trim(),
-                request.productCode().trim(),
+                productCode,
                 request.specModel().trim(),
                 nullIfBlank(request.brand()),
                 manufacturerId,
@@ -567,6 +574,8 @@ public class ProductApprovalService {
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        String applicationType = normalizeApplicationType(request.applicationType());
+        String productCode = resolveProductCode(request, applicationType, applicationNo);
         validateNoExistingCatalogMatch(request, applicationNo);
 
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
@@ -590,7 +599,7 @@ public class ProductApprovalService {
                 supplierId,
                 nullIfBlank(request.supplierName()),
                 request.productName().trim(),
-                request.productCode().trim(),
+                productCode,
                 request.specModel().trim(),
                 nullIfBlank(request.brand()),
                 manufacturerId,
@@ -1077,9 +1086,27 @@ public class ProductApprovalService {
     // ======================== Static utilities ========================
 
     private static void validateRequest(PendingProductApplicationRequest request) {
-        if (isBlank(request.productCode()) || isBlank(request.productName()) || isBlank(request.specModel()) || isBlank(request.unit())) {
-            throw new IllegalArgumentException("商品编码、商品名称、规格型号、单位为必填项");
+        if (isBlank(request.productName()) || isBlank(request.specModel()) || isBlank(request.unit())) {
+            throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
+    }
+
+    /**
+     * Resolves the product code for an application. New-product applications may leave the code
+     * blank: the tender sub-code is used as fallback and an SPD code is generated when both are
+     * blank. Other application types reference an existing catalog product and must carry a code.
+     */
+    private String resolveProductCode(PendingProductApplicationRequest request, String applicationType,
+                                      String excludedApplicationNo) {
+        if ("新品准入".equals(applicationType)) {
+            String code = productCodeService.resolveNewProductCode(request.productCode(), request.tenderSubCode());
+            productCodeService.requireAvailable(code, excludedApplicationNo);
+            return code;
+        }
+        if (isBlank(request.productCode())) {
+            throw new IllegalArgumentException("商品编码为必填项");
+        }
+        return request.productCode().trim();
     }
 
     private static String normalizeApplicationType(String value) {

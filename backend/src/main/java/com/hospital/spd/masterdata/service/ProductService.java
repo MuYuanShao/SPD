@@ -28,9 +28,16 @@ import java.util.Objects;
 public class ProductService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final ProductCodeService productCodeService;
 
     public ProductService(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new ProductCodeService(jdbcTemplate));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public ProductService(JdbcTemplate jdbcTemplate, ProductCodeService productCodeService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.productCodeService = productCodeService;
     }
 
     // ==================== 公开方法 ====================
@@ -108,16 +115,18 @@ public class ProductService {
         );
     }
 
-    /** 创建医院商品（提交审批） */
+    /** 创建医院商品（提交审批）。商品编码可留空：留空时取招采子编码，两者皆空时自动生成 SPD 编码。 */
     public Map<String, Object> createHospitalProduct(ProductCreateRequest request) {
-        if (isBlank(request.productCode()) || isBlank(request.productName()) || isBlank(request.specModel()) ||
+        if (isBlank(request.productName()) || isBlank(request.specModel()) ||
                 isBlank(request.unit())) {
-            throw new IllegalArgumentException("商品编码、商品名称、规格型号、单位为必填项");
+            throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
 
-        String applicationNo = createPendingApplication("新品准入", request, "医院目录新增提交审批");
-        return Map.of("productCode", request.productCode().trim(), "applicationNo", applicationNo);
+        String productCode = productCodeService.resolveNewProductCode(request.productCode(), request.tenderSubCode());
+        productCodeService.requireAvailable(productCode, null);
+        String applicationNo = createPendingApplication("新品准入", request, productCode, "医院目录新增提交审批");
+        return Map.of("productCode", productCode, "applicationNo", applicationNo);
     }
 
     /** 更新医院商品（提交审批） */
@@ -135,7 +144,7 @@ public class ProductService {
         if ("信息变更".equals(applicationType)) {
             assertInformationChangeHasDifference(current, request);
         }
-        String applicationNo = createPendingApplication(applicationType, request, "医院目录修改提交审批");
+        String applicationNo = createPendingApplication(applicationType, request, productCode.trim(), "医院目录修改提交审批");
         return Map.of("productCode", productCode.trim(), "applicationNo", applicationNo);
     }
 
@@ -158,7 +167,7 @@ public class ProductService {
             if ("信息变更".equals(applicationType) && !hasInformationChangeDifference(detail, merged)) {
                 continue;
             }
-            createPendingApplication(applicationType, merged, "医院目录批量修改提交审批");
+            createPendingApplication(applicationType, merged, detail.productCode(), "医院目录批量修改提交审批");
             submittedRows++;
         }
 
@@ -178,7 +187,7 @@ public class ProductService {
         for (String productCode : request.productCodes()) {
             ProductDetail detail = hospitalProductDetail(productCode.trim());
             createPendingApplication(request.status() != null && request.status() == 1 ? "信息变更" : "停用申请",
-                    toRequest(detail), "医院目录启停提交审批");
+                    toRequest(detail), detail.productCode(), "医院目录启停提交审批");
             submittedRows++;
         }
 
@@ -213,7 +222,7 @@ public class ProductService {
             ProductDetail detail = hospitalProductDetail(productCode.trim());
             ProductCreateRequest pending = toRequest(detail);
             assertInformationChangeHasDifference(detail, pending);
-            createPendingApplication("信息变更", pending, "医院目录提交审批");
+            createPendingApplication("信息变更", pending, detail.productCode(), "医院目录提交审批");
             submittedRows++;
         }
 
@@ -368,7 +377,8 @@ public class ProductService {
         return ids.isEmpty() ? null : ids.get(0);
     }
 
-    private String createPendingApplication(String applicationType, ProductCreateRequest request, String reason) {
+    private String createPendingApplication(String applicationType, ProductCreateRequest request,
+                                            String productCode, String reason) {
         String applicationNo = nextApplicationNo();
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
@@ -392,7 +402,7 @@ public class ProductService {
                 normalizeApplicationType(applicationType),
                 supplierId,
                 request.productName().trim(),
-                request.productCode().trim(),
+                productCode,
                 request.specModel().trim(),
                 nullIfBlank(request.brand()),
                 manufacturerId,

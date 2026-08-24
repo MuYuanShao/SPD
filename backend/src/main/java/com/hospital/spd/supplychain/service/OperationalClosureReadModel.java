@@ -47,7 +47,8 @@ public class OperationalClosureReadModel {
                  LIMIT 80
                 """);
         List<Map<String, Object>> warehouses = jdbcTemplate.queryForList("""
-                SELECT warehouse_name AS warehouseName FROM warehouse WHERE deleted = 0 AND status = 1 ORDER BY warehouse_id LIMIT 80
+                SELECT warehouse_name AS warehouseName, warehouse_type AS warehouseType
+                  FROM warehouse WHERE deleted = 0 AND status = 1 ORDER BY warehouse_id LIMIT 80
                 """);
         List<Map<String, Object>> products = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,

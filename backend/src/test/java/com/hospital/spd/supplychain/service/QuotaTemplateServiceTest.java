@@ -435,7 +435,7 @@ class QuotaTemplateServiceTest {
 
         assertThat(result).isNotEmpty();
         assertThat(result.get(0)).containsEntry("productCode", "PC001");
-        verify(jdbcTemplate).queryForList(contains("department_warehouse_catalog"), any(Object[].class));
+        verify(jdbcTemplate).queryForList(contains("department_consumption"), any(Object[].class));
     }
 
     @Test

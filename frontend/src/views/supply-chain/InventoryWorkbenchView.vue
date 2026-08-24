@@ -1,27 +1,145 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CheckCircle2, ClipboardCheck, History, PackageSearch, RefreshCw, Save, Search } from '@lucide/vue'
+import { CheckCircle2, ClipboardCheck, History, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import {
   approveBatchPriceAdjustment,
   approveStocktaking,
   createBatchPriceAdjustment,
-  createStocktaking,
+  createStocktakingSheet,
   fetchBatchPriceAdjustments,
   fetchInventoryBalances,
   fetchInventoryEvents,
   fetchQuotaPackageStock,
+  fetchStocktakingItems,
   fetchStocktakingList,
   fetchUniqueCodeStock,
-  type InventoryBalanceRow
+  updateStocktakingItems,
+  type InventoryBalanceRow,
+  type StocktakingSheetItem
 } from '../../api/inventory'
+import { fetchClosureOptions, type ClosureOptions } from '../../api/operationalClosure'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
 const balances = ref<InventoryBalanceRow[]>([])
 const events = ref<Record<string, unknown>[]>([])
 const stocktakingRows = ref<Record<string, unknown>[]>([])
+const stocktakingScopeOptions = [
+  { key: 'highValue', label: '高值耗材' },
+  { key: 'chargeable', label: '可收费耗材' },
+  { key: 'nonChargeable', label: '不可收费耗材' },
+  { key: 'quotaPackage', label: '定数包' }
+] as const
+const stocktakingSheetOpen = ref(false)
+const stocktakingSheetForm = reactive({
+  warehouseName: '',
+  deptName: '',
+  scopes: [] as string[]
+})
+const stocktakingOptions = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
+const stocktakingDetailOpen = ref(false)
+const stocktakingDetailNo = ref('')
+const stocktakingDetailRows = ref<StocktakingSheetItem[]>([])
+const stocktakingDetailLoading = ref(false)
+const stocktakingDetailSaving = ref(false)
+
+/** 盘点明细差异数量 = 库存数量 - 盘点数量 */
+function stocktakingRowDiff(row: StocktakingSheetItem) {
+  if (row.actualQty == null) return null
+  return Number(row.systemQty) - Number(row.actualQty)
+}
+
+function toggleSheetScope(key: string) {
+  const scopes = new Set(stocktakingSheetForm.scopes)
+  if (scopes.has(key)) {
+    scopes.delete(key)
+  } else {
+    scopes.add(key)
+  }
+  stocktakingSheetForm.scopes = [...scopes]
+}
+
+const selectedScopeLabels = computed(() =>
+  stocktakingSheetForm.scopes
+    .map((key) => stocktakingScopeOptions.find((item) => item.key === key)?.label ?? key)
+)
+
+async function openStocktakingSheet() {
+  message.value = ''
+  if (!stocktakingOptions.value.warehouses.length) {
+    try {
+      stocktakingOptions.value = await fetchClosureOptions()
+    } catch {
+      stocktakingOptions.value = { departments: [], warehouses: [], products: [], balances: [] }
+    }
+  }
+  stocktakingSheetForm.warehouseName = stocktakingOptions.value.warehouses[0]?.warehouseName || ''
+  stocktakingSheetForm.deptName = stocktakingOptions.value.departments[0]?.deptName || ''
+  stocktakingSheetForm.scopes = []
+  stocktakingSheetOpen.value = true
+}
+
+async function submitStocktakingSheet() {
+  if (!stocktakingSheetForm.warehouseName) {
+    message.value = '请选择盘点库房'
+    return
+  }
+  if (!stocktakingSheetForm.scopes.length) {
+    message.value = '请至少选择一个盘点商品范围'
+    return
+  }
+  try {
+    const result = await createStocktakingSheet({
+      warehouseName: stocktakingSheetForm.warehouseName,
+      deptName: stocktakingSheetForm.deptName || undefined,
+      scopes: stocktakingSheetForm.scopes
+    })
+    stocktakingSheetOpen.value = false
+    message.value = `盘点表已生成：${result.stocktakingNo}，共 ${result.rowCount} 条盘点明细`
+    await loadData()
+    await openStocktakingDetail(result.stocktakingNo)
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '盘点表生成失败'
+  }
+}
+
+async function openStocktakingDetail(stocktakingNo: string) {
+  stocktakingDetailOpen.value = true
+  stocktakingDetailNo.value = stocktakingNo
+  stocktakingDetailLoading.value = true
+  stocktakingDetailRows.value = []
+  try {
+    const result = await fetchStocktakingItems(stocktakingNo)
+    stocktakingDetailRows.value = result.rows
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '盘点明细加载失败'
+  } finally {
+    stocktakingDetailLoading.value = false
+  }
+}
+
+async function saveStocktakingDetail() {
+  const items = stocktakingDetailRows.value
+    .filter((row) => row.actualQty != null)
+    .map((row) => ({ itemId: row.itemId, actualQty: Number(row.actualQty) }))
+  if (!items.length) {
+    message.value = '请至少填写一条盘点数量'
+    return
+  }
+  stocktakingDetailSaving.value = true
+  try {
+    const result = await updateStocktakingItems(stocktakingDetailNo.value, items)
+    message.value = `盘点数量已保存：${result.stocktakingNo}，共 ${result.updatedRows} 条明细`
+    await loadData()
+    await openStocktakingDetail(stocktakingDetailNo.value)
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '盘点数量保存失败'
+  } finally {
+    stocktakingDetailSaving.value = false
+  }
+}
 const priceRows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 const message = ref('')
@@ -68,12 +186,6 @@ const query = reactive({
   startTime: '',
   endTime: '',
   systemBatchNo: ''
-})
-const stocktakingForm = reactive({
-  warehouseName: '',
-  systemBatchNo: '',
-  actualQty: 0,
-  reason: ''
 })
 const priceForm = reactive({
   systemBatchNo: '',
@@ -227,12 +339,6 @@ function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
   void loadData()
 }
 
-async function submitStocktaking() {
-  const result = await createStocktaking(stocktakingForm)
-  message.value = `盘点单已创建：${result.stocktakingNo}，差异 ${result.diffQty}`
-  await loadData()
-}
-
 async function approveStocktakingRow(no: string) {
   const result = await approveStocktaking(no)
   message.value = `${result.stocktakingNo} 已复核通过并生成库存事件`
@@ -334,7 +440,7 @@ watch(mode, () => {
               <tr v-if="loading">
                 <td colspan="12" class="approval-empty">正在加载库存...</td>
               </tr>
-              <tr v-for="row in balances" v-else :key="row.balanceId">
+              <tr v-for="row in balances" v-else :key="`${row.warehouseName}|${row.productCode}`">
                 <td>{{ row.warehouseName }}</td>
                 <td>{{ row.deptName || '-' }}</td>
                 <td class="code-cell">{{ row.productCode }}</td>
@@ -597,31 +703,35 @@ watch(mode, () => {
     </section>
 
     <section v-if="mode === 'stocktaking'" class="hospital-catalog-panel">
-      <div class="section-title">
+      <div class="section-title stocktaking-title">
         <ClipboardCheck :size="20" />
-        <h3>新增盘点单</h3>
-      </div>
-      <div class="hospital-query-grid purchase-query-grid">
-        <label><span>盘点库房</span><input v-model="stocktakingForm.warehouseName" /></label>
-        <label><span>系统批次</span><input v-model="stocktakingForm.systemBatchNo" /></label>
-        <label><span>实盘数量</span><input v-model.number="stocktakingForm.actualQty" type="number" /></label>
-        <label><span>差异原因</span><input v-model="stocktakingForm.reason" /></label>
-        <button class="btn btn-primary" type="button" @click="submitStocktaking">
-          <Save :size="18" />
-          保存
+        <h3>盘点管理</h3>
+        <button class="btn btn-primary" type="button" @click="openStocktakingSheet">
+          <Plus :size="16" />
+          新增盘点表
         </button>
       </div>
       <div class="table-scroll">
         <table class="master-table purchase-detail-table">
-          <thead><tr><th>盘点单号</th><th>库房</th><th>差异</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
+          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th>差异</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="row in stocktakingRows" :key="String(row.stocktakingNo)">
+            <tr v-if="!stocktakingRows.length && !loading">
+              <td colspan="8" class="approval-empty">暂无盘点表，点击右上角「新增盘点表」创建</td>
+            </tr>
+            <tr v-for="row in stocktakingRows" v-else :key="String(row.stocktakingNo)">
               <td>{{ row.stocktakingNo }}</td>
               <td>{{ row.warehouseName }}</td>
-              <td>{{ row.diffQty }}</td>
+              <td>{{ row.deptName || '-' }}</td>
+              <td>{{ row.stocktakingType || '-' }}</td>
+              <td>{{ row.diffQty ?? '-' }}</td>
               <td>{{ formatStatusText(row.status) }}</td>
               <td>{{ row.reason || '-' }}</td>
-              <td><button v-if="row.status === 'draft'" class="btn btn-primary btn-sm" type="button" @click="approveStocktakingRow(String(row.stocktakingNo))"><CheckCircle2 :size="16" /> 复核</button></td>
+              <td>
+                <div class="row-actions">
+                  <button class="btn-text" type="button" @click="openStocktakingDetail(String(row.stocktakingNo))">明细</button>
+                  <button v-if="row.status === 'draft'" class="btn btn-primary btn-sm" type="button" @click="approveStocktakingRow(String(row.stocktakingNo))"><CheckCircle2 :size="16" /> 复核</button>
+                </div>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -676,5 +786,133 @@ watch(mode, () => {
         @change-size="changeInventoryPageSize('price', $event)"
       />
     </section>
+
+    <div v-if="stocktakingSheetOpen" class="attachment-preview-mask" @click.self="stocktakingSheetOpen = false">
+      <section class="supplier-dialog product-dialog stocktaking-sheet-dialog" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <p>盘点管理</p>
+            <h3>新增盘点表</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="stocktakingSheetOpen = false"><X :size="18" /></button>
+        </header>
+        <form @submit.prevent="submitStocktakingSheet">
+          <div class="supplier-form-grid compact">
+            <label>
+              <span>盘点库房</span>
+              <select v-model="stocktakingSheetForm.warehouseName">
+                <option value="">请选择库房</option>
+                <option v-for="item in stocktakingOptions.warehouses" :key="item.warehouseName" :value="item.warehouseName">
+                  {{ item.warehouseName }}
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>盘点科室</span>
+              <select v-model="stocktakingSheetForm.deptName">
+                <option value="">全院</option>
+                <option v-for="item in stocktakingOptions.departments" :key="item.deptCode" :value="item.deptName">
+                  {{ item.deptName }}
+                </option>
+              </select>
+            </label>
+          </div>
+          <div class="stocktaking-scope-picker">
+            <div class="stocktaking-scope-head">
+              <strong>选择商品范围（可多选）</strong>
+              <span>按所选范围生成盘点明细，支持多个范围合并盘点</span>
+            </div>
+            <div class="stocktaking-scope-options">
+              <label v-for="option in stocktakingScopeOptions" :key="option.key" class="stocktaking-scope-option">
+                <input
+                  type="checkbox"
+                  :checked="stocktakingSheetForm.scopes.includes(option.key)"
+                  @change="toggleSheetScope(option.key)"
+                />
+                <span>{{ option.label }}</span>
+              </label>
+            </div>
+            <div class="stocktaking-scope-selected">
+              <span>已选范围：</span>
+              <template v-if="selectedScopeLabels.length">
+                <span v-for="label in selectedScopeLabels" :key="label" class="stocktaking-scope-chip">{{ label }}</span>
+              </template>
+              <em v-else>未选择任何范围</em>
+            </div>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn" type="button" @click="stocktakingSheetOpen = false">取消</button>
+            <button class="btn btn-primary" type="submit">
+              <CheckCircle2 :size="16" />
+              确认生成盘点明细
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div v-if="stocktakingDetailOpen" class="attachment-preview-mask" @click.self="stocktakingDetailOpen = false">
+      <section class="supplier-dialog stocktaking-detail-dialog" role="dialog" aria-modal="true">
+        <header>
+          <div>
+            <p>盘点明细</p>
+            <h3>{{ stocktakingDetailNo }}</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="stocktakingDetailOpen = false"><X :size="18" /></button>
+        </header>
+        <div class="table-scroll stocktaking-detail-scroll">
+          <table class="master-table stocktaking-detail-table">
+            <thead>
+              <tr>
+                <th>商品编码</th>
+                <th>商品名称</th>
+                <th>规格型号</th>
+                <th>厂家</th>
+                <th>单位</th>
+                <th>库存数量</th>
+                <th>盘点数量</th>
+                <th>差异数量</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="stocktakingDetailLoading">
+                <td colspan="8" class="approval-empty">正在加载盘点明细...</td>
+              </tr>
+              <tr v-else-if="!stocktakingDetailRows.length">
+                <td colspan="8" class="approval-empty">所选范围内暂无库存商品</td>
+              </tr>
+              <tr v-for="row in stocktakingDetailRows" v-else :key="row.itemId">
+                <td class="code-cell">{{ row.productCode }}</td>
+                <td>{{ row.productName }}</td>
+                <td>{{ row.specModel || '-' }}</td>
+                <td>{{ row.manufacturerName || '-' }}</td>
+                <td>{{ row.unit || '-' }}</td>
+                <td class="number-cell">{{ row.systemQty }}</td>
+                <td>
+                  <input
+                    v-model.number="row.actualQty"
+                    class="stocktaking-qty-input"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    placeholder="待盘点"
+                  />
+                </td>
+                <td class="number-cell" :class="{ profit: stocktakingRowDiff(row) !== null && Number(stocktakingRowDiff(row)) < 0, loss: stocktakingRowDiff(row) !== null && Number(stocktakingRowDiff(row)) > 0 }">
+                  {{ stocktakingRowDiff(row) == null ? '-' : stocktakingRowDiff(row) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dialog-actions">
+          <button class="btn" type="button" @click="stocktakingDetailOpen = false">关闭</button>
+          <button class="btn btn-primary" type="button" :disabled="stocktakingDetailSaving" @click="saveStocktakingDetail">
+            <Save :size="15" />
+            {{ stocktakingDetailSaving ? '保存中...' : '保存盘点数量' }}
+          </button>
+        </div>
+      </section>
+    </div>
   </section>
 </template>

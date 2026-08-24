@@ -64,6 +64,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
   const warehouseForm = ref<WarehousePayload>(emptyWarehouseForm())
   const warehouseProductOptions = ref<WarehouseProductOption[]>([])
   const warehouseProductOptionsLoading = ref(false)
+  const departmentOptions = ref<Array<{ deptCode: string; deptName: string }>>([])
   const departmentWarehouseDialogOpen = ref(false)
   const departmentWarehouseLoading = ref(false)
   const departmentWarehouseSaving = ref(false)
@@ -608,12 +609,21 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     }
   }
 
+  async function loadDepartmentOptions() {
+    try {
+      const options = await fetchClosureOptions()
+      departmentOptions.value = options.departments
+    } catch {
+      departmentOptions.value = []
+    }
+  }
+
   async function openCreateWarehouse() {
     deps.clearActionState()
     deps.warehouseDialogMode.value = 'create'
     warehouseForm.value = emptyWarehouseForm()
     deps.warehouseDialogOpen.value = true
-    await Promise.all([loadCampusOptions(), loadWarehouseProductOptions()])
+    await Promise.all([loadCampusOptions(), loadWarehouseProductOptions(), loadDepartmentOptions()])
   }
 
   async function openEditWarehouse(row = deps.selectedWarehouse.value, requireSelected = true) {
@@ -639,7 +649,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     deps.warehouseDialogOpen.value = true
     try {
       const [, products] = await Promise.all([
-        Promise.all([loadCampusOptions(), loadWarehouseProductOptions()]),
+        Promise.all([loadCampusOptions(), loadWarehouseProductOptions(), loadDepartmentOptions()]),
         fetchWarehouseProducts(warehouseCode)
       ])
       warehouseForm.value.productCodes = products.map((product) => product.productCode)
@@ -837,6 +847,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     warehouseLocationEditingId,
     warehouseProductOptions,
     warehouseProductOptionsLoading,
+    departmentOptions,
     activeWarehouseForLocations,
     loadCampusOptions,
     openCreateCampus,

@@ -54,31 +54,42 @@ public class InventoryService {
 
     // ===== 公开方法 =====
 
+    /**
+     * 库存汇总查询：按库房与商品聚合散货余额，数量 = 散货数量（中心库散货）+ 在库定数包内的散货数量，
+     * 金额 = 数量 × 商品采购价。散货口径为无货位余额（location_id IS NULL），定数包口径为
+     * 在库标签（待打印/已打印可用）的 package_quantity 之和。
+     */
     public Map<String, Object> balances(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
-                 WHERE (bal.available_qty <> 0
-                    OR bal.locked_qty <> 0
-                    OR bal.in_transit_qty <> 0
-                    OR bal.isolated_qty <> 0)
+                 WHERE p.deleted = 0
                 """);
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "p.product_code", params.get("productCode"));
         appendLike(where, args, "p.product_name", params.get("productName"));
-        appendLike(where, args, "ib.system_batch_no", params.get("systemBatchNo"));
         appendLike(where, args, "d.dept_name", params.get("deptName"));
         appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
         appendLike(where, args, "s.supplier_name", params.get("supplierName"));
 
         String fromClause = """
-                  FROM inventory_balance bal
-                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
-                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
-                  JOIN product p ON p.product_id = bal.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
-                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
-                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                   FROM product p
+                   JOIN (
+                     SELECT warehouse_id, product_id, SUM(available_qty) AS loose_qty
+                       FROM inventory_balance
+                      WHERE location_id IS NULL
+                      GROUP BY warehouse_id, product_id
+                   ) lo ON lo.product_id = p.product_id
+                   LEFT JOIN (
+                     SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty
+                       FROM quota_package_label
+                      WHERE status IN ('pending_print', 'available')
+                      GROUP BY warehouse_id, product_id
+                   ) qp ON qp.warehouse_id = lo.warehouse_id AND qp.product_id = lo.product_id
+                   JOIN warehouse w ON w.warehouse_id = lo.warehouse_id
+                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
+                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
+                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
                 """;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
 
@@ -86,28 +97,16 @@ public class InventoryService {
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT bal.balance_id AS balanceId, w.warehouse_name AS warehouseName,
+                SELECT w.warehouse_name AS warehouseName,
                        COALESCE(d.dept_name, '-') AS deptName,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(p.registration_no, '-') AS registrationNo,
-                       ib.batch_unit_price AS unitPrice, p.unit AS unit,
-                       bal.available_qty AS qty,
-                       ROUND(bal.available_qty * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
+                       COALESCE(p.purchase_price, 0) AS unitPrice, p.unit AS unit,
+                       ROUND(lo.loose_qty + COALESCE(qp.packaged_qty, 0), 4) AS qty,
+                       ROUND((lo.loose_qty + COALESCE(qp.packaged_qty, 0)) * COALESCE(p.purchase_price, 0), 2) AS amount,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       COALESCE(s.supplier_name, '-') AS supplierName,
-                       ib.system_batch_no AS systemBatchNo, ib.production_batch_no AS productionBatchNo,
-                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
-                       bal.locked_qty AS lockedQty, bal.in_transit_qty AS inTransitQty,
-                       bal.isolated_qty AS isolatedQty, ib.ownership_type AS ownershipType,
-                       ib.settlement_mode AS settlementMode, DATE_FORMAT(bal.update_time, '%Y-%m-%d %H:%i') AS updateTime
-                  FROM inventory_balance bal
-                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
-                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
-                  JOIN product p ON p.product_id = bal.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
-                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
-                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
-                """ + where + " ORDER BY bal.update_time DESC LIMIT ? OFFSET ?",
+                       COALESCE(s.supplier_name, '-') AS supplierName
+                """ + fromClause + where + " ORDER BY w.warehouse_name, p.product_code LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         Map<String, Object> summary = jdbcTemplate.queryForMap("""
@@ -385,6 +384,136 @@ public class InventoryService {
         return Map.of("stocktakingNo", stocktakingNo, "diffQty", diffQty);
     }
 
+    /**
+     * 新增盘点表：按所选商品范围（高值耗材/可收费耗材/不可收费耗材/定数包）生成该库房散货商品的
+     * 盘点明细，库存数量 = 无货位可用余额合计；盘点数量由盘点人录入，差异数量 = 库存数量 - 盘点数量。
+     */
+    @Transactional
+    public Map<String, Object> createStocktakingSheet(StocktakingSheetRequest request) {
+        if (request == null || request.scopes() == null || request.scopes().isEmpty()) {
+            throw new IllegalArgumentException("请至少选择一个盘点商品范围");
+        }
+        Long warehouseId = jdbcTemplate.queryForObject("""
+                SELECT warehouse_id FROM warehouse
+                 WHERE warehouse_name = ? AND deleted = 0 AND status = 1 LIMIT 1
+                """, Long.class, request.warehouseName().trim());
+        StringBuilder scopeWhere = new StringBuilder();
+        List<Object> scopeArgs = new ArrayList<>();
+        for (String scope : request.scopes()) {
+            String condition = switch (scope.trim()) {
+                case "highValue" -> "p.is_high_value = 1";
+                case "chargeable" -> "p.is_chargeable = 1";
+                case "nonChargeable" -> "p.is_chargeable = 0";
+                case "quotaPackage" -> "p.is_quota_managed = 1";
+                default -> null;
+            };
+            if (condition != null) {
+                if (scopeWhere.length() > 0) {
+                    scopeWhere.append(" OR ");
+                }
+                scopeWhere.append("(").append(condition).append(")");
+            }
+        }
+        if (scopeWhere.length() == 0) {
+            throw new IllegalArgumentException("盘点商品范围不正确");
+        }
+        List<Map<String, Object>> balances = jdbcTemplate.queryForList("""
+                SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       p.unit, SUM(bal.available_qty) AS systemQty
+                  FROM inventory_balance bal
+                  JOIN product p ON p.product_id = bal.product_id AND p.deleted = 0 AND p.status = 1
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                 WHERE bal.warehouse_id = ? AND bal.location_id IS NULL AND bal.available_qty > 0
+                   AND (
+                """ + scopeWhere + " ) GROUP BY p.product_id, p.product_code, p.product_name, p.spec_model, m.manufacturer_name, p.unit ORDER BY p.product_code",
+                prepend(warehouseId, scopeArgs));
+
+        String stocktakingNo = support.nextNo(INVENTORY_STOCKTAKING);
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                    INSERT INTO inventory_stocktaking (stocktaking_no, warehouse_id, dept_name, stocktaking_type, status, reason)
+                    VALUES (?, ?, ?, '范围盘点', 'draft', NULL)
+                    """, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, stocktakingNo);
+            ps.setLong(2, warehouseId);
+            ps.setString(3, nullIfBlank(request.deptName()));
+            return ps;
+        }, keyHolder);
+        Long stocktakingId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+        for (Map<String, Object> balance : balances) {
+            jdbcTemplate.update("""
+                    INSERT INTO inventory_stocktaking_item (
+                      stocktaking_id, balance_id, product_id, batch_id, system_qty, actual_qty, diff_qty, diff_reason
+                    ) VALUES (?, NULL, ?, NULL, ?, NULL, NULL, NULL)
+                    """, stocktakingId, ((Number) balance.get("productId")).longValue(),
+                    (BigDecimal) balance.get("systemQty"));
+        }
+        writeAudit("create_stocktaking_sheet", stocktakingId, stocktakingNo,
+                "create scope stocktaking sheet with scopes " + request.scopes());
+        return Map.of("stocktakingNo", stocktakingNo, "rowCount", balances.size());
+    }
+
+    /** 盘点表明细：商品、库存数量、盘点数量；差异数量由库存数量减盘点数量计算得出。 */
+    public Map<String, Object> stocktakingItems(String stocktakingNo) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT si.item_id AS itemId, p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       p.unit, si.system_qty AS systemQty, si.actual_qty AS actualQty,
+                       si.diff_qty AS diffQty
+                  FROM inventory_stocktaking st
+                  JOIN inventory_stocktaking_item si ON si.stocktaking_id = st.stocktaking_id
+                  JOIN product p ON p.product_id = si.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                 WHERE st.stocktaking_no = ?
+                 ORDER BY si.item_id
+                """, stocktakingNo.trim());
+        if (rows.isEmpty()) {
+            throw new IllegalArgumentException("盘点表不存在或没有明细");
+        }
+        return Map.of("rows", rows);
+    }
+
+    /** 保存盘点数量：写入实盘数量并计算差异（差异 = 实盘 - 库存，正数盘盈负数盘亏）。 */
+    @Transactional
+    public Map<String, Object> updateStocktakingItems(String stocktakingNo, StocktakingItemsUpdateRequest request) {
+        Map<String, Object> doc = jdbcTemplate.queryForMap("""
+                SELECT stocktaking_id AS stocktakingId, status
+                  FROM inventory_stocktaking
+                 WHERE stocktaking_no = ?
+                 FOR UPDATE
+                """, stocktakingNo.trim());
+        if (!"draft".equals(String.valueOf(doc.get("status")))) {
+            throw new IllegalArgumentException("盘点表已复核，不能再保存盘点数量");
+        }
+        if (request.items() == null || request.items().isEmpty()) {
+            throw new IllegalArgumentException("请至少填写一条盘点数量");
+        }
+        int updated = 0;
+        for (StocktakingItemsUpdateRequest.Item item : request.items()) {
+            if (item == null || item.itemId() == null) {
+                continue;
+            }
+            BigDecimal actualQty = item.actualQty() == null ? BigDecimal.ZERO : item.actualQty();
+            int changed = jdbcTemplate.update("""
+                    UPDATE inventory_stocktaking_item si
+                    JOIN inventory_stocktaking st ON st.stocktaking_id = si.stocktaking_id
+                       SET si.actual_qty = ?, si.diff_qty = ? - si.system_qty
+                     WHERE st.stocktaking_no = ? AND si.item_id = ? AND st.status = 'draft'
+                    """, actualQty, actualQty, stocktakingNo.trim(), item.itemId());
+            updated += changed;
+        }
+        return Map.of("stocktakingNo", stocktakingNo, "updatedRows", updated);
+    }
+
+    private static Object[] prepend(Object first, List<Object> rest) {
+        List<Object> args = new ArrayList<>();
+        args.add(first);
+        args.addAll(rest);
+        return args.toArray();
+    }
+
     @Transactional
     public Map<String, Object> approveStocktaking(String stocktakingNo) {
         OperatorContext operator = operatorContextProvider.current();
@@ -409,9 +538,30 @@ public class InventoryService {
             if (diffQty == null || diffQty.compareTo(BigDecimal.ZERO) == 0) {
                 continue;
             }
+            Long productId = ((Number) item.get("productId")).longValue();
+            if (item.get("balanceId") == null) {
+                // 范围盘点明细按商品汇总：盘亏按 FIFO 扣减，盘盈计入该商品最近批次
+                if (diffQty.compareTo(BigDecimal.ZERO) < 0) {
+                    support.consumeAvailableFifo(((Number) doc.get("warehouseId")).longValue(), productId,
+                            diffQty.negate(), "stocktaking_loss", "inventory_stocktaking",
+                            ((Number) doc.get("stocktakingId")).longValue(),
+                            "stocktaking approval generated inventory adjustment");
+                } else {
+                    Long batchId = jdbcTemplate.queryForObject("""
+                            SELECT batch_id FROM inventory_batch
+                             WHERE product_id = ?
+                             ORDER BY batch_id DESC LIMIT 1
+                            """, Long.class, productId);
+                    support.receiveAvailable(((Number) doc.get("warehouseId")).longValue(), productId, batchId,
+                            diffQty, "stocktaking_profit", "inventory_stocktaking",
+                            ((Number) doc.get("stocktakingId")).longValue(),
+                            "stocktaking approval generated inventory adjustment");
+                }
+                continue;
+            }
             support.adjustAvailable(((Number) item.get("balanceId")).longValue(),
                     ((Number) doc.get("warehouseId")).longValue(),
-                    ((Number) item.get("productId")).longValue(),
+                    productId,
                     ((Number) item.get("batchId")).longValue(),
                     diffQty,
                     diffQty.compareTo(BigDecimal.ZERO) >= 0 ? "stocktaking_profit" : "stocktaking_loss",
@@ -486,6 +636,7 @@ public class InventoryService {
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT st.stocktaking_no AS stocktakingNo, w.warehouse_name AS warehouseName,
+                       st.dept_name AS deptName,
                        st.stocktaking_type AS stocktakingType, st.status, st.reason,
                        DATE_FORMAT(st.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        COALESCE(SUM(si.diff_qty), 0) AS diffQty

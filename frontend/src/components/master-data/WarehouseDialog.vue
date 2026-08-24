@@ -20,7 +20,6 @@ const props = defineProps<{
 const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库'] as const
 
 const productKeyword = ref('')
-const deptKeyword = ref('')
 const deptResultsOpen = ref(false)
 
 const warehouseTypeOptions = computed(() => {
@@ -32,7 +31,7 @@ const warehouseTypeOptions = computed(() => {
 })
 
 const filteredDepartments = computed(() => {
-  const keyword = deptKeyword.value.trim().toLowerCase()
+  const keyword = String(props.form.deptName ?? '').trim().toLowerCase()
   if (!keyword) return props.departmentOptions
   return props.departmentOptions.filter((dept) =>
     String(dept.deptName ?? '').toLowerCase().includes(keyword) ||
@@ -52,7 +51,6 @@ const filteredProducts = computed(() => {
 watch(() => props.open, (open) => {
   if (open) {
     productKeyword.value = ''
-    deptKeyword.value = ''
     deptResultsOpen.value = false
   }
 })
@@ -64,7 +62,6 @@ function searchDepartments() {
 function pickDepartment(deptName: string) {
   props.form.deptName = deptName
   deptResultsOpen.value = false
-  deptKeyword.value = ''
 }
 
 function toggleAllFiltered() {
@@ -126,9 +123,10 @@ const emit = defineEmits<{
           <div class="dept-search">
             <div class="dept-search-input">
               <input
-                v-model.trim="deptKeyword"
+                v-model.trim="form.deptName"
                 placeholder="输入科室名称，回车或点击放大镜搜索"
                 @keyup.enter="searchDepartments"
+                @input="searchDepartments"
                 @focus="searchDepartments"
               />
               <button class="btn-icon" type="button" aria-label="搜索科室" @click="searchDepartments">

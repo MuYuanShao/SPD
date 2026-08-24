@@ -39,6 +39,13 @@
 - 验证方式：前端 vue-tsc + vite 构建通过；Playwright 回归用例实测通过（点选回填、关键字过滤选择均断言成功）。
 - 负责人：Admin
 
+## 2026-08-24 - fix/warehouse-location-product-search
+
+- 修改内容：修复货位维护弹窗"固定商品编码"搜索：原实现输入框绑定 form.productCode 但候选过滤用未赋值的临时关键字，导致输入商品信息不过滤候选列表；改为组合框模式——输入框直接绑定并显示所选商品编码，输入时实时按编码/名称/规格过滤医院目录候选（不匹配信息被屏蔽），回车/放大镜/聚焦均可打开候选列表；同时修复直接点击"维护货位"未加载医院目录商品选项的问题（打开弹窗时并行加载 fetchWarehouseProductOptions）；新增回归用例 tests/e2e/warehouse-location-product-search.spec.ts（聚焦选点回填、关键字过滤屏蔽断言）。
+- 影响范围：WarehouseLocationDialog.vue、useOrganizationMasterData.ts、tests/e2e/warehouse-location-product-search.spec.ts。
+- 验证方式：前端 vue-tsc + vite 构建通过；Playwright 回归用例实测通过（点选回填、HC021 过滤候选全部匹配断言成功）。
+- 负责人：Admin
+
 ## 2026-08-21 - feat/full-flow-extended-chain
 
 - 修改内容：scripts/verify-full-flow.mjs 扩展为覆盖完整业务主链的 53 步端到端验证：新增医院目录（新品准入）→ 多步审批至最终通过（循环推进审批步骤）→ 定数包模板维护 → 库房商品绑定/科室库房目录维护 → 采购订单（创建→提交→审批→发送）→ 收货验收（exchange/isAgent 新字段回显）→ 库存三页签 → 定数包打包/按验收单部分30/全部60分配/确认10标签/打印 → 低值定数包唯一码/UDI 追溯记录 → 高值链路（收货→2唯一码→计费回传×2→收费明细→唯一码退出在库）→ 盘点(盘亏-3)/调价/召回 → 科室申领审批 → 字段管理/交易流水/UDI/工作台/operator01 权限回归；每轮自动生成全新商品/模板/单据，支持重复运行。

@@ -706,7 +706,8 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     activeWarehouseForLocations.value = row
     warehouseLocationDialogOpen.value = true
     resetWarehouseLocationForm()
-    await loadWarehouseLocations()
+    // 固定商品编码搜索范围为医院目录：打开弹窗时确保商品选项已加载
+    await Promise.all([loadWarehouseLocations(), loadWarehouseProductOptions()])
   }
 
   async function loadWarehouseLocations() {

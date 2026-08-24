@@ -20,7 +20,6 @@ const props = defineProps<{
 
 const LOCATION_TYPES = ['整件货位', '散货货位', '试剂货位'] as const
 
-const productKeyword = ref('')
 const productResultsOpen = ref(false)
 
 const locationTypeOptions = computed(() => {
@@ -32,7 +31,7 @@ const locationTypeOptions = computed(() => {
 })
 
 const filteredProducts = computed(() => {
-  const keyword = productKeyword.value.trim().toLowerCase()
+  const keyword = String(props.form.productCode ?? '').trim().toLowerCase()
   if (!keyword) return props.productOptions.slice(0, 50)
   return props.productOptions
     .filter((product) =>
@@ -44,7 +43,6 @@ const filteredProducts = computed(() => {
 
 watch(() => props.open, (open) => {
   if (open) {
-    productKeyword.value = ''
     productResultsOpen.value = false
   }
 })
@@ -56,7 +54,6 @@ function searchProducts() {
 function pickProduct(product: WarehouseProductOption) {
   props.form.productCode = product.productCode
   productResultsOpen.value = false
-  productKeyword.value = ''
 }
 
 const emit = defineEmits<{
@@ -111,6 +108,7 @@ const emit = defineEmits<{
                   v-model.trim="form.productCode"
                   placeholder="输入编码，回车或点击放大镜搜索医院目录"
                   @keyup.enter="searchProducts"
+                  @input="searchProducts"
                   @focus="searchProducts"
                 />
                 <button class="btn-icon" type="button" aria-label="搜索固定商品" @click="searchProducts">

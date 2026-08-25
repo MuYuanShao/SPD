@@ -109,6 +109,7 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '国产产品', value: yesNo(item.domestic) },
         { label: '收费项目', value: yesNo(item.chargeable) },
         { label: '高值耗材', value: yesNo(item.highValue) },
+        { label: '重点监控', value: yesNo(item.keyMonitored) },
         { label: '冷链管理', value: yesNo(item.coldChain) },
         { label: '储存条件', value: displayValue(item.storageCondition) }
       ]

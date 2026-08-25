@@ -455,6 +455,20 @@ class QuotaTemplateServiceTest {
     }
 
     @Test
+    @DisplayName("查询申领目录——统一支持高值唯一码模式")
+    void shouldQueryHighValueRequisitionCatalog() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                .thenReturn(List.of(Map.of("productCode", "HV001", "defaultMode", "unique_code")));
+
+        List<Map<String, Object>> result = rows(service.requisitionCatalog(Map.of("mode", "unique_code")));
+
+        assertThat(result.get(0)).containsEntry("defaultMode", "unique_code");
+        verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("p.is_high_value AS highValue")
+                && sql.contains("uniqueCodeAvailableQty") && sql.contains("p.is_high_value = 1")), any(Object[].class));
+    }
+
+    @Test
     @DisplayName("查询申领目录——无数据返回空列表")
     void shouldReturnEmptyCatalog() {
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class)))

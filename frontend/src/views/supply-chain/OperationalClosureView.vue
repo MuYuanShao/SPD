@@ -2,7 +2,9 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
+  Activity,
   AlertTriangle,
+  Building2,
   CheckCircle2,
   ClipboardCheck,
   FileCheck2,
@@ -11,6 +13,9 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  ScanLine,
+  Search,
+  ShieldCheck,
   Smartphone,
   Truck,
   X
@@ -20,7 +25,6 @@ import {
   bindHighValuePatient,
   confirmLoosePicking,
   confirmPicking,
-  confirmSettlement,
   createColdChainException,
   createConsumption,
   createDelivery,
@@ -35,6 +39,7 @@ import {
   fetchPickingRequisitions,
   fetchPickingUniqueCodes,
   fetchRecallBatches,
+  fetchRecallInventory,
   processRequisition,
   generateShortage,
   receiveHighValueBillingCallback,
@@ -46,7 +51,7 @@ import {
   type ClosureOptions,
   type PackageLabelDetail
 } from '../../api/operationalClosure'
-import { fetchDepartmentWarehouses } from '../../api/masterData'
+import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
@@ -60,10 +65,11 @@ const selectedPickingRequisitionNo = ref('')
 const selectedPickingItemId = ref('')
 const selectedPickingItemType = ref('loose')
 const selectedPickingLabels = ref<string[]>([])
+const pickingPackageScanCode = ref('')
 const pickingUniqueCodeRows = ref<Array<Record<string, unknown>>>([])
 const selectedPickingUniqueCodes = ref<string[]>([])
 const pickingLooseRows = ref<Array<Record<string, unknown> & { pickQty?: number }>>([])
-const linkedWarehouses = ref<Array<{ code: string; name: string; selected?: boolean | number }>>([])
+const linkedWarehouses = ref<DepartmentWarehouseRelation[]>([])
 const summary = ref<Record<string, number>>({})
 const analysisDialogOpen = ref(false)
 const analysisLoading = ref(false)
@@ -116,6 +122,9 @@ const consumptionResolving = ref(false)
 const recallBatches = ref<Array<Record<string, unknown>>>([])
 const recallBatchesLoading = ref(false)
 const recallBatchId = ref<number | null>(null)
+const recallScope = ref<'all' | 'primary' | 'secondary' | 'tertiary'>('all')
+const recallBatchNo = ref('')
+const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
 const pageCode = computed(() => String(route.meta.operationalType || route.params.code))
 const type = computed(() => {
@@ -130,11 +139,12 @@ const type = computed(() => {
   if (['high-value-consumables'].includes(pageCode.value)) return 'high-value'
   return 'shortage'
 })
+const isRecallPage = computed(() => pageCode.value === 'recall-isolation')
 const titleMap: Record<string, string> = {
   shortage: '缺货补货闭环',
   delivery: '拣配配送',
   requisition: '科室申领',
-  consumption: '科室消耗 / 反消耗 / 红冲',
+  consumption: '科室消耗',
   settlement: '结算对账 / 供应商明细口径',
   pda: 'PDA 基础作业与离线补传',
   risk: '冷链异常 / 召回隔离',
@@ -147,6 +157,7 @@ const subtitle = computed(() => {
   if (type.value === 'risk') return '登记冷链异常与召回隔离事件，形成合规追踪入口。'
   if (type.value === 'pda') return '模拟 PDA 离线作业补传，记录设备、作业类型与回放状态。'
   if (type.value === 'delivery') return '中心库按科室申领单拣配定数包，绑定申领明细后出一级库。'
+  if (type.value === 'consumption') return '面向科室库房的扫码消耗工作台，支持定数包、UDI、唯一码登记及反消耗追溯。'
   return '围绕库存、申领、配送、消耗和财务事实形成可追溯业务流水。'
 })
 const stats = computed(() => [
@@ -155,11 +166,24 @@ const stats = computed(() => [
   { label: '消耗单据', value: summary.value.consumptions ?? 0 },
   { label: '风险事件', value: summary.value.riskEvents ?? 0 }
 ])
+const consumptionStats = computed(() => [
+  { label: '本页消耗记录', value: rows.value.length, icon: 'records' },
+  { label: '已确认', value: rows.value.filter(row => String(row.status) === 'confirmed').length, icon: 'confirmed' },
+  { label: '已红冲', value: rows.value.filter(row => ['reversed', 'red_flushed'].includes(String(row.status))).length, icon: 'reversed' },
+  { label: '本页消耗数量', value: rows.value.reduce((sum, row) => sum + Number(row.quantity || 0), 0), icon: 'quantity' }
+])
+const displayStats = computed(() => type.value === 'consumption'
+  ? consumptionStats.value
+  : stats.value.map(item => ({ ...item, icon: '' })))
 
 const replenishmentDayOptions = [5, 7, 15, 30]
 const selectedDepartment = computed(() => options.value.departments.find(item => item.deptName === form.deptName))
 const warehouseChoices = computed(() => {
   if (type.value === 'delivery') return primaryWarehouses.value
+  if (isRecallPage.value) {
+    const pattern = recallScope.value === 'primary' ? /一级|中心/ : recallScope.value === 'secondary' ? /二级/ : /三级/
+    return options.value.warehouses.filter(item => pattern.test(String(item.warehouseType || '')))
+  }
   if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
     return linkedWarehouses.value.map(item => ({ warehouseName: item.name }))
   }
@@ -345,6 +369,21 @@ function togglePickingLabel(labelNo: string, checked: boolean) {
   selectedPickingLabels.value = [...next]
 }
 
+function scanPickingPackage() {
+  const code = pickingPackageScanCode.value.trim()
+  if (!code) return
+  const matched = pickingPackageRows.value.find(row => String(row.labelNo || '').toLowerCase() === code.toLowerCase())
+  if (!matched) {
+    message.value = `定数包码 ${code} 不属于当前申请商品或不在所选一级库`
+    return
+  }
+  if (!selectedPickingLabels.value.includes(String(matched.labelNo))) {
+    selectedPickingLabels.value = [...selectedPickingLabels.value, String(matched.labelNo)]
+  }
+  pickingPackageScanCode.value = ''
+  message.value = `已扫码选中定数包：${matched.labelNo}`
+}
+
 function togglePickingUniqueCode(code: string, checked: boolean) {
   const next = new Set(selectedPickingUniqueCodes.value)
   if (checked) {
@@ -504,6 +543,44 @@ async function loadRecallBatches() {
   }
 }
 
+async function loadRecallInventory() {
+  recallInventoryRows.value = []
+  if (!isRecallPage.value || !form.productCode) return
+  if (recallScope.value !== 'all' && !form.warehouseName) return
+  recallBatchesLoading.value = true
+  try {
+    const result = await fetchRecallInventory({
+      productCode: form.productCode,
+      scope: recallScope.value,
+      warehouseName: recallScope.value === 'all' ? '' : form.warehouseName
+    })
+    recallInventoryRows.value = result.rows || []
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '召回范围库存加载失败'
+  } finally {
+    recallBatchesLoading.value = false
+  }
+}
+
+async function applyRecallScope() {
+  recallBatchNo.value = ''
+  if (recallScope.value === 'all') {
+    form.warehouseName = ''
+    await loadRecallInventory()
+    return
+  }
+  if (recallScope.value === 'primary') {
+    form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
+    await loadRecallInventory()
+    return
+  }
+  await loadLinkedWarehouses()
+  const typePattern = recallScope.value === 'secondary' ? /二级/ : recallScope.value === 'tertiary' ? /三级/ : /一级|中心/
+  const matched = linkedWarehouses.value.find(item => typePattern.test(String(item.type || '')))
+  form.warehouseName = matched?.name || ''
+  await loadRecallInventory()
+}
+
 async function runAction(action: string, row?: Record<string, unknown>) {
   let result: Record<string, unknown> = {}
   if (action === 'shortage') {
@@ -542,10 +619,6 @@ async function runAction(action: string, row?: Record<string, unknown>) {
     result = await reverseConsumption(String(row?.bizNo || form.consumptionNo))
     message.value = `反消耗红冲已生成：${result.flushNo}`
   }
-  if (action === 'confirmSettlement') {
-    result = await confirmSettlement(String(row?.bizNo || ''))
-    message.value = `结算单已确认：${result.settlementNo}`
-  }
   if (action === 'pda') {
     result = await uploadPdaOffline(form)
     message.value = `PDA 离线记录已补传：${result.recordNo}`
@@ -555,8 +628,15 @@ async function runAction(action: string, row?: Record<string, unknown>) {
     message.value = `冷链异常已登记：${result.eventNo}`
   }
   if (action === 'recall') {
-    result = await createRecall({ ...form, batchId: recallBatchId.value })
-    message.value = `召回隔离已登记：${result.recallNo}，库存已按所选批次扣减`
+    result = await createRecall({
+      scope: recallScope.value,
+      deptName: recallScope.value === 'all' ? undefined : form.deptName,
+      warehouseName: recallScope.value === 'all' ? undefined : form.warehouseName,
+      productCode: form.productCode,
+      batchNo: recallBatchNo.value,
+      reason: form.reason
+    })
+    message.value = `召回隔离已完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -638,7 +718,8 @@ watch(() => form.deptName, () => {
     loadLinkedWarehouses()
   }
   if (type.value === 'risk') {
-    loadRecallBatches()
+    if (isRecallPage.value) void applyRecallScope()
+    else loadRecallBatches()
   }
 })
 watch(() => form.warehouseName, () => {
@@ -647,18 +728,20 @@ watch(() => form.warehouseName, () => {
     loadPickingLabels()
   }
   if (type.value === 'risk') {
-    loadRecallBatches()
+    if (isRecallPage.value) loadRecallInventory()
+    else loadRecallBatches()
   }
 })
 watch(() => form.productCode, () => {
   if (type.value === 'risk') {
-    loadRecallBatches()
+    if (isRecallPage.value) loadRecallInventory()
+    else loadRecallBatches()
   }
 })
 </script>
 
 <template>
-  <section class="purchase-page closure-page">
+  <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption' }">
     <div class="breadcrumb-line">
       <span>一期上线闭环</span>
       <strong>{{ title }}</strong>
@@ -666,6 +749,10 @@ watch(() => form.productCode, () => {
 
     <div class="detail-heading">
       <div>
+        <div v-if="type === 'consumption'" class="consumption-eyebrow">
+          <ShieldCheck :size="14" />
+          科室库存闭环
+        </div>
         <p>第 6-10 批业务闭环</p>
         <h2>{{ title }}</h2>
         <small>{{ subtitle }}</small>
@@ -677,28 +764,53 @@ watch(() => form.productCode, () => {
     </div>
 
     <div v-if="type !== 'delivery'" class="foundation-stat-grid closure-stat-grid">
-      <article v-for="item in stats" :key="item.label">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
+      <article v-for="item in displayStats" :key="item.label">
+        <i v-if="type === 'consumption'" class="consumption-stat-icon" :class="`is-${item.icon}`">
+          <Activity v-if="item.icon === 'records'" :size="20" />
+          <CheckCircle2 v-else-if="item.icon === 'confirmed'" :size="20" />
+          <RotateCcw v-else-if="item.icon === 'reversed'" :size="20" />
+          <PackageCheck v-else :size="20" />
+        </i>
+        <div>
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </div>
       </article>
     </div>
 
     <p v-if="message" class="inline-message">{{ message }}</p>
     <p v-if="type === 'settlement'" class="inline-message">结算数据在验收入库、科室消耗或患者计费达到批次结算点时自动生成，无需人工生成。</p>
 
-    <section v-if="type !== 'settlement'" class="hospital-catalog-panel">
-      <div class="section-title">
-        <ClipboardCheck :size="20" />
-        <h3>业务动作</h3>
+    <section v-if="type !== 'settlement'" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption' }">
+      <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
+        <template v-if="type === 'consumption'">
+          <i class="consumption-section-icon"><ScanLine :size="20" /></i>
+          <div>
+            <h3>消耗登记</h3>
+            <p class="consumption-section-description">扫描追溯码定位耗材，系统将实时校验科室库房库存</p>
+          </div>
+          <span class="consumption-live-badge"><span></span>实时库存校验</span>
+        </template>
+        <template v-else>
+          <ClipboardCheck :size="20" />
+          <h3>业务动作</h3>
+        </template>
       </div>
-      <div class="hospital-query-grid closure-form-grid">
-        <label>
+      <div class="hospital-query-grid closure-form-grid" :class="{ 'consumption-form-grid': type === 'consumption' }">
+        <label v-if="isRecallPage">
+          <span>召回范围</span>
+          <select v-model="recallScope" @change="applyRecallScope">
+            <option value="all">全部</option><option value="primary">一级库</option>
+            <option value="secondary">二级库</option><option value="tertiary">三级库</option>
+          </select>
+        </label>
+        <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
           <span>科室</span>
           <select v-model="form.deptName">
             <option v-for="item in options.departments" :key="item.deptName" :value="item.deptName">{{ item.deptName }}</option>
           </select>
         </label>
-        <label>
+        <label v-if="!isRecallPage || recallScope !== 'all'" :class="{ 'consumption-grid-warehouse': type === 'consumption' }">
           <span>库房</span>
           <select v-model="form.warehouseName">
             <option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option>
@@ -713,8 +825,8 @@ watch(() => form.productCode, () => {
           </select>
         </label>
         <template v-if="type === 'consumption'">
-          <label class="wide-field">
-            <span>定数包码 / UDI / 唯一码</span>
+          <label class="wide-field consumption-grid-code">
+            <span>扫码识别耗材</span>
             <div class="consumption-code-search">
               <input
                 v-model.trim="consumptionQueryCode"
@@ -727,19 +839,19 @@ watch(() => form.productCode, () => {
               </button>
             </div>
           </label>
-          <label v-if="consumptionResolved" class="wide-field">
-            <span>已定位商品</span>
+          <label v-if="consumptionResolved" class="wide-field consumption-grid-resolved">
+            <span>已识别耗材</span>
             <div class="consumption-resolved">
               <strong>{{ consumptionResolved.productCode }} / {{ consumptionResolved.productName }}</strong>
               <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}</small>
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type)"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
-          <label><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
-          <label>
+          <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
+          <label v-if="!isRecallPage">
             <span>召回批号</span>
             <select v-model.number="recallBatchId" :disabled="recallBatchesLoading || !recallBatches.length">
               <option :value="null" disabled>请先选择商品</option>
@@ -748,13 +860,17 @@ watch(() => form.productCode, () => {
               </option>
             </select>
           </label>
+          <label v-else>
+            <span>召回批号</span>
+            <input v-model.trim="recallBatchNo" placeholder="填写系统批号或生产批号" />
+          </label>
           <label class="wide-field">
             <span>召回原因</span>
             <input v-model.trim="form.reason" placeholder="填写召回原因" />
           </label>
         </template>
         <label v-if="type === 'high-value'"><span>患者号</span><input v-model="form.patientNo" /></label>
-        <label v-if="['requisition', 'delivery', 'consumption', 'high-value'].includes(type)" class="wide-field">
+        <label v-if="['requisition', 'delivery', 'consumption', 'high-value'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
           <span>高值唯一码</span>
           <input v-model.trim="form.uniqueCodes" placeholder="扫描或输入唯一码；多码用逗号分隔" />
         </label>
@@ -770,7 +886,8 @@ watch(() => form.productCode, () => {
           </label>
         </template>
       </div>
-      <div class="hospital-action-row">
+      <div class="hospital-action-row" :class="{ 'consumption-action-row': type === 'consumption' }">
+        <span v-if="type === 'consumption'" class="consumption-action-hint">登记后将同步扣减所选科室库房库存，并写入追溯记录</span>
         <button v-if="type === 'shortage'" class="btn btn-primary" type="button" @click="openSmartAnalysis">
           <AlertTriangle :size="18" />
           智能补货分析
@@ -795,11 +912,11 @@ watch(() => form.productCode, () => {
           <Smartphone :size="18" />
           离线补传
         </button>
-        <button v-if="type === 'risk'" class="btn btn-primary" type="button" @click="runAction('cold')">
+        <button v-if="type === 'risk' && !isRecallPage" class="btn btn-primary" type="button" @click="runAction('cold')">
           <AlertTriangle :size="18" />
           冷链异常
         </button>
-        <button v-if="type === 'risk'" class="btn" type="button" @click="runAction('recall')">
+        <button v-if="type === 'risk' && isRecallPage" class="btn btn-primary" type="button" @click="runAction('recall')">
           <RotateCcw :size="18" />
           召回隔离
         </button>
@@ -811,6 +928,21 @@ watch(() => form.productCode, () => {
           <FileCheck2 :size="18" />
           计费回传并扣减
         </button>
+      </div>
+
+      <div v-if="isRecallPage" class="table-scroll">
+        <table class="master-table purchase-detail-table">
+          <thead><tr><th>库房级别</th><th>库房</th><th>商品</th><th>规格</th><th>厂家</th><th>单位</th><th>单价</th><th>系统批号</th><th>生产批号</th><th>散货</th><th>定数包折散</th><th>合计</th></tr></thead>
+          <tbody>
+            <tr v-if="recallBatchesLoading"><td colspan="12" class="approval-empty">正在加载范围库存...</td></tr>
+            <tr v-else-if="!recallInventoryRows.length"><td colspan="12" class="approval-empty">当前范围暂无可召回库存</td></tr>
+            <tr v-for="row in recallInventoryRows" v-else :key="`${row.warehouseId}-${row.batchId}`">
+              <td>{{ row.warehouseType }}</td><td>{{ row.warehouseName }}</td><td>{{ row.productName }}</td><td>{{ row.specModel || '-' }}</td>
+              <td>{{ row.manufacturerName || '-' }}</td><td>{{ row.unit }}</td><td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
+              <td>{{ row.systemBatchNo }}</td><td>{{ row.productionBatchNo || '-' }}</td><td>{{ row.looseQty }}</td><td>{{ row.packageQty }}</td><td><strong>{{ row.totalQty }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div v-if="type === 'delivery'" class="picking-workbench">
@@ -910,6 +1042,10 @@ watch(() => form.productCode, () => {
             <h3>可用定数包</h3>
             <span v-if="selectedPickingItemType === 'loose'" class="muted-hint">申请类型为散货，可混合选择定数包</span>
           </div>
+          <div class="consumption-code-search picking-package-scan">
+            <input v-model.trim="pickingPackageScanCode" placeholder="扫描或输入定数包码" @keyup.enter="scanPickingPackage" />
+            <button class="btn" type="button" @click="scanPickingPackage"><Search :size="15" />扫码拣选</button>
+          </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
               <thead>
@@ -961,6 +1097,11 @@ watch(() => form.productCode, () => {
             <table class="master-table purchase-detail-table">
               <thead>
                 <tr>
+                  <th>商品名称</th>
+                  <th>规格型号</th>
+                  <th>厂家</th>
+                  <th>单位</th>
+                  <th>单价</th>
                   <th>系统批次</th>
                   <th>生产批号</th>
                   <th>有效期</th>
@@ -970,9 +1111,14 @@ watch(() => form.productCode, () => {
               </thead>
               <tbody>
                 <tr v-if="!pickingLooseRows.length">
-                  <td colspan="5" class="approval-empty">一级库没有该商品的可用散货</td>
+                  <td colspan="10" class="approval-empty">一级库没有该商品的可用散货</td>
                 </tr>
                 <tr v-for="row in pickingLooseRows" :key="String(row.balanceId)">
+                  <td><strong>{{ row.productName }}</strong><span class="muted-cell">{{ row.productCode }}</span></td>
+                  <td>{{ row.specModel || '-' }}</td>
+                  <td>{{ row.manufacturerName || '-' }}</td>
+                  <td>{{ row.unit || '-' }}</td>
+                  <td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
                   <td>{{ row.systemBatchNo }}</td>
                   <td>{{ row.productionBatchNo || '-' }}</td>
                   <td>{{ row.expireDate || '-' }}</td>
@@ -997,10 +1143,19 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
-    <section class="hospital-catalog-panel">
-      <div class="section-title">
-        <History :size="20" />
-        <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
+    <section class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
+      <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
+        <template v-if="type === 'consumption'">
+          <i class="consumption-section-icon is-history"><History :size="20" /></i>
+          <div>
+            <h3>消耗记录</h3>
+            <p class="consumption-section-description">按时间倒序展示登记、反消耗及红冲结果</p>
+          </div>
+        </template>
+        <template v-else>
+          <History :size="20" />
+          <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
+        </template>
       </div>
       <div v-if="type === 'settlement'" class="settlement-table-summary">
         <span>共 {{ totalItems }} 条结算明细</span>
@@ -1024,15 +1179,14 @@ watch(() => form.productCode, () => {
               <th class="settlement-col-finance">患者 / 财务科室</th>
               <th class="settlement-col-time">结算信息</th>
               <th class="settlement-col-status">状态</th>
-              <th class="settlement-col-action">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="15" class="approval-empty">正在加载结算明细...</td>
+              <td colspan="14" class="approval-empty">正在加载结算明细...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="15" class="approval-empty">暂无结算明细</td>
+              <td colspan="14" class="approval-empty">暂无结算明细</td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.settlementItemId)">
               <td class="settlement-col-document">
@@ -1099,31 +1253,19 @@ watch(() => form.productCode, () => {
               <td class="settlement-col-status">
                 <span class="status-badge" :class="row.status === 'pending_confirm' ? 'pending' : 'enabled'">{{ formatStatusText(row.status) }}</span>
               </td>
-              <td class="settlement-col-action">
-                <button
-                  v-if="row.status === 'pending_confirm'"
-                  class="settlement-confirm-btn"
-                  type="button"
-                  @click="runAction('confirmSettlement', { ...row, bizNo: row.settlementNo })"
-                >
-                  <CheckCircle2 :size="15" />
-                  确认
-                </button>
-                <span v-else class="settlement-confirmed-text"><CheckCircle2 :size="15" />已确认</span>
-              </td>
             </tr>
           </tbody>
         </table>
       </div>
       <div v-else class="table-scroll">
-        <table class="master-table purchase-table">
+        <table class="master-table purchase-table" :class="{ 'consumption-history-table': type === 'consumption' }">
           <thead>
             <tr>
-              <th>单据号</th>
-              <th>来源/科室</th>
+              <th>{{ type === 'consumption' ? '消耗单号' : '单据号' }}</th>
+              <th>{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</th>
               <th>商品编码</th>
               <th>商品名称</th>
-              <th>数量/金额</th>
+              <th>{{ type === 'consumption' ? '数量' : '数量/金额' }}</th>
               <th>状态</th>
               <th>时间</th>
               <th>操作</th>
@@ -1138,6 +1280,10 @@ watch(() => form.productCode, () => {
               <td>
                 <template v-if="type === 'delivery'">
                   {{ row.deptName || '-' }}
+                </template>
+                <template v-else-if="type === 'consumption'">
+                  <strong>{{ row.deptName || '-' }}</strong>
+                  <span class="muted-cell"><Building2 :size="13" />{{ row.warehouseName || '-' }}</span>
                 </template>
                 <template v-else>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</template>
               </td>
@@ -1158,6 +1304,7 @@ watch(() => form.productCode, () => {
                     </button>
                   </div>
                 </template>
+                <template v-else-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
                 <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
               </td>
               <td>
@@ -1168,7 +1315,12 @@ watch(() => form.productCode, () => {
                 </template>
                 <template v-else>{{ row.quantity || row.amount || '-' }}</template>
               </td>
-              <td><span class="status-badge pending">{{ formatStatusText(row.status) }}</span></td>
+              <td>
+                <span
+                  class="status-badge"
+                  :class="type === 'consumption' ? (row.status === 'confirmed' ? 'enabled' : ['reversed', 'red_flushed'].includes(String(row.status)) ? 'disabled' : 'pending') : 'pending'"
+                >{{ formatStatusText(row.status) }}</span>
+              </td>
               <td>{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
@@ -1389,3 +1541,430 @@ watch(() => form.productCode, () => {
     </div>
   </section>
 </template>
+
+<style scoped>
+.consumption-saas-page {
+  --consumption-blue: #1677ff;
+  --consumption-blue-deep: #0958d9;
+  --consumption-green: #16a36a;
+  --consumption-text: #172033;
+  --consumption-muted: #657086;
+  --consumption-border: #e5eaf0;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  gap: 24px;
+  padding: 24px;
+  color: var(--consumption-text);
+  background: #f5f7fa;
+  font-family: "Segoe UI Variable", "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.consumption-saas-page .breadcrumb-line {
+  margin: 0;
+  color: #8993a5;
+  font-size: 13px;
+}
+
+.consumption-saas-page .breadcrumb-line strong {
+  color: #465269;
+  font-weight: 500;
+}
+
+.consumption-saas-page .detail-heading {
+  box-sizing: border-box;
+  min-height: 112px;
+  margin: 0;
+  padding: 20px 24px;
+  border: 1px solid var(--consumption-border);
+  border-radius: 12px;
+  background: linear-gradient(115deg, #ffffff 0%, #ffffff 72%, #f0f7ff 100%);
+  box-shadow: 0 2px 8px rgb(31 50 79 / 4%);
+}
+
+.consumption-saas-page .detail-heading h2 {
+  margin: 6px 0 5px;
+  color: #111c2e;
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.consumption-saas-page .detail-heading small {
+  color: var(--consumption-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.consumption-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--consumption-blue-deep);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.consumption-saas-page .btn,
+.consumption-saas-page .hospital-query-grid input,
+.consumption-saas-page .hospital-query-grid select {
+  box-sizing: border-box;
+  min-height: 40px;
+  height: 40px;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+.consumption-saas-page .btn {
+  padding: 0 16px;
+  border-color: #d7dde7;
+  color: #33415c;
+  background: #fff;
+  font-weight: 550;
+}
+
+.consumption-saas-page .btn:hover {
+  border-color: #91caff;
+  color: var(--consumption-blue);
+  background: #f7fbff;
+}
+
+.consumption-saas-page .btn-primary {
+  border-color: var(--consumption-blue);
+  color: #fff;
+  background: var(--consumption-blue);
+  box-shadow: 0 2px 5px rgb(22 119 255 / 16%);
+}
+
+.consumption-saas-page .btn-primary:hover {
+  border-color: var(--consumption-blue-deep);
+  color: #fff;
+  background: var(--consumption-blue-deep);
+}
+
+.consumption-saas-page .closure-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.consumption-saas-page .closure-stat-grid article {
+  grid-column: span 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--consumption-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(31 50 79 / 3%);
+}
+
+.consumption-saas-page .closure-stat-grid article > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.consumption-saas-page .closure-stat-grid article span {
+  color: var(--consumption-muted);
+  font-size: 13px;
+}
+
+.consumption-saas-page .closure-stat-grid article strong {
+  color: #14213a;
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.consumption-stat-icon,
+.consumption-section-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--consumption-blue);
+  background: #eaf4ff;
+  font-style: normal;
+}
+
+.consumption-stat-icon.is-confirmed,
+.consumption-stat-icon.is-quantity {
+  color: var(--consumption-green);
+  background: #eaf8f2;
+}
+
+.consumption-stat-icon.is-reversed {
+  color: #7c879a;
+  background: #f0f2f5;
+}
+
+.consumption-saas-page .hospital-catalog-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: 24px;
+  border: 1px solid var(--consumption-border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(31 50 79 / 4%);
+}
+
+.consumption-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.consumption-section-title > div {
+  min-width: 0;
+}
+
+.consumption-section-title h3 {
+  margin: 0;
+  color: #172033;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.consumption-section-description {
+  display: block !important;
+  margin: 4px 0 0;
+  color: var(--consumption-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.consumption-section-icon.is-history {
+  color: var(--consumption-green);
+  background: #eaf8f2;
+}
+
+.consumption-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-left: auto;
+  padding: 5px 10px;
+  border: 1px solid #b7ebd3;
+  border-radius: 999px;
+  color: #087a4d;
+  background: #f0fbf6;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.consumption-live-badge > span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #20b878;
+  box-shadow: 0 0 0 3px rgb(32 184 120 / 12%);
+}
+
+.consumption-saas-page .consumption-form-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 20px 16px;
+  padding-top: 20px;
+  border-top: 1px solid #eef1f5;
+}
+
+.consumption-saas-page .consumption-form-grid > label {
+  min-width: 0;
+}
+
+.consumption-saas-page .consumption-form-grid > label > span {
+  margin-bottom: 8px;
+  color: #34415a;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.consumption-saas-page .consumption-form-grid input,
+.consumption-saas-page .consumption-form-grid select {
+  width: 100%;
+  border-color: #d8dee8;
+  color: #26334d;
+  background-color: #fff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.consumption-saas-page .consumption-form-grid input:focus,
+.consumption-saas-page .consumption-form-grid select:focus {
+  border-color: var(--consumption-blue);
+  outline: 0;
+  box-shadow: 0 0 0 3px rgb(22 119 255 / 10%);
+}
+
+.consumption-grid-dept,
+.consumption-grid-warehouse {
+  grid-column: span 3 !important;
+}
+
+.consumption-grid-code {
+  grid-column: span 6 !important;
+}
+
+.consumption-grid-resolved {
+  grid-column: span 6 !important;
+}
+
+.consumption-grid-quantity {
+  grid-column: span 2 !important;
+}
+
+.consumption-grid-unique {
+  grid-column: span 4 !important;
+}
+
+.consumption-saas-page .consumption-code-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.consumption-saas-page .consumption-resolved {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid #b7ebd3;
+  border-left: 3px solid var(--consumption-green);
+  border-radius: 8px;
+  color: #174c38;
+  background: #f4fbf7;
+}
+
+.consumption-saas-page .consumption-resolved small {
+  color: #587264;
+}
+
+.consumption-action-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #eef1f5;
+}
+
+.consumption-action-hint {
+  margin-right: auto;
+  color: #7b8597;
+  font-size: 12px;
+}
+
+.consumption-history-card .table-scroll {
+  overflow: auto;
+  border: 1px solid #e7ebf1;
+  border-radius: 10px;
+}
+
+.consumption-history-table {
+  min-width: 1050px;
+}
+
+.consumption-history-table thead th {
+  height: 44px;
+  border-bottom-color: #dfe5ed;
+  color: #45536b;
+  background: #f7f9fc;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.consumption-history-table tbody td {
+  height: 52px;
+  border-bottom-color: #edf0f4;
+  color: #34415a;
+  font-size: 13px;
+}
+
+.consumption-history-table tbody tr:hover td {
+  background: #f7fbff;
+}
+
+.consumption-history-table .muted-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: #7b8597;
+}
+
+.consumption-history-table .row-actions button {
+  color: var(--consumption-blue-deep);
+}
+
+.consumption-saas-page :deep(.pagination-controls) {
+  margin-top: 18px;
+}
+
+@media (max-width: 1200px) {
+  .consumption-saas-page .closure-stat-grid article {
+    grid-column: span 6;
+  }
+
+  .consumption-grid-dept,
+  .consumption-grid-warehouse {
+    grid-column: span 6 !important;
+  }
+
+  .consumption-grid-code,
+  .consumption-grid-resolved {
+    grid-column: span 12 !important;
+  }
+
+  .consumption-grid-quantity {
+    grid-column: span 4 !important;
+  }
+
+  .consumption-grid-unique {
+    grid-column: span 8 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .consumption-saas-page {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .consumption-saas-page .detail-heading,
+  .consumption-saas-page .hospital-catalog-panel {
+    padding: 18px;
+  }
+
+  .consumption-saas-page .detail-heading {
+    align-items: flex-start;
+  }
+
+  .consumption-saas-page .closure-stat-grid article,
+  .consumption-grid-dept,
+  .consumption-grid-warehouse,
+  .consumption-grid-code,
+  .consumption-grid-resolved,
+  .consumption-grid-quantity,
+  .consumption-grid-unique {
+    grid-column: span 12 !important;
+  }
+
+  .consumption-live-badge,
+  .consumption-action-hint {
+    display: none;
+  }
+
+  .consumption-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+</style>

@@ -43,6 +43,7 @@ export type FeatureViewFamily =
   | 'system-approval-flow-settings'
   | 'system-user-role-management'
   | 'print-template-settings'
+  | 'report-center'
 
 export type FeatureChunkFamily = 'catalog' | 'master-data' | 'quota-package' | 'supply-chain' | 'system'
 export type FeatureNodeKind = 'navigation' | 'deferred' | 'business'
@@ -477,15 +478,57 @@ export const featureCatalog = [
     icon: 'bar-chart-3',
     routeTarget: '/features/operation-cockpit',
     viewFamily: 'feature',
-    nodeKind: 'deferred'
+    nodeKind: 'business'
   },
   {
     code: 'report-center',
     title: '报表中心',
     icon: 'clipboard-list',
-    routeTarget: '/features/report-center',
+    routeTarget: '/features/spd-his-reconciliation-report',
     viewFamily: 'feature',
-    nodeKind: 'deferred'
+    nodeKind: 'navigation',
+    children: [
+      'spd-his-reconciliation-report',
+      'supplier-delivery-ledger-report',
+      'centralized-procurement-progress-report',
+      'inventory-movement-summary-report'
+    ]
+  },
+  {
+    code: 'spd-his-reconciliation-report',
+    title: 'SPD-HIS收费核对',
+    icon: 'clipboard-check',
+    routeTarget: '/features/spd-his-reconciliation-report',
+    viewFamily: 'report-center',
+    nodeKind: 'business',
+    chunkFamily: 'system'
+  },
+  {
+    code: 'supplier-delivery-ledger-report',
+    title: '供应商供货明细台账',
+    icon: 'truck',
+    routeTarget: '/features/supplier-delivery-ledger-report',
+    viewFamily: 'report-center',
+    nodeKind: 'business',
+    chunkFamily: 'system'
+  },
+  {
+    code: 'centralized-procurement-progress-report',
+    title: '集采执行进度报表',
+    icon: 'bar-chart-3',
+    routeTarget: '/features/centralized-procurement-progress-report',
+    viewFamily: 'report-center',
+    nodeKind: 'business',
+    chunkFamily: 'system'
+  },
+  {
+    code: 'inventory-movement-summary-report',
+    title: '全院物资进销存汇总表',
+    icon: 'warehouse',
+    routeTarget: '/features/inventory-movement-summary-report',
+    viewFamily: 'report-center',
+    nodeKind: 'business',
+    chunkFamily: 'system'
   },
   {
     code: 'decision-screen',
@@ -655,8 +698,6 @@ export const featureViewNodeGroups = {
     'stock-warning',
     'settlement-exception',
     'quick-entry',
-    'operation-cockpit',
-    'report-center',
     'decision-screen',
     'audit-log'
   ],

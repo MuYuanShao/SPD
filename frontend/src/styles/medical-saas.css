@@ -1,0 +1,700 @@
+/*
+ * SPD Medical SaaS design layer
+ * Loaded last so legacy feature pages share one visual language without
+ * changing their business templates or API behaviour.
+ */
+
+:root {
+  --surface: #ffffff;
+  --line: #e4e9f0;
+  --text-muted: #68758a;
+  --primary: #1677ff;
+  --primary-strong: #0958d9;
+  --accent: #d97706;
+  --danger: #cf3f4f;
+  --focus: #1677ff;
+  --medical-mint: #edf9f4;
+  --medical-aqua: #eaf4ff;
+  --medical-warm: #fff8e8;
+  --medical-warm-strong: #d97706;
+  --tech-blue: #1677ff;
+  --saas-bg: #f5f7fa;
+  --saas-surface-muted: #f8fafc;
+  --saas-heading: #172033;
+  --saas-success: #16a36a;
+  --saas-radius: 12px;
+  --saas-control-height: 40px;
+  --saas-page-gap: 24px;
+  --shadow-soft: 0 2px 10px rgba(31, 50, 79, 0.05);
+  --btn-font-weight: 600;
+  --btn-radius: 8px;
+  --btn-min-h: 40px;
+  --btn-min-h-sm: 32px;
+  --sidebar-bg: #ffffff;
+  font-family: "Segoe UI Variable", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: #26334d;
+  background: var(--saas-bg);
+}
+
+body {
+  color: #26334d;
+  background: var(--saas-bg);
+  font-family: inherit;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Application chrome */
+.app-shell {
+  background: var(--saas-bg);
+}
+
+.sidebar {
+  border-right-color: #e6ebf2;
+  background: #ffffff;
+  box-shadow: 1px 0 0 rgba(31, 50, 79, 0.02);
+}
+
+.brand {
+  background: #ffffff;
+}
+
+.brand-mark {
+  border-radius: 12px;
+  background: linear-gradient(145deg, #1677ff, #0b5ed7);
+  box-shadow: 0 4px 12px rgba(22, 119, 255, 0.18);
+  letter-spacing: 0.04em;
+}
+
+.brand-link strong {
+  color: #16223a;
+  font-weight: 700;
+}
+
+.brand-link small {
+  color: #7a8699;
+}
+
+.sidebar-toggle {
+  width: 40px;
+  height: 40px;
+  border-color: #e1e7ef;
+  border-radius: 10px;
+  color: #647188;
+}
+
+.sidebar-toggle:hover {
+  border-color: #91caff;
+  color: var(--primary);
+  background: #f3f8ff;
+}
+
+.nav-group {
+  border-top-color: #f0f2f5;
+}
+
+.nav-item,
+.nav-group-toggle {
+  min-height: 40px;
+  border-radius: 9px;
+  color: #445169;
+  font-weight: 500;
+}
+
+.nav-group-toggle {
+  color: #26334d;
+  font-weight: 650;
+}
+
+.nav-item:hover,
+.nav-group-toggle:hover {
+  color: #0958d9;
+  background: #f3f8ff;
+}
+
+.nav-item.router-link-active {
+  color: #0958d9;
+  background: #eaf4ff;
+  box-shadow: inset 3px 0 #1677ff;
+  font-weight: 650;
+}
+
+.main-area {
+  padding: 24px;
+  background: var(--saas-bg);
+}
+
+.topbar {
+  min-height: 64px;
+  margin-bottom: 24px;
+  padding: 10px 16px 10px 20px;
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 2px 8px rgba(31, 50, 79, 0.04);
+  backdrop-filter: blur(12px);
+}
+
+.topbar h1 {
+  color: #172033;
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.ai-assistant-entry,
+.account-menu summary {
+  min-height: 40px;
+  border-color: #dfe5ed;
+  border-radius: 10px;
+  background: #ffffff;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.ai-assistant-entry {
+  margin-left: auto;
+  color: #0958d9;
+  background: #f3f8ff;
+}
+
+.account-avatar {
+  color: #087a4d;
+  background: #eaf8f2;
+}
+
+/* Every routed feature gets a fluid content canvas. */
+.main-area > :not(.topbar):not(.ai-chat-mask) {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.purchase-page,
+.master-page,
+.foundation-page,
+.approval-page,
+.approval-detail-page,
+.approval-config-page,
+.system-config-page,
+.dept-req-page,
+.invoice-page,
+.license-page,
+.print-template-page,
+.product-form-page,
+.udi-page,
+.access-denied-page,
+.module-detail,
+.dashboard-grid {
+  gap: 24px !important;
+  color: #26334d;
+  font-family: inherit;
+}
+
+/* Page headings */
+.master-page-title,
+.standard-page-header,
+.detail-heading,
+.approval-page-hero,
+.approval-detail-header,
+.workbench-hero,
+.invoice-header,
+.license-header,
+.udi-header,
+.dept-req-header {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 20px 24px !important;
+  border: 1px solid #e5eaf0 !important;
+  border-radius: 12px !important;
+  background: linear-gradient(115deg, #ffffff 0%, #ffffff 76%, #f1f7ff 100%) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.master-page-title h2,
+.standard-page-heading h2,
+.detail-heading h2,
+.approval-page-title h1,
+.approval-detail-header h1,
+.workbench-hero h1,
+.invoice-header h2,
+.license-header h2,
+.udi-header h2,
+.dept-req-header h2 {
+  margin: 0 0 6px !important;
+  color: var(--saas-heading) !important;
+  font-size: clamp(22px, 1.55vw, 26px) !important;
+  font-weight: 650 !important;
+  line-height: 1.3 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.breadcrumb-line {
+  margin: 0 !important;
+  color: #8a95a6 !important;
+  font-size: 13px;
+}
+
+.breadcrumb-line strong {
+  color: #4b5870;
+  font-weight: 550;
+}
+
+/* Cards and operational panels */
+.hospital-catalog-panel,
+.master-table-card,
+.master-toolbar,
+.metric-panel,
+.module-card,
+.approval-metric-card,
+.approval-list-panel,
+.approval-sidebar,
+.approval-detail-panel,
+.config-card,
+.config-panel,
+.department-panel,
+.picking-panel,
+.reservation-panel,
+.subnav-panel,
+.query-panel,
+.filter-panel,
+.form-panel,
+.table-panel,
+.invoice-panel,
+.license-panel,
+.udi-panel,
+.dept-req-panel,
+.product-form-card {
+  box-sizing: border-box;
+  min-width: 0;
+  margin: 0;
+  padding: 24px !important;
+  border: 1px solid #e5eaf0 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+/* Dashboard and metadata-backed feature pages keep their original layout. */
+.kpi-grid,
+.analytics-grid,
+.bottom-grid {
+  gap: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+.kpi-card,
+.process-card,
+.analytics-card,
+.exception-card,
+.notice-card,
+.feature-list,
+.architecture-note {
+  border: 1px solid #e5eaf0 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.kpi-card,
+.process-card,
+.analytics-card,
+.exception-card,
+.notice-card {
+  padding: 24px !important;
+}
+
+.kpi-icon {
+  width: 40px !important;
+  height: 40px !important;
+  border-radius: 10px !important;
+}
+
+.kpi-icon.blue,
+.kpi-icon.violet {
+  color: #1677ff !important;
+  background: #eaf4ff !important;
+}
+
+.kpi-icon.green {
+  color: #16a36a !important;
+  background: #eaf8f2 !important;
+}
+
+.process-map {
+  border-color: #e7ebf1 !important;
+  border-radius: 12px !important;
+  background: #f8fafc !important;
+}
+
+.feature-row {
+  min-height: 48px;
+  border-color: #edf0f4 !important;
+}
+
+.feature-row:hover {
+  color: #0958d9;
+  background: #f7fbff !important;
+}
+
+.section-title {
+  min-height: 40px;
+  margin-bottom: 20px !important;
+  color: #172033;
+}
+
+.section-title h2,
+.section-title h3,
+.section-title strong {
+  color: #172033;
+  font-weight: 650;
+}
+
+.section-title > svg,
+.panel-icon {
+  color: var(--primary);
+}
+
+/* Existing grids retain their columns and item order; only spacing is unified. */
+.foundation-stat-grid,
+.approval-metric-grid,
+.stats-grid,
+.quota-stat-grid,
+.config-summary-grid,
+.module-grid {
+  gap: 16px !important;
+}
+
+.foundation-stat-grid > article,
+.approval-metric-card,
+.stats-grid > article,
+.quota-stat-grid > article,
+.config-summary-grid > article {
+  min-height: 96px;
+  padding: 18px !important;
+  border: 1px solid #e5eaf0 !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(31, 50, 79, 0.035) !important;
+}
+
+.hospital-query-grid,
+.purchase-query-grid,
+.supplier-query-grid,
+.department-query-grid,
+.quota-query-grid,
+.closure-form-grid,
+.supplier-form-grid,
+.quota-form-grid,
+.form-grid,
+.filter-grid {
+  gap: 20px 16px !important;
+}
+
+/* Unified controls */
+.main-area input:not([type="checkbox"]):not([type="radio"]),
+.main-area select,
+.main-area .btn,
+.main-area .topbar-action,
+.main-area .el-input__wrapper,
+.main-area .el-select__wrapper,
+.main-area .el-button {
+  box-sizing: border-box;
+  min-height: 40px !important;
+  height: 40px;
+  border-radius: 8px !important;
+  font-family: inherit;
+}
+
+.main-area input:not([type="checkbox"]):not([type="radio"]),
+.main-area select,
+.main-area textarea {
+  border-color: #d8dee8 !important;
+  color: #26334d;
+  background-color: #ffffff;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.main-area textarea {
+  min-height: 96px;
+  border-radius: 8px !important;
+  font-family: inherit;
+}
+
+.main-area input:not([type="checkbox"]):not([type="radio"]):focus,
+.main-area select:focus,
+.main-area textarea:focus {
+  border-color: var(--primary) !important;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.1) !important;
+}
+
+.main-area .btn {
+  padding: 0 16px;
+  border-color: #d7dde7;
+  color: #33415c;
+  background: #ffffff;
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.main-area .btn:hover {
+  border-color: #91caff;
+  color: var(--primary);
+  background: #f7fbff;
+  opacity: 1;
+}
+
+.main-area .btn-primary {
+  border-color: var(--primary);
+  color: #ffffff;
+  background: var(--primary);
+  box-shadow: 0 2px 5px rgba(22, 119, 255, 0.16);
+}
+
+.main-area .btn-primary:hover {
+  border-color: var(--primary-strong);
+  color: #ffffff;
+  background: var(--primary-strong);
+}
+
+.main-area .btn-text,
+.main-area .btn-link {
+  color: var(--primary-strong);
+}
+
+.hospital-action-row,
+.hospital-query-actions,
+.standard-page-actions,
+.dialog-actions,
+.toolbar-actions,
+.form-actions {
+  gap: 10px !important;
+}
+
+/* Data tables */
+.table-scroll,
+.hospital-product-table-wrap,
+.master-table-card {
+  border-color: #e5eaf0 !important;
+  border-radius: 10px !important;
+}
+
+/* Keep wide native tables inside their panel instead of widening the page grid. */
+.table-scroll {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+/*
+ * Element Plus horizontal-table clipping contract:
+ * <el-card>
+ *   <div class="el-table-scroll-clip">
+ *     <el-table style="width: 100%">...</el-table>
+ *   </div>
+ * </el-card>
+ *
+ * Keep the card visible so header controls are never clipped. The dedicated
+ * middle layer owns clipping and radius while el-table owns horizontal scroll.
+ */
+.el-card {
+  overflow: visible !important;
+}
+
+.el-table-scroll-clip {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e5eaf0;
+  border-radius: var(--saas-radius);
+  background: #ffffff;
+}
+
+.el-table-scroll-clip > .el-table,
+.el-table {
+  width: 100% !important;
+  max-width: 100%;
+  border-radius: 0 !important;
+}
+
+/* Global stylesheet: :deep() is only required when this rule lives in scoped CSS. */
+.el-table .el-table__body-wrapper {
+  box-shadow: none !important;
+}
+
+.master-table,
+.hospital-product-table {
+  color: #34415a;
+  font-size: 13px;
+}
+
+.master-table thead th,
+.hospital-product-table th,
+.el-table th.el-table__cell {
+  min-height: 44px;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  border-bottom-color: #dfe5ed !important;
+  color: #45536b !important;
+  background: #f7f9fc !important;
+  font-weight: 650 !important;
+}
+
+.master-table tbody td,
+.hospital-product-table td,
+.el-table td.el-table__cell {
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: #34415a;
+}
+
+.master-table tbody tr:hover td,
+.hospital-product-table tbody tr:hover td,
+.el-table__body tr:hover > td.el-table__cell {
+  background: #f7fbff !important;
+}
+
+.status-badge.enabled,
+.status-pill.enabled,
+.status-badge.success {
+  color: #087a4d !important;
+  background: #eaf8f2 !important;
+  border-color: #b7ebd3 !important;
+}
+
+.status-badge.pending,
+.status-pill.pending {
+  color: #0958d9 !important;
+  background: #eaf4ff !important;
+  border-color: #b9d8ff !important;
+}
+
+.status-badge.disabled,
+.status-pill.disabled,
+.status-badge.neutral {
+  color: #657086 !important;
+  background: #f0f2f5 !important;
+  border-color: #dfe3e8 !important;
+}
+
+.status-badge.warning,
+.status-pill.warning,
+.priority-badge.warning,
+.urgency-badge.warning {
+  color: #a15c00 !important;
+  background: #fff7e6 !important;
+  border-color: #ffe1a8 !important;
+}
+
+.status-badge.danger,
+.status-badge.error,
+.status-pill.danger,
+.priority-badge.danger,
+.urgency-badge.danger {
+  color: #b83243 !important;
+  background: #fff0f1 !important;
+  border-color: #ffc9cf !important;
+}
+
+/* Dialogs and floating layers */
+.supplier-dialog,
+.product-dialog,
+.stocktaking-detail-dialog,
+.stocktaking-sheet-dialog,
+.replenishment-analysis-dialog,
+.ai-chat-dialog,
+.el-dialog {
+  border: 1px solid #e3e8ef !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  box-shadow: 0 16px 48px rgba(23, 32, 51, 0.14) !important;
+}
+
+.attachment-preview-mask,
+.dialog-mask,
+.ai-chat-mask,
+.el-overlay {
+  backdrop-filter: blur(3px);
+}
+
+.pagination-controls,
+.approval-pagination,
+.hospital-pagination {
+  min-height: 40px;
+  margin-top: 18px;
+}
+
+@media (max-width: 1440px) {
+  .main-area {
+    padding: 20px;
+  }
+
+  .purchase-page,
+  .master-page,
+  .foundation-page,
+  .approval-page,
+  .approval-detail-page,
+  .approval-config-page,
+  .system-config-page,
+  .dept-req-page,
+  .invoice-page,
+  .license-page,
+  .print-template-page,
+  .product-form-page,
+  .udi-page {
+    gap: 20px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .main-area {
+    padding: 16px;
+  }
+
+  .topbar {
+    margin-bottom: 16px;
+  }
+
+  .master-page-title,
+  .standard-page-header,
+  .detail-heading,
+  .approval-page-hero,
+  .approval-detail-header,
+  .workbench-hero,
+  .hospital-catalog-panel,
+  .master-table-card,
+  .master-toolbar,
+  .metric-panel,
+  .module-card,
+  .approval-metric-card,
+  .approval-list-panel,
+  .approval-sidebar,
+  .approval-detail-panel,
+  .config-card,
+  .config-panel,
+  .department-panel,
+  .picking-panel,
+  .reservation-panel,
+  .subnav-panel {
+    padding: 16px !important;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

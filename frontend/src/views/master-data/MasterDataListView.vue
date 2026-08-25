@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
   Ban,
   Database,
@@ -1009,7 +1010,7 @@ const {
       </button>
     </section>
 
-    <section class="master-table-card">
+    <section class="master-table-card" :class="{ 'department-warehouse-catalog-list-card': isDepartmentWarehouseCatalog }">
       <div v-if="isSupplierManagement" class="section-title supplier-list-heading">
         <div>
           <Database :size="20" />
@@ -1558,65 +1559,78 @@ const {
       </div>
 
       <div v-else-if="isDepartmentWarehouseCatalog && page" class="department-warehouse-catalog-table-wrap">
-        <table class="master-table department-warehouse-catalog-table">
-          <thead>
-            <tr>
-              <th class="selection-cell">
+        <el-table
+          class="department-warehouse-catalog-table"
+          :data="page.rows"
+          row-key="code"
+          border
+          stripe
+          scrollbar-always-on
+          style="width: 100%"
+          empty-text="暂无符合条件的科室库房目录"
+        >
+          <el-table-column width="54" fixed="left" align="center">
+            <template #header>
                 <input
                   type="checkbox"
                   :checked="allVisibleSelected"
                   aria-label="选择当前页全部科室库房目录"
                   @change="toggleAllRows"
                 />
-              </th>
-              <th>序号</th>
-              <th>科室 / 库房</th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>规格型号</th>
-              <th>生产厂家</th>
-              <th>维护来源</th>
-              <th>状态</th>
-              <th>更新时间</th>
-              <th class="catalog-action-cell">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in page.rows" :key="String(row.code)">
-              <td class="selection-cell">
+            </template>
+            <template #default="{ row }">
                 <input
                   v-model="selectedCodes"
                   type="checkbox"
                   :value="String(row.code)"
                   :aria-label="`选择 ${String(row.deptName)} ${String(row.productName)} 目录`"
                 />
-              </td>
-              <td class="catalog-sequence-cell">{{ row.sequenceNo }}</td>
-              <td>
+            </template>
+          </el-table-column>
+          <el-table-column prop="sequenceNo" label="序号" width="76" align="center">
+            <template #default="{ row }"><span class="catalog-sequence-cell">{{ row.sequenceNo }}</span></template>
+          </el-table-column>
+          <el-table-column label="科室 / 库房" min-width="190">
+            <template #default="{ row }">
                 <div class="catalog-scope-cell">
                   <strong>{{ row.deptName || '-' }}</strong>
                   <span>{{ row.warehouseName || '未关联库房' }}</span>
                 </div>
-              </td>
-              <td class="catalog-code-cell">{{ row.productCode || '-' }}</td>
-              <td>
+            </template>
+          </el-table-column>
+          <el-table-column prop="productCode" label="商品编码" min-width="150">
+            <template #default="{ row }"><span class="catalog-code-cell">{{ row.productCode || '-' }}</span></template>
+          </el-table-column>
+          <el-table-column label="商品名称" min-width="200">
+            <template #default="{ row }">
                 <div class="catalog-product-cell">
                   <strong>{{ row.productName || '-' }}</strong>
                   <span>科室可申领商品</span>
                 </div>
-              </td>
-              <td class="catalog-spec-cell" :title="String(row.specModel || '-')">{{ row.specModel || '-' }}</td>
-              <td class="catalog-manufacturer-cell" :title="String(row.manufacturerName || '-')">
-                {{ row.manufacturerName || '-' }}
-              </td>
-              <td><span class="catalog-source-chip">{{ formatBusinessText(row.sourceType) }}</span></td>
-              <td>
+            </template>
+          </el-table-column>
+          <el-table-column prop="specModel" label="规格型号" min-width="170" show-overflow-tooltip>
+            <template #default="{ row }"><span class="catalog-spec-cell">{{ row.specModel || '-' }}</span></template>
+          </el-table-column>
+          <el-table-column prop="manufacturerName" label="生产厂家" min-width="210" show-overflow-tooltip>
+            <template #default="{ row }"><span class="catalog-manufacturer-cell">{{ row.manufacturerName || '-' }}</span></template>
+          </el-table-column>
+          <el-table-column label="维护来源" min-width="120">
+            <template #default="{ row }"><span class="catalog-source-chip">{{ formatBusinessText(row.sourceType) }}</span></template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="110">
+            <template #default="{ row }">
                 <span class="catalog-status-chip" :class="String(row.status) === '启用' ? 'enabled' : 'disabled'">
                   {{ formatStatusText(row.status) }}
                 </span>
-              </td>
-              <td class="catalog-update-time">{{ row.updateTime || '-' }}</td>
-              <td class="catalog-action-cell">
+            </template>
+          </el-table-column>
+          <el-table-column prop="updateTime" label="更新时间" min-width="180">
+            <template #default="{ row }"><span class="catalog-update-time">{{ row.updateTime || '-' }}</span></template>
+          </el-table-column>
+          <el-table-column label="操作" width="190" fixed="right">
+            <template #default="{ row }">
+              <div class="catalog-row-actions">
                 <button type="button" class="btn-text" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
                 <button
                   type="button"
@@ -1628,15 +1642,11 @@ const {
                 <button type="button" class="btn-text btn-text-danger" @click="deleteSelectedDepartmentWarehouseCatalogs([String(row.code)])">
                   删除
                 </button>
-              </td>
-            </tr>
-            <tr v-if="!page.rows.length">
-              <td class="approval-empty" colspan="11">暂无符合条件的科室库房目录</td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
-
       <!-- Other pages: native table -->
       <table v-else-if="page" class="master-table">
         <thead>
@@ -1910,3 +1920,77 @@ const {
     />
   </section>
 </template>
+
+<style scoped>
+.department-warehouse-catalog-list-card :deep(.el-table) {
+  --el-table-border-color: #dfe5ed;
+  --el-table-header-bg-color: #f3f6fa;
+  --el-table-header-text-color: #34415a;
+  --el-table-row-hover-bg-color: #f3f8ff;
+  --el-table-current-row-bg-color: #f3f8ff;
+  --el-fill-color-lighter: #f8fafc;
+  overflow: visible;
+  border-radius: 0;
+  font-size: 13px;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__inner-wrapper) {
+  overflow: visible;
+  border-radius: 0;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__body-wrapper) {
+  box-shadow: none;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  z-index: 8;
+  height: 12px;
+  bottom: 2px;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal .el-scrollbar__thumb) {
+  min-width: 56px;
+  background: #8aa8c7;
+  opacity: 0.86;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table th.el-table__cell) {
+  height: 48px;
+  padding: 0 16px;
+  color: #34415a;
+  background: #f3f6fa;
+  font-weight: 700;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table td.el-table__cell) {
+  height: 60px;
+  padding: 8px 16px;
+  color: #34415a;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table .cell) {
+  padding: 0;
+  line-height: 1.5;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__fixed),
+.department-warehouse-catalog-list-card :deep(.el-table__fixed-right),
+.department-warehouse-catalog-list-card :deep(.el-table__fixed-left) {
+  height: auto !important;
+  bottom: 18px !important;
+  box-shadow: none;
+}
+
+.department-warehouse-catalog-list-card :deep(.el-table__fixed::before),
+.department-warehouse-catalog-list-card :deep(.el-table__fixed-right::before),
+.department-warehouse-catalog-list-card :deep(.el-table__fixed-left::before) {
+  display: none;
+  height: 0;
+  border: 0;
+}
+</style>

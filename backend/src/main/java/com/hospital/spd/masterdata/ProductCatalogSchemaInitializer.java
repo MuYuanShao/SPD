@@ -24,6 +24,7 @@ public class ProductCatalogSchemaInitializer implements ApplicationRunner {
         addColumnIfMissing("second_category", "VARCHAR(80) DEFAULT NULL COMMENT '二级分类'");
         addColumnIfMissing("third_category", "VARCHAR(80) DEFAULT NULL COMMENT '三级分类'");
         addColumnIfMissing("is_chargeable", "TINYINT NOT NULL DEFAULT 1 COMMENT '是否收费'");
+        addColumnIfMissing("is_key_monitored", "TINYINT NOT NULL DEFAULT 0 COMMENT '是否重点监控'");
         addColumnIfMissing("tender_sub_code", "VARCHAR(80) DEFAULT NULL COMMENT '招采子编码'");
         addPendingColumnIfMissing("is_volume_based", "TINYINT NOT NULL DEFAULT 0 COMMENT '是否带量'");
         addPendingColumnIfMissing("is_centralized_procurement", "TINYINT NOT NULL DEFAULT 0 COMMENT '是否集采'");
@@ -33,6 +34,7 @@ public class ProductCatalogSchemaInitializer implements ApplicationRunner {
         addPendingColumnIfMissing("second_category", "VARCHAR(80) DEFAULT NULL COMMENT '二级分类'");
         addPendingColumnIfMissing("third_category", "VARCHAR(80) DEFAULT NULL COMMENT '三级分类'");
         addPendingColumnIfMissing("is_chargeable", "TINYINT NOT NULL DEFAULT 1 COMMENT '是否收费'");
+        addPendingColumnIfMissing("is_key_monitored", "TINYINT NOT NULL DEFAULT 0 COMMENT '是否重点监控'");
         addPendingColumnIfMissing("tender_sub_code", "VARCHAR(80) DEFAULT NULL COMMENT '招采子编码'");
         seedCatalogExtensionFields();
     }

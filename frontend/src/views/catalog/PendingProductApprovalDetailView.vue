@@ -57,6 +57,7 @@ const resubmitForm = reactive({
   highValue: false,
   coldChain: false,
   quotaManaged: false,
+  keyMonitored: false,
   storageCondition: '',
   changeReason: ''
 })
@@ -105,6 +106,7 @@ const editForm = reactive({
   highValue: false,
   coldChain: false,
   quotaManaged: false,
+  keyMonitored: false,
   storageCondition: ''
 })
 
@@ -161,6 +163,7 @@ function initEditForm() {
   editForm.highValue = d.highValue
   editForm.coldChain = d.coldChain
   editForm.quotaManaged = d.quotaManaged
+  editForm.keyMonitored = d.keyMonitored
   editForm.storageCondition = d.storageCondition || ''
   captureCleanSnapshot()
 }
@@ -249,6 +252,7 @@ const approvalInfoGroups = computed(() => {
         { label: '高值耗材', value: item.highValue, field: 'highValue' },
         { label: '冷链', value: item.coldChain, field: 'coldChain' },
         { label: '定数管理', value: item.quotaManaged, field: 'quotaManaged' },
+        { label: '重点监控', value: item.keyMonitored, field: 'keyMonitored' },
       ],
       storage: item.storageCondition || '常温',
       categories: [item.firstCategory, item.secondCategory, item.thirdCategory].filter(Boolean).join(' > ') || '-'
@@ -424,6 +428,7 @@ function openResubmitModal() {
     highValue: detail.value.highValue,
     coldChain: detail.value.coldChain,
     quotaManaged: detail.value.quotaManaged,
+    keyMonitored: detail.value.keyMonitored,
     storageCondition: detail.value.storageCondition || '',
     changeReason: ''
   })
@@ -844,6 +849,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <label><input v-model="resubmitForm.highValue" type="checkbox" /> 高值耗材</label>
               <label><input v-model="resubmitForm.coldChain" type="checkbox" /> 冷链</label>
               <label><input v-model="resubmitForm.quotaManaged" type="checkbox" /> 定数管理</label>
+              <label><input v-model="resubmitForm.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
             <div class="dialog-actions">
               <button class="btn" type="button" @click="closeResubmitModal">取消</button>

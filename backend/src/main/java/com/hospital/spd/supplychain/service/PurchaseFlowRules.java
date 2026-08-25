@@ -22,6 +22,7 @@ public final class PurchaseFlowRules {
             case "approve" -> requireStatus(currentStatus, "pending_approval", "approved");
             case "send" -> requireStatus(currentStatus, "approved", "sent");
             case "close" -> requireCloseStatus(currentStatus, orderQuantity, receivedQuantity, closeReason);
+            case "void" -> requireVoidStatus(currentStatus, closeReason);
             case "reject" -> requireStatus(currentStatus, "pending_approval", "rejected");
             default -> throw new IllegalArgumentException("采购订单动作无效");
         };
@@ -77,5 +78,17 @@ public final class PurchaseFlowRules {
             throw new IllegalArgumentException("关闭采购订单必须填写关闭原因");
         }
         return "closed";
+    }
+
+    private static String requireVoidStatus(String currentStatus, String reason) {
+        if (!"draft".equals(currentStatus)
+                && !"pending_approval".equals(currentStatus)
+                && !"approved".equals(currentStatus)) {
+            throw new IllegalArgumentException("当前状态不允许作废采购订单");
+        }
+        if (isBlank(reason)) {
+            throw new IllegalArgumentException("作废采购订单必须填写原因");
+        }
+        return "voided";
     }
 }

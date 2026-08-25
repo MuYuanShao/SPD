@@ -73,8 +73,8 @@ final class PurchaseFlowCommandRunner {
                         approve_by = CASE WHEN ? IN ('approved', 'rejected') THEN ? ELSE approve_by END,
                        approve_time = CASE WHEN ? IN ('approved', 'rejected') THEN NOW() ELSE approve_time END,
                        send_time = CASE WHEN ? = 'sent' THEN NOW() ELSE send_time END,
-                       close_time = CASE WHEN ? = 'closed' THEN NOW() ELSE close_time END,
-                       close_reason = CASE WHEN ? = 'closed' THEN ? ELSE close_reason END
+                       close_time = CASE WHEN ? IN ('closed', 'voided') THEN NOW() ELSE close_time END,
+                       close_reason = CASE WHEN ? IN ('closed', 'voided') THEN ? ELSE close_reason END
                  WHERE order_no = ? AND order_status = ?
                 """, nextStatus, nextStatus, operator.userId(), nextStatus, nextStatus, nextStatus, nextStatus,
                 nullIfBlank(request.opinion()), orderNo, order.get("orderStatus"));

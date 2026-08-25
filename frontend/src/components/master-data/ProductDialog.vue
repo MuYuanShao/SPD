@@ -142,6 +142,7 @@ function handleSupplierChange() {
               <label><input v-model="form.highValue" type="checkbox" /> 是否高值</label>
               <label><input v-model="form.coldChain" type="checkbox" /> 是否冷链</label>
               <label><input v-model="form.quotaManaged" type="checkbox" /> 是否定数管理</label>
+              <label><input v-model="form.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
           </section>
         </div>

@@ -152,6 +152,11 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.recallBatches(productCode, warehouseName));
     }
 
+    @GetMapping("/recalls/inventory")
+    public ApiResponse<Map<String, Object>> recallInventory(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.recallInventory(params));
+    }
+
     @PostMapping("/high-value/charges")
     public ApiResponse<Map<String, Object>> highValueCharge(@RequestBody Map<String, Object> body) {
         return ApiResponse.ok(service.highValueCharge(body));

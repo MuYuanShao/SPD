@@ -59,6 +59,7 @@ public class ProductService {
         appendBoolean(where, args, "p.is_centralized_procurement", params.get("isCentralized"));
         appendBoolean(where, args, "p.is_domestic", params.get("isDomestic"));
         appendBoolean(where, args, "p.is_quota_managed", params.get("isQuotaManaged"));
+        appendBoolean(where, args, "p.is_key_monitored", params.get("isKeyMonitored"));
         appendLike(where, args, "p.tender_sub_code", params.get("tenderCode"));
 
         Long total = args.isEmpty()
@@ -93,6 +94,7 @@ public class ProductService {
                        CASE p.is_centralized_procurement WHEN 1 THEN '是' ELSE '否' END AS centralized,
                        CASE p.is_domestic WHEN 1 THEN '是' ELSE '否' END AS domestic,
                        CASE p.is_chargeable WHEN 1 THEN '是' ELSE '否' END AS chargeable,
+                       CASE p.is_key_monitored WHEN 1 THEN '是' ELSE '否' END AS keyMonitored,
                        COALESCE(p.tender_sub_code, '-') AS tenderSubCode,
                        p.unit AS unit, p.purchase_price AS price,
                        CASE p.status WHEN 1 THEN '启用' ELSE '停用' END AS status
@@ -107,7 +109,7 @@ public class ProductService {
                 "审批通过后的院内正式可用商品。",
                 List.of("商品编码", "商品名称", "规格型号", "厂家", "供应商", "注册证号", "合同编码",
                         "一级分类", "二级分类", "三级分类", "是否带量", "是否集采", "是否国产", "是否收费",
-                        "招采子编码", "单位", "采购价", "状态"),
+                        "重点监控", "招采子编码", "单位", "采购价", "状态"),
                 rows,
                 total == null ? 0 : total,
                 pageReq.page(),
@@ -247,7 +249,8 @@ public class ProductService {
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic, p.contract_code,
                        p.first_category, p.second_category, p.third_category, p.is_chargeable,
                        p.tender_sub_code,
-                       p.is_high_value, p.is_cold_chain, p.is_quota_managed, p.storage_condition,
+                       p.is_high_value, p.is_cold_chain, p.is_quota_managed, p.is_key_monitored,
+                       p.storage_condition,
                        p.status
                 FROM product p
                 LEFT JOIN product_category c ON p.category_id = c.category_id
@@ -293,6 +296,7 @@ public class ProductService {
                     rs.getInt("is_high_value") == 1,
                     rs.getInt("is_cold_chain") == 1,
                     rs.getInt("is_quota_managed") == 1,
+                    rs.getInt("is_key_monitored") == 1,
                     fallback(rs.getString("storage_condition")),
                     rs.getInt("status") == 1 ? "启用" : "停用",
                     attachments
@@ -392,9 +396,9 @@ public class ProductService {
                   registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
-                  qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed,
+                  qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed, is_key_monitored,
                   storage_condition, product_snapshot, change_diff, approval_status, submit_by, submit_time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                   JSON_OBJECT('source','manual','changeReason', ?), JSON_OBJECT('changeReason', ?),
                   'pending_initial', 1, NOW())
                 """,
@@ -433,6 +437,7 @@ public class ProductService {
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
+                Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0,
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(reason),
                 nullIfBlank(reason)
@@ -497,6 +502,7 @@ public class ProductService {
                 detail.highValue(),
                 detail.coldChain(),
                 detail.quotaManaged(),
+                detail.keyMonitored(),
                 cleanFallback(detail.storageCondition())
         );
     }
@@ -534,6 +540,7 @@ public class ProductService {
                 base.highValue(),
                 base.coldChain(),
                 base.quotaManaged(),
+                base.keyMonitored(),
                 base.storageCondition()
         );
     }
@@ -581,6 +588,7 @@ public class ProductService {
                 current.highValue() != request.highValue() ||
                 current.coldChain() != request.coldChain() ||
                 current.quotaManaged() != request.quotaManaged() ||
+                current.keyMonitored() != request.keyMonitored() ||
                 differentText(current.storageCondition(), request.storageCondition());
     }
 

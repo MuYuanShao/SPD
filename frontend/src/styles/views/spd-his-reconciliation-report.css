@@ -1,0 +1,37 @@
+.reconciliation-report-page { display: grid; gap: 14px; min-width: 0; }
+.reconciliation-report-page .standard-page-header { align-items: center; }
+.reconciliation-report-page .standard-page-heading h2 { margin: 0; font-size: 24px; }
+.inspection-badge, .audit-badge { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; border-radius: 7px; padding: 0 10px; font-size: 13px; font-weight: 800; }
+.inspection-badge { border: 1px solid #f4a29d; background: #fff5f4; color: #b42318; }
+.audit-badge { color: #42676b; background: #eef7f6; }
+.reconciliation-filter-panel { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 14px; }
+.reconciliation-filters { display: grid; grid-template-columns: minmax(300px, 1.5fr) repeat(4, minmax(150px, 1fr)) auto; gap: 10px; flex: 1; }
+.reconciliation-filters label { display: grid; gap: 5px; min-width: 0; color: #607285; font-size: 12px; font-weight: 800; }
+.reconciliation-filters input, .reconciliation-filters select { width: 100%; min-height: 36px; border: 1px solid var(--line); border-radius: 7px; background: #fff; color: #102033; padding: 0 9px; font: inherit; font-weight: 500; }
+.date-range { display: grid; grid-template-columns: minmax(126px, 1fr) auto minmax(126px, 1fr); align-items: center; gap: 6px; }
+.date-range i { color: #72848f; font-style: normal; }
+.exception-switch { align-self: end; display: flex !important; align-items: center; grid-template-columns: none !important; min-height: 36px; white-space: nowrap; }
+.exception-switch input { width: 16px; min-height: 16px; accent-color: var(--primary); }
+.reconciliation-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.reconciliation-actions .btn { white-space: nowrap; }
+.reconciliation-error { margin: 0; border: 1px solid #f1c2bf; border-radius: 7px; background: #fff5f4; padding: 10px 12px; color: var(--danger); font-weight: 700; }
+.reconciliation-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; min-height: 46px; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 8px 14px; color: #405560; }
+.reconciliation-summary strong { color: #102033; font-size: 17px; }
+.reconciliation-summary .danger-text { color: #c22c23; }
+.reconciliation-summary > i { width: 1px; height: 22px; background: var(--line); }
+.summary-chip { border-radius: 5px; padding: 5px 9px; font-size: 12px; font-weight: 800; }
+.summary-chip.missing { color: #b42318; background: #feeceb; }.summary-chip.duplicate { color: #a15c08; background: #fff2dd; }.summary-chip.swap { color: #255ea8; background: #e8f1ff; }
+.reconciliation-table-card { min-width: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; overflow: hidden; }
+.reconciliation-table-scroll { max-height: min(62vh, 690px); overflow: auto; }
+.reconciliation-table { width: 100%; min-width: 2160px; border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.reconciliation-table th, .reconciliation-table td { min-width: 92px; border-right: 1px solid #e5ecef; border-bottom: 1px solid #e5ecef; padding: 10px 9px; text-align: left; white-space: nowrap; }
+.reconciliation-table th { position: sticky; top: 0; z-index: 3; background: #eaf3f5; color: #294b52; font-weight: 900; }
+.reconciliation-table tbody tr:nth-child(even) { background: #fbfdfd; }
+.reconciliation-table tbody tr.missing_charge { background: #fff4f2; }.reconciliation-table tbody tr.duplicate_charge { background: #fff9ed; }.reconciliation-table tbody tr.suspected_swap { background: #f3f7ff; }
+.reconciliation-table td:first-child, .reconciliation-table th:first-child { position: sticky; left: 0; z-index: 2; width: 54px; min-width: 54px; background: inherit; text-align: center; }.reconciliation-table th:first-child { z-index: 4; background: #deedef; }
+.reconciliation-table .numeric { text-align: right; font-variant-numeric: tabular-nums; }.reconciliation-table .difference-cell { color: #b42318; font-weight: 900; }.reconciliation-table .code-cell { font-family: "Cascadia Mono", "Microsoft YaHei UI", monospace; }.reconciliation-table .product-cell { min-width: 190px; max-width: 240px; overflow: hidden; text-overflow: ellipsis; }.reconciliation-table td small { display: block; margin-top: 3px; color: #71838d; }
+.reason-tag, .risk-tag { display: inline-flex; align-items: center; justify-content: center; min-height: 26px; border: 1px solid; border-radius: 5px; padding: 0 7px; font-weight: 900; }.reason-tag.missing_charge, .risk-tag.missing_charge { border-color: #f0a6a0; color: #b42318; background: #fff6f5; }.reason-tag.duplicate_charge, .risk-tag.duplicate_charge { border-color: #edc47d; color: #a15c08; background: #fffaf0; }.reason-tag.suspected_swap, .risk-tag.suspected_swap { border-color: #9fc0ee; color: #255ea8; background: #f5f8ff; }.reason-tag.consistent, .risk-tag.consistent { border-color: #9bd4c5; color: #087268; background: #f2fbf8; }
+.table-message { height: 160px; color: #758792; text-align: center !important; }
+.reconciliation-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 12px; }.reconciliation-table-footer p { margin: 0; color: #667987; font-size: 12px; }.report-pagination { display: flex; align-items: center; gap: 6px; white-space: nowrap; }.report-pagination select, .report-pagination button { min-height: 30px; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: #405560; padding: 0 9px; }.report-pagination button { min-width: 30px; cursor: pointer; }.report-pagination button.active { border-color: var(--primary); background: var(--primary); color: #fff; font-weight: 800; }.report-pagination button:disabled { opacity: .45; cursor: not-allowed; }
+@media (max-width: 1480px) { .reconciliation-filter-panel { align-items: stretch; flex-direction: column; }.reconciliation-filters { grid-template-columns: repeat(3, minmax(180px, 1fr)); }.reconciliation-actions { justify-content: flex-start; } }
+@media print { .sidebar, .topbar, .reconciliation-filter-panel, .reconciliation-report-page .standard-page-actions, .report-pagination { display: none !important; }.app-shell { display: block !important; height: auto !important; }.main-area { overflow: visible !important; padding: 0 !important; background: #fff !important; }.reconciliation-table-scroll { max-height: none; overflow: visible; }.reconciliation-table { min-width: 100%; font-size: 8px; }.reconciliation-table th, .reconciliation-table td { min-width: 0; padding: 4px; white-space: normal; }.reconciliation-table th, .reconciliation-table td:first-child { position: static; }.reconciliation-table-footer { padding: 8px 0; } }

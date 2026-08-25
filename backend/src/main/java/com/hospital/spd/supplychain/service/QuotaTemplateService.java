@@ -196,20 +196,25 @@ public class QuotaTemplateService {
                        COALESCE(s.supplier_name, '-') AS supplierName, p.unit AS baseUnit,
                        p.purchase_unit AS purchaseUnit, p.conversion_rate AS conversionRate,
                        p.purchase_price AS unitPrice, p.is_quota_managed AS quotaManaged,
+                       p.is_high_value AS highValue,
                        p.is_centralized_procurement AS centralized, p.is_chargeable AS chargeable,
                        COALESCE(loose.available_qty, 0) AS looseAvailableQty,
-                       COALESCE(pkg.package_count, 0) AS packageAvailableQty,
+                        COALESCE(pkg.package_count, 0) AS packageAvailableQty,
+                        COALESCE(hv.unique_code_count, 0) AS uniqueCodeAvailableQty,
                        COALESCE(t.template_code, '-') AS templateCode,
                        COALESCE(t.template_name, '-') AS templateName,
                        t.quantity AS packageQuantity,
                        COALESCE(t.unit, p.unit) AS packageUnit,
-                       CASE
-                         WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0 AND COALESCE(pkg.package_count, 0) > 0
+                        CASE
+                          WHEN p.is_high_value = 1 THEN 'unique_code'
+                          WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0 AND COALESCE(pkg.package_count, 0) > 0
                            THEN 'quota_package'
                          ELSE 'loose'
                        END AS defaultMode,
-                       CASE
-                         WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0 AND COALESCE(pkg.package_count, 0) = 0
+                        CASE
+                          WHEN p.is_high_value = 1 AND COALESCE(hv.unique_code_count, 0) > 0 THEN '高值唯一码申领'
+                          WHEN p.is_high_value = 1 THEN '高值唯一码缺货'
+                          WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0 AND COALESCE(pkg.package_count, 0) = 0
                            THEN '定数包缺货，可转散货'
                          WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) = 0
                            THEN '未配置科室定数包模板'
@@ -244,7 +249,15 @@ public class QuotaTemplateService {
                       FROM quota_package_label
                      WHERE quota_package_label.status = 'available'
                      GROUP BY product_id, warehouse_id
-                  ) pkg ON pkg.product_id = p.product_id AND pkg.warehouse_id = dwc.warehouse_id
+                   ) pkg ON pkg.product_id = p.product_id AND pkg.warehouse_id = dwc.warehouse_id
+                  LEFT JOIN (
+                    SELECT ib.product_id, ibtc.current_warehouse_id AS warehouse_id, COUNT(*) AS unique_code_count
+                      FROM udi_trace_code utc
+                      JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = utc.trace_code_id
+                      JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                     WHERE utc.current_status = 'in_stock' AND ibtc.lifecycle_status = 'in_stock'
+                     GROUP BY ib.product_id, ibtc.current_warehouse_id
+                  ) hv ON hv.product_id = p.product_id AND hv.warehouse_id = dwc.warehouse_id
                   LEFT JOIN (
                     SELECT template_id, template_code, template_name, dept_id, product_id, quantity, unit
                       FROM (
@@ -280,8 +293,10 @@ public class QuotaTemplateService {
         if (!isBlank(params.get("mode"))) {
             if ("quota_package".equals(params.get("mode"))) {
                 sql.append(" AND p.is_quota_managed = 1 AND t.template_id IS NOT NULL");
+            } else if ("unique_code".equals(params.get("mode"))) {
+                sql.append(" AND p.is_high_value = 1");
             } else if ("loose".equals(params.get("mode"))) {
-                sql.append(" AND (p.is_quota_managed = 0 OR t.template_id IS NULL OR COALESCE(pkg.package_count, 0) = 0)");
+                sql.append(" AND p.is_high_value = 0 AND (p.is_quota_managed = 0 OR t.template_id IS NULL OR COALESCE(pkg.package_count, 0) = 0)");
             }
         }
         String baseSql = sql.toString();

@@ -1,4 +1,4 @@
-import { getData, getPage, postData, putData } from './http'
+import { getData, getPage, http, postData, putData } from './http'
 
 export interface PurchaseOrderRow {
   orderId: number
@@ -17,6 +17,45 @@ export interface PurchaseOrderRow {
   orderQuantity: number
   receivedQuantity: number
   remainingQuantity: number
+}
+
+export interface PurchaseOrderDetailItem {
+  itemId: number
+  supplierName: string
+  productCode: string
+  productName: string
+  specModel?: string
+  registrationNo?: string
+  manufacturerName?: string
+  unit: string
+  estimatedUnitPrice: number
+  quantity: number
+  amount: number
+  middlePackageQuantity?: number
+  purchasePackageQuantity?: number
+  tenderSubCode?: string
+  contractCode?: string
+  udiCode?: string
+  receivedQuantity?: number
+  latestCatalogPrice?: number
+  priceDiff?: number
+}
+
+export interface PurchaseOrderAttachment {
+  id: number
+  fileName: string
+  ext: string
+  fileType: string
+  size: number
+  category: string
+  description?: string
+  createTime: string
+}
+
+export interface PurchaseOrderDetail {
+  order: PurchaseOrderRow
+  items: PurchaseOrderDetailItem[]
+  tracking: Record<string, unknown>[]
 }
 
 export interface PurchaseDemandRow {
@@ -45,8 +84,17 @@ export interface PurchasePlanRow {
   supplierName: string
   productCode: string
   productName: string
+  specModel?: string
+  registrationNo?: string
+  manufacturerName?: string
+  unit?: string
+  unitPrice?: number
   plannedQuantity: number
+  amount?: number
+  tenderSubCode?: string
   convertedOrderNo?: string
+  initiatingDeptName?: string
+  deliveryWarehouseName?: string
   remark?: string
   createTime: string
 }
@@ -125,9 +173,29 @@ export async function fetchPurchaseOrders(params: Record<string, string>) {
  * @returns 订单详情、明细及跟踪记录
  */
 export async function fetchPurchaseOrderDetail(orderNo: string) {
-  return getData<{ order: PurchaseOrderRow; items: Record<string, unknown>[]; tracking: Record<string, unknown>[] }>(
-    `/purchase-orders/${orderNo}`
-  )
+  return getData<PurchaseOrderDetail>(`/purchase-orders/${orderNo}`)
+}
+
+export function addPurchaseOrderRemark(orderNo: string, remark: string) {
+  return postData<{ orderNo: string; remark: string }>(`/purchase-orders/${orderNo}/remarks`, { remark })
+}
+
+export function fetchPurchaseOrderAttachments(orderNo: string) {
+  return getData<PurchaseOrderAttachment[]>(`/purchase-orders/${orderNo}/attachments`)
+}
+
+export function uploadPurchaseOrderAttachment(orderNo: string, file: File, category = 'other') {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('category', category)
+  return postData<{ attachmentId: number }>(`/purchase-orders/${orderNo}/attachments`, form, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  })
+}
+
+export async function fetchPurchaseOrderAttachmentBlob(attachmentId: number) {
+  const response = await http.get(`/purchase-orders/attachments/${attachmentId}/file`, { responseType: 'blob' })
+  return { blob: response.data as Blob, contentType: String(response.headers['content-type'] ?? '') }
 }
 
 /**

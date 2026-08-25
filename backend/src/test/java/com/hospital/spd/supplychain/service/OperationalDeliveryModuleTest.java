@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -79,6 +80,21 @@ class OperationalDeliveryModuleTest {
         verify(jdbcTemplate).update(contains("INSERT INTO spd_delivery_order"),
                 eq("PS20260601002"), isNull(), eq("Surgery"), eq("Main Warehouse"),
                 eq("PC001"), eq("Syringe"), eq(BigDecimal.ONE));
+    }
+
+    @Test
+    void listsOnlyLooseBalancesWithProductDisplayFields() {
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of(
+                "balanceId", 1L, "productName", "注射器", "availableQty", BigDecimal.TEN)));
+
+        Map<String, Object> result = module.availableLooseStock(Map.of("itemId", "4", "warehouseName", "一级库"));
+
+        assertThat((List<?>) result.get("rows")).hasSize(1);
+        verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("bal.location_id IS NULL")
+                        && sql.contains("p.spec_model AS specModel")
+                        && sql.contains("manufacturerName")
+                        && sql.contains("p.purchase_price AS unitPrice")),
+                any(Object[].class));
     }
 
     @Test

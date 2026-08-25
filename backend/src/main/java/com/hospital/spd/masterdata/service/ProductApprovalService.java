@@ -115,7 +115,8 @@ public class ProductApprovalService {
                                a.production_license_no, a.business_license_no, a.qualification_attachment_count,
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic, a.contract_code,
                                a.first_category, a.second_category, a.third_category, a.is_chargeable, a.tender_sub_code,
-                               a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.storage_condition,
+                               a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.is_key_monitored,
+                               a.storage_condition,
                                a.submit_by, a.submit_time, a.approve_opinion, a.initial_review_opinion,
                                a.final_review_opinion, a.return_reason, a.reject_reason
                         FROM pending_product_application a
@@ -208,7 +209,7 @@ public class ProductApprovalService {
                                a.contract_code, a.first_category, a.second_category, a.third_category,
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
-                               a.is_quota_managed,
+                               a.is_quota_managed, a.is_key_monitored,
                                a.approval_status, a.submit_by, a.submit_time
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
@@ -329,9 +330,9 @@ public class ProductApprovalService {
                   registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
-                  qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed,
+                  qualification_attachment_count, is_high_value, is_cold_chain, is_quota_managed, is_key_monitored,
                   storage_condition, product_snapshot, change_diff, approval_status, submit_by, submit_time
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                   JSON_OBJECT('source','manual','changeReason', ?), JSON_OBJECT('changeReason', ?),
                   ?, ?, NOW())
                 """,
@@ -371,6 +372,7 @@ public class ProductApprovalService {
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
+                Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0,
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(request.changeReason()),
                 nullIfBlank(request.changeReason()),
@@ -504,7 +506,8 @@ public class ProductApprovalService {
                        is_volume_based = ?, is_centralized_procurement = ?, is_domestic = ?,
                        contract_code = ?, first_category = ?, second_category = ?, third_category = ?,
                        is_chargeable = ?, tender_sub_code = ?, qualification_attachment_count = ?,
-                       is_high_value = ?, is_cold_chain = ?, is_quota_managed = ?, storage_condition = ?,
+                       is_high_value = ?, is_cold_chain = ?, is_quota_managed = ?, is_key_monitored = ?,
+                       storage_condition = ?,
                        product_snapshot = JSON_OBJECT('source','resubmit','changeReason', ?),
                        change_diff = JSON_OBJECT('changeReason', ?),
                        approval_status = ?, submit_time = NOW(),
@@ -549,6 +552,7 @@ public class ProductApprovalService {
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
+                Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0,
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(request.changeReason()),
                 nullIfBlank(request.changeReason()),
@@ -593,7 +597,8 @@ public class ProductApprovalService {
                        is_volume_based = ?, is_centralized_procurement = ?, is_domestic = ?,
                        contract_code = ?, first_category = ?, second_category = ?, third_category = ?,
                        is_chargeable = ?, tender_sub_code = ?, qualification_attachment_count = ?,
-                       is_high_value = ?, is_cold_chain = ?, is_quota_managed = ?, storage_condition = ?
+                       is_high_value = ?, is_cold_chain = ?, is_quota_managed = ?, is_key_monitored = ?,
+                       storage_condition = ?
                  WHERE application_no = ?
                 """,
                 supplierId,
@@ -630,6 +635,7 @@ public class ProductApprovalService {
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
+                Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0,
                 nullIfBlank(request.storageCondition()),
                 applicationNo
         );
@@ -673,7 +679,8 @@ public class ProductApprovalService {
                        a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                        a.contract_code, a.first_category, a.second_category, a.third_category,
                        a.is_chargeable, a.tender_sub_code,
-                       a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.storage_condition
+                       a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.is_key_monitored,
+                       a.storage_condition
                 FROM pending_product_application a
                 LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
                 WHERE a.application_no IN (%s)
@@ -703,7 +710,7 @@ public class ProductApprovalService {
                            p.is_centralized_procurement, p.is_domestic, p.contract_code,
                            p.first_category, p.second_category, p.third_category,
                            p.is_chargeable, p.tender_sub_code, p.is_high_value,
-                           p.is_cold_chain, p.is_quota_managed, p.storage_condition
+                           p.is_cold_chain, p.is_quota_managed, p.is_key_monitored, p.storage_condition
                     FROM product p
                     LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                     LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
@@ -730,7 +737,7 @@ public class ProductApprovalService {
                     row.firstCategory(), row.secondCategory(), row.thirdCategory(),
                     row.volumeBased(), row.centralizedProcurement(), row.domestic(),
                     row.chargeable(), row.purchasePrice(), row.purchaseUnit(), row.udiCode(),
-                    row.quotaManaged()
+                    row.quotaManaged(), row.keyMonitored()
             ));
         }
         return enriched;
@@ -807,7 +814,7 @@ public class ProductApprovalService {
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic,
                        p.contract_code, p.first_category, p.second_category, p.third_category,
                        p.is_chargeable, p.tender_sub_code, p.is_high_value, p.is_cold_chain,
-                       p.is_quota_managed, p.storage_condition
+                       p.is_quota_managed, p.is_key_monitored, p.storage_condition
                   FROM product p
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
@@ -850,6 +857,7 @@ public class ProductApprovalService {
         addChange(changes, "是否高值耗材", boolLabel(current.get("is_high_value")), boolLabel(Boolean.TRUE.equals(request.highValue()) ? 1 : 0));
         addChange(changes, "是否冷链", boolLabel(current.get("is_cold_chain")), boolLabel(Boolean.TRUE.equals(request.coldChain()) ? 1 : 0));
         addChange(changes, "是否定数管理", boolLabel(current.get("is_quota_managed")), boolLabel(Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0));
+        addChange(changes, "重点监控", boolLabel(current.get("is_key_monitored")), boolLabel(Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0));
         addChange(changes, "储存条件", current.get("storage_condition"), request.storageCondition());
 
         if (changes.isEmpty()) {
@@ -979,7 +987,7 @@ public class ProductApprovalService {
                   udi_code, registration_no, registration_expire_date, production_license_no, business_license_no,
                   is_volume_based, is_centralized_procurement, is_domestic, contract_code,
                   first_category, second_category, third_category, is_chargeable, tender_sub_code,
-                  is_high_value, is_cold_chain, is_quota_managed, storage_condition, status
+                  is_high_value, is_cold_chain, is_quota_managed, is_key_monitored, storage_condition, status
                 )
                 SELECT product_code, product_name, spec_model, brand, manufacturer_id, supplier_id,
                        COALESCE(category_id, ?), unit, COALESCE(purchase_price, 0), retail_price,
@@ -988,6 +996,7 @@ public class ProductApprovalService {
                        business_license_no, is_volume_based, is_centralized_procurement, is_domestic,
                        contract_code, first_category, second_category, third_category,
                        is_chargeable, tender_sub_code, is_high_value, is_cold_chain, is_quota_managed,
+                       is_key_monitored,
                        storage_condition, 1
                   FROM pending_product_application
                  WHERE application_no = ?
@@ -1010,6 +1019,7 @@ public class ProductApprovalService {
                   tender_sub_code = VALUES(tender_sub_code),
                   is_high_value = VALUES(is_high_value), is_cold_chain = VALUES(is_cold_chain),
                   is_quota_managed = VALUES(is_quota_managed),
+                  is_key_monitored = VALUES(is_key_monitored),
                   storage_condition = VALUES(storage_condition), status = 1, deleted = 0
                 """, ensureCategory("未分类", null, null), applicationNo);
     }

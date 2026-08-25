@@ -62,6 +62,7 @@ export interface ProductDetail {
   highValue: boolean
   coldChain: boolean
   quotaManaged: boolean
+  keyMonitored: boolean
   storageCondition: string
   statusLabel: string
   attachments: ProductAttachment[]
@@ -98,6 +99,7 @@ export interface ProductCreatePayload {
   highValue: boolean
   coldChain: boolean
   quotaManaged: boolean
+  keyMonitored: boolean
   storageCondition: string
 }
 export interface PartnerOption {

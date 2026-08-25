@@ -94,6 +94,7 @@ const form = reactive<ProductCreatePayload>({
   highValue: false,
   coldChain: false,
   quotaManaged: false,
+  keyMonitored: false,
   storageCondition: '常温'
 })
 
@@ -141,6 +142,7 @@ function assignDetail(detail: ProductDetail) {
     highValue: detail.highValue,
     coldChain: detail.coldChain,
     quotaManaged: detail.quotaManaged,
+    keyMonitored: detail.keyMonitored,
     storageCondition: detail.storageCondition === '-' ? '' : detail.storageCondition
   })
 }
@@ -375,6 +377,7 @@ onMounted(() => {
           <label><input v-model="form.highValue" type="checkbox" /> 是否高值耗材</label>
           <label><input v-model="form.coldChain" type="checkbox" /> 是否冷链</label>
           <label><input v-model="form.quotaManaged" type="checkbox" /> 是否定数管理</label>
+          <label><input v-model="form.keyMonitored" type="checkbox" /> 重点监控</label>
         </div>
       </section>
 

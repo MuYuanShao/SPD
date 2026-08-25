@@ -162,6 +162,10 @@ export async function fetchRecallBatches(productCode: string, warehouseName: str
   })
 }
 
+export async function fetchRecallInventory(params: Record<string, string>) {
+  return getData<{ rows: Array<Record<string, unknown>> }>('/operational-closure/recalls/inventory', { params })
+}
+
 /**
  * 冲销消耗记录
  * @param consumptionNo - 消耗编号

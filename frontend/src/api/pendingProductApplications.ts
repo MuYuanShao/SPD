@@ -38,6 +38,7 @@ export interface PendingProductApplicationRow {
   purchaseUnit?: string
   udiCode?: string
   quotaManaged?: boolean
+  keyMonitored?: boolean
 }
 
 export interface PendingProductApplicationPage {
@@ -97,6 +98,7 @@ export interface PendingProductApplicationDetail {
   highValue: boolean
   coldChain: boolean
   quotaManaged: boolean
+  keyMonitored: boolean
   storageCondition: string
   applicant: string
   submitTime: string
@@ -143,6 +145,7 @@ export interface PendingProductApplicationPayload {
   highValue: boolean
   coldChain: boolean
   quotaManaged: boolean
+  keyMonitored: boolean
   storageCondition?: string
   changeReason?: string
 }

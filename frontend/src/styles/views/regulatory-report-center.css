@@ -1,0 +1,14 @@
+.regulatory-report-page .regulatory-filters { grid-template-columns: minmax(300px, 1.5fr) repeat(4, minmax(150px, 1fr)); }
+.regulatory-report-page .reconciliation-table { min-width: 1760px; }
+.regulatory-report-page .centralized-table { min-width: 1500px; }
+.regulatory-report-page .inventory-summary-table { min-width: 1720px; }
+.progress-cell { display: grid; grid-template-columns: minmax(80px, 1fr) 52px; align-items: center; gap: 8px; }
+.progress-cell > span { height: 7px; overflow: hidden; border-radius: 999px; background: #dbe8ea; }
+.progress-cell > span i { display: block; height: 100%; border-radius: inherit; background: #16867d; }
+.progress-cell strong { color: #23565a; font-size: 12px; text-align: right; }
+.status-pill { display: inline-flex; align-items: center; min-height: 25px; border-radius: 5px; background: #e7f5f2; color: #087268; padding: 0 8px; font-style: normal; font-weight: 800; }
+.status-pill.neutral { background: #eef3f5; color: #49616d; }
+.warning-text { color: #a15c08; font-weight: 800; }
+.positive-text { color: #087268; }
+.strong-number { color: #102033; font-weight: 900; }
+@media (max-width: 1480px) { .regulatory-report-page .regulatory-filters { grid-template-columns: repeat(3, minmax(180px, 1fr)); } }

@@ -156,6 +156,10 @@ public class OperationalClosureService {
         return riskModule.recallBatches(productCode, warehouseName);
     }
 
+    public Map<String, Object> recallInventory(Map<String, String> params) {
+        return riskModule.recallInventory(params);
+    }
+
     @Transactional
     public Map<String, Object> bindHighValuePatient(Map<String, Object> body) {
         return highValueModule.bindPatient(body);

@@ -48,7 +48,8 @@ final class ProductApprovalMapper {
                 rs.getBigDecimal("purchase_price"),
                 rs.getString("purchase_unit"),
                 rs.getString("udi_code"),
-                rs.getInt("is_quota_managed") == 1
+                rs.getInt("is_quota_managed") == 1,
+                rs.getInt("is_key_monitored") == 1
         );
     }
 
@@ -96,6 +97,7 @@ final class ProductApprovalMapper {
                 rs.getInt("is_high_value") == 1,
                 rs.getInt("is_cold_chain") == 1,
                 rs.getInt("is_quota_managed") == 1,
+                rs.getInt("is_key_monitored") == 1,
                 rs.getString("storage_condition"),
                 applicant,
                 submitTime,

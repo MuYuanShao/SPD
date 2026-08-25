@@ -35,7 +35,7 @@ export function usePendingProductImportExport({
       '合同编码', '招采子编码',
       '一级分类', '二级分类', '三级分类',
       '是否带量', '是否集采', '是否国产', '是否收费',
-      '是否高值耗材', '是否冷链', '是否定数管理',
+      '是否高值耗材', '是否冷链', '是否定数管理', '重点监控',
       '储存条件', '附件数量', '变更原因'
     ]
     const example = [
@@ -46,7 +46,7 @@ export function usePendingProductImportExport({
       'HT-2025-888', 'TENDER-SUB-001',
       '一级分类', '二级分类', '三级分类',
       '是', '否', '是', '是',
-      '否', '否', '是',
+      '否', '否', '是', '是',
       '常温', 3, ''
     ]
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header, example]), '模板')

@@ -74,15 +74,17 @@ export interface DepartmentRequisitionCatalogRow {
   conversionRate: number
   unitPrice: number
   quotaManaged: number
+  highValue: number
   centralized: number
   chargeable: number
   looseAvailableQty: number
   packageAvailableQty: number
+  uniqueCodeAvailableQty: number
   templateCode: string
   templateName: string
   packageQuantity: number | null
   packageUnit: string
-  defaultMode: 'loose' | 'quota_package'
+  defaultMode: 'loose' | 'quota_package' | 'unique_code'
   requisitionStatus: string
 }
 

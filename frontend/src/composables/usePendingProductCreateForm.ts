@@ -90,6 +90,7 @@ function emptyCreateForm(): PendingProductApplicationPayload {
     highValue: false,
     coldChain: false,
     quotaManaged: false,
+    keyMonitored: false,
     storageCondition: '常温',
     changeReason: ''
   }

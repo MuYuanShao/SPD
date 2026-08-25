@@ -574,16 +574,21 @@ class OperationalClosureServiceTest {
     void shouldCreateRecallSuccessfully() {
         Map<String, Object> body = Map.of(
                 "productCode", "PC001",
+                "scope", "primary",
                 "warehouseName", "主仓库",
-                "quantity", BigDecimal.valueOf(50),
+                "batchNo", "PC20260601",
                 "reason", "质量异常"
         );
 
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
                 .thenReturn(Map.of("productId", 100L, "productCode", "PC001",
                         "productName", "注射器"));
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id"), eq(Long.class), eq("主仓库")))
-                .thenReturn(10L);
+        when(jdbcTemplate.queryForList(contains("converted_stock"), any(Object[].class)))
+                .thenReturn(List.of(Map.of("warehouseId", 10L, "batchId", 66L,
+                        "looseQty", BigDecimal.valueOf(50), "packageQty", BigDecimal.ZERO,
+                        "totalQty", BigDecimal.valueOf(50))));
+        when(jdbcTemplate.queryForMap(contains("warehouse_type LIKE '%一级%'")))
+                .thenReturn(Map.of("warehouseId", 10L, "warehouseName", "主仓库"));
         doAnswer(invocation -> {
             populateKeyHolder(invocation.getArgument(1), 88L);
             return 1;

@@ -538,6 +538,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <th>是否集采</th>
                 <th>是否国产</th>
                 <th>是否收费</th>
+                <th>重点监控</th>
                 <th>采购价</th>
                 <th>UDI 编码</th>
                 <th>风险标签</th>
@@ -548,10 +549,10 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="22" class="approval-empty">正在加载待审批任务...</td>
+                <td colspan="23" class="approval-empty">正在加载待审批任务...</td>
               </tr>
               <tr v-else-if="error">
-                <td colspan="22" class="approval-empty">{{ error }}</td>
+                <td colspan="23" class="approval-empty">{{ error }}</td>
               </tr>
               <tr v-for="row in rows" v-else :key="row.no">
                 <td class="approval-sticky-check">
@@ -580,6 +581,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <td>{{ approvalWideField(row, 'centralized') }}</td>
                 <td>{{ approvalWideField(row, 'domestic') }}</td>
                 <td>{{ approvalWideField(row, 'chargeable') }}</td>
+                <td>{{ approvalWideField(row, 'keyMonitored') }}</td>
                 <td class="approval-money">{{ approvalWideField(row, 'purchasePrice') }}</td>
                 <td>{{ approvalWideField(row, 'udiCode') }}</td>
                 <td>
@@ -860,6 +862,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><input v-model="createForm.highValue" type="checkbox" /> 高值耗材</label>
               <label><input v-model="createForm.coldChain" type="checkbox" /> 冷链</label>
               <label><input v-model="createForm.quotaManaged" type="checkbox" /> 定数管理</label>
+              <label><input v-model="createForm.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
           </section>
           </div>
@@ -897,4 +900,3 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
     </div>
   </section>
 </template>
-

@@ -1,8 +1,12 @@
 package com.hospital.spd.supplychain;
 
 import com.hospital.spd.common.ApiResponse;
+import com.hospital.spd.supplychain.service.PurchaseOrderAttachmentService;
 import com.hospital.spd.supplychain.service.PurchaseOrderService;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
@@ -15,9 +19,12 @@ import java.util.Map;
 public class PurchaseOrderController {
 
     private final PurchaseOrderService service;
+    private final PurchaseOrderAttachmentService attachmentService;
 
-    public PurchaseOrderController(PurchaseOrderService service) {
+    public PurchaseOrderController(PurchaseOrderService service,
+                                   PurchaseOrderAttachmentService attachmentService) {
         this.service = service;
+        this.attachmentService = attachmentService;
     }
 
     // ==================== 采购订单 ====================
@@ -41,6 +48,29 @@ public class PurchaseOrderController {
     public ApiResponse<Map<String, Object>> action(@PathVariable String orderNo,
                                                    @RequestBody PurchaseOrderActionRequest request) {
         return ApiResponse.ok(service.performAction(orderNo, request));
+    }
+
+    @PostMapping("/{orderNo}/remarks")
+    public ApiResponse<Map<String, Object>> addRemark(@PathVariable String orderNo,
+                                                      @RequestBody Map<String, String> request) {
+        return ApiResponse.ok(service.addRemark(orderNo, request.get("remark")));
+    }
+
+    @GetMapping("/{orderNo}/attachments")
+    public ApiResponse<List<Map<String, Object>>> attachments(@PathVariable String orderNo) {
+        return ApiResponse.ok(attachmentService.list(orderNo));
+    }
+
+    @PostMapping("/{orderNo}/attachments")
+    public ApiResponse<Map<String, Object>> uploadAttachment(@PathVariable String orderNo,
+                                                             @RequestParam("file") MultipartFile file,
+                                                             @RequestParam(defaultValue = "other") String category) {
+        return ApiResponse.ok(attachmentService.upload(orderNo, file, category));
+    }
+
+    @GetMapping("/attachments/{attachmentId}/file")
+    public ResponseEntity<Resource> attachmentFile(@PathVariable Long attachmentId) {
+        return attachmentService.file(attachmentId);
     }
 
     // ==================== 采购需求 ====================

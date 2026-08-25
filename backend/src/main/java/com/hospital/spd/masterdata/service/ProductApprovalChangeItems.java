@@ -41,7 +41,7 @@ final class ProductApprovalChangeItems {
                        p.is_volume_based, p.is_centralized_procurement, p.is_domestic,
                        p.contract_code, p.first_category, p.second_category, p.third_category,
                        p.is_chargeable, p.tender_sub_code, p.is_high_value, p.is_cold_chain,
-                       p.is_quota_managed, p.storage_condition
+                       p.is_quota_managed, p.is_key_monitored, p.storage_condition
                   FROM product p
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
@@ -81,6 +81,7 @@ final class ProductApprovalChangeItems {
         addChange(changes, "是否高值耗材", boolLabel(current.get("is_high_value")), boolLabel(application.getInt("is_high_value")));
         addChange(changes, "是否冷链", boolLabel(current.get("is_cold_chain")), boolLabel(application.getInt("is_cold_chain")));
         addChange(changes, "是否定数管理", boolLabel(current.get("is_quota_managed")), boolLabel(application.getInt("is_quota_managed")));
+        addChange(changes, "重点监控", boolLabel(current.get("is_key_monitored")), boolLabel(application.getInt("is_key_monitored")));
         addChange(changes, "储存条件", current.get("storage_condition"), application.getString("storage_condition"));
         return changes;
     }

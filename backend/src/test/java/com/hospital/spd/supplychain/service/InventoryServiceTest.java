@@ -2,6 +2,7 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
 import com.hospital.spd.supplychain.StocktakingRequest;
+import com.hospital.spd.supplychain.StocktakingSheetRequest;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,24 @@ class InventoryServiceTest {
     }
 
     // ==================== 库存余额查询 ====================
+
+    @Test
+    @DisplayName("选择盘点范围后预览当前库房库存明细")
+    void shouldPreviewCurrentWarehouseStockForSelectedScopes() {
+        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), eq("一级库")))
+                .thenReturn(10L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(Map.of(
+                "productId", 1L, "productCode", "P001", "productName", "注射器",
+                "systemQty", BigDecimal.TEN)));
+
+        Map<String, Object> result = service.previewStocktakingSheet(
+                new StocktakingSheetRequest("一级库", "手术室", List.of("highValue", "quotaPackage")));
+
+        assertThat((List<?>) result.get("rows")).hasSize(1);
+        verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("p.is_high_value = 1")
+                && sql.contains("p.is_quota_managed = 1") && sql.contains("bal.location_id IS NULL")),
+                any(Object[].class));
+    }
 
     @Nested
     @DisplayName("balances() 库存余额查询")

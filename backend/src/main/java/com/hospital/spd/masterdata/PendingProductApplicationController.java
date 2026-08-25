@@ -166,6 +166,7 @@ public class PendingProductApplicationController {
                             getCellBoolean(row, column(columns, 27, "是否高值耗材"), false),
                             getCellBoolean(row, column(columns, 28, "是否冷链"), false),
                             getCellBoolean(row, column(columns, 29, "是否定数管理", "定数管理"), false),
+                            getCellBoolean(row, column(columns, 33, "重点监控"), false),
                             getCellString(row, column(columns, 30, "储存条件"), "常温"),
                             getCellString(row, column(columns, 32, "变更原因"), "")
                     ));

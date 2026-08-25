@@ -23,11 +23,12 @@ const approvalNavigableFields = [
   { label: '是否集采', columnIndex: 13, group: 'purchase' },
   { label: '是否国产', columnIndex: 14, group: 'purchase' },
   { label: '是否收费', columnIndex: 15, group: 'purchase' },
-  { label: '采购价', columnIndex: 16, group: 'purchase' },
-  { label: 'UDI 编码', columnIndex: 17, group: 'qualification' },
-  { label: '风险标签', columnIndex: 18, group: 'workflow' },
-  { label: '节点 / 等待', columnIndex: 19, group: 'workflow' },
-  { label: '变更记录', columnIndex: 20, group: 'workflow' }
+  { label: '重点监控', columnIndex: 16, group: 'purchase' },
+  { label: '采购价', columnIndex: 17, group: 'purchase' },
+  { label: 'UDI 编码', columnIndex: 18, group: 'qualification' },
+  { label: '风险标签', columnIndex: 19, group: 'workflow' },
+  { label: '节点 / 等待', columnIndex: 20, group: 'workflow' },
+  { label: '变更记录', columnIndex: 21, group: 'workflow' }
 ]
 
 export const approvalFieldChips = approvalNavigableFields.map(field => field.label)
@@ -50,13 +51,14 @@ export const approvalFieldToGroup: Record<string, string> = Object.fromEntries(
 
 export function approvalRiskLabels(row: PendingProductApplicationRow) {
   if (row.warning) return ['资质临期', row.type === '新品准入' ? '价格复核' : '影响采购价']
+  if (row.keyMonitored) return ['重点监控']
   if (row.type === '资质更新') return ['附件齐全']
   if (row.type === '信息变更') return ['供应商变更']
   return ['附件齐全']
 }
 
 export function approvalRiskTone(label: string) {
-  if (label.includes('临期') || label.includes('价格') || label.includes('库房')) return 'orange'
+  if (label.includes('临期') || label.includes('价格') || label.includes('库房') || label.includes('重点')) return 'orange'
   if (label.includes('冷链') || label.includes('高值')) return 'red'
   if (label.includes('变更')) return 'blue'
   return 'green'
@@ -86,6 +88,7 @@ export function approvalWideField(row: PendingProductApplicationRow, field: stri
     centralized: yesNo(row.centralizedProcurement),
     domestic: yesNo(row.domestic),
     chargeable: yesNo(row.chargeable),
+    keyMonitored: yesNo(row.keyMonitored),
     purchasePrice: money(row.purchasePrice),
     udiCode: row.udiCode || '-',
     quotaManaged: yesNo(row.quotaManaged),

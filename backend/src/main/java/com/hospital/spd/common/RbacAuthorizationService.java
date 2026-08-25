@@ -192,6 +192,11 @@ public class RbacAuthorizationService {
         prefixes.put("/system/field-options", "field-option-management");
         prefixes.put("/system-config", "system-config");
         prefixes.put("/config-hit-explanation", "config-hit-explanation");
+        prefixes.put("/report-center/supplier-delivery-ledger", "supplier-delivery-ledger-report");
+        prefixes.put("/report-center/centralized-procurement-progress", "centralized-procurement-progress-report");
+        prefixes.put("/report-center/inventory-movement-summary", "inventory-movement-summary-report");
+        prefixes.put("/report-center", "spd-his-reconciliation-report");
+        prefixes.put("/operation-cockpit", "operation-cockpit");
         prefixes.put("/dashboard", "dashboard");
         prefixes.put("/modules", "dashboard");
         // Prefixes are deliberately ordered from most specific to least specific.

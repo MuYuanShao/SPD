@@ -46,6 +46,7 @@ function emptyProductForm(): ProductCreatePayload {
     highValue: false,
     coldChain: false,
     quotaManaged: false,
+    keyMonitored: false,
     storageCondition: '常温'
   }
 }
@@ -124,6 +125,7 @@ export function useHospitalProductManagement(options: {
       highValue: detail.highValue,
       coldChain: detail.coldChain,
       quotaManaged: detail.quotaManaged,
+      keyMonitored: detail.keyMonitored,
       storageCondition: detail.storageCondition === '-' ? '' : detail.storageCondition
     }
   }

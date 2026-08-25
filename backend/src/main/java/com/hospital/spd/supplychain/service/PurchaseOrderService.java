@@ -160,14 +160,23 @@ public class PurchaseOrderService {
                 """, orderNo);
         Long orderId = ((Number) order.get("orderId")).longValue();
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
-                SELECT p.product_code AS productCode, p.product_name AS productName,
-                       p.spec_model AS specModel, poi.quantity, poi.unit,
+                SELECT poi.item_id AS itemId, s.supplier_name AS supplierName,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.registration_no AS registrationNo,
+                       m.manufacturer_name AS manufacturerName, poi.unit,
                        poi.estimated_unit_price AS estimatedUnitPrice,
-                       poi.amount, poi.received_quantity AS receivedQuantity,
+                       poi.quantity, poi.amount,
+                       p.conversion_rate AS middlePackageQuantity,
+                       p.purchase_package_qty AS purchasePackageQuantity,
+                       p.tender_sub_code AS tenderSubCode, p.contract_code AS contractCode,
+                       p.udi_code AS udiCode, poi.received_quantity AS receivedQuantity,
                        p.purchase_price AS latestCatalogPrice,
                        CASE WHEN p.purchase_price <> poi.estimated_unit_price THEN 1 ELSE 0 END AS priceDiff
                   FROM purchase_order_item poi
+                  JOIN purchase_order po ON po.purchase_order_id = poi.purchase_order_id
+                  JOIN supplier s ON s.supplier_id = po.supplier_id
                   JOIN product p ON p.product_id = poi.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                  WHERE poi.purchase_order_id = ?
                  ORDER BY poi.item_id
                 """, orderId);
@@ -211,6 +220,25 @@ public class PurchaseOrderService {
     @Transactional
     public Map<String, Object> performAction(String orderNo, PurchaseOrderActionRequest request) {
         return purchaseFlow.runOrderAction(orderNo, request);
+    }
+
+    @Transactional
+    public Map<String, Object> addRemark(String orderNo, String remark) {
+        if (isBlank(remark)) {
+            throw new IllegalArgumentException("请填写订单备注");
+        }
+        Map<String, Object> order = jdbcTemplate.queryForMap("""
+                SELECT purchase_order_id AS orderId, order_status AS orderStatus
+                  FROM purchase_order
+                 WHERE order_no = ?
+                """, orderNo);
+        Long orderId = ((Number) order.get("orderId")).longValue();
+        jdbcTemplate.update("""
+                INSERT INTO purchase_order_tracking (purchase_order_id, event_type, event_status, remark)
+                VALUES (?, 'remark', ?, ?)
+                """, orderId, order.get("orderStatus"), remark.trim());
+        writeAudit("remark", orderId, orderNo, remark.trim());
+        return Map.of("orderNo", orderNo, "remark", remark.trim());
     }
 
     // ==================== 采购需求 ====================
@@ -331,6 +359,17 @@ public class PurchaseOrderService {
                   FROM purchase_plan pp
                   JOIN supplier s ON s.supplier_id = pp.supplier_id
                   JOIN product p ON p.product_id = pp.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                  LEFT JOIN (
+                       SELECT ppd.plan_id,
+                              GROUP_CONCAT(DISTINCT d.dept_name ORDER BY d.dept_name SEPARATOR '、') AS initiatingDeptName,
+                              GROUP_CONCAT(DISTINCT w.warehouse_name ORDER BY w.warehouse_name SEPARATOR '、') AS deliveryWarehouseName
+                         FROM purchase_plan_demand ppd
+                         JOIN purchase_demand pd ON pd.demand_id = ppd.demand_id
+                         LEFT JOIN sys_dept d ON d.dept_id = pd.dept_id AND d.deleted = 0
+                         LEFT JOIN warehouse w ON w.dept_id = pd.dept_id AND w.deleted = 0 AND w.status = 1
+                        GROUP BY ppd.plan_id
+                  ) plan_origin ON plan_origin.plan_id = pp.plan_id
                 """;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
 
@@ -340,12 +379,14 @@ public class PurchaseOrderService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT pp.plan_id AS planId, pp.plan_no AS planNo, pp.plan_status AS planStatus,
                        s.supplier_name AS supplierName, p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.registration_no AS registrationNo,
+                       m.manufacturer_name AS manufacturerName, p.unit, p.purchase_price AS unitPrice,
                        pp.planned_quantity AS plannedQuantity, pp.converted_order_no AS convertedOrderNo,
+                       ROUND(p.purchase_price * pp.planned_quantity, 4) AS amount,
+                       p.tender_sub_code AS tenderSubCode,
+                       plan_origin.initiatingDeptName, plan_origin.deliveryWarehouseName,
                        pp.remark, DATE_FORMAT(pp.create_time, '%Y-%m-%d %H:%i') AS createTime
-                  FROM purchase_plan pp
-                  JOIN supplier s ON s.supplier_id = pp.supplier_id
-                  JOIN product p ON p.product_id = pp.product_id
-                """ + where + " ORDER BY pp.create_time DESC LIMIT ? OFFSET ?",
+                """ + fromClause + where + " ORDER BY pp.create_time DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }

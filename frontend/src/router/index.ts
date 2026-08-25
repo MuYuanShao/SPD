@@ -34,6 +34,9 @@ const SystemConfigView = () => import('../views/system/SystemConfigView.vue')
 const FieldOptionManagementView = () => import('../views/system/FieldOptionManagementView.vue')
 const ApprovalFlowSettingsView = () => import('../views/system/ApprovalFlowSettingsView.vue')
 const UserRoleManagementView = () => import('../views/system/UserRoleManagementView.vue')
+const OperationCockpitView = () => import('../views/operations/OperationCockpitView.vue')
+const SpdHisReconciliationReportView = () => import('../views/operations/SpdHisReconciliationReportView.vue')
+const RegulatoryReportView = () => import('../views/operations/RegulatoryReportView.vue')
 
 function featureCodePattern(viewFamily: FeatureViewFamily): string {
   return featureCodesByViewFamily(viewFamily).join('|')
@@ -227,6 +230,36 @@ export const router = createRouter({
       name: 'print-template-settings',
       component: PrintTemplateSettingsView,
       meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('operation-cockpit'),
+      name: 'operation-cockpit',
+      component: OperationCockpitView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('spd-his-reconciliation-report'),
+      name: 'spd-his-reconciliation-report',
+      component: SpdHisReconciliationReportView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('supplier-delivery-ledger-report'),
+      name: 'supplier-delivery-ledger-report',
+      component: RegulatoryReportView,
+      meta: { requiresAuth: true, reportType: 'supplier' }
+    },
+    {
+      path: featureRouteTarget('centralized-procurement-progress-report'),
+      name: 'centralized-procurement-progress-report',
+      component: RegulatoryReportView,
+      meta: { requiresAuth: true, reportType: 'centralized' }
+    },
+    {
+      path: featureRouteTarget('inventory-movement-summary-report'),
+      name: 'inventory-movement-summary-report',
+      component: RegulatoryReportView,
+      meta: { requiresAuth: true, reportType: 'inventory' }
     },
     {
       path: '/features/:code',

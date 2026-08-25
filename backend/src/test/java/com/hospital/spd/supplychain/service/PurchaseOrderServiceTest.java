@@ -27,12 +27,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PurchaseOrderService 单元测试")
@@ -164,6 +166,36 @@ class PurchaseOrderServiceTest {
         }
     }
 
+    // ==================== 采购计划列表 ====================
+
+    @Nested
+    @DisplayName("listPlans() 采购计划明细查询")
+    class ListPlansTest {
+
+        @Test
+        @DisplayName("返回商品、价格、配送商及来源科室库房字段")
+        void shouldReturnCompletePlanDetailFields() {
+            when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
+            when(jdbcTemplate.queryForList(argThat(sql ->
+                            sql.contains("p.registration_no AS registrationNo")
+                                    && sql.contains("m.manufacturer_name AS manufacturerName")
+                                    && sql.contains("p.purchase_price AS unitPrice")
+                                    && sql.contains("p.tender_sub_code AS tenderSubCode")
+                                    && sql.contains("plan_origin.initiatingDeptName")
+                                    && sql.contains("plan_origin.deliveryWarehouseName")),
+                    any(Object[].class))).thenReturn(List.of(Map.of(
+                            "planNo", "JH20260825001",
+                            "productCode", "P001",
+                            "supplierName", "测试配送商"
+                    )));
+
+            Map<String, Object> result = service.listPlans(Map.of("page", "1", "size", "20"));
+
+            assertThat(result.get("total")).isEqualTo(1L);
+            assertThat(result.get("rows")).asList().hasSize(1);
+        }
+    }
+
     // ==================== 采购订单详情 ====================
 
     @Nested
@@ -190,6 +222,15 @@ class PurchaseOrderServiceTest {
             assertThat(result).containsKeys("order", "items", "tracking");
             assertThat(result.get("items")).asList().hasSize(1);
             assertThat(result.get("tracking")).asList().hasSize(1);
+            verify(jdbcTemplate).queryForList(argThat(sql ->
+                            sql.contains("p.registration_no AS registrationNo")
+                                    && sql.contains("m.manufacturer_name AS manufacturerName")
+                                    && sql.contains("p.conversion_rate AS middlePackageQuantity")
+                                    && sql.contains("p.purchase_package_qty AS purchasePackageQuantity")
+                                    && sql.contains("p.tender_sub_code AS tenderSubCode")
+                                    && sql.contains("p.contract_code AS contractCode")
+                                    && sql.contains("p.udi_code AS udiCode")),
+                    eq(100L));
         }
 
         @Test
@@ -201,6 +242,36 @@ class PurchaseOrderServiceTest {
 
             assertThatThrownBy(() -> service.getDetail(orderNo))
                     .isInstanceOf(EmptyResultDataAccessException.class);
+        }
+    }
+
+    @Nested
+    @DisplayName("addRemark() 采购订单备注")
+    class AddRemarkTest {
+
+        @Test
+        @DisplayName("将备注写入订单跟踪和审计记录")
+        void shouldAppendRemarkToTrackingAndAudit() {
+            when(jdbcTemplate.queryForMap(anyString(), eq("CG20260825001"))).thenReturn(Map.of(
+                    "orderId", 100L,
+                    "orderStatus", "draft"
+            ));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.addRemark("CG20260825001", "供应商确认周五送货");
+
+            assertThat(result).containsEntry("remark", "供应商确认周五送货");
+            verify(jdbcTemplate).update(contains("INSERT INTO purchase_order_tracking"),
+                    eq(100L), eq("draft"), eq("供应商确认周五送货"));
+            verify(jdbcTemplate).update(contains("INSERT INTO audit_log"), any(Object[].class));
+        }
+
+        @Test
+        @DisplayName("空备注被拒绝")
+        void shouldRejectBlankRemark() {
+            assertThatThrownBy(() -> service.addRemark("CG20260825001", " "))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("请填写订单备注");
         }
     }
 

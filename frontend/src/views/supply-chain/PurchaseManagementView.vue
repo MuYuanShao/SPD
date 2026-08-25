@@ -1,14 +1,24 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import {
+  Ban,
   CheckCircle2,
+  Copy,
   Eye,
+  FileText,
   FileCheck2,
+  List,
+  MessageSquare,
   PackagePlus,
+  Paperclip,
+  Plus,
   RefreshCw,
+  Save,
   Search,
   Send,
-  X,
-  XCircle
+  Trash2,
+  Upload,
+  X
 } from '@lucide/vue'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
 import PaginationControls from '../../components/common/PaginationControls.vue'
@@ -36,6 +46,16 @@ const {
   closeTarget,
   closeReason,
   detail,
+  selectedOrder,
+  showOrderDetailDialog,
+  orderOperationMode,
+  orderOperationText,
+  showOrderAttachmentDialog,
+  orderAttachments,
+  orderAttachmentsLoading,
+  orderAttachmentPreviewUrl,
+  orderAttachmentPreviewType,
+  orderAttachmentPreviewName,
   query,
   form,
   productSearchQuery,
@@ -51,6 +71,9 @@ const {
   actionQueryLabel,
   filteredProducts,
   demandFilteredProducts,
+  demandValidItemCount,
+  demandEstimatedAmount,
+  productByCode,
   openDemandDetail,
   statusLabel,
   statusTone,
@@ -77,8 +100,36 @@ const {
   submitClose,
   runDemandAction,
   runPlanAction,
-  openDetail
+  openDetail,
+  openTracking,
+  selectOrder,
+  runSelectedOrderAction,
+  openOrderOperation,
+  submitOrderOperation,
+  copySelectedOrder,
+  openOrderAttachments,
+  uploadSelectedOrderAttachment,
+  previewOrderAttachment,
+  closeOrderAttachmentDialog
 } = usePurchaseManagement()
+
+const orderAttachmentInput = ref<HTMLInputElement | null>(null)
+
+function chooseOrderAttachment() {
+  if (!selectedOrder.value) {
+    message.value = '请先选择一条采购订单'
+    return
+  }
+  orderAttachmentInput.value?.click()
+}
+
+async function handleOrderAttachmentUpload(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  await uploadSelectedOrderAttachment(file)
+  input.value = ''
+}
 </script>
 
 <template>
@@ -135,7 +186,7 @@ const {
         </button>
         <button v-if="activeTab === 'demands'" class="btn btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
           <PackagePlus :size="18" />
-          新增需求
+          新增采购
         </button>
         <select v-model="planForm.supplierName" class="inline-select" title="计划供应商">
           <option value="">按商品默认供应商生成计划</option>
@@ -151,6 +202,35 @@ const {
           <PackagePlus :size="18" />
           新增订单
         </button>
+        <template v-if="activeTab === 'orders'">
+          <button class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" @click="runSelectedOrderAction('submit')">
+            <Send :size="16" /> 提交
+          </button>
+          <button class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" @click="runSelectedOrderAction('approve')">
+            <CheckCircle2 :size="16" /> 审批
+          </button>
+          <button
+            class="btn btn-danger-soft"
+            type="button"
+            :disabled="!selectedOrder || !['draft', 'pending_approval', 'approved'].includes(selectedOrder.orderStatus)"
+            @click="openOrderOperation('void')"
+          >
+            <Ban :size="16" /> 作废
+          </button>
+          <button class="btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
+            <Copy :size="16" /> 复制订单
+          </button>
+          <button class="btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
+            <Upload :size="16" /> 上传附件
+          </button>
+          <input ref="orderAttachmentInput" type="file" hidden @change="handleOrderAttachmentUpload" />
+          <button class="btn" type="button" :disabled="!selectedOrder" @click="openOrderAttachments">
+            <Paperclip :size="16" /> 附件阅览
+          </button>
+          <button class="btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
+            <MessageSquare :size="16" /> 添加备注
+          </button>
+        </template>
         <button v-if="activeTab !== 'smart'" class="btn" type="button" @click="loadData">
           <Search :size="17" />
           {{ actionQueryLabel }}
@@ -234,26 +314,49 @@ const {
       />
 
       <div v-if="activeTab === 'plans'" class="table-scroll">
-        <table class="master-table purchase-table">
+        <table class="master-table purchase-table purchase-plan-table">
           <thead>
             <tr>
               <th>计划编号</th>
-              <th>供应商</th>
-              <th>商品</th>
-              <th>计划数量</th>
+              <th>商品编码</th>
+              <th>商品名称</th>
+              <th>规格型号</th>
+              <th>注册证号</th>
+              <th>厂家</th>
+              <th>单位</th>
+              <th>单价</th>
+              <th>采购数量</th>
+              <th>金额</th>
+              <th>配送商</th>
+              <th>招采子编码</th>
               <th>转订单号</th>
               <th>状态</th>
+              <th>发起科室</th>
+              <th>送货库房</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in plans" :key="row.planNo">
-              <td>{{ row.planNo }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.productName }}</td>
+            <tr v-if="loading">
+              <td colspan="17" class="approval-empty">正在加载采购计划...</td>
+            </tr>
+            <tr v-for="row in plans" v-else :key="row.planNo">
+              <td class="document-no-cell">{{ row.planNo }}</td>
+              <td>{{ row.productCode || '-' }}</td>
+              <td>{{ row.productName || '-' }}</td>
+              <td>{{ row.specModel || '-' }}</td>
+              <td>{{ row.registrationNo || '-' }}</td>
+              <td>{{ row.manufacturerName || '-' }}</td>
+              <td>{{ row.unit || '-' }}</td>
+              <td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
               <td>{{ row.plannedQuantity }}</td>
+              <td class="purchase-plan-amount">¥ {{ Number(row.amount ?? Number(row.unitPrice || 0) * Number(row.plannedQuantity || 0)).toFixed(2) }}</td>
+              <td>{{ row.supplierName || '-' }}</td>
+              <td>{{ row.tenderSubCode || '-' }}</td>
               <td>{{ row.convertedOrderNo || '-' }}</td>
               <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
+              <td>{{ row.initiatingDeptName || '-' }}</td>
+              <td>{{ row.deliveryWarehouseName || '-' }}</td>
               <td class="row-actions">
                 <button v-if="row.planStatus === 'draft'" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
                 <button v-if="row.planStatus === 'approved'" class="btn-text" @click="runPlanAction(row, 'execute')">转订单</button>
@@ -261,7 +364,7 @@ const {
               </td>
             </tr>
             <tr v-if="!loading && plans.length === 0">
-              <td colspan="7" class="approval-empty">暂无采购计划</td>
+              <td colspan="17" class="approval-empty">暂无采购计划</td>
             </tr>
           </tbody>
         </table>
@@ -280,6 +383,7 @@ const {
         <table class="master-table purchase-table">
           <thead>
             <tr>
+              <th class="order-select-column">选择</th>
               <th>订单编号</th>
               <th>供应商</th>
               <th>来源</th>
@@ -294,8 +398,26 @@ const {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in rows" :key="row.orderNo">
-              <td>{{ row.orderNo }}</td>
+            <tr v-if="loading">
+              <td colspan="12" class="approval-empty">正在加载采购订单...</td>
+            </tr>
+            <tr
+              v-for="row in rows"
+              v-else
+              :key="row.orderNo"
+              :class="{ 'selected-order-row': selectedOrder?.orderNo === row.orderNo }"
+              @click="selectOrder(row)"
+            >
+              <td class="order-select-column">
+                <input
+                  type="radio"
+                  name="purchase-order-selection"
+                  :checked="selectedOrder?.orderNo === row.orderNo"
+                  :aria-label="`选择订单 ${row.orderNo}`"
+                  @change="selectOrder(row)"
+                />
+              </td>
+              <td class="document-no-cell">{{ row.orderNo }}</td>
               <td>{{ row.supplierName }}</td>
               <td>{{ row.orderSource || '-' }}</td>
               <td>{{ row.itemCount }}</td>
@@ -318,10 +440,7 @@ const {
               <td><span :class="['status-badge', statusTone(row.orderStatus)]">{{ statusLabel(row.orderStatus) }}</span></td>
               <td class="row-actions">
                 <button class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
-                <button v-if="row.orderStatus === 'draft'" class="btn-text" @click="runOrderAction(row, 'submit')">提交</button>
-                <button v-if="row.orderStatus === 'pending_approval'" class="btn-text" @click="runOrderAction(row, 'approve')">
-                  <CheckCircle2 :size="15" /> 审批
-                </button>
+                <button class="btn-text" @click="openTracking(row)"><List :size="15" /> 跟踪</button>
                 <button v-if="row.orderStatus === 'approved'" class="btn-text" @click="runOrderAction(row, 'send')">
                   <Send :size="15" /> 发送
                 </button>
@@ -334,10 +453,10 @@ const {
                 >
                   {{ canCloseOrder(row) ? '关闭' : '待收货' }}
                 </button>
-                <button v-if="row.orderStatus === 'pending_approval'" class="btn-text btn-text-danger" @click="runOrderAction(row, 'reject')">
-                  <XCircle :size="15" /> 驳回
-                </button>
               </td>
+            </tr>
+            <tr v-if="!loading && rows.length === 0">
+              <td colspan="12" class="approval-empty">暂无采购订单</td>
             </tr>
           </tbody>
         </table>
@@ -528,62 +647,275 @@ const {
       </section>
     </div>
 
-    <div v-if="showDemandModal" class="modal-mask">
-      <section class="edit-modal purchase-create-modal">
+    <div v-if="showOrderDetailDialog && detail" class="modal-mask purchase-entry-mask" @click.self="showOrderDetailDialog = false">
+      <section class="edit-modal order-detail-modal" role="dialog" aria-modal="true" aria-labelledby="order-detail-title">
+        <header class="purchase-entry-header">
+          <div>
+            <p>采购订单明细</p>
+            <h3 id="order-detail-title">{{ detail.order.orderNo }}</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭订单明细" @click="showOrderDetailDialog = false"><X :size="18" /></button>
+        </header>
+        <div class="order-detail-body">
+          <section class="purchase-detail-summary order-detail-summary">
+            <span>供应商：<strong>{{ detail.order.supplierName }}</strong></span>
+            <span>状态：<strong>{{ statusLabel(detail.order.orderStatus) }}</strong></span>
+            <span>订单金额：<strong>¥ {{ Number(detail.order.totalAmount || 0).toFixed(2) }}</strong></span>
+            <span>预计到货：<strong>{{ detail.order.expectedArrivalDate || '-' }}</strong></span>
+          </section>
+          <div class="table-scroll order-detail-table-wrap">
+            <table class="master-table purchase-table order-detail-table">
+              <thead>
+                <tr>
+                  <th>供应商</th>
+                  <th>商品编码</th>
+                  <th>商品名称</th>
+                  <th>规格型号</th>
+                  <th>注册证号</th>
+                  <th>厂家</th>
+                  <th>单位</th>
+                  <th>单价</th>
+                  <th>数量</th>
+                  <th>金额</th>
+                  <th>中包装数量</th>
+                  <th>采购包装数量</th>
+                  <th>招采子编码</th>
+                  <th>合同编码</th>
+                  <th>UDI</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in detail.items" :key="item.itemId">
+                  <td>{{ item.supplierName || detail.order.supplierName || '-' }}</td>
+                  <td>{{ item.productCode || '-' }}</td>
+                  <td>{{ item.productName || '-' }}</td>
+                  <td>{{ item.specModel || '-' }}</td>
+                  <td>{{ item.registrationNo || '-' }}</td>
+                  <td>{{ item.manufacturerName || '-' }}</td>
+                  <td>{{ item.unit || '-' }}</td>
+                  <td>¥ {{ Number(item.estimatedUnitPrice || 0).toFixed(2) }}</td>
+                  <td>{{ item.quantity }}</td>
+                  <td class="purchase-plan-amount">¥ {{ Number(item.amount || 0).toFixed(2) }}</td>
+                  <td>{{ item.middlePackageQuantity ?? '-' }}</td>
+                  <td>{{ item.purchasePackageQuantity ?? '-' }}</td>
+                  <td>{{ item.tenderSubCode || '-' }}</td>
+                  <td>{{ item.contractCode || '-' }}</td>
+                  <td>{{ item.udiCode || '-' }}</td>
+                </tr>
+                <tr v-if="detail.items.length === 0">
+                  <td colspan="15" class="approval-empty">该订单暂无商品明细</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <footer class="purchase-entry-footer">
+          <span>订单商品价格与包装信息取创建订单时的业务数据及当前商品目录字段。</span>
+          <div>
+            <button class="btn" type="button" @click="showOrderDetailDialog = false">关闭</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+
+    <div v-if="orderOperationMode && selectedOrder" class="modal-mask" @click.self="orderOperationMode = null">
+      <section class="edit-modal order-operation-modal" role="dialog" aria-modal="true">
         <header>
-          <h3>新增采购需求</h3>
-          <button class="btn-icon" type="button" @click="showDemandModal = false"><X :size="18" /></button>
+          <div>
+            <p>{{ orderOperationMode === 'void' ? '订单状态处理' : '订单业务记录' }}</p>
+            <h3>{{ orderOperationMode === 'void' ? '作废采购订单' : '添加订单备注' }}</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="orderOperationMode = null"><X :size="18" /></button>
+        </header>
+        <div class="order-operation-body">
+          <div class="order-operation-order">
+            <span>订单编号</span>
+            <strong>{{ selectedOrder.orderNo }}</strong>
+          </div>
+          <label>
+            <span>{{ orderOperationMode === 'void' ? '作废原因' : '备注内容' }}</span>
+            <textarea
+              v-model="orderOperationText"
+              rows="5"
+              :placeholder="orderOperationMode === 'void' ? '请填写作废原因，作废后不可继续流转' : '请输入需要记录在订单跟踪中的备注'"
+            />
+          </label>
+        </div>
+        <footer>
+          <button class="btn" type="button" @click="orderOperationMode = null">取消</button>
+          <button class="btn" :class="{ 'btn-danger-soft': orderOperationMode === 'void', 'btn-primary': orderOperationMode === 'remark' }" type="button" @click="submitOrderOperation">
+            {{ orderOperationMode === 'void' ? '确认作废' : '保存备注' }}
+          </button>
+        </footer>
+      </section>
+    </div>
+
+    <div v-if="showOrderAttachmentDialog && selectedOrder" class="modal-mask purchase-entry-mask" @click.self="closeOrderAttachmentDialog">
+      <section class="edit-modal order-attachment-modal" role="dialog" aria-modal="true" aria-labelledby="order-attachment-title">
+        <header class="purchase-entry-header">
+          <div>
+            <p>采购订单附件</p>
+            <h3 id="order-attachment-title">{{ selectedOrder.orderNo }}</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭附件阅览" @click="closeOrderAttachmentDialog"><X :size="18" /></button>
+        </header>
+        <div class="order-attachment-body">
+          <aside class="order-attachment-list">
+            <button class="btn" type="button" @click="chooseOrderAttachment"><Upload :size="15" /> 上传附件</button>
+            <p v-if="orderAttachmentsLoading" class="approval-empty">正在加载附件...</p>
+            <p v-else-if="orderAttachments.length === 0" class="approval-empty">暂无订单附件</p>
+            <ul v-else>
+              <li v-for="attachment in orderAttachments" :key="attachment.id">
+                <div>
+                  <strong>{{ attachment.fileName }}</strong>
+                  <small>{{ attachment.createTime }} · {{ (attachment.size / 1024).toFixed(1) }} KB</small>
+                </div>
+                <button class="btn-text" type="button" @click="previewOrderAttachment(attachment)"><Eye :size="14" /> 阅览</button>
+              </li>
+            </ul>
+          </aside>
+          <section class="order-attachment-preview">
+            <template v-if="orderAttachmentPreviewUrl">
+              <img v-if="orderAttachmentPreviewType.startsWith('image/')" :src="orderAttachmentPreviewUrl" :alt="orderAttachmentPreviewName" />
+              <iframe v-else-if="orderAttachmentPreviewType.includes('pdf')" :src="orderAttachmentPreviewUrl" :title="orderAttachmentPreviewName" />
+              <div v-else class="approval-empty">
+                <FileText :size="32" />
+                <span>该文件类型不支持在线预览：{{ orderAttachmentPreviewName }}</span>
+              </div>
+            </template>
+            <div v-else class="approval-empty">
+              <Paperclip :size="32" />
+              <span>请从左侧选择附件阅览</span>
+            </div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <div v-if="showDemandModal" class="modal-mask purchase-entry-mask">
+      <section class="edit-modal purchase-entry-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-entry-title">
+        <header class="purchase-entry-header">
+          <div>
+            <p>采购需求录入</p>
+            <h3 id="purchase-entry-title">新增采购</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭新增采购" @click="showDemandModal = false"><X :size="18" /></button>
         </header>
 
-        <!-- 需求信息 -->
-        <section class="form-section">
-          <h4 class="form-section-title">需求信息</h4>
-          <div class="modal-grid">
-            <label><span>申请科室</span><input v-model="demandForm.deptName" placeholder="科室名称" /></label>
-            <label><span>需求来源</span><input v-model="demandForm.demandSource" /></label>
-            <label>
-              <span>紧急程度</span>
-              <select v-model="demandForm.urgentLevel">
-                <option value="normal">普通</option>
-                <option value="urgent">紧急</option>
-              </select>
-            </label>
-            <label><span>备注</span><input v-model="demandForm.remark" /></label>
-          </div>
-        </section>
-
-        <!-- 需求明细 -->
-        <section class="form-section">
-          <h4 class="form-section-title">需求明细</h4>
-          <div class="product-search-bar">
-            <input v-model="demandProductSearchQuery" placeholder="搜索商品编码/名称/规格" class="product-search-input" />
-            <span class="product-search-hint">从下方列表选择商品</span>
-          </div>
-          <div class="demand-item-editor">
-            <div class="item-editor-header demand-item-header">
-              <span class="ieh-col-product">商品</span>
-              <span class="ieh-col-qty">需求数量</span>
-              <span class="ieh-col-action">操作</span>
+        <div class="purchase-entry-body">
+          <section class="form-section purchase-entry-section">
+            <div class="purchase-entry-section-heading">
+              <div>
+                <h4>采购信息</h4>
+                <small>填写采购申请基本信息，保存后进入采购需求池。</small>
+              </div>
             </div>
-            <article v-for="(item, index) in demandForm.items" :key="index">
-              <select v-model="item.productCode">
-                <option value="">请选择</option>
-                <option v-for="product in demandFilteredProducts" :key="product.productCode" :value="product.productCode">
-                  {{ product.productName }} · {{ product.specModel }}
-                </option>
-              </select>
-              <input v-model.number="item.quantity" type="number" min="1" placeholder="数量" />
-              <button class="btn-text btn-text-danger" type="button" @click="removeDemandItem(index)">删除</button>
-            </article>
-            <button class="btn add-item-btn" type="button" @click="addDemandItem">
-              + 新增明细
+            <div class="purchase-entry-meta-grid">
+              <label>
+                <span><em>*</em> 申请科室</span>
+                <input v-model="demandForm.deptName" placeholder="请输入申请科室" />
+              </label>
+              <label>
+                <span><em>*</em> 采购来源</span>
+                <input v-model="demandForm.demandSource" placeholder="例如：临时采购" />
+              </label>
+              <label>
+                <span>紧急程度</span>
+                <select v-model="demandForm.urgentLevel">
+                  <option value="normal">普通</option>
+                  <option value="urgent">紧急</option>
+                </select>
+              </label>
+              <label class="purchase-entry-remark">
+                <span>备注</span>
+                <input v-model="demandForm.remark" placeholder="可填写采购说明或补充要求" />
+              </label>
+            </div>
+          </section>
+
+          <section class="form-section purchase-entry-section purchase-entry-detail-section">
+            <div class="purchase-entry-section-heading">
+              <div>
+                <h4>采购明细</h4>
+                <small>从医院商品目录选择商品并填写采购数量。</small>
+              </div>
+              <div class="purchase-entry-summary">
+                <span>已选 <strong>{{ demandValidItemCount }}</strong> 项</span>
+                <span>预计金额 <strong>¥ {{ demandEstimatedAmount.toFixed(2) }}</strong></span>
+              </div>
+            </div>
+
+            <div class="purchase-entry-toolbar">
+              <button class="btn btn-primary" type="button" @click="addDemandItem">
+                <Plus :size="17" />
+                新增商品行
+              </button>
+              <label class="purchase-entry-search">
+                <Search :size="16" />
+                <input v-model="demandProductSearchQuery" placeholder="搜索商品编码、名称或规格" />
+              </label>
+            </div>
+
+            <div class="purchase-entry-table-wrap">
+              <table class="master-table purchase-entry-table">
+                <thead>
+                  <tr>
+                    <th>商品编码</th>
+                    <th>商品名称</th>
+                    <th>规格型号</th>
+                    <th>单位</th>
+                    <th>采购数量</th>
+                    <th>参考单价</th>
+                    <th>预计金额</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in demandForm.items" :key="index">
+                    <td class="purchase-code-cell">{{ productByCode(item.productCode)?.productCode || '-' }}</td>
+                    <td class="purchase-product-cell">
+                      <select v-model="item.productCode" :aria-label="`第 ${index + 1} 行商品`">
+                        <option value="">请选择商品</option>
+                        <option v-for="product in demandFilteredProducts" :key="product.productCode" :value="product.productCode">
+                          {{ product.productName }} · {{ product.productCode }}
+                        </option>
+                      </select>
+                    </td>
+                    <td>{{ productByCode(item.productCode)?.specModel || '-' }}</td>
+                    <td>{{ productByCode(item.productCode)?.unit || '-' }}</td>
+                    <td class="purchase-quantity-cell">
+                      <input v-model.number="item.quantity" type="number" min="1" step="1" :aria-label="`第 ${index + 1} 行采购数量`" />
+                    </td>
+                    <td>¥ {{ Number(productByCode(item.productCode)?.purchasePrice || 0).toFixed(2) }}</td>
+                    <td class="purchase-amount-cell">
+                      ¥ {{ (Number(item.quantity || 0) * Number(productByCode(item.productCode)?.purchasePrice || 0)).toFixed(2) }}
+                    </td>
+                    <td>
+                      <button class="purchase-row-delete" type="button" :disabled="demandForm.items.length === 1" @click="removeDemandItem(index)">
+                        <Trash2 :size="15" />
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <footer class="purchase-entry-footer">
+          <span>保存后可在“采购需求”中继续审核和生成采购计划。</span>
+          <div>
+            <button class="btn" type="button" @click="showDemandModal = false">取消</button>
+            <button class="btn" type="button" @click="submitDemand(true)">
+              <Save :size="16" />
+              保存并继续
+            </button>
+            <button class="btn btn-primary" type="button" @click="submitDemand(false)">
+              <CheckCircle2 :size="17" />
+              保存
             </button>
           </div>
-        </section>
-
-        <footer>
-          <button class="btn" type="button" @click="showDemandModal = false">取消</button>
-          <button class="btn btn-primary" type="button" @click="submitDemand">保存</button>
         </footer>
       </section>
     </div>
@@ -748,6 +1080,263 @@ const {
   color: #718096;
 }
 
+.purchase-plan-table {
+  min-width: 2400px;
+}
+
+.purchase-plan-table th {
+  white-space: nowrap;
+}
+
+.purchase-plan-table td {
+  vertical-align: middle;
+}
+
+.purchase-plan-table td:nth-child(3),
+.purchase-plan-table td:nth-child(4),
+.purchase-plan-table td:nth-child(5),
+.purchase-plan-table td:nth-child(6),
+.purchase-plan-table td:nth-child(15),
+.purchase-plan-table td:nth-child(16) {
+  min-width: 150px;
+}
+
+.document-no-cell {
+  color: #24566b;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.purchase-plan-amount {
+  color: #0f766e;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.order-select-column {
+  width: 56px;
+  text-align: center;
+}
+
+.order-select-column input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0f766e;
+  cursor: pointer;
+}
+
+.selected-order-row td {
+  background: #eef8f6;
+}
+
+.btn-danger-soft {
+  border-color: #efc4c4;
+  background: #fff6f6;
+  color: #b83a3a;
+}
+
+.btn-danger-soft:hover:not(:disabled) {
+  border-color: #d97777;
+  background: #fff0f0;
+}
+
+.order-detail-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1500px, 100%);
+  height: min(760px, 90vh);
+  max-height: 90vh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.order-detail-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 22px;
+  background: #f7f9fb;
+}
+
+.order-detail-summary {
+  margin-bottom: 14px;
+  border: 1px solid #dfe7ee;
+  border-radius: 7px;
+  padding: 12px 14px;
+  background: #fff;
+}
+
+.order-detail-summary strong {
+  color: #24495b;
+}
+
+.order-detail-table-wrap {
+  border: 1px solid #dfe7ee;
+  border-radius: 7px;
+  background: #fff;
+}
+
+.order-detail-table {
+  min-width: 2400px;
+}
+
+.order-detail-table th {
+  white-space: nowrap;
+}
+
+.order-detail-table td {
+  min-width: 110px;
+  vertical-align: middle;
+}
+
+.order-detail-table td:nth-child(3),
+.order-detail-table td:nth-child(4),
+.order-detail-table td:nth-child(5),
+.order-detail-table td:nth-child(6),
+.order-detail-table td:nth-child(13),
+.order-detail-table td:nth-child(14),
+.order-detail-table td:nth-child(15) {
+  min-width: 160px;
+}
+
+.order-operation-modal {
+  width: min(560px, 100%);
+}
+
+.order-operation-modal header p,
+.order-operation-modal header h3 {
+  margin: 0;
+}
+
+.order-operation-modal header p {
+  margin-bottom: 3px;
+  color: #728596;
+  font-size: 12px;
+}
+
+.order-operation-body {
+  display: grid;
+  gap: 16px;
+  margin: 18px 0;
+}
+
+.order-operation-order,
+.order-operation-body label {
+  display: grid;
+  gap: 6px;
+}
+
+.order-operation-order {
+  border: 1px solid #dfe7ee;
+  border-radius: 7px;
+  padding: 12px;
+  background: #f7f9fb;
+}
+
+.order-operation-order span,
+.order-operation-body label > span {
+  color: #607587;
+  font-size: 12px;
+}
+
+.order-operation-body textarea {
+  resize: vertical;
+  border: 1px solid #d6e0ea;
+  border-radius: 7px;
+  padding: 10px;
+  color: #243f50;
+  font: inherit;
+}
+
+.order-attachment-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1080px, 100%);
+  height: min(680px, 88vh);
+  max-height: 88vh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.order-attachment-body {
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
+  padding: 16px;
+  background: #f7f9fb;
+}
+
+.order-attachment-list,
+.order-attachment-preview {
+  min-height: 0;
+  border: 1px solid #dfe7ee;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.order-attachment-list {
+  overflow: auto;
+  padding: 12px;
+}
+
+.order-attachment-list ul {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.order-attachment-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid #edf1f4;
+  padding: 10px 2px;
+}
+
+.order-attachment-list li > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.order-attachment-list strong {
+  overflow: hidden;
+  color: #263f50;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-attachment-list small {
+  color: #8292a1;
+}
+
+.order-attachment-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #f3f6f8;
+}
+
+.order-attachment-preview img,
+.order-attachment-preview iframe {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  border: 0;
+  object-fit: contain;
+}
+
+.order-attachment-preview .approval-empty {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
 .smart-replenishment-table {
   min-width: 1380px;
 }
@@ -876,6 +1465,261 @@ const {
 
 .edit-modal.wide {
   width: min(980px, 100%);
+}
+
+.purchase-entry-mask {
+  padding: 20px;
+}
+
+.purchase-entry-modal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(1320px, 100%);
+  height: min(820px, 92vh);
+  max-height: 92vh;
+  overflow: hidden;
+  padding: 0;
+}
+
+.purchase-entry-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid #dbe5ee;
+  background: #fff;
+}
+
+.purchase-entry-header p,
+.purchase-entry-header h3 {
+  margin: 0;
+}
+
+.purchase-entry-header p {
+  margin-bottom: 3px;
+  color: #708396;
+  font-size: 12px;
+}
+
+.purchase-entry-header h3 {
+  color: #15394a;
+  font-size: 20px;
+}
+
+.purchase-entry-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 18px 22px;
+  background: #f7f9fb;
+}
+
+.purchase-entry-section {
+  margin: 0 0 16px;
+  border: 1px solid #dfe7ee;
+  border-radius: 8px;
+  padding: 16px;
+  background: #fff;
+}
+
+.purchase-entry-detail-section {
+  margin-bottom: 0;
+}
+
+.purchase-entry-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.purchase-entry-section-heading h4,
+.purchase-entry-section-heading small {
+  display: block;
+  margin: 0;
+}
+
+.purchase-entry-section-heading h4 {
+  color: #1a3b4d;
+  font-size: 15px;
+}
+
+.purchase-entry-section-heading small {
+  margin-top: 4px;
+  color: #7b8d9d;
+  font-size: 12px;
+}
+
+.purchase-entry-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.purchase-entry-meta-grid label {
+  display: grid;
+  gap: 6px;
+  color: #425a6b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.purchase-entry-meta-grid em {
+  color: #dc4c4c;
+  font-style: normal;
+}
+
+.purchase-entry-meta-grid input,
+.purchase-entry-meta-grid select,
+.purchase-entry-table input,
+.purchase-entry-table select {
+  min-height: 38px;
+  border: 1px solid #d6e0ea;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  color: #243f50;
+  font: inherit;
+}
+
+.purchase-entry-meta-grid input:focus,
+.purchase-entry-meta-grid select:focus,
+.purchase-entry-table input:focus,
+.purchase-entry-table select:focus,
+.purchase-entry-search:focus-within {
+  border-color: #0f766e;
+  outline: 2px solid rgba(15, 118, 110, 0.12);
+  outline-offset: 0;
+}
+
+.purchase-entry-remark {
+  grid-column: span 3;
+}
+
+.purchase-entry-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.purchase-entry-summary span {
+  border: 1px solid #d8e8e5;
+  border-radius: 999px;
+  padding: 5px 10px;
+  background: #f1f8f7;
+  color: #526d6b;
+  font-size: 12px;
+}
+
+.purchase-entry-summary strong {
+  color: #0f766e;
+}
+
+.purchase-entry-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.purchase-entry-search {
+  display: flex;
+  align-items: center;
+  width: min(360px, 100%);
+  min-height: 38px;
+  border: 1px solid #d6e0ea;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #fff;
+  color: #7a8d9c;
+}
+
+.purchase-entry-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  padding: 0 0 0 8px;
+  background: transparent;
+  font: inherit;
+}
+
+.purchase-entry-table-wrap {
+  overflow: auto;
+  border: 1px solid #dfe7ee;
+  border-radius: 7px;
+}
+
+.purchase-entry-table {
+  min-width: 1080px;
+}
+
+.purchase-entry-table th {
+  white-space: nowrap;
+  background: #f4f7f9;
+}
+
+.purchase-entry-table td {
+  vertical-align: middle;
+}
+
+.purchase-entry-table select {
+  width: 100%;
+  min-width: 250px;
+}
+
+.purchase-entry-table input {
+  width: 88px;
+}
+
+.purchase-code-cell {
+  width: 130px;
+  color: #52697a;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.purchase-product-cell {
+  min-width: 270px;
+}
+
+.purchase-quantity-cell {
+  width: 110px;
+}
+
+.purchase-amount-cell {
+  color: #0f766e;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.purchase-row-delete {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  padding: 5px 2px;
+  background: transparent;
+  color: #c24141;
+  cursor: pointer;
+  font: inherit;
+}
+
+.purchase-row-delete:disabled {
+  color: #aab5bf;
+  cursor: not-allowed;
+}
+
+.purchase-entry-footer {
+  padding: 14px 22px;
+  border-top: 1px solid #dbe5ee;
+  background: #fff;
+}
+
+.purchase-entry-footer > span {
+  color: #718494;
+  font-size: 12px;
+}
+
+.purchase-entry-footer > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .modal-grid {
@@ -1145,12 +1989,58 @@ const {
   .demand-item-editor article {
     grid-template-columns: 1fr;
   }
+  .purchase-entry-meta-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+  .purchase-entry-remark {
+    grid-column: span 2;
+  }
+  .order-attachment-body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+  }
+  .order-attachment-list {
+    max-height: 240px;
+  }
+  .order-attachment-preview {
+    min-height: 360px;
+  }
 }
 
 @media (max-width: 560px) {
   .purchase-create-modal .modal-grid,
   .item-editor article {
     grid-template-columns: 1fr;
+  }
+  .purchase-entry-mask {
+    padding: 0;
+  }
+  .purchase-entry-modal {
+    width: 100%;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .purchase-entry-body,
+  .purchase-entry-header,
+  .purchase-entry-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .purchase-entry-meta-grid {
+    grid-template-columns: 1fr;
+  }
+  .purchase-entry-remark {
+    grid-column: auto;
+  }
+  .purchase-entry-section-heading,
+  .purchase-entry-toolbar,
+  .purchase-entry-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .purchase-entry-footer > div {
+    justify-content: flex-end;
   }
 }
 </style>

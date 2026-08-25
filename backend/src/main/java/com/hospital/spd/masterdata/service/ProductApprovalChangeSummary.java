@@ -32,6 +32,7 @@ final class ProductApprovalChangeSummary {
             diff(changed, pending, current, "is_high_value", "是否高值耗材");
             diff(changed, pending, current, "is_cold_chain", "是否冷链");
             diff(changed, pending, current, "is_quota_managed", "是否定数管理");
+            diff(changed, pending, current, "is_key_monitored", "重点监控");
             diff(changed, pending, current, "storage_condition", "储存条件");
         } else if ("资质更新".equals(type)) {
             diff(changed, pending, current, "registration_no", "注册证号");

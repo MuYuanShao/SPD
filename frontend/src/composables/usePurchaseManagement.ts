@@ -1,19 +1,25 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
+  addPurchaseOrderRemark,
   createPurchaseDemand,
   createPurchaseOrder,
   createPurchasePlansFromDemands,
   fetchPurchaseDemands,
+  fetchPurchaseOrderAttachmentBlob,
+  fetchPurchaseOrderAttachments,
   fetchPurchaseOrderDetail,
   fetchPurchaseOptions,
   fetchPurchaseOrders,
   fetchPurchasePlans,
   fetchPurchaseSmartReplenishmentAnalysis,
+  uploadPurchaseOrderAttachment,
   updatePurchaseDemandAction,
   updatePurchaseOrderAction,
   updatePurchasePlanAction,
   type PurchaseDemandRow,
   type PurchaseOrderRow,
+  type PurchaseOrderAttachment,
+  type PurchaseOrderDetail,
   type PurchasePlanRow,
   type PurchaseProductOption,
   type PurchaseSmartReplenishmentRow,
@@ -64,11 +70,17 @@ export function usePurchaseManagement() {
   const showDemandModal = ref(false)
   const closeTarget = ref<PurchaseOrderRow | null>(null)
   const closeReason = ref('')
-  const detail = ref<{
-    order: PurchaseOrderRow
-    items: Record<string, unknown>[]
-    tracking: Record<string, unknown>[]
-  } | null>(null)
+  const detail = ref<PurchaseOrderDetail | null>(null)
+  const selectedOrder = ref<PurchaseOrderRow | null>(null)
+  const showOrderDetailDialog = ref(false)
+  const orderOperationMode = ref<'void' | 'remark' | null>(null)
+  const orderOperationText = ref('')
+  const showOrderAttachmentDialog = ref(false)
+  const orderAttachments = ref<PurchaseOrderAttachment[]>([])
+  const orderAttachmentsLoading = ref(false)
+  const orderAttachmentPreviewUrl = ref('')
+  const orderAttachmentPreviewType = ref('')
+  const orderAttachmentPreviewName = ref('')
 
   const query = reactive({
     orderNo: '',
@@ -150,6 +162,7 @@ export function usePurchaseManagement() {
     { value: 'executed', label: '已转订单' },
     { value: 'sent', label: '已发送' },
     { value: 'closed', label: '已关闭' },
+    { value: 'voided', label: '已作废' },
     { value: 'rejected', label: '已驳回' }
   ]
 
@@ -174,6 +187,7 @@ export function usePurchaseManagement() {
     approved: '已审批',
     sent: '已发送',
     closed: '已关闭',
+    voided: '已作废',
     rejected: '已驳回'
   }
 
@@ -195,6 +209,13 @@ export function usePurchaseManagement() {
 
   const filteredProducts = computed(() => filterProducts(products.value, productSearchQuery.value))
   const demandFilteredProducts = computed(() => filterProducts(products.value, demandProductSearchQuery.value))
+  const demandValidItemCount = computed(() => demandForm.items.filter((item) => item.productCode).length)
+  const demandEstimatedAmount = computed(() =>
+    demandForm.items.reduce((total, item) => {
+      const product = productByCode(item.productCode)
+      return total + Number(item.quantity || 0) * Number(product?.purchasePrice || 0)
+    }, 0)
+  )
 
   function openDemandDetail(group: DemandGroup) {
     selectedDemandGroup.value = group
@@ -207,7 +228,7 @@ export function usePurchaseManagement() {
 
   function statusTone(status: string) {
     if (['closed', 'sent', 'approved', 'executed', 'planned'].includes(status)) return 'enabled'
-    if (status === 'rejected') return 'disabled'
+    if (['rejected', 'voided'].includes(status)) return 'disabled'
     return 'pending'
   }
 
@@ -287,6 +308,9 @@ export function usePurchaseManagement() {
 
       if (orderResult.status === 'fulfilled') {
         rows.value = orderResult.value.rows
+        if (selectedOrder.value) {
+          selectedOrder.value = rows.value.find((row) => row.orderNo === selectedOrder.value?.orderNo) ?? null
+        }
         purchasePagination.orders.total = orderResult.value.total
         summary.value = orderResult.value.summary ?? {}
       } else {
@@ -345,11 +369,23 @@ export function usePurchaseManagement() {
     }
   }
 
-  async function submitDemand() {
+  async function submitDemand(continueAfterSave = false) {
     try {
+      if (!demandForm.deptName.trim()) {
+        message.value = '请填写申请科室'
+        return
+      }
+      if (!demandForm.demandSource.trim()) {
+        message.value = '请填写采购来源'
+        return
+      }
       const validItems = demandForm.items.filter((item) => item.productCode)
       if (validItems.length === 0) {
         message.value = '请至少添加一条商品明细'
+        return
+      }
+      if (validItems.some((item) => Number(item.quantity) <= 0)) {
+        message.value = '商品采购数量必须大于 0'
         return
       }
       const mergedMap = new Map<string, number>()
@@ -364,8 +400,12 @@ export function usePurchaseManagement() {
         remark: demandForm.remark,
         items: mergedItems
       })
-      message.value = `采购需求已创建，编号：${result.demandNo}`
-      showDemandModal.value = false
+      message.value = `采购申请已保存，需求编号：${result.demandNo}`
+      if (continueAfterSave) {
+        resetDemandForm()
+      } else {
+        showDemandModal.value = false
+      }
       activeTab.value = 'demands'
       await loadData()
     } catch (error) {
@@ -527,9 +567,152 @@ export function usePurchaseManagement() {
     }
   }
 
+  function selectOrder(row: PurchaseOrderRow) {
+    selectedOrder.value = row
+  }
+
   async function openDetail(row: PurchaseOrderRow) {
-    detail.value = await fetchPurchaseOrderDetail(row.orderNo)
-    activeTab.value = 'tracking'
+    try {
+      selectOrder(row)
+      detail.value = await fetchPurchaseOrderDetail(row.orderNo)
+      showOrderDetailDialog.value = true
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  async function openTracking(row: PurchaseOrderRow) {
+    try {
+      selectOrder(row)
+      detail.value = await fetchPurchaseOrderDetail(row.orderNo)
+      activeTab.value = 'tracking'
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  async function runSelectedOrderAction(action: 'submit' | 'approve') {
+    if (!selectedOrder.value) {
+      message.value = '请先选择一条采购订单'
+      return
+    }
+    await runOrderAction(selectedOrder.value, action)
+  }
+
+  function openOrderOperation(mode: 'void' | 'remark') {
+    if (!selectedOrder.value) {
+      message.value = '请先选择一条采购订单'
+      return
+    }
+    orderOperationMode.value = mode
+    orderOperationText.value = ''
+  }
+
+  async function submitOrderOperation() {
+    if (!selectedOrder.value || !orderOperationMode.value) return
+    if (!orderOperationText.value.trim()) {
+      message.value = orderOperationMode.value === 'void' ? '请填写作废原因' : '请填写订单备注'
+      return
+    }
+    try {
+      if (orderOperationMode.value === 'void') {
+        const result = await updatePurchaseOrderAction(selectedOrder.value.orderNo, 'void', orderOperationText.value.trim())
+        message.value = `${selectedOrder.value.orderNo} 已更新为 ${statusLabel(result.status)}`
+      } else {
+        await addPurchaseOrderRemark(selectedOrder.value.orderNo, orderOperationText.value.trim())
+        message.value = `${selectedOrder.value.orderNo} 已添加备注`
+      }
+      orderOperationMode.value = null
+      orderOperationText.value = ''
+      await loadData()
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  async function copySelectedOrder() {
+    if (!selectedOrder.value) {
+      message.value = '请先选择一条采购订单'
+      return
+    }
+    try {
+      const source = await fetchPurchaseOrderDetail(selectedOrder.value.orderNo)
+      resetOrderForm()
+      form.supplierName = source.order.supplierName
+      form.orderSource = source.order.orderSource || '复制订单'
+      form.expectedArrivalDate = source.order.expectedArrivalDate || ''
+      form.items = source.items.map((item) => ({
+        productCode: item.productCode,
+        quantity: Number(item.quantity),
+        unit: item.unit,
+        estimatedUnitPrice: Number(item.estimatedUnitPrice)
+      }))
+      if (form.items.length === 0) addItem()
+      showCreateModal.value = true
+      message.value = `已复制 ${source.order.orderNo}，保存后生成新订单`
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  async function loadOrderAttachments() {
+    if (!selectedOrder.value) return
+    orderAttachmentsLoading.value = true
+    try {
+      orderAttachments.value = await fetchPurchaseOrderAttachments(selectedOrder.value.orderNo)
+    } catch (error) {
+      message.value = errorMessage(error)
+    } finally {
+      orderAttachmentsLoading.value = false
+    }
+  }
+
+  async function openOrderAttachments() {
+    if (!selectedOrder.value) {
+      message.value = '请先选择一条采购订单'
+      return
+    }
+    closeOrderAttachmentPreview()
+    showOrderAttachmentDialog.value = true
+    await loadOrderAttachments()
+  }
+
+  async function uploadSelectedOrderAttachment(file: File) {
+    if (!selectedOrder.value) {
+      message.value = '请先选择一条采购订单'
+      return
+    }
+    try {
+      await uploadPurchaseOrderAttachment(selectedOrder.value.orderNo, file)
+      message.value = `${selectedOrder.value.orderNo} 附件上传成功`
+      if (showOrderAttachmentDialog.value) await loadOrderAttachments()
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  async function previewOrderAttachment(attachment: PurchaseOrderAttachment) {
+    try {
+      const { blob, contentType } = await fetchPurchaseOrderAttachmentBlob(attachment.id)
+      closeOrderAttachmentPreview()
+      orderAttachmentPreviewUrl.value = URL.createObjectURL(blob)
+      orderAttachmentPreviewType.value = contentType
+      orderAttachmentPreviewName.value = attachment.fileName
+    } catch (error) {
+      message.value = errorMessage(error)
+    }
+  }
+
+  function closeOrderAttachmentPreview() {
+    if (orderAttachmentPreviewUrl.value) URL.revokeObjectURL(orderAttachmentPreviewUrl.value)
+    orderAttachmentPreviewUrl.value = ''
+    orderAttachmentPreviewType.value = ''
+    orderAttachmentPreviewName.value = ''
+  }
+
+  function closeOrderAttachmentDialog() {
+    closeOrderAttachmentPreview()
+    showOrderAttachmentDialog.value = false
   }
 
   onMounted(loadData)
@@ -559,6 +742,16 @@ export function usePurchaseManagement() {
     closeTarget,
     closeReason,
     detail,
+    selectedOrder,
+    showOrderDetailDialog,
+    orderOperationMode,
+    orderOperationText,
+    showOrderAttachmentDialog,
+    orderAttachments,
+    orderAttachmentsLoading,
+    orderAttachmentPreviewUrl,
+    orderAttachmentPreviewType,
+    orderAttachmentPreviewName,
     query,
     form,
     productSearchQuery,
@@ -574,6 +767,9 @@ export function usePurchaseManagement() {
     actionQueryLabel,
     filteredProducts,
     demandFilteredProducts,
+    demandValidItemCount,
+    demandEstimatedAmount,
+    productByCode,
     openDemandDetail,
     statusLabel,
     statusTone,
@@ -600,7 +796,17 @@ export function usePurchaseManagement() {
     submitClose,
     runDemandAction,
     runPlanAction,
-    openDetail
+    openDetail,
+    openTracking,
+    selectOrder,
+    runSelectedOrderAction,
+    openOrderOperation,
+    submitOrderOperation,
+    copySelectedOrder,
+    openOrderAttachments,
+    uploadSelectedOrderAttachment,
+    previewOrderAttachment,
+    closeOrderAttachmentDialog
   }
 }
 

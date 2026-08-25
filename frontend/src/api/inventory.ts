@@ -118,6 +118,14 @@ export async function createStocktakingSheet(payload: {
   return postData<{ stocktakingNo: string; rowCount: number }>('/inventory/stocktaking/sheets', payload)
 }
 
+export async function previewStocktakingSheet(payload: {
+  warehouseName: string
+  deptName?: string
+  scopes: string[]
+}) {
+  return postData<{ rows: StocktakingSheetItem[] }>('/inventory/stocktaking/sheets/preview', payload)
+}
+
 /**
  * 盘点表明细（商品、库存数量、盘点数量；差异 = 库存 - 盘点）。
  */

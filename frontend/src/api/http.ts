@@ -34,6 +34,9 @@ http.interceptors.request.use(
 
 http.interceptors.response.use(
   (response) => {
+    if (response.config.responseType === 'blob') {
+      return response
+    }
     const { code, message } = response.data as ApiResponse<unknown>
     if (code !== 0) {
       console.error(`[API Error] code=${code}, message=${message}`)

@@ -17,12 +17,13 @@ import {
 } from '../../api/quotaPackages'
 import { formatStatusText } from '../../utils/chineseDisplay'
 
-type RequisitionMode = 'loose' | 'quota_package'
+type RequisitionMode = 'loose' | 'quota_package' | 'unique_code'
 
 interface RequisitionCatalogItem extends DepartmentRequisitionCatalogRow {
   selected: boolean
   quantity: number
   mode: RequisitionMode
+  uniqueCodes: string
 }
 
 const router = useRouter()
@@ -137,7 +138,8 @@ async function loadCatalog() {
       ...row,
       selected: false,
       quantity: 1,
-      mode: row.defaultMode
+      mode: row.defaultMode,
+      uniqueCodes: ''
     }))
   } catch (err) {
     error.value = err instanceof Error ? err.message : '科室申领目录加载失败'
@@ -227,14 +229,19 @@ function searchCatalog() {
 }
 
 function availableByMode(item: RequisitionCatalogItem) {
+  if (item.mode === 'unique_code') return Number(item.uniqueCodeAvailableQty || 0)
   return item.mode === 'quota_package' ? Number(item.packageAvailableQty || 0) : Number(item.looseAvailableQty || 0)
 }
 
 function unitByMode(item: RequisitionCatalogItem) {
+  if (item.mode === 'unique_code') return '个唯一码'
   return item.mode === 'quota_package' ? '包' : item.baseUnit
 }
 
 function baseQtyByMode(item: RequisitionCatalogItem) {
+  if (item.mode === 'unique_code') {
+    return item.uniqueCodes.split(/[,，\s]+/).filter(Boolean).length
+  }
   if (item.mode === 'quota_package') {
     return Number(item.packageQuantity || item.conversionRate || 1) * item.quantity
   }
@@ -270,13 +277,17 @@ async function submitSelectedRequisitions() {
   try {
     const requisitionNos: string[] = []
     for (const item of selectedItems.value) {
+      if (item.mode === 'unique_code' && baseQtyByMode(item) === 0) {
+        throw new Error(`请为高值耗材“${item.productName}”扫描或输入唯一码`)
+      }
       const result = await createRequisition({
         deptName: filters.targetDept,
         warehouseName: filters.warehouseName,
         productCode: item.productCode,
         quantity: baseQtyByMode(item),
         requisitionMode: item.mode,
-        templateCode: item.templateCode
+        templateCode: item.templateCode,
+        uniqueCodes: item.mode === 'unique_code' ? item.uniqueCodes : undefined
       })
       if (result.requisitionNo) {
         requisitionNos.push(String(result.requisitionNo))
@@ -366,9 +377,6 @@ watch(() => filters.warehouseName, async () => {
           <strong>科室请购</strong>
         </div>
         <div class="dept-req-actions">
-          <RouterLink class="btn" to="/features/department-requisition/high-value">
-            高值耗材申领
-          </RouterLink>
           <button v-if="!requisitionStarted" class="btn btn-primary" type="button" @click="startRequisition">
             <UserPlus :size="16" />
             新增申领
@@ -459,6 +467,7 @@ watch(() => filters.warehouseName, async () => {
         <select v-model="filters.mode">
           <option value="">申领形式：全部</option>
           <option value="quota_package">定数包优先</option>
+          <option value="unique_code">高值唯一码</option>
           <option value="loose">散货申领</option>
         </select>
         <button class="btn btn-primary" type="button" :disabled="loading" @click="searchCatalog">
@@ -491,13 +500,15 @@ watch(() => filters.warehouseName, async () => {
             <label>
               <span>默认申领</span>
               <select v-model="item.mode" @change="normalizeQuantity(item)">
-                <option value="loose">散货</option>
-                <option value="quota_package" :disabled="!canUseQuotaPackage(item)">定数包</option>
+                <option value="loose" :disabled="Number(item.highValue) === 1">散货</option>
+                <option value="quota_package" :disabled="Number(item.highValue) === 1 || !canUseQuotaPackage(item)">定数包</option>
+                <option v-if="Number(item.highValue) === 1" value="unique_code">高值唯一码</option>
               </select>
             </label>
+            <input v-if="item.mode === 'unique_code'" v-model.trim="item.uniqueCodes" class="selected-code-input" placeholder="扫描唯一码，多个用逗号分隔" />
             <div class="qty-stepper">
               <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-              <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
+              <input v-model.number="item.quantity" type="number" min="1" :disabled="item.mode === 'unique_code'" @change="normalizeQuantity(item)" />
               <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
@@ -511,7 +522,7 @@ watch(() => filters.warehouseName, async () => {
 
       <section v-if="requisitionStarted" class="dept-req-tags">
         <span class="yellow">明细仅展示近 15 天有出库记录且未停用的商品</span>
-        <span class="yellow">同一商品聚合展示，散货和定数包可切换申领形式</span>
+        <span class="yellow">新增申领统一支持高值唯一码、定数包和散货</span>
         <span class="orange">定数包缺货时可转散货申领</span>
         <span class="blue">当前库房：{{ selectedWarehouseLabel }}</span>
       </section>
@@ -567,14 +578,16 @@ watch(() => filters.warehouseName, async () => {
                 </td>
                 <td>
                   <select v-model="item.mode" @change="normalizeQuantity(item)">
-                    <option value="loose">散货</option>
-                    <option value="quota_package" :disabled="!canUseQuotaPackage(item)">定数包</option>
+                    <option value="loose" :disabled="Number(item.highValue) === 1">散货</option>
+                    <option value="quota_package" :disabled="Number(item.highValue) === 1 || !canUseQuotaPackage(item)">定数包</option>
+                    <option v-if="Number(item.highValue) === 1" value="unique_code">高值唯一码</option>
                   </select>
+                  <input v-if="item.mode === 'unique_code'" v-model.trim="item.uniqueCodes" class="selected-code-input" placeholder="扫描唯一码" />
                 </td>
                 <td>
                   <div class="qty-stepper">
                     <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                    <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
+                    <input v-model.number="item.quantity" type="number" min="1" :disabled="item.mode === 'unique_code'" @change="normalizeQuantity(item)" />
                     <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
                   </div>
                   <small>{{ unitByMode(item) }}</small>

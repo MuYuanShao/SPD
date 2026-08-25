@@ -129,16 +129,30 @@ public class OperationalDeliveryModule {
         }
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT bal.balance_id AS balanceId, ib.batch_id AS batchId,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       p.unit, p.purchase_price AS unitPrice,
                        ib.system_batch_no AS systemBatchNo,
                        ib.production_batch_no AS productionBatchNo,
                        DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
-                       ib.batch_unit_price AS unitPrice, bal.available_qty AS availableQty
+                       ib.batch_unit_price AS unitPrice,
+                       GREATEST(bal.available_qty - COALESCE(packaged.package_qty, 0), 0) AS availableQty
                   FROM department_requisition_item dri
                   JOIN inventory_balance bal ON bal.product_id = dri.product_id
                    AND bal.location_id IS NULL AND bal.available_qty > 0
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
-                """ + where + " ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id",
+                  JOIN product p ON p.product_id = bal.product_id
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                  LEFT JOIN (
+                    SELECT qpl.warehouse_id, qpl.product_id, src.batch_id, SUM(src.source_qty) AS package_qty
+                      FROM quota_package_label qpl
+                      JOIN quota_package_label_source src ON src.label_id = qpl.label_id
+                     WHERE qpl.status = 'signed'
+                     GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
+                  ) packaged ON packaged.warehouse_id = bal.warehouse_id
+                    AND packaged.product_id = bal.product_id AND packaged.batch_id = bal.batch_id
+                """ + where + " HAVING availableQty > 0 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id",
                 args.toArray());
         return Map.of("rows", rows);
     }
@@ -171,13 +185,45 @@ public class OperationalDeliveryModule {
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
         Long deliveryId = insertLoosePickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
                 String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity);
-        support.consumeAvailableFifo(warehouseId, productId, quantity,
-                "delivery_loose_out", "spd_delivery_order", deliveryId,
-                "picked loose stock for requisition " + requisitionNo + ", delivery " + deliveryNo);
+        consumeActualLooseStock(warehouseId, productId, quantity, deliveryId, requisitionNo, deliveryNo);
         updateRequisitionPickStatus(requisitionId);
         support.writeAudit("delivery", "confirm_loose_picking", deliveryId, deliveryNo,
                 "picked loose stock for requisition " + requisitionNo);
         return Map.of("deliveryNo", deliveryNo, "status", "picked", "quantity", quantity);
+    }
+
+    private void consumeActualLooseStock(Long warehouseId, Long productId, BigDecimal quantity, Long deliveryId,
+                                         String requisitionNo, String deliveryNo) {
+        List<Map<String, Object>> balances = jdbcTemplate.queryForList("""
+                SELECT bal.batch_id AS batchId,
+                       GREATEST(bal.available_qty - COALESCE(packaged.package_qty, 0), 0) AS looseQty
+                  FROM inventory_balance bal
+                  LEFT JOIN (
+                    SELECT qpl.warehouse_id, qpl.product_id, src.batch_id, SUM(src.source_qty) AS package_qty
+                      FROM quota_package_label qpl
+                      JOIN quota_package_label_source src ON src.label_id = qpl.label_id
+                     WHERE qpl.status = 'signed'
+                     GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
+                  ) packaged ON packaged.warehouse_id = bal.warehouse_id
+                    AND packaged.product_id = bal.product_id AND packaged.batch_id = bal.batch_id
+                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                 WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.location_id IS NULL
+                 HAVING looseQty > 0
+                 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
+                 FOR UPDATE
+                """, warehouseId, productId);
+        BigDecimal remaining = quantity;
+        for (Map<String, Object> balance : balances) {
+            if (remaining.signum() <= 0) break;
+            BigDecimal deduct = ((BigDecimal) balance.get("looseQty")).min(remaining);
+            support.consumeSpecificBatch(warehouseId, productId, ((Number) balance.get("batchId")).longValue(), deduct,
+                    "delivery_loose_out", "spd_delivery_order", deliveryId,
+                    "picked loose stock for requisition " + requisitionNo + ", delivery " + deliveryNo);
+            remaining = remaining.subtract(deduct);
+        }
+        if (remaining.signum() > 0) {
+            throw new IllegalArgumentException("可用散货库存不足，定数包库存不能按散货拣配");
+        }
     }
 
     public Map<String, Object> pickingRequisitions() {

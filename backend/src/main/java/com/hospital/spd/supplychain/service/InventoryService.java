@@ -415,45 +415,8 @@ public class InventoryService {
      */
     @Transactional
     public Map<String, Object> createStocktakingSheet(StocktakingSheetRequest request) {
-        if (request == null || request.scopes() == null || request.scopes().isEmpty()) {
-            throw new IllegalArgumentException("请至少选择一个盘点商品范围");
-        }
-        Long warehouseId = jdbcTemplate.queryForObject("""
-                SELECT warehouse_id FROM warehouse
-                 WHERE warehouse_name = ? AND deleted = 0 AND status = 1 LIMIT 1
-                """, Long.class, request.warehouseName().trim());
-        StringBuilder scopeWhere = new StringBuilder();
-        List<Object> scopeArgs = new ArrayList<>();
-        for (String scope : request.scopes()) {
-            String condition = switch (scope.trim()) {
-                case "highValue" -> "p.is_high_value = 1";
-                case "chargeable" -> "p.is_chargeable = 1";
-                case "nonChargeable" -> "p.is_chargeable = 0";
-                case "quotaPackage" -> "p.is_quota_managed = 1";
-                default -> null;
-            };
-            if (condition != null) {
-                if (scopeWhere.length() > 0) {
-                    scopeWhere.append(" OR ");
-                }
-                scopeWhere.append("(").append(condition).append(")");
-            }
-        }
-        if (scopeWhere.length() == 0) {
-            throw new IllegalArgumentException("盘点商品范围不正确");
-        }
-        List<Map<String, Object>> balances = jdbcTemplate.queryForList("""
-                SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
-                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       p.unit, SUM(bal.available_qty) AS systemQty
-                  FROM inventory_balance bal
-                  JOIN product p ON p.product_id = bal.product_id AND p.deleted = 0 AND p.status = 1
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                 WHERE bal.warehouse_id = ? AND bal.location_id IS NULL AND bal.available_qty > 0
-                   AND (
-                """ + scopeWhere + " ) GROUP BY p.product_id, p.product_code, p.product_name, p.spec_model, m.manufacturer_name, p.unit ORDER BY p.product_code",
-                prepend(warehouseId, scopeArgs));
-
+        List<Map<String, Object>> balances = loadStocktakingSheetBalances(request);
+        Long warehouseId = findStocktakingWarehouseId(request);
         String stocktakingNo = support.nextNo(INVENTORY_STOCKTAKING);
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
@@ -478,6 +441,59 @@ public class InventoryService {
         writeAudit("create_stocktaking_sheet", stocktakingId, stocktakingNo,
                 "create scope stocktaking sheet with scopes " + request.scopes());
         return Map.of("stocktakingNo", stocktakingNo, "rowCount", balances.size());
+    }
+
+    /** 选择盘点范围时预览当前库房库存，不创建盘点单。 */
+    public Map<String, Object> previewStocktakingSheet(StocktakingSheetRequest request) {
+        return Map.of("rows", loadStocktakingSheetBalances(request));
+    }
+
+    private List<Map<String, Object>> loadStocktakingSheetBalances(StocktakingSheetRequest request) {
+        if (request == null || request.scopes() == null || request.scopes().isEmpty()) {
+            throw new IllegalArgumentException("请至少选择一个盘点商品范围");
+        }
+        Long warehouseId = findStocktakingWarehouseId(request);
+        StringBuilder scopeWhere = new StringBuilder();
+        List<Object> scopeArgs = new ArrayList<>();
+        for (String scope : request.scopes()) {
+            String condition = switch (scope.trim()) {
+                case "highValue" -> "p.is_high_value = 1";
+                case "chargeable" -> "p.is_chargeable = 1";
+                case "nonChargeable" -> "p.is_chargeable = 0";
+                case "quotaPackage" -> "p.is_quota_managed = 1";
+                default -> null;
+            };
+            if (condition != null) {
+                if (scopeWhere.length() > 0) {
+                    scopeWhere.append(" OR ");
+                }
+                scopeWhere.append("(").append(condition).append(")");
+            }
+        }
+        if (scopeWhere.length() == 0) {
+            throw new IllegalArgumentException("盘点商品范围不正确");
+        }
+        return jdbcTemplate.queryForList("""
+                SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
+                       p.unit, SUM(bal.available_qty) AS systemQty
+                  FROM inventory_balance bal
+                  JOIN product p ON p.product_id = bal.product_id AND p.deleted = 0 AND p.status = 1
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                 WHERE bal.warehouse_id = ? AND bal.location_id IS NULL AND bal.available_qty > 0
+                   AND (
+                """ + scopeWhere + " ) GROUP BY p.product_id, p.product_code, p.product_name, p.spec_model, m.manufacturer_name, p.unit ORDER BY p.product_code",
+                prepend(warehouseId, scopeArgs));
+    }
+
+    private Long findStocktakingWarehouseId(StocktakingSheetRequest request) {
+        if (request == null || request.warehouseName() == null || request.warehouseName().isBlank()) {
+            throw new IllegalArgumentException("请选择盘点库房");
+        }
+        return jdbcTemplate.queryForObject("""
+                SELECT warehouse_id FROM warehouse
+                 WHERE warehouse_name = ? AND deleted = 0 AND status = 1 LIMIT 1
+                """, Long.class, request.warehouseName().trim());
     }
 
     /** 盘点表明细：商品、库存数量、盘点数量；差异数量由库存数量减盘点数量计算得出。 */

@@ -12,6 +12,7 @@ import {
   fetchInventoryBalances,
   fetchInventoryEvents,
   fetchQuotaPackageStock,
+  previewStocktakingSheet,
   fetchStocktakingItems,
   fetchStocktakingList,
   fetchUniqueCodeStock,
@@ -44,6 +45,8 @@ const stocktakingDetailNo = ref('')
 const stocktakingDetailRows = ref<StocktakingSheetItem[]>([])
 const stocktakingDetailLoading = ref(false)
 const stocktakingDetailSaving = ref(false)
+const stocktakingPreviewRows = ref<StocktakingSheetItem[]>([])
+const stocktakingPreviewLoading = ref(false)
 
 /** 盘点明细差异数量 = 库存数量 - 盘点数量 */
 function stocktakingRowDiff(row: StocktakingSheetItem) {
@@ -59,6 +62,25 @@ function toggleSheetScope(key: string) {
     scopes.add(key)
   }
   stocktakingSheetForm.scopes = [...scopes]
+  void loadStocktakingPreview()
+}
+
+async function loadStocktakingPreview() {
+  stocktakingPreviewRows.value = []
+  if (!stocktakingSheetForm.warehouseName || !stocktakingSheetForm.scopes.length) return
+  stocktakingPreviewLoading.value = true
+  try {
+    const result = await previewStocktakingSheet({
+      warehouseName: stocktakingSheetForm.warehouseName,
+      deptName: stocktakingSheetForm.deptName || undefined,
+      scopes: stocktakingSheetForm.scopes
+    })
+    stocktakingPreviewRows.value = result.rows
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '当前库存明细加载失败'
+  } finally {
+    stocktakingPreviewLoading.value = false
+  }
 }
 
 const selectedScopeLabels = computed(() =>
@@ -78,6 +100,7 @@ async function openStocktakingSheet() {
   stocktakingSheetForm.warehouseName = stocktakingOptions.value.warehouses[0]?.warehouseName || ''
   stocktakingSheetForm.deptName = stocktakingOptions.value.departments[0]?.deptName || ''
   stocktakingSheetForm.scopes = []
+  stocktakingPreviewRows.value = []
   stocktakingSheetOpen.value = true
 }
 
@@ -819,7 +842,7 @@ watch(mode, () => {
           <div class="supplier-form-grid compact">
             <label>
               <span>盘点库房</span>
-              <select v-model="stocktakingSheetForm.warehouseName">
+              <select v-model="stocktakingSheetForm.warehouseName" @change="loadStocktakingPreview">
                 <option value="">请选择库房</option>
                 <option v-for="item in stocktakingOptions.warehouses" :key="item.warehouseName" :value="item.warehouseName">
                   {{ item.warehouseName }}
@@ -858,6 +881,26 @@ watch(mode, () => {
               </template>
               <em v-else>未选择任何范围</em>
             </div>
+          </div>
+          <div class="table-scroll stocktaking-detail-scroll">
+            <table class="master-table stocktaking-detail-table">
+              <thead>
+                <tr>
+                  <th>商品编码</th><th>商品名称</th><th>规格型号</th><th>厂家</th><th>单位</th><th>当前库存</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="stocktakingPreviewLoading"><td colspan="6" class="approval-empty">正在加载当前库房库存...</td></tr>
+                <tr v-else-if="stocktakingSheetForm.scopes.length && !stocktakingPreviewRows.length">
+                  <td colspan="6" class="approval-empty">所选范围暂无库存明细</td>
+                </tr>
+                <tr v-else-if="!stocktakingSheetForm.scopes.length"><td colspan="6" class="approval-empty">选择商品范围后展示当前库存明细</td></tr>
+                <tr v-for="row in stocktakingPreviewRows" v-else :key="row.productCode">
+                  <td>{{ row.productCode }}</td><td>{{ row.productName }}</td><td>{{ row.specModel || '-' }}</td>
+                  <td>{{ row.manufacturerName || '-' }}</td><td>{{ row.unit || '-' }}</td><td>{{ row.systemQty }}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <div class="dialog-actions">
             <button class="btn" type="button" @click="stocktakingSheetOpen = false">取消</button>

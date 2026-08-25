@@ -15,6 +15,8 @@ class PurchaseFlowRulesTest {
         assertEquals("approved", PurchaseFlowRules.nextOrderStatus("pending_approval", "approve", null, null, null));
         assertEquals("sent", PurchaseFlowRules.nextOrderStatus("approved", "send", null, null, null));
         assertEquals("rejected", PurchaseFlowRules.nextOrderStatus("pending_approval", "reject", null, null, null));
+        assertEquals("voided", PurchaseFlowRules.nextOrderStatus("draft", "void", null, null, "录入有误"));
+        assertEquals("voided", PurchaseFlowRules.nextOrderStatus("approved", "void", null, null, "采购取消"));
     }
 
     @Test
@@ -46,6 +48,10 @@ class PurchaseFlowRulesTest {
     void invalidTransitionsAreRejected() {
         assertThrows(IllegalArgumentException.class, () -> PurchaseFlowRules.nextOrderStatus(
                 "draft", "send", null, null, null));
+        assertThrows(IllegalArgumentException.class, () -> PurchaseFlowRules.nextOrderStatus(
+                "sent", "void", null, null, "已发送不可作废"));
+        assertThrows(IllegalArgumentException.class, () -> PurchaseFlowRules.nextOrderStatus(
+                "draft", "void", null, null, ""));
         assertThrows(IllegalArgumentException.class, () -> PurchaseFlowRules.nextDemandStatus("approved", "reject"));
         assertThrows(IllegalArgumentException.class, () -> PurchaseFlowRules.nextPlanStatus("approved", "reject"));
     }

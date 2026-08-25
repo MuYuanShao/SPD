@@ -9,6 +9,9 @@
 @import "./catalog/pending-product-approval-detail.css";
 @import "./views/login.css";
 @import "./views/dashboard.css";
+@import "./views/spd-his-reconciliation-report.css";
+@import "./views/regulatory-report-center.css";
+@import "./views/operation-cockpit.css";
 @import "./components/pagination.css";
 @import "./components/table-overrides.css";
 @import "./components/modal.css";
@@ -17,6 +20,7 @@
 @import "./components/subnav.css";
 @import "./components/app-chrome.css";
 @import "./master-data/foundation.css";
+@import "./medical-saas.css";
 
 :root {
   color-scheme: light;

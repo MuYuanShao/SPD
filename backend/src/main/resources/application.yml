@@ -29,6 +29,11 @@ management:
         enabled: true
 
 spd:
+  jobs:
+    zone: Asia/Shanghai
+    daily-quota:
+      cron: "0 5 0 * * *"
+      history-months: 12
   cors:
     allowed-origins:
       - http://localhost:1820

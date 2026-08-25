@@ -206,7 +206,7 @@ export function useMasterDataWorkbench() {
     { key: 'basic', label: '基础信息', fields: ['商品编码', '商品名称', '规格型号', '厂家', '供应商', '单位', '单价'] },
     { key: 'qualification', label: '资质证照', fields: ['注册证号', '生产许可证号', '经营许可证号', 'UDI编码', '注册证效期'] },
     { key: 'category', label: '分类目录', fields: ['合同编码', '一级分类', '二级分类', '三级分类', '招采子编码'] },
-    { key: 'purchase', label: '采购监管', fields: ['是否带量', '是否集采', '是否国产', '是否收费', '是否高值', '是否冷链', '是否定数'] }
+    { key: 'purchase', label: '采购监管', fields: ['是否带量', '是否集采', '是否国产', '是否收费', '重点监控', '是否高值', '是否冷链', '是否定数'] }
   ]
 
   const hospitalColumnPropMap: Record<string, string> = {
@@ -227,6 +227,7 @@ export function useMasterDataWorkbench() {
     是否集采: 'centralized',
     是否国产: 'domestic',
     是否收费: 'chargeable',
+    重点监控: 'keyMonitored',
     招采子编码: 'tenderSubCode',
     单位: 'unit',
     采购价: 'price',

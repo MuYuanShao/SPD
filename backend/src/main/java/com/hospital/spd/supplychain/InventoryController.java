@@ -54,6 +54,11 @@ public class InventoryController {
         return ApiResponse.ok(service.createStocktakingSheet(request));
     }
 
+    @PostMapping("/stocktaking/sheets/preview")
+    public ApiResponse<Map<String, Object>> previewStocktakingSheet(@RequestBody StocktakingSheetRequest request) {
+        return ApiResponse.ok(service.previewStocktakingSheet(request));
+    }
+
     @GetMapping("/stocktaking/{stocktakingNo}/items")
     public ApiResponse<Map<String, Object>> stocktakingItems(@PathVariable String stocktakingNo) {
         return ApiResponse.ok(service.stocktakingItems(stocktakingNo));

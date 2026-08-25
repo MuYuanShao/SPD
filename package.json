@@ -1,6 +1,6 @@
 {
   "name": "hospital-spd-platform",
-  "version": "20260825",
+  "version": "20260826",
   "private": true,
   "engines": {
     "node": ">=22 <25"

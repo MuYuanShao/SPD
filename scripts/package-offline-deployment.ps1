@@ -16,6 +16,10 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
+$releaseVersion = (Get-Content (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+if (-not $releaseVersion) {
+    throw '无法从 package.json 读取发布版本号。'
+}
 
 function Test-Jdk17Home([string]$HomePath) {
     if (-not $HomePath -or -not (Test-Path (Join-Path $HomePath 'release'))) {
@@ -157,6 +161,7 @@ function Resolve-MysqldumpCommand {
 }
 
 Write-Host '===== 院内 SPD 离线部署打包 =====' -ForegroundColor Cyan
+Write-Host "发布版本：$releaseVersion" -ForegroundColor Green
 
 $jdkHome = Resolve-Jdk17Home
 $maven = Resolve-MavenCommand
@@ -258,6 +263,7 @@ New-Item -ItemType Directory -Force -Path $webDir, $jdkTarget | Out-Null
 
 Copy-Item $jarPath (Join-Path $bundleDir 'app.jar') -Force
 Copy-Item (Join-Path $distPath '*') $webDir -Recurse -Force
+$releaseVersion | Set-Content -Path (Join-Path $bundleDir 'VERSION.txt') -Encoding ASCII
 
 # 复制数据库备份（若已导出）
 if (-not $SkipDbDump) {
@@ -469,7 +475,7 @@ SPD_JWT_SECRET=请替换为至少 48 位随机字符串
 # 6. 打包 zip
 if (-not $SkipZip) {
     Write-Host '正在生成 zip 压缩包 ...' -ForegroundColor Cyan
-    $zipPath = Join-Path $bundleRoot 'spd-server-offline.zip'
+    $zipPath = Join-Path $bundleRoot "spd-server-offline-$releaseVersion.zip"
     if (Test-Path $zipPath) {
         Remove-Item $zipPath -Force
     }

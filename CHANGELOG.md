@@ -18,6 +18,13 @@
 - 负责人：
 ```
 
+## 2026-08-26 - release/20260826
+
+- 修改内容：项目当前版本统一升级为 20260826（根 package.json、package-lock.json、frontend/package.json、backend/pom.xml）。
+- 影响范围：前后端构建版本及发布标识；取消未落地的决策大屏/决策支持扩展，保留运营驾驶舱与报表中心。
+- 验证方式：前端构建、后端版本解析及版本一致性检查。
+- 负责人：Admin
+
 ## 2026-08-25 - release/20260825-bundle-db
 
 - 修改内容：离线部署包补充 MySQL 数据备份。①打包脚本新增数据库导出步骤：mysqldump 以 utf8mb4/single-transaction/含触发器存储过程等方式导出 ISPD 库到 db\ispd-YYYYMMDD.sql 并随包分发，新增 -SkipDbDump 开关可跳过（脚本头注释同步更新）。②新增 init-database.bat：定位 mysql 客户端 → 尝试建库（无权限时容错）→ 仅当 ISPD 库为空（0 张表）时导入随包数据备份，已有数据绝不覆盖，可单独运行；start-server.bat/start-server.ps1 启动前自动调用。③部署说明.txt 补充 db 目录结构、数据导入行为与 SPD_DB_HOST/PORT 连接参数说明。④修复含中文的 .ps1 在 Windows PowerShell 5.1 下的编码解析问题（补 UTF-8 BOM）；.bat 提示信息改为纯 ASCII 英文，避免 GBK 控制台字节配对导致命令行截断。

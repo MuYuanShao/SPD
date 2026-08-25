@@ -23,7 +23,7 @@ public class ModuleController {
                 new SpdModule("specialty", "专项管理", List.of("UDI追溯", "高值耗材管理", "冷链监控")),
                 new SpdModule("operations", "运营支撑", List.of("报表中心", "系统配置", "SaaS化与配置中心")),
                 new SpdModule("hospital-extension", "院内SPD业务扩展", List.of("基础信息扩展", "请补货与采购扩展", "收货与上架管理", "拣配出库与配送", "库内作业管理", "科室业务管理", "退回业务管理", "手术临床管理", "结算与发票扩展")),
-                new SpdModule("compliance-extension", "合规与扩展业务", List.of("多院区与组织扩展", "合同与招采管理", "供应商扩展管理", "库存扩展业务", "召回与质量闭环", "临床扩展业务", "财务与医保扩展", "决策支持扩展", "系统集成扩展"))
+                new SpdModule("compliance-extension", "合规与扩展业务", List.of("多院区与组织扩展", "合同与招采管理", "供应商扩展管理", "库存扩展业务", "召回与质量闭环", "临床扩展业务", "财务与医保扩展", "系统集成扩展"))
         ));
     }
 }

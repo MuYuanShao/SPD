@@ -470,7 +470,7 @@ export const featureCatalog = [
     routeTarget: '/features/operations-decision',
     viewFamily: 'feature',
     nodeKind: 'navigation',
-    children: ['operation-cockpit', 'report-center', 'decision-screen']
+    children: ['operation-cockpit', 'report-center']
   },
   {
     code: 'operation-cockpit',
@@ -529,14 +529,6 @@ export const featureCatalog = [
     viewFamily: 'report-center',
     nodeKind: 'business',
     chunkFamily: 'system'
-  },
-  {
-    code: 'decision-screen',
-    title: '决策大屏',
-    icon: 'layout-dashboard',
-    routeTarget: '/features/decision-screen',
-    viewFamily: 'feature',
-    nodeKind: 'deferred'
   },
   {
     code: 'system-management',
@@ -698,7 +690,6 @@ export const featureViewNodeGroups = {
     'stock-warning',
     'settlement-exception',
     'quick-entry',
-    'decision-screen',
     'audit-log'
   ],
   business: [

@@ -13,7 +13,7 @@
 
     <groupId>com.hospital</groupId>
     <artifactId>spd-backend</artifactId>
-    <version>20260825</version>
+    <version>20260826</version>
     <name>spd-backend</name>
     <description>Hospital SPD supply chain management backend</description>
 

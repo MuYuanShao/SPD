@@ -18,6 +18,20 @@
 - 负责人：
 ```
 
+## 2026-08-25 - release/20260825-bundle-db
+
+- 修改内容：离线部署包补充 MySQL 数据备份。①打包脚本新增数据库导出步骤：mysqldump 以 utf8mb4/single-transaction/含触发器存储过程等方式导出 ISPD 库到 db\ispd-YYYYMMDD.sql 并随包分发，新增 -SkipDbDump 开关可跳过（脚本头注释同步更新）。②新增 init-database.bat：定位 mysql 客户端 → 尝试建库（无权限时容错）→ 仅当 ISPD 库为空（0 张表）时导入随包数据备份，已有数据绝不覆盖，可单独运行；start-server.bat/start-server.ps1 启动前自动调用。③部署说明.txt 补充 db 目录结构、数据导入行为与 SPD_DB_HOST/PORT 连接参数说明。④修复含中文的 .ps1 在 Windows PowerShell 5.1 下的编码解析问题（补 UTF-8 BOM）；.bat 提示信息改为纯 ASCII 英文，避免 GBK 控制台字节配对导致命令行截断。
+- 影响范围：scripts/package-offline-deployment.ps1；output/offline-bundle（db\、init-database.bat、start-server.bat/.ps1、部署说明.txt）。
+- 验证方式：重新打包成功（spd-server-offline.zip 110.49 MB，含 db\ispd-20260825.sql 356 KB）；导出文件静态校验（79 张建表语句、flyway_schema_history 54 条与线上一致、无 CREATE DATABASE/USE 语句、dump 尾部完整）；PS 5.1 解析打包脚本与 start-server.ps1 均 0 错误；实测 init-database.bat 对已有 79 表的线上库正确跳过导入（exit 0）。
+- 负责人：Admin
+
+## 2026-08-25 - release/20260825
+
+- 修改内容：发布版本号 20260701 → 20260825（根 package.json、package-lock.json、frontend/package.json、backend/pom.xml）。
+- 影响范围：版本号声明文件；backend/target/app.jar；frontend/dist；output/offline-bundle。
+- 验证方式：npm run package:offline 打包成功——后端 jar 构建（spd-backend 20260825，MANIFEST Implementation-Version: 20260825）、前端 vue-tsc + vite 构建通过、离线部署目录与 spd-server-offline.zip（110.44 MB）生成于 output/offline-bundle。
+- 负责人：Admin
+
 ## 2026-08-24 - feature/batch-11-requirements
 
 - 修改内容：①待审批目录与医院目录新增时商品编码改为选填：填写取填写值，留空取招采子编码回填，两者皆空自动生成 SPD+000001 自增编码（新增 ProductCodeService 共享服务，基于 sys_sequence 原子分配并跳过已被占用的编码；创建/重新提交/修改申请均生效，新增接口返回实际商品编码；审批通过同步医院目录逻辑保持不变）。②新增证照管理模块（V54 迁移 license_document 表 + /licenses 接口 + 前端 4 个页签：商品证照/供应商证照/厂家证照/合同管理，支持证照信息维护、附件上传/阅览/下载，附件存盘与 sys_attachment 记录）。③科室/货位管理：库房类型改为下拉（一级库/二级库/三级库）、关联科室支持回车/放大镜搜索科室表；维护货位弹窗货位类型改为下拉（整件货位/散货货位/试剂货位）、固定商品编码支持回车/放大镜搜索医院目录。④库存汇总查询改为按库房+商品聚合：数量=散货数量+在库定数包内散货数量，金额=数量×采购价。⑤新增打印模板调整菜单（V55 迁移 print_template 表 + /print-templates 接口 + 前端模板编辑器：字段勾选/排序/新增/修改、纸张预设与宽高设置），定数包标签打印（ZPL 与浏览器打印）读取模板配置生效。⑥一键启动与离线部署打包：新增 scripts/package-offline-deployment.ps1（打包后端 jar、前端构建产物、内置 JDK17、一键启动脚本与部署说明到 output/offline-bundle），后端支持 spd.web.static-dir 一体化托管前端（SpaWebConfig/SpaFallbackController，非 /api 路径放行）；package.json 新增 start:dev 与 package:offline 脚本。⑦采购管理智能补货改为独立事务，出库量取科室申请表（department_requisition/department_requisition_item 近 60 天已审批申领数量），不再取配送出库流水；与科室申领智能补货各自写入 purchase_replenishment_analysis 与 replenishment_smart_analysis。⑧科室请购：新增请购列表面板（可调整默认申领类型散货/定数包、数量与移除商品）；请购明细改为只展示当前日期向前推 15 天内有出库记录（已确认科室消耗）且未停用的商品，不再展示科室库房目录全量商品。⑨拣配配送：待拣配申领单展示部分拣配标记且二次拣配沿用原申领单号；可用定数包只展示一级库（中心库）库存；定数包标签与拣配记录中的定数包支持点击查看明细（新增 /operational-closure/picking/package-labels/{labelNo} 明细接口：来源批次/绑定去向/事件流水）。⑩补货任务/拣配配送/科室申领/科室消耗选择科室时默认带出科室所关联的库房（拣配配送仍限定一级库，关联库房为一级库时直接带出）。

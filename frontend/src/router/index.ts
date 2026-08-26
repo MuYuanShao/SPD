@@ -23,6 +23,7 @@ const ReceivingAcceptanceView = () => import('../views/supply-chain/ReceivingAcc
 const InventoryWorkbenchView = () => import('../views/supply-chain/InventoryWorkbenchView.vue')
 const QuotaPackageView = () => import('../views/supply-chain/QuotaPackageView.vue')
 const OperationalClosureView = () => import('../views/supply-chain/OperationalClosureView.vue')
+const PickingRecordsView = () => import('../views/supply-chain/PickingRecordsView.vue')
 const InvoiceManagementView = () => import('../views/supply-chain/InvoiceManagementView.vue')
 const UdiTraceabilityView = () => import('../views/supply-chain/UdiTraceabilityView.vue')
 const HighValueChargeDetailView = () => import('../views/supply-chain/HighValueChargeDetailView.vue')
@@ -172,6 +173,12 @@ export const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: featureRouteTarget('picking-records'),
+      name: 'picking-records',
+      component: PickingRecordsView,
+      meta: { requiresAuth: true, featureCode: 'picking-records' }
+    },
+    {
       path: `/features/:code(${featureCodePattern('operational-closure')})`,
       name: 'operational-closure',
       component: OperationalClosureView,
@@ -303,6 +310,9 @@ router.beforeEach(async (to) => {
       return { name: 'forbidden' }
     }
     return true
+  }
+  if (requiredPermission === 'picking-records') {
+    return authStore.canAccessMenu('picking-delivery') ? true : { name: 'forbidden' }
   }
   if (requiredPermission && !authStore.canAccessMenu(requiredPermission)) {
     return { name: 'forbidden' }

@@ -310,6 +310,7 @@ export const featureCatalog = [
       'inventory-events',
       'replenishment-task',
       'picking-delivery',
+      'picking-records',
       'department-requisition',
       'department-consumption',
       'stocktaking-management'
@@ -361,6 +362,15 @@ export const featureCatalog = [
     icon: 'truck',
     routeTarget: '/features/picking-delivery',
     viewFamily: 'operational-closure',
+    chunkFamily: 'supply-chain'
+  },
+  {
+    code: 'picking-records',
+    title: '拣配记录',
+    icon: 'history',
+    routeTarget: '/features/picking-records',
+    viewFamily: 'feature',
+    nodeKind: 'business',
     chunkFamily: 'supply-chain'
   },
   {

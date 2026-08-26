@@ -135,6 +135,7 @@ export interface InventoryMovementRow {
   productName: string
   specModel: string
   manufacturerName: string
+  distributorName: string
   openingQuantity: number
   inboundQuantity: number
   returnQuantity: number

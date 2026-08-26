@@ -18,8 +18,10 @@ const runComposeConfig = process.env.RUN_DOCKER_COMPOSE_CONFIG !== '0';
 const deploymentHealthUrl = process.env.DEPLOYMENT_HEALTH_URL || 'http://127.0.0.1:1820/api/health';
 const k6SummaryFile = process.env.K6_SUMMARY_FILE || 'perf/results/k6-deployment-summary.json';
 const deploymentPressureMutatingFlows = process.env.DEPLOYMENT_MUTATING_FLOWS || process.env.MUTATING_FLOWS || '1';
-const deploymentUsername = process.env.DEPLOYMENT_USERNAME || process.env.SPD_USERNAME || 'admin';
-const deploymentPassword = process.env.DEPLOYMENT_PASSWORD || process.env.SPD_PASSWORD || 'admin123';
+const localUsername = process.env.SPD_USERNAME || process.env.SPD_E2E_USERNAME || 'admin';
+const localPassword = process.env.SPD_PASSWORD || process.env.SPD_E2E_PASSWORD || 'admin123';
+const deploymentUsername = process.env.DEPLOYMENT_USERNAME || localUsername;
+const deploymentPassword = process.env.DEPLOYMENT_PASSWORD || localPassword;
 
 const report = {
   generatedAt: new Date().toISOString(),
@@ -396,8 +398,8 @@ async function runNodeSmokeGates(options = {}) {
     env: {
       RESULT_FILE: process.env.READ_RESULT_FILE || 'perf/results/release-read-smoke.json',
       BASE_URL: baseUrl,
-      SPD_USERNAME: process.env.SPD_USERNAME || 'admin',
-      SPD_PASSWORD: process.env.SPD_PASSWORD || 'admin123',
+      SPD_USERNAME: localUsername,
+      SPD_PASSWORD: localPassword,
     },
     resultJson: process.env.READ_RESULT_FILE || 'perf/results/release-read-smoke.json',
   });
@@ -407,8 +409,8 @@ async function runNodeSmokeGates(options = {}) {
     env: {
       RESULT_FILE: process.env.WRITE_RESULT_FILE || 'perf/results/release-write-smoke.json',
       BASE_URL: baseUrl,
-      SPD_USERNAME: process.env.SPD_USERNAME || 'admin',
-      SPD_PASSWORD: process.env.SPD_PASSWORD || 'admin123',
+      SPD_USERNAME: localUsername,
+      SPD_PASSWORD: localPassword,
     },
     resultJson: process.env.WRITE_RESULT_FILE || 'perf/results/release-write-smoke.json',
   });

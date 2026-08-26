@@ -51,12 +51,14 @@
   --sidebar-collapsed-padding-y: 16px;
   /* Button system tokens */
   --btn-font-weight: 700;
+  --btn-font-size: 14px;
   --btn-radius: 8px;
-  --btn-min-h: 38px;
-  --btn-min-h-sm: 32px;
-  --btn-gap: 8px;
-  --btn-padding-x: 12px;
-  --btn-padding-x-sm: 10px;
+  --btn-min-h: 40px;
+  --btn-min-h-sm: 40px;
+  --btn-min-width: 88px;
+  --btn-gap: 10px;
+  --btn-padding-x: 16px;
+  --btn-padding-x-sm: 16px;
   --btn-text-color: #334652;
   --btn-primary-text: #ffffff;
   --btn-danger-text: var(--danger);
@@ -959,6 +961,10 @@ textarea:focus-visible {
   overflow: hidden;
 }
 
+.picking-panel--loose {
+  grid-column: 1 / -1;
+}
+
 .picking-panel .section-title.compact {
   padding: 12px 14px;
   border-bottom: 1px solid var(--line);
@@ -1759,6 +1765,122 @@ textarea:focus-visible {
   color: #52747a;
   font-size: 12px;
   font-weight: 700;
+}
+
+/* Global action alignment: visual normalization only; DOM and feature placement stay unchanged. */
+.main-area :where(
+  .standard-page-actions,
+  .hospital-action-row,
+  .hospital-query-actions,
+  .dialog-actions,
+  .master-data-dialog-actions,
+  .toolbar-actions,
+  .form-actions,
+  .approval-actions,
+  .approval-action-row,
+  .row-actions,
+  .report-actions
+) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--btn-gap) !important;
+  min-width: 0;
+  min-height: var(--btn-min-h);
+  overflow: visible;
+}
+
+.main-area :where(
+  .standard-page-actions,
+  .hospital-action-row,
+  .hospital-query-actions,
+  .dialog-actions,
+  .master-data-dialog-actions,
+  .toolbar-actions,
+  .form-actions,
+  .approval-actions,
+  .approval-action-row,
+  .row-actions,
+  .report-actions
+) > :where(button, .btn, .el-button) {
+  margin: 0 !important;
+  align-self: center;
+}
+
+.main-area .btn:not(.btn-icon):not(.btn-text):not(.btn-link),
+.main-area .el-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--btn-gap);
+  width: auto;
+  min-width: var(--btn-min-width);
+  height: var(--btn-min-h) !important;
+  min-height: var(--btn-min-h) !important;
+  margin: 0;
+  padding: 0 var(--btn-padding-x) !important;
+  border-radius: var(--btn-radius) !important;
+  font-family: inherit;
+  font-size: var(--btn-font-size) !important;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: middle;
+  white-space: nowrap;
+  transform: none !important;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease, opacity 0.16s ease !important;
+}
+
+.main-area :where(.btn-icon, .btn-text, .btn-link, button) {
+  font-family: inherit;
+  font-size: var(--btn-font-size);
+  vertical-align: middle;
+}
+
+.main-area :where(button, .btn, .el-button):where(:hover, :active, :focus-visible) {
+  transform: none !important;
+}
+
+.main-area :where(button, .btn, .el-button):active {
+  translate: none;
+}
+
+/* Inventory management and price adjustment use direct grid children for their actions. */
+.purchase-page:has(.inventory-query-tabs) .inventory-query-tabs {
+  align-items: center;
+  gap: var(--btn-gap);
+  min-height: var(--btn-min-h);
+  overflow: visible;
+}
+
+.purchase-page:has(.inventory-query-tabs) .inventory-query-tabs > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--btn-min-width);
+  height: var(--btn-min-h);
+  min-height: var(--btn-min-h);
+  margin: 0;
+  padding: 0 var(--btn-padding-x);
+  border-radius: var(--btn-radius);
+  font-size: var(--btn-font-size);
+  line-height: 1;
+  transform: none !important;
+  transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease, opacity 0.16s ease;
+}
+
+.purchase-page:has(.inventory-query-tabs) .hospital-query-grid.purchase-query-grid,
+.purchase-page .hospital-catalog-panel > .section-title + .hospital-query-grid.purchase-query-grid {
+  align-items: end;
+}
+
+.purchase-page:has(.inventory-query-tabs) .purchase-query-grid > .btn,
+.purchase-page .hospital-catalog-panel > .section-title + .purchase-query-grid > .btn {
+  align-self: end;
+  justify-self: start;
+  min-width: var(--btn-min-width);
+  margin: 0 !important;
 }
 
 @media (max-width: 760px) {

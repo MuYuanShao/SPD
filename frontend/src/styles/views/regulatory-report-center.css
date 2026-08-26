@@ -1,7 +1,7 @@
 .regulatory-report-page .regulatory-filters { grid-template-columns: minmax(300px, 1.5fr) repeat(4, minmax(150px, 1fr)); }
 .regulatory-report-page .reconciliation-table { min-width: 1760px; }
 .regulatory-report-page .centralized-table { min-width: 1500px; }
-.regulatory-report-page .inventory-summary-table { min-width: 1720px; }
+.regulatory-report-page .inventory-summary-table { min-width: 1840px; }
 .progress-cell { display: grid; grid-template-columns: minmax(80px, 1fr) 52px; align-items: center; gap: 8px; }
 .progress-cell > span { height: 7px; overflow: hidden; border-radius: 999px; background: #dbe8ea; }
 .progress-cell > span i { display: block; height: 100%; border-radius: inherit; background: #16867d; }
@@ -12,3 +12,140 @@
 .positive-text { color: #087268; }
 .strong-number { color: #102033; font-weight: 900; }
 @media (max-width: 1480px) { .regulatory-report-page .regulatory-filters { grid-template-columns: repeat(3, minmax(180px, 1fr)); } }
+
+/* Responsive enterprise report workspace: 24-grid rhythm, viewport-fitted table and stable footer. */
+.main-area:has(.regulatory-report-page) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-area:has(.regulatory-report-page) > .topbar,
+.regulatory-report-page {
+  width: min(100%, 1600px);
+  margin-inline: auto;
+}
+
+.regulatory-report-page {
+  flex: 1 1 auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.regulatory-report-page .standard-page-header { min-height: 42px; }
+
+.regulatory-report-page .reconciliation-filter-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px 16px;
+  padding: 16px;
+}
+
+.regulatory-report-page .regulatory-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.regulatory-report-page .reconciliation-filters input,
+.regulatory-report-page .reconciliation-filters select {
+  min-height: 40px;
+  border-radius: 6px;
+}
+
+.regulatory-report-page .date-range {
+  grid-template-columns: minmax(112px, 1fr) auto minmax(112px, 1fr);
+}
+
+.regulatory-report-page .reconciliation-actions {
+  align-self: end;
+  flex-wrap: nowrap;
+}
+
+.regulatory-report-page .reconciliation-summary {
+  min-height: 44px;
+  gap: 12px 24px;
+  padding: 8px 16px;
+}
+
+.regulatory-report-page .reconciliation-table-card {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  min-height: 0;
+}
+
+.regulatory-report-page .reconciliation-table-scroll {
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+.regulatory-report-page .reconciliation-table-footer {
+  min-height: 52px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  padding: 8px 16px;
+}
+
+.regulatory-report-page .report-pagination :where(select, button) { min-height: 32px; }
+
+@media (max-width: 1480px) {
+  .regulatory-report-page .reconciliation-filter-panel { grid-template-columns: 1fr; }
+  .regulatory-report-page .reconciliation-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 1399px) {
+  .regulatory-report-page .reconciliation-filter-panel {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .regulatory-report-page .regulatory-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regulatory-report-page .reconciliation-actions {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1100px) {
+  .regulatory-report-page .reconciliation-filter-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .regulatory-report-page .reconciliation-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .main-area:has(.regulatory-report-page) { overflow: visible; }
+  .regulatory-report-page { min-height: auto; }
+  .regulatory-report-page .regulatory-filters { grid-template-columns: 1fr; }
+
+  .regulatory-report-page .reconciliation-actions,
+  .regulatory-report-page .reconciliation-table-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .regulatory-report-page .reconciliation-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .regulatory-report-page .reconciliation-actions .btn { width: 100%; }
+  .regulatory-report-page .reconciliation-table-scroll { max-height: 68vh; }
+
+  .regulatory-report-page .report-pagination {
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .regulatory-report-page .date-range,
+  .regulatory-report-page .reconciliation-actions { grid-template-columns: 1fr; }
+  .regulatory-report-page .date-range i { display: none; }
+}

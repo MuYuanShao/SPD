@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 
 test('库房新增弹窗关联科室可搜索并回填', async ({ page }) => {
+  const username = process.env.SPD_E2E_USERNAME || 'admin'
+  const password = process.env.SPD_E2E_PASSWORD || 'admin123'
   await page.goto('/features/warehouse-location-management')
-  await page.getByRole('textbox', { name: '用户名' }).fill('admin')
-  await page.getByRole('textbox', { name: '密码' }).fill('admin123')
+  await page.getByRole('textbox', { name: '用户名' }).fill(username)
+  await page.getByRole('textbox', { name: '密码' }).fill(password)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/warehouse-location-management/)
 

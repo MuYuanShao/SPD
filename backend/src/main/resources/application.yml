@@ -31,6 +31,8 @@ management:
 spd:
   jobs:
     zone: Asia/Shanghai
+    inventory-summary:
+      cron: "0 0 0 * * *"
     daily-quota:
       cron: "0 5 0 * * *"
       history-months: 12

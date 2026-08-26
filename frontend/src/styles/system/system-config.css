@@ -109,6 +109,21 @@
 
 .hospital-query-grid.config-hit-query-grid {
   grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  align-items: end;
+}
+
+.system-config-page .config-hit-query-grid .hospital-query-actions {
+  align-items: center;
+  align-self: end;
+  min-height: var(--btn-min-h);
+  gap: var(--btn-gap) !important;
+  overflow: visible;
+}
+
+.system-config-page .config-hit-query-grid .hospital-query-actions > .btn {
+  align-self: center;
+  min-width: var(--btn-min-width);
+  margin: 0 !important;
 }
 
 .config-hit-grid {
@@ -164,4 +179,3 @@
 .master-table tr.hit-row {
   background: #eef8f6;
 }
-

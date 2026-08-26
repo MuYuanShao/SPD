@@ -140,6 +140,7 @@ const type = computed(() => {
   return 'shortage'
 })
 const isRecallPage = computed(() => pageCode.value === 'recall-isolation')
+const showEmbeddedRecords = computed(() => type.value !== 'delivery')
 const titleMap: Record<string, string> = {
   shortage: '缺货补货闭环',
   delivery: '拣配配送',
@@ -1088,7 +1089,7 @@ watch(() => form.productCode, () => {
           </div>
         </section>
 
-        <section class="picking-panel">
+        <section class="picking-panel picking-panel--loose">
           <div class="section-title compact">
             <h3>可用散货</h3>
             <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ form.quantity }}（可混合定数包与散货）</span>
@@ -1143,7 +1144,7 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
-    <section class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
+    <section v-if="showEmbeddedRecords" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon is-history"><History :size="20" /></i>

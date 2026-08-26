@@ -18,7 +18,9 @@ test('真实 MySQL 全流程测试数据在关键业务页可见', async ({ page
     ['/features/purchase-management', process.env.SPD_E2E_PURCHASE_NO || 'CG20260713001', async () => {
       await page.locator('.subnav-tabs').getByRole('button', { name: '采购订单', exact: true }).click()
     }],
-    ['/features/receiving-acceptance', process.env.SPD_E2E_RECEIVING_NO || 'RK20260713001'],
+    ['/features/receiving-acceptance', process.env.SPD_E2E_RECEIVING_NO || 'RK20260713001', async () => {
+      await page.getByRole('tab', { name: /已验收/ }).click()
+    }],
     ['/features/inventory-management', process.env.SPD_E2E_INVENTORY_PRODUCT || 'SMARTTEST-P002'],
     ['/features/department-requisition', process.env.SPD_E2E_REQUISITION_NO || 'SL2026071300001'],
     ['/features/udi-traceability', process.env.SPD_E2E_UDI_CODE || 'UDI20260706000158'],

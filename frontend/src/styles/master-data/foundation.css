@@ -46,6 +46,28 @@
 
 .hospital-query-grid.foundation-query-grid {
   grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+  align-items: end;
+}
+
+.foundation-page .hospital-action-row {
+  align-items: center;
+  min-height: var(--btn-min-h);
+  gap: var(--btn-gap) !important;
+  overflow: visible;
+}
+
+.foundation-page .hospital-action-row > .btn,
+.foundation-page .foundation-query-grid > .btn,
+.foundation-modal .supplier-form-grid > .btn,
+.foundation-modal .checkbox-cloud > .btn {
+  align-self: center;
+  min-width: var(--btn-min-width);
+  margin: 0 !important;
+}
+
+.foundation-page .foundation-query-grid > .btn {
+  align-self: end;
+  justify-self: start;
 }
 
 .foundation-table {

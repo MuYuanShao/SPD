@@ -3,23 +3,13 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink, RouterView } from 'vue-router'
 import {
   ChevronDown,
-  Grid2X2,
   Home,
   LogOut,
-  MessageCircle,
-  Mic,
-  Minus,
-  Paperclip,
   PanelLeftClose,
   PanelLeftOpen,
-  PenLine,
-  Phone,
-  Pin,
-  Plus,
-  Sparkles,
-  UserRound,
-  X
+  UserRound
 } from '@lucide/vue'
+import AiMedicalAssistant from './components/common/AiMedicalAssistant.vue'
 import { menuGroups, type MenuItem } from './config/menu'
 import { featureRouteTarget } from './config/featureCatalog'
 import { useAuthStore } from './stores/auth'
@@ -31,10 +21,9 @@ const router = useRouter()
 const authStore = useAuthStore()
 const uiStore = useUiStore()
 const isLoginPage = computed(() => route.name === 'login')
-const assistantOpen = ref(false)
 const expandedParentMenus = ref(new Set<string>())
 const openNavGroups = ref(new Set<string>(menuGroups.map(g => g.code)))
-const activeFeatureCode = computed(() => String(route.params.code || ''))
+const activeFeatureCode = computed(() => String(route.meta.featureCode || route.params.code || ''))
 
 function authorizedMenu(item: MenuItem): MenuItem | null {
   const children = item.children
@@ -43,6 +32,8 @@ function authorizedMenu(item: MenuItem): MenuItem | null {
   const accessGranted =
     item.code === 'supplier-manufacturer-management'
       ? authStore.canAccessSupplierManufacturerManagement()
+      : item.code === 'picking-records'
+        ? authStore.canAccessMenu('picking-delivery')
       : authStore.canAccessMenu(item.code)
   if (!accessGranted && !children?.length) {
     return null
@@ -86,7 +77,7 @@ function isParentMenuOpen(item: MenuItem) {
   return expandedParentMenus.value.has(item.code) || hasActiveChild(item)
 }
 
-/** Auto-collapse sidebar when viewport is 1280px or narrower */
+/** Preserve table working area on compact desktop screens. */
 let autoCollapsed = false
 
 function handleResize() {
@@ -96,7 +87,7 @@ function handleResize() {
     return
   }
 
-  if (window.innerWidth <= 1280) {
+  if (window.innerWidth <= 1366) {
     if (!uiStore.sidebarCollapsed) {
       autoCollapsed = true
       uiStore.setSidebarCollapsed(true)
@@ -211,10 +202,6 @@ onBeforeUnmount(() => {
           <p>端口 1820 / API 1818</p>
           <h1>Supply-Processing-Distribution</h1>
         </div>
-        <button class="ai-assistant-entry" type="button" @click="assistantOpen = true">
-          <Sparkles :size="16" />
-          <span>AI医护助手</span>
-        </button>
         <details class="account-menu">
           <summary>
             <span class="account-avatar">{{ authStore.username.slice(0, 1) || '用' }}</span>
@@ -241,41 +228,7 @@ onBeforeUnmount(() => {
       </header>
 
       <RouterView />
-
-      <div v-if="assistantOpen" class="ai-chat-mask" @click.self="assistantOpen = false">
-        <section class="ai-chat-dialog" role="dialog" aria-modal="true" aria-label="AI医护助手">
-          <header class="ai-chat-toolbar">
-            <div>
-              <button type="button" aria-label="新建对话"><PenLine :size="18" /></button>
-              <button type="button" aria-label="语音通话"><Phone :size="18" /></button>
-              <button type="button" aria-label="会话窗口"><MessageCircle :size="18" /></button>
-            </div>
-            <div>
-              <button type="button" aria-label="置顶"><Pin :size="18" /></button>
-              <button type="button" aria-label="最小化" @click="assistantOpen = false"><Minus :size="18" /></button>
-              <button type="button" aria-label="关闭" @click="assistantOpen = false"><X :size="18" /></button>
-            </div>
-          </header>
-
-          <div class="ai-chat-stage">
-            <div class="ai-avatar-large">
-              <span>鎶?</span>
-            </div>
-          </div>
-
-          <footer class="ai-chat-inputbar">
-            <input type="text" placeholder="发消息或输入 / 选择技能" />
-            <div class="ai-chat-tools">
-              <button type="button" aria-label="添加"><Plus :size="18" /></button>
-              <i></i>
-              <button type="button"><Sparkles :size="17" />快速</button>
-              <button type="button"><Paperclip :size="17" />帮我写作</button>
-              <button type="button"><Grid2X2 :size="17" />更多</button>
-              <button class="ai-mic" type="button" aria-label="语音输入"><Mic :size="18" /></button>
-            </div>
-          </footer>
-        </section>
-      </div>
+      <AiMedicalAssistant />
     </main>
   </div>
 </template>

@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test'
 
 test('货位维护固定商品编码支持回车/放大镜搜索医院目录并回填', async ({ page }) => {
+  const username = process.env.SPD_E2E_USERNAME || 'admin'
+  const password = process.env.SPD_E2E_PASSWORD || 'admin123'
   await page.goto('/features/warehouse-location-management')
-  await page.getByRole('textbox', { name: '用户名' }).fill('admin')
-  await page.getByRole('textbox', { name: '密码' }).fill('admin123')
+  await page.getByRole('textbox', { name: '用户名' }).fill(username)
+  await page.getByRole('textbox', { name: '密码' }).fill(password)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/warehouse-location-management/)
 
@@ -24,13 +26,14 @@ test('货位维护固定商品编码支持回车/放大镜搜索医院目录并�
 
   // 输入关键字实时过滤候选列表（屏蔽不匹配商品信息）
   await codeInput.fill('')
-  await codeInput.type('HC021')
+  const searchKeyword = firstCode!.slice(0, Math.min(6, firstCode!.length))
+  await codeInput.type(searchKeyword)
   const filtered = page.locator('.product-result-option')
   await expect(filtered.first()).toBeVisible()
   const filteredCodes = await filtered.locator('.product-code').allTextContents()
   expect(filteredCodes.length).toBeGreaterThan(0)
   for (const code of filteredCodes) {
-    expect(code.trim().toLowerCase()).toContain('hc021')
+    expect(code.trim().toLowerCase()).toContain(searchKeyword.toLowerCase())
   }
   const pickedCode = (await filtered.first().locator('.product-code').textContent())?.trim()
   await filtered.first().click()

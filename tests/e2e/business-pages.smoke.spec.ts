@@ -44,7 +44,8 @@ test('待审批新品准入字段导航与表头及分组保持一致', async ({
   await expect(page.getByRole('heading', { name: '新品准入 · 多字段列表' })).toBeVisible()
 
   const navigationFields = await page.locator('.subnav-chips .subnav-chip').allTextContents()
-  const tableFields = (await page.locator('.approval-wide-table thead th').allTextContents()).slice(3, 21)
+  const tableFields = (await page.locator('.approval-wide-table thead th').allTextContents())
+    .slice(3, 3 + navigationFields.length)
   expect(navigationFields.map(text => text.trim())).toEqual(tableFields.map(text => text.trim()))
 
   await page.getByRole('button', { name: '变更记录' }).click()

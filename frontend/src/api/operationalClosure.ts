@@ -34,6 +34,11 @@ export async function fetchClosureList(type: string, params: Record<string, stri
   return getData<PageResult<Record<string, unknown>>>(`/operational-closure/lists/${type}`, { params })
 }
 
+/** 获取独立的拣配记录台账，沿用拣配配送只读权限。 */
+export async function fetchPickingRecords(params: Record<string, string> = {}) {
+  return fetchClosureList('delivery', params)
+}
+
 export async function fetchPickingRequisitions() {
   return getData<{ rows: Record<string, unknown>[] }>('/operational-closure/picking/requisitions')
 }

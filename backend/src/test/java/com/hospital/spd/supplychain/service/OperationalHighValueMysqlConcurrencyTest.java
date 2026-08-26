@@ -30,6 +30,7 @@ class OperationalHighValueMysqlConcurrencyTest {
         Map<String, Object> fixture = jdbcTemplate.queryForMap("""
                 SELECT bal.balance_id AS balanceId, bal.available_qty AS availableQty,
                        bal.last_event_id AS lastEventId, bal.warehouse_id AS warehouseId,
+                       bal.batch_id AS batchId,
                        w.warehouse_name AS warehouseName, bal.product_id AS productId,
                        p.product_code AS productCode, p.product_name AS productName
                   FROM inventory_balance bal
@@ -58,6 +59,11 @@ class OperationalHighValueMysqlConcurrencyTest {
                     VALUES (?, ?, 'high_value', ?, ?, ?, 'in_stock', 'normal', NOW())
                     """, udiCode, uniqueCode, fixture.get("productCode"), fixture.get("productName"), fixture.get("warehouseName"));
             traceId = jdbcTemplate.queryForObject("SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?", Long.class, uniqueCode);
+            jdbcTemplate.update("""
+                    INSERT INTO inventory_batch_trace_code
+                      (batch_id, trace_code_id, receiving_item_id, current_warehouse_id, lifecycle_status)
+                    VALUES (?, ?, 0, ?, 'in_stock')
+                    """, fixture.get("batchId"), traceId, fixture.get("warehouseId"));
 
             CountDownLatch ready = new CountDownLatch(2);
             CountDownLatch start = new CountDownLatch(1);
@@ -106,6 +112,7 @@ class OperationalHighValueMysqlConcurrencyTest {
             jdbcTemplate.update("DELETE FROM high_value_charge WHERE external_charge_no = ?", externalNo);
             if (traceId != null) {
                 jdbcTemplate.update("DELETE FROM udi_trace_event WHERE trace_code_id = ?", traceId);
+                jdbcTemplate.update("DELETE FROM inventory_batch_trace_code WHERE trace_code_id = ?", traceId);
                 jdbcTemplate.update("DELETE FROM udi_trace_code WHERE trace_code_id = ?", traceId);
             }
             for (Map<String, Object> balance : balanceSnapshot) {

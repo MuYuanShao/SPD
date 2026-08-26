@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.util.Map;
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -28,11 +29,19 @@ class RegulatoryReportCenterMysqlTest {
         DriverManagerDataSource dataSource = new DriverManagerDataSource(url, username, password);
         RegulatoryReportCenterService service = new RegulatoryReportCenterService(
                 new JdbcTemplate(dataSource), new DataScopeService(OperatorContext::system), mock(AuditLogService.class));
+        DailyInventorySummaryService inventorySummaryService = new DailyInventorySummaryService(new JdbcTemplate(dataSource));
+        inventorySummaryService.regenerate(LocalDate.now().minusDays(1));
         Map<String, String> params = Map.of("dateFrom", "2020-01-01", "dateTo", "2030-12-31", "page", "1", "size", "20");
 
         assertReport(service.supplierDeliveryLedger(params));
         assertReport(service.centralizedProcurementProgress(params));
         assertReport(service.inventoryMovementSummary(params));
+        Integer invalidFormulaRows = new JdbcTemplate(dataSource).queryForObject("""
+                SELECT COUNT(*) FROM inventory_daily_summary
+                 WHERE opening_quantity + inbound_quantity - return_quantity - requisition_quantity
+                       - consumption_quantity - scrap_quantity <> closing_quantity
+                """, Integer.class);
+        assertTrue(invalidFormulaRows != null && invalidFormulaRows == 0);
         assertTrue(service.exportSupplierDeliveryLedger(params).length > 100);
         assertTrue(service.exportCentralizedProcurementProgress(params).length > 100);
         assertTrue(service.exportInventoryMovementSummary(params).length > 100);

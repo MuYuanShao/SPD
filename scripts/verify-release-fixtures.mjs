@@ -99,6 +99,8 @@ async function runCredentialScenario(name, options) {
     ...process.env,
     SPD_USERNAME: '',
     SPD_PASSWORD: '',
+    SPD_E2E_USERNAME: '',
+    SPD_E2E_PASSWORD: '',
     ...options.env,
     RELEASE_REPORT_FILE: releaseFile,
     SIGNOFF_LOCAL_REPORT_FILE: signoffLocalFile,

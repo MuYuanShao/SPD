@@ -89,24 +89,7 @@ public class OperationalClosureReadModel {
                            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM shortage_replenishment_task ORDER BY create_time DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countLong("shortage_replenishment_task", "1 = 1"), pageReq);
-            case "delivery" -> PageResponse.of(jdbcTemplate.queryForList("""
-                    SELECT d.delivery_no AS bizNo, d.requisition_no AS sourceNo, d.dept_name AS deptName,
-                           d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
-                           d.quantity, d.status, COUNT(b.binding_id) AS packageCount,
-                           GROUP_CONCAT(qpl.label_no ORDER BY qpl.label_no SEPARATOR ', ') AS labelNos,
-                           DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
-                           DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM spd_delivery_order d
-                      LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
-                      LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
-                     GROUP BY d.delivery_id, d.delivery_no, d.requisition_no, d.dept_name, d.warehouse_name,
-                              d.product_code, d.product_name, d.quantity, d.status, d.sign_time, d.create_time
-                     ORDER BY d.create_time DESC LIMIT ? OFFSET ?
-                    """, pageReq.size(), pageReq.offset()), countJoinedRows("""
-                    SELECT COUNT(DISTINCT d.delivery_id)
-                      FROM spd_delivery_order d
-                      LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
-                    """), pageReq);
+            case "delivery" -> deliveryRecords(params, pageReq);
             case "requisition" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT dr.requisition_no AS bizNo, sd.dept_name AS deptName,
                            COALESCE(w.warehouse_name, '-') AS warehouseName,
@@ -201,6 +184,48 @@ public class OperationalClosureReadModel {
                  ORDER BY dri.item_id
                 """, requisitionNo);
         return Map.of("rows", rows, "total", rows.size(), "requisitionNo", requisitionNo);
+    }
+
+    private Map<String, Object> deliveryRecords(Map<String, String> params, PageRequest pageReq) {
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        appendLike(where, args, "d.delivery_no", params.get("deliveryNo"));
+        appendLike(where, args, "d.requisition_no", params.get("requisitionNo"));
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "d.warehouse_name", params.get("warehouseName"));
+        appendAnyLike(where, args, List.of("d.product_code", "d.product_name"), params.get("productKeyword"));
+        appendLike(where, args, "qpl.label_no", params.get("labelNo"));
+        appendEquals(where, args, "d.status", params.get("status"));
+        appendDateBoundary(where, args, "d.create_time", params.get("dateFrom"), false);
+        appendDateBoundary(where, args, "d.create_time", params.get("dateTo"), true);
+
+        Object[] countArgs = args.toArray();
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(DISTINCT d.delivery_id)
+                  FROM spd_delivery_order d
+                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
+                  LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
+                """ + where, Long.class, countArgs);
+
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT d.delivery_no AS bizNo, d.requisition_no AS sourceNo, d.dept_name AS deptName,
+                       d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
+                       d.quantity, d.status, COUNT(b.binding_id) AS packageCount,
+                       GROUP_CONCAT(qpl.label_no ORDER BY qpl.label_no SEPARATOR ', ') AS labelNos,
+                       DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
+                       DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
+                  FROM spd_delivery_order d
+                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
+                  LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
+                """ + where + """
+                 GROUP BY d.delivery_id, d.delivery_no, d.requisition_no, d.dept_name, d.warehouse_name,
+                          d.product_code, d.product_name, d.quantity, d.status, d.sign_time, d.create_time
+                 ORDER BY d.create_time DESC LIMIT ? OFFSET ?
+                """, queryArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
     }
 
     private Map<String, Object> settlementDetails(PageRequest pageReq) {
@@ -374,6 +399,22 @@ public class OperationalClosureReadModel {
             args.add(like);
         }
         where.append(")");
+    }
+
+    private void appendEquals(StringBuilder where, List<Object> args, String column, String value) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        where.append(" AND ").append(column).append(" = ?");
+        args.add(value.trim());
+    }
+
+    private void appendDateBoundary(StringBuilder where, List<Object> args, String column, String value, boolean endOfDay) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+        where.append(" AND ").append(column).append(endOfDay ? " <= ?" : " >= ?");
+        args.add(value.trim() + (endOfDay ? " 23:59:59" : " 00:00:00"));
     }
 
     private void appendDateFrom(StringBuilder where, List<Object> args, String value) {

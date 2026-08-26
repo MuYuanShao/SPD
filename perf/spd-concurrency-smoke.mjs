@@ -5,8 +5,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { pressureGateScenarios, pressureGateThresholds, resolvePressureWriteFlow } from './pressure-gate-scenarios.mjs';
 
 const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:1818/api';
-const username = process.env.SPD_USERNAME || 'admin';
-const password = process.env.SPD_PASSWORD || 'admin123';
+const username = process.env.SPD_USERNAME || process.env.SPD_E2E_USERNAME || 'admin';
+const password = process.env.SPD_PASSWORD || process.env.SPD_E2E_PASSWORD || 'admin123';
 const vus = Number(process.env.VUS || 20);
 const durationSeconds = Number(process.env.DURATION_SECONDS || 60);
 const thinkTimeMs = Number(process.env.THINK_TIME_MS || 250);

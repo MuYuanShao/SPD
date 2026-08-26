@@ -43,11 +43,11 @@ public class RegulatoryReportCenterService {
             "periodPurchaseQuantity", "cumulativePurchaseQuantity", "completionRate", "selectedFlag", "departmentConsumptionQuantity", "incompleteReason"
     };
     private static final String[] INVENTORY_HEADERS = {
-            "物资编码", "物资名称", "规格", "生产厂家", "期初库存", "本期入库", "本期退库", "本期领用",
+            "物资编码", "物资名称", "规格", "生产厂家", "配送商", "期初库存", "本期入库", "本期退库", "本期领用",
             "本期消耗", "本期报废", "期末库存", "库存单价", "库存金额", "库房", "物资属性"
     };
     private static final String[] INVENTORY_KEYS = {
-            "productCode", "productName", "specModel", "manufacturerName", "openingQuantity", "inboundQuantity",
+            "productCode", "productName", "specModel", "manufacturerName", "distributorName", "openingQuantity", "inboundQuantity",
             "returnQuantity", "requisitionQuantity", "consumptionQuantity", "scrapQuantity", "closingQuantity",
             "unitPrice", "inventoryAmount", "warehouseName", "materialAttribute"
     };
@@ -237,79 +237,65 @@ public class RegulatoryReportCenterService {
 
     private QuerySpec inventorySpec(Map<String, String> params) {
         DateRange range = dateRange(params);
-        Date from = Date.valueOf(range.from());
-        Date endExclusive = Date.valueOf(range.to().plusDays(1));
-        List<Object> args = new ArrayList<>();
-        for (int index = 0; index < 5; index++) {
-            args.add(from);
-            args.add(endExclusive);
-        }
-        args.add(from);
-        args.add(endExclusive);
-        StringBuilder scopedWhere = new StringBuilder(" WHERE p.deleted = 0 AND w.deleted = 0");
+        List<Object> args = new ArrayList<>(List.of(Date.valueOf(range.from()), Date.valueOf(range.to())));
+        StringBuilder scopedWhere = new StringBuilder(
+                " WHERE ids.business_date >= ? AND ids.business_date <= ? AND p.deleted = 0 AND w.deleted = 0");
         dataScopeService.appendScope(scopedWhere, args, "w.dept_id", "w.manager_user_id");
-        StringBuilder outerWhere = new StringBuilder(" WHERE 1 = 1");
-        appendLike(outerWhere, args, "warehouseName", params.get("warehouse"));
-        appendLike(outerWhere, args, "categoryText", params.get("category"));
+        appendLike(scopedWhere, args, "w.warehouse_name", params.get("warehouse"));
+        appendCategory(scopedWhere, args, params.get("category"));
         String materialType = text(params.get("materialType"));
         if (!materialType.isBlank() && !"ALL".equalsIgnoreCase(materialType)) {
-            outerWhere.append(" AND materialAttribute = ?");
-            args.add(switch (materialType.toUpperCase(Locale.ROOT)) {
-                case "HIGH" -> "高值耗材";
-                case "REAGENT" -> "试剂";
-                default -> "低值耗材";
-            });
+            if ("HIGH".equalsIgnoreCase(materialType)) scopedWhere.append(" AND p.is_high_value = 1");
+            else if ("REAGENT".equalsIgnoreCase(materialType)) {
+                scopedWhere.append(" AND (p.first_category LIKE '%试剂%' OR p.second_category LIKE '%试剂%' OR p.third_category LIKE '%试剂%')");
+            } else {
+                scopedWhere.append(" AND p.is_high_value = 0 AND COALESCE(p.first_category, '') NOT LIKE '%试剂%' AND COALESCE(p.second_category, '') NOT LIKE '%试剂%' AND COALESCE(p.third_category, '') NOT LIKE '%试剂%'");
+            }
         }
         String sql = """
-                WITH key_rows AS (
-                  SELECT warehouse_id, product_id FROM inventory_balance GROUP BY warehouse_id, product_id
-                  UNION
-                  SELECT warehouse_id, product_id FROM inventory_event GROUP BY warehouse_id, product_id
-                ), current_balance AS (
-                  SELECT warehouse_id, product_id,
-                         SUM(available_qty + locked_qty + isolated_qty) AS current_qty
-                    FROM inventory_balance
-                   GROUP BY warehouse_id, product_id
-                ), event_summary AS (
-                  SELECT warehouse_id, product_id,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('purchase_receive_in', 'warehouse_transfer_in', 'stocktaking_profit', 'quota_package_delivery_sign_in') THEN qty_change ELSE 0 END) AS inbound_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type = 'department_consumption_reverse_in' THEN qty_change ELSE 0 END) AS return_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('delivery_out', 'delivery_loose_out', 'warehouse_transfer_out', 'quota_pack_out') THEN ABS(qty_change) ELSE 0 END) AS requisition_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type = 'department_consumption_out' THEN ABS(qty_change) ELSE 0 END) AS consumption_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type = 'stocktaking_loss' THEN ABS(qty_change) ELSE 0 END) AS scrap_qty,
-                         SUM(CASE WHEN event_time >= ? THEN qty_change ELSE 0 END) AS net_after_from,
-                         SUM(CASE WHEN event_time >= ? THEN qty_change ELSE 0 END) AS net_after_end
-                    FROM inventory_event
-                   GROUP BY warehouse_id, product_id
-                ), movement_base AS (
-                  SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
-                         COALESCE(m.manufacturer_name, '-') AS manufacturerName, w.warehouse_name AS warehouseName,
-                         p.purchase_price AS unitPrice,
-                         CONCAT_WS('/', p.first_category, p.second_category, p.third_category) AS categoryText,
-                         CASE WHEN COALESCE(p.first_category, '') LIKE '%试剂%' OR COALESCE(p.second_category, '') LIKE '%试剂%'
-                                   OR COALESCE(p.third_category, '') LIKE '%试剂%' THEN '试剂'
-                              WHEN p.is_high_value = 1 THEN '高值耗材' ELSE '低值耗材' END AS materialAttribute,
-                         COALESCE(cb.current_qty, 0) - COALESCE(es.net_after_from, 0) AS openingQuantity,
-                         COALESCE(es.inbound_qty, 0) AS inboundQuantity,
-                         COALESCE(es.return_qty, 0) AS returnQuantity,
-                         COALESCE(es.requisition_qty, 0) AS requisitionQuantity,
-                         COALESCE(es.consumption_qty, 0) AS consumptionQuantity,
-                         COALESCE(es.scrap_qty, 0) AS scrapQuantity,
-                         COALESCE(cb.current_qty, 0) - COALESCE(es.net_after_end, 0) AS closingQuantity
-                    FROM key_rows k
-                    JOIN product p ON p.product_id = k.product_id
-                    JOIN warehouse w ON w.warehouse_id = k.warehouse_id
+                WITH filtered AS (
+                  SELECT ids.*, p.product_code, p.product_name, p.spec_model, p.first_category,
+                         p.second_category, p.third_category, p.is_high_value,
+                         COALESCE(m.manufacturer_name, '-') AS manufacturer_name,
+                         COALESCE(s.supplier_name, '-') AS distributor_name, w.warehouse_name,
+                         MIN(ids.business_date) OVER (PARTITION BY ids.warehouse_id, ids.product_id, ids.supplier_id) AS first_date,
+                         MAX(ids.business_date) OVER (PARTITION BY ids.warehouse_id, ids.product_id, ids.supplier_id) AS last_date
+                    FROM inventory_daily_summary ids
+                    JOIN product p ON p.product_id = ids.product_id
+                    JOIN warehouse w ON w.warehouse_id = ids.warehouse_id
                     LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                    LEFT JOIN current_balance cb ON cb.warehouse_id = k.warehouse_id AND cb.product_id = k.product_id
-                    LEFT JOIN event_summary es ON es.warehouse_id = k.warehouse_id AND es.product_id = k.product_id
+                    LEFT JOIN supplier s ON s.supplier_id = ids.supplier_id
                 """ + scopedWhere + """
+                ), movement_base AS (
+                  SELECT product_id, warehouse_id, supplier_id, MAX(product_code) AS productCode,
+                         MAX(product_name) AS productName, MAX(spec_model) AS specModel,
+                         MAX(manufacturer_name) AS manufacturerName, MAX(distributor_name) AS distributorName,
+                         MAX(warehouse_name) AS warehouseName,
+                         CONCAT_WS('/', MAX(first_category), MAX(second_category), MAX(third_category)) AS categoryText,
+                         CASE WHEN MAX(COALESCE(first_category, '')) LIKE '%试剂%' OR MAX(COALESCE(second_category, '')) LIKE '%试剂%'
+                                   OR MAX(COALESCE(third_category, '')) LIKE '%试剂%' THEN '试剂'
+                              WHEN MAX(is_high_value) = 1 THEN '高值耗材' ELSE '低值耗材' END AS materialAttribute,
+                         SUM(CASE WHEN business_date = first_date THEN opening_quantity ELSE 0 END) AS openingQuantity,
+                         SUM(inbound_quantity) AS inboundQuantity, SUM(return_quantity) AS returnQuantity,
+                         SUM(requisition_quantity) AS requisitionQuantity, SUM(consumption_quantity) AS consumptionQuantity,
+                         SUM(scrap_quantity) AS scrapQuantity,
+                         SUM(CASE WHEN business_date = last_date THEN closing_quantity ELSE 0 END) AS closingQuantity,
+                         SUM(CASE WHEN business_date = first_date THEN opening_quantity * unit_price ELSE 0 END) AS openingAmount,
+                         SUM(inbound_quantity * unit_price) AS inboundAmount,
+                         SUM(consumption_quantity * unit_price) AS consumptionAmount,
+                         SUM(CASE WHEN business_date = last_date THEN closing_quantity * unit_price ELSE 0 END) AS inventoryAmount,
+                         MAX(unit_price) AS fallbackUnitPrice
+                    FROM filtered
+                   GROUP BY product_id, warehouse_id, supplier_id
                 )
                 SELECT productCode, productName, specModel, manufacturerName, openingQuantity, inboundQuantity,
                        returnQuantity, requisitionQuantity, consumptionQuantity, scrapQuantity, closingQuantity,
-                       unitPrice, ROUND(closingQuantity * unitPrice, 2) AS inventoryAmount,
-                       warehouseName, materialAttribute, categoryText
+                       CASE WHEN closingQuantity = 0 THEN fallbackUnitPrice ELSE ROUND(inventoryAmount / closingQuantity, 4) END AS unitPrice,
+                       ROUND(inventoryAmount, 2) AS inventoryAmount, ROUND(openingAmount, 2) AS openingAmount,
+                       ROUND(inboundAmount, 2) AS inboundAmount, ROUND(consumptionAmount, 2) AS consumptionAmount,
+                       warehouseName, distributorName, materialAttribute, categoryText
                   FROM movement_base
-                """ + outerWhere;
+                """;
         return new QuerySpec(sql, args);
     }
 
@@ -326,9 +312,9 @@ public class RegulatoryReportCenterService {
     }
 
     private Map<String, Object> inventorySummary(QuerySpec spec) {
-        return summary(spec, "COUNT(*) AS itemCount, COALESCE(SUM(openingQuantity * unitPrice), 0) AS openingAmount, " +
-                "COALESCE(SUM(inboundQuantity * unitPrice), 0) AS inboundAmount, " +
-                "COALESCE(SUM(consumptionQuantity * unitPrice), 0) AS consumptionAmount, COALESCE(SUM(inventoryAmount), 0) AS closingAmount");
+        return summary(spec, "COUNT(*) AS itemCount, COALESCE(SUM(openingAmount), 0) AS openingAmount, " +
+                "COALESCE(SUM(inboundAmount), 0) AS inboundAmount, " +
+                "COALESCE(SUM(consumptionAmount), 0) AS consumptionAmount, COALESCE(SUM(inventoryAmount), 0) AS closingAmount");
     }
 
     private Map<String, Object> summary(QuerySpec spec, String columns) {

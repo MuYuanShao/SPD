@@ -26,10 +26,10 @@ requireText('compose-backend-health-url', content.compose, 'http://127.0.0.1:181
 requireText('compose-frontend-port', content.compose, '${SPD_HTTP_PORT:-1820}:80', 'Frontend port can be overridden and defaults to 1820.');
 requireText('backend-exposes-1818', content.backendDockerfile, 'EXPOSE 1818', 'Backend image exposes Spring Boot port.');
 requireText(
-  'backend-copies-versioned-artifact',
+  'backend-copies-stable-artifact',
   content.backendDockerfile,
-  'COPY --from=build /workspace/backend/target/spd-backend-*.jar app.jar',
-  'Backend image copies the Maven artifact without coupling the Dockerfile to one release version.',
+  'COPY --from=build /workspace/backend/target/app.jar app.jar',
+  'Backend image copies the stable Maven finalName without coupling the Dockerfile to one release version.',
 );
 requireText('frontend-exposes-80', content.frontendDockerfile, 'EXPOSE 80', 'Frontend image exposes Nginx port.');
 requireText('nginx-proxies-api', content.nginx, 'proxy_pass http://backend:1818/api/;', 'Nginx proxies /api/ to backend service.');

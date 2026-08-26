@@ -82,6 +82,40 @@ class OperationalClosureReadModelTest {
     }
 
     @Test
+    @DisplayName("delivery list applies record filters to rows and total")
+    void shouldFilterDeliveryRecords() {
+        when(jdbcTemplate.queryForObject(
+                argThat(sql -> sql.contains("COUNT(DISTINCT d.delivery_id)")
+                        && sql.contains("d.delivery_no LIKE ?")
+                        && sql.contains("d.status = ?")
+                        && sql.contains("d.create_time >= ?")
+                        && sql.contains("d.create_time <= ?")),
+                eq(Long.class), eq("%PS001%"), eq("picked"),
+                eq("2026-08-01 00:00:00"), eq("2026-08-26 23:59:59")))
+                .thenReturn(1L);
+        when(jdbcTemplate.queryForList(
+                argThat(sql -> sql.contains("FROM spd_delivery_order d")
+                        && sql.contains("d.delivery_no LIKE ?")
+                        && sql.contains("d.status = ?")
+                        && sql.contains("GROUP BY d.delivery_id")),
+                eq("%PS001%"), eq("picked"),
+                eq("2026-08-01 00:00:00"), eq("2026-08-26 23:59:59"), eq(20), eq(0)))
+                .thenReturn(List.of(Map.of("bizNo", "PS001", "status", "picked")));
+
+        Map<String, Object> page = readModel.list("delivery", Map.of(
+                "deliveryNo", "PS001",
+                "status", "picked",
+                "dateFrom", "2026-08-01",
+                "dateTo", "2026-08-26",
+                "page", "1",
+                "size", "20"
+        ));
+
+        assertThat(rows(page)).containsExactly(Map.of("bizNo", "PS001", "status", "picked"));
+        assertThat(page).containsEntry("total", 1L);
+    }
+
+    @Test
     @DisplayName("cold-chain list returns exception rows from the cold chain table")
     void shouldReturnColdChainExceptionRows() {
         when(jdbcTemplate.queryForList(contains("FROM cold_chain_exception"), eq(20), eq(0)))

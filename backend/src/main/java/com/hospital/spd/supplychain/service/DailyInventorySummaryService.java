@@ -1,4 +1,4 @@
-package com.hospital.spd.system.service;
+package com.hospital.spd.supplychain.service;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -7,21 +7,51 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Objects;
 
 /** Materialises one incremental inventory movement snapshot per business day and inventory batch. */
 @Service
 public class DailyInventorySummaryService {
+    private static final int CALCULATION_VERSION = 2;
+
+    private enum MovementCategory {
+        INBOUND(List.of(
+                "purchase_receive_in", "warehouse_transfer_in", "stocktaking_profit",
+                "quota_package_delivery_sign_in", "department_consumption_reverse_in",
+                "quota_unpack_in", "quota_terminate_in")),
+        RETURN(List.of("supplier_return_out", "warehouse_return_out", "purchase_return_out")),
+        REQUISITION(List.of("delivery_out", "delivery_loose_out", "warehouse_transfer_out", "quota_pack_out")),
+        CONSUMPTION(List.of("department_consumption_out", "quota_package_scan_out", "high_value_billing_deduct")),
+        SCRAP(List.of("stocktaking_loss", "inventory_scrap_out", "scrap_out"));
+
+        private final List<String> eventTypes;
+
+        MovementCategory(List<String> eventTypes) {
+            this.eventTypes = eventTypes;
+        }
+
+        String sqlList() {
+            return "'" + String.join("', '", eventTypes) + "'";
+        }
+    }
+
     private final JdbcTemplate jdbcTemplate;
 
     public DailyInventorySummaryService(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    /** Generates missing days sequentially so each opening balance comes from the preceding daily close. */
+    /** Generates missing days or repairs stale calculation versions through the requested date. */
     @Transactional
     public int generateThrough(LocalDate targetDate) {
         if (targetDate == null) throw new IllegalArgumentException("target date is required");
+        Date stale = jdbcTemplate.queryForObject(
+                "SELECT MIN(business_date) FROM inventory_daily_summary WHERE calculation_version < ?",
+                Date.class, CALCULATION_VERSION);
+        if (stale != null && !stale.toLocalDate().isAfter(targetDate)) {
+            return regenerateRange(stale.toLocalDate(), targetDate);
+        }
         Date latest = jdbcTemplate.queryForObject("SELECT MAX(business_date) FROM inventory_daily_summary", Date.class);
         if (latest == null) {
             generateBaseline(targetDate);
@@ -40,11 +70,28 @@ public class DailyInventorySummaryService {
     @Transactional
     public void regenerate(LocalDate businessDate) {
         if (businessDate == null) throw new IllegalArgumentException("business date is required");
+        Date latest = jdbcTemplate.queryForObject("SELECT MAX(business_date) FROM inventory_daily_summary", Date.class);
+        LocalDate targetDate = latest != null && latest.toLocalDate().isAfter(businessDate)
+                ? latest.toLocalDate()
+                : businessDate;
+        regenerateRange(businessDate, targetDate);
+    }
+
+    /** Recalculates one day and every following day so corrected closes propagate to later openings. */
+    private int regenerateRange(LocalDate businessDate, LocalDate targetDate) {
         Integer previousCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM inventory_daily_summary WHERE business_date = ?",
                 Integer.class, Date.valueOf(businessDate.minusDays(1)));
         if (previousCount != null && previousCount > 0) generateIncremental(businessDate);
         else generateBaseline(businessDate);
+        int regenerated = 1;
+        LocalDate next = businessDate.plusDays(1);
+        while (!next.isAfter(targetDate)) {
+            generateIncremental(next);
+            regenerated++;
+            next = next.plusDays(1);
+        }
+        return regenerated;
     }
 
     private void generateIncremental(LocalDate businessDate) {
@@ -57,17 +104,11 @@ public class DailyInventorySummaryService {
                 INSERT INTO inventory_daily_summary (
                   business_date, snapshot_time, warehouse_id, product_id, batch_id, supplier_id,
                   opening_quantity, inbound_quantity, return_quantity, requisition_quantity,
-                  consumption_quantity, scrap_quantity, closing_quantity, unit_price
+                  consumption_quantity, scrap_quantity, closing_quantity, unit_price, calculation_version
                 )
                 WITH movement AS (
                   SELECT warehouse_id, product_id, batch_id,
-                         SUM(CASE WHEN event_type IN ('purchase_receive_in', 'warehouse_transfer_in', 'stocktaking_profit',
-                                      'quota_package_delivery_sign_in', 'department_consumption_reverse_in',
-                                      'quota_unpack_in', 'quota_terminate_in') THEN GREATEST(qty_change, 0) ELSE 0 END) AS inbound_qty,
-                         SUM(CASE WHEN event_type IN ('supplier_return_out', 'warehouse_return_out', 'purchase_return_out') THEN ABS(qty_change) ELSE 0 END) AS return_qty,
-                         SUM(CASE WHEN event_type IN ('delivery_out', 'delivery_loose_out', 'warehouse_transfer_out', 'quota_pack_out') THEN ABS(qty_change) ELSE 0 END) AS requisition_qty,
-                         SUM(CASE WHEN event_type = 'department_consumption_out' THEN ABS(qty_change) ELSE 0 END) AS consumption_qty,
-                         SUM(CASE WHEN event_type IN ('stocktaking_loss', 'inventory_scrap_out', 'scrap_out') THEN ABS(qty_change) ELSE 0 END) AS scrap_qty
+                """ + movementColumns("") + """
                     FROM inventory_event
                    WHERE event_time >= ? AND event_time < ?
                    GROUP BY warehouse_id, product_id, batch_id
@@ -84,7 +125,7 @@ public class DailyInventorySummaryService {
                        COALESCE(previous.closing_quantity, 0) + COALESCE(m.inbound_qty, 0)
                          - COALESCE(m.return_qty, 0) - COALESCE(m.requisition_qty, 0)
                          - COALESCE(m.consumption_qty, 0) - COALESCE(m.scrap_qty, 0),
-                       COALESCE(ib.batch_unit_price, previous.unit_price, 0)
+                       COALESCE(ib.batch_unit_price, previous.unit_price, 0), ?
                   FROM keys_for_day k
                   LEFT JOIN inventory_daily_summary previous
                     ON previous.business_date = ? AND previous.warehouse_id = k.warehouse_id
@@ -96,8 +137,9 @@ public class DailyInventorySummaryService {
                   opening_quantity = VALUES(opening_quantity), inbound_quantity = VALUES(inbound_quantity),
                   return_quantity = VALUES(return_quantity), requisition_quantity = VALUES(requisition_quantity),
                   consumption_quantity = VALUES(consumption_quantity), scrap_quantity = VALUES(scrap_quantity),
-                  closing_quantity = VALUES(closing_quantity), unit_price = VALUES(unit_price)
-                """, start, end, previousDate, date, snapshotTime, previousDate);
+                  closing_quantity = VALUES(closing_quantity), unit_price = VALUES(unit_price),
+                  calculation_version = VALUES(calculation_version)
+                """, start, end, previousDate, date, snapshotTime, CALCULATION_VERSION, previousDate);
         assertFormula(date);
     }
 
@@ -110,16 +152,12 @@ public class DailyInventorySummaryService {
                 INSERT INTO inventory_daily_summary (
                   business_date, snapshot_time, warehouse_id, product_id, batch_id, supplier_id,
                   opening_quantity, inbound_quantity, return_quantity, requisition_quantity,
-                  consumption_quantity, scrap_quantity, closing_quantity, unit_price
+                  consumption_quantity, scrap_quantity, closing_quantity, unit_price, calculation_version
                 )
                 WITH movement AS (
                   SELECT warehouse_id, product_id, batch_id,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('purchase_receive_in', 'warehouse_transfer_in', 'stocktaking_profit',
-                                      'quota_package_delivery_sign_in', 'department_consumption_reverse_in', 'quota_unpack_in', 'quota_terminate_in') THEN GREATEST(qty_change, 0) ELSE 0 END) AS inbound_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('supplier_return_out', 'warehouse_return_out', 'purchase_return_out') THEN ABS(qty_change) ELSE 0 END) AS return_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('delivery_out', 'delivery_loose_out', 'warehouse_transfer_out', 'quota_pack_out') THEN ABS(qty_change) ELSE 0 END) AS requisition_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type = 'department_consumption_out' THEN ABS(qty_change) ELSE 0 END) AS consumption_qty,
-                         SUM(CASE WHEN event_time >= ? AND event_time < ? AND event_type IN ('stocktaking_loss', 'inventory_scrap_out', 'scrap_out') THEN ABS(qty_change) ELSE 0 END) AS scrap_qty,
+                """ + movementColumns("event_time >= ? AND event_time < ?") + """
+                         ,
                          SUM(CASE WHEN event_time >= ? AND event_type <> 'recall_isolate' THEN qty_change ELSE 0 END) AS net_after_end
                     FROM inventory_event
                    GROUP BY warehouse_id, product_id, batch_id
@@ -144,7 +182,7 @@ public class DailyInventorySummaryService {
                 SELECT ?, ?, c.warehouse_id, c.product_id, c.batch_id, ib.supplier_id,
                        c.closing_qty - c.inbound_qty + c.return_qty + c.requisition_qty + c.consumption_qty + c.scrap_qty,
                        c.inbound_qty, c.return_qty, c.requisition_qty, c.consumption_qty, c.scrap_qty,
-                       c.closing_qty, COALESCE(ib.batch_unit_price, 0)
+                       c.closing_qty, COALESCE(ib.batch_unit_price, 0), ?
                   FROM calculated c
                   LEFT JOIN inventory_batch ib ON ib.batch_id = c.batch_id
                 ON DUPLICATE KEY UPDATE
@@ -152,10 +190,27 @@ public class DailyInventorySummaryService {
                   opening_quantity = VALUES(opening_quantity), inbound_quantity = VALUES(inbound_quantity),
                   return_quantity = VALUES(return_quantity), requisition_quantity = VALUES(requisition_quantity),
                   consumption_quantity = VALUES(consumption_quantity), scrap_quantity = VALUES(scrap_quantity),
-                  closing_quantity = VALUES(closing_quantity), unit_price = VALUES(unit_price)
+                  closing_quantity = VALUES(closing_quantity), unit_price = VALUES(unit_price),
+                  calculation_version = VALUES(calculation_version)
                 """, start, end, start, end, start, end, start, end, start, end, end,
-                date, Timestamp.valueOf(businessDate.plusDays(1).atStartOfDay()));
+                date, Timestamp.valueOf(businessDate.plusDays(1).atStartOfDay()), CALCULATION_VERSION);
         assertFormula(date);
+    }
+
+    private static String movementColumns(String timeCondition) {
+        String condition = timeCondition.isBlank() ? "" : timeCondition + " AND ";
+        return """
+                         SUM(CASE WHEN %sevent_type IN (%s) THEN GREATEST(qty_change, 0) ELSE 0 END) AS inbound_qty,
+                         SUM(CASE WHEN %sevent_type IN (%s) THEN ABS(qty_change) ELSE 0 END) AS return_qty,
+                         SUM(CASE WHEN %sevent_type IN (%s) THEN ABS(qty_change) ELSE 0 END) AS requisition_qty,
+                         SUM(CASE WHEN %sevent_type IN (%s) THEN ABS(qty_change) ELSE 0 END) AS consumption_qty,
+                         SUM(CASE WHEN %sevent_type IN (%s) THEN ABS(qty_change) ELSE 0 END) AS scrap_qty
+                """.formatted(
+                condition, MovementCategory.INBOUND.sqlList(),
+                condition, MovementCategory.RETURN.sqlList(),
+                condition, MovementCategory.REQUISITION.sqlList(),
+                condition, MovementCategory.CONSUMPTION.sqlList(),
+                condition, MovementCategory.SCRAP.sqlList());
     }
 
     private void assertFormula(Date businessDate) {

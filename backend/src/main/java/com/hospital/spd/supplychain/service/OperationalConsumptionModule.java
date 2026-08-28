@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,20 +31,30 @@ public class OperationalConsumptionModule {
     private final SupplyChainSupport support;
     private final OperatorContextProvider operatorContextProvider;
     private final SettlementPointService settlementPointService;
+    private final QuotaPackageTraceFlowService quotaPackageTraceFlowService;
 
     public OperationalConsumptionModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support, OperatorContext::system,
-                new SettlementPointService(jdbcTemplate, support));
+                new SettlementPointService(jdbcTemplate, support),
+                new QuotaPackageTraceFlowService(jdbcTemplate, support));
+    }
+
+    OperationalConsumptionModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
+                                 QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
+        this(jdbcTemplate, support, OperatorContext::system,
+                new SettlementPointService(jdbcTemplate, support), quotaPackageTraceFlowService);
     }
 
     @Autowired
     public OperationalConsumptionModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
                                         OperatorContextProvider operatorContextProvider,
-                                        SettlementPointService settlementPointService) {
+                                        SettlementPointService settlementPointService,
+                                        QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.operatorContextProvider = operatorContextProvider;
         this.settlementPointService = settlementPointService;
+        this.quotaPackageTraceFlowService = quotaPackageTraceFlowService;
     }
 
     @Transactional
@@ -95,7 +106,8 @@ public class OperationalConsumptionModule {
     @Transactional
     public Map<String, Object> reverseConsumption(String consumptionNo) {
         Map<String, Object> consumption = jdbcTemplate.queryForMap("""
-                SELECT consumption_id AS consumptionId, warehouse_id AS warehouseId, status
+                SELECT consumption_id AS consumptionId, warehouse_id AS warehouseId, status,
+                       related_biz_type AS relatedBizType, related_biz_id AS relatedBizId
                   FROM department_consumption
                  WHERE consumption_no = ?
                  FOR UPDATE
@@ -105,6 +117,24 @@ public class OperationalConsumptionModule {
         }
         Long consumptionId = ((Number) consumption.get("consumptionId")).longValue();
         Long warehouseId = ((Number) consumption.get("warehouseId")).longValue();
+        Integer confirmedSettlementCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM department_consumption_item dci
+                  JOIN settlement_bill_item sbi
+                    ON sbi.source_biz_type = 'department_consumption_item'
+                   AND sbi.source_biz_id = dci.item_id
+                  JOIN settlement_bill sb ON sb.settlement_id = sbi.settlement_id
+                 WHERE dci.consumption_id = ?
+                   AND sb.status = 'confirmed'
+                """, Integer.class, consumptionId);
+        if (confirmedSettlementCount != null && confirmedSettlementCount > 0) {
+            throw new IllegalArgumentException("该消耗已确认结算，不能反消耗；请先按财务红冲流程处理结算单");
+        }
+        if ("quota_package_label".equals(String.valueOf(consumption.get("relatedBizType")))
+                && consumption.get("relatedBizId") instanceof Number labelId) {
+            quotaPackageTraceFlowService.reverseConsumption(labelId.longValue(), consumptionNo);
+        }
+        removePendingSettlementItems(consumptionId);
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT product_id AS productId, batch_id AS batchId, quantity
                   FROM department_consumption_item
@@ -130,6 +160,54 @@ public class OperationalConsumptionModule {
     }
 
     /**
+     * A reversed consumption is no longer payable. Remove only its items from unconfirmed bills,
+     * then recalculate shared bills and discard a bill only when it has become empty.
+     */
+    private void removePendingSettlementItems(Long consumptionId) {
+        List<Map<String, Object>> settlements = jdbcTemplate.queryForList("""
+                SELECT DISTINCT sb.settlement_id AS settlementId
+                  FROM settlement_bill sb
+                  JOIN settlement_bill_item sbi ON sbi.settlement_id = sb.settlement_id
+                  JOIN department_consumption_item dci
+                    ON sbi.source_biz_type = 'department_consumption_item'
+                   AND sbi.source_biz_id = dci.item_id
+                 WHERE dci.consumption_id = ?
+                   AND sb.status = 'pending_confirm'
+                 FOR UPDATE
+                """, consumptionId);
+        if (settlements.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.update("""
+                DELETE sbi FROM settlement_bill_item sbi
+                  JOIN department_consumption_item dci ON dci.item_id = sbi.source_biz_id
+                  JOIN settlement_bill sb ON sb.settlement_id = sbi.settlement_id
+                 WHERE sbi.source_biz_type = 'department_consumption_item'
+                   AND dci.consumption_id = ?
+                   AND sb.status = 'pending_confirm'
+                """, consumptionId);
+        for (Map<String, Object> settlement : settlements) {
+            Long settlementId = ((Number) settlement.get("settlementId")).longValue();
+            jdbcTemplate.update("""
+                    UPDATE settlement_bill sb
+                       SET total_amount = COALESCE((
+                           SELECT SUM(sbi.amount) FROM settlement_bill_item sbi
+                            WHERE sbi.settlement_id = sb.settlement_id
+                       ), 0)
+                     WHERE sb.settlement_id = ? AND sb.status = 'pending_confirm'
+                    """, settlementId);
+            jdbcTemplate.update("""
+                    DELETE FROM settlement_bill
+                     WHERE settlement_id = ? AND status = 'pending_confirm'
+                       AND NOT EXISTS (
+                           SELECT 1 FROM settlement_bill_item sbi
+                            WHERE sbi.settlement_id = settlement_bill.settlement_id
+                       )
+                    """, settlementId);
+        }
+    }
+
+    /**
      * 科室消耗按定数包码、UDI 或唯一码定位商品，返回商品信息与来源码信息。
      */
     public Map<String, Object> resolveConsumptionProduct(String queryCode) {
@@ -140,6 +218,7 @@ public class OperationalConsumptionModule {
 
         List<Map<String, Object>> labels = jdbcTemplate.queryForList("""
                 SELECT qpl.label_no AS labelNo, qpl.status AS labelStatus,
+                       qpl.package_quantity AS packageQuantity,
                        p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, p.unit,
                        w.warehouse_name AS warehouseName

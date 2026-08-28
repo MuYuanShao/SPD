@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain.service;
 import com.hospital.spd.specialty.service.HighValueTraceFlowService;
+import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import com.hospital.spd.common.OperatorContext;
@@ -29,17 +30,29 @@ public class OperationalDeliveryModule {
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
     private final HighValueTraceFlowService traceFlowService;
+    private final QuotaPackageTraceFlowService quotaPackageTraceFlowService;
 
     public OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
-        this(jdbcTemplate, support, new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system));
+        this(jdbcTemplate, support,
+                new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system),
+                new QuotaPackageTraceFlowService(jdbcTemplate, support));
+    }
+
+    OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
+                              QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
+        this(jdbcTemplate, support,
+                new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system),
+                quotaPackageTraceFlowService);
     }
 
     @Autowired
     public OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
-                                     HighValueTraceFlowService traceFlowService) {
+                                     HighValueTraceFlowService traceFlowService,
+                                     QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.traceFlowService = traceFlowService;
+        this.quotaPackageTraceFlowService = quotaPackageTraceFlowService;
     }
 
     @Transactional
@@ -249,7 +262,7 @@ public class OperationalDeliveryModule {
                   LEFT JOIN (
                     SELECT requisition_item_id, SUM(picked_qty) AS picked_qty
                       FROM (
-                        SELECT requisition_item_id, COUNT(*) AS picked_qty
+                        SELECT requisition_item_id, SUM(package_quantity) AS picked_qty
                           FROM spd_delivery_package_binding
                          GROUP BY requisition_item_id
                         UNION ALL
@@ -391,7 +404,9 @@ public class OperationalDeliveryModule {
         Long warehouseId = findWarehouseId(warehouseName);
         List<Map<String, Object>> labels = findLabelsForUpdate(labelNos);
         validateLabelSet(labels, labelNos, warehouseId);
-        BigDecimal selectedPackageCount = BigDecimal.valueOf(labels.size());
+        BigDecimal selectedPackageQuantity = labels.stream()
+                .map(label -> (BigDecimal) label.get("packageQuantity"))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
         for (Map<String, Object> label : labels) {
             Long labelProductId = ((Number) label.get("productId")).longValue();
             if (!labelProductId.equals(productId)) {
@@ -399,15 +414,13 @@ public class OperationalDeliveryModule {
             }
         }
         BigDecimal picked = pickedQuantity(itemId);
-        if (picked.add(selectedPackageCount).compareTo(requested) > 0) {
+        if (picked.add(selectedPackageQuantity).compareTo(requested) > 0) {
             throw new IllegalArgumentException("picked package quantity exceeds requisition item quantity");
         }
 
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
         Map<String, Object> firstLabel = labels.get(0);
-        BigDecimal totalQuantity = labels.stream()
-                .map(label -> (BigDecimal) label.get("packageQuantity"))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalQuantity = selectedPackageQuantity;
         String productCode = labels.size() == 1 ? String.valueOf(firstLabel.get("productCode")) : "MULTI";
         String productName = labels.size() == 1 ? String.valueOf(firstLabel.get("productName")) : "定数包组合";
         Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
@@ -428,6 +441,9 @@ public class OperationalDeliveryModule {
                     """, labelId);
             writePackageEvent(labelId, "delivery_out", "available", "delivered",
                     packageQuantity.negate(), "picked for requisition " + requisitionNo + ", delivery " + deliveryNo);
+            quotaPackageTraceFlowService.transitionLabel(labelId, "delivered", "delivery_out",
+                    "定数包拣配出库", deliveryNo, warehouseName, deptName,
+                    "定数包按申请单拣配出库", 50);
         }
         updateRequisitionPickStatus(requisitionId);
         support.writeAudit("delivery", "confirm_picking", deliveryId, deliveryNo,
@@ -526,6 +542,7 @@ public class OperationalDeliveryModule {
                     destinationWarehouseId, labelId);
             writePackageEvent(labelId, "delivery_sign", "delivered", "signed", BigDecimal.ZERO,
                     "delivery " + deliveryNo + " signed into department warehouse");
+            quotaPackageTraceFlowService.completeSign(labelId, deliveryNo);
         }
     }
     private Map<String, Object> findRequisitionItemForPicking(String requisitionNo, Long itemId) {
@@ -550,7 +567,7 @@ public class OperationalDeliveryModule {
     private BigDecimal pickedQuantity(Long itemId) {
         BigDecimal picked = jdbcTemplate.queryForObject("""
                 SELECT (
-                    SELECT COUNT(*)
+                    SELECT COALESCE(SUM(package_quantity), 0)
                       FROM spd_delivery_package_binding
                      WHERE requisition_item_id = ?
                   ) + (
@@ -657,7 +674,7 @@ public class OperationalDeliveryModule {
                   LEFT JOIN (
                     SELECT requisition_item_id, SUM(picked_qty) AS picked_qty
                       FROM (
-                        SELECT requisition_item_id, COUNT(*) AS picked_qty
+                        SELECT requisition_item_id, SUM(package_quantity) AS picked_qty
                           FROM spd_delivery_package_binding
                          GROUP BY requisition_item_id
                         UNION ALL

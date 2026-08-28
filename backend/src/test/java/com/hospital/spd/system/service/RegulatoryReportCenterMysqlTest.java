@@ -3,6 +3,7 @@ package com.hospital.spd.system.service;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.service.AuditLogService;
+import com.hospital.spd.supplychain.service.DailyInventorySummaryService;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;

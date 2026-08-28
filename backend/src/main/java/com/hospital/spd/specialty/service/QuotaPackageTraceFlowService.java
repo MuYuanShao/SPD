@@ -226,6 +226,29 @@ public class QuotaPackageTraceFlowService {
         return count != null && count > 0;
     }
 
+    /** Restore a consumed package to its signed department-stock state during an approved red flush. */
+    @Transactional
+    public void reverseConsumption(Long labelId, String consumptionNo) {
+        Map<String, Object> quotaPackage = label(labelId, true);
+        String status = String.valueOf(quotaPackage.get("status"));
+        if ("signed".equals(status)) {
+            return;
+        }
+        if (!"consumed".equals(status)) {
+            throw new IllegalArgumentException("只有已消耗且未结算的定数包才能反消耗");
+        }
+        int updated = jdbcTemplate.update("""
+                UPDATE quota_package_label SET status = 'signed', version = version + 1
+                 WHERE label_id = ? AND status = 'consumed'
+                """, labelId);
+        if (updated != 1) {
+            throw new IllegalArgumentException("定数包状态已变化，请刷新后重试");
+        }
+        transitionLabel(labelId, "signed", "consumption_reverse", "定数包反消耗恢复",
+                consumptionNo, String.valueOf(quotaPackage.get("warehouseName")),
+                text(quotaPackage.get("deptName")), "科室消耗红冲，定数包恢复为已签收库存", 75);
+    }
+
     @Transactional
     public void markSettled(Long traceCodeId, String settlementNo) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""

@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,19 +57,23 @@ public class OperationalRequisitionModule {
     @Transactional
     public Map<String, Object> createRequisition(Map<String, Object> body) {
         String deptName = requireText(body, "deptName");
-        String productCode = requireText(body, "productCode");
-        BigDecimal quantity = requirePositive(body, "quantity");
         Long deptId = findDept(deptName);
-        Map<String, Object> product = findProduct(productCode);
         Long warehouseId = findWarehouseId(requireText(body, "warehouseName"));
         requireCurrentDepartment(deptId);
-        requireDepartmentWarehouseCatalog(deptId, warehouseId,
-                ((Number) product.get("productId")).longValue());
-        BigDecimal unitPrice = (BigDecimal) product.get("purchasePrice");
-        if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("product purchase price is required");
+        List<PreparedRequisitionItem> items = new ArrayList<>();
+        for (Map<String, Object> itemBody : requisitionItems(body)) {
+            String productCode = requireText(itemBody, "productCode");
+            BigDecimal quantity = requirePositive(itemBody, "quantity");
+            Map<String, Object> product = findProduct(productCode);
+            requireDepartmentWarehouseCatalog(deptId, warehouseId,
+                    ((Number) product.get("productId")).longValue());
+            BigDecimal unitPrice = (BigDecimal) product.get("purchasePrice");
+            if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("product purchase price is required");
+            }
+            items.add(new PreparedRequisitionItem(itemBody, product, quantity, unitPrice,
+                    quantity.multiply(unitPrice), resolveItemType(itemBody, product)));
         }
-        BigDecimal amount = quantity.multiply(unitPrice);
         OperatorContext operator = operatorContextProvider.current();
         String requisitionNo = support.nextNo(DEPARTMENT_REQUISITION);
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -88,25 +93,51 @@ public class OperationalRequisitionModule {
             return ps;
         }, keyHolder);
         Long requisitionId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-        // 申请明细类型与申请单保持一致：唯一码/定数包/散货，拣配时按类型配对展示商品明细
-        String itemType = resolveItemType(body, product);
-        jdbcTemplate.update("""
-                INSERT INTO department_requisition_item (
-                  requisition_id, product_id, quantity, item_type, unit, unit_price, amount, remark
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, requisitionId, product.get("productId"), quantity, itemType,
-                product.get("unit"), unitPrice, amount, "department requisition");
-        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
-            if (warehouseId == null) throw new IllegalArgumentException("高值耗材申领必须指定来源库房");
-            Object rawCodes = body.get("uniqueCodes") == null ? body.get("uniqueCode") : body.get("uniqueCodes");
-            List<HighValueTraceFlowService.TraceUnit> units = traceFlowService.requireUnits(
-                    rawCodes, quantity, ((Number) product.get("productId")).longValue(), warehouseId, List.of("in_stock"));
-            Long itemId = jdbcTemplate.queryForObject(
-                    "SELECT item_id FROM department_requisition_item WHERE requisition_id = ? ORDER BY item_id DESC LIMIT 1",
-                    Long.class, requisitionId);
-            traceFlowService.bindRequisition(requisitionId, itemId, units, requisitionNo, deptName);
+        for (PreparedRequisitionItem item : items) {
+            jdbcTemplate.update("""
+                    INSERT INTO department_requisition_item (
+                      requisition_id, product_id, quantity, item_type, unit, unit_price, amount, remark
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, requisitionId, item.product().get("productId"), item.quantity(), item.itemType(),
+                    item.product().get("unit"), item.unitPrice(), item.amount(), "department requisition");
+            if (item.product().get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
+                Object rawCodes = item.body().get("uniqueCodes") == null
+                        ? item.body().get("uniqueCode") : item.body().get("uniqueCodes");
+                List<HighValueTraceFlowService.TraceUnit> units = traceFlowService.requireUnits(
+                        rawCodes, item.quantity(), ((Number) item.product().get("productId")).longValue(),
+                        warehouseId, List.of("in_stock"));
+                Long itemId = jdbcTemplate.queryForObject(
+                        "SELECT item_id FROM department_requisition_item WHERE requisition_id = ? ORDER BY item_id DESC LIMIT 1",
+                        Long.class, requisitionId);
+                traceFlowService.bindRequisition(requisitionId, itemId, units, requisitionNo, deptName);
+            }
         }
-        return Map.of("requisitionNo", requisitionNo, "status", "pending_approval");
+        return Map.of("requisitionNo", requisitionNo, "status", "pending_approval", "itemCount", items.size());
+    }
+
+    private static List<Map<String, Object>> requisitionItems(Map<String, Object> body) {
+        Object rawItems = body.get("items");
+        if (rawItems == null) {
+            return List.of(body);
+        }
+        if (!(rawItems instanceof List<?> list) || list.isEmpty()) {
+            throw new IllegalArgumentException("items must contain at least one requisition item");
+        }
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (Object rawItem : list) {
+            if (!(rawItem instanceof Map<?, ?> rawMap)) {
+                throw new IllegalArgumentException("each requisition item must be an object");
+            }
+            Map<String, Object> item = new java.util.LinkedHashMap<>();
+            rawMap.forEach((key, value) -> item.put(String.valueOf(key), value));
+            items.add(item);
+        }
+        return items;
+    }
+
+    private record PreparedRequisitionItem(Map<String, Object> body, Map<String, Object> product,
+                                           BigDecimal quantity, BigDecimal unitPrice,
+                                           BigDecimal amount, String itemType) {
     }
 
     @Transactional

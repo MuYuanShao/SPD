@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
+import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,12 +39,14 @@ class OperationalConsumptionModuleTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SupplyChainSupport support;
+    @Mock
+    private QuotaPackageTraceFlowService quotaPackageTraceFlowService;
 
     private OperationalConsumptionModule module;
 
     @BeforeEach
     void setUp() {
-        module = new OperationalConsumptionModule(jdbcTemplate, support);
+        module = new OperationalConsumptionModule(jdbcTemplate, support, quotaPackageTraceFlowService);
     }
 
     @Test
@@ -106,6 +109,8 @@ class OperationalConsumptionModuleTest {
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
+        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
+                .thenReturn(List.of());
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
                 .thenReturn(1);
         when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
@@ -125,6 +130,79 @@ class OperationalConsumptionModuleTest {
                 eq("FXH20260601001"), eq("XH001"));
         ordered.verify(support).writeAudit(eq("operational_closure"), eq("reverse_consumption"),
                 eq(1L), eq("XH001"), eq("reverse consumption red flush"));
+    }
+
+    @Test
+    void rejectsReversalWhenConsumptionHasConfirmedSettlement() {
+        when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+        when(jdbcTemplate.queryForObject(contains("settlement_bill_item"), eq(Integer.class), eq(1L)))
+                .thenReturn(1);
+
+        assertThatThrownBy(() -> module.reverseConsumption("XH001"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("已确认结算");
+
+        verify(support, never()).receiveAvailable(anyLong(), anyLong(), anyLong(), any(),
+                anyString(), anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    void removesConsumptionItemsFromPendingSettlementBeforeRestoringInventory() {
+        when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
+                .thenReturn(List.of(Map.of("settlementId", 77L)));
+        when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
+                .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
+        when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(contains("DELETE sbi FROM settlement_bill_item sbi"), eq(1L))).thenReturn(1);
+        when(jdbcTemplate.update(contains("UPDATE settlement_bill sb"), eq(77L))).thenReturn(1);
+        when(jdbcTemplate.update(contains("DELETE FROM settlement_bill"), eq(77L))).thenReturn(1);
+        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+
+        module.reverseConsumption("XH001");
+
+        InOrder ordered = inOrder(jdbcTemplate, support);
+        ordered.verify(jdbcTemplate).update(contains("DELETE sbi FROM settlement_bill_item sbi"), eq(1L));
+        ordered.verify(jdbcTemplate).update(contains("UPDATE settlement_bill sb"), eq(77L));
+        ordered.verify(jdbcTemplate).update(contains("DELETE FROM settlement_bill"), eq(77L));
+        ordered.verify(support).receiveAvailable(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
+                eq("department_consumption_reverse_in"), eq("department_consumption"), eq(1L), anyString());
+    }
+
+    @Test
+    void resolvesQuotaPackageWithItsFullBaseQuantity() {
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"), eq("PKG001")))
+                .thenReturn(List.of(new java.util.HashMap<>(Map.of(
+                        "labelNo", "PKG001", "labelStatus", "signed",
+                        "productCode", "PC001", "productName", "Syringe",
+                        "packageQuantity", BigDecimal.TEN))));
+
+        Map<String, Object> result = module.resolveConsumptionProduct("PKG001");
+
+        assertThat(result).containsEntry("sourceType", "package")
+                .containsEntry("packageQuantity", BigDecimal.TEN);
+        verify(jdbcTemplate).queryForList(contains("qpl.package_quantity AS packageQuantity"), eq("PKG001"));
+    }
+
+    @Test
+    void restoresQuotaPackageTraceWhenItsConsumptionIsReversed() {
+        when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed",
+                        "relatedBizType", "quota_package_label", "relatedBizId", 55L));
+        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
+                .thenReturn(List.of());
+        when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
+                .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
+        when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
+                .thenReturn(1);
+        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+
+        module.reverseConsumption("XH001");
+
+        verify(quotaPackageTraceFlowService).reverseConsumption(55L, "XH001");
     }
 
     private void mockExistingDepartment(Long deptId) {

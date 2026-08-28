@@ -529,6 +529,32 @@ class ReceivingOrderServiceTest {
         }
 
         @Test
+        @DisplayName("approve：单个 UDI 不能对应多件高值耗材，校验失败前不得写库存")
+        void shouldRejectSingleUdiForMultipleUnitsBeforeInventoryMutation() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "purchaseOrderId", 50L,
+                            "warehouseId", 10L, "supplierId", 1L, "receivingStatus", "draft"));
+            when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                    .thenReturn(List.of(Map.ofEntries(
+                            Map.entry("itemId", 1L), Map.entry("productId", 20L),
+                            Map.entry("productCode", "HV001"), Map.entry("productName", "高值测试耗材"),
+                            Map.entry("specModel", "1根/支"), Map.entry("highValue", 1),
+                            Map.entry("udiCode", "UDI-ONE"),
+                            Map.entry("qualifiedQuantity", BigDecimal.valueOf(2)),
+                            Map.entry("latestCatalogPrice", BigDecimal.valueOf(200)),
+                            Map.entry("previewUnitPrice", BigDecimal.valueOf(200)))));
+
+            assertThatThrownBy(() -> service.action("RK001",
+                    new ReceivingActionRequest("approve", "验收合格")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("每件高值耗材必须使用独立 UDI");
+
+            verify(support, never()).receiveAvailable(anyLong(), anyLong(), anyLong(), any(),
+                    anyString(), anyString(), anyLong(), anyString());
+            verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
+        }
+
+        @Test
         @DisplayName("reject：草稿 -> 已驳回")
         void shouldRejectDraft() {
             when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(

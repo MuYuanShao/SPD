@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
+import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,12 +36,14 @@ class OperationalDeliveryModuleTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SupplyChainSupport support;
+    @Mock
+    private QuotaPackageTraceFlowService quotaPackageTraceFlowService;
 
     private OperationalDeliveryModule module;
 
     @BeforeEach
     void setUp() {
-        module = new OperationalDeliveryModule(jdbcTemplate, support);
+        module = new OperationalDeliveryModule(jdbcTemplate, support, quotaPackageTraceFlowService);
     }
 
     @Test
@@ -98,14 +101,14 @@ class OperationalDeliveryModuleTest {
     }
 
     @Test
-    void picksOneQuotaPackageWhenRequisitionQuantityIsOnePackage() {
+    void picksOneQuotaPackageUsingItsBaseQuantity() {
         when(jdbcTemplate.queryForList(contains("FROM department_requisition dr"),
                 eq("SL001"), eq(4L)))
                 .thenReturn(List.of(Map.of(
                         "requisitionId", 3L,
                         "deptName", "Surgery",
                         "productId", 100L,
-                        "quantity", BigDecimal.ONE
+                        "quantity", BigDecimal.TEN
                 )));
         when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"),
                 eq(Long.class), eq("Main Warehouse")))
@@ -148,6 +151,18 @@ class OperationalDeliveryModuleTest {
                 .containsEntry("deliveryNo", "PS001")
                 .containsEntry("labelCount", 1)
                 .containsEntry("quantity", BigDecimal.TEN);
+        verify(quotaPackageTraceFlowService).transitionLabel(eq(8L), eq("delivered"),
+                eq("delivery_out"), anyString(), eq("PS001"), anyString(), eq("Surgery"), anyString(), eq(50));
+    }
+
+    @Test
+    void aggregatesPickedQuotaPackagesByBaseQuantity() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+
+        module.pickingRequisitions();
+
+        verify(jdbcTemplate).queryForList(argThat((String sql) ->
+                sql.contains("SUM(package_quantity) AS picked_qty")));
     }
 
     @Test
@@ -214,6 +229,7 @@ class OperationalDeliveryModuleTest {
                 eq("quota_package_delivery_sign_in"), eq("spd_delivery_order"), eq(10L),
                 eq("signed quota package received into department warehouse"));
         verify(jdbcTemplate).update(contains("UPDATE quota_package_label SET warehouse_id"), eq(2L), eq(8L));
+        verify(quotaPackageTraceFlowService).completeSign(8L, "PS001");
     }
     @Test
     void rejectsAlreadySignedDeliveryBeforeInventoryMovement() {

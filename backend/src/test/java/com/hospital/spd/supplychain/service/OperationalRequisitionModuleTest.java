@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -96,6 +97,38 @@ class OperationalRequisitionModuleTest {
                 "productCode", "PC001", "quantity", BigDecimal.valueOf(3)
         ))).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("科室库房目录");
+    }
+
+    @Test
+    void createsOneRequisitionHeaderForMultipleItems() throws Exception {
+        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
+                eq(Long.class), eq("Surgery"))).thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), eq("Main Warehouse")))
+                .thenReturn(List.of(20L));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("PC001")))
+                .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "Syringe",
+                        "unit", "piece", "purchasePrice", BigDecimal.TEN, "highValue", 0));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("PC002")))
+                .thenReturn(Map.of("productId", 101L, "productCode", "PC002", "productName", "Gauze",
+                        "unit", "piece", "purchasePrice", BigDecimal.valueOf(2), "highValue", 0));
+        when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), any())).thenReturn(1L);
+        when(support.nextNo(DocumentKind.DEPARTMENT_REQUISITION)).thenReturn("SL20260601001");
+        mockGeneratedKey(99L);
+
+        Map<String, Object> result = module.createRequisition(Map.of(
+                "deptName", "Surgery",
+                "warehouseName", "Main Warehouse",
+                "items", List.of(
+                        Map.of("productCode", "PC001", "quantity", BigDecimal.valueOf(5), "requisitionMode", "loose"),
+                        Map.of("productCode", "PC002", "quantity", BigDecimal.TEN, "requisitionMode", "quota_package")
+                )
+        ));
+
+        assertThat(result).containsEntry("requisitionNo", "SL20260601001").containsEntry("itemCount", 2);
+        verify(jdbcTemplate, times(1)).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+        verify(jdbcTemplate, times(2)).update(contains("INSERT INTO department_requisition_item"),
+                eq(99L), any(), any(), anyString(), any(), any(), any(), eq("department requisition"));
     }
 
     private void mockProduct() {

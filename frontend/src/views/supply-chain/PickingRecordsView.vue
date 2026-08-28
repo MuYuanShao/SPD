@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { History, RefreshCw, RotateCcw, Search } from '@lucide/vue'
+import EmptyState from '../../components/common/EmptyState.vue'
+import PageHeader from '../../components/common/PageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import SectionTitle from '../../components/common/SectionTitle.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import { fetchPickingRecords } from '../../api/operationalClosure'
 import { formatStatusText } from '../../utils/chineseDisplay'
 
@@ -98,21 +102,18 @@ onMounted(loadRecords)
 
 <template>
   <section class="picking-record-page">
-    <div class="breadcrumb-line">
-      <span>供应链业务</span>
-      <strong>拣配记录</strong>
-    </div>
-
-    <header class="record-heading">
-      <div>
-        <h2>拣配记录</h2>
-        <p>集中查询中心库拣配出库及科室签收记录</p>
-      </div>
-      <button class="btn" type="button" :disabled="loading" @click="loadRecords">
-        <RefreshCw :size="16" />
-        刷新
-      </button>
-    </header>
+    <PageHeader
+      eyebrow="供应链业务"
+      title="拣配记录"
+      description="集中查询中心库拣配出库及科室签收记录"
+    >
+      <template #actions>
+        <button class="btn" type="button" :disabled="loading" @click="loadRecords">
+          <RefreshCw :size="16" />
+          刷新
+        </button>
+      </template>
+    </PageHeader>
 
     <section class="record-query-card" aria-label="拣配记录查询条件">
       <form class="record-query-grid" @submit.prevent="search">
@@ -139,11 +140,13 @@ onMounted(loadRecords)
       </form>
     </section>
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
+    <StatusMessage :message="message" tone="error" />
 
     <section class="record-table-card">
       <div class="record-table-title">
-        <div><History :size="19" /><h3>拣配记录列表</h3></div>
+        <SectionTitle title="拣配记录列表" :level="3">
+          <template #icon><History :size="19" /></template>
+        </SectionTitle>
         <span>共 {{ total }} 条</span>
       </div>
       <div class="record-table-viewport">
@@ -156,8 +159,12 @@ onMounted(loadRecords)
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="10" class="record-empty">正在加载拣配记录...</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="10" class="record-empty">暂无符合条件的拣配记录</td></tr>
+            <tr v-if="loading">
+              <td colspan="10" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
+            </tr>
+            <tr v-else-if="!rows.length">
+              <td colspan="10" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
+            </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td class="primary-cell">{{ row.bizNo || '-' }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
@@ -194,11 +201,6 @@ onMounted(loadRecords)
   container-type: inline-size;
 }
 
-.record-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.record-heading h2, .record-heading p, .record-table-title h3 { margin: 0; }
-.record-heading h2 { color: #17233d; font-size: 22px; }
-.record-heading p { margin-top: 5px; color: #7a8699; font-size: 13px; }
-
 .record-query-card, .record-table-card {
   box-sizing: border-box;
   border: 1px solid #e5eaf1;
@@ -229,7 +231,6 @@ onMounted(loadRecords)
 .record-table-card { display: flex; flex: 1; flex-direction: column; min-height: 360px; padding: 16px; overflow: hidden; }
 .record-table-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .record-table-title > div { display: flex; align-items: center; gap: 8px; color: #17233d; }
-.record-table-title h3 { font-size: 16px; }
 .record-table-title > span { color: #7a8699; font-size: 13px; }
 .record-table-viewport { flex: 1; min-height: 240px; overflow: auto; border-top: 1px solid #edf1f5; }
 .record-table { min-width: 1280px; }

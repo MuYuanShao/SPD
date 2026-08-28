@@ -275,26 +275,26 @@ async function submitSelectedRequisitions() {
   message.value = ''
   error.value = ''
   try {
-    const requisitionNos: string[] = []
+    const items: Array<Record<string, unknown>> = []
     for (const item of selectedItems.value) {
       if (item.mode === 'unique_code' && baseQtyByMode(item) === 0) {
         throw new Error(`请为高值耗材“${item.productName}”扫描或输入唯一码`)
       }
-      const result = await createRequisition({
-        deptName: filters.targetDept,
-        warehouseName: filters.warehouseName,
+      items.push({
         productCode: item.productCode,
         quantity: baseQtyByMode(item),
         requisitionMode: item.mode,
         templateCode: item.templateCode,
         uniqueCodes: item.mode === 'unique_code' ? item.uniqueCodes : undefined
       })
-      if (result.requisitionNo) {
-        requisitionNos.push(String(result.requisitionNo))
-      }
     }
+    const result = await createRequisition({
+      deptName: filters.targetDept,
+      warehouseName: filters.warehouseName,
+      items
+    })
     submittedCount.value += selectedItems.value.length
-    message.value = `已提交 ${selectedItems.value.length} 条科室申领${requisitionNos.length ? `：${requisitionNos.join('、')}` : ''}`
+    message.value = `已提交 ${selectedItems.value.length} 条科室申领明细${result.requisitionNo ? `，申请单号：${result.requisitionNo}` : ''}`
     products.value.forEach((item) => {
       item.selected = false
     })

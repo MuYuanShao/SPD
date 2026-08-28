@@ -1,5 +1,6 @@
 package com.hospital.spd.system.service;
 
+import com.hospital.spd.supplychain.service.DailyInventorySummaryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -32,6 +33,6 @@ public class DailyInventorySummaryJob {
     private void generateMissingDays(String trigger) {
         LocalDate target = LocalDate.now().minusDays(1);
         int generated = summaryService.generateThrough(target);
-        log.info("Inventory daily summary {} completed through {}; generated {} day(s)", trigger, target, generated);
+        log.info("Inventory daily summary {} completed through {}; processed {} day(s)", trigger, target, generated);
     }
 }

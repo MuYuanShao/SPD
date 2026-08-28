@@ -21,6 +21,7 @@ import {
   X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
 import {
   bindHighValuePatient,
   confirmLoosePicking,
@@ -52,6 +53,7 @@ import {
   type PackageLabelDetail
 } from '../../api/operationalClosure'
 import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
+import { consumeQuotaPackageByCode } from '../../api/udiTraceability'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
@@ -140,7 +142,6 @@ const type = computed(() => {
   return 'shortage'
 })
 const isRecallPage = computed(() => pageCode.value === 'recall-isolation')
-const showEmbeddedRecords = computed(() => type.value !== 'delivery')
 const titleMap: Record<string, string> = {
   shortage: '缺货补货闭环',
   delivery: '拣配配送',
@@ -395,9 +396,12 @@ function togglePickingUniqueCode(code: string, checked: boolean) {
   selectedPickingUniqueCodes.value = [...next]
 }
 
-/** 当前已选拣配总量（定数包按包数、唯一码按个数、散货按数量） */
+/** 当前已选拣配总量（定数包按包内基础数量、唯一码按个数、散货按数量） */
 const selectedPickingTotal = computed(() => {
-  const labels = selectedPickingLabels.value.length
+  const labels = selectedPickingLabels.value.reduce((sum, labelNo) => {
+    const row = pickingPackageRows.value.find(item => String(item.labelNo) === labelNo)
+    return sum + Number(row?.packageQuantity || 0)
+  }, 0)
   const codes = selectedPickingUniqueCodes.value.length
   const loose = pickingLooseRows.value.reduce((sum, row) => sum + Number(row.pickQty || 0), 0)
   return labels + codes + loose
@@ -512,6 +516,9 @@ async function resolveConsumption() {
     const result = await resolveConsumptionProduct(code)
     consumptionResolved.value = result
     form.productCode = String(result.productCode || '')
+    if (result.sourceType === 'package') {
+      form.quantity = Number(result.packageQuantity || 0)
+    }
     if (result.warehouseName) {
       const choices = warehouseChoices.value.map(item => item.warehouseName)
       if (choices.includes(String(result.warehouseName))) {
@@ -612,7 +619,14 @@ async function runAction(action: string, row?: Record<string, unknown>) {
     message.value = `配送已签收：${result.deliveryNo}`
   }
   if (action === 'consumption') {
-    result = await createConsumption(form)
+    if (consumptionResolved.value?.sourceType === 'package') {
+      result = await consumeQuotaPackageByCode({
+        code: consumptionQueryCode.value.trim(),
+        deptName: form.deptName || undefined
+      })
+    } else {
+      result = await createConsumption(form)
+    }
     form.consumptionNo = String(result.consumptionNo || '')
     message.value = `科室消耗已登记：${result.consumptionNo}`
   }
@@ -848,7 +862,7 @@ watch(() => form.productCode, () => {
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && consumptionResolved?.sourceType === 'package'" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
           <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
@@ -1144,7 +1158,7 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
-    <section v-if="showEmbeddedRecords" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
+    <section class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon is-history"><History :size="20" /></i>
@@ -1275,6 +1289,11 @@ watch(() => form.productCode, () => {
           <tbody>
             <tr v-if="loading">
               <td colspan="8" class="approval-empty">正在加载闭环数据...</td>
+            </tr>
+            <tr v-else-if="!rows.length">
+              <td colspan="8" class="approval-empty">
+                <EmptyState :message="type === 'delivery' ? '暂无拣配记录' : '暂无业务单据'" />
+              </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>

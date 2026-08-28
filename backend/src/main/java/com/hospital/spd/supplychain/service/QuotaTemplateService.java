@@ -180,8 +180,8 @@ public class QuotaTemplateService {
     }
 
     /**
-     * 科室申领目录：只展示科室当前日期向前推 15 天内有出库记录（已确认科室消耗）的商品，
-     * 不展示科室库房目录全量商品；已停用商品不展示。
+     * 科室申领目录以已启用的科室库房目录为准。新科室无需先产生消耗历史，
+     * 目录维护完成后即可发起首次申领；已停用目录或商品不展示。
      */
     public Map<String, Object> requisitionCatalog(Map<String, String> params) {
 
@@ -222,14 +222,7 @@ public class QuotaTemplateService {
                            THEN '定数包优先'
                          ELSE '散货申领'
                        END AS requisitionStatus
-                  FROM (
-                    SELECT dc.dept_id, dc.warehouse_id, dci.product_id
-                      FROM department_consumption dc
-                      JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
-                     WHERE dc.status = 'confirmed'
-                       AND dc.consume_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY)
-                     GROUP BY dc.dept_id, dc.warehouse_id, dci.product_id
-                  ) dwc
+                  FROM department_warehouse_catalog dwc
                   JOIN sys_dept catalog_dept ON catalog_dept.dept_id = dwc.dept_id
                    AND catalog_dept.deleted = 0
                   JOIN warehouse catalog_warehouse ON catalog_warehouse.warehouse_id = dwc.warehouse_id
@@ -278,6 +271,8 @@ public class QuotaTemplateService {
                   ) t ON t.product_id = p.product_id
                  WHERE (? = '' OR catalog_dept.dept_name = ?)
                    AND (? = '' OR catalog_warehouse.warehouse_name = ?)
+                   AND dwc.status = 1
+                   AND dwc.deleted = 0
                 """);
         args.add(deptName.trim());
         args.add(deptName.trim());

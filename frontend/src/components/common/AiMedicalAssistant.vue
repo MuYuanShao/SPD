@@ -13,16 +13,13 @@ import {
   Stethoscope,
   X
 } from '@lucide/vue'
-import { featureRouteTarget } from '../../config/featureCatalog'
-
-type QuickActionKey = 'inventory' | 'consumption' | 'replenishment' | 'udi'
-
-interface AssistantReply {
-  title: string
-  lines: string[]
-  actionLabel?: string
-  actionRoute?: string
-}
+import {
+  assistantQuickActions,
+  assistantReplies,
+  assistantReplyForPrompt,
+  type AssistantActionKey,
+  type AssistantReply
+} from '../../config/aiMedicalAssistant'
 
 interface ConversationMessage {
   id: number
@@ -38,39 +35,13 @@ const prompt = ref('')
 const messageList = ref<HTMLElement | null>(null)
 let nextMessageId = 4
 
-const quickActions = [
-  { key: 'inventory' as const, label: '查询科室库存', icon: Search },
-  { key: 'consumption' as const, label: '分析耗材消耗', icon: BarChart3 },
-  { key: 'replenishment' as const, label: '生成补货建议', icon: Boxes },
-  { key: 'udi' as const, label: '追踪UDI唯一码', icon: ScanLine }
-]
-
-const replies: Record<QuickActionKey, AssistantReply> = {
-  inventory: {
-    title: '为您查询到骨科库存不足的重点监控耗材如下：',
-    lines: ['一次性使用椎间融合器｜可用库存 12 个｜预警阈值 30 个', '人工关节（髋关节系统）｜可用库存 8 套｜预警阈值 20 套'],
-    actionLabel: '查看库存详情',
-    actionRoute: featureRouteTarget('inventory-management')
-  },
-  consumption: {
-    title: '根据本月定数统计，骨科耗材消耗较上月上升 12.79%，重点变化如下：',
-    lines: ['高值耗材 539.68 万元，环比 +16.96%', '低值收费耗材 230.72 万元，环比 +0.97%'],
-    actionLabel: '查看运营驾驶舱',
-    actionRoute: featureRouteTarget('operation-cockpit')
-  },
-  replenishment: {
-    title: '已根据当前可用库存与预警阈值生成补货建议：',
-    lines: ['一次性使用椎间融合器建议补货 18 个', '人工关节（髋关节系统）建议补货 12 套'],
-    actionLabel: '进入补货任务',
-    actionRoute: featureRouteTarget('replenishment-task')
-  },
-  udi: {
-    title: '请输入或扫描 UDI / 唯一码，我可以协助追踪：',
-    lines: ['入库批次与供应商信息', '当前库存位置、使用记录与患者关联信息'],
-    actionLabel: '进入UDI追溯',
-    actionRoute: featureRouteTarget('udi-traceability')
-  }
+const actionIcons = {
+  inventory: Search,
+  consumption: BarChart3,
+  replenishment: Boxes,
+  udi: ScanLine
 }
+const quickActions = assistantQuickActions.map(action => ({ ...action, icon: actionIcons[action.key] }))
 
 const messages = ref<ConversationMessage[]>([
   {
@@ -82,7 +53,7 @@ const messages = ref<ConversationMessage[]>([
   {
     id: 2,
     role: 'assistant',
-    reply: replies.inventory
+    reply: assistantReplies.inventory
   }
 ])
 
@@ -107,28 +78,18 @@ function closeAssistant() {
   open.value = false
 }
 
-function replyForPrompt(value: string): AssistantReply {
-  if (/UDI|唯一码|追溯/i.test(value)) return replies.udi
-  if (/补货|缺货|不足|库存|预警/.test(value)) return replies.inventory
-  if (/消耗|金额|环比|趋势/.test(value)) return replies.consumption
-  return {
-    title: '我已收到您的问题。当前可协助查询以下 SPD 业务：',
-    lines: ['科室库存与重点监控耗材预警', '耗材消耗、补货建议及 UDI / 唯一码追溯']
-  }
-}
-
 function submitPrompt(value = prompt.value) {
   const normalized = value.trim()
   if (!normalized) return
   messages.value.push({ id: nextMessageId++, role: 'user', text: normalized, time: currentTime() })
-  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: replyForPrompt(normalized) })
+  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: assistantReplyForPrompt(normalized) })
   prompt.value = ''
   scrollToLatest()
 }
 
-function runQuickAction(key: QuickActionKey, label: string) {
+function runQuickAction(key: AssistantActionKey, label: string) {
   messages.value.push({ id: nextMessageId++, role: 'user', text: label, time: currentTime() })
-  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: replies[key] })
+  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: assistantReplies[key] })
   scrollToLatest()
 }
 

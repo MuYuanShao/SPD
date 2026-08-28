@@ -51,3 +51,39 @@ test('待审批新品准入字段导航与表头及分组保持一致', async ({
   await page.getByRole('button', { name: '变更记录' }).click()
   await expect(page.locator('.subnav-tabs button.active')).toHaveText('审批进度')
 })
+
+test('AI医护助手的自定义补货问题返回补货建议入口', async ({ page }) => {
+  await page.goto('/')
+  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
+  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
+  await page.getByRole('button', { name: '登录' }).click()
+
+  await page.getByRole('button', { name: '打开AI医护助手' }).click()
+  await page.getByRole('textbox', { name: '向AI医护助手提问' }).fill('请生成补货建议')
+  await page.getByRole('button', { name: '发送问题' }).click()
+
+  await expect(page.getByText('查看实时补货建议')).toBeVisible()
+  await expect(page.getByRole('button', { name: '进入补货任务' })).toBeVisible()
+})
+
+test('拣配配送在没有历史记录时显示明确空状态', async ({ page }) => {
+  await page.route('**/api/operational-closure/lists/delivery**', async route => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code: 0,
+        message: 'success',
+        data: { rows: [], total: 0, page: 1, size: 20 },
+        timestamp: new Date().toISOString()
+      })
+    })
+  })
+
+  await page.goto('/features/picking-delivery')
+  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
+  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
+  await page.getByRole('button', { name: '登录' }).click()
+
+  await expect(page.getByRole('heading', { name: '拣配记录' })).toBeVisible()
+  await expect(page.getByText('暂无拣配记录')).toBeVisible()
+})

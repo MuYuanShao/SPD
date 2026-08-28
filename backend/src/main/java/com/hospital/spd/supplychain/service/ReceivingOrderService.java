@@ -405,6 +405,8 @@ public class ReceivingOrderService {
                  WHERE roi.receiving_order_id = ?
                 """, supplierId, receivingOrderId);
 
+        validateHighValueUdisBeforeInventoryMutation(items);
+
         for (Map<String, Object> item : items) {
             Long itemId = ((Number) item.get("itemId")).longValue();
             Long productId = ((Number) item.get("productId")).longValue();
@@ -421,6 +423,31 @@ public class ReceivingOrderService {
                 writePriceDiffAudit(receivingOrderId, receivingNo, productId, previewPrice, latestPrice);
             }
             purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject, productId, qualifiedQty);
+        }
+    }
+
+    /**
+     * High-value UDI validation must finish before creating batches or balances so an invalid scan cannot
+     * leave partial inventory behind even when the database rejects a later trace-code insert.
+     */
+    private void validateHighValueUdisBeforeInventoryMutation(List<Map<String, Object>> items) {
+        for (Map<String, Object> item : items) {
+            if (!isHighValue(item)) {
+                continue;
+            }
+            int unitCount = exactHighValueUnitCount((BigDecimal) item.get("qualifiedQuantity"));
+            String udiCode = nullIfBlank(item.get("udiCode") instanceof String value ? value : null);
+            if (udiCode == null) {
+                continue;
+            }
+            if (unitCount != 1) {
+                throw new IllegalArgumentException("每件高值耗材必须使用独立 UDI；录入 UDI 时合格数量只能为 1");
+            }
+            Integer existing = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM udi_trace_code WHERE udi_code = ?", Integer.class, udiCode);
+            if (existing != null && existing > 0) {
+                throw new IllegalArgumentException("高值耗材 UDI 已存在，请勿重复验收入库");
+            }
         }
     }
 

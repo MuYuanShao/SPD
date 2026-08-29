@@ -188,10 +188,14 @@ public class QuotaTemplateService {
         PageRequest pageReq = PageRequest.from(params);
         String deptName = params.getOrDefault("deptName", "");
         String warehouseName = params.getOrDefault("warehouseName", "");
+        assertNoRequisitionTemplateConflicts(deptName);
         List<Object> args = new ArrayList<>();
+        Long sourceWarehouseId = sourceWarehouseId(
+                params.get("sourceWarehouseId"), deptName, warehouseName);
         StringBuilder sql = new StringBuilder("""
                 SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
                        catalog_warehouse.warehouse_name AS warehouseName,
+                       __SOURCE_WAREHOUSE__ AS sourceWarehouseId,
                        p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName, p.unit AS baseUnit,
                        p.purchase_unit AS purchaseUnit, p.conversion_rate AS conversionRate,
@@ -236,13 +240,13 @@ public class QuotaTemplateService {
                     SELECT product_id, warehouse_id, SUM(available_qty) AS available_qty
                       FROM inventory_balance
                      GROUP BY product_id, warehouse_id
-                  ) loose ON loose.product_id = p.product_id AND loose.warehouse_id = dwc.warehouse_id
+                  ) loose ON loose.product_id = p.product_id AND loose.warehouse_id = __SOURCE_WAREHOUSE__
                   LEFT JOIN (
                     SELECT product_id, warehouse_id, COUNT(*) AS package_count
                       FROM quota_package_label
                      WHERE quota_package_label.status = 'available'
                      GROUP BY product_id, warehouse_id
-                   ) pkg ON pkg.product_id = p.product_id AND pkg.warehouse_id = dwc.warehouse_id
+                   ) pkg ON pkg.product_id = p.product_id AND pkg.warehouse_id = __SOURCE_WAREHOUSE__
                   LEFT JOIN (
                     SELECT ib.product_id, ibtc.current_warehouse_id AS warehouse_id, COUNT(*) AS unique_code_count
                       FROM udi_trace_code utc
@@ -250,7 +254,7 @@ public class QuotaTemplateService {
                       JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
                      WHERE utc.current_status = 'in_stock' AND ibtc.lifecycle_status = 'in_stock'
                      GROUP BY ib.product_id, ibtc.current_warehouse_id
-                  ) hv ON hv.product_id = p.product_id AND hv.warehouse_id = dwc.warehouse_id
+                  ) hv ON hv.product_id = p.product_id AND hv.warehouse_id = __SOURCE_WAREHOUSE__
                   LEFT JOIN (
                     SELECT template_id, template_code, template_name, dept_id, product_id, quantity, unit
                       FROM (
@@ -273,7 +277,13 @@ public class QuotaTemplateService {
                    AND (? = '' OR catalog_warehouse.warehouse_name = ?)
                    AND dwc.status = 1
                    AND dwc.deleted = 0
-                """);
+                """.replace("__SOURCE_WAREHOUSE__", sourceWarehouseId == null ? "dwc.warehouse_id" : "?"));
+        if (sourceWarehouseId != null) {
+            args.add(sourceWarehouseId);
+            args.add(sourceWarehouseId);
+            args.add(sourceWarehouseId);
+            args.add(sourceWarehouseId);
+        }
         args.add(deptName.trim());
         args.add(deptName.trim());
         args.add(deptName.trim());
@@ -306,6 +316,79 @@ public class QuotaTemplateService {
                  LIMIT ? OFFSET ?
                 """, queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    private Long sourceWarehouseId(String rawValue, String deptName, String warehouseName) {
+        if (isBlank(rawValue)) {
+            if (isBlank(deptName) && isBlank(warehouseName)) return null;
+            List<Long> candidates = jdbcTemplate.queryForList("""
+                    SELECT DISTINCT source.warehouse_id
+                      FROM warehouse source
+                      JOIN warehouse target ON source.campus_name = target.campus_name
+                      LEFT JOIN sys_dept target_dept ON target_dept.dept_id = target.dept_id
+                     WHERE source.deleted = 0 AND source.status = 1
+                       AND target.deleted = 0 AND target.status = 1
+                       AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
+                       AND ((? <> '' AND target.warehouse_name = ?)
+                            OR (? <> '' AND target_dept.dept_name = ?))
+                     ORDER BY source.warehouse_id
+                    """, Long.class, warehouseName.trim(), warehouseName.trim(), deptName.trim(), deptName.trim());
+            if (candidates.size() != 1) {
+                throw new IllegalArgumentException("当前院区无法唯一确定中心库，请明确提供 sourceWarehouseId");
+            }
+            return candidates.get(0);
+        }
+        final Long sourceId;
+        try {
+            sourceId = Long.valueOf(rawValue.trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("sourceWarehouseId must be a number");
+        }
+        List<Long> ids = jdbcTemplate.queryForList("""
+                SELECT warehouse_id FROM warehouse
+                 WHERE warehouse_id = ? AND deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
+                """, Long.class, sourceId);
+        if (ids.size() != 1) throw new IllegalArgumentException("source warehouse must be an enabled central warehouse");
+        return ids.get(0);
+    }
+
+    private void assertNoRequisitionTemplateConflicts(String deptName) {
+        Integer conflicts;
+        if (isBlank(deptName)) {
+            conflicts = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM (
+                      SELECT qpti.product_id
+                        FROM quota_package_template qpt
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
+                       WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.dept_id IS NULL
+                       GROUP BY qpti.product_id
+                      HAVING COUNT(*) > 1
+                    ) template_conflicts
+                    """, Integer.class);
+        } else {
+            conflicts = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM (
+                      SELECT qpti.product_id
+                        FROM quota_package_template qpt
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
+                        CROSS JOIN (
+                          SELECT dept_id FROM sys_dept
+                           WHERE dept_name = ? AND deleted = 0 AND status = 1
+                           ORDER BY dept_id LIMIT 1
+                        ) requested_dept
+                       WHERE qpt.status = 1 AND qpt.deleted = 0
+                         AND (qpt.dept_id = requested_dept.dept_id OR qpt.dept_id IS NULL)
+                       GROUP BY qpti.product_id
+                      HAVING SUM(qpt.dept_id = requested_dept.dept_id) > 1
+                         OR (SUM(qpt.dept_id = requested_dept.dept_id) = 0
+                             AND SUM(qpt.dept_id IS NULL) > 1)
+                    ) template_conflicts
+                    """, Integer.class, deptName.trim());
+        }
+        if (conflicts != null && conflicts > 0) {
+            throw new IllegalArgumentException("定数包模板配置冲突：同一商品存在多个同优先级启用模板");
+        }
     }
 
     // ---- 私有辅助方法 ----

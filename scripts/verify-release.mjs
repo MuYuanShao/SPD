@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { buildReleaseEvidenceChecklist } from './server-signoff-evidence.mjs';
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const mvnCmd = process.platform === 'win32' ? 'mvn.cmd' : 'mvn';
+const mvnCmd = process.platform === 'win32' ? '.\\mvnw.cmd' : './mvnw';
 const dockerCmd = process.env.DOCKER_CMD || (process.platform === 'win32' ? 'docker.exe' : 'docker');
 const k6Cmd = process.env.K6_CMD || (process.platform === 'win32' ? 'k6.exe' : 'k6');
 
@@ -18,8 +18,8 @@ const runComposeConfig = process.env.RUN_DOCKER_COMPOSE_CONFIG !== '0';
 const deploymentHealthUrl = process.env.DEPLOYMENT_HEALTH_URL || 'http://127.0.0.1:1820/api/health';
 const k6SummaryFile = process.env.K6_SUMMARY_FILE || 'perf/results/k6-deployment-summary.json';
 const deploymentPressureMutatingFlows = process.env.DEPLOYMENT_MUTATING_FLOWS || process.env.MUTATING_FLOWS || '1';
-const localUsername = process.env.SPD_USERNAME || process.env.SPD_E2E_USERNAME || 'admin';
-const localPassword = process.env.SPD_PASSWORD || process.env.SPD_E2E_PASSWORD || 'admin123';
+const localUsername = process.env.SPD_USERNAME || process.env.SPD_E2E_USERNAME || '';
+const localPassword = process.env.SPD_PASSWORD || process.env.SPD_E2E_PASSWORD || '';
 const deploymentUsername = process.env.DEPLOYMENT_USERNAME || localUsername;
 const deploymentPassword = process.env.DEPLOYMENT_PASSWORD || localPassword;
 
@@ -62,8 +62,11 @@ await gate('rbac-permissions', npmCmd, ['run', 'verify:rbac-permissions'], {
   skip: process.env.SKIP_RBAC_PERMISSIONS === '1',
 });
 
-await gate('backend-tests', mvnCmd, ['-f', 'backend/pom.xml', 'test'], {
+await gate('flyway-migration-integrity', npmCmd, ['run', 'verify:flyway-migrations']);
+
+await gate('backend-tests', mvnCmd, ['test'], {
   skip: process.env.SKIP_BACKEND_TESTS === '1',
+  cwd: 'backend',
 });
 
 await gate('frontend-build', npmCmd, ['--prefix', 'frontend', 'run', 'build'], {
@@ -74,7 +77,7 @@ await gate('deployment-config', npmCmd, ['run', 'verify:deployment-config'], {
   skip: process.env.SKIP_DEPLOYMENT_CONFIG === '1',
   env: {
     DEPLOYMENT_CONFIG_REPORT_FILE: deploymentConfigReportFile,
-    REQUIRE_PRODUCTION_CONFIG: process.env.REQUIRE_PRODUCTION_CONFIG || '0',
+    REQUIRE_PRODUCTION_CONFIG: '1',
   },
   resultJson: deploymentConfigReportFile,
 });
@@ -99,7 +102,7 @@ const k6Version = await gate('k6-tool', k6Cmd, ['version'], {
 });
 
 if (dockerVersion.ok && runComposeConfig) {
-  await gate('docker-compose-config', dockerCmd, ['compose', '-f', 'deploy/docker-compose.yml', 'config'], {
+  await gate('docker-compose-config', dockerCmd, ['compose', '-f', 'deploy/docker-compose.yml', 'config', '--quiet'], {
     optional: !requireDeploymentTools,
   });
 }
@@ -231,7 +234,7 @@ async function gate(name, command, args, options = {}) {
 
   const started = Date.now();
   console.log(`\n[verify-release] ${name}`);
-  const result = await run(command, args, options.env);
+  const result = await run(command, args, options.env, options.cwd);
   entry.finishedAt = new Date().toISOString();
   entry.durationMs = Date.now() - started;
   entry.exitCode = result.exitCode;
@@ -297,7 +300,7 @@ async function httpGate(name, url, options = {}) {
   return entry;
 }
 
-function run(command, args, extraEnv = {}) {
+function run(command, args, extraEnv = {}, cwd = process.cwd()) {
   return new Promise((resolve) => {
     const usesCmdShim = process.platform === 'win32' && /\.(cmd|bat)$/i.test(command);
     const spawnCommand = usesCmdShim ? 'cmd.exe' : command;
@@ -305,7 +308,7 @@ function run(command, args, extraEnv = {}) {
       ? ['/d', '/s', '/c', quoteCommand(command, args)]
       : args;
     const child = spawn(spawnCommand, spawnArgs, {
-      cwd: process.cwd(),
+      cwd,
       env: normalizeEnv({ ...process.env, ...extraEnv }),
       shell: false,
     });

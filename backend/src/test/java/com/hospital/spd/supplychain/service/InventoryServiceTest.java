@@ -39,6 +39,18 @@ class InventoryServiceTest {
         service = new InventoryService(jdbcTemplate, support);
     }
 
+    @Test
+    @DisplayName("定数包库存包含配送签收后仍在科室的包")
+    void quotaPackageStockIncludesSignedDepartmentPackages() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.quotaPackageStock(Map.of("page", "1", "size", "20"));
+
+        verify(jdbcTemplate).queryForList(argThat((String sql) ->
+                sql.contains("qpl.status IN ('pending_print', 'available', 'signed')")), eq(20), eq(0));
+    }
+
     // ==================== 库存余额查询 ====================
 
     @Test

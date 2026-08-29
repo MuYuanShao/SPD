@@ -5,11 +5,14 @@ import { onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, Save, ShieldCheck, X } from '@lucide/vue'
 import {
   approvePendingProductApplication,
+  fetchPendingProductAttachmentBlob,
   fetchPendingProductApplicationDetail,
+  fetchPendingProductAttachments,
   fetchPendingProductPartnerOptions,
   resubmitPendingProductApplication,
   updatePendingProductApplication,
-  type PendingProductApplicationDetail
+  type PendingProductApplicationDetail,
+  type PendingProductAttachment
 } from '../../api/pendingProductApplications'
 import type { PartnerOption } from '../../api/masterData'
 
@@ -18,7 +21,29 @@ const router = useRouter()
 const detail = ref<PendingProductApplicationDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
-const previewFile = ref<{ name: string; type: string; status: string } | null>(null)
+const previewFile = ref<PendingProductAttachment | null>(null)
+const previewUrl = ref('')
+const attachments = ref<PendingProductAttachment[]>([])
+const attachmentsLoading = ref(false)
+const attachmentsError = ref('')
+
+async function openAttachment(file: PendingProductAttachment) {
+  attachmentsError.value = ''
+  try {
+    const blob = await fetchPendingProductAttachmentBlob(file.attachmentId)
+    if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+    previewUrl.value = URL.createObjectURL(blob)
+    previewFile.value = file
+  } catch (err) {
+    attachmentsError.value = err instanceof Error ? err.message : '附件预览失败或无权限'
+  }
+}
+
+function closeAttachment() {
+  previewFile.value = null
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = ''
+}
 const opinion = ref('')
 const actionMessage = ref('')
 const actionError = ref('')
@@ -273,17 +298,6 @@ const qualificationInfo = computed(() => {
   ]
 })
 
-const attachments = computed(() => {
-  const item = detail.value
-  if (!item) return []
-
-  return Array.from({ length: item.qualificationAttachmentCount }, (_, index) => ({
-    name: index === 0 ? '注册证附件.pdf' : `资质附件-${index + 1}.pdf`,
-    type: index === 0 ? '注册证' : '资质材料',
-    status: '可查看'
-  }))
-})
-
 const changeItems = computed(() => detail.value?.changeItems ?? [])
 const showChangeDiff = computed(() => detail.value?.applicationType === '信息变更')
 
@@ -333,6 +347,16 @@ async function loadDetail() {
 
   try {
     detail.value = await fetchPendingProductApplicationDetail(applicationNo.value)
+    attachmentsLoading.value = true
+    attachmentsError.value = ''
+    try {
+      attachments.value = await fetchPendingProductAttachments(applicationNo.value)
+    } catch (attachmentError) {
+      attachments.value = []
+      attachmentsError.value = attachmentError instanceof Error ? attachmentError.message : '附件加载失败'
+    } finally {
+      attachmentsLoading.value = false
+    }
     initEditForm()
     // Re-apply form values after DOM render to override Chrome autofill
     await nextTick()
@@ -484,6 +508,7 @@ onMounted(() => {
 })
 onUnmounted(() => {
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
 })
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
@@ -697,16 +722,22 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <span v-if="q.extra && !isEditing" class="qextra">{{ q.extra }}</span>
             </div>
           </div>
-          <div v-if="attachments.length" class="qual-attachments">
+          <div v-if="attachmentsLoading" class="qual-attachments">
+            <span class="attach-label">📎 正在加载资质附件...</span>
+          </div>
+          <div v-else-if="attachmentsError" class="qual-attachments">
+            <span class="attach-label">📎 {{ attachmentsError }}</span>
+          </div>
+          <div v-else-if="attachments.length" class="qual-attachments">
             <span class="attach-label">📎 资质附件（{{ attachments.length }} 个文件）</span>
             <span
               v-for="file in attachments"
-              :key="file.name"
+              :key="file.attachmentId"
               class="attach-badge"
-              @click="previewFile = file"
+              @click="openAttachment(file)"
             >
               <FileText :size="14" />
-              {{ file.name }}
+              {{ file.fileName }}
             </span>
           </div>
           <div v-else class="qual-attachments">
@@ -860,21 +891,30 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
       </div>
 
       <!-- ═══ Attachment Preview Modal ═══ -->
-      <div v-if="previewFile" class="attachment-preview-mask" @click.self="previewFile = null">
+      <div v-if="previewFile" class="attachment-preview-mask" @click.self="closeAttachment">
         <section class="attachment-preview-dialog" role="dialog" aria-modal="true" aria-label="附件预览">
           <header>
             <div>
-              <p>{{ previewFile.type }}</p>
-              <h3>{{ previewFile.name }}</h3>
+              <p>资质证照</p>
+              <h3>{{ previewFile.fileName }}</h3>
             </div>
-            <button class="btn-icon" type="button" aria-label="关闭附件预览" @click="previewFile = null">
+            <button class="btn-icon" type="button" aria-label="关闭附件预览" @click="closeAttachment">
               <X :size="18" />
             </button>
           </header>
           <div class="attachment-preview-body">
-            <FileText :size="42" />
-            <strong>{{ previewFile.name }}</strong>
-            <span>当前为附件预览占位。接入真实文件 URL 后，此处将显示 PDF / 图片内容。</span>
+            <iframe
+              v-if="previewFile.contentType === 'application/pdf'"
+              class="attachment-preview-frame"
+              :src="previewUrl"
+              :title="previewFile.fileName"
+            ></iframe>
+            <img
+              v-else
+              class="attachment-preview-frame"
+              :src="previewUrl"
+              :alt="previewFile.fileName"
+            />
           </div>
         </section>
       </div>

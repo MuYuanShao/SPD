@@ -3,6 +3,8 @@ package com.hospital.spd.masterdata;
 import com.hospital.spd.common.ApiResponse;
 import static com.hospital.spd.common.SqlHelper.isBlank;
 import com.hospital.spd.masterdata.service.ProductApprovalService;
+import com.hospital.spd.masterdata.service.PendingProductAttachmentService;
+import org.springframework.core.io.Resource;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -11,7 +13,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +30,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.math.BigDecimal;
+import java.io.ByteArrayOutputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -39,9 +46,12 @@ public class PendingProductApplicationController {
     private static final Logger log = LoggerFactory.getLogger(PendingProductApplicationController.class);
 
     private final ProductApprovalService productApprovalService;
+    private final PendingProductAttachmentService attachmentService;
 
-    public PendingProductApplicationController(ProductApprovalService productApprovalService) {
+    public PendingProductApplicationController(ProductApprovalService productApprovalService,
+                                               PendingProductAttachmentService attachmentService) {
         this.productApprovalService = productApprovalService;
+        this.attachmentService = attachmentService;
     }
 
     @GetMapping("/partner-options")
@@ -105,6 +115,64 @@ public class PendingProductApplicationController {
                                                                   @RequestParam(defaultValue = "pending") String mineStatus,
                                                                   @RequestParam(required = false) String keyword) {
         return ApiResponse.ok(productApprovalService.listApplications(type, scope, mineStatus, keyword).rows());
+    }
+
+    @GetMapping("/import-template.xlsx")
+    public ResponseEntity<byte[]> importTemplate() throws Exception {
+        String[] header = {
+                "申请类型", "商品编码", "商品名称", "规格型号", "品牌", "生产厂家", "供应商", "单位",
+                "采购价", "零售价", "最小采购量", "采购单位", "中包装数量", "UDI编码", "注册证号",
+                "注册证有效期", "生产许可证号", "经营许可证号", "合同编码", "招采子编码", "一级分类",
+                "二级分类", "三级分类", "是否带量", "是否集采", "是否国产", "是否收费", "是否高值耗材",
+                "是否冷链", "是否定数管理", "储存条件", "附件数量", "变更原因", "重点监控"
+        };
+        Object[] example = {
+                "新品准入", "P-NEW-003", "一次性使用输液器", "0.55mm", "康莱德", "康德莱器械", "九州通", "支",
+                1.60, 3.20, 1, "盒", 1, "(01)06901234567890", "械注准20260003", "2029-12-31",
+                "XK-2025-00123", "JJ-2025-00456", "HT-2025-888", "TENDER-SUB-001", "一级分类", "二级分类",
+                "三级分类", "是", "否", "是", "是", "否", "否", "是", "常温", 0, "", "是"
+        };
+        try (var workbook = new XSSFWorkbook(); var output = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("模板");
+            Row headerRow = sheet.createRow(0);
+            Row exampleRow = sheet.createRow(1);
+            for (int index = 0; index < header.length; index++) {
+                headerRow.createCell(index).setCellValue(header[index]);
+                Object value = example[index];
+                if (value instanceof Number number) exampleRow.createCell(index).setCellValue(number.doubleValue());
+                else exampleRow.createCell(index).setCellValue(String.valueOf(value));
+                sheet.autoSizeColumn(index);
+            }
+            workbook.write(output);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"pending-product-application-template.xlsx\"")
+                    .contentType(MediaType.parseMediaType(
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(output.toByteArray());
+        }
+    }
+
+    @GetMapping("/{applicationNo}/attachments")
+    public ApiResponse<List<Map<String, Object>>> attachments(@PathVariable String applicationNo) {
+        return ApiResponse.ok(attachmentService.list(applicationNo));
+    }
+
+    @PostMapping("/{applicationNo}/attachments")
+    public ApiResponse<Map<String, Object>> uploadAttachment(@PathVariable String applicationNo,
+                                                             @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(attachmentService.upload(applicationNo, file));
+    }
+
+    @GetMapping("/attachments/{attachmentId}/file")
+    public ResponseEntity<Resource> previewAttachment(@PathVariable Long attachmentId) {
+        return attachmentService.preview(attachmentId);
+    }
+
+    @DeleteMapping("/{applicationNo}/attachments/{attachmentId}")
+    public ApiResponse<Map<String, Object>> deleteAttachment(@PathVariable String applicationNo,
+                                                             @PathVariable Long attachmentId) {
+        return ApiResponse.ok(attachmentService.delete(applicationNo, attachmentId));
     }
 
     @PostMapping("/import")

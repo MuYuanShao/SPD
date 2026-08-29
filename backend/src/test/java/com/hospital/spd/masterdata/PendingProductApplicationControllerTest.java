@@ -2,6 +2,7 @@ package com.hospital.spd.masterdata;
 
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.masterdata.service.ProductApprovalService;
+import com.hospital.spd.masterdata.service.PendingProductAttachmentService;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,7 +27,8 @@ class PendingProductApplicationControllerTest {
         ProductApprovalService service = mock(ProductApprovalService.class);
         when(service.createApplication(any(PendingProductApplicationRequest.class)))
                 .thenReturn(Map.of("applicationNo", "SP20260622001"));
-        PendingProductApplicationController controller = new PendingProductApplicationController(service);
+        PendingProductApplicationController controller = new PendingProductApplicationController(
+                service, mock(PendingProductAttachmentService.class));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",
@@ -57,7 +59,8 @@ class PendingProductApplicationControllerTest {
         ProductApprovalService service = mock(ProductApprovalService.class);
         when(service.createApplication(any(PendingProductApplicationRequest.class)))
                 .thenThrow(new IllegalArgumentException("商品目录已存在"));
-        PendingProductApplicationController controller = new PendingProductApplicationController(service);
+        PendingProductApplicationController controller = new PendingProductApplicationController(
+                service, mock(PendingProductAttachmentService.class));
 
         MockMultipartFile file = new MockMultipartFile(
                 "file",

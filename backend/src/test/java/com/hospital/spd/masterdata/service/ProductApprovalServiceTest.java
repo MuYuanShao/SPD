@@ -1,6 +1,7 @@
 package com.hospital.spd.masterdata.service;
 
 import com.hospital.spd.masterdata.*;
+import com.hospital.spd.common.OperatorContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -42,6 +43,10 @@ class ProductApprovalServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProductApprovalService(jdbcTemplate);
+        when(jdbcTemplate.update(
+                contains("INSERT INTO pending_product_approval_action"),
+                any(Object[].class)
+        )).thenReturn(1);
     }
 
     // ==================== Helper: build common test data ====================
@@ -242,7 +247,8 @@ class ProductApprovalServiceTest {
 
             when(jdbcTemplate.queryForObject(
                     contains("SELECT COUNT(*)"),
-                    eq(Integer.class)
+                    eq(Integer.class),
+                    any(Object[].class)
             )).thenReturn(10);
 
             // Act
@@ -301,7 +307,8 @@ class ProductApprovalServiceTest {
 
             when(jdbcTemplate.queryForObject(
                     contains("SELECT COUNT(*)"),
-                    eq(Integer.class)
+                    eq(Integer.class),
+                    any(Object[].class)
             )).thenReturn(6);
 
             PendingProductApplicationPage result = service.listApplications("new", "mine", "pending", "");
@@ -346,7 +353,8 @@ class ProductApprovalServiceTest {
 
             when(jdbcTemplate.queryForObject(
                     contains("SELECT COUNT(*)"),
-                    eq(Integer.class)
+                    eq(Integer.class),
+                    any(Object[].class)
             )).thenReturn(15);
 
             PendingProductApplicationPage result = service.listApplications("new", "handled", "", "");
@@ -354,6 +362,32 @@ class ProductApprovalServiceTest {
             PendingProductTypeCount handled = result.typeCounts().stream()
                     .filter(tc -> "handled".equals(tc.key())).findFirst().orElseThrow();
             assertThat(handled.count()).isEqualTo(15);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Test
+        @DisplayName("我审批只查询当前用户留下审批动作的申请")
+        void handled_scope_is_restricted_to_current_operator_actions() {
+            service = new ProductApprovalService(jdbcTemplate, () ->
+                    new OperatorContext(42L, "device-reviewer", "127.0.0.1",
+                            List.of("ROLE_DEVICE_REVIEW"), 8L, OperatorContext.DATA_SCOPE_ALL));
+            when(jdbcTemplate.query(contains("SELECT a.application_no"), any(RowMapper.class), any(Object[].class)))
+                    .thenReturn(List.of());
+            when(jdbcTemplate.queryForObject(contains("FROM pending_product_application a"),
+                    eq(Long.class), any(Object[].class))).thenReturn(0L);
+            when(jdbcTemplate.query(contains("application_type, COUNT(*)"), any(ResultSetExtractor.class)))
+                    .thenReturn(new java.util.HashMap<>());
+            when(jdbcTemplate.query(contains("SUM(CASE WHEN"), any(ResultSetExtractor.class), any(Object[].class)))
+                    .thenReturn(new java.util.HashMap<>());
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+
+            service.listApplications("new", "handled", "", "");
+
+            verify(jdbcTemplate).queryForObject(
+                    argThat(sql -> sql.contains("pending_product_approval_action")
+                            && sql.contains("actor_id")),
+                    eq(Long.class),
+                    eq(42L));
         }
 
         @SuppressWarnings("unchecked")
@@ -388,11 +422,38 @@ class ProductApprovalServiceTest {
                     any(Object[].class)
             )).thenReturn(mineCounts);
 
-            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class))).thenReturn(0);
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
 
             PendingProductApplicationPage result = service.listApplications("new", "todo", "", "测试");
 
             assertThat(result).isNotNull();
+        }
+
+        @SuppressWarnings("unchecked")
+        @Test
+        @DisplayName("本人待办只包含当前节点授权且本人尚未处理的申请")
+        void todo_scope_is_restricted_to_current_step_and_unhandled_actor() {
+            service = new ProductApprovalService(jdbcTemplate, () ->
+                    new OperatorContext(42L, "device-reviewer", "127.0.0.1",
+                            List.of("ROLE_DEVICE_REVIEW"), 8L, OperatorContext.DATA_SCOPE_ALL));
+            when(jdbcTemplate.query(contains("SELECT a.application_no"), any(RowMapper.class), any(Object[].class)))
+                    .thenReturn(List.of());
+            when(jdbcTemplate.queryForObject(contains("FROM pending_product_application a"),
+                    eq(Long.class), any(Object[].class))).thenReturn(0L);
+            when(jdbcTemplate.query(contains("application_type, COUNT(*)"), any(ResultSetExtractor.class)))
+                    .thenReturn(new java.util.HashMap<>());
+            when(jdbcTemplate.query(contains("SUM(CASE WHEN"), any(ResultSetExtractor.class), any(Object[].class)))
+                    .thenReturn(new java.util.HashMap<>());
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+
+            service.listApplications("new", "todo", "", "");
+
+            verify(jdbcTemplate).queryForObject(
+                    argThat(sql -> sql.contains("NOT EXISTS")
+                            && sql.contains("pending_product_approval_action")
+                            && sql.contains("approval_flow_step")
+                            && sql.contains("step_order")),
+                    eq(Long.class), any(Object[].class));
         }
     }
 
@@ -714,6 +775,9 @@ class ProductApprovalServiceTest {
             Map<String, Object> result = service.processAction("APP001", action("approve", null));
 
             assertThat(result.get("status")).isEqualTo("pending_final");
+            verify(jdbcTemplate).update(
+                    contains("INSERT INTO pending_product_approval_action"),
+                    any(Object[].class));
         }
 
         @Test
@@ -751,6 +815,40 @@ class ProductApprovalServiceTest {
             Map<String, Object> result = service.processAction("APP001", action("approve", null));
 
             assertThat(result.get("status")).isEqualTo("pending_step_3");
+        }
+
+        @Test
+        @DisplayName("当前节点未达到最少审批人数时保留在当前节点")
+        void should_stay_on_current_step_until_min_approvals_is_reached() {
+            PendingProductApplicationDetail detail = detail("pending_step_1", "新品准入");
+            when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq("APP001")))
+                    .thenReturn(detail);
+            when(jdbcTemplate.queryForList(
+                    contains("FROM approval_flow af"),
+                    eq("pending-product-catalog"),
+                    eq("initial-review")
+            )).thenReturn(List.of(Map.of("flowId", 88L, "stepCount", 2L)));
+            when(jdbcTemplate.queryForList(contains("FROM approval_flow_step"), eq(88L)))
+                    .thenReturn(List.of(
+                            Map.of("stepOrder", 1, "stepName", "设备科审批", "minApprovals", 2),
+                            Map.of("stepOrder", 2, "stepName", "采购科审批", "minApprovals", 1)
+                    ));
+            when(jdbcTemplate.queryForObject(
+                    contains("action = 'approve'"), eq(Integer.class), any(Object[].class)
+            )).thenReturn(0);
+            when(jdbcTemplate.queryForObject(
+                    contains("SELECT submit_by"), eq(Long.class), eq("APP001")
+            )).thenReturn(5L);
+            when(jdbcTemplate.update(contains("INSERT INTO audit_log"), anyString(), any(), anyString(), anyString()))
+                    .thenReturn(1);
+
+            Map<String, Object> result = service.processAction("APP001", action("approve", "同意"));
+
+            assertThat(result.get("status")).isEqualTo("pending_step_1");
+            verify(jdbcTemplate, never()).update(
+                    argThat(sql -> sql.contains("UPDATE pending_product_application") && sql.contains("approval_status")),
+                    any(Object[].class));
+            verify(jdbcTemplate).update(contains("INSERT INTO pending_product_approval_action"), any(Object[].class));
         }
 
         @Test

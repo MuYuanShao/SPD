@@ -42,6 +42,10 @@ class QuotaTemplateServiceTest {
         service = new QuotaTemplateService(jdbcTemplate, support);
         lenient().when(support.nextNo(any(DocumentKind.class)))
                 .thenAnswer(invocation -> ((DocumentKind) invocation.getArgument(0)).prefix() + "20260601001");
+        lenient().when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class)))
+                .thenReturn(0);
+        lenient().when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class), any(Object[].class)))
+                .thenReturn(0);
     }
 
     private void populateKeyHolder(KeyHolder kh, Long keyValue) throws Exception {
@@ -437,6 +441,41 @@ class QuotaTemplateServiceTest {
         assertThat(result.get(0)).containsEntry("productCode", "PC001");
         verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("FROM department_warehouse_catalog dwc")
                 && !sql.contains("FROM department_consumption dc")), any(Object[].class));
+    }
+
+    @Test
+    void requisitionAvailabilityUsesExplicitSourceWarehouseInsteadOfDestinationWarehouse() {
+        when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L)))
+                .thenReturn(List.of(30L));
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
+
+        service.requisitionCatalog(Map.of("sourceWarehouseId", "30", "warehouseName", "AI测试库房"));
+
+        verify(jdbcTemplate).queryForList(argThat((String sql) ->
+                sql.contains("loose.warehouse_id = ?")
+                        && sql.contains("pkg.warehouse_id = ?")
+                        && sql.contains("hv.warehouse_id = ?")), any(Object[].class));
+    }
+
+    @Test
+    void requisitionCatalogRequiresExplicitSourceWhenCampusHasMultipleCentralWarehouses() {
+        when(jdbcTemplate.queryForList(contains("source.campus_name = target.campus_name"), eq(Long.class),
+                any(Object[].class))).thenReturn(List.of(30L, 31L));
+
+        assertThatThrownBy(() -> service.requisitionCatalog(Map.of("warehouseName", "AI测试库房")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sourceWarehouseId");
+    }
+
+    @Test
+    void requisitionCatalogRejectsMultipleTemplatesAtTheSamePriority() {
+        when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class), any(Object[].class)))
+                .thenReturn(1);
+
+        assertThatThrownBy(() -> service.requisitionCatalog(Map.of("deptName", "AI测试科室")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("模板配置冲突");
     }
 
     @Test

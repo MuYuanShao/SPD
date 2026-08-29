@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { Download, FileSpreadsheet, LockKeyhole, RefreshCw, Search, ShieldAlert } from '@lucide/vue'
 import PageHeader from '../../components/common/PageHeader.vue'
+import TableStateRow from '../../components/common/TableStateRow.vue'
 import {
   exportSpdHisReconciliationExcel,
   fetchSpdHisReconciliation,
@@ -202,8 +203,8 @@ onMounted(() => loadReport())
         <table class="reconciliation-table">
           <thead><tr><th>序号</th><th>核对日期</th><th>耗材编码</th><th>医保编码</th><th>HIS医保编码</th><th>耗材名称</th><th>规格</th><th>科室</th><th>患者 / 住院号</th><th class="numeric">SPD消耗数量</th><th class="numeric">HIS计费数量</th><th class="numeric">差异数量</th><th class="numeric">差异金额</th><th>收费时间</th><th>差异原因标记</th><th>风险标记</th></tr></thead>
           <tbody>
-            <tr v-if="loading"><td colspan="16" class="table-message">正在核对SPD消耗与HIS收费数据…</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="16" class="table-message">当前筛选条件下暂无对账数据</td></tr>
+            <TableStateRow v-if="loading" :colspan="16" state="loading" message="正在核对SPD消耗与HIS收费数据…" />
+            <TableStateRow v-else-if="!rows.length" :colspan="16" message="当前筛选条件下暂无对账数据" />
             <tr v-for="(row, index) in rows" v-else :key="`${row.reconciliationDate}-${row.departmentName}-${row.patientNo}-${row.productCode}`" :class="`risk-row ${row.riskCode.toLowerCase()}`">
               <td>{{ (Number(query.page) - 1) * Number(query.size) + index + 1 }}</td><td>{{ row.reconciliationDate }}</td><td class="code-cell">{{ row.productCode }}</td><td class="code-cell">{{ row.medicalInsuranceCode }}</td><td class="code-cell">{{ row.hisMedicalInsuranceCode }}</td><td class="product-cell">{{ row.productName }}</td><td>{{ row.specModel }}</td><td>{{ row.departmentName }}</td><td><strong>{{ row.patientName }}</strong><small>{{ row.patientNo }}</small></td><td class="numeric">{{ quantity(row.spdConsumptionQuantity) }}</td><td class="numeric">{{ quantity(row.hisChargeQuantity) }}</td><td class="numeric difference-cell">{{ difference(row.differenceQuantity) }}</td><td class="numeric difference-cell">¥{{ amount(row.differenceAmount) }}</td><td>{{ row.chargeTime }}</td><td><span class="reason-tag" :class="row.riskCode.toLowerCase()">{{ row.differenceReason }}</span></td><td><span class="risk-tag" :class="row.riskCode.toLowerCase()">{{ row.riskLevel }}</span></td>
             </tr>

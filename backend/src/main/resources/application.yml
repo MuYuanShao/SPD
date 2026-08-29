@@ -13,9 +13,9 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: true
   datasource:
-    url: ${SPD_DB_URL:jdbc:mysql://localhost:3306/ISPD?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai}
-    username: ${SPD_DB_USERNAME:admin}
-    password: ${SPD_DB_PASSWORD:admin123}
+    url: ${SPD_DB_URL}
+    username: ${SPD_DB_USERNAME}
+    password: ${SPD_DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 management:
@@ -43,5 +43,5 @@ spd:
   upload:
     dir: ${SPD_UPLOAD_DIR:./output/license-files}
   jwt:
-    secret: ${SPD_JWT_SECRET:aB3xK7mN9pQ2rT5vW8yZ0cE4fH6jL1oM8sA2dD4gG6kJ8nB0eV2rR5tY7uI9oP3}
+    secret: ${SPD_JWT_SECRET}
     expiration-ms: ${SPD_JWT_EXPIRATION:86400000}

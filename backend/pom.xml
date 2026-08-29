@@ -126,9 +126,9 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>${flyway.version}</version>
                 <configuration>
-                    <url>${SPD_DB_URL:jdbc:mysql://localhost:3306/ISPD?useUnicode=true&amp;characterEncoding=utf8&amp;serverTimezone=Asia/Shanghai}</url>
-                    <user>${SPD_DB_USERNAME:admin}</user>
-                    <password>${SPD_DB_PASSWORD:admin123}</password>
+                    <url>${env.SPD_DB_URL}</url>
+                    <user>${env.SPD_FLYWAY_USERNAME}</user>
+                    <password>${env.SPD_FLYWAY_PASSWORD}</password>
                 </configuration>
             </plugin>
         </plugins>

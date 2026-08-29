@@ -75,6 +75,11 @@ function Resolve-Jdk17Home {
 }
 
 function Resolve-MavenCommand {
+    $wrapper = Join-Path $repoRoot 'backend\mvnw.cmd'
+    if (Test-Path $wrapper) {
+        return $wrapper
+    }
+
     if ($env:SPD_MAVEN_HOME) {
         $candidate = Join-Path $env:SPD_MAVEN_HOME 'bin\mvn.cmd'
         if (Test-Path $candidate) {
@@ -119,10 +124,6 @@ function Resolve-MavenCommand {
         }
     }
 
-    $wrapper = Join-Path $repoRoot 'backend\mvnw.cmd'
-    if (Test-Path $wrapper) {
-        return $wrapper
-    }
     return $null
 }
 
@@ -193,6 +194,9 @@ function Start-Backend {
     }
     $env:JAVA_HOME = $javaHome
     $env:Path = "$javaHome\bin;$env:Path"
+    if (-not $env:SPRING_PROFILES_ACTIVE) {
+        $env:SPRING_PROFILES_ACTIVE = 'local'
+    }
 
     $maven = Resolve-MavenCommand
     if (-not $maven) {
@@ -200,15 +204,17 @@ function Start-Backend {
     }
 
     Write-Host "Starting SPD backend (JDK: $javaHome, Maven: $maven)..."
+    $usingWrapper = [IO.Path]::GetFileName($maven) -ieq 'mvnw.cmd'
+    $mavenArguments = if ($usingWrapper) {
+        @('clean', 'spring-boot:run')
+    } else {
+        @('-f', $backendPom, 'clean', 'spring-boot:run')
+    }
+    $mavenWorkingDirectory = if ($usingWrapper) { Join-Path $repoRoot 'backend' } else { $repoRoot }
     $mavenProcess = Start-Process `
         -FilePath $maven `
-        -ArgumentList @(
-            '-f',
-            $backendPom,
-            'clean',
-            'spring-boot:run'
-        ) `
-        -WorkingDirectory $repoRoot `
+        -ArgumentList $mavenArguments `
+        -WorkingDirectory $mavenWorkingDirectory `
         -WindowStyle Hidden `
         -RedirectStandardOutput $stdoutLog `
         -RedirectStandardError $stderrLog `

@@ -9,12 +9,12 @@ const tmpRoot = await mkdtemp(join(tmpdir(), 'spd-release-fixtures-'));
 
 try {
   verifyPressureWriteFlowFixture();
-  await runCredentialScenario('credential-default', {
+  await runCredentialScenario('credential-missing', {
     env: {
       USERNAME: 'os-user-should-not-leak',
       PASSWORD: 'os-password-should-not-leak',
     },
-    expectedUsername: 'admin',
+    expectedUsername: '',
   });
 
   await runCredentialScenario('credential-override', {
@@ -57,7 +57,7 @@ try {
     ok: true,
     adapter: 'release verification fixture verifier',
     scenarios: [
-      'credential-default',
+      'credential-missing',
       'credential-override',
       'k6-read-only-is-not-ready',
       'k6-zero-write-requests-is-not-ready',
@@ -101,6 +101,8 @@ async function runCredentialScenario(name, options) {
     SPD_PASSWORD: '',
     SPD_E2E_USERNAME: '',
     SPD_E2E_PASSWORD: '',
+    DEPLOYMENT_USERNAME: '',
+    DEPLOYMENT_PASSWORD: '',
     ...options.env,
     RELEASE_REPORT_FILE: releaseFile,
     SIGNOFF_LOCAL_REPORT_FILE: signoffLocalFile,

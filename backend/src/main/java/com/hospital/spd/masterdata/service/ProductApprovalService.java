@@ -37,6 +37,7 @@ import static com.hospital.spd.masterdata.service.ProductApprovalChangeSummary.c
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +53,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
@@ -162,15 +164,22 @@ public class ProductApprovalService {
 
         StringBuilder whereClause = new StringBuilder(switch (scope) {
             case "mine" -> "WHERE a.submit_by = ?";
-            case "handled" -> "WHERE (a.approval_status IN ('approved', 'rejected', 'returned') OR a.approval_status LIKE 'pending_step_%' OR a.approval_status IN ('pending_initial', 'pending_final'))";
+            case "handled" -> """
+                    WHERE EXISTS (
+                      SELECT 1
+                        FROM pending_product_approval_action action
+                       WHERE action.application_id = a.application_id
+                         AND action.actor_id = ?
+                    )""";
             default -> "WHERE a.application_type = ? AND (a.approval_status LIKE 'pending_step_%' OR a.approval_status IN ('pending_initial', 'pending_final'))";
         });
         List<Object> args = new ArrayList<>();
-        if ("mine".equals(scope)) {
+        if ("mine".equals(scope) || "handled".equals(scope)) {
             args.add(operator.userId());
         }
         if ("todo".equals(scope)) {
             args.add(applicationType);
+            appendTodoVisibility(whereClause, args, operator);
         }
         if ("mine".equals(scope)) {
             switch (mineStatus) {
@@ -261,10 +270,16 @@ public class ProductApprovalService {
 
         Integer handledCount = jdbcTemplate.queryForObject("""
                         SELECT COUNT(*)
-                        FROM pending_product_application
-                        WHERE approval_status IN ('approved', 'rejected', 'returned', 'pending_final')
+                        FROM pending_product_application a
+                        WHERE EXISTS (
+                          SELECT 1
+                            FROM pending_product_approval_action action
+                           WHERE action.application_id = a.application_id
+                             AND action.actor_id = ?
+                        )
                         """,
-                Integer.class
+                Integer.class,
+                operator.userId()
         );
 
         return new PendingProductApplicationPage(
@@ -368,7 +383,7 @@ public class ProductApprovalService {
                 nullIfBlank(request.thirdCategory()),
                 Boolean.FALSE.equals(request.chargeable()) ? 0 : 1,
                 nullIfBlank(request.tenderSubCode()),
-                request.qualificationAttachmentCount() == null ? 0 : request.qualificationAttachmentCount(),
+                0,
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
@@ -401,6 +416,10 @@ public class ProductApprovalService {
 
     @Transactional
     public Map<String, Object> processAction(String applicationNo, PendingProductApprovalActionRequest request) {
+        jdbcTemplate.queryForObject(
+                "SELECT application_id FROM pending_product_application WHERE application_no = ? FOR UPDATE",
+                Long.class,
+                applicationNo);
         PendingProductApplicationDetail detail = getDetail(applicationNo);
         OperatorContext operator = operatorContextProvider.current();
         String action = request.action() == null ? "" : request.action().trim();
@@ -445,7 +464,16 @@ public class ProductApprovalService {
                       WHERE application_no = ?
                     """, nextStatus, operator.userId(), opinion, opinion, applicationNo);
         } else if ("approve".equals(action)) {
-            if (!isFinalApprovalStep(currentStepOrder, approvalSteps)) {
+            ConfiguredApprovalStep currentStep = approvalSteps.stream()
+                    .filter(step -> step.stepOrder() == currentStepOrder)
+                    .findFirst()
+                    .orElse(new ConfiguredApprovalStep(currentStepOrder, "审批"));
+            int priorApprovals = countCurrentStepApprovals(applicationNo, currentStepOrder);
+            boolean minApprovalsReached = priorApprovals + 1 >= currentStep.minApprovals();
+            if (!minApprovalsReached) {
+                nextStatus = detail.approvalStatus();
+                operationType = "step_" + currentStepOrder + "_approve_waiting";
+            } else if (!isFinalApprovalStep(currentStepOrder, approvalSteps)) {
                 int nextStepOrder = nextStepOrder(currentStepOrder, approvalSteps);
                 nextStatus = nextPendingStatus(detail.approvalStatus(), nextStepOrder, approvalSteps);
                 operationType = "step_" + currentStepOrder + "_approve";
@@ -474,6 +502,8 @@ public class ProductApprovalService {
             throw new IllegalArgumentException("审批动作不正确");
         }
 
+        recordApprovalAction(applicationNo, currentStepOrder, action, opinion,
+                detail.approvalStatus(), nextStatus, operator.userId());
         writeAudit(operationType, applicationNo, opinion);
         return Map.of("applicationNo", applicationNo, "status", nextStatus);
     }
@@ -511,6 +541,7 @@ public class ProductApprovalService {
                        product_snapshot = JSON_OBJECT('source','resubmit','changeReason', ?),
                        change_diff = JSON_OBJECT('changeReason', ?),
                        approval_status = ?, submit_time = NOW(),
+                       approval_round = approval_round + 1,
                        approve_by = NULL, approve_time = NULL, approve_opinion = NULL,
                        initial_review_by = NULL, initial_review_time = NULL, initial_review_opinion = NULL,
                        final_review_by = NULL, final_review_time = NULL, final_review_opinion = NULL,
@@ -548,7 +579,7 @@ public class ProductApprovalService {
                 nullIfBlank(request.thirdCategory()),
                 Boolean.FALSE.equals(request.chargeable()) ? 0 : 1,
                 nullIfBlank(request.tenderSubCode()),
-                request.qualificationAttachmentCount() == null ? 0 : request.qualificationAttachmentCount(),
+                currentAttachmentCount(applicationNo),
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
@@ -631,7 +662,7 @@ public class ProductApprovalService {
                 nullIfBlank(request.thirdCategory()),
                 Boolean.FALSE.equals(request.chargeable()) ? 0 : 1,
                 nullIfBlank(request.tenderSubCode()),
-                request.qualificationAttachmentCount() == null ? 0 : request.qualificationAttachmentCount(),
+                currentAttachmentCount(applicationNo),
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
@@ -652,6 +683,124 @@ public class ProductApprovalService {
                 Long.class,
                 applicationNo
         );
+    }
+
+    private void appendTodoVisibility(StringBuilder whereClause, List<Object> args, OperatorContext operator) {
+        String currentStep = """
+                CASE
+                  WHEN a.approval_status = 'pending_initial' THEN 1
+                  WHEN a.approval_status = 'pending_final' THEN 2
+                  ELSE CAST(SUBSTRING(a.approval_status, LENGTH('pending_step_') + 1) AS UNSIGNED)
+                END
+                """;
+        whereClause.append("""
+                AND NOT EXISTS (
+                  SELECT 1
+                    FROM pending_product_approval_action own_action
+                   WHERE own_action.application_id = a.application_id
+                     AND own_action.approval_round = a.approval_round
+                     AND own_action.step_order = %s
+                     AND own_action.actor_id = ?
+                )
+                """.formatted(currentStep));
+        args.add(operator.userId());
+        if (isGlobalApprovalAdmin(operator)) {
+            return;
+        }
+
+        List<String> roles = normalizedRoleCodes(operator);
+        String rolePlaceholders = roles.isEmpty()
+                ? "NULL"
+                : String.join(",", Collections.nCopies(roles.size(), "?"));
+        whereClause.append("""
+                AND EXISTS (
+                  SELECT 1
+                    FROM approval_flow af
+                    JOIN approval_flow_step step ON step.flow_id = af.flow_id AND step.status = 1
+                    LEFT JOIN sys_role role ON role.role_id = step.role_id
+                   WHERE af.feature_code = 'pending-product-catalog'
+                     AND af.node_code = 'initial-review'
+                     AND af.status = 1 AND af.deleted = 0
+                     AND step.step_order = %s
+                     AND (step.allow_self_approve = 1 OR a.submit_by <> ?)
+                     AND (
+                       (step.approver_type = 'user' AND step.user_id = ?)
+                       OR (step.approver_type = 'role' AND LOWER(REPLACE(role.role_code, 'ROLE_', '')) IN (%s))
+                       OR (step.approver_type = 'dept_manager' AND ? IS NOT NULL
+                           AND (step.dept_id IS NULL OR step.dept_id = ?))
+                     )
+                     AND (
+                       af.scope_type IS NULL OR af.scope_type = 'global'
+                       OR (af.scope_type = 'role' AND LOWER(REPLACE(af.scope_id, 'ROLE_', '')) IN (%s))
+                       OR (af.scope_type = 'department' AND CAST(af.scope_id AS UNSIGNED) = ?)
+                     )
+                )
+                """.formatted(currentStep, rolePlaceholders, rolePlaceholders));
+        args.add(operator.userId());
+        args.add(operator.userId());
+        args.addAll(roles);
+        args.add(operator.deptId());
+        args.add(operator.deptId());
+        args.addAll(roles);
+        args.add(operator.deptId());
+    }
+
+    private static boolean isGlobalApprovalAdmin(OperatorContext operator) {
+        String username = operator.username() == null ? "" : operator.username().trim().toLowerCase(Locale.ROOT);
+        return "system".equals(username) || "admin".equals(username)
+                || normalizedRoleCodes(operator).stream().anyMatch(role -> "system".equals(role) || "admin".equals(role));
+    }
+
+    private static List<String> normalizedRoleCodes(OperatorContext operator) {
+        if (operator.roles() == null) {
+            return List.of();
+        }
+        return operator.roles().stream()
+                .filter(Objects::nonNull)
+                .map(role -> role.trim().toLowerCase(Locale.ROOT))
+                .map(role -> role.startsWith("role_") ? role.substring(5) : role)
+                .filter(role -> !role.isBlank())
+                .distinct()
+                .toList();
+    }
+
+    private void recordApprovalAction(String applicationNo,
+                                      int stepOrder,
+                                      String action,
+                                      String opinion,
+                                      String fromStatus,
+                                      String toStatus,
+                                      Long actorId) {
+        try {
+            int inserted = jdbcTemplate.update("""
+                    INSERT INTO pending_product_approval_action (
+                      application_id, approval_round, step_order, actor_id,
+                      action, opinion, from_status, to_status
+                    )
+                    SELECT application_id, approval_round, ?, ?, ?, ?, ?, ?
+                      FROM pending_product_application
+                     WHERE application_no = ?
+                    """, stepOrder, actorId, action, opinion, fromStatus, toStatus, applicationNo);
+            if (inserted != 1) {
+                throw new IllegalArgumentException("审批申请不存在");
+            }
+        } catch (DuplicateKeyException exception) {
+            throw new IllegalArgumentException("当前审批节点已由本人处理，请勿重复提交", exception);
+        }
+    }
+
+    private int countCurrentStepApprovals(String applicationNo, int stepOrder) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pending_product_approval_action action
+                  JOIN pending_product_application application
+                    ON application.application_id = action.application_id
+                   AND application.approval_round = action.approval_round
+                 WHERE application.application_no = ?
+                   AND action.step_order = ?
+                   AND action.action = 'approve'
+                """, Integer.class, applicationNo, stepOrder);
+        return count == null ? 0 : count;
     }
 
     /** Batch-computes change summaries by comparing current product data with pending-application values. */
@@ -761,12 +910,16 @@ public class ProductApprovalService {
             return legacyApprovalSteps();
         }
         List<ConfiguredApprovalStep> steps = jdbcTemplate.queryForList("""
-                SELECT step_order AS stepOrder, step_name AS stepName
+                SELECT step_order AS stepOrder, step_name AS stepName,
+                       min_approvals AS minApprovals
                   FROM approval_flow_step
                  WHERE flow_id = ? AND status = 1
                  ORDER BY step_order, step_id
                 """, flowId).stream()
-                .map(row -> new ConfiguredApprovalStep(integer(row.get("stepOrder")), text(row.get("stepName"))))
+                .map(row -> new ConfiguredApprovalStep(
+                        integer(row.get("stepOrder")),
+                        text(row.get("stepName")),
+                        integer(row.get("minApprovals"))))
                 .filter(step -> step.stepOrder() != null && step.stepOrder() > 0)
                 .toList();
         return steps.isEmpty() ? legacyApprovalSteps() : steps;
@@ -1022,6 +1175,26 @@ public class ProductApprovalService {
                   is_key_monitored = VALUES(is_key_monitored),
                   storage_condition = VALUES(storage_condition), status = 1, deleted = 0
                 """, ensureCategory("未分类", null, null), applicationNo);
+        jdbcTemplate.update("""
+                INSERT INTO sys_attachment (
+                  biz_type, biz_id, file_name, file_ext, file_type, file_size, file_path, file_url,
+                  category, description, valid_date, create_by, source_attachment_id
+                )
+                SELECT 'product', p.product_id, source.file_name, source.file_ext, source.file_type,
+                       source.file_size, source.file_path,
+                       CONCAT('/pending-product-applications/attachments/', source.attachment_id, '/file'),
+                       source.category, source.description, source.valid_date, source.create_by,
+                       source.attachment_id
+                  FROM pending_product_application application
+                  JOIN product p ON p.product_code = application.product_code
+                  JOIN sys_attachment source
+                    ON source.biz_type = 'pending_product_application'
+                   AND source.biz_id = application.application_id AND source.deleted = 0
+                  LEFT JOIN sys_attachment promoted
+                    ON promoted.biz_type = 'product' AND promoted.biz_id = p.product_id
+                   AND promoted.source_attachment_id = source.attachment_id AND promoted.deleted = 0
+                 WHERE application.application_no = ? AND promoted.attachment_id IS NULL
+                """, applicationNo);
     }
 
     private void disableHospitalCatalogProduct(String applicationNo) {
@@ -1044,6 +1217,19 @@ public class ProductApprovalService {
                 VALUES ('admin', ?, 'pending_product_application', ?,
                         JSON_OBJECT('applicationNo', ?, 'opinion', ?), '127.0.0.1', '商品准入/变更审批')
                 """, operationType, applicationId, applicationNo, opinion);
+    }
+
+    private int currentAttachmentCount(String applicationNo) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM sys_attachment attachment
+                  JOIN pending_product_application application
+                    ON application.application_id = attachment.biz_id
+                 WHERE application.application_no = ?
+                   AND attachment.biz_type = 'pending_product_application'
+                   AND attachment.deleted = 0
+                """, Integer.class, applicationNo);
+        return count == null ? 0 : count;
     }
 
     private String nextApplicationNo() {

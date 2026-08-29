@@ -1,9 +1,18 @@
-import { getData, postData, putData } from './http'
+import { getData, http, postData, putData } from './http'
 import type { PartnerOption } from './masterData'
 
 export interface PendingProductPartnerOptions {
   manufacturers: PartnerOption[]
   suppliers: PartnerOption[]
+}
+
+export interface PendingProductAttachment {
+  attachmentId: number
+  fileName: string
+  contentType: string
+  fileSize: number
+  category: string
+  createTime: string
 }
 
 export interface PendingProductTypeCount {
@@ -162,6 +171,18 @@ export async function fetchPendingProductApplicationDetail(applicationNo: string
   )
 }
 
+export async function fetchPendingProductAttachments(applicationNo: string) {
+  return getData<PendingProductAttachment[]>(`/pending-product-applications/${applicationNo}/attachments`)
+}
+
+export async function fetchPendingProductAttachmentBlob(attachmentId: number) {
+  const response = await http.get<Blob>(
+    `/pending-product-applications/attachments/${attachmentId}/file`,
+    { responseType: 'blob' }
+  )
+  return response.data
+}
+
 export async function createPendingProductApplication(payload: PendingProductApplicationPayload) {
   return postData<{ applicationNo: string; productCode?: string }>('/pending-product-applications', payload)
 }
@@ -205,6 +226,13 @@ export async function exportPendingProductApplications(type: string, scope = 'to
   return getData<PendingProductApplicationRow[]>('/pending-product-applications/export', {
     params: { type, scope, keyword }
   })
+}
+
+export async function downloadPendingProductImportTemplate() {
+  const response = await http.get<Blob>('/pending-product-applications/import-template.xlsx', {
+    responseType: 'blob'
+  })
+  return response.data
 }
 
 export async function importPendingProductApplications(file: File) {

@@ -2,9 +2,14 @@ package com.hospital.spd.supplychain;
 
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.supplychain.service.OperationalClosureService;
+import com.hospital.spd.supplychain.service.ManualSettlementGenerationRequest;
+import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+
+import static com.hospital.spd.supplychain.OperationalCommandRequests.*;
 
 /**
  * Exposes the operational closure endpoints for shortage, requisition, delivery, consumption, and settlement flows.
@@ -66,39 +71,45 @@ public class OperationalClosureController {
     }
 
     @PostMapping("/picking/confirm-loose")
-    public ApiResponse<Map<String, Object>> confirmLoosePicking(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.confirmLoosePicking(body));
+    public ApiResponse<Map<String, Object>> confirmLoosePicking(@Valid @RequestBody LoosePickingRequest request) {
+        return ApiResponse.ok(service.confirmLoosePicking(request));
     }
 
     @PostMapping("/shortage/generate")
-    public ApiResponse<Map<String, Object>> generateShortage(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.generateShortage(body));
+    public ApiResponse<Map<String, Object>> generateShortage(@Valid @RequestBody ShortageRequest request) {
+        return ApiResponse.ok(service.generateShortage(request));
     }
 
     @PostMapping("/shortage/smart-analysis")
-    public ApiResponse<Map<String, Object>> smartReplenishmentAnalysis(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.smartReplenishmentAnalysis(body));
+    public ApiResponse<Map<String, Object>> smartReplenishmentAnalysis(@Valid @RequestBody SmartAnalysisRequest request) {
+        return ApiResponse.ok(service.smartReplenishmentAnalysis(request));
     }
 
     @PostMapping("/requisitions")
-    public ApiResponse<Map<String, Object>> createRequisition(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.createRequisition(body));
+    public ApiResponse<Map<String, Object>> createRequisition(
+            @Valid @RequestBody CreateRequisitionRequest request,
+            HttpServletResponse response) {
+        if (request.destinationWarehouseId() == null && request.destinationWarehouseName() != null) {
+            response.setHeader("Deprecation", "true");
+            response.setHeader("Link", "</api/operational-closure/requisitions>; rel=successor-version");
+        }
+        return ApiResponse.ok(service.createRequisition(request));
     }
 
     @PutMapping("/requisitions/{requisitionNo}/action")
     public ApiResponse<Map<String, Object>> processRequisition(@PathVariable String requisitionNo,
-                                                                @RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.processRequisition(requisitionNo, body));
+                                                                @Valid @RequestBody RequisitionActionRequest request) {
+        return ApiResponse.ok(service.processRequisition(requisitionNo, request));
     }
 
     @PostMapping("/deliveries")
-    public ApiResponse<Map<String, Object>> createDelivery(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.createDelivery(body));
+    public ApiResponse<Map<String, Object>> createDelivery(@Valid @RequestBody DeliveryRequest request) {
+        return ApiResponse.ok(service.createDelivery(request));
     }
 
     @PostMapping("/picking/confirm")
-    public ApiResponse<Map<String, Object>> confirmPicking(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.confirmPicking(body));
+    public ApiResponse<Map<String, Object>> confirmPicking(@Valid @RequestBody PackagePickingRequest request) {
+        return ApiResponse.ok(service.confirmPicking(request));
     }
 
     @PutMapping("/deliveries/{deliveryNo}/sign")
@@ -107,8 +118,8 @@ public class OperationalClosureController {
     }
 
     @PostMapping("/consumptions")
-    public ApiResponse<Map<String, Object>> createConsumption(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.createConsumption(body));
+    public ApiResponse<Map<String, Object>> createConsumption(@Valid @RequestBody ConsumptionRequest request) {
+        return ApiResponse.ok(service.createConsumption(request));
     }
 
     @GetMapping("/consumptions/resolve")
@@ -123,8 +134,9 @@ public class OperationalClosureController {
     }
 
     @PostMapping("/settlements/generate")
-    public ApiResponse<Map<String, Object>> rejectManualSettlementGeneration() {
-        return ApiResponse.ok(service.rejectManualSettlementGeneration());
+    public ApiResponse<Map<String, Object>> generateMissingSettlements(
+            @Valid @RequestBody ManualSettlementGenerationRequest request) {
+        return ApiResponse.ok(service.generateMissingSettlements(request));
     }
     @PutMapping("/settlements/{settlementNo}/confirm")
     public ApiResponse<Map<String, Object>> confirmSettlement(@PathVariable String settlementNo) {
@@ -132,18 +144,18 @@ public class OperationalClosureController {
     }
 
     @PostMapping("/pda/offline-upload")
-    public ApiResponse<Map<String, Object>> uploadPda(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.uploadPda(body));
+    public ApiResponse<Map<String, Object>> uploadPda(@Valid @RequestBody PdaUploadRequest request) {
+        return ApiResponse.ok(service.uploadPda(request));
     }
 
     @PostMapping("/cold-chain/exceptions")
-    public ApiResponse<Map<String, Object>> coldChainException(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.coldChainException(body));
+    public ApiResponse<Map<String, Object>> coldChainException(@Valid @RequestBody ColdChainExceptionRequest request) {
+        return ApiResponse.ok(service.coldChainException(request));
     }
 
     @PostMapping("/recalls")
-    public ApiResponse<Map<String, Object>> createRecall(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.createRecall(body));
+    public ApiResponse<Map<String, Object>> createRecall(@Valid @RequestBody RecallRequest request) {
+        return ApiResponse.ok(service.createRecall(request));
     }
 
     @GetMapping("/recalls/batches")
@@ -158,17 +170,17 @@ public class OperationalClosureController {
     }
 
     @PostMapping("/high-value/charges")
-    public ApiResponse<Map<String, Object>> highValueCharge(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.highValueCharge(body));
+    public ApiResponse<Map<String, Object>> highValueCharge(@Valid @RequestBody HighValueChargeRequest request) {
+        return ApiResponse.ok(service.highValueCharge(request));
     }
 
     @PostMapping("/high-value/patient-bindings")
-    public ApiResponse<Map<String, Object>> bindHighValuePatient(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.bindHighValuePatient(body));
+    public ApiResponse<Map<String, Object>> bindHighValuePatient(@Valid @RequestBody HighValuePatientBindingRequest request) {
+        return ApiResponse.ok(service.bindHighValuePatient(request));
     }
 
     @PostMapping("/high-value/billing-callback")
-    public ApiResponse<Map<String, Object>> highValueBillingCallback(@RequestBody Map<String, Object> body) {
-        return ApiResponse.ok(service.receiveHighValueBillingCallback(body));
+    public ApiResponse<Map<String, Object>> highValueBillingCallback(@Valid @RequestBody HighValueBillingCallbackRequest request) {
+        return ApiResponse.ok(service.receiveHighValueBillingCallback(request));
     }
 }

@@ -5,6 +5,13 @@
 //       科室申领审批→字段管理/交易流水/UDI/工作台/权限回归
 const BASE = 'http://127.0.0.1:1818/api'
 const results = []
+const USERNAME = process.env.SPD_USERNAME || process.env.SPD_E2E_USERNAME
+const PASSWORD = process.env.SPD_PASSWORD || process.env.SPD_E2E_PASSWORD
+const OPERATOR_USERNAME = process.env.SPD_OPERATOR_USERNAME || USERNAME
+const OPERATOR_PASSWORD = process.env.SPD_OPERATOR_PASSWORD || PASSWORD
+if (!USERNAME || !PASSWORD) {
+  throw new Error('Full-flow verification requires explicit SPD_USERNAME and SPD_PASSWORD credentials')
+}
 
 function record(name, ok, detail) {
   results.push({ name, ok, detail })
@@ -33,7 +40,7 @@ function expectOk(res, name, extra = '') {
 }
 
 // ===== 登录与公共夹具 =====
-const login = await call('POST', '/auth/login', { body: { username: 'admin', password: 'admin123' } })
+const login = await call('POST', '/auth/login', { body: { username: USERNAME, password: PASSWORD } })
 const token = login.body?.data?.token
 record('登录 admin', !!token, '')
 
@@ -336,7 +343,7 @@ const dashRes = await call('GET', '/dashboard', { token })
 expectOk(dashRes, 'H4 工作台总览', '')
 
 // operator01 角色修复回归
-const opLogin = await call('POST', '/auth/login', { body: { username: 'operator01', password: 'admin123' } })
+const opLogin = await call('POST', '/auth/login', { body: { username: OPERATOR_USERNAME, password: OPERATOR_PASSWORD } })
 const opToken = opLogin.body?.data?.token
 record('H5 operator01 登录', !!opToken, '')
 const opBal = await call('GET', '/inventory/balances?page=1&size=5', { token: opToken })

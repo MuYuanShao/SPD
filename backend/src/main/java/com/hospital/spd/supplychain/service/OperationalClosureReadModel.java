@@ -9,6 +9,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Read-only projections for the operational-closure workbench and its paged business lists.
+ */
 @Service
 public class OperationalClosureReadModel {
 

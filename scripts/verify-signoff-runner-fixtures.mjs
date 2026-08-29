@@ -106,10 +106,20 @@ async function runWeakDryRun() {
 
 function run(reportFile, envOverrides, extraEnv = {}) {
   return new Promise((resolve) => {
+    const inheritedEnv = { ...process.env };
+    for (const name of [
+      'REQUIRE_DEPLOYMENT_TOOLS',
+      'REQUIRE_PRODUCTION_CONFIG',
+      'RUN_DOCKER_COMPOSE_UP',
+      'RUN_DEPLOYMENT_PRESSURE',
+      'DEPLOYMENT_MUTATING_FLOWS',
+    ]) {
+      delete inheritedEnv[name];
+    }
     const child = spawn(nodeCmd, ['scripts/run-server-signoff.mjs'], {
       cwd: process.cwd(),
       env: {
-        ...process.env,
+        ...inheritedEnv,
         ...envOverrides,
         ...extraEnv,
         SERVER_SIGNOFF_RUN_FILE: reportFile,

@@ -1,7 +1,11 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
+import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.system.service.ApprovalFlowGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,12 +39,59 @@ class OperationalRequisitionModuleTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SupplyChainSupport support;
+    @Mock
+    private ApprovalFlowGuard approvalFlowGuard;
+    @Mock
+    private OperatorContextProvider operatorContextProvider;
+    @Mock
+    private HighValueTraceFlowService traceFlowService;
 
     private OperationalRequisitionModule module;
 
     @BeforeEach
     void setUp() {
         module = new OperationalRequisitionModule(jdbcTemplate, support);
+        lenient().when(jdbcTemplate.queryForList(contains("SELECT source.warehouse_id"),
+                eq(Long.class), any())).thenReturn(List.of(30L));
+    }
+
+    @Test
+    void validatesCatalogAgainstDestinationButHighValueCodesAgainstSourceWarehouse() throws Exception {
+        module = new OperationalRequisitionModule(jdbcTemplate, support, approvalFlowGuard,
+                operatorContextProvider, traceFlowService);
+        when(operatorContextProvider.current()).thenReturn(OperatorContext.system());
+        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
+                eq(Long.class), eq("Surgery"))).thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("warehouse_id = ?"), eq(Long.class), eq(20L)))
+                .thenReturn(List.of(20L));
+        when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L)))
+                .thenReturn(List.of(30L));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("HV001")))
+                .thenReturn(Map.of("productId", 100L, "productCode", "HV001", "productName", "Implant",
+                        "unit", "piece", "purchasePrice", BigDecimal.TEN, "highValue", 1));
+        when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), eq(100L))).thenReturn(1L);
+        when(support.nextNo(DocumentKind.DEPARTMENT_REQUISITION)).thenReturn("SL20260601001");
+        mockGeneratedKey(99L);
+        when(jdbcTemplate.queryForObject(contains("SELECT item_id FROM department_requisition_item"),
+                eq(Long.class), eq(99L))).thenReturn(199L);
+        List<HighValueTraceFlowService.TraceUnit> units = List.of(
+                new HighValueTraceFlowService.TraceUnit(1L, "UDI-HV-1", 7L));
+        when(traceFlowService.requireUnits(any(), eq(BigDecimal.ONE), eq(100L), eq(30L), eq(List.of("in_stock"))))
+                .thenReturn(units);
+
+        module.createRequisition(Map.of(
+                "deptName", "Surgery",
+                "destinationWarehouseId", 20L,
+                "sourceWarehouseId", 30L,
+                "items", List.of(Map.of("productCode", "HV001", "quantity", BigDecimal.ONE,
+                        "uniqueCodes", List.of("UDI-HV-1")))
+        ));
+
+        verify(jdbcTemplate).queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), eq(100L));
+        verify(traceFlowService).requireUnits(any(), eq(BigDecimal.ONE), eq(100L), eq(30L),
+                eq(List.of("in_stock")));
     }
 
     @Test

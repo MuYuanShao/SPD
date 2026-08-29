@@ -48,7 +48,7 @@ $env:SPD_JWT_SECRET="<at least 48 random characters>"
 $env:DEPLOYMENT_BASE_URL="http://localhost:1820/api"
 $env:DEPLOYMENT_HEALTH_URL="http://localhost:1820/api/health"
 $env:DEPLOYMENT_USERNAME="admin"
-$env:DEPLOYMENT_PASSWORD="admin123"
+$env:DEPLOYMENT_PASSWORD="<输入强密码>"
 npm run signoff:server
 ```
 
@@ -95,7 +95,7 @@ and runs the same authenticated read mix against a running backend.
 ```powershell
 $env:BASE_URL="http://localhost:1818/api"
 $env:SPD_USERNAME="admin"
-$env:SPD_PASSWORD="admin123"
+$env:SPD_PASSWORD="<输入测试账号密码>"
 $env:RESULT_FILE="perf/results/local-read-smoke.json"
 npm run perf:smoke:read
 ```

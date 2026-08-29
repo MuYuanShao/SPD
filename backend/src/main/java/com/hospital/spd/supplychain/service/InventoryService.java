@@ -83,7 +83,7 @@ public class InventoryService {
                    LEFT JOIN (
                      SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty
                        FROM quota_package_label
-                      WHERE status IN ('pending_print', 'available')
+                      WHERE status IN ('pending_print', 'available', 'signed')
                       GROUP BY warehouse_id, product_id
                    ) qp ON qp.warehouse_id = lo.warehouse_id AND qp.product_id = lo.product_id
                    JOIN warehouse w ON w.warehouse_id = lo.warehouse_id
@@ -130,7 +130,7 @@ public class InventoryService {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
-                 WHERE qpl.status IN ('pending_print', 'available')
+                 WHERE qpl.status IN ('pending_print', 'available', 'signed')
                 """);
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "d.dept_name", params.get("deptName"));

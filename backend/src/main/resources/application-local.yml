@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${SPD_DB_URL:jdbc:mysql://localhost:3306/ISPD?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_0900_ai_ci&serverTimezone=Asia/Shanghai}
+    username: ${SPD_DB_USERNAME:admin}
+    password: ${SPD_DB_PASSWORD:admin123}
+
+spd:
+  jwt:
+    secret: ${SPD_JWT_SECRET:local-only-jwt-secret-local-only-jwt-secret-2026-change-before-sharing}

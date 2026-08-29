@@ -1,10 +1,20 @@
 import { expect, test } from '@playwright/test'
 
+const username = process.env.SPD_E2E_USERNAME || process.env.SPD_USERNAME
+const password = process.env.SPD_E2E_PASSWORD || process.env.SPD_PASSWORD
+if (!username || !password) {
+  throw new Error('Business UI smoke tests require SPD_E2E_USERNAME/SPD_E2E_PASSWORD or SPD_USERNAME/SPD_PASSWORD')
+}
+
+async function login(page: import('@playwright/test').Page) {
+  await page.getByRole('textbox', { name: '用户名' }).fill(username)
+  await page.getByRole('textbox', { name: '密码' }).fill(password)
+  await page.getByRole('button', { name: '登录' }).click()
+}
+
 test('收费耗材明细支持筛选、分页、空状态和横向表格操作', async ({ page }) => {
   await page.goto('/features/high-value-consumables')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
-  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
   await expect(page).toHaveURL(/high-value-consumables/)
 
   const table = page.locator('.charge-detail-scroll')
@@ -38,9 +48,7 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
 
 test('待审批新品准入字段导航与表头及分组保持一致', async ({ page }) => {
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
-  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
   await expect(page.getByRole('heading', { name: '新品准入 · 多字段列表' })).toBeVisible()
 
   const navigationFields = await page.locator('.subnav-chips .subnav-chip').allTextContents()
@@ -54,9 +62,7 @@ test('待审批新品准入字段导航与表头及分组保持一致', async ({
 
 test('AI医护助手的自定义补货问题返回补货建议入口', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
-  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
 
   await page.getByRole('button', { name: '打开AI医护助手' }).click()
   await page.getByRole('textbox', { name: '向AI医护助手提问' }).fill('请生成补货建议')
@@ -80,9 +86,7 @@ test('拣配配送在没有历史记录时显示明确空状态', async ({ page 
   })
 
   await page.goto('/features/picking-delivery')
-  await page.getByRole('textbox', { name: '用户名' }).fill(process.env.SPD_E2E_USERNAME || 'admin')
-  await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
-  await page.getByRole('button', { name: '登录' }).click()
+  await login(page)
 
   await expect(page.getByRole('heading', { name: '拣配记录' })).toBeVisible()
   await expect(page.getByText('暂无拣配记录')).toBeVisible()

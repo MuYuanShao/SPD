@@ -58,7 +58,8 @@ public class OperationalRequisitionModule {
     public Map<String, Object> createRequisition(Map<String, Object> body) {
         String deptName = requireText(body, "deptName");
         Long deptId = findDept(deptName);
-        Long warehouseId = findWarehouseId(requireText(body, "warehouseName"));
+        Long warehouseId = resolveDestinationWarehouse(body);
+        Long sourceWarehouseId = resolveSourceWarehouse(body, warehouseId);
         requireCurrentDepartment(deptId);
         List<PreparedRequisitionItem> items = new ArrayList<>();
         for (Map<String, Object> itemBody : requisitionItems(body)) {
@@ -79,8 +80,10 @@ public class OperationalRequisitionModule {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO department_requisition (requisition_no, dept_id, warehouse_id, requisition_type, status, applicant_id)
-                    VALUES (?, ?, ?, 'regular_requisition', 'pending_approval', ?)
+                    INSERT INTO department_requisition (
+                      requisition_no, dept_id, warehouse_id, source_warehouse_id,
+                      requisition_type, status, applicant_id
+                    ) VALUES (?, ?, ?, ?, 'regular_requisition', 'pending_approval', ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, requisitionNo);
             ps.setLong(2, deptId);
@@ -89,7 +92,8 @@ public class OperationalRequisitionModule {
             } else {
                 ps.setLong(3, warehouseId);
             }
-            ps.setLong(4, operator.userId());
+            ps.setLong(4, sourceWarehouseId);
+            ps.setLong(5, operator.userId());
             return ps;
         }, keyHolder);
         Long requisitionId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -105,7 +109,7 @@ public class OperationalRequisitionModule {
                         ? item.body().get("uniqueCode") : item.body().get("uniqueCodes");
                 List<HighValueTraceFlowService.TraceUnit> units = traceFlowService.requireUnits(
                         rawCodes, item.quantity(), ((Number) item.product().get("productId")).longValue(),
-                        warehouseId, List.of("in_stock"));
+                        sourceWarehouseId, List.of("in_stock"));
                 Long itemId = jdbcTemplate.queryForObject(
                         "SELECT item_id FROM department_requisition_item WHERE requisition_id = ? ORDER BY item_id DESC LIMIT 1",
                         Long.class, requisitionId);
@@ -199,6 +203,56 @@ public class OperationalRequisitionModule {
                 """, Long.class, warehouseName.trim());
         if (ids.isEmpty()) throw new IllegalArgumentException("warehouse does not exist or is disabled");
         return ids.get(0);
+    }
+
+    private Long resolveDestinationWarehouse(Map<String, Object> body) {
+        Long explicitId = optionalLong(body.get("destinationWarehouseId"), "destinationWarehouseId");
+        if (explicitId == null) {
+            return findWarehouseId(requireText(body, "warehouseName"));
+        }
+        List<Long> ids = jdbcTemplate.queryForList("""
+                SELECT warehouse_id FROM warehouse
+                 WHERE warehouse_id = ? AND deleted = 0 AND status = 1
+                """, Long.class, explicitId);
+        if (ids.size() != 1) throw new IllegalArgumentException("destination warehouse does not exist or is disabled");
+        return ids.get(0);
+    }
+
+    private Long resolveSourceWarehouse(Map<String, Object> body, Long destinationWarehouseId) {
+        Long explicitId = optionalLong(body.get("sourceWarehouseId"), "sourceWarehouseId");
+        if (explicitId != null) {
+            List<Long> ids = jdbcTemplate.queryForList("""
+                    SELECT warehouse_id FROM warehouse
+                     WHERE warehouse_id = ? AND deleted = 0 AND status = 1
+                       AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
+                    """, Long.class, explicitId);
+            if (ids.size() != 1) throw new IllegalArgumentException("source warehouse must be an enabled central warehouse");
+            return ids.get(0);
+        }
+        List<Long> ids = jdbcTemplate.queryForList("""
+                SELECT source.warehouse_id
+                  FROM warehouse source
+                  JOIN warehouse destination ON destination.warehouse_id = ?
+                 WHERE source.deleted = 0 AND source.status = 1
+                   AND destination.deleted = 0
+                   AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
+                   AND COALESCE(source.campus_name, '') = COALESCE(destination.campus_name, '')
+                 ORDER BY source.warehouse_id
+                """, Long.class, destinationWarehouseId);
+        if (ids.size() != 1) {
+            throw new IllegalArgumentException("cannot uniquely resolve source central warehouse; sourceWarehouseId is required");
+        }
+        return ids.get(0);
+    }
+
+    private static Long optionalLong(Object value, String field) {
+        if (value == null || String.valueOf(value).isBlank()) return null;
+        if (value instanceof Number number) return number.longValue();
+        try {
+            return Long.valueOf(String.valueOf(value).trim());
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException(field + " must be a number");
+        }
     }
 
     private Long findDept(String deptName) {

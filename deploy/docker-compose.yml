@@ -3,9 +3,9 @@ services:
     image: mysql:8.4
     environment:
       MYSQL_DATABASE: ${SPD_DB_NAME:-ISPD}
-      MYSQL_USER: ${SPD_DB_USERNAME:-admin}
-      MYSQL_PASSWORD: ${SPD_DB_PASSWORD:-admin123}
-      MYSQL_ROOT_PASSWORD: ${SPD_DB_ROOT_PASSWORD:-root123}
+      MYSQL_USER: ${SPD_DB_USERNAME:?SPD_DB_USERNAME is required}
+      MYSQL_PASSWORD: ${SPD_DB_PASSWORD:?SPD_DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${SPD_DB_ROOT_PASSWORD:?SPD_DB_ROOT_PASSWORD is required}
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
@@ -25,9 +25,9 @@ services:
       dockerfile: deploy/backend.Dockerfile
     environment:
       SPD_DB_URL: jdbc:mysql://mysql:3306/${SPD_DB_NAME:-ISPD}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
-      SPD_DB_USERNAME: ${SPD_DB_USERNAME:-admin}
-      SPD_DB_PASSWORD: ${SPD_DB_PASSWORD:-admin123}
-      SPD_JWT_SECRET: ${SPD_JWT_SECRET:-change-me-to-a-strong-64-byte-secret-before-production}
+      SPD_DB_USERNAME: ${SPD_DB_USERNAME:?SPD_DB_USERNAME is required}
+      SPD_DB_PASSWORD: ${SPD_DB_PASSWORD:?SPD_DB_PASSWORD is required}
+      SPD_JWT_SECRET: ${SPD_JWT_SECRET:?SPD_JWT_SECRET is required}
       SPD_JWT_EXPIRATION: ${SPD_JWT_EXPIRATION:-86400000}
     depends_on:
       mysql:

@@ -1,9 +1,12 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.supplychain.CreateRequisitionRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
+
+import static com.hospital.spd.supplychain.OperationalCommandRequests.*;
 
 /**
  * Coordinates operational closure flows after stock-in, including shortage, delivery, consumption, settlement, PDA, and risk events.
@@ -20,6 +23,7 @@ public class OperationalClosureService {
     private final OperationalDeliveryModule deliveryModule;
     private final OperationalRequisitionModule requisitionModule;
     private final OperationalConsumptionModule consumptionModule;
+    private final SettlementPointService settlementPointService;
 
     public OperationalClosureService(OperationalClosureReadModel readModel,
                                      OperationalShortageModule shortageModule,
@@ -29,7 +33,8 @@ public class OperationalClosureService {
                                      OperationalHighValueModule highValueModule,
                                      OperationalDeliveryModule deliveryModule,
                                      OperationalRequisitionModule requisitionModule,
-                                     OperationalConsumptionModule consumptionModule) {
+                                     OperationalConsumptionModule consumptionModule,
+                                     SettlementPointService settlementPointService) {
         this.readModel = readModel;
         this.shortageModule = shortageModule;
         this.settlementModule = settlementModule;
@@ -39,6 +44,7 @@ public class OperationalClosureService {
         this.deliveryModule = deliveryModule;
         this.requisitionModule = requisitionModule;
         this.consumptionModule = consumptionModule;
+        this.settlementPointService = settlementPointService;
     }
 
     public Map<String, Object> overview() {
@@ -78,36 +84,66 @@ public class OperationalClosureService {
     }
 
     @Transactional
+    public Map<String, Object> confirmLoosePicking(LoosePickingRequest request) {
+        return deliveryModule.confirmLoosePicking(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> confirmLoosePicking(Map<String, Object> body) {
         return deliveryModule.confirmLoosePicking(body);
     }
 
     @Transactional
+    public Map<String, Object> generateShortage(ShortageRequest request) {
+        return shortageModule.generateShortage(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> generateShortage(Map<String, Object> body) {
         return shortageModule.generateShortage(body);
     }
 
     @Transactional
+    public Map<String, Object> smartReplenishmentAnalysis(SmartAnalysisRequest request) {
+        return shortageModule.smartAnalyze(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> smartReplenishmentAnalysis(Map<String, Object> body) {
         return shortageModule.smartAnalyze(body);
     }
 
     @Transactional
-    public Map<String, Object> createRequisition(Map<String, Object> body) {
-        return requisitionModule.createRequisition(body);
+    public Map<String, Object> createRequisition(CreateRequisitionRequest request) {
+        return requisitionModule.createRequisition(request.toCompatibilityMap());
     }
 
     @Transactional
+    public Map<String, Object> processRequisition(String requisitionNo, RequisitionActionRequest request) {
+        return requisitionModule.action(requisitionNo, request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> processRequisition(String requisitionNo, Map<String, Object> body) {
         return requisitionModule.action(requisitionNo, body);
     }
 
     @Transactional
+    public Map<String, Object> createDelivery(DeliveryRequest request) {
+        return deliveryModule.createDelivery(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> createDelivery(Map<String, Object> body) {
         return deliveryModule.createDelivery(body);
     }
 
     @Transactional
+    public Map<String, Object> confirmPicking(PackagePickingRequest request) {
+        return deliveryModule.confirmPicking(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> confirmPicking(Map<String, Object> body) {
         return deliveryModule.confirmPicking(body);
     }
@@ -118,6 +154,11 @@ public class OperationalClosureService {
     }
 
     @Transactional
+    public Map<String, Object> createConsumption(ConsumptionRequest request) {
+        return consumptionModule.createConsumption(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> createConsumption(Map<String, Object> body) {
         return consumptionModule.createConsumption(body);
     }
@@ -131,8 +172,9 @@ public class OperationalClosureService {
         return consumptionModule.reverseConsumption(consumptionNo);
     }
 
-    public Map<String, Object> rejectManualSettlementGeneration() {
-        throw new IllegalArgumentException("结算数据已改为按批次结算点自动生成，无需人工生成");
+    @Transactional
+    public Map<String, Object> generateMissingSettlements(ManualSettlementGenerationRequest request) {
+        return settlementPointService.generateMissing(request);
     }
 
     @Transactional
@@ -140,14 +182,29 @@ public class OperationalClosureService {
         return settlementModule.confirmSettlement(settlementNo);
     }
 
+    public Map<String, Object> uploadPda(PdaUploadRequest request) {
+        return pdaModule.uploadPda(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> uploadPda(Map<String, Object> body) {
         return pdaModule.uploadPda(body);
     }
 
+    public Map<String, Object> coldChainException(ColdChainExceptionRequest request) {
+        return riskModule.coldChainException(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> coldChainException(Map<String, Object> body) {
         return riskModule.coldChainException(body);
     }
 
+    public Map<String, Object> createRecall(RecallRequest request) {
+        return riskModule.createRecall(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> createRecall(Map<String, Object> body) {
         return riskModule.createRecall(body);
     }
@@ -161,15 +218,30 @@ public class OperationalClosureService {
     }
 
     @Transactional
+    public Map<String, Object> bindHighValuePatient(HighValuePatientBindingRequest request) {
+        return highValueModule.bindPatient(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> bindHighValuePatient(Map<String, Object> body) {
         return highValueModule.bindPatient(body);
     }
 
+    public Map<String, Object> highValueCharge(HighValueChargeRequest request) {
+        return highValueModule.highValueCharge(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> highValueCharge(Map<String, Object> body) {
         return highValueModule.highValueCharge(body);
     }
 
     @Transactional
+    public Map<String, Object> receiveHighValueBillingCallback(HighValueBillingCallbackRequest request) {
+        return highValueModule.receiveBillingCallback(request.toCompatibilityMap());
+    }
+
+    @Deprecated(forRemoval = true)
     public Map<String, Object> receiveHighValueBillingCallback(Map<String, Object> body) {
         return highValueModule.receiveBillingCallback(body);
     }

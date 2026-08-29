@@ -63,7 +63,7 @@ await mkdir(dirname(resultFile), { recursive: true });
 await writeFile(resultFile, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 console.log(JSON.stringify(report, null, 2));
 
-if (!report.ok) {
+if (!report.productionReady) {
   process.exitCode = 1;
 }
 

@@ -2,6 +2,7 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.supplychain.CreateRequisitionRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,15 +52,25 @@ class OperationalClosureServiceTest {
                 new OperationalHighValueModule(jdbcTemplate, support),
                 new OperationalDeliveryModule(jdbcTemplate, support),
                 new OperationalRequisitionModule(jdbcTemplate, support),
-                new OperationalConsumptionModule(jdbcTemplate, support));
+                new OperationalConsumptionModule(jdbcTemplate, support),
+                new SettlementPointService(jdbcTemplate, support));
         lenient().when(support.nextNo(any(DocumentKind.class)))
                 .thenAnswer(invocation -> ((DocumentKind) invocation.getArgument(0)).prefix() + "20260601001");
+        lenient().when(jdbcTemplate.queryForList(contains("SELECT source.warehouse_id"),
+                eq(Long.class), any())).thenReturn(List.of(1L));
     }
 
     private void populateKeyHolder(KeyHolder kh, Long keyValue) throws Exception {
         Field keyListField = GeneratedKeyHolder.class.getDeclaredField("keyList");
         keyListField.setAccessible(true);
         keyListField.set(kh, List.of(Map.of("GENERATED_KEY", keyValue)));
+    }
+
+    private static CreateRequisitionRequest requisitionRequest(Map<String, Object> body) {
+        return new CreateRequisitionRequest(
+                String.valueOf(body.get("deptName")), String.valueOf(body.get("warehouseName")),
+                null, null, null, String.valueOf(body.get("productCode")),
+                (BigDecimal) body.get("quantity"), null, null, null);
     }
 
     // ==================== list() — 8 种类型参数化测试 ====================
@@ -247,7 +258,7 @@ class OperationalClosureServiceTest {
             return 1;
         }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
 
-        Map<String, Object> result = service.createRequisition(body);
+        Map<String, Object> result = service.createRequisition(requisitionRequest(body));
 
         assertThat(result)
                 .containsEntry("requisitionNo", "SL20260601001")
@@ -299,7 +310,7 @@ class OperationalClosureServiceTest {
             return 1;
         }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
 
-        assertThatThrownBy(() -> service.createRequisition(body))
+        assertThatThrownBy(() -> service.createRequisition(requisitionRequest(body)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("department does not exist");
     }

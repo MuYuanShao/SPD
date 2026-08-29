@@ -14,6 +14,7 @@ import org.springframework.jdbc.support.KeyHolder;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
@@ -79,6 +80,39 @@ class SettlementPointServiceTest {
                 .thenReturn(List.of());
 
         assertThat(service.generateForHighValueCharge(81L)).isEmpty();
+    }
+
+    @Test
+    void manualGenerationOnlyCreatesMissingSourcesAndReportsSkippedExisting() throws Exception {
+        Map<String, Object> missing = source("department_consumption_item", 71L, 301L);
+        missing = new java.util.LinkedHashMap<>(missing);
+        missing.put("alreadySettled", 0);
+        Map<String, Object> existing = new java.util.LinkedHashMap<>(source(
+                "department_consumption_item", 72L, 302L));
+        existing.put("alreadySettled", 1);
+        when(jdbcTemplate.queryForList(contains("dc.consume_time >= ?"), any(Object[].class)))
+                .thenReturn(List.of(missing, existing));
+        when(support.nextNo(DocumentKind.SETTLEMENT_BILL)).thenReturn("JS2026072400012");
+        mockGeneratedKey(53L);
+
+        Map<String, Object> result = service.generateMissing(new ManualSettlementGenerationRequest(
+                SettlementMode.DEPARTMENT_CONSUMPTION,
+                LocalDate.of(2026, 7, 1), LocalDate.of(2026, 7, 31), null));
+
+        assertThat(result).containsEntry("billCount", 1)
+                .containsEntry("detailCount", 1)
+                .containsEntry("skippedExistingCount", 1);
+        verify(support).writeAudit("settlement_bill", "manual_generate", 53L,
+                "JS2026072400012", "settlement generated manually at department_consumption");
+    }
+
+    @Test
+    void manualGenerationRejectsRangesLongerThanThirtyOneDays() {
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.generateMissing(
+                new ManualSettlementGenerationRequest(SettlementMode.PURCHASE_IN,
+                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 2, 1), null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("31 days");
     }
 
     private Map<String, Object> source(String sourceBizType, Long sourceBizId, Long traceCodeId) {

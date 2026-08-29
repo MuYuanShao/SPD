@@ -13,13 +13,13 @@ import org.springframework.web.bind.annotation.GetMapping;
 @ConditionalOnProperty(name = "spd.web.static-dir")
 public class SpaFallbackController {
 
-    @GetMapping(value = {
-            "/",
-            "/{path:[^\\.]*}",
-            "/{path1:[^\\.]*}/{path2:[^\\.]*}",
-            "/{path1:[^\\.]*}/{path2:[^\\.]*}/{path3:[^\\.]*}"
-    })
+    @GetMapping("/")
+    public String redirectToApplication() {
+        return "redirect:/app/";
+    }
+
+    @GetMapping(value = {"/app", "/app/", "/app/{*path}"})
     public String forwardToIndex() {
-        return "forward:/index.html";
+        return "forward:/app/index.html";
     }
 }

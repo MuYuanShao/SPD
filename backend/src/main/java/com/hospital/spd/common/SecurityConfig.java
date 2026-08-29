@@ -59,8 +59,8 @@ public class SecurityConfig {
 
                 String path = request.getRequestURI();
 
-                // 一体化部署：非 /api 路径为前端静态资源，直接放行
-                if (webEnabled && !path.startsWith("/api")) {
+                // 一体化部署仅放行 GET / 与 /app/**；业务 API 即使伪造 Accept 头也仍需认证。
+                if (webEnabled && isBundledWebRequest(request)) {
                     chain.doFilter(request, response);
                     return;
                 }
@@ -137,14 +137,24 @@ public class SecurityConfig {
                     .requestMatchers("/health").permitAll()
                     .requestMatchers("/actuator/health").permitAll();
                 if (webEnabled) {
-                    // 非 /api 请求（前端页面与静态资源）在 JWT 过滤器中已放行，这里保持一致
-                    auth.requestMatchers(request -> !request.getRequestURI().startsWith("/api")).permitAll();
+                    auth.requestMatchers(SecurityConfig::isBundledWebRequest).permitAll();
                 }
                 auth.anyRequest().authenticated();
             })
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    static boolean isBundledWebRequest(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String servletPath = request.getServletPath();
+        if (servletPath == null || servletPath.isBlank() || "/".equals(servletPath)) {
+            return true;
+        }
+        return "/app".equals(servletPath) || servletPath.startsWith("/app/");
     }
 
     @Bean

@@ -7,6 +7,32 @@ This folder contains the first deployable server shape for the SPD product:
 - `frontend.Dockerfile`: builds the Vue app and serves it through Nginx.
 - `nginx.conf`: serves the SPA and proxies `/api` to the backend.
 
+## Windows Zero-Data Offline Package
+
+Build the self-contained Windows service package with:
+
+```powershell
+npm run package:offline
+```
+
+The command uses the Maven 3.9.9 Wrapper and runs the Flyway history check, full backend tests,
+frontend production build, production dependency audit, JAR content gate, package secret scan,
+and per-file SHA-256 validation. It creates:
+
+- `output/offline-bundle/spd-server/`
+- `output/offline-bundle/spd-server-offline-<version>.zip`
+- the matching `.zip.sha256`
+
+The ZIP contains the executable JAR, the frontend mounted at `/api/app/`, JDK 17, pinned WinSW,
+and Chinese install/manage entries. It contains no database dump, production configuration,
+fixed credential, source tree, Maven cache, or Node cache. On the target server, extract the ZIP
+and run `安装SPD.bat` as Administrator. The public entry remains `/api/`, which redirects to the
+bundled application; business APIs continue to use `/api/**` and require JWT authentication.
+
+The installer requires separate MySQL 8 migration and runtime accounts. Migration credentials are
+passed only through a child-process environment. The runtime account is rejected if validation finds
+`CREATE`, `ALTER`, `DROP`, or `ALL PRIVILEGES`. The installed service runs with Flyway disabled.
+
 ## Start
 
 ```powershell

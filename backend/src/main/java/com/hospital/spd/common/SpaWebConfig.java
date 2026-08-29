@@ -23,7 +23,7 @@ public class SpaWebConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         String location = staticDir.endsWith("/") || staticDir.endsWith("\\") ? staticDir : staticDir + "/";
-        registry.addResourceHandler("/**")
+        registry.addResourceHandler("/app/**")
                 .addResourceLocations("file:" + location)
                 .setCachePeriod(3600);
     }

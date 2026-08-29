@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import { featureChunkRules } from './src/config/featureCatalog'
 
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [vue()],
   build: {
     rollupOptions: {

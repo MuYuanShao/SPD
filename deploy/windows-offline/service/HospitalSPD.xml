@@ -1,0 +1,20 @@
+<service>
+  <id>HospitalSPD</id>
+  <name>院内 SPD 供应链平台</name>
+  <description>院内 SPD 供应链管理平台服务</description>
+  <executable>{{JAVA_EXE}}</executable>
+  <arguments>-Xrs -jar "{{APP_JAR}}"</arguments>
+  <workingdirectory>{{WORK_DIR}}</workingdirectory>
+  <env name="SPRING_PROFILES_ACTIVE" value="production" />
+  <env name="SPRING_FLYWAY_ENABLED" value="false" />
+  <env name="SPRING_CONFIG_ADDITIONAL_LOCATION" value="file:{{CONFIG_DIR}}" />
+  <serviceaccount><username>NT AUTHORITY\LocalService</username></serviceaccount>
+  <startmode>Automatic</startmode>
+  <delayedAutoStart>true</delayedAutoStart>
+  <onfailure action="restart" delay="10 sec" />
+  <onfailure action="restart" delay="30 sec" />
+  <resetfailure>1 hour</resetfailure>
+  <stoptimeout>30 sec</stoptimeout>
+  <logpath>{{LOG_DIR}}</logpath>
+  <log mode="roll-by-size-time"><sizeThreshold>20480</sizeThreshold><pattern>yyyyMMdd</pattern><autoRollAtTime>00:00:00</autoRollAtTime><zipOlderThanNumDays>7</zipOlderThanNumDays><zipDateFormat>yyyyMM</zipDateFormat></log>
+</service>

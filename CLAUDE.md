@@ -122,3 +122,17 @@ When project commands, directory layout, domain boundaries, or verification gate
 2. Update only the affected summary in this file.
 3. Prefer references to `AGENTS.md` over duplicating volatile detail.
 4. Check that both files describe the same product boundaries before finishing.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `MuYuanShao/SPD`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-role triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository using root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.

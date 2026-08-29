@@ -22,14 +22,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -180,6 +183,65 @@ class OperationalRequisitionModuleTest {
         verify(jdbcTemplate, times(1)).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
         verify(jdbcTemplate, times(2)).update(contains("INSERT INTO department_requisition_item"),
                 eq(99L), any(), any(), anyString(), any(), any(), any(), eq("department requisition"));
+    }
+
+    @Test
+    void rejectsCreatingRequisitionForAnotherDepartmentBeforeWriting() {
+        module = new OperationalRequisitionModule(jdbcTemplate, support, approvalFlowGuard,
+                operatorContextProvider, traceFlowService);
+        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
+                eq(Long.class), eq("Surgery"))).thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("warehouse_id = ?"), eq(Long.class), eq(20L)))
+                .thenReturn(List.of(20L));
+        when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L)))
+                .thenReturn(List.of(30L));
+        when(operatorContextProvider.current()).thenReturn(new OperatorContext(
+                8L, "dept-user", "127.0.0.1", List.of("ROLE_DEPT_USER"), 11L,
+                OperatorContext.DATA_SCOPE_DEPT));
+
+        assertThatThrownBy(() -> module.createRequisition(Map.of(
+                "deptName", "Surgery",
+                "destinationWarehouseId", 20L,
+                "sourceWarehouseId", 30L,
+                "productCode", "PC001",
+                "quantity", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("当前登录科室");
+
+        verifyNoInteractions(support);
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+    }
+
+    @Test
+    void validatesEveryItemBeforeCreatingRequisitionHeader() {
+        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
+                eq(Long.class), eq("Surgery"))).thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class),
+                eq("Main Warehouse"))).thenReturn(List.of(20L));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("PC001")))
+                .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "Syringe",
+                        "unit", "piece", "purchasePrice", BigDecimal.TEN, "highValue", 0));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("PC002")))
+                .thenReturn(Map.of("productId", 101L, "productCode", "PC002", "productName", "Gauze",
+                        "unit", "piece", "purchasePrice", BigDecimal.ONE, "highValue", 0));
+        when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), eq(100L))).thenReturn(1L);
+        when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), eq(101L))).thenReturn(0L);
+
+        assertThatThrownBy(() -> module.createRequisition(Map.of(
+                "deptName", "Surgery",
+                "warehouseName", "Main Warehouse",
+                "items", List.of(
+                        Map.of("productCode", "PC001", "quantity", BigDecimal.ONE),
+                        Map.of("productCode", "PC002", "quantity", BigDecimal.ONE)))))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("科室库房目录");
+
+        verifyNoInteractions(support);
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+        verify(jdbcTemplate, never()).update(contains("INSERT INTO department_requisition_item"),
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     private void mockProduct() {

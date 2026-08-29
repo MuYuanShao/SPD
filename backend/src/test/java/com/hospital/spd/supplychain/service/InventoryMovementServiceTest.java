@@ -15,9 +15,11 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -114,6 +116,82 @@ class InventoryMovementServiceTest {
                 .hasMessageContaining("negative stock is not allowed");
 
         verifyNoInteractions(inventoryEventService);
+    }
+
+    @Test
+    void shouldDeductAcrossFifoBatchesAndRecordEachMovement() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        Map<String, Object> first = balance(10L, 20L, "2.0000", "5.0000");
+        Map<String, Object> second = balance(11L, 21L, "5.0000", "6.0000");
+        BigDecimal requestedQty = new BigDecimal("4.0000");
+        BigDecimal firstQty = new BigDecimal("2.0000");
+        BigDecimal secondQty = new BigDecimal("2.0000");
+        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(first, second));
+        when(jdbcTemplate.update(contains("available_qty = available_qty -"), any(), any(), any()))
+                .thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
+                .thenReturn(BigDecimal.ZERO);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(11L)))
+                .thenReturn(new BigDecimal("3.0000"));
+        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
+                firstQty.negate(), BigDecimal.ZERO, "sign delivery")).thenReturn(77L);
+        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 21L,
+                secondQty.negate(), new BigDecimal("3.0000"), "sign delivery")).thenReturn(78L);
+
+        List<InventoryMovementService.InventoryDeduction> deductions = service.consumeAvailableFifo(
+                1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery");
+
+        assertThat(deductions).containsExactly(
+                new InventoryMovementService.InventoryDeduction(20L, firstQty, new BigDecimal("5.0000")),
+                new InventoryMovementService.InventoryDeduction(21L, secondQty, new BigDecimal("6.0000")));
+        verify(inventoryEventService).record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
+                firstQty.negate(), BigDecimal.ZERO, "sign delivery");
+        verify(inventoryEventService).record("delivery_out", "delivery_order", 99L, 1L, 2L, 21L,
+                secondQty.negate(), new BigDecimal("3.0000"), "sign delivery");
+    }
+
+    @Test
+    void shouldRejectAggregateShortageBeforeBalanceOrEventWrites() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L)))
+                .thenReturn(List.of(balance(10L, 20L, "2.0000", "5.0000")));
+
+        assertThatThrownBy(() -> service.consumeAvailableFifo(
+                1L, 2L, new BigDecimal("3.0000"), "delivery_out", "delivery_order", 99L, "sign delivery"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("negative stock is not allowed");
+
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+        verifyNoInteractions(inventoryEventService);
+    }
+
+    @Test
+    void shouldRejectSpecificBatchOverdrawWithoutRecordingEvent() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L), eq(20L)))
+                .thenReturn(List.of(balance()));
+        BigDecimal requestedQty = new BigDecimal("11.0000");
+        when(jdbcTemplate.update(contains("available_qty = available_qty -"),
+                eq(requestedQty), eq(10L), eq(requestedQty))).thenReturn(0);
+
+        assertThatThrownBy(() -> service.consumeSpecificBatch(
+                1L, 2L, 20L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("negative stock is not allowed");
+
+        verifyNoInteractions(inventoryEventService);
+    }
+
+    @Test
+    void shouldRejectTransferWithinSameWarehouseBeforeInventoryAccess() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+
+        assertThatThrownBy(() -> service.transferAvailableFifo(
+                1L, 1L, 2L, BigDecimal.ONE, "warehouse_transfer", 99L, "same warehouse"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must be different");
+
+        verifyNoInteractions(jdbcTemplate, inventoryEventService);
     }
 
     @Test
@@ -232,11 +310,16 @@ class InventoryMovementServiceTest {
     }
 
     private static Map<String, Object> balance() {
+        return balance(10L, 20L, "10.0000", "5.0000");
+    }
+
+    private static Map<String, Object> balance(Long balanceId, Long batchId,
+                                               String availableQty, String unitPrice) {
         Map<String, Object> row = new HashMap<>();
-        row.put("balanceId", 10L);
-        row.put("batchId", 20L);
-        row.put("availableQty", new BigDecimal("10.0000"));
-        row.put("unitPrice", new BigDecimal("5.0000"));
+        row.put("balanceId", balanceId);
+        row.put("batchId", batchId);
+        row.put("availableQty", new BigDecimal(availableQty));
+        row.put("unitPrice", new BigDecimal(unitPrice));
         return row;
     }
 }

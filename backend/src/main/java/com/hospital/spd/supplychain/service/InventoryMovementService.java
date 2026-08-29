@@ -3,6 +3,7 @@ package com.hospital.spd.supplychain.service;
 import com.hospital.spd.common.service.InventoryEventService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -13,6 +14,7 @@ import java.util.Map;
  * Owns inventory balance mutations and the matching immutable inventory events.
  */
 @Service
+@Transactional
 public class InventoryMovementService {
 
     private static final String INSUFFICIENT_INVENTORY_MESSAGE =
@@ -63,6 +65,12 @@ public class InventoryMovementService {
                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
                  FOR UPDATE
                 """, warehouseId, productId);
+        BigDecimal totalAvailable = balances.stream()
+                .map(balance -> (BigDecimal) balance.get("availableQty"))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (totalAvailable.compareTo(requiredQty) < 0) {
+            throw new IllegalArgumentException(INSUFFICIENT_INVENTORY_MESSAGE);
+        }
         BigDecimal remaining = requiredQty;
         List<InventoryDeduction> deductions = new ArrayList<>();
         for (Map<String, Object> balance : balances) {

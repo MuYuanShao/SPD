@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,7 +28,7 @@ class DocumentNumberServiceTest {
 
         assertThat(value).startsWith("CG");
         assertThat(value).endsWith("007");
-        verify(jdbcTemplate).execute(anyString());
+        verify(jdbcTemplate, never()).execute(anyString());
         verify(jdbcTemplate).update(anyString(), eq(value.substring(0, value.length() - 3)), eq(1L), eq(0L));
     }
 

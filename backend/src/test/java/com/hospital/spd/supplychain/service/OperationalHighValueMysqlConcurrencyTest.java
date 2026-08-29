@@ -18,6 +18,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @SpringBootTest(properties = "spring.flyway.ignore-migration-patterns=*:missing")
 @ActiveProfiles("local")
@@ -25,7 +26,52 @@ import static org.assertj.core.api.Assertions.assertThat;
 class OperationalHighValueMysqlConcurrencyTest {
 
     @Autowired OperationalHighValueModule module;
+    @Autowired InventoryMovementService inventoryMovementService;
     @Autowired JdbcTemplate jdbcTemplate;
+
+    @Test
+    void inventoryMovementRollsBackBalanceWhenEventRecordingFails() {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap("""
+                SELECT balance_id AS balanceId, available_qty AS availableQty,
+                       warehouse_id AS warehouseId, product_id AS productId, batch_id AS batchId
+                  FROM inventory_balance
+                 WHERE available_qty >= 1
+                 ORDER BY balance_id
+                 LIMIT 1
+                """);
+        BigDecimal before = (BigDecimal) fixture.get("availableQty");
+        String eventType = "atomic_" + UUID.randomUUID().toString().substring(0, 8);
+        int eventsBefore = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_event WHERE event_type = ?", Integer.class, eventType);
+
+        try {
+            Throwable failure = catchThrowable(() -> inventoryMovementService.consumeSpecificBatch(
+                    ((Number) fixture.get("warehouseId")).longValue(),
+                    ((Number) fixture.get("productId")).longValue(),
+                    ((Number) fixture.get("batchId")).longValue(),
+                    BigDecimal.ONE,
+                    eventType,
+                    "inventory_atomicity_test",
+                    null,
+                    "force event failure after balance mutation"));
+            assertThat(failure).isInstanceOf(RuntimeException.class);
+
+            BigDecimal after = jdbcTemplate.queryForObject(
+                    "SELECT available_qty FROM inventory_balance WHERE balance_id = ?",
+                    BigDecimal.class,
+                    fixture.get("balanceId"));
+            assertThat(after).isEqualByComparingTo(before);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM inventory_event WHERE event_type = ?", Integer.class, eventType))
+                    .isEqualTo(eventsBefore);
+        } finally {
+            jdbcTemplate.update("""
+                    UPDATE inventory_balance
+                       SET available_qty = ?
+                     WHERE balance_id = ? AND available_qty = ?
+                    """, before, fixture.get("balanceId"), before.subtract(BigDecimal.ONE));
+        }
+    }
 
     @Test
     void concurrentBillingCallbacksDeductInventoryExactlyOnce() throws Exception {

@@ -91,3 +91,202 @@ test('拣配配送在没有历史记录时显示明确空状态', async ({ page 
   await expect(page.getByRole('heading', { name: '拣配记录' })).toBeVisible()
   await expect(page.getByText('暂无拣配记录')).toBeVisible()
 })
+
+test('科室申领从历史列表进入当前科室目录并按申领模式折算提交', async ({ page }) => {
+  let catalogCallCount = 0
+  let requisitionPostCount = 0
+  let catalogRequestUrl = ''
+  let submittedPayload: Record<string, unknown> | undefined
+  const ok = (data: unknown) => JSON.stringify({
+    code: 0,
+    message: 'success',
+    data,
+    timestamp: new Date().toISOString()
+  })
+
+  await page.route('**/api/operational-closure/options', route => route.fulfill({
+    contentType: 'application/json',
+    body: ok({
+      departments: [{ deptCode: 'SURG', deptName: '手术室' }],
+      warehouses: [],
+      products: [],
+      balances: []
+    })
+  }))
+  await page.route('**/api/operational-closure/lists/requisition**', route => route.fulfill({
+    contentType: 'application/json',
+    body: ok({
+      rows: [{
+        bizNo: 'SL-HISTORY-001',
+        deptName: '手术室',
+        warehouseName: '手术室二级库',
+        applicantName: '测试用户',
+        createTime: '2026-08-29 09:00',
+        totalQuantity: 3,
+        totalAmount: 30,
+        status: 'pending_approval'
+      }],
+      total: 1,
+      page: 1,
+      size: 20
+    })
+  }))
+  await page.route('**/api/master-data/departments/SURG/warehouses', route => route.fulfill({
+    contentType: 'application/json',
+    body: ok([{ code: 'WH-SURG', name: '手术室二级库', selected: 1 }])
+  }))
+  await page.route('**/api/quota-packages/requisition-catalog**', route => {
+    catalogCallCount += 1
+    catalogRequestUrl = route.request().url()
+    return route.fulfill({
+      contentType: 'application/json',
+      body: ok({
+        rows: [
+          {
+            productId: 1,
+            productCode: 'LOW-001',
+            productName: '散货耗材',
+            specModel: 'L',
+            manufacturerName: '测试厂家',
+            supplierName: '测试供应商',
+            baseUnit: '支',
+            purchaseUnit: '支',
+            conversionRate: 1,
+            unitPrice: 2,
+            quotaManaged: 0,
+            highValue: 0,
+            centralized: 0,
+            chargeable: 0,
+            looseAvailableQty: 20,
+            packageAvailableQty: 0,
+            uniqueCodeAvailableQty: 0,
+            templateCode: '-',
+            templateName: '-',
+            packageQuantity: null,
+            packageUnit: '支',
+            defaultMode: 'loose',
+            requisitionStatus: '散货申领'
+          },
+          {
+            productId: 2,
+            productCode: 'PKG-001',
+            productName: '定数包耗材',
+            specModel: 'P',
+            manufacturerName: '测试厂家',
+            supplierName: '测试供应商',
+            baseUnit: '支',
+            purchaseUnit: '包',
+            conversionRate: 10,
+            unitPrice: 1,
+            quotaManaged: 1,
+            highValue: 0,
+            centralized: 0,
+            chargeable: 0,
+            looseAvailableQty: 50,
+            packageAvailableQty: 3,
+            uniqueCodeAvailableQty: 0,
+            templateCode: 'TP-001',
+            templateName: '手术室定数包',
+            packageQuantity: 10,
+            packageUnit: '支',
+            defaultMode: 'quota_package',
+            requisitionStatus: '定数包优先'
+          },
+          {
+            productId: 3,
+            productCode: 'HV-001',
+            productName: '高值耗材',
+            specModel: 'H',
+            manufacturerName: '测试厂家',
+            supplierName: '测试供应商',
+            baseUnit: '个',
+            purchaseUnit: '个',
+            conversionRate: 1,
+            unitPrice: 100,
+            quotaManaged: 0,
+            highValue: 1,
+            centralized: 0,
+            chargeable: 1,
+            looseAvailableQty: 0,
+            packageAvailableQty: 0,
+            uniqueCodeAvailableQty: 2,
+            templateCode: '-',
+            templateName: '-',
+            packageQuantity: null,
+            packageUnit: '个',
+            defaultMode: 'unique_code',
+            requisitionStatus: '高值唯一码申领'
+          }
+        ],
+        total: 3,
+        page: 1,
+        size: 20
+      })
+    })
+  })
+  await page.route('**/api/operational-closure/requisitions', async route => {
+    requisitionPostCount += 1
+    submittedPayload = route.request().postDataJSON()
+    await route.fulfill({
+      contentType: 'application/json',
+      body: ok({ requisitionNo: 'SL-NEW-001', status: 'pending_approval', itemCount: 3 })
+    })
+  })
+
+  await page.goto('/features/department-requisition')
+  await login(page)
+
+  await expect(page.getByText('SL-HISTORY-001')).toBeVisible()
+  expect(catalogCallCount).toBe(0)
+  await page.getByRole('button', { name: '新增申领' }).click()
+  await expect(page.getByText('LOW-001')).toBeVisible()
+  expect(catalogCallCount).toBeGreaterThan(0)
+  const catalogUrl = new URL(catalogRequestUrl)
+  expect(catalogUrl.searchParams.get('deptName')).toBe('手术室')
+  expect(catalogUrl.searchParams.get('warehouseName')).toBe('手术室二级库')
+  expect(catalogUrl.searchParams.get('page')).toBe('1')
+  expect(catalogUrl.searchParams.get('size')).toBe('20')
+
+  const looseRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'LOW-001' })
+  const packageRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'PKG-001' })
+  const highValueRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'HV-001' })
+  await looseRow.locator('input[type="checkbox"]').check()
+  await looseRow.locator('input[type="number"]').fill('2')
+  await packageRow.locator('input[type="checkbox"]').check()
+  await packageRow.locator('input[type="number"]').fill('2')
+  await highValueRow.locator('input[type="checkbox"]').check()
+
+  await page.getByRole('button', { name: /提交申领/ }).click()
+  await expect(page.getByText(/请为高值耗材.*扫描或输入唯一码/)).toBeVisible()
+  expect(requisitionPostCount).toBe(0)
+
+  await highValueRow.locator('.selected-code-input').fill('UDI-HV-1, UDI-HV-2')
+  await page.getByRole('button', { name: /提交申领/ }).click()
+  await expect(page.getByText(/申请单号：SL-NEW-001/)).toBeVisible()
+  expect(requisitionPostCount).toBe(1)
+  expect(submittedPayload).toEqual({
+    deptName: '手术室',
+    warehouseName: '手术室二级库',
+    items: [
+      {
+        productCode: 'LOW-001',
+        quantity: 2,
+        requisitionMode: 'loose',
+        templateCode: '-'
+      },
+      {
+        productCode: 'PKG-001',
+        quantity: 20,
+        requisitionMode: 'quota_package',
+        templateCode: 'TP-001'
+      },
+      {
+        productCode: 'HV-001',
+        quantity: 2,
+        requisitionMode: 'unique_code',
+        templateCode: '-',
+        uniqueCodes: 'UDI-HV-1, UDI-HV-2'
+      }
+    ]
+  })
+})

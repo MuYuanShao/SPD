@@ -5,6 +5,7 @@ import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,15 +15,21 @@ import org.springframework.jdbc.support.KeyHolder;
 
 import java.lang.reflect.Field;
 import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -115,6 +122,70 @@ class SettlementPointServiceTest {
                 .hasMessageContaining("31 days");
     }
 
+    @Test
+    void groupsBillsBySupplierAndPeriodAndSumsDetailAmounts() throws Exception {
+        Map<String, Object> first = new java.util.LinkedHashMap<>(source("receiving_order_item", 41L, null));
+        Map<String, Object> second = new java.util.LinkedHashMap<>(source("receiving_order_item", 42L, null));
+        second.put("amount", BigDecimal.TEN);
+        Map<String, Object> anotherSupplier = new java.util.LinkedHashMap<>(
+                source("receiving_order_item", 43L, null));
+        anotherSupplier.put("supplierId", 6L);
+        when(jdbcTemplate.queryForList(contains("ib.settlement_mode = 'purchase_in'"), eq(31L)))
+                .thenReturn(List.of(first, second, anotherSupplier));
+        when(support.nextNo(DocumentKind.SETTLEMENT_BILL))
+                .thenReturn("JS2026072400020", "JS2026072400021");
+        PreparedStatement statement = mock(PreparedStatement.class);
+        Connection connection = mock(Connection.class);
+        when(connection.prepareStatement(any(String.class), eq(Statement.RETURN_GENERATED_KEYS)))
+                .thenReturn(statement);
+        AtomicInteger keyIndex = new AtomicInteger();
+        doAnswer(invocation -> {
+            PreparedStatementCreator creator = invocation.getArgument(0);
+            creator.createPreparedStatement(connection);
+            setGeneratedKey(invocation.getArgument(1), List.of(61L, 62L).get(keyIndex.getAndIncrement()));
+            return 1;
+        }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+
+        List<String> settlementNos = service.generateForReceivingOrder(31L);
+
+        assertThat(settlementNos).containsExactly("JS2026072400020", "JS2026072400021");
+        verify(statement).setBigDecimal(5, BigDecimal.valueOf(30));
+        verify(statement).setBigDecimal(5, BigDecimal.valueOf(20));
+    }
+
+    @Test
+    void manualGenerationPassesSupplierFilterAfterInclusiveDateRange() {
+        when(jdbcTemplate.queryForList(contains("AND ib.supplier_id = ?"), any(Object[].class)))
+                .thenReturn(List.of());
+        ArgumentCaptor<Object[]> args = ArgumentCaptor.forClass(Object[].class);
+
+        service.generateMissing(new ManualSettlementGenerationRequest(
+                SettlementMode.PURCHASE_IN,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 31),
+                9L));
+
+        verify(jdbcTemplate).queryForList(contains("AND ib.supplier_id = ?"), args.capture());
+        assertThat(args.getValue()).containsExactly(
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 8, 1),
+                9L);
+    }
+
+    @Test
+    void manualGenerationRejectsMissingOrReversedDateRange() {
+        assertThatThrownBy(() -> service.generateMissing(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("required");
+        assertThatThrownBy(() -> service.generateMissing(new ManualSettlementGenerationRequest(
+                SettlementMode.ACTUAL_SALE,
+                LocalDate.of(2026, 7, 2),
+                LocalDate.of(2026, 7, 1),
+                null)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("must not precede");
+    }
+
     private Map<String, Object> source(String sourceBizType, Long sourceBizId, Long traceCodeId) {
         Map<String, Object> row = new java.util.LinkedHashMap<>();
         row.put("supplierId", 5L);
@@ -133,10 +204,14 @@ class SettlementPointServiceTest {
     private void mockGeneratedKey(Long key) throws Exception {
         doAnswer(invocation -> {
             KeyHolder keyHolder = invocation.getArgument(1);
-            Field keyListField = GeneratedKeyHolder.class.getDeclaredField("keyList");
-            keyListField.setAccessible(true);
-            keyListField.set(keyHolder, List.of(Map.of("GENERATED_KEY", key)));
+            setGeneratedKey(keyHolder, key);
             return 1;
         }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+    }
+
+    private void setGeneratedKey(KeyHolder keyHolder, Long key) throws Exception {
+        Field keyListField = GeneratedKeyHolder.class.getDeclaredField("keyList");
+        keyListField.setAccessible(true);
+        keyListField.set(keyHolder, List.of(Map.of("GENERATED_KEY", key)));
     }
 }

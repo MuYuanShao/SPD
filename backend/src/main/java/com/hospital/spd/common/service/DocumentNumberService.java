@@ -1,5 +1,6 @@
 package com.hospital.spd.common.service;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -49,7 +50,6 @@ public class DocumentNumberService {
     }
 
     private String next(String prefix, int width, Long existingMax) {
-        ensureSequenceTable();
         String seqKey = prefix + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
         long floor = existingMax == null ? 0L : existingMax;
         long seed = floor + 1;
@@ -78,7 +78,8 @@ public class DocumentNumberService {
     /**
      * Keeps numbering self-contained so each business service can rely on the shared allocator.
      */
-    private void ensureSequenceTable() {
+    @PostConstruct
+    void ensureSequenceTable() {
         jdbcTemplate.execute("""
                 CREATE TABLE IF NOT EXISTS sys_sequence (
                   seq_key    VARCHAR(100) NOT NULL,

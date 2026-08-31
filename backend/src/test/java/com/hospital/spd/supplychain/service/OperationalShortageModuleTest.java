@@ -19,6 +19,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -134,6 +135,7 @@ class OperationalShortageModuleTest {
                 eq(88L), eq("PC001"), eq("Gauze"), eq(BigDecimal.valueOf(5)), eq(BigDecimal.valueOf(9)),
                 eq(BigDecimal.valueOf(20)), eq(BigDecimal.valueOf(40)), eq(BigDecimal.valueOf(4)),
                 eq(BigDecimal.valueOf(5)), eq("近7天出库量 - 当前库存"));
+        verify(jdbcTemplate, never()).execute(anyString());
     }
 
     @Test

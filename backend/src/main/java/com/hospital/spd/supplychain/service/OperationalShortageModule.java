@@ -165,13 +165,12 @@ public class OperationalShortageModule {
         BigDecimal issue7 = decimalValue(row.get("issue7"));
         BigDecimal issue15 = decimalValue(row.get("issue15"));
         BigDecimal issue30 = decimalValue(row.get("issue30"));
-        BigDecimal selectedIssueQty = switch (selectedPeriodDays) {
-            case 5 -> issue5;
-            case 15 -> issue15;
-            case 30 -> issue30;
-            default -> issue7;
-        };
-        BigDecimal recommendedQty = selectedIssueQty.subtract(currentQty).max(BigDecimal.ZERO);
+        ReplenishmentSuggestionCalculator.Result calculation = ReplenishmentSuggestionCalculator.calculate(
+                Map.of(5, issue5, 7, issue7, 15, issue15, 30, issue30),
+                selectedPeriodDays,
+                currentQty,
+                BigDecimal.ZERO,
+                false);
         Map<String, Object> suggestion = new LinkedHashMap<>();
         suggestion.put("deptName", String.valueOf(row.get("deptName")));
         suggestion.put("warehouseName", String.valueOf(row.get("warehouseName")));
@@ -182,14 +181,13 @@ public class OperationalShortageModule {
         suggestion.put("issue15", issue15);
         suggestion.put("issue30", issue30);
         suggestion.put("currentQty", currentQty);
-        suggestion.put("selectedIssueQty", selectedIssueQty);
-        suggestion.put("recommendedQty", recommendedQty);
+        suggestion.put("selectedIssueQty", calculation.selectedIssueQty());
+        suggestion.put("recommendedQty", calculation.recommendedQty());
         suggestion.put("formulaText", "近" + selectedPeriodDays + "天出库量 - 当前库存");
         return suggestion;
     }
 
     private Long storeAnalysis(String deptName, String warehouseName, int selectedPeriodDays, List<Map<String, Object>> rows) {
-        ensureAnalysisTables();
         jdbcTemplate.update("""
                 INSERT INTO replenishment_smart_analysis (
                   dept_name, warehouse_name, selected_period_days, item_count, total_recommended_qty
@@ -223,40 +221,6 @@ public class OperationalShortageModule {
                     row.get("formulaText"));
         }
         return id;
-    }
-
-    private void ensureAnalysisTables() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS replenishment_smart_analysis (
-                  analysis_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分析ID',
-                  dept_name VARCHAR(80) NOT NULL COMMENT '科室名称',
-                  warehouse_name VARCHAR(80) NOT NULL COMMENT '库房名称',
-                  selected_period_days INT NOT NULL COMMENT '选择周期天数',
-                  item_count INT NOT NULL DEFAULT 0 COMMENT '分析商品数',
-                  total_recommended_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '建议补货总量',
-                  analysis_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '分析时间',
-                  PRIMARY KEY (analysis_id),
-                  KEY idx_dept_warehouse_time (dept_name, warehouse_name, analysis_time)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='智能补货分析主表'
-                """);
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS replenishment_smart_analysis_item (
-                  item_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '分析明细ID',
-                  analysis_id BIGINT UNSIGNED NOT NULL COMMENT '分析ID',
-                  product_code VARCHAR(50) NOT NULL COMMENT '商品编码',
-                  product_name VARCHAR(120) NOT NULL COMMENT '商品名称',
-                  issue_5_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '5天出库数量',
-                  issue_7_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '7天出库数量',
-                  issue_15_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '15天出库数量',
-                  issue_30_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '30天出库数量',
-                  current_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '当前库存',
-                  recommended_qty DECIMAL(18,4) NOT NULL DEFAULT 0 COMMENT '建议补货数量',
-                  formula_text VARCHAR(255) DEFAULT NULL COMMENT '公式说明',
-                  PRIMARY KEY (item_id),
-                  KEY idx_analysis_id (analysis_id),
-                  KEY idx_product_code (product_code)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='智能补货分析明细表'
-                """);
     }
 
     private String resolveLinkedWarehouse(String deptName, String requestedWarehouseName) {

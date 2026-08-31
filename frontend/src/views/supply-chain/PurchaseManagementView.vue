@@ -21,7 +21,9 @@ import {
   X
 } from '@lucide/vue'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
+import EmptyState from '../../components/common/EmptyState.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const {
@@ -538,7 +540,7 @@ async function handleOrderAttachmentUpload(event: Event) {
           <span>建议总量：{{ smartTotalRecommendedQty }}</span>
           <span>结果：{{ smartRows.length }} 条</span>
         </div>
-        <p v-if="smartAnalysisError" class="inline-message analysis-error">{{ smartAnalysisError }}</p>
+        <StatusMessage :message="smartAnalysisError" tone="error" />
 
         <div class="table-scroll">
           <table class="master-table purchase-table smart-replenishment-table">
@@ -559,10 +561,10 @@ async function handleOrderAttachmentUpload(event: Event) {
             </thead>
             <tbody>
               <tr v-if="smartAnalysisLoading">
-                <td colspan="11" class="approval-empty">正在分析一级库出二级库数据...</td>
+                <td colspan="11" class="approval-empty"><EmptyState message="正在分析一级库实际拣配出库数据..." /></td>
               </tr>
               <tr v-else-if="smartRows.length === 0">
-                <td colspan="11" class="approval-empty">暂无可补货建议</td>
+                <td colspan="11" class="approval-empty"><EmptyState message="暂无可补货建议" /></td>
               </tr>
               <tr v-for="row in smartRows" v-else :key="`${row.warehouseCode}-${row.productCode}`">
                 <td>{{ row.warehouseName }}</td>

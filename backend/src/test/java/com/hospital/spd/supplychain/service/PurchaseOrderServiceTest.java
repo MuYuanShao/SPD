@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -573,6 +574,41 @@ class PurchaseOrderServiceTest {
             assertThat(result.get("demandNo")).isEqualTo("XQ20260601001");
             assertThat(result.get("suggestedPurchaseQty")).isInstanceOf(BigDecimal.class);
         }
+
+        @Test
+        @DisplayName("智能补货人工调整写回分析并关联采购需求")
+        void shouldTraceSmartAnalysisAdjustmentsWhenCreatingDemand() {
+            Map<String, Object> request = Map.of(
+                    "analysisId", 88L,
+                    "demandSource", "智能补货分析",
+                    "remark", "人工确认",
+                    "items", List.of(Map.of("productCode", "P001", "quantity", BigDecimal.valueOf(12))),
+                    "analysisAdjustments", List.of(Map.of(
+                            "warehouseCode", "WH-A", "productCode", "P001", "quantity", BigDecimal.valueOf(12)))
+            );
+            when(jdbcTemplate.queryForMap(contains("FROM purchase_replenishment_analysis"), eq(88L)))
+                    .thenReturn(Map.of("analysisNo", "CGFX2026070200001", "analysisStatus", "analyzed"));
+        when(jdbcTemplate.queryForMap(contains("FROM product"), eq("P001")))
+                    .thenReturn(Map.of("productId", 10L, "minPurchaseQty", BigDecimal.ONE,
+                            "purchasePrice", BigDecimal.valueOf(100)));
+            when(support.nextNo(DocumentKind.PURCHASE_DEMAND)).thenReturn("XQ2026070200001");
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createDemand(request);
+
+            assertThat(result)
+                    .containsEntry("analysisId", 88L)
+                    .containsEntry("analysisNo", "CGFX2026070200001")
+                    .containsEntry("demandNo", "XQ2026070200001");
+            verify(jdbcTemplate).update(contains("manual_adjusted_qty = ?"),
+                    eq(BigDecimal.valueOf(12)), eq(88L), eq("WH-A"), eq("P001"));
+            verify(jdbcTemplate).update(contains("analysis_status = 'demand_created'"),
+                    eq(BigDecimal.valueOf(12)), eq("XQ2026070200001"), eq(88L));
+            verify(jdbcTemplate).update(contains("INSERT INTO purchase_demand"),
+                    eq("XQ2026070200001"), eq("智能补货分析"), eq("normal"), eq(null), eq(10L),
+                    eq(BigDecimal.valueOf(12)), eq(BigDecimal.valueOf(12)),
+                    contains("CGFX2026070200001"));
+        }
     }
 
     // ==================== 采购计划 ====================
@@ -660,6 +696,27 @@ class PurchaseOrderServiceTest {
             assertThat(rows.get(0))
                     .containsEntry("formulaReplenishQty", BigDecimal.ONE)
                     .containsEntry("recommendedQty", new BigDecimal("10"));
+        }
+
+        @Test
+        @DisplayName("按实际配送及来源一级库统计补货分析")
+        void shouldUsePickedDeliveriesAndTheirSourceWarehouse() throws Exception {
+            when(support.nextNo(DocumentKind.PURCHASE_REPLENISHMENT_ANALYSIS))
+                    .thenReturn("CGFX2026070200003");
+            when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+            mockKeyHolderInsert(jdbcTemplate, 90L);
+            ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+
+            service.smartReplenishmentAnalysis(Map.of("periodDays", "30"));
+
+            verify(jdbcTemplate).queryForList(sql.capture());
+            assertThat(sql.getValue())
+                    .contains("FROM spd_delivery_order")
+                    .contains("dr.source_warehouse_id")
+                .contains("pw.warehouse_id = delivery.warehouse_id")
+                    .contains("sdo.status IN ('picked', 'signed')")
+                    .doesNotContain("ORDER BY warehouse_id LIMIT 1")
+                    .doesNotContain("dr.status = 'approved'");
         }
     }
 

@@ -22,6 +22,7 @@ import {
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import {
   bindHighValuePatient,
   confirmLoosePicking,
@@ -710,6 +711,8 @@ function updateAnalysisQty(row: Record<string, unknown>, event: Event) {
 }
 
 async function createTaskFromAnalysis(row: Record<string, unknown>) {
+  form.deptName = String(row.deptName || form.deptName || '')
+  form.warehouseName = String(row.warehouseName || form.warehouseName || '')
   form.productCode = String(row.productCode || '')
   form.currentQty = Number(row.currentQty || 0)
   form.replenishQty = Number(row.recommendedQty || 0)
@@ -822,6 +825,7 @@ watch(() => form.productCode, () => {
         <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
           <span>科室</span>
           <select v-model="form.deptName">
+            <option v-if="type === 'shortage'" value="">全院</option>
             <option v-for="item in options.departments" :key="item.deptName" :value="item.deptName">{{ item.deptName }}</option>
           </select>
         </label>
@@ -1397,13 +1401,14 @@ watch(() => form.productCode, () => {
           <span>公式：周期内科室出库数量 - 当前库房库存</span>
           <span>结果：{{ analysisRows.length }} 条建议</span>
         </div>
-        <p v-if="analysisError" class="inline-message analysis-error">{{ analysisError }}</p>
+        <StatusMessage :message="analysisError" tone="error" />
 
         <div class="table-scroll">
           <table class="master-table replenishment-analysis-table">
             <thead>
               <tr>
                 <th>商品</th>
+                <th>科室 / 库房</th>
                 <th>5 天出库</th>
                 <th>7 天出库</th>
                 <th>15 天出库</th>
@@ -1415,15 +1420,23 @@ watch(() => form.productCode, () => {
             </thead>
             <tbody>
               <tr v-if="analysisLoading">
-                <td colspan="8" class="approval-empty">正在分析周期出库数据...</td>
+                <td colspan="9" class="approval-empty"><EmptyState message="正在分析周期出库数据..." /></td>
               </tr>
               <tr v-else-if="analysisRows.length === 0">
-                <td colspan="8" class="approval-empty">暂无可补货建议</td>
+                <td colspan="9" class="approval-empty"><EmptyState message="暂无可补货建议" /></td>
               </tr>
-              <tr v-for="row in analysisRows" v-else :key="String(row.productCode)">
+              <tr
+                v-for="row in analysisRows"
+                v-else
+                :key="`${row.deptName}-${row.warehouseName}-${row.productCode}`"
+              >
                 <td>
                   <strong>{{ row.productName || '-' }}</strong>
                   <span class="muted-cell">{{ row.productCode || '-' }}</span>
+                </td>
+                <td>
+                  <strong>{{ row.deptName || '-' }}</strong>
+                  <span class="muted-cell">{{ row.warehouseName || '-' }}</span>
                 </td>
                 <td>{{ row.issue5 ?? 0 }}</td>
                 <td>{{ row.issue7 ?? 0 }}</td>

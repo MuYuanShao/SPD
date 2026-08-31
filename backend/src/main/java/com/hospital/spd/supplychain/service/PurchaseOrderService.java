@@ -302,12 +302,56 @@ public class PurchaseOrderService {
             ));
         }
 
+        Long analysisId = nullableLong(request.get("analysisId"));
+        String analysisNo = null;
+        BigDecimal adjustedTotal = null;
+        if (analysisId != null) {
+            Map<String, Object> analysis = jdbcTemplate.queryForMap("""
+                    SELECT analysis_no AS analysisNo, analysis_status AS analysisStatus
+                      FROM purchase_replenishment_analysis
+                     WHERE analysis_id = ?
+                     FOR UPDATE
+                    """, analysisId);
+            analysisNo = stringValue(analysis.get("analysisNo"));
+            if (!"analyzed".equals(stringValue(analysis.get("analysisStatus")))) {
+                throw new IllegalArgumentException("smart replenishment analysis has already generated a demand");
+            }
+            Object rawAdjustments = request.get("analysisAdjustments");
+            if (!(rawAdjustments instanceof List<?> adjustments) || adjustments.isEmpty()) {
+                throw new IllegalArgumentException("analysis adjustments are required");
+            }
+            adjustedTotal = BigDecimal.ZERO;
+            for (Object rawAdjustment : adjustments) {
+                if (!(rawAdjustment instanceof Map<?, ?> adjustment)) {
+                    throw new IllegalArgumentException("analysis adjustment is invalid");
+                }
+                String warehouseCode = stringValue(adjustment.get("warehouseCode"));
+                String productCode = stringValue(adjustment.get("productCode"));
+                BigDecimal quantity = decimalValue(adjustment.get("quantity"), null);
+                if (warehouseCode.isBlank() || productCode.isBlank() || quantity == null || quantity.signum() < 0) {
+                    throw new IllegalArgumentException("analysis adjustment warehouse, product and quantity are required");
+                }
+                int updated = jdbcTemplate.update("""
+                        UPDATE purchase_replenishment_analysis_item
+                           SET manual_adjusted_qty = ?
+                         WHERE analysis_id = ? AND warehouse_code = ? AND product_code = ?
+                        """, quantity, analysisId, warehouseCode, productCode);
+                if (updated != 1) {
+                    throw new IllegalArgumentException("analysis adjustment does not match the analysis snapshot");
+                }
+                adjustedTotal = adjustedTotal.add(quantity);
+            }
+        }
+
         String demandNo = support.nextNo(PURCHASE_DEMAND);
         Long deptId = findDeptId(stringValue(request.get("deptName")));
         BigDecimal totalSuggested = BigDecimal.ZERO;
         String source = defaultText(request.get("demandSource"), "manual");
         String urgent = defaultText(request.get("urgentLevel"), "normal");
-        String remark = nullIfBlank(stringValue(request.get("remark")));
+        String userRemark = stringValue(request.get("remark"));
+        String remark = analysisNo == null
+                ? nullIfBlank(userRemark)
+                : "智能补货分析 " + analysisNo + " 生成" + (userRemark.isBlank() ? "" : "；" + userRemark);
 
         for (Map<String, Object> item : items) {
             String productCode = stringValue(item.get("productCode"));
@@ -331,8 +375,24 @@ public class PurchaseOrderService {
                     quantity, suggested, remark);
         }
 
+        if (analysisId != null) {
+            jdbcTemplate.update("""
+                    UPDATE purchase_replenishment_analysis
+                       SET total_recommended_qty = ?, analysis_status = 'demand_created',
+                           remark = CONCAT('生成采购需求：', ?)
+                     WHERE analysis_id = ? AND analysis_status = 'analyzed'
+                    """, adjustedTotal, demandNo, analysisId);
+        }
+
         writeAudit("create_demand", taskNoNumeric(demandNo), demandNo, "create purchase demand");
-        return Map.of("demandNo", demandNo, "suggestedPurchaseQty", totalSuggested);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("demandNo", demandNo);
+        result.put("suggestedPurchaseQty", totalSuggested);
+        if (analysisId != null) {
+            result.put("analysisId", analysisId);
+            result.put("analysisNo", analysisNo);
+        }
+        return result;
     }
 
     @Transactional
@@ -483,7 +543,7 @@ public class PurchaseOrderService {
 
     /**
      * 采购管理智能补货分析：独立于科室申领（缺货提醒）的智能补货事务，单独写入
-     * purchase_replenishment_analysis 表；出库量取科室申请表（一级库出二级库的实际需求来源）。
+     * purchase_replenishment_analysis 表；出库量取实际已拣配配送单，并按申领来源一级库归集。
      */
     @Transactional
     public Map<String, Object> smartReplenishmentAnalysis(Map<String, String> params) {
@@ -500,32 +560,36 @@ public class PurchaseOrderService {
                          OR (parent_id = 0 AND dept_id IS NULL)
                        )
                 ),
-                requisition_out AS (
-                    SELECT dri.product_id,
-                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)
-                                    THEN dri.quantity ELSE 0 END) AS issue5,
-                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY)
-                                    THEN dri.quantity ELSE 0 END) AS issue15,
-                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
-                                    THEN dri.quantity ELSE 0 END) AS issue30,
-                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 45 DAY)
-                                    THEN dri.quantity ELSE 0 END) AS issue45,
-                           SUM(CASE WHEN dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
-                                    THEN dri.quantity ELSE 0 END) AS issue60
-                      FROM department_requisition dr
-                      JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
-                     WHERE dr.status = 'approved'
-                       AND dr.apply_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
-                     GROUP BY dri.product_id
+                delivery_out AS (
+                    SELECT dr.source_warehouse_id AS warehouse_id,
+                           dri.product_id,
+                           SUM(CASE WHEN sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 5 DAY)
+                                    THEN sdo.quantity ELSE 0 END) AS issue5,
+                           SUM(CASE WHEN sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 15 DAY)
+                                    THEN sdo.quantity ELSE 0 END) AS issue15,
+                           SUM(CASE WHEN sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 30 DAY)
+                                    THEN sdo.quantity ELSE 0 END) AS issue30,
+                           SUM(CASE WHEN sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 45 DAY)
+                                    THEN sdo.quantity ELSE 0 END) AS issue45,
+                           SUM(CASE WHEN sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
+                                    THEN sdo.quantity ELSE 0 END) AS issue60
+                      FROM spd_delivery_order sdo
+                      JOIN department_requisition dr ON dr.requisition_no = sdo.requisition_no
+                      JOIN department_requisition_item dri
+                        ON dri.item_id = sdo.requisition_item_id
+                       AND dri.requisition_id = dr.requisition_id
+                     WHERE sdo.status IN ('picked', 'signed')
+                       AND sdo.create_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 60 DAY)
+                       AND dr.source_warehouse_id IS NOT NULL
+                     GROUP BY dr.source_warehouse_id, dri.product_id
                 ),
                 outbound AS (
                     SELECT pw.warehouse_id,
-                           ro.product_id,
-                           ro.issue5, ro.issue15, ro.issue30, ro.issue45, ro.issue60
-                      FROM requisition_out ro
-                      JOIN primary_warehouse pw ON pw.warehouse_id = (
-                          SELECT warehouse_id FROM primary_warehouse ORDER BY warehouse_id LIMIT 1
-                      )
+                           delivery.product_id,
+                           delivery.issue5, delivery.issue15, delivery.issue30,
+                           delivery.issue45, delivery.issue60
+                      FROM delivery_out delivery
+                      JOIN primary_warehouse pw ON pw.warehouse_id = delivery.warehouse_id
                 ),
                 stock AS (
                     SELECT ib.warehouse_id,
@@ -772,18 +836,13 @@ public class PurchaseOrderService {
         BigDecimal issue30 = decimalValue(row.get("issue30"));
         BigDecimal issue45 = decimalValue(row.get("issue45"));
         BigDecimal issue60 = decimalValue(row.get("issue60"));
-        BigDecimal selectedIssueQty = switch (selectedPeriodDays) {
-            case 5 -> issue5;
-            case 15 -> issue15;
-            case 45 -> issue45;
-            case 60 -> issue60;
-            default -> issue30;
-        };
-        BigDecimal formulaQty = selectedIssueQty.subtract(currentQty).max(BigDecimal.ZERO);
         BigDecimal minPurchaseQty = decimalValue(row.get("minPurchaseQty"));
-        BigDecimal recommendedQty = formulaQty.compareTo(BigDecimal.ZERO) > 0
-                ? formulaQty.max(minPurchaseQty).setScale(0, RoundingMode.CEILING)
-                : BigDecimal.ZERO;
+        ReplenishmentSuggestionCalculator.Result calculation = ReplenishmentSuggestionCalculator.calculate(
+                Map.of(5, issue5, 15, issue15, 30, issue30, 45, issue45, 60, issue60),
+                selectedPeriodDays,
+                currentQty,
+                minPurchaseQty,
+                true);
         Map<String, Object> suggestion = new LinkedHashMap<>(row);
         suggestion.put("issue5", issue5);
         suggestion.put("issue15", issue15);
@@ -791,10 +850,10 @@ public class PurchaseOrderService {
         suggestion.put("issue45", issue45);
         suggestion.put("issue60", issue60);
         suggestion.put("currentQty", currentQty);
-        suggestion.put("selectedIssueQty", selectedIssueQty);
-        suggestion.put("formulaReplenishQty", formulaQty);
-        suggestion.put("recommendedQty", recommendedQty);
-        suggestion.put("formulaText", "近" + selectedPeriodDays + "天科室申领数量 - 一级库当前可用库存");
+        suggestion.put("selectedIssueQty", calculation.selectedIssueQty());
+        suggestion.put("formulaReplenishQty", calculation.formulaReplenishQty());
+        suggestion.put("recommendedQty", calculation.recommendedQty());
+        suggestion.put("formulaText", "近" + selectedPeriodDays + "天实际拣配出库数量 - 一级库当前可用库存");
         return suggestion;
     }
 

@@ -52,6 +52,7 @@ export function usePurchaseManagement() {
   const smartRows = ref<PurchaseSmartReplenishmentRow[]>([])
   const smartPeriods = ref<number[]>([5, 15, 30, 45, 60])
   const smartSelectedPeriod = ref(30)
+  const smartAnalysisId = ref<number | null>(null)
   const smartAnalysisNo = ref('')
   const smartTotalFormulaQty = ref(0)
   const smartTotalRecommendedQty = ref(0)
@@ -450,6 +451,7 @@ export function usePurchaseManagement() {
     smartAnalysisError.value = ''
     showSmartAnalysisDialog.value = true
     smartRows.value = []
+    smartAnalysisId.value = null
     smartAnalysisNo.value = ''
     smartTotalFormulaQty.value = 0
     smartTotalRecommendedQty.value = 0
@@ -458,6 +460,7 @@ export function usePurchaseManagement() {
       smartRows.value = result.rows
       smartPeriods.value = result.periodDays
       smartSelectedPeriod.value = result.selectedPeriodDays
+      smartAnalysisId.value = result.analysisId
       smartAnalysisNo.value = result.analysisNo
       smartTotalFormulaQty.value = Number(result.totalFormulaQty || 0)
       smartTotalRecommendedQty.value = Number(result.totalRecommendedQty || 0)
@@ -496,11 +499,21 @@ export function usePurchaseManagement() {
       return
     }
     try {
+      if (smartAnalysisId.value == null) {
+        message.value = '智能补货分析编号缺失，请重新分析'
+        return
+      }
       const result = await createPurchaseDemand({
+        analysisId: smartAnalysisId.value,
         demandSource: '智能补货分析',
         urgentLevel: 'normal',
-        remark: `近${smartSelectedPeriod.value}天一级库出二级库智能分析生成`,
-        items
+        remark: `近${smartSelectedPeriod.value}天一级库实际拣配出库智能分析生成`,
+        items,
+        analysisAdjustments: smartRows.value.map((row) => ({
+          warehouseCode: row.warehouseCode,
+          productCode: row.productCode,
+          quantity: Number(row.recommendedQty || 0)
+        }))
       })
       message.value = `已根据智能补货分析生成采购需求：${result.demandNo}`
       showSmartAnalysisDialog.value = false
@@ -725,6 +738,7 @@ export function usePurchaseManagement() {
     smartRows,
     smartPeriods,
     smartSelectedPeriod,
+    smartAnalysisId,
     smartAnalysisNo,
     smartTotalFormulaQty,
     smartTotalRecommendedQty,

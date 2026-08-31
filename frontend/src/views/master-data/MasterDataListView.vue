@@ -14,7 +14,6 @@ import {
   Plus,
   RefreshCw,
   Search,
-  Send,
   Settings,
   Trash2,
   Truck,
@@ -34,6 +33,8 @@ import DepartmentWarehouseCatalogBatchDialog from '../../components/master-data/
 import DepartmentWarehouseDialog from '../../components/master-data/DepartmentWarehouseDialog.vue'
 import ManufacturerDialog from '../../components/master-data/ManufacturerDialog.vue'
 import ProductDialog from '../../components/master-data/ProductDialog.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import SupplierDialog from '../../components/master-data/SupplierDialog.vue'
 import WarehouseDialog from '../../components/master-data/WarehouseDialog.vue'
 import WarehouseLocationDialog from '../../components/master-data/WarehouseLocationDialog.vue'
@@ -324,7 +325,6 @@ const {
   batchEditSelectedProducts,
   saveBatchProductEdit,
   disableProducts,
-  submitSelectedProducts,
   exportHospitalCatalog
 } = useHospitalProductManagement({
   selectedCodes,
@@ -394,10 +394,6 @@ const {
         <button v-if="authStore.canWrite(code)" type="button" class="btn btn-danger" @click="disableProducts()">
           <Ban :size="17" />
           停用
-        </button>
-        <button v-if="authStore.canWrite(code)" class="btn" type="button" @click="submitSelectedProducts">
-          <Send :size="17" />
-          提交
         </button>
         <el-popover :visible="columnSettingsOpen" @update:visible="columnSettingsOpen = $event" trigger="click" placement="bottom" width="240">
           <template #reference>
@@ -1066,8 +1062,8 @@ const {
         <h3>{{ page?.title || '数据列表' }}</h3>
       </div>
 
-      <p v-if="loading" class="approval-empty">正在加载...</p>
-      <p v-else-if="error" class="approval-empty">{{ error }}</p>
+      <StatusMessage v-if="loading" message="正在加载..." tone="info" />
+      <StatusMessage v-else-if="error" :message="error" tone="error" />
 
       <div v-if="isHospitalCatalog && !loading && !error" class="column-nav-panel">
         <div class="column-nav-head">
@@ -1146,7 +1142,7 @@ const {
               </td>
             </tr>
             <tr v-if="!(page?.rows ?? []).length">
-              <td class="approval-empty" :colspan="sortedColumns.length + 2">暂无数据</td>
+              <td :colspan="sortedColumns.length + 2"><EmptyState message="暂无数据" /></td>
             </tr>
           </tbody>
         </table>

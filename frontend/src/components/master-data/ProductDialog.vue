@@ -57,7 +57,7 @@ function handleSupplierChange() {
             <div class="supplier-form-grid compact">
               <label>
                 <span>商品编码</span>
-                <input v-model.trim="form.productCode" :readonly="mode === 'edit'" required />
+                <input v-model.trim="form.productCode" :readonly="mode === 'edit'" placeholder="留空时使用招采子编码或系统自动编码" />
               </label>
               <label>
                 <span>商品名称</span>

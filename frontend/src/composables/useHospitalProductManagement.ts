@@ -162,8 +162,8 @@ export function useHospitalProductManagement(options: {
   async function saveProduct() {
     options.clearActionState()
     const form = productForm.value
-    if (!form.productCode.trim() || !form.productName.trim() || !form.specModel.trim() || !form.unit.trim()) {
-      options.actionError.value = '商品编码、商品名称、规格型号、单位为必填项'
+    if (!form.productName.trim() || !form.specModel.trim() || !form.unit.trim()) {
+      options.actionError.value = '商品名称、规格型号、单位为必填项'
       return
     }
     if (form.quotaManaged && (form.highValue || form.coldChain)) {

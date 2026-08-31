@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -37,14 +38,25 @@ public class PendingProductAttachmentService {
     private final OperatorContextProvider operatorContextProvider;
     private final ApprovalFlowGuard approvalFlowGuard;
     private final Path uploadRoot;
+    private final CatalogApprovalRouteService catalogApprovalRouteService;
 
     public PendingProductAttachmentService(JdbcTemplate jdbcTemplate,
                                            OperatorContextProvider operatorContextProvider,
                                            ApprovalFlowGuard approvalFlowGuard,
                                            @Value("${spd.upload.dir:./output/private-files}") String uploadDir) {
+        this(jdbcTemplate, operatorContextProvider, approvalFlowGuard, uploadDir, null);
+    }
+
+    @Autowired
+    public PendingProductAttachmentService(JdbcTemplate jdbcTemplate,
+                                           OperatorContextProvider operatorContextProvider,
+                                           ApprovalFlowGuard approvalFlowGuard,
+                                           @Value("${spd.upload.dir:./output/private-files}") String uploadDir,
+                                           CatalogApprovalRouteService catalogApprovalRouteService) {
         this.jdbcTemplate = jdbcTemplate;
         this.operatorContextProvider = operatorContextProvider;
         this.approvalFlowGuard = approvalFlowGuard;
+        this.catalogApprovalRouteService = catalogApprovalRouteService;
         this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize().resolve("pending-products");
         try {
             Files.createDirectories(uploadRoot);
@@ -151,8 +163,11 @@ public class PendingProductAttachmentService {
 
     private Map<String, Object> requireAccess(String applicationNo) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""
-                SELECT application_id AS applicationId, submit_by AS submitBy, approval_status AS approvalStatus
-                  FROM pending_product_application WHERE application_no = ?
+                SELECT a.application_id AS applicationId, a.submit_by AS submitBy,
+                       a.approval_status AS approvalStatus, a.approval_round AS approvalRound,
+                       a.application_type AS applicationType, u.dept_id AS documentDeptId
+                  FROM pending_product_application a LEFT JOIN sys_user u ON u.user_id = a.submit_by
+                 WHERE a.application_no = ?
                 """, applicationNo);
         OperatorContext operator = operatorContextProvider.current();
         if (operator.canViewAllData() || Objects.equals(operator.userId(), nullableNumber(row.get("submitBy")))) return row;
@@ -161,6 +176,18 @@ public class PendingProductAttachmentService {
                  WHERE application_id = ? AND actor_id = ?
                 """, Long.class, number(row.get("applicationId")), operator.userId());
         if (handled != null && handled > 0) return row;
+        if (catalogApprovalRouteService != null) {
+            long applicationId = number(row.get("applicationId"));
+            int approvalRound = ((Number) row.get("approvalRound")).intValue();
+            Long documentDeptId = nullableNumber(row.get("documentDeptId"));
+            catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
+                    String.valueOf(row.get("applicationType")), String.valueOf(row.get("approvalStatus")),
+                    documentDeptId);
+            catalogApprovalRouteService.requireApprovalAccess(
+                    catalogApprovalRouteService.currentStep(applicationId, approvalRound),
+                    documentDeptId, nullableNumber(row.get("submitBy")));
+            return row;
+        }
         approvalFlowGuard.requireApprovalAccess("pending-product-catalog", "initial-review",
                 stepOrder(String.valueOf(row.get("approvalStatus"))), null, nullableNumber(row.get("submitBy")));
         return row;

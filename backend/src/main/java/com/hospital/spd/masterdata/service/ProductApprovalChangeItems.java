@@ -1,5 +1,7 @@
 package com.hospital.spd.masterdata.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.spd.masterdata.PendingProductChangeItem;
 import org.springframework.jdbc.core.JdbcTemplate;
 
@@ -16,12 +18,30 @@ import static com.hospital.spd.masterdata.service.ProductApprovalValues.boolLabe
 
 final class ProductApprovalChangeItems {
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     ProductApprovalChangeItems(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
     List<PendingProductChangeItem> load(ResultSet application) throws SQLException {
+        String immutableDiff = application.getString("change_diff");
+        if (!isBlank(immutableDiff)) {
+            try {
+                JsonNode root = objectMapper.readTree(immutableDiff);
+                JsonNode items = root.path("items");
+                if (items.isArray()) {
+                    List<PendingProductChangeItem> result = new ArrayList<>();
+                    items.forEach(item -> result.add(new PendingProductChangeItem(
+                            item.path("fieldName").asText("-"),
+                            item.path("beforeValue").asText(""),
+                            item.path("afterValue").asText(""))));
+                    return result;
+                }
+            } catch (Exception ignored) {
+                // Legacy rows may contain partial JSON; use the compatibility comparison below.
+            }
+        }
         if (!"信息变更".equals(application.getString("application_type"))) {
             return List.of();
         }

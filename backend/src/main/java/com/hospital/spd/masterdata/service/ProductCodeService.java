@@ -64,7 +64,6 @@ public class ProductCodeService {
     }
 
     private String nextGeneratedCode() {
-        ensureSequenceTable();
         jdbcTemplate.update("""
                 INSERT INTO sys_sequence (seq_key, seq_value)
                 VALUES (?, 1)
@@ -94,16 +93,4 @@ public class ProductCodeService {
         return pendingCount != null && pendingCount > 0;
     }
 
-    /** Keeps the allocator table available even when other sequence users have not run yet. */
-    private void ensureSequenceTable() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS sys_sequence (
-                  seq_key    VARCHAR(100) NOT NULL,
-                  seq_value  BIGINT UNSIGNED NOT NULL DEFAULT 0,
-                  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                  PRIMARY KEY (seq_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """);
-    }
 }

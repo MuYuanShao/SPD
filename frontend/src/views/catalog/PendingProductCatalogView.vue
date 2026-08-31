@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, UserRound, X, XCircle } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import { useApprovalTableScroll } from '../../composables/useApprovalTableScroll'
 import { usePendingProductBatchApproval } from '../../composables/usePendingProductBatchApproval'
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
@@ -23,8 +25,11 @@ import { usePendingProductCatalogPagination } from '../../composables/usePending
 import {
   fetchPendingProductApplications,
   fetchPendingProductPartnerOptions,
+  fetchPendingProductSourceDetail,
+  fetchPendingProductSourceProducts,
   batchApprovePendingProductApplications,
   type PendingProductApplicationRow,
+  type PendingProductSourceRow,
   type PendingProductTypeCount
 } from '../../api/pendingProductApplications'
 import type { PartnerOption } from '../../api/masterData'
@@ -54,6 +59,18 @@ const approvalTypes = [
 
     description: '审核注册证、生产许可证、经营许可证、授权文件等资质材料更新。',
     columns: ['资质类型', '原有效期', '新有效期', '附件数量', '到期风险']
+  },
+  {
+    key: 'price',
+    label: '价格调整',
+    description: '审核医院目录商品采购价调整及变更原因。',
+    columns: ['商品信息', '原采购价', '新采购价', '变更原因']
+  },
+  {
+    key: 'disable',
+    label: '停用申请',
+    description: '审核启用商品的停用申请及影响范围。',
+    columns: ['商品信息', '当前状态', '停用原因']
   }
 ]
 
@@ -119,6 +136,48 @@ const {
 const duplicateAlertVisible = ref(false)
 const manufacturerOptions = ref<PartnerOption[]>([])
 const supplierOptions = ref<PartnerOption[]>([])
+const sourceKeyword = ref('')
+const sourceRows = ref<PendingProductSourceRow[]>([])
+const sourceLoading = ref(false)
+const sourceSelected = ref(false)
+const isNewApplication = computed(() => createForm.applicationType === '新品准入')
+const canEditInformation = computed(() => isNewApplication.value || createForm.applicationType === '信息变更')
+const canEditPrice = computed(() => canEditInformation.value || createForm.applicationType === '价格调整')
+const canEditQualification = computed(() => canEditInformation.value || createForm.applicationType === '资质更新')
+
+async function searchSourceProducts() {
+  if (isNewApplication.value) return
+  sourceLoading.value = true
+  try {
+    const page = await fetchPendingProductSourceProducts(sourceKeyword.value)
+    sourceRows.value = page.rows
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '医院目录商品搜索失败'
+    sourceRows.value = []
+  } finally {
+    sourceLoading.value = false
+  }
+}
+
+async function selectSourceProduct(row: PendingProductSourceRow) {
+  try {
+    const type = createForm.applicationType
+    const detail = await fetchPendingProductSourceDetail(row.productCode)
+    Object.assign(createForm, detail, { applicationType: type, qualificationAttachmentCount: 0 })
+    sourceSelected.value = true
+    sourceKeyword.value = `${row.productCode} ${row.productName}`
+    sourceRows.value = []
+  } catch (err) {
+    message.value = err instanceof Error ? err.message : '医院目录商品详情加载失败'
+  }
+}
+
+async function handleApplicationTypeChange() {
+  sourceSelected.value = isNewApplication.value
+  sourceKeyword.value = ''
+  sourceRows.value = []
+  if (!isNewApplication.value) await searchSourceProducts()
+}
 
 function withRetainedOption(list: PartnerOption[], current: string | undefined) {
   if (!current || list.some((item) => item.name === current)) {
@@ -165,11 +224,16 @@ async function openCreateModal() {
   message.value = ''
   resetCreateForm()
   showCreateModal.value = true
+  sourceSelected.value = true
   await loadPartnerOptions()
 }
 
 async function handleCreateSubmit() {
   message.value = ''
+  if (!isNewApplication.value && !sourceSelected.value) {
+    message.value = '请先搜索并选择医院目录商品'
+    return
+  }
   try {
     await submitCreateForm()
   } catch (err) {
@@ -309,7 +373,7 @@ async function loadApplications() {
       pageSize.value
     )
     rows.value = data.rows
-    typeCounts.value = data.typeCounts
+    typeCounts.value = data.summary?.typeCounts ?? data.typeCounts
     totalItems.value = data.total
     selectedNos.value = []
   } catch (err) {
@@ -549,10 +613,10 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="23" class="approval-empty">正在加载待审批任务...</td>
+                <td colspan="23"><StatusMessage message="正在加载待审批任务..." tone="info" /></td>
               </tr>
               <tr v-else-if="error">
-                <td colspan="23" class="approval-empty">{{ error }}</td>
+                <td colspan="23"><StatusMessage :message="error" tone="error" /></td>
               </tr>
               <tr v-for="row in rows" v-else :key="row.no">
                 <td class="approval-sticky-check">
@@ -626,7 +690,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                     <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                     </svg>
-                    <p>当前分类暂无待审批任务</p>
+                    <EmptyState message="当前分类暂无待审批任务" />
                     <button v-if="activeScope === 'todo'" class="btn btn-primary" type="button" @click="openCreateModal">
                       <Plus :size="17" /> 去新增
                     </button>
@@ -754,7 +818,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             <div class="supplier-form-grid compact">
               <label>
                 <span>申请类型</span>
-                <select v-model="createForm.applicationType">
+                <select v-model="createForm.applicationType" @change="handleApplicationTypeChange">
                   <option>新品准入</option>
                   <option>信息变更</option>
                   <option>资质更新</option>
@@ -764,18 +828,37 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               </label>
               <label class="wide"><span>申请原因</span><textarea v-model="createForm.changeReason" /></label>
             </div>
+            <div v-if="!isNewApplication" class="approval-source-picker">
+              <label class="wide">
+                <span>来源医院目录商品</span>
+                <div class="approval-source-search">
+                  <input v-model="sourceKeyword" placeholder="输入商品编码、名称或规格" @keyup.enter.prevent="searchSourceProducts" />
+                  <button class="btn" type="button" :disabled="sourceLoading" @click="searchSourceProducts">
+                    <Search :size="16" /> {{ sourceLoading ? '搜索中' : '搜索' }}
+                  </button>
+                </div>
+              </label>
+              <div v-if="sourceRows.length" class="approval-source-results">
+                <button v-for="item in sourceRows" :key="item.productCode" type="button"
+                  :disabled="createForm.applicationType === '停用申请' && item.status !== 1" @click="selectSourceProduct(item)">
+                  <strong>{{ item.productCode }} · {{ item.productName }}</strong>
+                  <span>{{ item.specModel }} · {{ item.manufacturerName || '未维护厂家' }} · {{ item.status === 1 ? '启用' : '停用' }}</span>
+                </button>
+              </div>
+              <p v-if="sourceSelected" class="approval-source-selected">已载入服务器目录快照：{{ createForm.productCode }} · {{ createForm.productName }}</p>
+            </div>
           </section>
 
           <section class="approval-create-section">
             <h4>商品基础信息</h4>
             <div class="supplier-form-grid compact">
-              <label><span>商品编码</span><input v-model="createForm.productCode" placeholder="选填，留空取招采子编码，均空时自动生成" /></label>
-              <label><span>商品名称</span><input v-model="createForm.productName" required /></label>
-              <label><span>规格型号</span><input v-model="createForm.specModel" required /></label>
-              <label><span>品牌</span><input v-model="createForm.brand" /></label>
+              <label><span>商品编码</span><input v-model="createForm.productCode" :readonly="!isNewApplication" placeholder="选填，留空取招采子编码，均空时自动生成" /></label>
+              <label><span>商品名称</span><input v-model="createForm.productName" :readonly="!canEditInformation" required /></label>
+              <label><span>规格型号</span><input v-model="createForm.specModel" :readonly="!canEditInformation" required /></label>
+              <label><span>品牌</span><input v-model="createForm.brand" :readonly="!canEditInformation" /></label>
               <label>
                 <span>生产厂家</span>
-                <select v-model="createForm.manufacturerName" @change="handleManufacturerChange">
+                <select v-model="createForm.manufacturerName" :disabled="!canEditInformation" @change="handleManufacturerChange">
                   <option value="">请选择生产厂家</option>
                   <option
                     v-for="item in withRetainedOption(manufacturerOptions, createForm.manufacturerName)"
@@ -789,7 +872,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               </label>
               <label>
                 <span>供应商</span>
-                <select v-model="createForm.supplierName" @change="handleSupplierChange">
+                <select v-model="createForm.supplierName" :disabled="!canEditInformation" @change="handleSupplierChange">
                   <option value="">请选择供应商</option>
                   <option
                     v-for="item in withRetainedOption(supplierOptions, createForm.supplierName)"
@@ -801,15 +884,15 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   </option>
                 </select>
               </label>
-              <label><span>单位</span><input v-model="createForm.unit" required /></label>
-              <label><span>储存条件</span><input v-model="createForm.storageCondition" /></label>
+              <label><span>单位</span><input v-model="createForm.unit" :readonly="!canEditInformation" required /></label>
+              <label><span>储存条件</span><input v-model="createForm.storageCondition" :readonly="!canEditInformation" /></label>
             </div>
           </section>
 
           <section class="approval-create-section">
             <h4>价格采购与分类</h4>
             <div class="supplier-form-grid compact">
-              <label><span>采购价</span><input v-model.number="createForm.purchasePrice" type="number" step="0.0001" min="0" /></label>
+              <label><span>采购价</span><input v-model.number="createForm.purchasePrice" :readonly="!canEditPrice" type="number" step="0.0001" min="0" /></label>
               <label><span>零售价</span><input v-model.number="createForm.retailPrice" type="number" step="0.0001" min="0" /></label>
               <label><span>最小采购量</span><input v-model.number="createForm.minPurchaseQty" type="number" step="0.0001" min="0" /></label>
               <label><span>采购单位</span><input v-model="createForm.purchaseUnit" /></label>
@@ -827,13 +910,13 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             <h4>资质与仓储</h4>
             <div class="supplier-form-grid compact">
               <label><span>UDI编码</span><input v-model="createForm.udiCode" /></label>
-              <label><span>注册证号</span><input v-model="createForm.registrationNo" /></label>
-              <label><span>注册证有效期</span><input v-model="createForm.registrationExpireDate" type="date" /></label>
-              <label><span>生产许可证号</span><input v-model="createForm.productionLicenseNo" /></label>
-              <label><span>经营许可证号</span><input v-model="createForm.businessLicenseNo" /></label>
+              <label><span>注册证号</span><input v-model="createForm.registrationNo" :readonly="!canEditQualification" /></label>
+              <label><span>注册证有效期</span><input v-model="createForm.registrationExpireDate" :readonly="!canEditQualification" type="date" /></label>
+              <label><span>生产许可证号</span><input v-model="createForm.productionLicenseNo" :readonly="!canEditQualification" /></label>
+              <label><span>经营许可证号</span><input v-model="createForm.businessLicenseNo" :readonly="!canEditQualification" /></label>
               <label>
                 <span>资质附件</span>
-                <input ref="attachmentInput" type="file" multiple accept="image/*,.pdf" @change="handleCreateAttachments" />
+                <input ref="attachmentInput" :disabled="!canEditQualification" type="file" multiple accept="image/*,.pdf" @change="handleCreateAttachments" />
               </label>
             </div>
             <div class="approval-attachment-summary">
@@ -855,9 +938,9 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           <section class="approval-create-section">
             <h4>业务属性</h4>
             <div class="dialog-toggle-row">
-              <label><input v-model="createForm.volumeBased" type="checkbox" /> 是否带量</label>
-              <label><input v-model="createForm.centralizedProcurement" type="checkbox" /> 是否集采</label>
-              <label><input v-model="createForm.domestic" type="checkbox" /> 是否国产</label>
+              <label><input v-model="createForm.volumeBased" :disabled="!canEditInformation" type="checkbox" /> 是否带量</label>
+              <label><input v-model="createForm.centralizedProcurement" :disabled="!canEditInformation" type="checkbox" /> 是否集采</label>
+              <label><input v-model="createForm.domestic" :disabled="!canEditInformation" type="checkbox" /> 是否国产</label>
               <label><input v-model="createForm.chargeable" type="checkbox" /> 是否收费</label>
               <label><input v-model="createForm.highValue" type="checkbox" /> 高值耗材</label>
               <label><input v-model="createForm.coldChain" type="checkbox" /> 冷链</label>

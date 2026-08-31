@@ -3,6 +3,11 @@ package com.hospital.spd.masterdata.service;
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
+import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
+import com.hospital.spd.common.service.DocumentKind;
+import com.hospital.spd.common.service.DocumentNumberService;
 import com.hospital.spd.masterdata.*;
 import static com.hospital.spd.common.SqlHelper.*;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -14,12 +19,12 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.springframework.transaction.annotation.Transactional;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Maintains hospital product catalog records and creates approval applications for catalog changes.
@@ -29,15 +34,32 @@ public class ProductService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ProductCodeService productCodeService;
+    private final DocumentNumberService documentNumberService;
+    private final OperatorContextProvider operatorContextProvider;
+    private final CatalogApprovalRouteService catalogApprovalRouteService;
+    private final AuditLogService auditLogService;
+    private final CatalogApplicationSnapshotService snapshotService;
 
     public ProductService(JdbcTemplate jdbcTemplate) {
-        this(jdbcTemplate, new ProductCodeService(jdbcTemplate));
+        this(jdbcTemplate, new ProductCodeService(jdbcTemplate), new DocumentNumberService(jdbcTemplate),
+                OperatorContext::system, null, new AuditLogService(jdbcTemplate),
+                new CatalogApplicationSnapshotService(jdbcTemplate, new ObjectMapper()));
     }
 
     @org.springframework.beans.factory.annotation.Autowired
-    public ProductService(JdbcTemplate jdbcTemplate, ProductCodeService productCodeService) {
+    public ProductService(JdbcTemplate jdbcTemplate, ProductCodeService productCodeService,
+                          DocumentNumberService documentNumberService,
+                          OperatorContextProvider operatorContextProvider,
+                          CatalogApprovalRouteService catalogApprovalRouteService,
+                          AuditLogService auditLogService,
+                          CatalogApplicationSnapshotService snapshotService) {
         this.jdbcTemplate = jdbcTemplate;
         this.productCodeService = productCodeService;
+        this.documentNumberService = documentNumberService;
+        this.operatorContextProvider = operatorContextProvider;
+        this.catalogApprovalRouteService = catalogApprovalRouteService;
+        this.auditLogService = auditLogService;
+        this.snapshotService = snapshotService;
     }
 
     // ==================== 公开方法 ====================
@@ -118,6 +140,7 @@ public class ProductService {
     }
 
     /** 创建医院商品（提交审批）。商品编码可留空：留空时取招采子编码，两者皆空时自动生成 SPD 编码。 */
+    @Transactional
     public Map<String, Object> createHospitalProduct(ProductCreateRequest request) {
         if (isBlank(request.productName()) || isBlank(request.specModel()) ||
                 isBlank(request.unit())) {
@@ -132,6 +155,7 @@ public class ProductService {
     }
 
     /** 更新医院商品（提交审批） */
+    @Transactional
     public Map<String, Object> updateHospitalProduct(String productCode, ProductCreateRequest request) {
         if (isBlank(productCode) || isBlank(request.productName()) || isBlank(request.specModel()) ||
                 isBlank(request.unit())) {
@@ -140,9 +164,7 @@ public class ProductService {
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         ProductDetail current = hospitalProductDetail(productCode.trim());
 
-        String applicationType = request.purchasePrice() != null && differs(productCode, "purchase_price", request.purchasePrice())
-                ? "价格调整"
-                : "信息变更";
+        String applicationType = classifyApplication(current, request);
         if ("信息变更".equals(applicationType)) {
             assertInformationChangeHasDifference(current, request);
         }
@@ -151,6 +173,7 @@ public class ProductService {
     }
 
     /** 批量更新医院商品（提交审批） */
+    @Transactional
     public Map<String, Object> batchUpdateHospitalProducts(ProductBatchUpdateRequest request) {
         if (request.productCodes() == null || request.productCodes().isEmpty()) {
             throw new IllegalArgumentException("请选择需要批量修改的商品");
@@ -165,7 +188,7 @@ public class ProductService {
             ProductDetail detail = hospitalProductDetail(productCode.trim());
             ProductCreateRequest merged = mergeBatchUpdate(detail, request);
             validateQuotaEligibility(merged.highValue(), merged.coldChain(), merged.quotaManaged());
-            String applicationType = request.purchasePrice() == null ? "信息变更" : "价格调整";
+            String applicationType = classifyApplication(detail, merged);
             if ("信息变更".equals(applicationType) && !hasInformationChangeDifference(detail, merged)) {
                 continue;
             }
@@ -180,6 +203,7 @@ public class ProductService {
     }
 
     /** 更新医院商品状态（提交审批） */
+    @Transactional
     public Map<String, Object> updateHospitalProductStatus(ProductStatusUpdateRequest request) {
         if (request.productCodes() == null || request.productCodes().isEmpty()) {
             throw new IllegalArgumentException("请选择需要停用的商品");
@@ -215,20 +239,7 @@ public class ProductService {
 
     /** 提交医院商品（提交审批） */
     public Map<String, Object> submitHospitalProducts(ProductSubmitRequest request) {
-        if (request.productCodes() == null || request.productCodes().isEmpty()) {
-            throw new IllegalArgumentException("请选择需要提交的商品");
-        }
-
-        int submittedRows = 0;
-        for (String productCode : request.productCodes()) {
-            ProductDetail detail = hospitalProductDetail(productCode.trim());
-            ProductCreateRequest pending = toRequest(detail);
-            assertInformationChangeHasDifference(detail, pending);
-            createPendingApplication("信息变更", pending, detail.productCode(), "医院目录提交审批");
-            submittedRows++;
-        }
-
-        return Map.of("submittedRows", submittedRows);
+        throw new IllegalArgumentException("该接口已弃用，请使用修改、批量修改或启停操作");
     }
 
     /** 导出医院商品 */
@@ -384,6 +395,18 @@ public class ProductService {
     private String createPendingApplication(String applicationType, ProductCreateRequest request,
                                             String productCode, String reason) {
         String applicationNo = nextApplicationNo();
+        String normalizedType = normalizeApplicationType(applicationType);
+        if (!"新品准入".equals(normalizedType)) {
+            Integer active = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM pending_product_application
+                     WHERE product_code = ? AND (approval_status LIKE 'pending_step_%'
+                       OR approval_status IN ('pending_initial','pending_final','routing','returned'))
+                    """, Integer.class, productCode);
+            if (active != null && active > 0) {
+                throw new IllegalArgumentException("该商品已有进行中的目录申请，请勿重复提交");
+            }
+        }
+        OperatorContext operator = operatorContextProvider.current();
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
         Long categoryId = ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
@@ -400,10 +423,10 @@ public class ProductService {
                   storage_condition, product_snapshot, change_diff, approval_status, submit_by, submit_time
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                   JSON_OBJECT('source','manual','changeReason', ?), JSON_OBJECT('changeReason', ?),
-                  'pending_initial', 1, NOW())
+                  ?, ?, NOW())
                 """,
                 applicationNo,
-                normalizeApplicationType(applicationType),
+                normalizedType,
                 supplierId,
                 request.productName().trim(),
                 productCode,
@@ -433,27 +456,37 @@ public class ProductService {
                 nullIfBlank(request.thirdCategory()),
                 Boolean.FALSE.equals(request.chargeable()) ? 0 : 1,
                 nullIfBlank(request.tenderSubCode()),
-                estimateAttachmentCount(request),
+                0,
                 Boolean.TRUE.equals(request.highValue()) ? 1 : 0,
                 Boolean.TRUE.equals(request.coldChain()) ? 1 : 0,
                 Boolean.TRUE.equals(request.quotaManaged()) ? 1 : 0,
                 Boolean.TRUE.equals(request.keyMonitored()) ? 1 : 0,
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(reason),
-                nullIfBlank(reason)
+                nullIfBlank(reason),
+                catalogApprovalRouteService == null ? "pending_initial" : "routing",
+                operator.userId()
         );
+
+        Long applicationId = jdbcTemplate.queryForObject(
+                "SELECT application_id FROM pending_product_application WHERE application_no = ?",
+                Long.class, applicationNo);
+        Integer explicitTargetStatus = reason != null && reason.contains("启停")
+                ? ("停用申请".equals(normalizedType) ? 0 : 1) : null;
+        snapshotService.write(applicationId, normalizedType, reason, explicitTargetStatus);
+        if (catalogApprovalRouteService != null) {
+            String status = catalogApprovalRouteService.snapshotRoute(
+                    applicationId, 1, normalizedType, operator.deptId());
+            jdbcTemplate.update("UPDATE pending_product_application SET approval_status = ? WHERE application_id = ?",
+                    status, applicationId);
+        }
+        auditLogService.record("pending_product_application", "submit", applicationId, applicationNo, reason);
 
         return applicationNo;
     }
 
     private String nextApplicationNo() {
-        String prefix = "SP" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM pending_product_application WHERE application_no LIKE ?",
-                Integer.class,
-                prefix + "%"
-        );
-        return prefix + String.format("%03d", (count == null ? 0 : count) + 1);
+        return documentNumberService.next(DocumentKind.PENDING_PRODUCT_APPLICATION);
     }
 
     private static String normalizeApplicationType(String value) {
@@ -466,7 +499,8 @@ public class ProductService {
             case "qualification" -> "资质更新";
             case "price" -> "价格调整";
             case "disable" -> "停用申请";
-            default -> value.trim();
+            case "新品准入", "信息变更", "资质更新", "价格调整", "停用申请" -> value.trim();
+            default -> throw new IllegalArgumentException("不支持的申请类型");
         };
     }
 
@@ -590,6 +624,45 @@ public class ProductService {
                 current.quotaManaged() != request.quotaManaged() ||
                 current.keyMonitored() != request.keyMonitored() ||
                 differentText(current.storageCondition(), request.storageCondition());
+    }
+
+    private String classifyApplication(ProductDetail current, ProductCreateRequest request) {
+        if (differentDecimal(current.purchasePrice(), request.purchasePrice())) return "价格调整";
+        boolean qualificationChanged = differentText(current.registrationNo(), request.registrationNo())
+                || differentText(current.registrationExpireDate(), request.registrationExpireDate())
+                || differentText(current.productionLicenseNo(), request.productionLicenseNo())
+                || differentText(current.businessLicenseNo(), request.businessLicenseNo());
+        return qualificationChanged && !hasNonQualificationDifference(current, request)
+                ? "资质更新" : "信息变更";
+    }
+
+    private boolean hasNonQualificationDifference(ProductDetail current, ProductCreateRequest request) {
+        return differentText(current.productName(), request.productName())
+                || differentText(current.specModel(), request.specModel())
+                || differentText(current.brand(), request.brand())
+                || differentText(current.manufacturerName(), request.manufacturerName())
+                || differentText(current.supplierName(), request.supplierName())
+                || differentText(current.unit(), request.unit())
+                || differentDecimal(current.retailPrice(), request.retailPrice())
+                || differentDecimal(current.minPurchaseQty(), request.minPurchaseQty())
+                || differentText(current.purchaseUnit(), request.purchaseUnit())
+                || differentDecimal(current.conversionRate(), request.conversionRate())
+                || differentDecimal(current.purchasePackageQty(), request.purchasePackageQty())
+                || differentText(current.udiCode(), request.udiCode())
+                || current.volumeBased() != request.volumeBased()
+                || current.centralizedProcurement() != request.centralizedProcurement()
+                || current.domestic() != request.domestic()
+                || differentText(current.contractCode(), request.contractCode())
+                || differentText(current.firstCategory(), request.firstCategory())
+                || differentText(current.secondCategory(), request.secondCategory())
+                || differentText(current.thirdCategory(), request.thirdCategory())
+                || current.chargeable() != request.chargeable()
+                || differentText(current.tenderSubCode(), request.tenderSubCode())
+                || current.highValue() != request.highValue()
+                || current.coldChain() != request.coldChain()
+                || current.quotaManaged() != request.quotaManaged()
+                || current.keyMonitored() != request.keyMonitored()
+                || differentText(current.storageCondition(), request.storageCondition());
     }
 
     private static boolean differentText(String before, String after) {

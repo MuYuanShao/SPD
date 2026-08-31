@@ -9,8 +9,13 @@ import com.hospital.spd.masterdata.PendingProductApprovalActionRequest;
 import com.hospital.spd.masterdata.PendingProductChangeItem;
 import com.hospital.spd.masterdata.PendingProductTypeCount;
 import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
+import com.hospital.spd.common.service.DocumentKind;
+import com.hospital.spd.common.service.DocumentNumberService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
 import static com.hospital.spd.common.SqlHelper.isBlank;
 import static com.hospital.spd.common.SqlHelper.nullIfBlank;
@@ -46,8 +51,6 @@ import java.math.BigDecimal;
 import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -82,34 +85,53 @@ public class ProductApprovalService {
     private final ApprovalFlowGuard approvalFlowGuard;
     private final ProductApprovalChangeItems changeItems;
     private final ProductCodeService productCodeService;
+    private final DocumentNumberService documentNumberService;
+    private final CatalogApprovalRouteService catalogApprovalRouteService;
+    private final AuditLogService auditLogService;
+    private final CatalogApprovalTransactionExecutor transactionExecutor;
+    private final CatalogApplicationSnapshotService snapshotService;
 
     public ProductApprovalService(JdbcTemplate jdbcTemplate) {
         this(jdbcTemplate, OperatorContext::system, new ApprovalFlowGuard(jdbcTemplate),
-                new ProductCodeService(jdbcTemplate));
+                new ProductCodeService(jdbcTemplate), new DocumentNumberService(jdbcTemplate), null,
+                new AuditLogService(jdbcTemplate), null,
+                new CatalogApplicationSnapshotService(jdbcTemplate, new ObjectMapper()));
     }
 
     public ProductApprovalService(JdbcTemplate jdbcTemplate, OperatorContextProvider operatorContextProvider) {
         this(jdbcTemplate, operatorContextProvider, new ApprovalFlowGuard(jdbcTemplate, operatorContextProvider),
-                new ProductCodeService(jdbcTemplate));
+                new ProductCodeService(jdbcTemplate), new DocumentNumberService(jdbcTemplate), null,
+                new AuditLogService(jdbcTemplate, operatorContextProvider), null,
+                new CatalogApplicationSnapshotService(jdbcTemplate, new ObjectMapper()));
     }
 
     @Autowired
     public ProductApprovalService(JdbcTemplate jdbcTemplate,
                                   OperatorContextProvider operatorContextProvider,
                                   ApprovalFlowGuard approvalFlowGuard,
-                                  ProductCodeService productCodeService) {
+                                  ProductCodeService productCodeService,
+                                  DocumentNumberService documentNumberService,
+                                  CatalogApprovalRouteService catalogApprovalRouteService,
+                                  AuditLogService auditLogService,
+                                  CatalogApprovalTransactionExecutor transactionExecutor,
+                                  CatalogApplicationSnapshotService snapshotService) {
         this.jdbcTemplate = jdbcTemplate;
         this.operatorContextProvider = operatorContextProvider;
         this.approvalFlowGuard = approvalFlowGuard;
         this.changeItems = new ProductApprovalChangeItems(jdbcTemplate);
         this.productCodeService = productCodeService;
+        this.documentNumberService = documentNumberService;
+        this.catalogApprovalRouteService = catalogApprovalRouteService;
+        this.auditLogService = auditLogService;
+        this.transactionExecutor = transactionExecutor;
+        this.snapshotService = snapshotService;
     }
 
     // ======================== Public API ========================
 
     public PendingProductApplicationDetail getDetail(String applicationNo) {
         return jdbcTemplate.queryForObject("""
-                        SELECT a.application_no, a.application_type, a.approval_status,
+                        SELECT a.application_id, a.approval_round, a.application_no, a.application_type, a.approval_status,
                                a.product_name, a.product_code, a.spec_model, a.brand, a.manufacturer_name,
                                COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
                                a.unit, a.purchase_price, a.retail_price, a.min_purchase_qty, a.purchase_unit,
@@ -119,25 +141,42 @@ public class ProductApprovalService {
                                a.first_category, a.second_category, a.third_category, a.is_chargeable, a.tender_sub_code,
                                a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.is_key_monitored,
                                a.storage_condition,
-                               a.submit_by, a.submit_time, a.approve_opinion, a.initial_review_opinion,
+                               a.change_diff, a.submit_by, submitter.dept_id AS submit_dept_id, a.submit_time,
+                               a.approve_opinion, a.initial_review_opinion,
                                a.final_review_opinion, a.return_reason, a.reject_reason
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
+                        LEFT JOIN sys_user submitter ON submitter.user_id = a.submit_by
                         WHERE a.application_no = ?
                         """,
                 (rs, rowNum) -> {
                     String status = rs.getString("approval_status");
                     String submitTime = ProductApprovalMapper.formatTimestamp(rs.getTimestamp("submit_time"));
                     String applicant = "申请人" + rs.getLong("submit_by");
-                    List<ConfiguredApprovalStep> approvalSteps = loadApprovalSteps();
+                    List<ConfiguredApprovalStep> approvalSteps;
+                    boolean canApprove;
+                    if (catalogApprovalRouteService != null && isPendingStatus(status)) {
+                        long applicationId = rs.getLong("application_id");
+                        int approvalRound = rs.getInt("approval_round");
+                        Long documentDeptId = nullableLong(rs, "submit_dept_id");
+                        catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
+                                rs.getString("application_type"), status, documentDeptId);
+                        approvalSteps = catalogApprovalRouteService.configuredSteps(applicationId, approvalRound);
+                        try {
+                            catalogApprovalRouteService.requireApprovalAccess(
+                                    catalogApprovalRouteService.currentStep(applicationId, approvalRound),
+                                    documentDeptId, rs.getLong("submit_by"));
+                            canApprove = true;
+                        } catch (IllegalArgumentException exception) {
+                            canApprove = false;
+                        }
+                    } else {
+                        approvalSteps = loadApprovalSteps();
+                        canApprove = isPendingStatus(status) && approvalFlowGuard.hasApprovalAccess(
+                                CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
+                                currentStepOrder(status, approvalSteps), null, rs.getLong("submit_by"));
+                    }
                     List<ApprovalTimelineNode> timeline = buildTimeline(status, applicant, submitTime, approvalSteps);
-                    boolean canApprove = isPendingStatus(status) && approvalFlowGuard.hasApprovalAccess(
-                            CATALOG_FEATURE_CODE,
-                            CATALOG_NODE_CODE,
-                            currentStepOrder(status, approvalSteps),
-                            null,
-                            rs.getLong("submit_by")
-                    );
                     return ProductApprovalMapper.mapDetail(
                             rs,
                             status,
@@ -323,13 +362,68 @@ public class ProductApprovalService {
         return Map.of("manufacturers", manufacturers, "suppliers", suppliers);
     }
 
+    public Map<String, Object> sourceProducts(String keyword, Map<String, String> params) {
+        PageRequest page = PageRequest.from(params);
+        String term = isBlank(keyword) ? "" : keyword.trim();
+        String where = term.isEmpty() ? "" : " AND (p.product_code LIKE ? OR p.product_name LIKE ? OR p.spec_model LIKE ?)";
+        Object[] filterArgs = term.isEmpty() ? new Object[0]
+                : new Object[]{"%" + term + "%", "%" + term + "%", "%" + term + "%"};
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM product p WHERE p.deleted = 0" + where,
+                Long.class, filterArgs);
+        List<Object> args = new ArrayList<>(Arrays.asList(filterArgs));
+        args.add(page.size());
+        args.add(page.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.unit, p.purchase_price AS purchasePrice,
+                       p.status, COALESCE(m.manufacturer_name, '') AS manufacturerName,
+                       COALESCE(s.supplier_name, '') AS supplierName
+                  FROM product p
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
+                 WHERE p.deleted = 0
+                """ + where + " ORDER BY p.product_id DESC LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, page, Map.of("source", "hospital-catalog"));
+    }
+
+    public Map<String, Object> sourceProduct(String productCode) {
+        return jdbcTemplate.queryForMap("""
+                SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
+                       COALESCE(p.brand,'') AS brand, COALESCE(m.manufacturer_name,'') AS manufacturerName,
+                       COALESCE(s.supplier_name,'') AS supplierName, p.unit, p.purchase_price AS purchasePrice,
+                       p.retail_price AS retailPrice, p.min_purchase_qty AS minPurchaseQty,
+                       COALESCE(p.purchase_unit,'') AS purchaseUnit, p.conversion_rate AS conversionRate,
+                       p.purchase_package_qty AS purchasePackageQty, COALESCE(p.udi_code,'') AS udiCode,
+                       COALESCE(p.registration_no,'') AS registrationNo,
+                       DATE_FORMAT(p.registration_expire_date,'%Y-%m-%d') AS registrationExpireDate,
+                       COALESCE(p.production_license_no,'') AS productionLicenseNo,
+                       COALESCE(p.business_license_no,'') AS businessLicenseNo,
+                       p.is_volume_based AS volumeBased, p.is_centralized_procurement AS centralizedProcurement,
+                       p.is_domestic AS domestic, COALESCE(p.contract_code,'') AS contractCode,
+                       COALESCE(p.first_category,'') AS firstCategory, COALESCE(p.second_category,'') AS secondCategory,
+                       COALESCE(p.third_category,'') AS thirdCategory, p.is_chargeable AS chargeable,
+                       COALESCE(p.tender_sub_code,'') AS tenderSubCode, p.is_high_value AS highValue,
+                       p.is_cold_chain AS coldChain, p.is_quota_managed AS quotaManaged,
+                       p.is_key_monitored AS keyMonitored, COALESCE(p.storage_condition,'') AS storageCondition,
+                       p.status
+                  FROM product p LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
+                 WHERE p.product_code = ? AND p.deleted = 0
+                """, productCode);
+    }
+
     @Transactional
     public Map<String, Object> createApplication(PendingProductApplicationRequest request) {
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, null);
-        validateNoExistingCatalogMatch(request, null);
+        if ("新品准入".equals(applicationType)) {
+            validateNoExistingCatalogMatch(request, null);
+        } else {
+            validateExistingApplicationSource(productCode, applicationType, request.purchasePrice(), null);
+        }
         validateInformationChangeHasDifference(request, applicationType);
         OperatorContext operator = operatorContextProvider.current();
         String applicationNo = nextApplicationNo();
@@ -391,20 +485,36 @@ public class ProductApprovalService {
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(request.changeReason()),
                 nullIfBlank(request.changeReason()),
-                firstPendingStatus(),
+                catalogApprovalRouteService == null ? firstPendingStatus() : "routing",
                 operator.userId()
         );
+
+        Long applicationId = jdbcTemplate.queryForObject(
+                "SELECT application_id FROM pending_product_application WHERE application_no = ?",
+                Long.class, applicationNo);
+        snapshotExistingCatalog(applicationId, applicationType, request.changeReason());
+        if (catalogApprovalRouteService != null) {
+            String status = catalogApprovalRouteService.snapshotRoute(
+                    applicationId, 1, applicationType, operator.deptId());
+            jdbcTemplate.update("UPDATE pending_product_application SET approval_status = ? WHERE application_id = ?",
+                    status, applicationId);
+        }
+        auditLogService.record("pending_product_application", "submit", applicationId, applicationNo,
+                "提交目录申请");
 
         return Map.of("applicationNo", applicationNo, "productCode", productCode);
     }
 
-    @Transactional
     public Map<String, Object> batchProcessAction(List<String> applicationNos, PendingProductApprovalActionRequest request) {
         int successCount = 0;
         int failCount = 0;
         for (String applicationNo : applicationNos) {
             try {
-                processAction(applicationNo, request);
+                if (transactionExecutor == null) {
+                    processAction(applicationNo, request);
+                } else {
+                    transactionExecutor.execute(() -> processAction(applicationNo, request));
+                }
                 successCount++;
             } catch (Exception e) {
                 failCount++;
@@ -416,10 +526,14 @@ public class ProductApprovalService {
 
     @Transactional
     public Map<String, Object> processAction(String applicationNo, PendingProductApprovalActionRequest request) {
-        jdbcTemplate.queryForObject(
-                "SELECT application_id FROM pending_product_application WHERE application_no = ? FOR UPDATE",
-                Long.class,
-                applicationNo);
+        Map<String, Object> application = jdbcTemplate.queryForMap("""
+                SELECT a.application_id AS applicationId, a.approval_round AS approvalRound,
+                       a.application_type AS applicationType, a.approval_status AS approvalStatus,
+                       a.submit_by AS submitBy, u.dept_id AS documentDeptId
+                  FROM pending_product_application a
+                  LEFT JOIN sys_user u ON u.user_id = a.submit_by
+                 WHERE a.application_no = ? FOR UPDATE
+                """, applicationNo);
         PendingProductApplicationDetail detail = getDetail(applicationNo);
         OperatorContext operator = operatorContextProvider.current();
         String action = request.action() == null ? "" : request.action().trim();
@@ -430,14 +544,25 @@ public class ProductApprovalService {
             throw new IllegalArgumentException("当前审批单已结束，不能继续审批");
         }
         List<ConfiguredApprovalStep> approvalSteps = loadApprovalSteps();
-        int currentStepOrder = currentStepOrder(detail.approvalStatus(), approvalSteps);
-        approvalFlowGuard.requireApprovalAccess(
-                CATALOG_FEATURE_CODE,
-                CATALOG_NODE_CODE,
-                currentStepOrder,
-                null,
-                findApplicationSubmitBy(applicationNo)
-        );
+        long applicationId = catalogApprovalRouteService == null ? 0L
+                : Objects.requireNonNull(number(application.get("applicationId")), "applicationId");
+        int approvalRound = catalogApprovalRouteService == null ? 1
+                : Objects.requireNonNull(integer(application.get("approvalRound")), "approvalRound");
+        Long documentDeptId = number(application.get("documentDeptId"));
+        CatalogApprovalRouteService.RouteSnapshotStep routeStep = null;
+        int currentStepOrder;
+        if (catalogApprovalRouteService != null) {
+            catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
+                    text(application.get("applicationType")), detail.approvalStatus(), documentDeptId);
+            routeStep = catalogApprovalRouteService.currentStep(applicationId, approvalRound);
+            catalogApprovalRouteService.requireApprovalAccess(routeStep, documentDeptId,
+                    number(application.get("submitBy")));
+            currentStepOrder = routeStep.routeOrder();
+        } else {
+            currentStepOrder = currentStepOrder(detail.approvalStatus(), approvalSteps);
+            approvalFlowGuard.requireApprovalAccess(CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
+                    currentStepOrder, null, findApplicationSubmitBy(applicationNo));
+        }
 
         if ("reject".equals(action)) {
             if (isBlank(opinion)) {
@@ -451,6 +576,8 @@ public class ProductApprovalService {
                            approve_opinion = ?
                       WHERE application_no = ?
                     """, nextStatus, operator.userId(), opinion, opinion, applicationNo);
+            if (routeStep != null) catalogApprovalRouteService.terminate(
+                    applicationId, approvalRound, currentStepOrder, "rejected");
         } else if ("return".equals(action)) {
             if (isBlank(opinion)) {
                 throw new IllegalArgumentException("退回修改必须填写退回原因");
@@ -463,19 +590,31 @@ public class ProductApprovalService {
                            approve_opinion = ?
                       WHERE application_no = ?
                     """, nextStatus, operator.userId(), opinion, opinion, applicationNo);
+            if (routeStep != null) catalogApprovalRouteService.terminate(
+                    applicationId, approvalRound, currentStepOrder, "returned");
         } else if ("approve".equals(action)) {
-            ConfiguredApprovalStep currentStep = approvalSteps.stream()
-                    .filter(step -> step.stepOrder() == currentStepOrder)
-                    .findFirst()
-                    .orElse(new ConfiguredApprovalStep(currentStepOrder, "审批"));
+            ConfiguredApprovalStep currentStep = routeStep == null
+                    ? approvalSteps.stream().filter(step -> step.stepOrder() == currentStepOrder).findFirst()
+                        .orElse(new ConfiguredApprovalStep(currentStepOrder, "审批"))
+                    : new ConfiguredApprovalStep(currentStepOrder, routeStep.stepName(), routeStep.minApprovals());
             int priorApprovals = countCurrentStepApprovals(applicationNo, currentStepOrder);
             boolean minApprovalsReached = priorApprovals + 1 >= currentStep.minApprovals();
+            java.util.Optional<Integer> nextRouteOrder = java.util.Optional.empty();
+            boolean finalApprovalStep = isFinalApprovalStep(currentStepOrder, approvalSteps);
+            if (minApprovalsReached && routeStep != null) {
+                nextRouteOrder = catalogApprovalRouteService.completeAndAdvance(
+                        applicationId, approvalRound, currentStepOrder);
+                finalApprovalStep = nextRouteOrder.isEmpty();
+            }
             if (!minApprovalsReached) {
                 nextStatus = detail.approvalStatus();
                 operationType = "step_" + currentStepOrder + "_approve_waiting";
-            } else if (!isFinalApprovalStep(currentStepOrder, approvalSteps)) {
-                int nextStepOrder = nextStepOrder(currentStepOrder, approvalSteps);
-                nextStatus = nextPendingStatus(detail.approvalStatus(), nextStepOrder, approvalSteps);
+            } else if (!finalApprovalStep) {
+                int followingStepOrder = routeStep == null
+                        ? nextStepOrder(currentStepOrder, approvalSteps) : nextRouteOrder.orElseThrow();
+                nextStatus = routeStep == null
+                        ? nextPendingStatus(detail.approvalStatus(), followingStepOrder, approvalSteps)
+                        : pendingStatus(followingStepOrder);
                 operationType = "step_" + currentStepOrder + "_approve";
                 jdbcTemplate.update("""
                         UPDATE pending_product_application
@@ -492,6 +631,7 @@ public class ProductApprovalService {
                                final_review_opinion = ?, approve_by = ?, approve_time = NOW(), approve_opinion = ?
                           WHERE application_no = ?
                         """, nextStatus, operator.userId(), opinion, operator.userId(), opinion, applicationNo);
+                assertCatalogSnapshotUnchanged(applicationNo);
                 if ("停用申请".equals(detail.applicationType())) {
                     disableHospitalCatalogProduct(applicationNo);
                 } else {
@@ -503,7 +643,8 @@ public class ProductApprovalService {
         }
 
         recordApprovalAction(applicationNo, currentStepOrder, action, opinion,
-                detail.approvalStatus(), nextStatus, operator.userId());
+                detail.approvalStatus(), nextStatus, operator.userId(),
+                routeStep == null ? null : routeStep.flowId(), routeStep == null ? null : routeStep.sourceStepId());
         writeAudit(operationType, applicationNo, opinion);
         return Map.of("applicationNo", applicationNo, "status", nextStatus);
     }
@@ -514,11 +655,20 @@ public class ProductApprovalService {
         if (!"returned".equals(detail.approvalStatus())) {
             throw new IllegalArgumentException("只有退回修改状态的审批单可以重新提交");
         }
+        OperatorContext operator = operatorContextProvider.current();
+        Long originalApplicant = findApplicationSubmitBy(applicationNo);
+        if (!Objects.equals(originalApplicant, operator.userId()) && !isGlobalAdmin(operator)) {
+            throw new IllegalArgumentException("只有原申请人或全局管理员可以重新提交");
+        }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, applicationNo);
-        validateNoExistingCatalogMatch(request, applicationNo);
+        if ("新品准入".equals(applicationType)) {
+            validateNoExistingCatalogMatch(request, applicationNo);
+        } else {
+            validateExistingApplicationSource(productCode, applicationType, request.purchasePrice(), applicationNo);
+        }
         validateInformationChangeHasDifference(request, applicationType);
 
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
@@ -587,12 +737,27 @@ public class ProductApprovalService {
                 nullIfBlank(request.storageCondition()),
                 nullIfBlank(request.changeReason()),
                 nullIfBlank(request.changeReason()),
-                firstPendingStatus(),
+                catalogApprovalRouteService == null ? firstPendingStatus() : "routing",
                 applicationNo
         );
 
+        String resubmittedStatus = "pending_initial";
+        if (catalogApprovalRouteService != null) {
+            Map<String, Object> identity = jdbcTemplate.queryForMap("""
+                    SELECT application_id AS applicationId, approval_round AS approvalRound
+                      FROM pending_product_application WHERE application_no = ?
+                    """, applicationNo);
+            Long applicationId = number(identity.get("applicationId"));
+            int approvalRound = integer(identity.get("approvalRound"));
+            snapshotExistingCatalog(applicationId, applicationType, request.changeReason());
+            resubmittedStatus = catalogApprovalRouteService.snapshotRoute(
+                    applicationId, approvalRound, applicationType, operator.deptId());
+            jdbcTemplate.update("UPDATE pending_product_application SET approval_status = ? WHERE application_id = ?",
+                    resubmittedStatus, applicationId);
+        }
+
         writeAudit("resubmit", applicationNo, nullIfBlank(request.changeReason()));
-        return Map.of("applicationNo", applicationNo, "status", "pending_initial");
+        return Map.of("applicationNo", applicationNo, "status", resubmittedStatus);
     }
 
     /**
@@ -604,8 +769,25 @@ public class ProductApprovalService {
     public Map<String, Object> updateApplicationData(String applicationNo, PendingProductApplicationRequest request) {
         PendingProductApplicationDetail detail = getDetail(applicationNo);
         String status = detail.approvalStatus();
-        if (!"pending_initial".equals(status) && !"pending_final".equals(status)) {
+        if (!isPendingStatus(status)) {
             throw new IllegalArgumentException("只有待审批状态的申请可以修改");
+        }
+        if (catalogApprovalRouteService != null) {
+            Map<String, Object> identity = jdbcTemplate.queryForMap("""
+                    SELECT a.application_id AS applicationId, a.approval_round AS approvalRound,
+                           a.application_type AS applicationType, a.submit_by AS submitBy,
+                           u.dept_id AS documentDeptId
+                      FROM pending_product_application a LEFT JOIN sys_user u ON u.user_id = a.submit_by
+                     WHERE a.application_no = ?
+                    """, applicationNo);
+            long applicationId = number(identity.get("applicationId"));
+            int approvalRound = integer(identity.get("approvalRound"));
+            Long documentDeptId = number(identity.get("documentDeptId"));
+            catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
+                    text(identity.get("applicationType")), status, documentDeptId);
+            catalogApprovalRouteService.requireApprovalAccess(
+                    catalogApprovalRouteService.currentStep(applicationId, approvalRound),
+                    documentDeptId, number(identity.get("submitBy")));
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
@@ -770,17 +952,19 @@ public class ProductApprovalService {
                                       String opinion,
                                       String fromStatus,
                                       String toStatus,
-                                      Long actorId) {
+                                      Long actorId,
+                                      Long flowId,
+                                      Long stepId) {
         try {
             int inserted = jdbcTemplate.update("""
                     INSERT INTO pending_product_approval_action (
-                      application_id, approval_round, step_order, actor_id,
+                      application_id, approval_round, flow_id, step_id, step_order, actor_id,
                       action, opinion, from_status, to_status
                     )
-                    SELECT application_id, approval_round, ?, ?, ?, ?, ?, ?
+                    SELECT application_id, approval_round, ?, ?, ?, ?, ?, ?, ?, ?
                       FROM pending_product_application
                      WHERE application_no = ?
-                    """, stepOrder, actorId, action, opinion, fromStatus, toStatus, applicationNo);
+                    """, flowId, stepId, stepOrder, actorId, action, opinion, fromStatus, toStatus, applicationNo);
             if (inserted != 1) {
                 throw new IllegalArgumentException("审批申请不存在");
             }
@@ -1018,6 +1202,40 @@ public class ProductApprovalService {
         }
     }
 
+    private void validateExistingApplicationSource(String productCode, String applicationType, BigDecimal requestedPrice,
+                                                   String excludedApplicationNo) {
+        List<Map<String, Object>> products = jdbcTemplate.queryForList("""
+                SELECT product_id, purchase_price, status FROM product
+                 WHERE product_code = ? AND deleted = 0 ORDER BY product_id DESC LIMIT 1
+                """, productCode);
+        if (products.isEmpty()) {
+            throw new IllegalArgumentException("非新品申请必须选择已有医院目录商品");
+        }
+        if ("停用申请".equals(applicationType) && integer(products.get(0).get("status")) != 1) {
+            throw new IllegalArgumentException("只能对启用状态的商品发起停用申请");
+        }
+        if ("价格调整".equals(applicationType)) {
+            BigDecimal currentPrice = products.get(0).get("purchase_price") instanceof BigDecimal value
+                    ? value : BigDecimal.ZERO;
+            if (requestedPrice == null || currentPrice.compareTo(requestedPrice) == 0) {
+                throw new IllegalArgumentException("价格调整必须修改采购价");
+            }
+        }
+        Integer active = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pending_product_application
+                 WHERE product_code = ? AND (approval_status LIKE 'pending_step_%'
+                   OR approval_status IN ('pending_initial','pending_final','routing','returned'))
+                   AND (? IS NULL OR application_no <> ?)
+                """, Integer.class, productCode, excludedApplicationNo, excludedApplicationNo);
+        if (active != null && active > 0) {
+            throw new IllegalArgumentException("该商品已有进行中的目录申请，请勿重复提交");
+        }
+    }
+
+    private void snapshotExistingCatalog(Long applicationId, String applicationType, String reason) {
+        snapshotService.write(applicationId, applicationType, nullIfBlank(reason), null);
+    }
+
     private void validateNoExistingCatalogMatch(PendingProductApplicationRequest request, String excludedApplicationNo) {
         List<String> fields = duplicateRuleFields();
         if (fields.isEmpty()) {
@@ -1150,12 +1368,14 @@ public class ProductApprovalService {
                        contract_code, first_category, second_category, third_category,
                        is_chargeable, tender_sub_code, is_high_value, is_cold_chain, is_quota_managed,
                        is_key_monitored,
-                       storage_condition, 1
+                       storage_condition,
+                       COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(product_snapshot, '$.targetStatus')) AS UNSIGNED), 1)
                   FROM pending_product_application
                  WHERE application_no = ?
                 ON DUPLICATE KEY UPDATE product_name = VALUES(product_name),
                   spec_model = VALUES(spec_model), brand = VALUES(brand),
                   manufacturer_id = VALUES(manufacturer_id), supplier_id = VALUES(supplier_id),
+                  category_id = VALUES(category_id),
                   unit = VALUES(unit), purchase_price = VALUES(purchase_price),
                   retail_price = VALUES(retail_price), min_purchase_qty = VALUES(min_purchase_qty),
                   purchase_unit = VALUES(purchase_unit), conversion_rate = VALUES(conversion_rate),
@@ -1173,7 +1393,7 @@ public class ProductApprovalService {
                   is_high_value = VALUES(is_high_value), is_cold_chain = VALUES(is_cold_chain),
                   is_quota_managed = VALUES(is_quota_managed),
                   is_key_monitored = VALUES(is_key_monitored),
-                  storage_condition = VALUES(storage_condition), status = 1, deleted = 0
+                  storage_condition = VALUES(storage_condition), status = VALUES(status), deleted = 0
                 """, ensureCategory("未分类", null, null), applicationNo);
         jdbcTemplate.update("""
                 INSERT INTO sys_attachment (
@@ -1206,17 +1426,36 @@ public class ProductApprovalService {
                 """, applicationNo);
     }
 
+    /** Prevents an older approval from overwriting catalog changes made after submission. */
+    private void assertCatalogSnapshotUnchanged(String applicationNo) {
+        Integer conflicting = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pending_product_application a
+                  JOIN product p ON p.product_code = a.product_code AND p.deleted = 0
+                 WHERE a.application_no = ?
+                   AND JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.source')) = 'hospital'
+                   AND NOT (
+                     p.product_name <=> JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.productName'))
+                     AND p.spec_model <=> JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.specModel'))
+                     AND p.unit <=> JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.unit'))
+                     AND p.purchase_price <=> CAST(JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.purchasePrice')) AS DECIMAL(18,4))
+                     AND p.category_id <=> CAST(JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.categoryId')) AS UNSIGNED)
+                     AND p.status <=> CAST(JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.status')) AS UNSIGNED)
+                   )
+                """, Integer.class, applicationNo);
+        if (conflicting != null && conflicting > 0) {
+            throw new IllegalArgumentException("医院目录已发生变化，请重新提交申请");
+        }
+    }
+
     private void writeAudit(String operationType, String applicationNo, String opinion) {
         Long applicationId = jdbcTemplate.queryForObject(
                 "SELECT application_id FROM pending_product_application WHERE application_no = ?",
                 Long.class,
                 applicationNo
         );
-        jdbcTemplate.update("""
-                INSERT INTO audit_log (operator_name, operation_type, biz_type, biz_id, after_data, ip_address, remark)
-                VALUES ('admin', ?, 'pending_product_application', ?,
-                        JSON_OBJECT('applicationNo', ?, 'opinion', ?), '127.0.0.1', '商品准入/变更审批')
-                """, operationType, applicationId, applicationNo, opinion);
+        auditLogService.record("pending_product_application", operationType, applicationId, applicationNo,
+                isBlank(opinion) ? "商品准入/变更审批" : opinion);
     }
 
     private int currentAttachmentCount(String applicationNo) {
@@ -1233,13 +1472,7 @@ public class ProductApprovalService {
     }
 
     private String nextApplicationNo() {
-        String prefix = "SP" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE);
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM pending_product_application WHERE application_no LIKE ?",
-                Integer.class,
-                prefix + "%"
-        );
-        return prefix + String.format("%03d", (count == null ? 0 : count) + 1);
+        return documentNumberService.next(DocumentKind.PENDING_PRODUCT_APPLICATION);
     }
 
     private Long ensureCategory(String firstCategory, String secondCategory, String thirdCategory) {
@@ -1315,8 +1548,22 @@ public class ProductApprovalService {
             case "qualification" -> "资质更新";
             case "price" -> "价格调整";
             case "disable" -> "停用申请";
-            default -> value.trim();
+            case "新品准入", "信息变更", "资质更新", "价格调整", "停用申请" -> value.trim();
+            default -> throw new IllegalArgumentException("不支持的申请类型");
         };
+    }
+
+    private static boolean isGlobalAdmin(OperatorContext operator) {
+        if (operator == null) return false;
+        if ("admin".equalsIgnoreCase(operator.username()) || "system".equalsIgnoreCase(operator.username())) return true;
+        return operator.roles() != null && operator.roles().stream()
+                .map(role -> role.toLowerCase(Locale.ROOT).replaceFirst("^role_", ""))
+                .anyMatch(role -> role.equals("admin") || role.equals("system"));
+    }
+
+    private static Long nullableLong(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+        long value = rs.getLong(column);
+        return rs.wasNull() ? null : value;
     }
 
     private static void validateQuotaEligibility(Boolean highValue, Boolean coldChain, Boolean quotaManaged) {

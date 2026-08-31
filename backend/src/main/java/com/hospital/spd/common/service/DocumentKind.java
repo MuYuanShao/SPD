@@ -15,6 +15,7 @@ public enum DocumentKind {
     INVENTORY_EVENT("KC", 5, "inventory_event", "event_no"),
     INVENTORY_STOCKTAKING("PD", 5, "inventory_stocktaking", "stocktaking_no"),
     BATCH_PRICE_ADJUSTMENT("TJ", 5, "batch_price_adjustment", "adjustment_no"),
+    PENDING_PRODUCT_APPLICATION("SP", 3, "pending_product_application", "application_no"),
     SHORTAGE_REPLENISHMENT_TASK("QH", 5, "shortage_replenishment_task", "task_no"),
     DEPARTMENT_REQUISITION("SL", 5, "department_requisition", "requisition_no"),
     DELIVERY_ORDER("PS", 5, "spd_delivery_order", "delivery_no"),

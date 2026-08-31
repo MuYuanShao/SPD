@@ -44,4 +44,12 @@ class DocumentNumberServiceTest {
         assertThat(value).endsWith("00004");
         verify(jdbcTemplate).update(anyString(), eq(value.substring(0, value.length() - 5)), eq(4L), eq(3L));
     }
+
+    @Test
+    void shouldExposePendingProductApplicationNumberPolicy() {
+        assertThat(DocumentKind.PENDING_PRODUCT_APPLICATION.prefix()).isEqualTo("SP");
+        assertThat(DocumentKind.PENDING_PRODUCT_APPLICATION.width()).isEqualTo(3);
+        assertThat(DocumentKind.PENDING_PRODUCT_APPLICATION.table()).isEqualTo("pending_product_application");
+        assertThat(DocumentKind.PENDING_PRODUCT_APPLICATION.column()).isEqualTo("application_no");
+    }
 }

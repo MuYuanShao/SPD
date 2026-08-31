@@ -1,6 +1,7 @@
 import { reactive, ref, type Ref } from 'vue'
 import {
   createPendingProductApplication,
+  uploadPendingProductAttachment,
   type PendingProductApplicationPayload
 } from '../api/pendingProductApplications'
 
@@ -12,10 +13,14 @@ export function usePendingProductCreateForm(options: {
   const createForm = reactive<PendingProductApplicationPayload>(emptyCreateForm())
   const createAttachments = ref<File[]>([])
   const attachmentInput = ref<HTMLInputElement | null>(null)
+  const createdApplicationNo = ref('')
+  const createdProductCode = ref('')
 
   function resetCreateForm() {
     Object.assign(createForm, emptyCreateForm())
     createAttachments.value = []
+    createdApplicationNo.value = ''
+    createdProductCode.value = ''
     if (attachmentInput.value) {
       attachmentInput.value.value = ''
     }
@@ -36,10 +41,27 @@ export function usePendingProductCreateForm(options: {
   }
 
   async function submitCreateForm() {
-    createForm.qualificationAttachmentCount = createAttachments.value.length
-    const result = await createPendingProductApplication(createForm)
-    const codeSuffix = result.productCode ? `（商品编码 ${result.productCode}）` : ''
-    options.message.value = `已生成待审批单：${result.applicationNo}${codeSuffix}`
+    if (!createdApplicationNo.value) {
+      createForm.qualificationAttachmentCount = 0
+      const result = await createPendingProductApplication(createForm)
+      createdApplicationNo.value = result.applicationNo
+      createdProductCode.value = result.productCode ?? ''
+    }
+    const failedFiles: File[] = []
+    for (const file of createAttachments.value) {
+      try {
+        await uploadPendingProductAttachment(createdApplicationNo.value, file)
+      } catch {
+        failedFiles.push(file)
+      }
+    }
+    if (failedFiles.length) {
+      createAttachments.value = failedFiles
+      options.message.value = `审批单 ${createdApplicationNo.value} 已创建，${failedFiles.length} 个附件上传失败；请再次提交重试附件`
+      throw new Error(options.message.value)
+    }
+    const codeSuffix = createdProductCode.value ? `（商品编码 ${createdProductCode.value}）` : ''
+    options.message.value = `已生成待审批单：${createdApplicationNo.value}${codeSuffix}`
     options.showCreateModal.value = false
     resetCreateForm()
     await options.reload()
@@ -49,6 +71,7 @@ export function usePendingProductCreateForm(options: {
     createForm,
     createAttachments,
     attachmentInput,
+    createdApplicationNo,
     resetCreateForm,
     handleCreateAttachments,
     removeCreateAttachment,

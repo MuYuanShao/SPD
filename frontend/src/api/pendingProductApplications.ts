@@ -1,4 +1,4 @@
-import { getData, http, postData, putData } from './http'
+import { deleteData, getData, http, postData, putData } from './http'
 import type { PartnerOption } from './masterData'
 
 export interface PendingProductPartnerOptions {
@@ -52,6 +52,7 @@ export interface PendingProductApplicationRow {
 
 export interface PendingProductApplicationPage {
   typeCounts: PendingProductTypeCount[]
+  summary?: { typeCounts?: PendingProductTypeCount[] }
   rows: PendingProductApplicationRow[]
   total: number
   page: number
@@ -159,6 +160,24 @@ export interface PendingProductApplicationPayload {
   changeReason?: string
 }
 
+export interface PendingProductSourceRow {
+  productCode: string
+  productName: string
+  specModel: string
+  unit: string
+  purchasePrice: number
+  status: number
+  manufacturerName: string
+  supplierName: string
+}
+
+export interface PendingProductSourcePage {
+  rows: PendingProductSourceRow[]
+  total: number
+  page: number
+  size: number
+}
+
 export async function fetchPendingProductApplications(type: string, scope = 'todo', keyword = '', mineStatus = 'pending', page = 1, size = 25) {
   return getData<PendingProductApplicationPage>('/pending-product-applications', {
     params: { type, scope, keyword, mineStatus, page, size }
@@ -187,8 +206,35 @@ export async function createPendingProductApplication(payload: PendingProductApp
   return postData<{ applicationNo: string; productCode?: string }>('/pending-product-applications', payload)
 }
 
+export async function uploadPendingProductAttachment(applicationNo: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return postData<{ attachmentId: number }>(
+    `/pending-product-applications/${applicationNo}/attachments`,
+    form
+  )
+}
+
+export async function deletePendingProductAttachment(applicationNo: string, attachmentId: number) {
+  return deleteData<{ attachmentId: number }>(
+    `/pending-product-applications/${applicationNo}/attachments/${attachmentId}`
+  )
+}
+
 export async function fetchPendingProductPartnerOptions() {
   return getData<PendingProductPartnerOptions>('/pending-product-applications/partner-options')
+}
+
+export async function fetchPendingProductSourceProducts(keyword = '', page = 1, size = 10) {
+  return getData<PendingProductSourcePage>('/pending-product-applications/source-products', {
+    params: { keyword, page, size }
+  })
+}
+
+export async function fetchPendingProductSourceDetail(productCode: string) {
+  return getData<PendingProductApplicationPayload & { status: number }>(
+    `/pending-product-applications/source-products/${encodeURIComponent(productCode)}`
+  )
 }
 
 export async function approvePendingProductApplication(applicationNo: string, action: string, opinion: string) {

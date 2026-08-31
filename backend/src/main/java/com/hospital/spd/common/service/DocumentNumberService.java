@@ -1,6 +1,5 @@
 package com.hospital.spd.common.service;
 
-import jakarta.annotation.PostConstruct;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -75,19 +74,4 @@ public class DocumentNumberService {
         return identifier != null && identifier.matches("[A-Za-z0-9_]+");
     }
 
-    /**
-     * Keeps numbering self-contained so each business service can rely on the shared allocator.
-     */
-    @PostConstruct
-    void ensureSequenceTable() {
-        jdbcTemplate.execute("""
-                CREATE TABLE IF NOT EXISTS sys_sequence (
-                  seq_key    VARCHAR(100) NOT NULL,
-                  seq_value  BIGINT UNSIGNED NOT NULL DEFAULT 0,
-                  create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                  update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                  PRIMARY KEY (seq_key)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-                """);
-    }
 }

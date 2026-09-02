@@ -214,6 +214,7 @@ export interface WarehousePayload {
   warehouseType: string
   campusName: string
   deptName: string
+  deptCode?: string
   participateStats: boolean
   statsCategories: string
   status: number

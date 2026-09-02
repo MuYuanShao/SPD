@@ -111,6 +111,12 @@ export interface PurchaseSupplierOption {
   supplierName: string
 }
 
+export interface PurchaseDepartmentOption {
+  deptCode: string
+  deptName: string
+  isCurrent?: number | boolean
+}
+
 export interface PurchaseSmartReplenishmentRow {
   warehouseCode: string
   warehouseName: string
@@ -154,6 +160,7 @@ export interface PurchaseOrderItemPayload {
 export interface PurchaseOrderPayload {
   supplierName: string
   orderSource: string
+  purchaseType: string
   expectedArrivalDate: string
   items: PurchaseOrderItemPayload[]
 }
@@ -226,7 +233,7 @@ export async function updatePurchaseOrderAction(orderNo: string, action: string,
  * @returns 供应商和商品选项
  */
 export async function fetchPurchaseOptions() {
-  return getData<{ suppliers: PurchaseSupplierOption[]; products: PurchaseProductOption[] }>('/purchase-orders/options')
+  return getData<{ suppliers: PurchaseSupplierOption[]; products: PurchaseProductOption[]; departments: PurchaseDepartmentOption[] }>('/purchase-orders/options')
 }
 
 export async function fetchPurchaseSmartReplenishmentAnalysis(periodDays = 30) {
@@ -284,8 +291,8 @@ export async function fetchPurchasePlans(params: Record<string, string>) {
  * @param payload - 需求到计划的转换参数
  * @returns 创建的采购计划数量
  */
-export async function createPurchasePlansFromDemands(payload: Record<string, unknown>) {
-  return postData<{ createdPlans: number }>(
+export async function createPurchasePlansFromDemands(payload: { demandNos: string[]; supplierName?: string; remark?: string }) {
+  return postData<{ createdPlans: number; planNos: string[] }>(
     '/purchase-orders/plans/from-demands',
     payload
   )

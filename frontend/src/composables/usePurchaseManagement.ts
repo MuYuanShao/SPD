@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   addPurchaseOrderRemark,
   createPurchaseDemand,
@@ -23,7 +23,8 @@ import {
   type PurchasePlanRow,
   type PurchaseProductOption,
   type PurchaseSmartReplenishmentRow,
-  type PurchaseSupplierOption
+  type PurchaseSupplierOption,
+  type PurchaseDepartmentOption
 } from '../api/purchaseOrders'
 import { formatStatusText } from '../utils/chineseDisplay'
 
@@ -49,6 +50,7 @@ export function usePurchaseManagement() {
   const plans = ref<PurchasePlanRow[]>([])
   const products = ref<PurchaseProductOption[]>([])
   const suppliers = ref<PurchaseSupplierOption[]>([])
+  const departments = ref<PurchaseDepartmentOption[]>([])
   const smartRows = ref<PurchaseSmartReplenishmentRow[]>([])
   const smartPeriods = ref<number[]>([5, 15, 30, 45, 60])
   const smartSelectedPeriod = ref(30)
@@ -69,6 +71,8 @@ export function usePurchaseManagement() {
   })
   const showCreateModal = ref(false)
   const showDemandModal = ref(false)
+  const demandSubmitting = ref(false)
+  const orderSubmitting = ref(false)
   const closeTarget = ref<PurchaseOrderRow | null>(null)
   const closeReason = ref('')
   const detail = ref<PurchaseOrderDetail | null>(null)
@@ -89,12 +93,19 @@ export function usePurchaseManagement() {
     status: '',
     keyword: '',
     demandNo: '',
-    planNo: ''
+    planNo: '',
+    deptCode: ''
+  })
+  const tabQueries = reactive<Record<'demands' | 'plans' | 'orders', typeof query>>({
+    demands: { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' },
+    plans: { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' },
+    orders: { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' }
   })
 
   const form = reactive({
     supplierName: '',
-    orderSource: '临时采购',
+    orderSource: 'manual',
+    purchaseType: 'regular',
     expectedArrivalDate: '',
     items: [{ productCode: '', quantity: 1, unit: '', estimatedUnitPrice: 0 }]
   })
@@ -103,6 +114,7 @@ export function usePurchaseManagement() {
   const demandProductSearchQuery = ref('')
 
   const demandForm = reactive({
+    deptCode: '',
     deptName: '',
     demandSource: '临时采购',
     urgentLevel: 'normal',
@@ -114,6 +126,7 @@ export function usePurchaseManagement() {
     supplierName: '',
     remark: '由已审核采购需求生成'
   })
+  const selectedDemandNos = ref<string[]>([])
 
   const demandGroups = computed<DemandGroup[]>(() => {
     const groups = new Map<string, DemandGroup>()
@@ -262,14 +275,17 @@ export function usePurchaseManagement() {
 
   function resetOrderForm() {
     form.supplierName = ''
-    form.orderSource = '临时采购'
+    form.orderSource = 'manual'
+    form.purchaseType = 'regular'
     form.expectedArrivalDate = ''
     form.items = [{ productCode: '', quantity: 1, unit: '', estimatedUnitPrice: 0 }]
     productSearchQuery.value = ''
   }
 
   function resetDemandForm() {
-    demandForm.deptName = ''
+    const currentDepartment = departments.value.find((department) => Boolean(department.isCurrent))
+    demandForm.deptCode = currentDepartment?.deptCode ?? ''
+    demandForm.deptName = currentDepartment?.deptName ?? ''
     demandForm.demandSource = '临时采购'
     demandForm.urgentLevel = 'normal'
     demandForm.remark = ''
@@ -280,62 +296,60 @@ export function usePurchaseManagement() {
   async function loadData() {
     loading.value = true
     try {
-      const results = await Promise.allSettled([
-        fetchPurchaseOrders({
+      if (products.value.length === 0 || suppliers.value.length === 0) {
+        const options = await fetchPurchaseOptions()
+        suppliers.value = options.suppliers
+        products.value = options.products
+        departments.value = options.departments ?? []
+        if (!demandForm.deptCode) {
+          const currentDepartment = departments.value.find((department) => Boolean(department.isCurrent))
+          if (currentDepartment) {
+            demandForm.deptCode = currentDepartment.deptCode
+            demandForm.deptName = currentDepartment.deptName
+          }
+        }
+      }
+      if (activeTab.value === 'orders') {
+        const result = await fetchPurchaseOrders({
           orderNo: query.orderNo,
           supplierName: query.supplierName,
           status: query.status,
           keyword: query.keyword,
           page: String(purchasePagination.orders.page),
           size: String(purchasePagination.orders.size)
-        }),
-        fetchPurchaseOptions(),
-        fetchPurchaseDemands({
+        })
+        rows.value = result.rows
+        purchasePagination.orders.total = result.total
+        summary.value = result.summary ?? {}
+      } else if (activeTab.value === 'demands') {
+        const result = await fetchPurchaseDemands({
           demandNo: query.demandNo,
+          deptCode: query.deptCode,
           keyword: query.keyword,
           status: query.status,
           page: String(purchasePagination.demands.page),
           size: String(purchasePagination.demands.size)
-        }),
-        fetchPurchasePlans({
+        })
+        demands.value = result.rows
+        purchasePagination.demands.total = result.total
+        selectedDemandNos.value = selectedDemandNos.value.filter((no) =>
+          demandGroups.value.some((group) => group.demandNo === no && group.demandStatus === 'approved')
+        )
+      } else if (activeTab.value === 'plans') {
+        const result = await fetchPurchasePlans({
           planNo: query.planNo,
+          supplierName: query.supplierName,
           keyword: query.keyword,
           status: query.status,
           page: String(purchasePagination.plans.page),
           size: String(purchasePagination.plans.size)
         })
-      ])
-      const [orderResult, optionResult, demandResult, planResult] = results
-
-      if (orderResult.status === 'fulfilled') {
-        rows.value = orderResult.value.rows
-        if (selectedOrder.value) {
-          selectedOrder.value = rows.value.find((row) => row.orderNo === selectedOrder.value?.orderNo) ?? null
-        }
-        purchasePagination.orders.total = orderResult.value.total
-        summary.value = orderResult.value.summary ?? {}
-      } else {
-        console.error('Failed to load orders:', orderResult.reason)
+        plans.value = result.rows
+        purchasePagination.plans.total = result.total
       }
-      if (optionResult.status === 'fulfilled') {
-        suppliers.value = optionResult.value.suppliers
-        products.value = optionResult.value.products
-      } else {
-        console.error('Failed to load options:', optionResult.reason)
-      }
-      if (demandResult.status === 'fulfilled') {
-        demands.value = demandResult.value.rows
-        purchasePagination.demands.total = demandResult.value.total
-      } else {
-        console.error('Failed to load demands:', demandResult.reason)
-      }
-      if (planResult.status === 'fulfilled') {
-        plans.value = planResult.value.rows
-        purchasePagination.plans.total = planResult.value.total
-      } else {
-        console.error('Failed to load plans:', planResult.reason)
-      }
-      message.value = results.some((result) => result.status === 'rejected') ? '部分数据加载失败，请刷新重试' : ''
+      message.value = ''
+    } catch (error) {
+      message.value = errorMessage(error)
     } finally {
       loading.value = false
     }
@@ -350,6 +364,21 @@ export function usePurchaseManagement() {
     await loadData()
   }
 
+  async function selectTab(tab: PurchaseTab) {
+    if (activeTab.value === tab) return
+    if (activeTab.value === 'demands' || activeTab.value === 'plans' || activeTab.value === 'orders') {
+      Object.assign(tabQueries[activeTab.value], query)
+    }
+    activeTab.value = tab
+    if (tab === 'demands' || tab === 'plans' || tab === 'orders') {
+      Object.assign(query, tabQueries[tab])
+    } else {
+      Object.assign(query, { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' })
+    }
+    message.value = ''
+    await loadData()
+  }
+
   async function changePurchasePageSize(tab: 'demands' | 'plans' | 'orders', size: number) {
     const state = purchasePagination[tab]
     if (state.size === size) return
@@ -359,6 +388,8 @@ export function usePurchaseManagement() {
   }
 
   async function submitCreate() {
+    if (orderSubmitting.value) return
+    orderSubmitting.value = true
     try {
       const result = await createPurchaseOrder(form)
       message.value = `采购订单已创建：${result.orderNo}`
@@ -367,13 +398,17 @@ export function usePurchaseManagement() {
       await loadData()
     } catch (error) {
       message.value = errorMessage(error)
+    } finally {
+      orderSubmitting.value = false
     }
   }
 
   async function submitDemand(continueAfterSave = false) {
+    if (demandSubmitting.value) return
+    demandSubmitting.value = true
     try {
-      if (!demandForm.deptName.trim()) {
-        message.value = '请填写申请科室'
+      if (!demandForm.deptCode) {
+        message.value = '请选择申请科室'
         return
       }
       if (!demandForm.demandSource.trim()) {
@@ -395,6 +430,7 @@ export function usePurchaseManagement() {
       }
       const mergedItems = Array.from(mergedMap.entries()).map(([productCode, quantity]) => ({ productCode, quantity }))
       const result = await createPurchaseDemand({
+        deptCode: demandForm.deptCode,
         deptName: demandForm.deptName,
         demandSource: demandForm.demandSource,
         urgentLevel: demandForm.urgentLevel,
@@ -411,6 +447,8 @@ export function usePurchaseManagement() {
       await loadData()
     } catch (error) {
       message.value = errorMessage(error)
+    } finally {
+      demandSubmitting.value = false
     }
   }
 
@@ -434,11 +472,17 @@ export function usePurchaseManagement() {
 
   async function generatePlans() {
     try {
+      if (selectedDemandNos.value.length === 0) {
+        message.value = '请选择需要转计划的已审核需求'
+        return
+      }
       const result = await createPurchasePlansFromDemands({
+        demandNos: selectedDemandNos.value,
         supplierName: planForm.supplierName || undefined,
         remark: planForm.remark
       })
       message.value = `已根据审核通过需求生成 ${result.createdPlans} 条采购计划`
+      selectedDemandNos.value = []
       activeTab.value = 'plans'
       await loadData()
     } catch (error) {
@@ -728,7 +772,20 @@ export function usePurchaseManagement() {
     showOrderAttachmentDialog.value = false
   }
 
-  onMounted(loadData)
+  function handleEscape(event: KeyboardEvent) {
+    if (event.key !== 'Escape') return
+    if (showDemandModal.value) {
+      showDemandModal.value = false
+      return
+    }
+    if (showCreateModal.value) showCreateModal.value = false
+  }
+
+  onMounted(() => {
+    window.addEventListener('keydown', handleEscape)
+    void loadData()
+  })
+  onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape))
 
   return {
     activeTab,
@@ -747,12 +804,15 @@ export function usePurchaseManagement() {
     smartAnalysisError,
     products,
     suppliers,
+    departments,
     summary,
     loading,
     message,
     purchasePagination,
     showCreateModal,
     showDemandModal,
+    demandSubmitting,
+    orderSubmitting,
     closeTarget,
     closeReason,
     detail,
@@ -772,6 +832,7 @@ export function usePurchaseManagement() {
     demandProductSearchQuery,
     demandForm,
     planForm,
+    selectedDemandNos,
     demandGroups,
     showDemandDetailDialog,
     selectedDemandGroup,
@@ -795,6 +856,7 @@ export function usePurchaseManagement() {
     resetOrderForm,
     resetDemandForm,
     loadData,
+    selectTab,
     changePurchasePage,
     changePurchasePageSize,
     submitCreate,

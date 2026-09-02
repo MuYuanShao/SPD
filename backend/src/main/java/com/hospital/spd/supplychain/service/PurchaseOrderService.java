@@ -5,6 +5,7 @@ import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
 import com.hospital.spd.supplychain.PurchaseOrderActionRequest;
 import com.hospital.spd.supplychain.PurchaseOrderItemRequest;
 import com.hospital.spd.supplychain.PurchaseOrderRequest;
@@ -44,6 +45,8 @@ public class PurchaseOrderService {
     private final PurchaseFlowCommandRunner purchaseFlow;
     private final DataScopeService dataScopeService;
     private final OperatorContextProvider operatorContextProvider;
+    private final PurchasePermissionGuard permissionGuard;
+    private final AuditLogService auditLogService;
 
     public PurchaseOrderService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support, OperatorContext::system, new DataScopeService(OperatorContext::system));
@@ -64,6 +67,8 @@ public class PurchaseOrderService {
         this.support = support;
         this.dataScopeService = dataScopeService;
         this.operatorContextProvider = operatorContextProvider;
+        this.permissionGuard = new PurchasePermissionGuard(jdbcTemplate, operatorContextProvider);
+        this.auditLogService = new AuditLogService(jdbcTemplate, operatorContextProvider);
         this.purchaseFlow = new PurchaseFlowCommandRunner(jdbcTemplate, operatorContextProvider, this::createOrderFromPlan);
     }
 
@@ -186,7 +191,10 @@ public class PurchaseOrderService {
 
     @Transactional
     public Map<String, Object> createOrder(PurchaseOrderRequest request) {
+        permissionGuard.require("purchase-order:create");
         validateRequest(request);
+        String normalizedOrderSource = normalizeOrderSource(request.orderSource());
+        String normalizedPurchaseType = normalizePurchaseType(request.purchaseType(), request.orderSource());
         Long supplierId = findSupplierId(request.supplierName());
         String orderNo = support.nextNo(PURCHASE_ORDER);
         BigDecimal totalAmount = request.items().stream()
@@ -203,11 +211,11 @@ public class PurchaseOrderService {
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, orderNo);
             ps.setLong(2, supplierId);
-            ps.setString(3, nullIfBlank(request.orderSource()));
+            ps.setString(3, normalizedOrderSource);
             ps.setBigDecimal(4, totalAmount);
             ps.setDate(5, parseDate(request.expectedArrivalDate()));
             ps.setLong(6, operatorContextProvider.current().userId());
-            ps.setString(7, isBlank(request.orderSource()) ? "manual" : request.orderSource().trim());
+            ps.setString(7, normalizedPurchaseType);
             return ps;
         }, keyHolder);
         Long orderId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -219,11 +227,13 @@ public class PurchaseOrderService {
 
     @Transactional
     public Map<String, Object> performAction(String orderNo, PurchaseOrderActionRequest request) {
+        permissionGuard.require(orderActionPermission(request.action()));
         return purchaseFlow.runOrderAction(orderNo, request);
     }
 
     @Transactional
     public Map<String, Object> addRemark(String orderNo, String remark) {
+        permissionGuard.require("purchase-order:remark");
         if (isBlank(remark)) {
             throw new IllegalArgumentException("请填写订单备注");
         }
@@ -255,7 +265,11 @@ public class PurchaseOrderService {
             where.append(" AND pd.demand_status = ?");
             args.add(params.get("status").trim());
         }
-        dataScopeService.appendScope(where, args, "pd.dept_id", null);
+        if (!isBlank(params.get("deptCode"))) {
+            where.append(" AND d.dept_code = ?");
+            args.add(params.get("deptCode").trim());
+        }
+        dataScopeService.appendScope(where, args, "pd.dept_id", "pd.create_by");
 
         String fromClause = """
                   FROM purchase_demand pd
@@ -263,11 +277,24 @@ public class PurchaseOrderService {
                   LEFT JOIN sys_dept d ON d.dept_id = pd.dept_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                 """;
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(DISTINCT pd.demand_no) " + fromClause + where, Long.class, args.toArray());
 
-        List<Object> queryArgs = new ArrayList<>(args);
-        queryArgs.add(pageReq.size());
-        queryArgs.add(pageReq.offset());
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(pageReq.size());
+        pageArgs.add(pageReq.offset());
+        List<Map<String, Object>> demandHeaders = jdbcTemplate.queryForList("""
+                SELECT pd.demand_no AS demandNo, MAX(pd.create_time) AS sortTime
+                """ + fromClause + where + " GROUP BY pd.demand_no ORDER BY sortTime DESC LIMIT ? OFFSET ?",
+                pageArgs.toArray());
+        if (demandHeaders.isEmpty()) {
+            return PageResponse.of(List.of(), total == null ? 0 : total, pageReq);
+        }
+        List<String> demandNos = demandHeaders.stream()
+                .map(row -> String.valueOf(row.get("demandNo")))
+                .toList();
+        String placeholders = String.join(",", java.util.Collections.nCopies(demandNos.size(), "?"));
+        List<Object> detailArgs = new ArrayList<>(demandNos);
+        detailArgs.addAll(demandNos);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT pd.demand_id AS demandId, pd.demand_no AS demandNo, pd.demand_source AS demandSource,
                        pd.demand_status AS demandStatus, pd.urgent_level AS urgentLevel,
@@ -281,14 +308,16 @@ public class PurchaseOrderService {
                   JOIN product p ON p.product_id = pd.product_id
                   LEFT JOIN sys_dept d ON d.dept_id = pd.dept_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                """ + where + " ORDER BY pd.create_time DESC LIMIT ? OFFSET ?",
-                queryArgs.toArray());
+                """ + " WHERE pd.demand_no IN (" + placeholders + ")"
+                + " ORDER BY FIELD(pd.demand_no," + placeholders + "), pd.demand_id",
+                detailArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     @SuppressWarnings("unchecked")
     @Transactional
     public Map<String, Object> createDemand(Map<String, Object> request) {
+        permissionGuard.require("purchase-demand:create");
         // items 数组：每个元素包含 productCode + quantity
         List<Map<String, Object>> items;
         Object raw = request.get("items");
@@ -343,8 +372,8 @@ public class PurchaseOrderService {
             }
         }
 
-        String demandNo = support.nextNo(PURCHASE_DEMAND);
-        Long deptId = findDeptId(stringValue(request.get("deptName")));
+        Long deptId = resolveDemandDepartment(request);
+        List<Map<String, Object>> validatedItems = new ArrayList<>();
         BigDecimal totalSuggested = BigDecimal.ZERO;
         String source = defaultText(request.get("demandSource"), "manual");
         String urgent = defaultText(request.get("urgentLevel"), "normal");
@@ -365,14 +394,22 @@ public class PurchaseOrderService {
             Map<String, Object> product = findProduct(productCode);
             BigDecimal suggested = suggestedPurchaseQty(quantity, product);
             totalSuggested = totalSuggested.add(suggested);
+            validatedItems.add(Map.of("product", product, "quantity", quantity, "suggested", suggested));
+        }
+
+        String demandNo = support.nextNo(PURCHASE_DEMAND);
+        OperatorContext operator = operatorContextProvider.current();
+        for (Map<String, Object> item : validatedItems) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> product = (Map<String, Object>) item.get("product");
 
             jdbcTemplate.update("""
                     INSERT INTO purchase_demand (
                       demand_no, demand_source, demand_status, urgent_level, dept_id, product_id,
-                      quantity, approved_quantity, suggested_purchase_qty, remark
-                    ) VALUES (?, ?, 'draft', ?, ?, ?, ?, 0, ?, ?)
+                      quantity, approved_quantity, suggested_purchase_qty, remark, create_by
+                    ) VALUES (?, ?, 'draft', ?, ?, ?, ?, 0, ?, ?, ?)
                     """, demandNo, source, urgent, deptId, product.get("productId"),
-                    quantity, suggested, remark);
+                    item.get("quantity"), item.get("suggested"), remark, operator.userId());
         }
 
         if (analysisId != null) {
@@ -397,6 +434,12 @@ public class PurchaseOrderService {
 
     @Transactional
     public Map<String, Object> performDemandAction(String demandNo, PurchaseOrderActionRequest request) {
+        permissionGuard.require(switch (request.action() == null ? "" : request.action().trim()) {
+            case "submit" -> "purchase-demand:submit";
+            case "approve" -> "purchase-demand:review";
+            case "reject" -> "purchase-demand:reject";
+            default -> throw new IllegalArgumentException("purchase demand action is invalid");
+        });
         return purchaseFlow.runDemandAction(demandNo, request);
     }
 
@@ -410,6 +453,7 @@ public class PurchaseOrderService {
                 """);
         appendLike(where, args, "pp.plan_no", params.get("planNo"));
         appendLike(where, args, "p.product_name", params.get("keyword"));
+        appendLike(where, args, "s.supplier_name", params.get("supplierName"));
         if (!isBlank(params.get("status"))) {
             where.append(" AND pp.plan_status = ?");
             args.add(params.get("status").trim());
@@ -453,22 +497,44 @@ public class PurchaseOrderService {
 
     @Transactional
     public Map<String, Object> createPlanFromDemands(Map<String, Object> request) {
+        permissionGuard.require("purchase-demand:convert-plan");
+        Object rawDemandNos = request.get("demandNos");
+        if (!(rawDemandNos instanceof List<?> rawList)) {
+            throw new IllegalArgumentException("请选择需要转计划的已审核需求");
+        }
+        List<String> demandNos = rawList.stream()
+                .map(PurchaseOrderService::stringValue)
+                .filter(value -> !isBlank(value))
+                .distinct()
+                .toList();
+        if (demandNos.isEmpty()) {
+            throw new IllegalArgumentException("请选择需要转计划的已审核需求");
+        }
         String supplierName = stringValue(request.get("supplierName"));
         Long requestedSupplierId = isBlank(supplierName) ? null : findSupplierId(supplierName);
+        String placeholders = String.join(",", java.util.Collections.nCopies(demandNos.size(), "?"));
+        List<Object> queryArgs = new ArrayList<>(demandNos);
+        StringBuilder demandWhere = new StringBuilder(" WHERE pd.demand_no IN (" + placeholders + ")");
+        demandWhere.append(" AND pd.demand_status = 'approved' AND pd.approved_quantity > 0");
+        dataScopeService.appendScope(demandWhere, queryArgs, "pd.dept_id", "pd.create_by");
         List<Map<String, Object>> demands = jdbcTemplate.queryForList("""
-                SELECT pd.demand_id AS demandId, pd.product_id AS productId,
-                       p.supplier_id AS productSupplierId, pd.approved_quantity AS plannedQuantity
+                SELECT pd.demand_id AS demandId, pd.demand_no AS demandNo, pd.product_id AS productId,
+                       ps.supplier_id AS productSupplierId, pd.approved_quantity AS plannedQuantity
                   FROM purchase_demand pd
                   JOIN product p ON p.product_id = pd.product_id
-                 WHERE pd.demand_status = 'approved'
-                   AND pd.approved_quantity > 0
-                 ORDER BY pd.demand_id
-                 FOR UPDATE
-                """);
-        if (demands.isEmpty()) {
-            throw new IllegalArgumentException("no approved demands can generate purchase plan");
+                  LEFT JOIN supplier ps ON ps.supplier_id = p.supplier_id
+                                        AND ps.status = 1 AND ps.deleted = 0
+                """ + demandWhere + " ORDER BY pd.demand_id FOR UPDATE", queryArgs.toArray());
+        long matchedDemandCount = demands.stream()
+                .map(row -> stringValue(row.get("demandNo")))
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
+        if (matchedDemandCount != demandNos.size()) {
+            throw new IllegalArgumentException("所选需求不存在、无权访问、状态已变化或已转计划，请刷新后重试");
         }
         int created = 0;
+        List<String> planNos = new ArrayList<>();
         for (Map<String, Object> row : demands) {
             Long supplierId = requestedSupplierId != null
                     ? requestedSupplierId
@@ -492,6 +558,8 @@ public class PurchaseOrderService {
                 return ps;
             }, keyHolder);
             Long planId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+            writeAudit("purchase_plan", "create_from_demand", planId, planNo,
+                    "由采购需求 " + row.get("demandNo") + " 生成");
             Long demandId = ((Number) row.get("demandId")).longValue();
             jdbcTemplate.update("""
                     INSERT INTO purchase_plan_demand (plan_id, demand_id, allocated_quantity)
@@ -505,13 +573,20 @@ public class PurchaseOrderService {
             if (changed != 1) {
                 throw new IllegalStateException("purchase demand status changed, please refresh and retry");
             }
+            planNos.add(planNo);
             created++;
         }
-        return Map.of("createdPlans", created);
+        return Map.of("createdPlans", created, "planNos", List.copyOf(planNos));
     }
 
     @Transactional
     public Map<String, Object> performPlanAction(String planNo, PurchaseOrderActionRequest request) {
+        permissionGuard.require(switch (request.action() == null ? "" : request.action().trim()) {
+            case "approve" -> "purchase-plan:approve";
+            case "reject" -> "purchase-plan:reject";
+            case "execute" -> "purchase-plan:execute";
+            default -> throw new IllegalArgumentException("purchase plan action is invalid");
+        });
         return purchaseFlow.runPlanAction(planNo, request);
     }
 
@@ -538,7 +613,16 @@ public class PurchaseOrderService {
                  ORDER BY product_id DESC
                  LIMIT 200
                 """);
-        return Map.of("suppliers", suppliers, "products", products);
+        List<Object> departmentArgs = new ArrayList<>();
+        StringBuilder departmentWhere = new StringBuilder(" WHERE d.deleted = 0 AND d.status = 1");
+        appendPurchasableDepartmentScope(departmentWhere, departmentArgs, "d.dept_id");
+        List<Map<String, Object>> departments = jdbcTemplate.queryForList("""
+                SELECT d.dept_code AS deptCode, d.dept_name AS deptName,
+                       CASE WHEN d.dept_id = ? THEN 1 ELSE 0 END AS isCurrent
+                  FROM sys_dept d
+                """ + departmentWhere + " ORDER BY isCurrent DESC, d.dept_name, d.dept_id",
+                prepend(operatorContextProvider.current().deptId(), departmentArgs));
+        return Map.of("suppliers", suppliers, "products", products, "departments", departments);
     }
 
     /**
@@ -674,14 +758,13 @@ public class PurchaseOrderService {
                     INSERT INTO purchase_order (
                       order_no, supplier_id, order_source, order_status, total_amount,
                       expected_arrival_date, create_by, purchase_type
-                    ) VALUES (?, ?, ?, 'draft', ?, ?, ?, 'plan')
+                    ) VALUES (?, ?, 'plan', 'draft', ?, ?, ?, 'regular')
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, orderNo);
             ps.setLong(2, supplierId);
-            ps.setString(3, planNo);
-            ps.setBigDecimal(4, totalAmount);
-            ps.setDate(5, Date.valueOf(LocalDate.now().plusDays(7)));
-            ps.setLong(6, operatorContextProvider.current().userId());
+            ps.setBigDecimal(3, totalAmount);
+            ps.setDate(4, Date.valueOf(LocalDate.now().plusDays(7)));
+            ps.setLong(5, operatorContextProvider.current().userId());
             return ps;
         }, keyHolder);
         Long orderId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -760,16 +843,69 @@ public class PurchaseOrderService {
         return value instanceof Number number ? number.longValue() : null;
     }
 
-    private Long findDeptId(String deptName) {
-        if (isBlank(deptName)) {
+    private Long resolveDemandDepartment(Map<String, Object> request) {
+        String deptCode = stringValue(request.get("deptCode"));
+        String deptName = stringValue(request.get("deptName"));
+        OperatorContext operator = operatorContextProvider.current();
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE d.deleted = 0 AND d.status = 1");
+        if (!isBlank(deptCode)) {
+            where.append(" AND d.dept_code = ?");
+            args.add(deptCode.trim());
+            if (!isBlank(deptName)) {
+                where.append(" AND d.dept_name = ?");
+                args.add(deptName.trim());
+            }
+        } else if (!isBlank(deptName)) {
+            where.append(" AND d.dept_name = ?");
+            args.add(deptName.trim());
+        } else if (operator.deptId() != null) {
+            where.append(" AND d.dept_id = ?");
+            args.add(operator.deptId());
+        } else if (operator.roles().contains("ROLE_SYSTEM")) {
             return null;
+        } else {
+            throw new IllegalArgumentException("请选择采购需求科室");
         }
+        appendPurchasableDepartmentScope(where, args, "d.dept_id");
         List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1",
+                "SELECT d.dept_id FROM sys_dept d" + where + " ORDER BY d.dept_id",
                 Long.class,
-                deptName.trim()
+                args.toArray()
         );
-        return ids.isEmpty() ? null : ids.get(0);
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("科室不存在、已停用或超出当前操作人的数据范围");
+        }
+        if (ids.size() > 1) {
+            throw new IllegalArgumentException("科室名称不唯一，请使用科室编码选择");
+        }
+        return ids.get(0);
+    }
+
+    private void appendPurchasableDepartmentScope(StringBuilder where, List<Object> args, String deptColumn) {
+        OperatorContext operator = operatorContextProvider.current();
+        if (operator.canViewAllData()) {
+            return;
+        }
+        if (operator.dataScope() == OperatorContext.DATA_SCOPE_CUSTOM) {
+            where.append(" AND ").append(deptColumn)
+                    .append(" IN (SELECT rd.dept_id FROM sys_role_dept rd JOIN sys_user_role ur ON ur.role_id = rd.role_id WHERE ur.user_id = ?)");
+            args.add(operator.userId());
+            return;
+        }
+        if (operator.deptId() == null) {
+            where.append(" AND 1 = 0");
+            return;
+        }
+        if (operator.dataScope() == OperatorContext.DATA_SCOPE_DEPT_AND_CHILDREN) {
+            where.append(" AND (").append(deptColumn).append(" = ? OR ").append(deptColumn)
+                    .append(" IN (SELECT dept_id FROM sys_dept WHERE parent_id = ? AND deleted = 0))");
+            args.add(operator.deptId());
+            args.add(operator.deptId());
+            return;
+        }
+        where.append(" AND ").append(deptColumn).append(" = ?");
+        args.add(operator.deptId());
     }
 
     private List<Map<String, Object>> trackingRows(Long orderId) {
@@ -790,16 +926,24 @@ public class PurchaseOrderService {
     }
 
     private void writeAudit(String operationType, Long orderId, String orderNo, String remark) {
-        jdbcTemplate.update("""
-                INSERT INTO audit_log (operator_name, operation_type, biz_type, biz_id, after_data, ip_address, remark)
-                VALUES ('admin', ?, 'purchase_order', ?, JSON_OBJECT('orderNo', ?), '127.0.0.1', ?)
-                """, operationType, orderId, orderNo, remark);
+        String bizType = operationType.contains("demand") ? "purchase_demand" : "purchase_order";
+        writeAudit(bizType, operationType, orderId, orderNo, remark);
+    }
+
+    private void writeAudit(String bizType, String operationType, Long orderId, String orderNo, String remark) {
+        auditLogService.record(bizType, operationType, orderId, orderNo, remark);
+    }
+
+    private static Object[] prepend(Object first, List<Object> rest) {
+        List<Object> args = new ArrayList<>(rest.size() + 1);
+        args.add(first);
+        args.addAll(rest);
+        return args.toArray();
     }
 
     private static void validateRequest(PurchaseOrderRequest request) {
-        if (!isBlank(request.orderSource()) && request.orderSource().trim().length() > 30) {
-            throw new IllegalArgumentException("订单来源不能超过30个字符");
-        }
+        normalizeOrderSource(request.orderSource());
+        normalizePurchaseType(request.purchaseType(), request.orderSource());
         if (request.items() == null || request.items().isEmpty()) {
             throw new IllegalArgumentException("采购订单至少需要一条明细");
         }
@@ -808,6 +952,43 @@ public class PurchaseOrderService {
                 throw new IllegalArgumentException("商品编码和采购数量为必填项");
             }
         }
+    }
+
+    private static String normalizeOrderSource(String value) {
+        if (isBlank(value)) {
+            return "manual";
+        }
+        return switch (value.trim().toLowerCase()) {
+            case "manual", "手工采购", "手动采购", "临时采购", "紧急采购", "常规采购" -> "manual";
+            case "plan", "计划采购" -> "plan";
+            case "demand", "需求采购" -> "demand";
+            default -> throw new IllegalArgumentException("订单来源仅支持手工、计划或需求");
+        };
+    }
+
+    private static String normalizePurchaseType(String value, String legacyOrderSource) {
+        String candidate = isBlank(value) ? legacyOrderSource : value;
+        if (isBlank(candidate)) {
+            return "regular";
+        }
+        return switch (candidate.trim().toLowerCase()) {
+            case "regular", "常规采购", "manual", "手工采购", "手动采购", "plan", "计划采购", "demand", "需求采购" -> "regular";
+            case "temporary", "临时采购" -> "temporary";
+            case "urgent", "紧急采购" -> "urgent";
+            default -> throw new IllegalArgumentException("采购类型仅支持常规、临时或紧急");
+        };
+    }
+
+    private static String orderActionPermission(String action) {
+        return switch (action == null ? "" : action.trim()) {
+            case "submit" -> "purchase-order:submit";
+            case "approve" -> "purchase-order:approve";
+            case "reject" -> "purchase-order:reject";
+            case "send" -> "purchase-order:send";
+            case "close" -> "purchase-order:close";
+            case "void" -> "purchase-order:void";
+            default -> throw new IllegalArgumentException("采购订单动作无效");
+        };
     }
 
     private Long taskNoNumeric(String no) {

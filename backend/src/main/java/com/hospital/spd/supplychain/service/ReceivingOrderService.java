@@ -296,8 +296,9 @@ public class ReceivingOrderService {
                 SELECT receiving_order_id AS receivingOrderId, purchase_order_id AS purchaseOrderId,
                        warehouse_id AS warehouseId, supplier_id AS supplierId, receiver_id AS receiverId,
                        receiving_status AS receivingStatus
-                  FROM receiving_order
+                 FROM receiving_order
                  WHERE receiving_no = ?
+                 FOR UPDATE
                 """, receivingNo);
         String action = request.action() == null ? "" : request.action().trim();
         String status = String.valueOf(order.get("receivingStatus"));
@@ -337,7 +338,12 @@ public class ReceivingOrderService {
                 SELECT po.order_no AS orderNo, s.supplier_name AS supplierName, po.order_status AS orderStatus
                   FROM purchase_order po
                   JOIN supplier s ON s.supplier_id = po.supplier_id
-                 WHERE po.order_status IN ('approved', 'sent', 'closed')
+                 WHERE po.order_status IN ('approved', 'sent')
+                   AND EXISTS (
+                       SELECT 1 FROM purchase_order_item poi
+                        WHERE poi.purchase_order_id = po.purchase_order_id
+                          AND poi.received_quantity < poi.quantity
+                   )
                  ORDER BY po.create_time DESC
                  LIMIT 100
                 """);
@@ -406,6 +412,7 @@ public class ReceivingOrderService {
                 """, supplierId, receivingOrderId);
 
         validateHighValueUdisBeforeInventoryMutation(items);
+        validatePurchaseRemainingBeforeInventoryMutation(purchaseOrderIdObject, items);
 
         for (Map<String, Object> item : items) {
             Long itemId = ((Number) item.get("itemId")).longValue();
@@ -423,6 +430,38 @@ public class ReceivingOrderService {
                 writePriceDiffAudit(receivingOrderId, receivingNo, productId, previewPrice, latestPrice);
             }
             purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject, productId, qualifiedQty);
+        }
+    }
+
+    private void validatePurchaseRemainingBeforeInventoryMutation(Object purchaseOrderIdObject,
+                                                                   List<Map<String, Object>> receivingItems) {
+        if (!(purchaseOrderIdObject instanceof Number purchaseOrderId)) {
+            return;
+        }
+        Map<Long, BigDecimal> receivingByProduct = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> item : receivingItems) {
+            Long productId = ((Number) item.get("productId")).longValue();
+            BigDecimal qualified = (BigDecimal) item.get("qualifiedQuantity");
+            receivingByProduct.merge(productId, qualified, BigDecimal::add);
+        }
+        List<Map<String, Object>> purchaseItems = jdbcTemplate.queryForList("""
+                SELECT product_id AS productId,
+                       SUM(quantity - received_quantity) AS remainingQuantity
+                  FROM purchase_order_item
+                 WHERE purchase_order_id = ?
+                 GROUP BY product_id
+                 FOR UPDATE
+                """, purchaseOrderId.longValue());
+        Map<Long, BigDecimal> remainingByProduct = new java.util.HashMap<>();
+        for (Map<String, Object> purchaseItem : purchaseItems) {
+            remainingByProduct.put(((Number) purchaseItem.get("productId")).longValue(),
+                    (BigDecimal) purchaseItem.get("remainingQuantity"));
+        }
+        for (Map.Entry<Long, BigDecimal> entry : receivingByProduct.entrySet()) {
+            BigDecimal remaining = remainingByProduct.getOrDefault(entry.getKey(), BigDecimal.ZERO);
+            if (entry.getValue().compareTo(remaining) > 0) {
+                throw new IllegalStateException("采购订单剩余可收数量已变化，本次验收未写入库存，请刷新后重试");
+            }
         }
     }
 

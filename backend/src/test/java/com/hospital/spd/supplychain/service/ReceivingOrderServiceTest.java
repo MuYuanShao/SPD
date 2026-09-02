@@ -425,7 +425,9 @@ class ReceivingOrderServiceTest {
                                     "latestCatalogPrice", BigDecimal.valueOf(200),
                                     "previewUnitPrice", BigDecimal.valueOf(200),
                                     "unitPrice", BigDecimal.valueOf(200))
-                    ));
+                    ), List.of(Map.of("productId", 20L, "remainingQuantity", BigDecimal.TEN)),
+                    List.of(Map.of("itemId", 99L, "remainingQuantity", BigDecimal.TEN)));
+            doReturn(1).when(jdbcTemplate).update(contains("received_quantity = received_quantity +"), any(), any(), any());
             // update receiving_order_item unit_price
             doReturn(1).when(jdbcTemplate).update(anyString(), any(), any(), anyLong());
             // createInventoryBatch -> KeyHolder
@@ -458,6 +460,29 @@ class ReceivingOrderServiceTest {
         }
 
         @Test
+        @DisplayName("approve：最新剩余量不足时在任何库存写入前整体拒绝")
+        void shouldRejectConcurrentOverReceiptBeforeInventoryMutation() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "purchaseOrderId", 50L,
+                            "warehouseId", 10L, "supplierId", 1L, "receivingStatus", "draft"));
+            when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                    .thenReturn(List.of(Map.of(
+                                    "itemId", 1L, "productId", 20L,
+                                    "qualifiedQuantity", BigDecimal.TEN, "highValue", 0)),
+                            List.of(Map.of("productId", 20L, "remainingQuantity", BigDecimal.valueOf(5))));
+
+            assertThatThrownBy(() -> service.action("RK001", new ReceivingActionRequest("approve", "验收合格")))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("未写入库存");
+
+            verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
+            verify(support, never()).receiveAvailable(anyLong(), anyLong(), anyLong(), any(),
+                    anyString(), anyString(), anyLong(), anyString());
+            verify(jdbcTemplate, never()).update(contains("INSERT INTO inventory_batch"), any(Object[].class));
+            verify(jdbcTemplate, never()).update(contains("INSERT INTO inventory_event"), any(Object[].class));
+        }
+
+        @Test
         @DisplayName("approve：高值耗材按合格数量逐件生成唯一码")
         void shouldGenerateOneTraceCodePerQualifiedHighValueUnit() {
             when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
@@ -474,7 +499,10 @@ class ReceivingOrderServiceTest {
                             Map.entry("expireDate", Date.valueOf(LocalDate.of(2028, 7, 23))),
                             Map.entry("quantity", BigDecimal.TEN), Map.entry("qualifiedQuantity", BigDecimal.TEN),
                             Map.entry("latestCatalogPrice", BigDecimal.valueOf(200)),
-                            Map.entry("previewUnitPrice", BigDecimal.valueOf(200)))));
+                            Map.entry("previewUnitPrice", BigDecimal.valueOf(200)))),
+                            List.of(Map.of("productId", 20L, "remainingQuantity", BigDecimal.TEN)),
+                            List.of(Map.of("itemId", 99L, "remainingQuantity", BigDecimal.TEN)));
+            doReturn(1).when(jdbcTemplate).update(contains("received_quantity = received_quantity +"), any(), any(), any());
             PurchaseOrderServiceTest.mockKeyHolderInsert(jdbcTemplate, 300L);
             java.util.concurrent.atomic.AtomicInteger uniqueSequence = new java.util.concurrent.atomic.AtomicInteger();
             java.util.concurrent.atomic.AtomicInteger eventSequence = new java.util.concurrent.atomic.AtomicInteger();

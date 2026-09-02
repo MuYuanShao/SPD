@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -35,12 +36,16 @@ public class PurchaseOrderAttachmentService {
     private final JdbcTemplate jdbcTemplate;
     private final OperatorContextProvider operatorContextProvider;
     private final Path uploadRoot;
+    private final PurchasePermissionGuard permissionGuard;
+    private final AuditLogService auditLogService;
 
     public PurchaseOrderAttachmentService(JdbcTemplate jdbcTemplate,
                                           OperatorContextProvider operatorContextProvider,
                                           @Value("${spd.purchase-order.upload.dir:./output/purchase-order-files}") String uploadDir) {
         this.jdbcTemplate = jdbcTemplate;
         this.operatorContextProvider = operatorContextProvider;
+        this.permissionGuard = new PurchasePermissionGuard(jdbcTemplate, operatorContextProvider);
+        this.auditLogService = new AuditLogService(jdbcTemplate, operatorContextProvider);
         this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
             Files.createDirectories(uploadRoot);
@@ -63,6 +68,7 @@ public class PurchaseOrderAttachmentService {
 
     @Transactional
     public Map<String, Object> upload(String orderNo, MultipartFile file, String category) {
+        permissionGuard.require("purchase-order:attachment");
         Long orderId = orderId(orderNo);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择要上传的采购订单附件");
@@ -88,6 +94,8 @@ public class PurchaseOrderAttachmentService {
                 storedName, "/purchase-orders/attachments/file/" + storedName,
                 isBlank(category) ? "other" : category.trim(), operatorContextProvider.current().userId());
         Long attachmentId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+        auditLogService.record(BIZ_TYPE, "upload_attachment", orderId, orderNo,
+                "上传采购订单附件：" + originalName);
         return Map.of("attachmentId", attachmentId == null ? 0L : attachmentId);
     }
 

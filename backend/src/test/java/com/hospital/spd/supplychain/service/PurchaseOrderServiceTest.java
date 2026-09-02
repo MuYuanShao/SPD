@@ -36,6 +36,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("PurchaseOrderService 单元测试")
@@ -326,7 +327,7 @@ class PurchaseOrderServiceTest {
     class CreateOrderValidationTest {
 
         @Test
-        @DisplayName("订单来源超过数据库字段长度时返回明确业务提示")
+        @DisplayName("未知订单来源返回明确业务提示")
         void shouldRejectOrderSourceLongerThanThirtyCharacters() {
             PurchaseOrderRequest invalid = new PurchaseOrderRequest(
                     "测试供应商", "ACCEPT-PACK-PRINT-20260713-1505", "2026-06-15",
@@ -335,7 +336,7 @@ class PurchaseOrderServiceTest {
 
             assertThatThrownBy(() -> service.createOrder(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessage("订单来源不能超过30个字符");
+                    .hasMessage("订单来源仅支持手工、计划或需求");
         }
 
         @Test
@@ -519,9 +520,6 @@ class PurchaseOrderServiceTest {
         @Test
         @DisplayName("无效动作时抛出异常")
         void shouldThrowWhenActionIsInvalid() {
-            when(jdbcTemplate.queryForMap(anyString(), anyString()))
-                    .thenReturn(orderMap("draft", BigDecimal.TEN, BigDecimal.ZERO));
-
             assertThatThrownBy(() -> service.performAction("CG001",
                     new PurchaseOrderActionRequest("invalid", null)))
                     .isInstanceOf(IllegalArgumentException.class)
@@ -607,7 +605,7 @@ class PurchaseOrderServiceTest {
             verify(jdbcTemplate).update(contains("INSERT INTO purchase_demand"),
                     eq("XQ2026070200001"), eq("智能补货分析"), eq("normal"), eq(null), eq(10L),
                     eq(BigDecimal.valueOf(12)), eq(BigDecimal.valueOf(12)),
-                    contains("CGFX2026070200001"));
+                    contains("CGFX2026070200001"), eq(1L));
         }
     }
 
@@ -742,11 +740,15 @@ class PurchaseOrderServiceTest {
         @Test
         @DisplayName("createPlanFromDemands 成功生成采购计划")
         void shouldCreatePlanFromDemandsSuccessfully() {
-            Map<String, Object> request = Map.of("supplierName", "测试供应商", "remark", "由需求生成");
+            Map<String, Object> request = Map.of(
+                    "supplierName", "测试供应商",
+                    "remark", "由需求生成",
+                    "demandNos", List.of("XQ20260601001")
+            );
             when(jdbcTemplate.queryForList(anyString(), eq(Long.class), anyString()))
                     .thenReturn(List.of(1L));
-            when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
-                    Map.of("demandId", 20L, "productId", 10L, "productSupplierId", 1L,
+            when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
+                    Map.of("demandId", 20L, "demandNo", "XQ20260601001", "productId", 10L, "productSupplierId", 1L,
                             "plannedQuantity", BigDecimal.valueOf(100))
             ));
             when(support.nextNo(any(DocumentKind.class)))
@@ -757,17 +759,18 @@ class PurchaseOrderServiceTest {
             Map<String, Object> result = service.createPlanFromDemands(request);
 
             assertThat(result.get("createdPlans")).isEqualTo(1);
+            assertThat(result.get("planNos")).isEqualTo(List.of("JH20260601001"));
         }
 
         @Test
         @DisplayName("createPlanFromDemands 无已审核需求时抛出异常")
         void shouldThrowWhenNoApprovedDemands() {
             Map<String, Object> request = Map.of();
-            when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
 
             assertThatThrownBy(() -> service.createPlanFromDemands(request))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("no approved demands");
+                    .hasMessageContaining("请选择需要转计划的已审核需求");
+            verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
         }
 
         @Test

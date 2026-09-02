@@ -17,7 +17,7 @@ const props = defineProps<{
   productsLoading: boolean
 }>()
 
-const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库'] as const
+const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库', '科室库'] as const
 
 const productKeyword = ref('')
 const deptResultsOpen = ref(false)
@@ -59,8 +59,14 @@ function searchDepartments() {
   deptResultsOpen.value = true
 }
 
-function pickDepartment(deptName: string) {
-  props.form.deptName = deptName
+function handleDepartmentInput() {
+  props.form.deptCode = ''
+  searchDepartments()
+}
+
+function pickDepartment(dept: { deptCode: string; deptName: string }) {
+  props.form.deptCode = dept.deptCode
+  props.form.deptName = dept.deptName
   deptResultsOpen.value = false
 }
 
@@ -126,7 +132,7 @@ const emit = defineEmits<{
                 v-model.trim="form.deptName"
                 placeholder="输入科室名称，回车或点击放大镜搜索"
                 @keyup.enter="searchDepartments"
-                @input="searchDepartments"
+                @input="handleDepartmentInput"
                 @focus="searchDepartments"
               />
               <button class="btn-icon" type="button" aria-label="搜索科室" @click="searchDepartments">
@@ -140,7 +146,7 @@ const emit = defineEmits<{
                 type="button"
                 class="dept-result-option"
                 :class="{ active: form.deptName === dept.deptName }"
-                @click="pickDepartment(dept.deptName)"
+                @click="pickDepartment(dept)"
               >
                 <span>{{ dept.deptName }}</span>
                 <small>{{ dept.deptCode }}</small>

@@ -27,12 +27,15 @@ class DepartmentServiceTest {
 
     @Mock
     private JdbcTemplate jdbcTemplate;
+    @Mock
+    private WarehouseDepartmentAssignmentService assignmentService;
+
 
     private DepartmentService service;
 
     @BeforeEach
     void setUp() {
-        service = new DepartmentService(jdbcTemplate);
+        service = new DepartmentService(jdbcTemplate, assignmentService);
     }
 
     @Nested
@@ -274,8 +277,8 @@ class DepartmentServiceTest {
         void should_update_department_warehouse_relations() {
             when(jdbcTemplate.queryForList(contains("SELECT dept_id FROM sys_dept"), eq(Long.class), eq("DEPT001")))
                     .thenReturn(List.of(7L));
-            when(jdbcTemplate.update(contains("warehouse_code NOT IN"), any(Object[].class))).thenReturn(1);
-            when(jdbcTemplate.update(contains("warehouse_code IN"), any(Object[].class))).thenReturn(2);
+            when(assignmentService.replace(eq(7L), any(DepartmentWarehouseRelationRequest.class)))
+                    .thenReturn(Map.of("updatedRows", 3, "warehouseCount", 2));
 
             Map<String, Object> result = service.updateDepartmentWarehouses(
                     "DEPT001",
@@ -283,8 +286,7 @@ class DepartmentServiceTest {
             );
 
             assertThat(result).containsEntry("updatedRows", 3).containsEntry("warehouseCount", 2);
-            verify(jdbcTemplate).update(contains("warehouse_code NOT IN"), any(Object[].class));
-            verify(jdbcTemplate).update(contains("warehouse_code IN"), any(Object[].class));
+            verify(assignmentService).replace(eq(7L), any(DepartmentWarehouseRelationRequest.class));
         }
 
         @Test
@@ -292,7 +294,8 @@ class DepartmentServiceTest {
         void should_clear_department_warehouses_when_empty_selection() {
             when(jdbcTemplate.queryForList(contains("SELECT dept_id FROM sys_dept"), eq(Long.class), eq("DEPT001")))
                     .thenReturn(List.of(7L));
-            when(jdbcTemplate.update(contains("SET dept_id = NULL"), eq(7L))).thenReturn(4);
+            when(assignmentService.replace(eq(7L), any(DepartmentWarehouseRelationRequest.class)))
+                    .thenReturn(Map.of("updatedRows", 4, "warehouseCount", 0));
 
             Map<String, Object> result = service.updateDepartmentWarehouses(
                     "DEPT001",

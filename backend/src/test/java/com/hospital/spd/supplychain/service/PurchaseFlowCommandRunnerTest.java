@@ -57,7 +57,7 @@ class PurchaseFlowCommandRunnerTest {
                 eq("approved"), eq("approved"), eq("approved"), eq("approved"), eq("同意"), eq("CG001"),
                 eq("pending_approval"));
         verify(jdbcTemplate).update(contains("INSERT INTO purchase_order_tracking"), eq(100L), eq("approve"), eq("approved"), eq("同意"));
-        verify(jdbcTemplate).update(contains("INSERT INTO audit_log"), eq("system"), eq("approve"), eq(100L), eq("CG001"),
+        verify(jdbcTemplate).update(contains("INSERT INTO audit_log"), eq("system"), eq("approve"), eq("purchase_order"), eq(100L), eq("CG001"),
                 eq("127.0.0.1"), eq("同意"));
     }
 

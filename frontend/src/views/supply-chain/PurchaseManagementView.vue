@@ -21,6 +21,7 @@ import {
   X
 } from '@lucide/vue'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
+import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
@@ -40,11 +41,14 @@ const {
   smartAnalysisLoading,
   smartAnalysisError,
   suppliers,
+  departments,
   loading,
   message,
   purchasePagination,
   showCreateModal,
   showDemandModal,
+  demandSubmitting,
+  orderSubmitting,
   closeTarget,
   closeReason,
   detail,
@@ -64,12 +68,12 @@ const {
   demandProductSearchQuery,
   demandForm,
   planForm,
+  selectedDemandNos,
   demandGroups,
   showDemandDetailDialog,
   selectedDemandGroup,
   tabs,
   statusOptions,
-  stats,
   actionQueryLabel,
   filteredProducts,
   demandFilteredProducts,
@@ -87,6 +91,7 @@ const {
   resetOrderForm,
   resetDemandForm,
   loadData,
+  selectTab,
   runSmartAnalysis,
   updateSmartRecommendedQty,
   createDemandFromSmartAnalysis,
@@ -114,6 +119,7 @@ const {
   previewOrderAttachment,
   closeOrderAttachmentDialog
 } = usePurchaseManagement()
+const authStore = useAuthStore()
 
 const orderAttachmentInput = ref<HTMLInputElement | null>(null)
 
@@ -153,13 +159,6 @@ async function handleOrderAttachmentUpload(event: Event) {
       </button>
     </div>
 
-    <div class="foundation-stat-grid">
-      <article v-for="item in stats" :key="item.label">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
-    </div>
-
     <p v-if="message" class="inline-message">{{ message }}</p>
 
     <section class="hospital-catalog-panel">
@@ -169,7 +168,7 @@ async function handleOrderAttachmentUpload(event: Event) {
           :key="tab.key"
           type="button"
           :class="{ active: activeTab === tab.key }"
-          @click="activeTab = tab.key"
+          @click="selectTab(tab.key)"
         >
           {{ tab.label }}
         </button>
@@ -186,32 +185,33 @@ async function handleOrderAttachmentUpload(event: Event) {
           <Search :size="17" />
           智能补货分析
         </button>
-        <button v-if="activeTab === 'demands'" class="btn btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
+        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:create')" class="btn btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
           <PackagePlus :size="18" />
           新增采购
         </button>
-        <select v-model="planForm.supplierName" class="inline-select" title="计划供应商">
+        <select v-if="activeTab === 'demands'" v-model="planForm.supplierName" class="inline-select" title="计划供应商">
           <option value="">按商品默认供应商生成计划</option>
           <option v-for="supplier in suppliers" :key="supplier.supplierName" :value="supplier.supplierName">
             {{ supplier.supplierName }}
           </option>
         </select>
-        <button v-if="activeTab === 'demands'" class="btn" type="button" @click="generatePlans">
+        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" class="btn" type="button" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
           <FileCheck2 :size="17" />
           需求转计划
         </button>
-        <button v-if="activeTab === 'orders'" class="btn btn-primary" type="button" @click="resetOrderForm(); showCreateModal = true">
+        <button v-if="activeTab === 'orders' && authStore.hasPermission('purchase-order:create')" class="btn btn-primary" type="button" @click="resetOrderForm(); showCreateModal = true">
           <PackagePlus :size="18" />
           新增订单
         </button>
         <template v-if="activeTab === 'orders'">
-          <button class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" @click="runSelectedOrderAction('submit')">
+          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
             <Send :size="16" /> 提交
           </button>
-          <button class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" @click="runSelectedOrderAction('approve')">
+          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
             <CheckCircle2 :size="16" /> 审批
           </button>
           <button
+            v-if="authStore.hasPermission('purchase-order:void')"
             class="btn btn-danger-soft"
             type="button"
             :disabled="!selectedOrder || !['draft', 'pending_approval', 'approved'].includes(selectedOrder.orderStatus)"
@@ -219,17 +219,17 @@ async function handleOrderAttachmentUpload(event: Event) {
           >
             <Ban :size="16" /> 作废
           </button>
-          <button class="btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
+          <button v-if="authStore.hasPermission('purchase-order:create')" class="btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
             <Copy :size="16" /> 复制订单
           </button>
-          <button class="btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
+          <button v-if="authStore.hasPermission('purchase-order:attachment')" class="btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
             <Upload :size="16" /> 上传附件
           </button>
           <input ref="orderAttachmentInput" type="file" hidden @change="handleOrderAttachmentUpload" />
           <button class="btn" type="button" :disabled="!selectedOrder" @click="openOrderAttachments">
             <Paperclip :size="16" /> 附件阅览
           </button>
-          <button class="btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
+          <button v-if="authStore.hasPermission('purchase-order:remark')" class="btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
             <MessageSquare :size="16" /> 添加备注
           </button>
         </template>
@@ -246,11 +246,12 @@ async function handleOrderAttachmentUpload(event: Event) {
       </div>
 
       <div v-if="activeTab !== 'smart'" class="hospital-query-grid purchase-query-grid">
-        <label><span>订单编号</span><input v-model="query.orderNo" placeholder="CG2026..." /></label>
-        <label><span>需求编号</span><input v-model="query.demandNo" placeholder="XQ2026..." /></label>
-        <label><span>计划编号</span><input v-model="query.planNo" placeholder="JH2026..." /></label>
-        <label><span>供应商</span><input v-model="query.supplierName" placeholder="模糊查询供应商" /></label>
-        <label><span>商品</span><input v-model="query.keyword" placeholder="商品编码/名称/规格" /></label>
+        <label v-if="activeTab === 'orders'"><span>订单编号</span><input v-model="query.orderNo" placeholder="CG2026..." /></label>
+        <label v-if="activeTab === 'demands'"><span>需求编号</span><input v-model="query.demandNo" placeholder="XQ2026..." /></label>
+        <label v-if="activeTab === 'demands'"><span>科室</span><select v-model="query.deptCode"><option value="">全部授权科室</option><option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option></select></label>
+        <label v-if="activeTab === 'plans'"><span>计划编号</span><input v-model="query.planNo" placeholder="JH2026..." /></label>
+        <label v-if="activeTab === 'plans' || activeTab === 'orders'"><span>供应商</span><input v-model="query.supplierName" placeholder="模糊查询供应商" /></label>
+        <label v-if="activeTab !== 'tracking'"><span>商品</span><input v-model="query.keyword" placeholder="商品编码/名称/规格" /></label>
         <label>
           <span>状态</span>
           <select v-model="query.status">
@@ -263,6 +264,7 @@ async function handleOrderAttachmentUpload(event: Event) {
         <table class="master-table purchase-table purchase-demand-table">
           <thead>
             <tr>
+              <th class="order-select-column">选择</th>
               <th>需求编号</th>
               <th>来源</th>
               <th>科室</th>
@@ -276,14 +278,15 @@ async function handleOrderAttachmentUpload(event: Event) {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="9" class="approval-empty">正在加载采购需求...</td>
+              <td colspan="10" class="approval-empty">正在加载采购需求...</td>
             </tr>
             <tr v-for="group in demandGroups" v-else :key="group.demandNo" class="demand-group-row">
+              <td><input v-model="selectedDemandNos" type="checkbox" :value="group.demandNo" :disabled="group.demandStatus !== 'approved'" :aria-label="`选择需求 ${group.demandNo}`" /></td>
               <td>
                 <strong>{{ group.demandNo }}</strong>
                 <span class="item-count-badge">{{ group.itemCount }}项</span>
               </td>
-              <td>{{ group.demandSource }}</td>
+              <td>{{ formatBusinessText(group.demandSource) }}</td>
               <td>{{ group.deptName || '-' }}</td>
               <td class="demand-group-items-cell">
                 <span class="item-summary">共 {{ group.itemCount }} 种商品</span>
@@ -291,16 +294,16 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
               <td>{{ group.totalQuantity }}</td>
               <td>{{ group.totalSuggestedQty }}</td>
-              <td>{{ group.urgentLevel }}</td>
+              <td>{{ formatBusinessText(group.urgentLevel) }}</td>
               <td><span :class="['status-badge', statusTone(group.demandStatus)]">{{ statusLabel(group.demandStatus) }}</span></td>
               <td class="row-actions">
-                <button v-if="group.demandStatus === 'draft'" class="btn-text" @click="runDemandAction(group, 'submit')">提交</button>
-                <button v-if="group.demandStatus === 'pending_review'" class="btn-text" @click="runDemandAction(group, 'approve')">审核通过</button>
-                <button v-if="group.demandStatus === 'pending_review'" class="btn-text btn-text-danger" @click="runDemandAction(group, 'reject')">驳回</button>
+                <button v-if="group.demandStatus === 'draft' && authStore.hasPermission('purchase-demand:submit')" class="btn-text" @click="runDemandAction(group, 'submit')">提交</button>
+                <button v-if="group.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:review')" class="btn-text" @click="runDemandAction(group, 'approve')">审核通过</button>
+                <button v-if="group.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:reject')" class="btn-text btn-text-danger" @click="runDemandAction(group, 'reject')">驳回</button>
               </td>
             </tr>
             <tr v-if="!loading && demandGroups.length === 0">
-              <td colspan="9" class="approval-empty">暂无采购需求</td>
+              <td colspan="10" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
             </tr>
           </tbody>
         </table>
@@ -320,53 +323,35 @@ async function handleOrderAttachmentUpload(event: Event) {
           <thead>
             <tr>
               <th>计划编号</th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>规格型号</th>
-              <th>注册证号</th>
-              <th>厂家</th>
-              <th>单位</th>
-              <th>单价</th>
+              <th>商品</th>
               <th>采购数量</th>
               <th>金额</th>
-              <th>配送商</th>
-              <th>招采子编码</th>
-              <th>转订单号</th>
-              <th>状态</th>
+              <th>供应商</th>
               <th>发起科室</th>
-              <th>送货库房</th>
+              <th>状态</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="17" class="approval-empty">正在加载采购计划...</td>
+              <td colspan="8" class="approval-empty">正在加载采购计划...</td>
             </tr>
             <tr v-for="row in plans" v-else :key="row.planNo">
               <td class="document-no-cell">{{ row.planNo }}</td>
-              <td>{{ row.productCode || '-' }}</td>
-              <td>{{ row.productName || '-' }}</td>
-              <td>{{ row.specModel || '-' }}</td>
-              <td>{{ row.registrationNo || '-' }}</td>
-              <td>{{ row.manufacturerName || '-' }}</td>
-              <td>{{ row.unit || '-' }}</td>
-              <td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
+              <td :title="`${row.productCode || ''} ${row.specModel || ''} ${row.manufacturerName || ''}`"><strong>{{ row.productName || '-' }}</strong><small>{{ row.productCode || '-' }} · {{ row.specModel || '-' }}</small></td>
               <td>{{ row.plannedQuantity }}</td>
               <td class="purchase-plan-amount">¥ {{ Number(row.amount ?? Number(row.unitPrice || 0) * Number(row.plannedQuantity || 0)).toFixed(2) }}</td>
               <td>{{ row.supplierName || '-' }}</td>
-              <td>{{ row.tenderSubCode || '-' }}</td>
-              <td>{{ row.convertedOrderNo || '-' }}</td>
-              <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
               <td>{{ row.initiatingDeptName || '-' }}</td>
-              <td>{{ row.deliveryWarehouseName || '-' }}</td>
+              <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
               <td class="row-actions">
-                <button v-if="row.planStatus === 'draft'" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
-                <button v-if="row.planStatus === 'approved'" class="btn-text" @click="runPlanAction(row, 'execute')">转订单</button>
-                <button v-if="row.planStatus === 'draft'" class="btn-text btn-text-danger" @click="runPlanAction(row, 'reject')">驳回</button>
+                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:approve')" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
+                <button v-if="row.planStatus === 'approved' && authStore.hasPermission('purchase-plan:execute')" class="btn-text" @click="runPlanAction(row, 'execute')">转订单</button>
+                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:reject')" class="btn-text btn-text-danger" @click="runPlanAction(row, 'reject')">驳回</button>
               </td>
             </tr>
             <tr v-if="!loading && plans.length === 0">
-              <td colspan="17" class="approval-empty">暂无采购计划</td>
+              <td colspan="8" class="approval-empty"><EmptyState message="暂无采购计划" /></td>
             </tr>
           </tbody>
         </table>
@@ -421,7 +406,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
               <td class="document-no-cell">{{ row.orderNo }}</td>
               <td>{{ row.supplierName }}</td>
-              <td>{{ row.orderSource || '-' }}</td>
+              <td>{{ formatBusinessText(row.orderSource) }}</td>
               <td>{{ row.itemCount }}</td>
               <td>{{ row.orderQuantity }}</td>
               <td>
@@ -443,11 +428,11 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td class="row-actions">
                 <button class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
                 <button class="btn-text" @click="openTracking(row)"><List :size="15" /> 跟踪</button>
-                <button v-if="row.orderStatus === 'approved'" class="btn-text" @click="runOrderAction(row, 'send')">
+                <button v-if="row.orderStatus === 'approved' && authStore.hasPermission('purchase-order:send')" class="btn-text" @click="runOrderAction(row, 'send')">
                   <Send :size="15" /> 发送
                 </button>
                 <button
-                  v-if="['approved', 'sent'].includes(row.orderStatus)"
+                  v-if="['approved', 'sent'].includes(row.orderStatus) && authStore.hasPermission('purchase-order:close')"
                   class="btn-text"
                   :class="{ 'btn-text-muted': !canCloseOrder(row) }"
                   :title="canCloseOrder(row) ? '填写关闭原因后关闭订单' : '需先完成收货验收'"
@@ -794,7 +779,7 @@ async function handleOrderAttachmentUpload(event: Event) {
       </section>
     </div>
 
-    <div v-if="showDemandModal" class="modal-mask purchase-entry-mask">
+    <div v-if="showDemandModal" class="modal-mask purchase-entry-mask" tabindex="-1" @click.self="showDemandModal = false" @keydown.esc="showDemandModal = false">
       <section class="edit-modal purchase-entry-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-entry-title">
         <header class="purchase-entry-header">
           <div>
@@ -815,7 +800,10 @@ async function handleOrderAttachmentUpload(event: Event) {
             <div class="purchase-entry-meta-grid">
               <label>
                 <span><em>*</em> 申请科室</span>
-                <input v-model="demandForm.deptName" placeholder="请输入申请科室" />
+                <select v-model="demandForm.deptCode" @change="demandForm.deptName = departments.find((item) => item.deptCode === demandForm.deptCode)?.deptName || ''">
+                  <option value="">请选择授权范围内科室</option>
+                  <option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
+                </select>
               </label>
               <label>
                 <span><em>*</em> 采购来源</span>
@@ -909,23 +897,23 @@ async function handleOrderAttachmentUpload(event: Event) {
           <span>保存后可在“采购需求”中继续审核和生成采购计划。</span>
           <div>
             <button class="btn" type="button" @click="showDemandModal = false">取消</button>
-            <button class="btn" type="button" @click="submitDemand(true)">
+            <button class="btn" type="button" :disabled="demandSubmitting" @click="submitDemand(true)">
               <Save :size="16" />
-              保存并继续
+              {{ demandSubmitting ? '保存中…' : '保存并继续' }}
             </button>
-            <button class="btn btn-primary" type="button" @click="submitDemand(false)">
+            <button class="btn btn-primary" type="button" :disabled="demandSubmitting" @click="submitDemand(false)">
               <CheckCircle2 :size="17" />
-              保存
+              {{ demandSubmitting ? '保存中…' : '保存' }}
             </button>
           </div>
         </footer>
       </section>
     </div>
 
-    <div v-if="showCreateModal" class="modal-mask">
-      <section class="edit-modal purchase-create-modal">
+    <div v-if="showCreateModal" class="modal-mask" tabindex="-1" @click.self="showCreateModal = false" @keydown.esc="showCreateModal = false">
+      <section class="edit-modal purchase-create-modal" role="dialog" aria-modal="true" aria-labelledby="purchase-order-create-title">
         <header>
-          <h3>新增采购订单</h3>
+          <h3 id="purchase-order-create-title">新增采购订单</h3>
           <button class="btn-icon" type="button" @click="showCreateModal = false"><X :size="18" /></button>
         </header>
 
@@ -942,7 +930,8 @@ async function handleOrderAttachmentUpload(event: Event) {
                 </option>
               </select>
             </label>
-            <label><span>采购类型</span><input v-model="form.orderSource" /></label>
+            <label><span>订单来源</span><select v-model="form.orderSource"><option value="manual">手工创建</option><option value="plan">采购计划</option><option value="demand">采购需求</option></select></label>
+            <label><span>采购类型</span><select v-model="form.purchaseType"><option value="regular">常规采购</option><option value="temporary">临时采购</option><option value="urgent">紧急采购</option></select></label>
             <label><span>预计到货</span><input v-model="form.expectedArrivalDate" type="date" /></label>
           </div>
         </section>
@@ -982,7 +971,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
         <footer>
           <button class="btn" type="button" @click="showCreateModal = false">取消</button>
-          <button class="btn btn-primary" type="button" @click="submitCreate">保存</button>
+          <button class="btn btn-primary" type="button" :disabled="orderSubmitting" @click="submitCreate">{{ orderSubmitting ? '保存中…' : '保存' }}</button>
         </footer>
       </section>
     </div>

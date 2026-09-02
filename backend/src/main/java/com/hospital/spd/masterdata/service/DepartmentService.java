@@ -19,9 +19,19 @@ import java.util.Map;
 public class DepartmentService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final WarehouseDepartmentAssignmentService assignmentService;
+    private final MasterDataReferenceGuard referenceGuard;
 
     public DepartmentService(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new WarehouseDepartmentAssignmentService(
+                jdbcTemplate, new WarehouseCatalogBindingService(jdbcTemplate)));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public DepartmentService(JdbcTemplate jdbcTemplate, WarehouseDepartmentAssignmentService assignmentService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.assignmentService = assignmentService;
+        this.referenceGuard = new MasterDataReferenceGuard(jdbcTemplate);
     }
 
     // ==================== 公开方法 ====================
@@ -141,6 +151,9 @@ public class DepartmentService {
             throw new IllegalArgumentException("请选择需要删除的科室");
         }
 
+        List<String> normalizedCodes = request.deptCodes().stream().map(String::trim).distinct().toList();
+        referenceGuard.requireDepartmentsDeletable(normalizedCodes);
+
         String placeholders = String.join(",", request.deptCodes().stream().map(code -> "?").toList());
         int deletedRows = jdbcTemplate.update("""
                 UPDATE sys_dept
@@ -175,44 +188,7 @@ public class DepartmentService {
     @Transactional
     public Map<String, Object> updateDepartmentWarehouses(String deptCode, DepartmentWarehouseRelationRequest request) {
         Long deptId = findDepartmentId(deptCode);
-        List<String> warehouseCodes = request == null || request.warehouseCodes() == null
-                ? List.of()
-                : request.warehouseCodes().stream()
-                .filter(code -> code != null && !code.isBlank())
-                .map(String::trim)
-                .distinct()
-                .toList();
-
-        int clearedRows;
-        if (warehouseCodes.isEmpty()) {
-            clearedRows = jdbcTemplate.update("""
-                    UPDATE warehouse
-                       SET dept_id = NULL
-                     WHERE dept_id = ? AND deleted = 0
-                    """, deptId);
-            return Map.of("updatedRows", clearedRows, "warehouseCount", 0);
-        }
-
-        String placeholders = String.join(",", warehouseCodes.stream().map(code -> "?").toList());
-        List<Object> clearArgs = new ArrayList<>();
-        clearArgs.add(deptId);
-        clearArgs.addAll(warehouseCodes);
-        clearedRows = jdbcTemplate.update("""
-                UPDATE warehouse
-                   SET dept_id = NULL
-                 WHERE dept_id = ? AND deleted = 0 AND warehouse_code NOT IN (%s)
-                """.formatted(placeholders), clearArgs.toArray());
-
-        List<Object> assignArgs = new ArrayList<>();
-        assignArgs.add(deptId);
-        assignArgs.addAll(warehouseCodes);
-        int assignedRows = jdbcTemplate.update("""
-                UPDATE warehouse
-                   SET dept_id = ?
-                 WHERE deleted = 0 AND warehouse_code IN (%s)
-                """.formatted(placeholders), assignArgs.toArray());
-
-        return Map.of("updatedRows", clearedRows + assignedRows, "warehouseCount", warehouseCodes.size());
+        return assignmentService.replace(deptId, request);
     }
 
     /** 导入科室 */

@@ -20,11 +20,22 @@ import java.util.Map;
 public class WarehouseService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final WarehouseDepartmentPolicy warehouseDepartmentPolicy;
+    private final WarehouseCatalogBindingService catalogBindingService;
+    private final MasterDataReferenceGuard referenceGuard;
 
     public WarehouseService(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+        this(jdbcTemplate, new WarehouseDepartmentPolicy(jdbcTemplate), new WarehouseCatalogBindingService(jdbcTemplate));
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
+    public WarehouseService(JdbcTemplate jdbcTemplate, WarehouseDepartmentPolicy warehouseDepartmentPolicy,
+                            WarehouseCatalogBindingService catalogBindingService) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.warehouseDepartmentPolicy = warehouseDepartmentPolicy;
+        this.catalogBindingService = catalogBindingService;
+        this.referenceGuard = new MasterDataReferenceGuard(jdbcTemplate);
+    }
     // ==================== 公开方法 ====================
 
     /** 分页查询库房列表 */
@@ -54,6 +65,11 @@ public class WarehouseService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT w.warehouse_code AS code, w.warehouse_name AS name, w.warehouse_type AS type,
                        w.campus_name AS campus, COALESCE(d.dept_name, '-') AS dept,
+                       COALESCE(d.dept_code, '') AS deptCode,
+                       CASE WHEN (w.warehouse_type LIKE '%二级%' OR w.warehouse_type LIKE '%三级%'
+                                      OR w.warehouse_type LIKE '%科室库%')
+                                  AND (d.dept_id IS NULL OR d.deleted = 1 OR d.status <> 1)
+                            THEN TRUE ELSE FALSE END AS needsDepartmentFix,
                        CASE w.participate_stats WHEN 1 THEN '参与' ELSE '不参与' END AS participateStats,
                        COALESCE(JSON_UNQUOTE(w.stats_categories), '-') AS statsCategories,
                        CASE w.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
@@ -110,7 +126,7 @@ public class WarehouseService {
     @Transactional
     public Map<String, Object> createWarehouse(WarehouseUpsertRequest request) {
         validateWarehouse(request, true);
-        Long deptId = findIdByName("sys_dept", "dept_id", "dept_name", request.deptName());
+        Long deptId = warehouseDepartmentPolicy.resolveDepartmentId(request);
         jdbcTemplate.update("""
                 INSERT INTO warehouse (
                   warehouse_code, warehouse_name, warehouse_type, parent_id, campus_name,
@@ -141,7 +157,7 @@ public class WarehouseService {
     public Map<String, Object> updateWarehouse(String warehouseCode, WarehouseUpsertRequest request) {
         Long warehouseId = findWarehouseId(warehouseCode);
         validateWarehouse(request, false);
-        Long deptId = findIdByName("sys_dept", "dept_id", "dept_name", request.deptName());
+        Long deptId = warehouseDepartmentPolicy.resolveDepartmentId(request);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE warehouse
                 SET warehouse_name = ?, warehouse_type = ?, campus_name = ?, dept_id = ?,
@@ -172,6 +188,9 @@ public class WarehouseService {
         if (request.warehouseCodes() == null || request.warehouseCodes().isEmpty()) {
             throw new IllegalArgumentException("请选择需要删除的库房");
         }
+
+        List<String> normalizedCodes = request.warehouseCodes().stream().map(String::trim).distinct().toList();
+        referenceGuard.requireWarehousesDeletable(normalizedCodes);
 
         String placeholders = String.join(",", request.warehouseCodes().stream().map(code -> "?").toList());
         int deletedRows = jdbcTemplate.update("""
@@ -277,6 +296,10 @@ public class WarehouseService {
         validateLocation(request);
         Long warehouseId = findWarehouseId(warehouseCode);
         Long productId = findProductIdByCode(request.productCode());
+        Long deptId = findWarehouseDepartmentId(warehouseId);
+        WarehouseCatalogBindingService.BindingResult binding = productId == null
+                ? new WarehouseCatalogBindingService.BindingResult(false, false)
+                : catalogBindingService.ensureProductBinding(warehouseId, deptId, productId);
         jdbcTemplate.update("""
                 INSERT INTO warehouse_location (
                   warehouse_id, location_code, location_type, capacity_limit, product_id, status
@@ -295,7 +318,8 @@ public class WarehouseService {
                 productId,
                 request.status() == null ? 1 : request.status()
         );
-        return Map.of("locationCode", request.locationCode().trim());
+        return Map.of("locationCode", request.locationCode().trim(),
+                "bindingCreated", binding.bindingCreated(), "catalogUpdated", binding.catalogUpdated());
     }
 
     @Transactional
@@ -303,6 +327,10 @@ public class WarehouseService {
         validateLocation(request);
         Long warehouseId = findWarehouseId(warehouseCode);
         Long productId = findProductIdByCode(request.productCode());
+        Long deptId = findWarehouseDepartmentId(warehouseId);
+        WarehouseCatalogBindingService.BindingResult binding = productId == null
+                ? new WarehouseCatalogBindingService.BindingResult(false, false)
+                : catalogBindingService.ensureProductBinding(warehouseId, deptId, productId);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE warehouse_location
                    SET location_code = ?,
@@ -320,13 +348,15 @@ public class WarehouseService {
                 locationId,
                 warehouseId
         );
-        return Map.of("updatedRows", updatedRows, "locationId", locationId);
+        return Map.of("updatedRows", updatedRows, "locationId", locationId,
+                "bindingCreated", binding.bindingCreated(), "catalogUpdated", binding.catalogUpdated());
     }
 
     @Transactional
     public Map<String, Object> deleteWarehouseLocation(String warehouseCode, Long locationId) {
         Long warehouseId = findWarehouseId(warehouseCode);
         int deletedRows = jdbcTemplate.update("""
+        referenceGuard.requireLocationDeletable(warehouseId, locationId);
                 UPDATE warehouse_location
                    SET deleted = 1
                  WHERE location_id = ? AND warehouse_id = ? AND deleted = 0
@@ -343,7 +373,7 @@ public class WarehouseService {
                  WHERE warehouse_id = ? AND deleted = 0
                 """, warehouseId);
         if (productCodes.isEmpty()) {
-            syncDepartmentWarehouseCatalog(warehouseId, deptId, List.of());
+            catalogBindingService.synchronizeDepartmentCatalog(warehouseId, deptId, List.of());
             return;
         }
 
@@ -378,7 +408,7 @@ public class WarehouseService {
                       deleted = 0
                     """, warehouseId, productIds.get(productCode));
         }
-        syncDepartmentWarehouseCatalog(warehouseId, deptId, new ArrayList<>(productIds.values()));
+        catalogBindingService.synchronizeDepartmentCatalog(warehouseId, deptId, new ArrayList<>(productIds.values()));
     }
 
     /**
@@ -547,13 +577,21 @@ public class WarehouseService {
         }
         List<Long> ids = jdbcTemplate.queryForList("""
                 SELECT product_id FROM product
-                 WHERE product_code = ? AND deleted = 0
+                 WHERE product_code = ? AND deleted = 0 AND status = 1
                  LIMIT 1
                 """, Long.class, productCode.trim());
         if (ids.isEmpty()) {
             throw new IllegalArgumentException("固定商品编码不存在");
         }
         return ids.get(0);
+    }
+
+    private Long findWarehouseDepartmentId(Long warehouseId) {
+        List<Long> ids = jdbcTemplate.queryForList("""
+                SELECT dept_id FROM warehouse
+                 WHERE warehouse_id = ? AND deleted = 0 AND dept_id IS NOT NULL
+                """, Long.class, warehouseId);
+        return ids.isEmpty() ? null : ids.get(0);
     }
 
     private Long findIdByName(String table, String idColumn, String nameColumn, String name) {

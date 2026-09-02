@@ -641,6 +641,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       warehouseType: String(row.type ?? ''),
       campusName: String(row.campus ?? ''),
       deptName: String(row.dept === '-' ? '' : row.dept ?? ''),
+      deptCode: String(row.deptCode ?? ''),
       participateStats: String(row.participateStats ?? '') !== '不参与',
       statsCategories: String(row.statsCategories === '-' ? '' : row.statsCategories ?? '').replace(/^\["|"\]$/g, ''),
       status: String(row.status ?? '') === '停用' ? 0 : 1,
@@ -663,6 +664,14 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     warehouseForm.value.productCodes = [...new Set(
       warehouseForm.value.productCodes.map((code) => String(code).trim()).filter(Boolean)
     )]
+    const requiresDepartment = ['二级库', '三级库', '科室库']
+      .some((type) => warehouseForm.value.warehouseType.includes(type))
+    if (requiresDepartment && !warehouseForm.value.deptCode) {
+      deps.actionError.value = '二级库、三级库和科室库必须从有效科室列表中选择关联科室'
+      return
+    }
+    warehouseForm.value.deptName = String(warehouseForm.value.deptName ?? '').trim()
+    warehouseForm.value.deptCode = String(warehouseForm.value.deptCode ?? '').trim()
     try {
       if (deps.warehouseDialogMode.value === 'create') {
         await createWarehouse(warehouseForm.value)
@@ -953,6 +962,7 @@ function emptyWarehouseForm(): WarehousePayload {
     campusName: '',
     deptName: '',
     participateStats: true,
+    deptCode: '',
     statsCategories: '',
     status: 1,
     productCodes: []

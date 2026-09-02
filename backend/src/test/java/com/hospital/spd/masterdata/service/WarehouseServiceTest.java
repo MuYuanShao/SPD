@@ -192,7 +192,7 @@ class WarehouseServiceTest {
 
         @Test
         @DisplayName("创建库房时关联科室不存在则deptId为null")
-        void should_set_null_dept_id_when_department_not_found() {
+        void should_reject_department_warehouse_when_department_not_found() {
             WarehouseUpsertRequest request = new WarehouseUpsertRequest(
                     "WH002", "内科二级库", "科室库",
                     "主院区", "不存在科室", false, null, null, null
@@ -202,11 +202,9 @@ class WarehouseServiceTest {
                     argThat(sql -> ((String) sql).contains("dept_id FROM sys_dept")),
                     eq(Long.class), anyString());
 
-            doReturn(1).when(jdbcTemplate).update(anyString(), any(Object[].class));
-
-            Map<String, Object> result = service.createWarehouse(request);
-
-            assertThat(result.get("warehouseCode")).isEqualTo("WH002");
+            assertThatThrownBy(() -> service.createWarehouse(request))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(jdbcTemplate, never()).update(contains("INSERT INTO warehouse"), any(Object[].class));
         }
 
         @Test

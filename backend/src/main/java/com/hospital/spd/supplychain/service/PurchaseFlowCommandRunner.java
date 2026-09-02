@@ -4,6 +4,7 @@ import static com.hospital.spd.common.SqlHelper.nullIfBlank;
 
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
 import com.hospital.spd.supplychain.PurchaseOrderActionRequest;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -23,6 +24,7 @@ final class PurchaseFlowCommandRunner {
     private final OperatorContextProvider operatorContextProvider;
     private final BiFunction<String, Map<String, Object>, String> orderFromPlanFactory;
     private final ApprovalFlowGuard approvalFlowGuard;
+    private final AuditLogService auditLogService;
 
     PurchaseFlowCommandRunner(JdbcTemplate jdbcTemplate, BiFunction<String, Map<String, Object>, String> orderFromPlanFactory) {
         this(jdbcTemplate, OperatorContext::system, orderFromPlanFactory, new ApprovalFlowGuard(jdbcTemplate));
@@ -42,6 +44,7 @@ final class PurchaseFlowCommandRunner {
         this.operatorContextProvider = operatorContextProvider;
         this.orderFromPlanFactory = orderFromPlanFactory;
         this.approvalFlowGuard = approvalFlowGuard;
+        this.auditLogService = new AuditLogService(jdbcTemplate, operatorContextProvider);
     }
 
     Map<String, Object> runOrderAction(String orderNo, PurchaseOrderActionRequest request) {
@@ -107,6 +110,8 @@ final class PurchaseFlowCommandRunner {
                        approve_time = CASE WHEN ? IN ('approved', 'rejected') THEN NOW() ELSE approve_time END
                  WHERE demand_no = ? AND demand_status = ?
                 """, nextStatus, nextStatus, nextStatus, demandNo, rows.get(0).get("demandStatus"));
+        writeAudit("purchase_demand", request.action(),
+                ((Number) rows.get(0).get("demandId")).longValue(), demandNo, request.opinion());
         return result("demandNo", demandNo, nextStatus);
     }
 
@@ -122,11 +127,13 @@ final class PurchaseFlowCommandRunner {
         String nextStatus = PurchaseFlowRules.nextPlanStatus(String.valueOf(plan.get("planStatus")), request.action());
         if ("approved".equals(nextStatus)) {
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'approved', approve_time = NOW() WHERE plan_no = ? AND plan_status = 'draft'", planNo));
+            writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
             return result("planNo", planNo, nextStatus);
         }
         if ("executed".equals(nextStatus)) {
             String orderNo = orderFromPlanFactory.apply(planNo, plan);
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'executed', converted_order_no = ? WHERE plan_no = ? AND plan_status = 'approved'", orderNo, planNo));
+            writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
             Map<String, Object> result = result("planNo", planNo, nextStatus);
             result.put("orderNo", orderNo);
             return result;
@@ -134,6 +141,7 @@ final class PurchaseFlowCommandRunner {
         if ("rejected".equals(nextStatus)) {
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'rejected', remark = COALESCE(?, remark) WHERE plan_no = ? AND plan_status = 'draft'",
                     nullIfBlank(request.opinion()), planNo));
+            writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
             return result("planNo", planNo, nextStatus);
         }
         throw new IllegalArgumentException("purchase plan action is invalid");
@@ -147,11 +155,11 @@ final class PurchaseFlowCommandRunner {
     }
 
     private void writeAudit(String operationType, Long orderId, String orderNo, String remark) {
-        OperatorContext operator = operatorContextProvider.current();
-        jdbcTemplate.update("""
-                INSERT INTO audit_log (operator_name, operation_type, biz_type, biz_id, after_data, ip_address, remark)
-                VALUES (?, ?, 'purchase_order', ?, JSON_OBJECT('orderNo', ?), ?, ?)
-                """, operator.username(), operationType, orderId, orderNo, operator.ipAddress(), remark);
+        writeAudit("purchase_order", operationType, orderId, orderNo, remark);
+    }
+
+    private void writeAudit(String bizType, String operationType, Long bizId, String bizNo, String remark) {
+        auditLogService.record(bizType, operationType, bizId, bizNo, remark);
     }
 
     private void requireApprovalFlowForAction(String action, String nodeCode, Long documentDeptId, Long documentOwnerId) {

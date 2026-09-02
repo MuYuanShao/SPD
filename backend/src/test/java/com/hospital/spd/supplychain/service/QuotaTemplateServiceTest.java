@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.*;
  * QuotaTemplateService 单元测试——覆盖定数包模板 CRUD、模板明细、申领目录查询。
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class QuotaTemplateServiceTest {
 
     @Mock
@@ -150,8 +153,8 @@ class QuotaTemplateServiceTest {
     }
 
     @Test
-    @DisplayName("update existing template should replace active item instead of appending duplicate catalog row")
-    void shouldUpdateExistingTemplateAndReplaceActiveItem() {
+    @DisplayName("修改现有模板时创建不可变的新版本")
+    void shouldCreateNewImmutableVersionWhenUpdatingTemplate() throws Exception {
         QuotaTemplateRequest request = new QuotaTemplateRequest(
                 "TP001", "Updated template", "Dept A", "PC002",
                 BigDecimal.valueOf(8), "box"
@@ -167,26 +170,27 @@ class QuotaTemplateServiceTest {
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*)"), eq(Integer.class), anyLong(), anyString(), any(), any()))
                 .thenReturn(0);
         when(jdbcTemplate.queryForList(
-                eq("SELECT template_id FROM quota_package_template WHERE template_code = ? LIMIT 1"),
+                contains("WHERE template_code = ? AND is_current = 1"),
                 eq(Long.class),
                 eq("TP001")))
                 .thenReturn(List.of(42L));
-        when(jdbcTemplate.update(startsWith("UPDATE quota_package_template\n"), anyString(), eq(42L)))
+        when(jdbcTemplate.queryForObject(contains("SELECT version_no"), eq(Integer.class), eq(42L)))
                 .thenReturn(1);
-        when(jdbcTemplate.update(startsWith("UPDATE quota_package_template_item\n"), eq(42L)))
-                .thenReturn(1);
-        when(jdbcTemplate.update(contains("INSERT INTO quota_package_template_item"), eq(42L), eq(200L), any(), eq("each")))
+        doAnswer(invocation -> {
+            populateKeyHolder(invocation.getArgument(1), 43L);
+            return 1;
+        }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+        when(jdbcTemplate.update(contains("INSERT INTO quota_package_template_item"), eq(43L), eq(200L), any(), eq("each")))
                 .thenReturn(1);
 
         Map<String, Object> result = service.createTemplate(request);
 
-        assertThat(result).containsEntry("templateCode", "TP001");
-        verify(jdbcTemplate).update(startsWith("UPDATE quota_package_template_item\n"), eq(42L));
+        assertThat(result).containsEntry("templateCode", "TP001").containsEntry("versionNo", 2);
+        verify(jdbcTemplate).update(contains("SET is_current = 0"), eq(42L));
         verify(jdbcTemplate).update(contains("INSERT INTO quota_package_template_item"),
-                eq(42L), eq(200L), eq(BigDecimal.valueOf(80)), eq("each"));
-        verify(support).writeAudit(eq("quota_package"), eq("update_quota_template"),
-                eq(42L), eq("TP001"), anyString());
-        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+                eq(43L), eq(200L), eq(BigDecimal.valueOf(80)), eq("each"));
+        verify(support).writeAudit(eq("quota_package"), eq("version_quota_template"),
+                eq(43L), eq("TP001"), contains("version 2"));
     }
 
     @Test

@@ -72,8 +72,9 @@ public class OperationalRequisitionModule {
             if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) {
                 throw new IllegalArgumentException("product purchase price is required");
             }
+            TemplateSnapshot snapshot = resolveTemplateSnapshot(itemBody, product, deptId);
             items.add(new PreparedRequisitionItem(itemBody, product, quantity, unitPrice,
-                    quantity.multiply(unitPrice), resolveItemType(itemBody, product)));
+                    quantity.multiply(unitPrice), resolveItemType(product, snapshot), snapshot));
         }
         OperatorContext operator = operatorContextProvider.current();
         String requisitionNo = support.nextNo(DEPARTMENT_REQUISITION);
@@ -100,9 +101,15 @@ public class OperationalRequisitionModule {
         for (PreparedRequisitionItem item : items) {
             jdbcTemplate.update("""
                     INSERT INTO department_requisition_item (
-                      requisition_id, product_id, quantity, item_type, unit, unit_price, amount, remark
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                      requisition_id, product_id, quantity, item_type,
+                      quota_template_id, quota_template_version, quota_package_quantity, quota_package_unit,
+                      unit, unit_price, amount, remark
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, requisitionId, item.product().get("productId"), item.quantity(), item.itemType(),
+                    item.snapshot() == null ? null : item.snapshot().templateId(),
+                    item.snapshot() == null ? null : item.snapshot().versionNo(),
+                    item.snapshot() == null ? null : item.snapshot().packageQuantity(),
+                    item.snapshot() == null ? null : item.snapshot().packageUnit(),
                     item.product().get("unit"), item.unitPrice(), item.amount(), "department requisition");
             if (item.product().get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
                 Object rawCodes = item.body().get("uniqueCodes") == null
@@ -141,8 +148,11 @@ public class OperationalRequisitionModule {
 
     private record PreparedRequisitionItem(Map<String, Object> body, Map<String, Object> product,
                                            BigDecimal quantity, BigDecimal unitPrice,
-                                           BigDecimal amount, String itemType) {
+                                           BigDecimal amount, String itemType, TemplateSnapshot snapshot) {
     }
+
+    private record TemplateSnapshot(Long templateId, Integer versionNo,
+                                    BigDecimal packageQuantity, String packageUnit) {}
 
     @Transactional
     public Map<String, Object> action(String requisitionNo, Map<String, Object> body) {
@@ -176,16 +186,36 @@ public class OperationalRequisitionModule {
         return Map.of("requisitionNo", requisitionNo, "status", nextStatus);
     }
 
-    private static String resolveItemType(Map<String, Object> body, Map<String, Object> product) {
+    private static String resolveItemType(Map<String, Object> product, TemplateSnapshot snapshot) {
         // 高值耗材带唯一码申领 → 唯一码类型
         if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
             return "unique_code";
         }
-        Object mode = body.get("requisitionMode");
-        if ("quota_package".equals(String.valueOf(mode))) {
-            return "quota_package";
+        return snapshot == null ? "loose" : "quota_package";
+    }
+
+    private TemplateSnapshot resolveTemplateSnapshot(Map<String, Object> body, Map<String, Object> product, Long deptId) {
+        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) return null;
+        Object rawTemplateCode = body.get("templateCode");
+        if (rawTemplateCode == null || String.valueOf(rawTemplateCode).isBlank()) return null;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT qpt.template_id AS templateId, qpt.version_no AS versionNo,
+                       qpti.quantity AS packageQuantity, qpti.unit AS packageUnit
+                  FROM quota_package_template qpt
+                  JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
+                 WHERE qpt.template_code = ? AND qpt.is_current = 1
+                   AND qpt.status = 1 AND qpt.deleted = 0
+                   AND qpti.product_id = ?
+                   AND (qpt.dept_id IS NULL OR qpt.dept_id = ?)
+                 ORDER BY qpt.dept_id IS NULL
+                """, String.valueOf(rawTemplateCode).trim(), product.get("productId"), deptId);
+        if (rows.size() != 1) {
+            throw new IllegalArgumentException("所选定数包模板不存在、已停用或与商品不匹配");
         }
-        return "loose";
+        Map<String, Object> row = rows.get(0);
+        return new TemplateSnapshot(((Number) row.get("templateId")).longValue(),
+                ((Number) row.get("versionNo")).intValue(), (BigDecimal) row.get("packageQuantity"),
+                String.valueOf(row.get("packageUnit")));
     }
 
     private Map<String, Object> findProduct(String productCode) {

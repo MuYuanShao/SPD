@@ -8,9 +8,11 @@ import type { QuotaTemplateRow } from '../../api/quotaPackages'
 const props = defineProps<{
   mode: 'create' | 'edit'
   safetyForm: {
+    deptCode: string
     deptName: string
     warehouseName: string
     templateCode: string
+    templateId?: number
     productCode: string
     minQty: number
     maxQty: number
@@ -22,7 +24,7 @@ const props = defineProps<{
     productName: string
   }
   templates: QuotaTemplateRow[]
-  warehouses: Array<{ name: string; dept: string }>
+  warehouses: Array<{ name: string; dept: string; deptCode: string }>
   filteredCount: number
   page: number
   size: number
@@ -33,7 +35,7 @@ const emit = defineEmits<{
   (event: 'close'): void
   (event: 'submit'): void
   (event: 'select-template', row: QuotaTemplateRow): void
-  (event: 'select-warehouse', warehouse: { name: string; dept: string }): void
+  (event: 'select-warehouse', warehouse: { name: string; dept: string; deptCode: string }): void
   (event: 'change-page', page: number): void
   (event: 'change-size', size: number): void
 }>()
@@ -57,7 +59,7 @@ const filteredWarehouses = computed(() => {
   )
 })
 
-function selectWarehouse(warehouse: { name: string; dept: string }) {
+function selectWarehouse(warehouse: { name: string; dept: string; deptCode: string }) {
   warehouseDropdownOpen.value = false
   warehouseKeyword.value = warehouse.name
   emit('select-warehouse', warehouse)

@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -119,8 +120,35 @@ class OperationalRequisitionModuleTest {
                 .containsEntry("requisitionNo", "SL20260601001")
                 .containsEntry("status", "pending_approval");
         verify(jdbcTemplate).update(contains("INSERT INTO department_requisition_item"),
-                eq(99L), eq(100L), eq(BigDecimal.valueOf(5)), eq("loose"), eq("piece"), eq(BigDecimal.TEN),
+                eq(99L), eq(100L), eq(BigDecimal.valueOf(5)), eq("loose"), isNull(), isNull(), isNull(), isNull(), eq("piece"), eq(BigDecimal.TEN),
                 eq(BigDecimal.valueOf(50)), eq("department requisition"));
+    }
+
+    @Test
+    void snapshotsServerValidatedQuotaTemplateInsteadOfTrustingClientMode() throws Exception {
+        when(jdbcTemplate.queryForList(contains("SELECT dept_id FROM sys_dept"), eq(Long.class), anyString()))
+                .thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), anyString()))
+                .thenReturn(List.of(20L));
+        mockProduct();
+        when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"), eq(Long.class),
+                eq(10L), eq(20L), eq(100L))).thenReturn(1L);
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_template qpt"),
+                eq("TP001"), eq(100L), eq(10L))).thenReturn(List.of(Map.of(
+                        "templateId", 50L, "versionNo", 3,
+                        "packageQuantity", BigDecimal.TEN, "packageUnit", "piece")));
+        when(support.nextNo(DocumentKind.DEPARTMENT_REQUISITION)).thenReturn("SL20260601002");
+        mockGeneratedKey(99L);
+
+        module.createRequisition(Map.of(
+                "deptName", "Surgery", "warehouseName", "Main Warehouse",
+                "productCode", "PC001", "quantity", BigDecimal.valueOf(2),
+                "requisitionMode", "loose", "templateCode", "TP001"));
+
+        verify(jdbcTemplate).update(contains("INSERT INTO department_requisition_item"),
+                eq(99L), eq(100L), eq(BigDecimal.valueOf(2)), eq("quota_package"),
+                eq(50L), eq(3), eq(BigDecimal.TEN), eq("piece"), eq("piece"),
+                eq(BigDecimal.TEN), eq(BigDecimal.valueOf(20)), eq("department requisition"));
     }
 
     @Test
@@ -182,7 +210,7 @@ class OperationalRequisitionModuleTest {
         assertThat(result).containsEntry("requisitionNo", "SL20260601001").containsEntry("itemCount", 2);
         verify(jdbcTemplate, times(1)).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
         verify(jdbcTemplate, times(2)).update(contains("INSERT INTO department_requisition_item"),
-                eq(99L), any(), any(), anyString(), any(), any(), any(), eq("department requisition"));
+                eq(99L), any(), any(), anyString(), any(), any(), any(), any(), any(), any(), any(), eq("department requisition"));
     }
 
     @Test

@@ -1,4 +1,5 @@
 import type { Ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import {
   cancelPackingTask,
   confirmPackingTask,
@@ -20,6 +21,19 @@ type PackingTaskForm = {
   remark: string
 }
 
+async function confirmAction(message: string, title: string, confirmButtonText: string) {
+  try {
+    await ElMessageBox.confirm(message, title, {
+      confirmButtonText,
+      cancelButtonText: '返回',
+      type: 'warning'
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function useQuotaPackingTaskActions(options: {
   packingForm: PackingTaskForm
   message: Ref<string>
@@ -38,12 +52,30 @@ export function useQuotaPackingTaskActions(options: {
     options.taskLoading.value = true
     options.message.value = ''
     try {
-      const result = await createPackingTask(options.packingForm)
+      let result = await createPackingTask(options.packingForm)
+      if (result.requiresConfirmation && !result.created) {
+        const packable = result.packablePackageCount ?? 0
+        const accepted = await confirmAction(
+          `申请 ${result.requestedPackageCount} 包，当前仅可创建 ${packable} 包，缺口 ${result.shortagePackageCount ?? 0} 包（可用散货 ${result.availableLooseQty ?? 0}）。是否按当前库存创建？`,
+          '散货库存不足',
+          '确认部分创建'
+        )
+        if (!accepted) return
+        result = await createPackingTask({
+          ...options.packingForm,
+          allowPartial: true,
+          expectedPackableCount: packable
+        })
+        if (result.requiresConfirmation || !result.created) {
+          options.message.value = '库存已发生变化，请根据最新可打包数量再次确认'
+          return
+        }
+      }
       const reservedLooseQty = result.reservedLooseQty ?? result.plannedLooseQty
       const requestedCount = result.requestedPackageCount ?? options.packingForm.packageCount
       const actualCount = result.packageCount ?? requestedCount
       options.message.value = actualCount < requestedCount
-        ? `散货库存不足，已按现有库存创建 ${actualCount}/${requestedCount} 包：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
+        ? `已确认部分创建 ${actualCount}/${requestedCount} 包：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
         : `打包任务已创建：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
       await options.reload()
     } catch (error: any) {
@@ -61,9 +93,7 @@ export function useQuotaPackingTaskActions(options: {
   }
 
   async function cancelTask(row: PackingTaskRow) {
-    if (!window.confirm(`确认取消打包任务 ${row.taskNo} 并释放预占散货？`)) {
-      return
-    }
+    if (!await confirmAction(`确认取消打包任务 ${row.taskNo} 并释放预占散货？`, '取消打包任务', '确认取消')) return
     const result = await cancelPackingTask(row.taskNo, '页面取消打包任务')
     options.message.value = `${result.taskNo} 已取消，预占散货已释放`
     options.selectedTaskNo.value = ''
@@ -72,9 +102,7 @@ export function useQuotaPackingTaskActions(options: {
   }
 
   async function terminateTask(row: PackingTaskRow) {
-    if (!window.confirm(`确认终止打包任务 ${row.taskNo}？系统会回滚未完成或已生成的定数包，并将库存退回中心库散货，可重新组包。`)) {
-      return
-    }
+    if (!await confirmAction(`确认终止打包任务 ${row.taskNo}？仅未进入配送、签收、消耗或结算的标签可回退。`, '终止打包任务', '确认终止')) return
     const result = await terminatePackingTask(row.taskNo, '页面终止打包任务并退回散货库存')
     options.message.value = `${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`
     options.selectedTaskNo.value = ''
@@ -83,14 +111,15 @@ export function useQuotaPackingTaskActions(options: {
   }
 
   async function terminateTaskByTaskNo() {
-    const taskNo = window.prompt('请输入需要终止的打包任务号', options.selectedTaskNo.value)
-    if (!taskNo?.trim()) {
-      return
-    }
-    if (!window.confirm(`确认终止打包任务 ${taskNo.trim()}？系统会回滚库存并退回中心库散货。`)) {
-      return
-    }
-    const result = await terminatePackingTask(taskNo.trim(), '页面终止打包任务并退回散货库存')
+    const { value } = await ElMessageBox.prompt('请输入需要终止的打包任务号', '终止打包任务', {
+      inputValue: options.selectedTaskNo.value,
+      inputPattern: /\S+/,
+      inputErrorMessage: '任务号不能为空',
+      confirmButtonText: '下一步',
+      cancelButtonText: '取消'
+    })
+    if (!await confirmAction(`确认终止打包任务 ${value.trim()}？仅可逆标签会退回散货。`, '确认终止', '确认终止')) return
+    const result = await terminatePackingTask(value.trim(), '页面终止打包任务并退回散货库存')
     options.message.value = `${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`
     options.selectedTaskNo.value = ''
     options.taskReservations.value = []
@@ -110,9 +139,7 @@ export function useQuotaPackingTaskActions(options: {
   }
 
   async function unpackLabel(row: PackageLabelRow) {
-    if (!window.confirm(`确认将定数包标签 ${row.labelNo} 解包成散货？解包后原标签不可继续使用。`)) {
-      return
-    }
+    if (!await confirmAction(`确认将定数包标签 ${row.labelNo} 解包成散货？解包后原标签不可继续使用。`, '定数包解包', '确认解包')) return
     try {
       const result = await unpackPackageLabel(row.labelNo, '页面操作解包回散货')
       options.message.value = `${result.labelNo} 已解包，恢复散货 ${result.restoredLooseQty}`

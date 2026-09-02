@@ -14,14 +14,18 @@ export interface QuotaTemplateRow {
   unit: string
   status: string
   updateTime: string
+  versionNo: number
+  currentVersion: number
 }
 
 export interface QuotaSafetyRow {
   safetyId: number
+  deptCode: string
   deptName: string
   productCode: string
   productName: string
   templateCode: string
+  templateId?: number
   templateName: string
   minQty: number
   maxQty: number
@@ -161,7 +165,9 @@ export async function fetchQuotaSafety(params: Record<string, string>) {
  * @returns 保存结果
  */
 export async function saveQuotaSafety(payload: {
+  deptCode?: string
   deptName: string
+  templateId?: number
   templateCode?: string
   productCode: string
   minQty: number
@@ -240,13 +246,20 @@ export async function createPackingTask(payload: {
   warehouseName: string
   packageCount: number
   remark?: string
+  allowPartial?: boolean
+  expectedPackableCount?: number
 }) {
   return postData<{
-    taskNo: string
+    created: boolean
+    requiresConfirmation: boolean
+    taskNo?: string
     requestedPackageCount: number
-    packageCount: number
-    plannedLooseQty: number
-    reservedLooseQty: number
+    packageCount?: number
+    packablePackageCount?: number
+    availableLooseQty?: number
+    shortagePackageCount?: number
+    plannedLooseQty?: number
+    reservedLooseQty?: number
   }>(
     '/quota-packages/packing-tasks',
     payload

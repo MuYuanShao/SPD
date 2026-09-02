@@ -21,6 +21,7 @@ import java.math.BigDecimal;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -34,26 +35,31 @@ public class PackingTaskService {
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
     private final QuotaPackageTraceFlowService traceFlowService;
+    private final QuotaPermissionGuard permissionGuard;
 
     public PackingTaskService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support,
-                new QuotaPackageTraceFlowService(jdbcTemplate, support, OperatorContext::system));
+                new QuotaPackageTraceFlowService(jdbcTemplate, support, OperatorContext::system),
+                new QuotaPermissionGuard(jdbcTemplate, OperatorContext::system));
     }
 
     @Autowired
     public PackingTaskService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
-                              QuotaPackageTraceFlowService traceFlowService) {
+                              QuotaPackageTraceFlowService traceFlowService,
+                              QuotaPermissionGuard permissionGuard) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.traceFlowService = traceFlowService;
+        this.permissionGuard = permissionGuard;
     }
 
     public Map<String, Object> packingOptions() {
 
         List<Map<String, Object>> warehouses = jdbcTemplate.queryForList("""
                 SELECT warehouse_name AS warehouseName, warehouse_type AS warehouseType
-                  FROM warehouse
+                 FROM warehouse
                  WHERE deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
                  ORDER BY warehouse_id
                 """);
         List<Map<String, Object>> candidates = jdbcTemplate.queryForList("""
@@ -61,11 +67,13 @@ public class PackingTaskService {
                        p.product_name AS productName, ib.system_batch_no AS systemBatchNo,
                        ib.production_batch_no AS productionBatchNo, DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
                        ib.batch_unit_price AS batchUnitPrice, SUM(bal.available_qty) AS availableQty
-                  FROM inventory_balance bal
+                 FROM inventory_balance bal
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   JOIN product p ON p.product_id = bal.product_id
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE p.is_quota_managed = 1 AND p.is_high_value = 0 AND p.is_cold_chain = 0
+                   AND w.deleted = 0 AND w.status = 1
+                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
                    AND bal.available_qty > 0
                  GROUP BY w.warehouse_id, p.product_id, ib.batch_id
                  ORDER BY w.warehouse_name, p.product_name, ib.expire_date
@@ -76,6 +84,17 @@ public class PackingTaskService {
 
     public Map<String, Object> tasks(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        appendLike(where, args, "qpt.task_no", params.get("taskNo"));
+        appendLike(where, args, "t.template_code", params.get("templateCode"));
+        appendLike(where, args, "p.product_code", params.get("productCode"));
+        appendLike(where, args, "p.product_name", params.get("productName"));
+        appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
+        if (!isBlank(params.get("status"))) {
+            where.append(" AND qpt.status = ?");
+            args.add(params.get("status").trim());
+        }
         String fromClause = """
                   FROM quota_packing_task qpt
                   JOIN quota_package_template t ON t.template_id = qpt.template_id
@@ -84,9 +103,12 @@ public class PackingTaskService {
                   LEFT JOIN quota_packing_task_reservation qptr ON qptr.task_id = qpt.task_id
                   LEFT JOIN inventory_batch ib ON ib.batch_id = qptr.batch_id
                 """;
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(DISTINCT qpt.task_id) " + fromClause,
-                Long.class);
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(DISTINCT qpt.task_id) " + fromClause + where,
+                Long.class, args.toArray());
 
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpt.task_no AS taskNo, qpt.status, t.template_code AS templateCode,
                        t.template_name AS templateName, w.warehouse_name AS warehouseName,
@@ -105,15 +127,14 @@ public class PackingTaskService {
                   JOIN product p ON p.product_id = qpt.product_id
                   LEFT JOIN quota_packing_task_reservation qptr ON qptr.task_id = qpt.task_id
                   LEFT JOIN inventory_batch ib ON ib.batch_id = qptr.batch_id
-                 GROUP BY qpt.task_id
-                 ORDER BY qpt.create_time DESC
-                 LIMIT ? OFFSET ?
-                """, pageReq.size(), pageReq.offset());
+                """ + where + " GROUP BY qpt.task_id ORDER BY qpt.create_time DESC LIMIT ? OFFSET ?",
+                queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     @Transactional
     public Map<String, Object> createTask(PackingTaskRequest request) {
+        permissionGuard.require("quota-packing-task:create");
 
         BigDecimal packageCount = positiveWholeNumber(request.packageCount(), "packing package count must be a whole number greater than zero");
         Map<String, Object> template = findTemplate(request.templateCode());
@@ -126,6 +147,20 @@ public class PackingTaskService {
                 .min(packageCount);
         if (packableCount.compareTo(BigDecimal.ONE) < 0) {
             throw new IllegalArgumentException("loose stock is insufficient for one package");
+        }
+        if (packableCount.compareTo(packageCount) < 0) {
+            if (!request.allowPartial()
+                    || request.expectedPackableCount() == null
+                    || request.expectedPackableCount().compareTo(packableCount) != 0) {
+                Map<String, Object> preview = new LinkedHashMap<>();
+                preview.put("created", false);
+                preview.put("requiresConfirmation", true);
+                preview.put("requestedPackageCount", packageCount);
+                preview.put("packablePackageCount", packableCount);
+                preview.put("availableLooseQty", availableQty);
+                preview.put("shortagePackageCount", packageCount.subtract(packableCount));
+                return preview;
+            }
         }
         BigDecimal plannedLooseQty = packageQuantity.multiply(packableCount);
         String taskNo = support.nextNo(QUOTA_PACKING_TASK);
@@ -150,8 +185,10 @@ public class PackingTaskService {
         }, keyHolder);
         Long taskId = Objects.requireNonNull(keyHolder.getKey()).longValue();
         reserveLooseFifo(taskId, warehouseId, productId, plannedLooseQty);
-        support.writeAudit("quota_package", "create_quota_pack_task", taskNoNumeric(taskNo), taskNo, "create packing task and reserve loose stock");
+        support.writeAudit("quota_package", "create_quota_pack_task", taskId, taskNo, "create packing task and reserve loose stock");
         return Map.of(
+                "created", true,
+                "requiresConfirmation", false,
                 "taskNo", taskNo,
                 "requestedPackageCount", packageCount,
                 "packageCount", packableCount,
@@ -161,6 +198,7 @@ public class PackingTaskService {
 
     @Transactional
     public Map<String, Object> confirmTask(String taskNo) {
+        permissionGuard.require("quota-packing-task:confirm");
 
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
@@ -199,26 +237,29 @@ public class PackingTaskService {
 
     @Transactional
     public Map<String, Object> cancelTask(String taskNo, PackageActionRequest request) {
+        permissionGuard.require("quota-packing-task:cancel");
 
-        Map<String, Object> task = findPackingTask(taskNo);
+        Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
             throw new IllegalArgumentException("only pending task can be cancelled");
         }
         Long taskId = ((Number) task.get("taskId")).longValue();
         releaseReservations(taskId);
-        jdbcTemplate.update("""
+        int updated = jdbcTemplate.update("""
                 UPDATE quota_packing_task
                    SET status = 'cancelled', reserved_loose_qty = 0, cancel_time = NOW(), remark = COALESCE(?, remark)
-                 WHERE task_id = ?
+                 WHERE task_id = ? AND status = 'pending_confirm'
                 """, nullIfBlank(request == null ? null : request.reason()), taskId);
+        if (updated != 1) throw new IllegalArgumentException("packing task status changed, please refresh and retry");
         support.writeAudit("quota_package", "cancel_quota_pack_task", taskId, taskNo, "cancel packing task and release reservation");
         return Map.of("taskNo", taskNo, "status", "cancelled");
     }
 
     @Transactional
     public Map<String, Object> terminateTask(String taskNo, PackageActionRequest request) {
+        permissionGuard.require("quota-packing-task:terminate");
 
-        Map<String, Object> task = findPackingTask(taskNo);
+        Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status) && !"confirmed".equals(status)) {
             throw new IllegalArgumentException("only pending, recalculating, or confirmed task can be terminated");
@@ -230,6 +271,14 @@ public class PackingTaskService {
                 : request.reason().trim();
         BigDecimal restoredLooseQty = BigDecimal.ZERO;
         if ("confirmed".equals(status)) {
+            Integer irreversible = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM quota_package_label
+                     WHERE task_id = ? AND status NOT IN ('pending_print', 'available', 'void')
+                     FOR UPDATE
+                    """, Integer.class, taskId);
+            if (irreversible != null && irreversible > 0) {
+                throw new IllegalArgumentException("已有定数包进入配送、签收、消耗或结算流程，不能终止");
+            }
             restoredLooseQty = restoreConfirmedTaskLabels(task, reason);
             jdbcTemplate.update("""
                     UPDATE quota_packing_task_reservation
@@ -244,8 +293,8 @@ public class PackingTaskService {
         jdbcTemplate.update("""
                 UPDATE quota_packing_task
                    SET status = 'terminated', reserved_loose_qty = 0, cancel_time = NOW(), remark = COALESCE(?, remark)
-                 WHERE task_id = ?
-                """, reason, taskId);
+                 WHERE task_id = ? AND status = ?
+                """, reason, taskId, status);
         support.writeAudit("quota_package", "terminate_quota_pack_task", taskId, taskNo,
                 "terminate packing task and rollback stock to loose inventory");
         return Map.of("taskNo", taskNo, "status", "terminated", "restoredLooseQty", restoredLooseQty);
@@ -253,8 +302,9 @@ public class PackingTaskService {
 
     @Transactional
     public Map<String, Object> recalculateTask(String taskNo) {
+        permissionGuard.require("quota-packing-task:recalculate");
 
-        Map<String, Object> task = findPackingTask(taskNo);
+        Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status)) {
             throw new IllegalArgumentException("only pending task can be recalculated");
@@ -266,7 +316,7 @@ public class PackingTaskService {
         releaseReservations(taskId);
         if (availableLoose(warehouseId, productId).compareTo(plannedLooseQty) < 0) {
             jdbcTemplate.update("UPDATE quota_packing_task SET status = 'need_recalculate', reserved_loose_qty = 0 WHERE task_id = ?", taskId);
-            throw new IllegalArgumentException("loose stock is insufficient after recalculation");
+            return Map.of("taskNo", taskNo, "status", "need_recalculate", "reservedLooseQty", BigDecimal.ZERO);
         }
         reserveLooseFifo(taskId, warehouseId, productId, plannedLooseQty);
         jdbcTemplate.update("UPDATE quota_packing_task SET status = 'pending_confirm', reserved_loose_qty = ? WHERE task_id = ?",
@@ -303,12 +353,20 @@ public class PackingTaskService {
                    AND qpl.status NOT IN ('consumed', 'settled')
                 """);
         appendLike(where, args, "qpl.label_no", params.get("labelNo"));
+        appendLike(where, args, "t.template_code", params.get("templateCode"));
+        appendLike(where, args, "p.product_code", params.get("productCode"));
         appendLike(where, args, "p.product_name", params.get("productName"));
+        appendLike(where, args, "d.dept_name", params.get("deptName"));
+        if (!isBlank(params.get("status"))) {
+            where.append(" AND qpl.status = ?");
+            args.add(params.get("status").trim());
+        }
 
         String fromClause = """
                   FROM quota_package_label qpl
                   JOIN quota_package_template t ON t.template_id = qpl.template_id
                   JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id
                   JOIN product p ON p.product_id = qpl.product_id
                   LEFT JOIN quota_package_label_source qpls ON qpls.label_id = qpl.label_id
                   LEFT JOIN inventory_batch ib ON ib.batch_id = qpls.batch_id
@@ -331,6 +389,7 @@ public class PackingTaskService {
                   FROM quota_package_label qpl
                   JOIN quota_package_template t ON t.template_id = qpl.template_id
                   JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
+                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id
                   JOIN product p ON p.product_id = qpl.product_id
                   LEFT JOIN quota_package_label_source qpls ON qpls.label_id = qpl.label_id
                   LEFT JOIN inventory_batch ib ON ib.batch_id = qpls.batch_id
@@ -341,6 +400,7 @@ public class PackingTaskService {
 
     @Transactional
     public Map<String, Object> printLabel(String labelNo) {
+        permissionGuard.require("quota-package-label:print");
         Map<String, Object> label = jdbcTemplate.queryForMap("""
                 SELECT label_id AS labelId, label_no AS labelNo, status, package_quantity AS packageQuantity,
                        print_count AS printCount
@@ -369,6 +429,7 @@ public class PackingTaskService {
 
     @Transactional
     public Map<String, Object> unpack(String labelNo, PackageActionRequest request) {
+        permissionGuard.require("quota-label-unpack:write");
 
         Map<String, Object> label = jdbcTemplate.queryForMap("""
                 SELECT label_id AS labelId, label_no AS labelNo, status, warehouse_id AS warehouseId,
@@ -416,8 +477,22 @@ public class PackingTaskService {
 
     public Map<String, Object> packageEvents(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM quota_package_event qpe", Long.class);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        appendLike(where, args, "qpe.event_no", params.get("eventNo"));
+        appendLike(where, args, "qpl.label_no", params.get("labelNo"));
+        if (!isBlank(params.get("eventType"))) {
+            where.append(" AND qpe.event_type = ?");
+            args.add(params.get("eventType").trim());
+        }
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM quota_package_event qpe
+                LEFT JOIN quota_package_label qpl ON qpl.label_id = qpe.label_id
+                """ + where, Long.class, args.toArray());
 
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpe.event_no AS eventNo, qpl.label_no AS labelNo, qpe.event_type AS eventType,
                        qpe.status_before AS statusBefore, qpe.status_after AS statusAfter,
@@ -425,9 +500,10 @@ public class PackingTaskService {
                        DATE_FORMAT(qpe.event_time, '%Y-%m-%d %H:%i') AS eventTime
                   FROM quota_package_event qpe
                   LEFT JOIN quota_package_label qpl ON qpl.label_id = qpe.label_id
+                """ + where + """
                  ORDER BY qpe.event_time DESC
                  LIMIT ? OFFSET ?
-                """, pageReq.size(), pageReq.offset());
+                """, queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
@@ -451,7 +527,10 @@ public class PackingTaskService {
                   FROM receiving_order ro
                   JOIN receiving_order_item roi ON roi.receiving_order_id = ro.receiving_order_id
                   JOIN inventory_batch ib ON ib.receiving_item_id = roi.item_id
-                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id
+                   AND bal.warehouse_id = ro.warehouse_id
+                   AND bal.product_id = roi.product_id
+                   AND bal.location_id IS NULL
                   JOIN product p ON p.product_id = roi.product_id
                  WHERE ro.receiving_no = ? AND bal.available_qty > 0
                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
@@ -464,6 +543,7 @@ public class PackingTaskService {
      */
     @Transactional
     public Map<String, Object> allocateFromReceiving(String taskNo, String receivingNo, BigDecimal quantity) {
+        permissionGuard.require("quota-packing-task:create");
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status)) {
@@ -481,7 +561,10 @@ public class PackingTaskService {
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("该验收单没有匹配当前打包任务商品与库房的散货库存");
         }
-        boolean fullAllocation = quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0;
+        if (quantity != null && quantity.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("分配数量必须大于零；留空表示分配全部可用数量");
+        }
+        boolean fullAllocation = quantity == null;
         BigDecimal remaining = fullAllocation
                 ? rows.stream().map(row -> (BigDecimal) row.get("availableQty")).reduce(BigDecimal.ZERO, BigDecimal::add)
                 : quantity;
@@ -569,6 +652,7 @@ public class PackingTaskService {
                   FROM quota_package_template t
                   JOIN quota_package_template_item ti ON ti.template_id = t.template_id
                  WHERE t.template_code = ? AND t.status = 1 AND t.deleted = 0
+                   AND t.is_current = 1 AND ti.deleted = 0
                 """, templateCode.trim());
         if (templates.isEmpty()) {
             throw new IllegalArgumentException("quota package template " + templateCode + " does not exist or is disabled");
@@ -579,8 +663,9 @@ public class PackingTaskService {
     private Long findWarehouseId(String warehouseName) {
         List<Long> ids = jdbcTemplate.queryForList("""
                 SELECT warehouse_id
-                  FROM warehouse
+                 FROM warehouse
                  WHERE warehouse_name = ? AND deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
                  LIMIT 1
                 """, Long.class, warehouseName.trim());
         if (ids.isEmpty()) {
@@ -786,10 +871,6 @@ public class PackingTaskService {
                   event_no, label_id, event_type, status_before, status_after, qty_change, remark
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 """, support.nextNo(QUOTA_PACKAGE_EVENT), labelId, eventType, before, after, qtyChange, remark);
-    }
-
-    private Long taskNoNumeric(String taskNo) {
-        return (long) Math.abs(taskNo.hashCode());
     }
 
     private static BigDecimal positiveWholeNumber(BigDecimal value, String message) {

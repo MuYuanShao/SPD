@@ -137,6 +137,10 @@ public class QuotaPackageTraceFlowService {
     @Transactional
     public void completeSign(Long labelId, String deliveryNo) {
         Map<String, Object> signed = label(labelId, false);
+        assertDepartmentScope(signed);
+        if ("signed".equals(String.valueOf(signed.get("status")))) {
+            return;
+        }
         transitionLabel(labelId, "signed", "department_sign", "定数包扫码签收入库",
                 deliveryNo, String.valueOf(signed.get("warehouseName")), text(signed.get("deptName")),
                 "按定数包唯一码完成科室签收入库", 60);
@@ -149,11 +153,11 @@ public class QuotaPackageTraceFlowService {
         Long labelId = ((Number) initial.get("labelId")).longValue();
         Long traceCodeId = ensureTrace(labelId);
         Map<String, Object> quotaPackage = label(labelId, true);
+        assertDepartmentScope(quotaPackage);
         if (!"signed".equals(String.valueOf(quotaPackage.get("status")))) {
             throw new IllegalArgumentException("只有已签收入库的定数包才能扫码消耗");
         }
-        String departmentName = text(body.get("deptName"));
-        if (departmentName == null) departmentName = text(quotaPackage.get("deptName"));
+        String departmentName = text(quotaPackage.get("deptName"));
         if (departmentName == null) {
             throw new IllegalArgumentException("deptName is required");
         }
@@ -224,6 +228,15 @@ public class QuotaPackageTraceFlowService {
                  WHERE trace_code_id = ? AND trace_scope = 'low_value_quota_pack'
                 """, Integer.class, traceCodeId);
         return count != null && count > 0;
+    }
+
+    private void assertDepartmentScope(Map<String, Object> quotaPackage) {
+        OperatorContext operator = operatorContextProvider.current();
+        if (operator.canViewAllData()) return;
+        Long targetDeptId = quotaPackage.get("deptId") instanceof Number number ? number.longValue() : null;
+        if (targetDeptId == null || operator.deptId() == null || !targetDeptId.equals(operator.deptId())) {
+            throw new IllegalArgumentException("只能操作当前登录科室的定数包");
+        }
     }
 
     /** Restore a consumed package to its signed department-stock state during an approved red flush. */

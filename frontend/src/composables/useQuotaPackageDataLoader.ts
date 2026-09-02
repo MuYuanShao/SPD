@@ -15,6 +15,9 @@ import type { QuotaPackagePageKey } from './useQuotaPackagePagination'
 import type { QuotaPackageSectionCode } from '../config/quotaPackageDisplay'
 
 type QueryState = {
+  taskNo: string
+  eventNo: string
+  eventType: string
   deptName: string
   productCode: string
   productName: string
@@ -92,7 +95,11 @@ export function useQuotaPackageDataLoader(options: {
           fetchQuotaTemplates(templateQuery()),
           fetchPackingTasks({
             page: String(options.quotaPagination.tasks.page),
-            size: String(options.quotaPagination.tasks.size)
+            size: String(options.quotaPagination.tasks.size),
+            taskNo: options.query.taskNo,
+            templateCode: options.query.templateCode,
+            productCode: options.query.productCode,
+            productName: options.query.productName
           }),
           fetchPackingOptions()
         ])
@@ -113,6 +120,9 @@ export function useQuotaPackageDataLoader(options: {
           page: String(options.quotaPagination.labels.page),
           size: String(options.quotaPagination.labels.size),
           labelNo: options.query.labelNo,
+          templateCode: options.query.templateCode,
+          productCode: options.query.productCode,
+          deptName: options.query.deptName,
           productName: options.query.productName
         })
         options.labels.value = labelData.rows
@@ -123,7 +133,10 @@ export function useQuotaPackageDataLoader(options: {
       if (options.packageSection.value === 'quota-package-events') {
         const eventData = await fetchPackageEvents({
           page: String(options.quotaPagination.events.page),
-          size: String(options.quotaPagination.events.size)
+          size: String(options.quotaPagination.events.size),
+          labelNo: options.query.labelNo,
+          eventNo: options.query.eventNo,
+          eventType: options.query.eventType
         })
         options.events.value = eventData.rows
         options.quotaPagination.events.total = eventData.total

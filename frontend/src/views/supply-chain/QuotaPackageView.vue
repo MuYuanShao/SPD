@@ -22,6 +22,10 @@ import {
   X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import PageHeader from '../../components/common/PageHeader.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
+import TableStateRow from '../../components/common/TableStateRow.vue'
+import { useAuthStore } from '../../stores/auth'
 import { fetchMasterDataPage } from '../../api/masterData'
 import { useQuotaPackageDataLoader } from '../../composables/useQuotaPackageDataLoader'
 import { useQuotaPackagePagination } from '../../composables/useQuotaPackagePagination'
@@ -47,13 +51,13 @@ import {
   fetchReceivingLooseStock
 } from '../../api/quotaPackages'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
-import QuotaPackageOverview from '../../components/supply-chain/QuotaPackageOverview.vue'
 import QuotaProductSelectorDialog from '../../components/supply-chain/QuotaProductSelectorDialog.vue'
 import QuotaSafetyDialog from '../../components/supply-chain/QuotaSafetyDialog.vue'
 import QuotaTemplateSelectorDialog from '../../components/supply-chain/QuotaTemplateSelectorDialog.vue'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 const loading = ref(false)
 const message = ref('')
 const loadError = ref('')
@@ -76,6 +80,9 @@ const taskLoading = ref(false)
 const safetyImporting = ref(false)
 
 const query = reactive({
+  taskNo: '',
+  eventNo: '',
+  eventType: '',
   templateCode: '',
   templateName: '',
   productCode: '',
@@ -91,30 +98,34 @@ const templateForm = reactive({
   unit: ''
 })
 const safetyForm = reactive({
+  deptCode: '',
   deptName: '',
   warehouseName: '',
   templateCode: '',
+  templateId: undefined as number | undefined,
   productCode: '',
   minQty: 1,
   maxQty: 3
 })
-const safetyWarehouseOptions = ref<Array<{ name: string; dept: string }>>([])
+const safetyWarehouseOptions = ref<Array<{ name: string; dept: string; deptCode: string }>>([])
 
 async function loadSafetyWarehouses() {
   try {
     const page = await fetchMasterDataPage('warehouse-location-management', { page: '1', size: '200' })
     safetyWarehouseOptions.value = page.rows.map((row) => ({
       name: String(row.name ?? ''),
-      dept: String(row.dept ?? '')
+      dept: String(row.dept ?? ''),
+      deptCode: String(row.deptCode ?? '')
     }))
   } catch (err) {
     safetyWarehouseOptions.value = []
   }
 }
 
-function selectSafetyWarehouse(warehouse: { name: string; dept: string }) {
+function selectSafetyWarehouse(warehouse: { name: string; dept: string; deptCode: string }) {
   safetyForm.warehouseName = warehouse.name
   safetyForm.deptName = warehouse.dept && warehouse.dept !== '-' ? warehouse.dept : ''
+  safetyForm.deptCode = warehouse.deptCode
 }
 
 // ── 按验收单分配散货 ──
@@ -243,7 +254,7 @@ const selectedPackingTemplate = computed(() =>
   templates.value.find((t) => t.templateCode === packingForm.templateCode)
 )
 
-const { mode, packageSection, title, subtitle, stats } = useQuotaPackageViewState({
+const { mode, packageSection, title, subtitle } = useQuotaPackageViewState({
   routeCode: () => String(route.params.code),
   templates,
   safetyRows,
@@ -371,22 +382,28 @@ watch(
 
 <template>
   <section class="purchase-page quota-page">
-    <QuotaPackageOverview
+    <PageHeader
+      eyebrow="院内 SPD · 定数包"
       :title="title"
-      :subtitle="subtitle"
-      :stats="stats"
-      @refresh="loadData"
-    />
+      :description="subtitle"
+    >
+      <template #actions>
+        <button class="btn" type="button" :disabled="loading" @click="loadData">
+          <RefreshCw :size="18" />刷新
+        </button>
+      </template>
+    </PageHeader>
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
-    <p v-if="loadError" class="inline-message error">{{ loadError }}</p>
+    <StatusMessage :message="message" tone="success" />
+    <StatusMessage :message="loadError" tone="error" />
 
-    <section class="hospital-catalog-panel">
+    <section v-if="mode === 'safety' || packageSection === 'quota-template-maintenance' || packageSection === 'packing-task-confirmation'" class="hospital-catalog-panel">
       <div class="section-title">
         <Search :size="20" />
         <h3>查询条件</h3>
       </div>
       <div class="hospital-query-grid quota-query-grid">
+        <label v-if="packageSection === 'packing-task-confirmation'"><span>任务号</span><input v-model="query.taskNo" placeholder="模糊查询任务号" /></label>
         <label><span>模板编码</span><input v-model="query.templateCode" placeholder="模糊查询模板编码" /></label>
         <label><span>模板名称</span><input v-model="query.templateName" placeholder="模糊查询模板名称" /></label>
         <label><span>商品编码</span><input v-model="query.productCode" placeholder="模糊查询商品编码" /></label>
@@ -406,6 +423,7 @@ watch(
         </div>
         <div class="hospital-action-row">
           <button
+            v-if="authStore.hasPermission('quota-template-maintenance:write')"
             class="btn btn-primary"
             type="button"
             aria-label="新增定数包模板"
@@ -415,19 +433,19 @@ watch(
             <Plus :size="18" />
             新增
           </button>
-          <button class="btn" type="button" @click="openEditTemplate()">
+          <button v-if="authStore.hasPermission('quota-template-maintenance:write')" class="btn" type="button" @click="openEditTemplate()">
             <Edit3 :size="18" />
             修改
           </button>
-          <button class="btn btn-danger" type="button" @click="disableSelectedTemplates()">
+          <button v-if="authStore.hasPermission('quota-template-maintenance:write')" class="btn btn-danger" type="button" @click="disableSelectedTemplates()">
             <Ban :size="18" />
             停用
           </button>
-          <button class="btn" type="button" @click="enableSelectedTemplates()">
+          <button v-if="authStore.hasPermission('quota-template-maintenance:write')" class="btn" type="button" @click="enableSelectedTemplates()">
             <CheckCircle2 :size="18" />
             启用
           </button>
-          <details class="batch-edit-menu">
+          <details v-if="authStore.hasPermission('quota-template-maintenance:write')" class="batch-edit-menu">
             <summary class="btn">
               <Upload :size="18" />
               导入
@@ -478,15 +496,15 @@ watch(
                 <th>规格</th>
                 <th>厂家</th>
                 <th>供应商</th>
+                <th>版本</th>
                 <th>数量</th>
                 <th>状态</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading">
-                <td colspan="11" class="approval-empty">正在加载定数包模板...</td>
-              </tr>
+              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载定数包模板..." />
+              <TableStateRow v-else-if="templates.length === 0" :colspan="12" message="暂无符合条件的定数包模板" />
               <tr v-for="row in templates" v-else :key="row.templateId">
                 <td>
                   <input v-model="selectedTemplateCodes" type="checkbox" :value="row.templateCode" />
@@ -498,23 +516,24 @@ watch(
                 <td>{{ row.specModel }}</td>
                 <td>{{ row.manufacturerName }}</td>
                 <td>{{ row.supplierName }}</td>
+                <td>V{{ row.versionNo || 1 }}<span v-if="row.currentVersion" class="muted-hint">（当前）</span></td>
                 <td>{{ row.quantity }} {{ row.unit }}</td>
-                <td><span class="status-badge enabled">{{ formatStatusText(row.status) }}</span></td>
+                <td><span class="status-badge" :class="row.status === '禁用' ? 'disabled' : 'enabled'">{{ formatStatusText(row.status) }}</span></td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn-text" type="button" @click="openEditTemplate(row)">
+                    <button v-if="authStore.hasPermission('quota-template-maintenance:write')" class="btn-text" type="button" @click="openEditTemplate(row)">
                       <Edit3 :size="15" />
                       修改
                     </button>
-                    <button class="btn-text btn-text-danger" type="button" @click="disableSelectedTemplates(row)">
+                    <button v-if="authStore.hasPermission('quota-template-maintenance:write')" class="btn-text btn-text-danger" type="button" @click="disableSelectedTemplates(row)">
                       <Ban :size="15" />
                       停用
                     </button>
-                    <button v-if="row.status === '禁用'" class="btn-text" type="button" @click="enableSelectedTemplates(row)">
+                    <button v-if="row.status === '禁用' && authStore.hasPermission('quota-template-maintenance:write')" class="btn-text" type="button" @click="enableSelectedTemplates(row)">
                       <CheckCircle2 :size="15" />
                       启用
                     </button>
-                    <button class="btn-text" type="button" @click="fillPacking(row)">
+                    <button v-if="authStore.hasPermission('quota-packing-task:create')" class="btn-text" type="button" @click="fillPacking(row)">
                       <PackageCheck :size="15" />
                       打包
                     </button>
@@ -559,11 +578,11 @@ watch(
           </label>
           <label><span>打包数量</span><input v-model.number="packingForm.packageCount" type="number" min="1" /></label>
           <label><span>备注</span><input v-model="packingForm.remark" placeholder="任务说明" /></label>
-          <button class="btn btn-primary" type="button" :disabled="taskLoading" @click="submitPackingTask">
+          <button v-if="authStore.hasPermission('quota-packing-task:create')" class="btn btn-primary" type="button" :disabled="taskLoading" @click="submitPackingTask">
             <Save :size="18" />
             {{ taskLoading ? '创建中...' : '新建任务' }}
           </button>
-          <button class="btn btn-danger" type="button" @click="terminateTaskByTaskNo">
+          <button v-if="authStore.hasPermission('quota-packing-task:terminate')" class="btn btn-danger" type="button" @click="terminateTaskByTaskNo">
             <Ban :size="18" />
             终止任务
           </button>
@@ -617,6 +636,8 @@ watch(
               </tr>
             </thead>
             <tbody>
+              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载打包任务..." />
+              <TableStateRow v-else-if="tasks.length === 0" :colspan="12" message="暂无符合条件的打包任务" />
               <tr v-for="row in tasks" :key="row.taskNo">
                 <td>{{ row.taskNo }}</td>
                 <td>
@@ -643,12 +664,12 @@ watch(
                 <td>{{ row.createTime }}</td>
                 <td>
                   <div class="row-actions">
-                    <button v-if="row.status === 'pending_confirm'" class="btn-text" type="button" @click="approveTask(row)">
+                    <button v-if="row.status === 'pending_confirm' && authStore.hasPermission('quota-packing-task:confirm')" class="btn-text" type="button" @click="approveTask(row)">
                       <CheckCircle2 :size="15" />
                       确认
                     </button>
                     <button
-                      v-if="row.status === 'pending_confirm' || row.status === 'need_recalculate'"
+                      v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:recalculate')"
                       class="btn-text"
                       type="button"
                       @click="recalculateTask(row)"
@@ -657,7 +678,7 @@ watch(
                       重算
                     </button>
                     <button
-                      v-if="row.status === 'pending_confirm' || row.status === 'need_recalculate'"
+                      v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:cancel')"
                       class="btn-text btn-text-danger"
                       type="button"
                       @click="cancelTask(row)"
@@ -666,7 +687,7 @@ watch(
                       取消
                     </button>
                     <button
-                      v-if="row.status === 'pending_confirm' || row.status === 'need_recalculate' || row.status === 'confirmed'"
+                      v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate' || row.status === 'confirmed') && authStore.hasPermission('quota-packing-task:terminate')"
                       class="btn-text btn-text-danger"
                       type="button"
                       @click="terminateTask(row)"
@@ -702,7 +723,7 @@ watch(
             <h3>按验收单分配散货</h3>
             <span class="muted-hint">分配数量需为每包数量的整数倍（自动增加打包数量）；部分分配后验收单剩余量保持散货库存</span>
           </div>
-          <div class="receiving-allocate-form">
+          <div v-if="authStore.hasPermission('quota-packing-task:create')" class="receiving-allocate-form">
             <label>
               <span>打包任务</span>
               <select v-model="allocateTaskNo">
@@ -808,9 +829,7 @@ watch(
                   <td>{{ row.unitPrice }}</td>
                   <td>{{ row.createTime }}</td>
                 </tr>
-                <tr v-if="taskReservations.length === 0">
-                  <td colspan="6" class="empty-cell">暂无预占明细</td>
-                </tr>
+                <TableStateRow v-if="taskReservations.length === 0" :colspan="6" message="暂无预占明细" />
               </tbody>
             </table>
           </div>
@@ -824,7 +843,10 @@ watch(
         </div>
         <div class="hospital-query-grid quota-query-grid">
           <label><span>标签号</span><input v-model="query.labelNo" placeholder="DYYYYMMDD000001" /></label>
+          <label><span>模板编码</span><input v-model="query.templateCode" placeholder="模糊查询模板" /></label>
+          <label><span>商品编码</span><input v-model="query.productCode" placeholder="模糊查询商品编码" /></label>
           <label><span>商品名称</span><input v-model="query.productName" placeholder="模糊查询商品" /></label>
+          <label><span>科室</span><input v-model="query.deptName" placeholder="模糊查询科室" /></label>
           <button class="btn btn-primary" type="button" @click="loadData">
             <Search :size="18" />
             查询标签
@@ -847,9 +869,7 @@ watch(
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading">
-                <td colspan="10" class="approval-empty">正在加载定数包标签...</td>
-              </tr>
+              <TableStateRow v-if="loading" :colspan="10" state="loading" message="正在加载定数包标签..." />
               <tr v-for="row in labels" :key="row.labelNo">
                 <td>{{ row.labelNo }}</td>
                 <td>
@@ -874,7 +894,7 @@ watch(
                 <td>
                   <div class="row-actions">
                     <button
-                      v-if="row.status === 'pending_print' || row.status === 'available'"
+                      v-if="(row.status === 'pending_print' || row.status === 'available') && authStore.hasPermission('quota-package-label:print')"
                       class="btn-text"
                       type="button"
                       @click="printLabel(row)"
@@ -882,7 +902,7 @@ watch(
                       <Printer :size="15" />
                       {{ row.status === 'pending_print' ? '打印' : '重打' }}
                     </button>
-                    <button v-if="row.status === 'available'" class="btn-text" type="button" @click="unpackLabel(row)">
+                    <button v-if="row.status === 'available' && authStore.hasPermission('quota-label-unpack:write')" class="btn-text" type="button" @click="unpackLabel(row)">
                       <ArchiveRestore :size="15" />
                       解包
                     </button>
@@ -890,9 +910,7 @@ watch(
                   </div>
                 </td>
               </tr>
-              <tr v-if="!loading && labels.length === 0">
-                <td colspan="10" class="approval-empty">暂无已生成的定数包标签</td>
-              </tr>
+              <TableStateRow v-if="!loading && labels.length === 0" :colspan="10" message="暂无已生成的定数包标签" />
             </tbody>
           </table>
         </div>
@@ -911,6 +929,12 @@ watch(
           <History :size="20" />
           <h3>定数包事件</h3>
         </div>
+        <div class="hospital-query-grid quota-query-grid">
+          <label><span>事件号</span><input v-model="query.eventNo" placeholder="模糊查询事件号" /></label>
+          <label><span>标签号</span><input v-model="query.labelNo" placeholder="模糊查询标签号" /></label>
+          <label><span>事件类型</span><input v-model="query.eventType" placeholder="如：pack、sign、consume" /></label>
+          <button class="btn btn-primary" type="button" @click="loadData"><Search :size="18" />查询事件</button>
+        </div>
         <div class="table-scroll">
           <table class="master-table purchase-detail-table">
             <thead>
@@ -926,6 +950,8 @@ watch(
               </tr>
             </thead>
             <tbody>
+              <TableStateRow v-if="loading" :colspan="8" state="loading" message="正在加载定数包事件..." />
+              <TableStateRow v-else-if="events.length === 0" :colspan="8" message="暂无符合条件的定数包事件" />
               <tr v-for="row in events" :key="String(row.eventNo)">
                 <td>{{ row.eventNo }}</td>
                 <td>{{ row.labelNo || '-' }}</td>
@@ -969,6 +995,8 @@ watch(
               </tr>
             </thead>
             <tbody>
+              <TableStateRow v-if="loading" :colspan="8" state="loading" message="正在加载可打包散货..." />
+              <TableStateRow v-else-if="candidates.length === 0" :colspan="8" message="当前没有可打包散货" />
               <tr v-for="row in candidates" :key="`${row.warehouseName}-${row.systemBatchNo}`">
                 <td>{{ row.warehouseName }}</td>
                 <td>{{ row.productCode }}</td>
@@ -992,11 +1020,11 @@ watch(
           <h3>安全量维护</h3>
         </div>
         <div class="hospital-action-row">
-          <button class="btn btn-primary" type="button" @click="openSafetyDialog()">
+          <button v-if="authStore.hasPermission('quota-safety-stock:write')" class="btn btn-primary" type="button" @click="openSafetyDialog()">
             <Plus :size="18" />
             新增维护
           </button>
-          <button class="btn" type="button" :disabled="safetyImporting" @click="triggerSafetyImport">
+          <button v-if="authStore.hasPermission('quota-safety-stock:write')" class="btn" type="button" :disabled="safetyImporting" @click="triggerSafetyImport">
             <Upload :size="18" />
             {{ safetyImporting ? '导入中' : '导入' }}
           </button>
@@ -1042,6 +1070,8 @@ watch(
               </tr>
             </thead>
             <tbody>
+              <TableStateRow v-if="loading" :colspan="10" state="loading" message="正在加载安全量配置..." />
+              <TableStateRow v-else-if="safetyRows.length === 0" :colspan="10" message="暂无符合条件的安全量配置" />
               <tr v-for="row in safetyRows" :key="row.safetyId">
                 <td>{{ row.deptName }}</td>
                 <td>{{ row.productCode }}</td>
@@ -1054,7 +1084,7 @@ watch(
                 <td>{{ row.updateTime }}</td>
                 <td>
                   <div class="row-actions">
-                    <button class="btn-text" type="button" @click="openSafetyDialog(row)">
+                    <button v-if="authStore.hasPermission('quota-safety-stock:write')" class="btn-text" type="button" @click="openSafetyDialog(row)">
                       <Edit3 :size="15" />
                       编辑
                     </button>

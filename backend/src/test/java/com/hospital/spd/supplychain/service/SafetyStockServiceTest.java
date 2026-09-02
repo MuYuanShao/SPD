@@ -35,6 +35,8 @@ class SafetyStockServiceTest {
     @BeforeEach
     void setUp() {
         service = new SafetyStockService(jdbcTemplate, support);
+        lenient().when(jdbcTemplate.queryForObject(contains("SELECT safety_id"), eq(Long.class), anyLong(), anyLong()))
+                .thenReturn(99L);
     }
 
     // ==================== 安全库存列表 ====================
@@ -124,6 +126,29 @@ class SafetyStockServiceTest {
         }
 
         @Test
+        @DisplayName("仅提交稳定科室编码时返回服务器科室名称")
+        void shouldReturnResolvedDepartmentNameForDeptCodeRequest() {
+            QuotaSafetyRequest request = new QuotaSafetyRequest(
+                    "D001", null, null, null, "P001",
+                    BigDecimal.valueOf(10), BigDecimal.valueOf(100)
+            );
+            when(jdbcTemplate.queryForList(anyString(), eq(Long.class), eq("D001")))
+                    .thenReturn(List.of(1L));
+            when(jdbcTemplate.queryForMap(anyString(), anyString()))
+                    .thenReturn(Map.of("productId", 10L, "productCode", "P001",
+                            "productName", "测试产品", "unit", "个",
+                            "quotaManaged", 1, "highValue", 0, "coldChain", 0));
+            when(jdbcTemplate.queryForObject(contains("SELECT dept_name"), eq(String.class), eq(1L)))
+                    .thenReturn("检验科");
+            when(jdbcTemplate.update(anyString(), any(), any(), any(), any(), any()))
+                    .thenReturn(1);
+
+            Map<String, Object> result = service.saveSafety(request);
+
+            assertThat(result.get("deptName")).isEqualTo("检验科");
+        }
+
+        @Test
         @DisplayName("科室不存在时拒绝保存")
         void shouldCreateDeptWhenNotExists() {
             QuotaSafetyRequest request = new QuotaSafetyRequest(
@@ -152,8 +177,8 @@ class SafetyStockServiceTest {
                             "productName", "测试产品", "unit", "个",
                             "quotaManaged", 1, "highValue", 0, "coldChain", 0));
             // find templateId
-            when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), anyString()))
-                    .thenReturn(5L);
+            when(jdbcTemplate.queryForList(contains("FROM quota_package_template qpt"), eq(Long.class),
+                    eq("TEMPLATE001"), eq(10L))).thenReturn(List.of(5L));
             when(jdbcTemplate.update(anyString(), any(), any(), any(), any(), any()))
                     .thenReturn(1);
             doNothing().when(support).writeAudit(anyString(), anyString(), anyLong(),

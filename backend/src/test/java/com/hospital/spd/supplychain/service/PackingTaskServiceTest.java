@@ -68,26 +68,22 @@ class PackingTaskServiceTest {
     }
 
     @Test
-    void createsPartialPackingTaskWhenLooseStockOnlySupportsSomePackages() throws Exception {
+    void previewsPartialPackingTaskWithoutWritingUntilOperatorConfirms() {
         mockTemplate();
         mockWarehouse();
         when(jdbcTemplate.queryForObject(contains("SELECT COALESCE(SUM(available_qty), 0)"),
                 eq(BigDecimal.class), anyLong(), anyLong())).thenReturn(BigDecimal.valueOf(15));
-        when(support.nextNo(eq(DocumentKind.QUOTA_PACKING_TASK))).thenReturn("DB2026060800003");
-        mockGeneratedKey(43L);
-        when(support.reserveAvailableFifo(anyLong(), anyLong(), any(BigDecimal.class)))
-                .thenReturn(List.of(new SupplyChainSupport.InventoryReservation(
-                        51L, 201L, BigDecimal.TEN, BigDecimal.valueOf(5))));
-
         Map<String, Object> result = service.createTask(
-                new PackingTaskRequest("TP001", "MAIN", BigDecimal.valueOf(3), "partial"));
+                new PackingTaskRequest("TP001", "MAIN", BigDecimal.valueOf(3), "partial", false, null));
 
         assertThat(result)
+                .containsEntry("created", false)
+                .containsEntry("requiresConfirmation", true)
                 .containsEntry("requestedPackageCount", BigDecimal.valueOf(3))
-                .containsEntry("packageCount", BigDecimal.ONE)
-                .containsEntry("plannedLooseQty", BigDecimal.TEN)
-                .containsEntry("reservedLooseQty", BigDecimal.TEN);
-        verify(support).reserveAvailableFifo(eq(1L), eq(100L), eq(BigDecimal.TEN));
+                .containsEntry("packablePackageCount", BigDecimal.ONE);
+        verify(support, never()).nextNo(eq(DocumentKind.QUOTA_PACKING_TASK));
+        verify(support, never()).reserveAvailableFifo(anyLong(), anyLong(), any(BigDecimal.class));
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 
     @Test
@@ -239,6 +235,7 @@ class PackingTaskServiceTest {
         mockPackingTask("pending_confirm");
         when(jdbcTemplate.queryForList(contains("FROM quota_packing_task_reservation"), anyLong()))
                 .thenReturn(List.of(reservation(BigDecimal.TEN)));
+        when(jdbcTemplate.update(contains("status = 'cancelled'"), any(), anyLong())).thenReturn(1);
 
         Map<String, Object> result = service.cancelTask("DB2026060800001", new PackageActionRequest("cancel"));
 

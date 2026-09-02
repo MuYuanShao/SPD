@@ -2,11 +2,14 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
+import com.hospital.spd.common.DataScopeService;
+import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.supplychain.QuotaSafetyRequest;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import static com.hospital.spd.common.SqlHelper.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -22,10 +25,21 @@ public class SafetyStockService {
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
+    private final DataScopeService dataScopeService;
+    private final QuotaPermissionGuard permissionGuard;
 
     public SafetyStockService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
+        this(jdbcTemplate, support, new DataScopeService(OperatorContext::system),
+                new QuotaPermissionGuard(jdbcTemplate, OperatorContext::system));
+    }
+
+    @Autowired
+    public SafetyStockService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
+                              DataScopeService dataScopeService, QuotaPermissionGuard permissionGuard) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
+        this.dataScopeService = dataScopeService;
+        this.permissionGuard = permissionGuard;
     }
 
     public Map<String, Object> safety(Map<String, String> params) {
@@ -50,8 +64,9 @@ public class SafetyStockService {
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT qss.safety_id AS safetyId, sd.dept_name AS deptName,
+                SELECT qss.safety_id AS safetyId, sd.dept_code AS deptCode, sd.dept_name AS deptName,
                        p.product_code AS productCode, p.product_name AS productName,
+                       qpt.template_id AS templateId,
                        COALESCE(qpt.template_code, '-') AS templateCode,
                        COALESCE(qpt.template_name, '-') AS templateName,
                        qss.min_qty AS minQty, qss.max_qty AS maxQty,
@@ -68,23 +83,35 @@ public class SafetyStockService {
 
     @Transactional
     public Map<String, Object> saveSafety(QuotaSafetyRequest request) {
+        permissionGuard.require("quota-safety-stock:write");
 
-        if (isBlank(request.deptName()) || isBlank(request.productCode())) {
-            throw new IllegalArgumentException("department name and product code are required");
+        if ((isBlank(request.deptCode()) && isBlank(request.deptName())) || isBlank(request.productCode())) {
+            throw new IllegalArgumentException("department name and product code are required; deptCode is preferred");
         }
         BigDecimal minQty = nonNegative(request.minQty());
         BigDecimal maxQty = nonNegative(request.maxQty());
         if (maxQty.compareTo(minQty) < 0) {
             throw new IllegalArgumentException("max quantity must be greater than or equal to min quantity");
         }
-        Long deptId = ensureDept(request.deptName());
+        Long deptId = ensureDept(request);
         Map<String, Object> product = findEligibleProduct(request.productCode());
         Long templateId = null;
-        if (!isBlank(request.templateCode())) {
-            templateId = jdbcTemplate.queryForObject(
-                    "SELECT template_id FROM quota_package_template WHERE template_code = ? AND deleted = 0",
-                    Long.class,
-                    request.templateCode().trim());
+        if (request.templateId() != null || !isBlank(request.templateCode())) {
+            List<Long> ids = request.templateId() != null
+                    ? jdbcTemplate.queryForList("""
+                        SELECT qpt.template_id FROM quota_package_template qpt
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
+                        WHERE qpt.template_id = ? AND qpt.is_current = 1 AND qpt.status = 1 AND qpt.deleted = 0
+                          AND qpti.product_id = ?
+                        """, Long.class, request.templateId(), product.get("productId"))
+                    : jdbcTemplate.queryForList("""
+                        SELECT qpt.template_id FROM quota_package_template qpt
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
+                        WHERE qpt.template_code = ? AND qpt.is_current = 1 AND qpt.status = 1 AND qpt.deleted = 0
+                          AND qpti.product_id = ?
+                        """, Long.class, request.templateCode().trim(), product.get("productId"));
+            if (ids.size() != 1) throw new IllegalArgumentException("template is disabled or does not match product");
+            templateId = ids.get(0);
         }
         jdbcTemplate.update("""
                 INSERT INTO quota_safety_stock (dept_id, product_id, template_id, min_qty, max_qty, status)
@@ -92,8 +119,17 @@ public class SafetyStockService {
                 ON DUPLICATE KEY UPDATE template_id = VALUES(template_id), min_qty = VALUES(min_qty),
                                         max_qty = VALUES(max_qty), status = 1, deleted = 0
                 """, deptId, product.get("productId"), templateId, minQty, maxQty);
-        support.writeAudit("quota_package", "save_quota_safety", ((Number) product.get("productId")).longValue(), request.productCode(), "save quota safety stock");
-        return Map.of("productCode", request.productCode().trim(), "deptName", request.deptName().trim());
+        Long safetyId = jdbcTemplate.queryForObject(
+                "SELECT safety_id FROM quota_safety_stock WHERE dept_id = ? AND product_id = ? AND deleted = 0",
+                Long.class, deptId, ((Number) product.get("productId")).longValue());
+        support.writeAudit("quota_package", "save_quota_safety", safetyId, request.productCode(), "save quota safety stock");
+        String deptName = !isBlank(request.deptCode())
+                ? jdbcTemplate.queryForObject("SELECT dept_name FROM sys_dept WHERE dept_id = ?", String.class, deptId)
+                : request.deptName().trim();
+        if (!isBlank(request.deptName()) && !request.deptName().trim().equals(deptName)) {
+            throw new IllegalArgumentException("deptCode and deptName do not refer to the same department");
+        }
+        return Map.of("productCode", request.productCode().trim(), "deptName", deptName);
     }
 
     // ---- 私有辅助方法 ----
@@ -115,15 +151,24 @@ public class SafetyStockService {
         return product;
     }
 
-    private Long ensureDept(String deptName) {
-        List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1",
-                Long.class,
-                deptName.trim());
-        if (!ids.isEmpty()) {
+    private Long ensureDept(QuotaSafetyRequest request) {
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE deleted = 0 AND status = 1");
+        if (!isBlank(request.deptCode())) {
+            where.append(" AND dept_code = ?");
+            args.add(request.deptCode().trim());
+        } else {
+            where.append(" AND dept_name = ?");
+            args.add(request.deptName().trim());
+        }
+        dataScopeService.appendScope(where, args, "dept_id", null);
+        List<Long> ids = jdbcTemplate.queryForList("SELECT dept_id FROM sys_dept" + where, Long.class, args.toArray());
+        if (ids.size() == 1) {
             return ids.get(0);
         }
-        throw new IllegalArgumentException("department does not exist or is disabled");
+        throw new IllegalArgumentException(ids.isEmpty()
+                ? "department does not exist, is disabled, or is outside current data scope"
+                : "department name is ambiguous; use deptCode");
     }
 
     private static void appendLike(StringBuilder sql, List<Object> args, String column, String value) {

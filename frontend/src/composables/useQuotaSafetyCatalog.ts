@@ -6,6 +6,7 @@ export function useQuotaSafetyCatalog(options: {
   safetyForm: {
     deptName: string
     templateCode: string
+    templateId?: number
     productCode: string
   }
 }) {
@@ -38,6 +39,7 @@ export function useQuotaSafetyCatalog(options: {
 
   function selectSafetyTemplate(row: QuotaTemplateRow) {
     options.safetyForm.templateCode = row.templateCode
+    options.safetyForm.templateId = row.templateId
     options.safetyForm.productCode = row.productCode
   }
 

@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -27,17 +28,25 @@ public class QuotaTemplateService {
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
+    private final QuotaPermissionGuard permissionGuard;
 
     public QuotaTemplateService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
+        this(jdbcTemplate, support, new QuotaPermissionGuard(jdbcTemplate, com.hospital.spd.common.OperatorContext::system));
+    }
+
+    @Autowired
+    public QuotaTemplateService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
+                                QuotaPermissionGuard permissionGuard) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
+        this.permissionGuard = permissionGuard;
     }
 
     public Map<String, Object> templates(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
-                 WHERE 1 = 1 AND qpt.deleted = 0 AND qpti.deleted = 0
+                 WHERE 1 = 1 AND qpt.deleted = 0 AND qpt.is_current = 1 AND qpti.deleted = 0
                 """);
         appendLike(where, args, "qpt.template_code", params.get("templateCode"));
         appendLike(where, args, "qpt.template_name", params.get("templateName"));
@@ -64,6 +73,7 @@ public class QuotaTemplateService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpt.template_id AS templateId, qpt.template_code AS templateCode,
+                       qpt.version_no AS versionNo, qpt.is_current AS currentVersion,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName,
@@ -88,6 +98,7 @@ public class QuotaTemplateService {
 
     @Transactional
     public Map<String, Object> createTemplate(QuotaTemplateRequest request) {
+        permissionGuard.require("quota-template-maintenance:write");
 
         if (isBlank(request.productCode())) {
             throw new IllegalArgumentException("product code is required");
@@ -105,51 +116,51 @@ public class QuotaTemplateService {
         ensureTemplateNotDuplicate(templateCode, null, ((Number) product.get("productId")).longValue());
 
         Long existingTemplateId = findTemplateId(templateCode);
-        Long templateId;
-        if (existingTemplateId == null) {
-            KeyHolder keyHolder = new GeneratedKeyHolder();
-            jdbcTemplate.update(connection -> {
-                PreparedStatement ps = connection.prepareStatement("""
-                        INSERT INTO quota_package_template (template_code, template_name, dept_id, status)
-                        VALUES (?, ?, NULL, 1)
-                        """, Statement.RETURN_GENERATED_KEYS);
-                ps.setString(1, templateCode);
-                ps.setString(2, templateName);
-                return ps;
-            }, keyHolder);
-            templateId = jdbcTemplate.queryForObject(
-                    "SELECT template_id FROM quota_package_template WHERE template_code = ?",
-                    Long.class,
-                    templateCode);
-        } else {
-            templateId = existingTemplateId;
+        int versionNo = 1;
+        if (existingTemplateId != null) {
+            Integer currentVersion = jdbcTemplate.queryForObject(
+                    "SELECT version_no FROM quota_package_template WHERE template_id = ? FOR UPDATE",
+                    Integer.class, existingTemplateId);
+            versionNo = (currentVersion == null ? 1 : currentVersion) + 1;
             jdbcTemplate.update("""
                     UPDATE quota_package_template
-                       SET template_name = ?, dept_id = NULL, status = 1, deleted = 0
-                     WHERE template_id = ?
-                    """, templateName, templateId);
-            jdbcTemplate.update("""
-                    UPDATE quota_package_template_item
-                       SET deleted = 1
-                     WHERE template_id = ? AND deleted = 0
-                    """, templateId);
+                       SET is_current = 0, status = 0, effective_to = NOW()
+                     WHERE template_id = ? AND is_current = 1
+                    """, existingTemplateId);
+        }
+        int insertedVersion = versionNo;
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                    INSERT INTO quota_package_template
+                      (template_code, template_name, version_no, is_current, dept_id, status, effective_from)
+                    VALUES (?, ?, ?, 1, NULL, 1, NOW())
+                    """, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, templateCode);
+            ps.setString(2, templateName);
+            ps.setInt(3, insertedVersion);
+            return ps;
+        }, keyHolder);
+        Long templateId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+        if (existingTemplateId != null) {
+            jdbcTemplate.update("UPDATE quota_package_template SET superseded_by_id = ? WHERE template_id = ?",
+                    templateId, existingTemplateId);
         }
         jdbcTemplate.update("""
                 INSERT INTO quota_package_template_item (template_id, product_id, quantity, unit)
                 VALUES (?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE quantity = VALUES(quantity), unit = VALUES(unit), deleted = 0
                 """, templateId, product.get("productId"), normalizedQuantity, baseUnit);
         if (existingTemplateId == null) {
             support.writeAudit("quota_package", "create_quota_template", templateId, templateCode, "create quota template");
         } else {
-            support.writeAudit("quota_package", "update_quota_template", templateId, templateCode, "update quota template");
+            support.writeAudit("quota_package", "version_quota_template", templateId, templateCode, "create immutable quota template version " + versionNo);
         }
-        return Map.of("templateCode", templateCode);
+        return Map.of("templateCode", templateCode, "templateId", templateId, "versionNo", versionNo);
     }
 
     private Long findTemplateId(String templateCode) {
         List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT template_id FROM quota_package_template WHERE template_code = ? LIMIT 1",
+                "SELECT template_id FROM quota_package_template WHERE template_code = ? AND is_current = 1 AND deleted = 0 LIMIT 1",
                 Long.class,
                 templateCode);
         return ids.isEmpty() ? null : ids.get(0);
@@ -157,9 +168,10 @@ public class QuotaTemplateService {
 
     @Transactional
     public Map<String, Object> disableTemplate(String templateCode) {
+        permissionGuard.require("quota-template-maintenance:write");
 
         Long templateId = jdbcTemplate.queryForObject(
-                "SELECT template_id FROM quota_package_template WHERE template_code = ? AND deleted = 0",
+                "SELECT template_id FROM quota_package_template WHERE template_code = ? AND is_current = 1 AND deleted = 0",
                 Long.class,
                 templateCode.trim());
         jdbcTemplate.update("UPDATE quota_package_template SET status = 0 WHERE template_id = ?", templateId);
@@ -169,9 +181,10 @@ public class QuotaTemplateService {
 
     @Transactional
     public Map<String, Object> enableTemplate(String templateCode) {
+        permissionGuard.require("quota-template-maintenance:write");
 
         Long templateId = jdbcTemplate.queryForObject(
-                "SELECT template_id FROM quota_package_template WHERE template_code = ? AND deleted = 0",
+                "SELECT template_id FROM quota_package_template WHERE template_code = ? AND is_current = 1 AND deleted = 0",
                 Long.class,
                 templateCode.trim());
         jdbcTemplate.update("UPDATE quota_package_template SET status = 1 WHERE template_id = ?", templateId);
@@ -266,9 +279,9 @@ public class QuotaTemplateService {
                                           qpt.update_time DESC
                                ) AS rn
                           FROM quota_package_template qpt
-                          JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
+                          JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
                           LEFT JOIN sys_dept d ON d.dept_id = qpt.dept_id
-                         WHERE qpt.status = 1 AND qpt.deleted = 0
+                         WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.is_current = 1
                            AND (? = '' OR d.dept_name = ? OR qpt.dept_id IS NULL)
                       ) ranked_template
                      WHERE rn = 1
@@ -360,8 +373,8 @@ public class QuotaTemplateService {
                     SELECT COUNT(*) FROM (
                       SELECT qpti.product_id
                         FROM quota_package_template qpt
-                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
-                       WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.dept_id IS NULL
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
+                       WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.is_current = 1 AND qpt.dept_id IS NULL
                        GROUP BY qpti.product_id
                       HAVING COUNT(*) > 1
                     ) template_conflicts
@@ -371,13 +384,13 @@ public class QuotaTemplateService {
                     SELECT COUNT(*) FROM (
                       SELECT qpti.product_id
                         FROM quota_package_template qpt
-                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
+                        JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
                         CROSS JOIN (
                           SELECT dept_id FROM sys_dept
                            WHERE dept_name = ? AND deleted = 0 AND status = 1
                            ORDER BY dept_id LIMIT 1
                         ) requested_dept
-                       WHERE qpt.status = 1 AND qpt.deleted = 0
+                       WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.is_current = 1
                          AND (qpt.dept_id = requested_dept.dept_id OR qpt.dept_id IS NULL)
                        GROUP BY qpti.product_id
                       HAVING SUM(qpt.dept_id = requested_dept.dept_id) > 1
@@ -451,8 +464,8 @@ public class QuotaTemplateService {
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
                   FROM quota_package_template qpt
-                  JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id
-                 WHERE qpt.status = 1
+                  JOIN quota_package_template_item qpti ON qpti.template_id = qpt.template_id AND qpti.deleted = 0
+                 WHERE qpt.status = 1 AND qpt.deleted = 0 AND qpt.is_current = 1
                    AND qpti.product_id = ?
                    AND qpt.template_code <> ?
                    AND ((? IS NULL AND qpt.dept_id IS NULL) OR qpt.dept_id = ?)

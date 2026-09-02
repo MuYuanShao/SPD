@@ -21,9 +21,19 @@ public record CreateRequisitionRequest(
         String productCode,
         @Positive BigDecimal quantity,
         String requisitionMode,
+        String templateCode,
         List<String> uniqueCodes,
         String uniqueCode
 ) {
+    public CreateRequisitionRequest(String deptName, String destinationWarehouseName,
+                                    Long destinationWarehouseId, Long sourceWarehouseId,
+                                    List<RequisitionItemRequest> items, String productCode,
+                                    BigDecimal quantity, String requisitionMode,
+                                    List<String> uniqueCodes, String uniqueCode) {
+        this(deptName, destinationWarehouseName, destinationWarehouseId, sourceWarehouseId,
+                items, productCode, quantity, requisitionMode, null, uniqueCodes, uniqueCode);
+    }
+
     @AssertTrue(message = "items must be non-empty, or legacy productCode and quantity must be provided")
     public boolean hasStructuredOrLegacyItems() {
         return (items != null && !items.isEmpty())
@@ -42,6 +52,7 @@ public record CreateRequisitionRequest(
             body.put("productCode", productCode);
             body.put("quantity", quantity);
             if (requisitionMode != null) body.put("requisitionMode", requisitionMode);
+            if (templateCode != null) body.put("templateCode", templateCode);
             if (uniqueCodes != null) body.put("uniqueCodes", uniqueCodes);
             else if (uniqueCode != null) body.put("uniqueCode", uniqueCode);
         }
@@ -52,6 +63,7 @@ public record CreateRequisitionRequest(
             @NotBlank String productCode,
             @Positive BigDecimal quantity,
             String requisitionMode,
+            String templateCode,
             List<String> uniqueCodes,
             String uniqueCode
     ) {
@@ -60,6 +72,7 @@ public record CreateRequisitionRequest(
             item.put("productCode", productCode);
             item.put("quantity", quantity);
             if (requisitionMode != null) item.put("requisitionMode", requisitionMode);
+            if (templateCode != null) item.put("templateCode", templateCode);
             if (uniqueCodes != null) item.put("uniqueCodes", uniqueCodes);
             else if (uniqueCode != null) item.put("uniqueCode", uniqueCode);
             return item;

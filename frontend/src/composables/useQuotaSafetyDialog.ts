@@ -7,9 +7,11 @@ type SafetyCatalogQuery = {
 }
 
 type SafetyForm = {
+  deptCode: string
   deptName: string
   warehouseName: string
   templateCode: string
+  templateId?: number
   productCode: string
   minQty: number
   maxQty: number
@@ -29,8 +31,10 @@ export function useQuotaSafetyDialog(options: {
   function fillSafety(row: QuotaSafetyRow) {
     editingSafetyId.value = row.safetyId
     options.safetyForm.deptName = row.deptName
+    options.safetyForm.deptCode = row.deptCode
     options.safetyForm.warehouseName = ''
     options.safetyForm.templateCode = row.templateCode === '-' ? '' : row.templateCode
+    options.safetyForm.templateId = row.templateId
     options.safetyForm.productCode = row.productCode
     options.safetyForm.minQty = Number(row.minQty)
     options.safetyForm.maxQty = Number(row.maxQty)
@@ -39,8 +43,10 @@ export function useQuotaSafetyDialog(options: {
   function resetSafetyForm() {
     editingSafetyId.value = null
     options.safetyForm.deptName = ''
+    options.safetyForm.deptCode = ''
     options.safetyForm.warehouseName = ''
     options.safetyForm.templateCode = ''
+    options.safetyForm.templateId = undefined
     options.safetyForm.productCode = ''
     options.safetyForm.minQty = 1
     options.safetyForm.maxQty = 3

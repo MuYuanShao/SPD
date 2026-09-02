@@ -1,6 +1,8 @@
 package com.hospital.spd.specialty.service;
 
 import com.hospital.spd.supplychain.service.OperationalDeliveryModule;
+import com.hospital.spd.supplychain.service.QuotaPermissionGuard;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,15 +16,25 @@ public class QuotaPackageTraceCommandService {
 
     private final QuotaPackageTraceFlowService traceFlowService;
     private final OperationalDeliveryModule deliveryModule;
+    private final QuotaPermissionGuard permissionGuard;
 
     public QuotaPackageTraceCommandService(QuotaPackageTraceFlowService traceFlowService,
                                            OperationalDeliveryModule deliveryModule) {
+        this(traceFlowService, deliveryModule, null);
+    }
+
+    @Autowired
+    public QuotaPackageTraceCommandService(QuotaPackageTraceFlowService traceFlowService,
+                                           OperationalDeliveryModule deliveryModule,
+                                           QuotaPermissionGuard permissionGuard) {
         this.traceFlowService = traceFlowService;
         this.deliveryModule = deliveryModule;
+        this.permissionGuard = permissionGuard;
     }
 
     @Transactional
     public Map<String, Object> sign(Map<String, Object> body) {
+        if (permissionGuard != null) permissionGuard.require("quota-package-label:sign");
         String code = required(body, "code");
         Map<String, Object> target = traceFlowService.signTarget(code);
         String status = String.valueOf(target.get("status"));
@@ -39,6 +51,7 @@ public class QuotaPackageTraceCommandService {
 
     @Transactional
     public Map<String, Object> consume(Map<String, Object> body) {
+        if (permissionGuard != null) permissionGuard.require("quota-package-label:consume");
         return traceFlowService.consumeByCode(body);
     }
 

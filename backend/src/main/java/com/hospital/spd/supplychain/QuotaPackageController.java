@@ -117,22 +117,10 @@ public class QuotaPackageController {
     @PostMapping("/packing-tasks/{taskNo}/allocate-from-receiving")
     public ApiResponse<Map<String, Object>> allocateFromReceiving(
             @PathVariable String taskNo,
-            @RequestBody Map<String, Object> body) {
+            @RequestBody ReceivingAllocationRequest request) {
         return ApiResponse.ok(packingTaskService.allocateFromReceiving(
                 taskNo,
-                String.valueOf(body.get("receivingNo")),
-                decimalValue(body.get("quantity"))));
-    }
-
-    private static java.math.BigDecimal decimalValue(Object value) {
-        if (value == null || String.valueOf(value).isBlank()) {
-            return null;
-        }
-        try {
-            return new java.math.BigDecimal(String.valueOf(value).trim());
-        } catch (NumberFormatException ex) {
-            return null;
-        }
+                request.receivingNo(), request.quantity()));
     }
 
     @GetMapping("/labels")

@@ -37,12 +37,20 @@ class QuotaTemplateServiceTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private SupplyChainSupport support;
+    @Mock
+    private QuotaPermissionGuard permissionGuard;
+    @Mock
+    private DepartmentRequisitionAccessService requisitionAccess;
 
     private QuotaTemplateService service;
 
     @BeforeEach
     void setUp() {
-        service = new QuotaTemplateService(jdbcTemplate, support);
+        service = new QuotaTemplateService(jdbcTemplate, support, permissionGuard, requisitionAccess);
+        lenient().when(requisitionAccess.resolveDepartment(any(), any()))
+                .thenReturn(Map.of("deptId", 10L, "deptCode", "SURG", "deptName", "AI测试科室"));
+        lenient().when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"),
+                eq(Long.class), eq(30L))).thenReturn(List.of(30L));
         lenient().when(support.nextNo(any(DocumentKind.class)))
                 .thenAnswer(invocation -> ((DocumentKind) invocation.getArgument(0)).prefix() + "20260601001");
         lenient().when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class)))
@@ -439,7 +447,7 @@ class QuotaTemplateServiceTest {
                         "templateCode", "TP001", "defaultMode", "quota_package"
                 )));
 
-        List<Map<String, Object>> result = rows(service.requisitionCatalog(Map.of("page", "1")));
+        List<Map<String, Object>> result = rows(service.requisitionCatalog(catalogParams("page", "1")));
 
         assertThat(result).isNotEmpty();
         assertThat(result.get(0)).containsEntry("productCode", "PC001");
@@ -454,7 +462,7 @@ class QuotaTemplateServiceTest {
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
 
-        service.requisitionCatalog(Map.of("sourceWarehouseId", "30", "warehouseName", "AI测试库房"));
+        service.requisitionCatalog(catalogParams());
 
         verify(jdbcTemplate).queryForList(argThat((String sql) ->
                 sql.contains("loose.warehouse_id = ?")
@@ -467,7 +475,8 @@ class QuotaTemplateServiceTest {
         when(jdbcTemplate.queryForList(contains("source.campus_name = target.campus_name"), eq(Long.class),
                 any(Object[].class))).thenReturn(List.of(30L, 31L));
 
-        assertThatThrownBy(() -> service.requisitionCatalog(Map.of("warehouseName", "AI测试库房")))
+        assertThatThrownBy(() -> service.requisitionCatalog(Map.of(
+                "deptCode", "SURG", "destinationWarehouseId", "20")))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("sourceWarehouseId");
     }
@@ -477,7 +486,7 @@ class QuotaTemplateServiceTest {
         when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class), any(Object[].class)))
                 .thenReturn(1);
 
-        assertThatThrownBy(() -> service.requisitionCatalog(Map.of("deptName", "AI测试科室")))
+        assertThatThrownBy(() -> service.requisitionCatalog(catalogParams()))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("模板配置冲突");
     }
@@ -492,7 +501,7 @@ class QuotaTemplateServiceTest {
                         "productCode", "PC002", "defaultMode", "loose"
                 )));
 
-        List<Map<String, Object>> result = rows(service.requisitionCatalog(Map.of("mode", "loose")));
+        List<Map<String, Object>> result = rows(service.requisitionCatalog(catalogParams("mode", "loose")));
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0)).containsEntry("defaultMode", "loose");
@@ -503,11 +512,11 @@ class QuotaTemplateServiceTest {
     void shouldQueryHighValueRequisitionCatalog() {
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
-                .thenReturn(List.of(Map.of("productCode", "HV001", "defaultMode", "unique_code")));
+                .thenReturn(List.of(Map.of("productCode", "HV001", "defaultMode", "high_value")));
 
-        List<Map<String, Object>> result = rows(service.requisitionCatalog(Map.of("mode", "unique_code")));
+        List<Map<String, Object>> result = rows(service.requisitionCatalog(catalogParams("mode", "high_value")));
 
-        assertThat(result.get(0)).containsEntry("defaultMode", "unique_code");
+        assertThat(result.get(0)).containsEntry("defaultMode", "high_value");
         verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("p.is_high_value AS highValue")
                 && sql.contains("uniqueCodeAvailableQty") && sql.contains("p.is_high_value = 1")), any(Object[].class));
     }
@@ -520,12 +529,23 @@ class QuotaTemplateServiceTest {
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
                 .thenReturn(List.of());
 
-        List<Map<String, Object>> result = rows(service.requisitionCatalog(Map.of()));
+        List<Map<String, Object>> result = rows(service.requisitionCatalog(catalogParams()));
 
         assertThat(result).isEmpty();
     }
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> rows(Map<String, Object> page) {
         return (List<Map<String, Object>>) page.get("rows");
+    }
+
+    private static Map<String, String> catalogParams(String... extra) {
+        Map<String, String> params = new java.util.LinkedHashMap<>();
+        params.put("deptCode", "SURG");
+        params.put("destinationWarehouseId", "20");
+        params.put("sourceWarehouseId", "30");
+        for (int index = 0; index < extra.length; index += 2) {
+            params.put(extra[index], extra[index + 1]);
+        }
+        return params;
     }
 }

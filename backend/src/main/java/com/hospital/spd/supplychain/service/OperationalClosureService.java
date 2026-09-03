@@ -1,7 +1,11 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.CreateRequisitionRequest;
+import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.AnalysisRequest;
+import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.GenerateRequest;
+import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.HighValuePickingRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
@@ -24,6 +28,7 @@ public class OperationalClosureService {
     private final OperationalRequisitionModule requisitionModule;
     private final OperationalConsumptionModule consumptionModule;
     private final SettlementPointService settlementPointService;
+    private final DepartmentRequisitionSmartService requisitionSmartService;
 
     public OperationalClosureService(OperationalClosureReadModel readModel,
                                      OperationalShortageModule shortageModule,
@@ -35,6 +40,22 @@ public class OperationalClosureService {
                                      OperationalRequisitionModule requisitionModule,
                                      OperationalConsumptionModule consumptionModule,
                                      SettlementPointService settlementPointService) {
+        this(readModel, shortageModule, settlementModule, pdaModule, riskModule, highValueModule,
+                deliveryModule, requisitionModule, consumptionModule, settlementPointService, null);
+    }
+
+    @Autowired
+    public OperationalClosureService(OperationalClosureReadModel readModel,
+                                     OperationalShortageModule shortageModule,
+                                     OperationalSettlementModule settlementModule,
+                                     OperationalPdaModule pdaModule,
+                                     OperationalRiskModule riskModule,
+                                     OperationalHighValueModule highValueModule,
+                                     OperationalDeliveryModule deliveryModule,
+                                     OperationalRequisitionModule requisitionModule,
+                                     OperationalConsumptionModule consumptionModule,
+                                     SettlementPointService settlementPointService,
+                                     DepartmentRequisitionSmartService requisitionSmartService) {
         this.readModel = readModel;
         this.shortageModule = shortageModule;
         this.settlementModule = settlementModule;
@@ -45,6 +66,7 @@ public class OperationalClosureService {
         this.requisitionModule = requisitionModule;
         this.consumptionModule = consumptionModule;
         this.settlementPointService = settlementPointService;
+        this.requisitionSmartService = requisitionSmartService;
     }
 
     public Map<String, Object> overview() {
@@ -53,6 +75,14 @@ public class OperationalClosureService {
 
     public Map<String, Object> options() {
         return readModel.options();
+    }
+
+    public Map<String, Object> requisitionOptions() {
+        return readModel.requisitionOptions();
+    }
+
+    public java.util.List<Map<String, Object>> requisitionWarehouses(String deptCode) {
+        return readModel.requisitionWarehouses(deptCode);
     }
 
     public Map<String, Object> list(String type, Map<String, String> params) {
@@ -116,6 +146,21 @@ public class OperationalClosureService {
     @Transactional
     public Map<String, Object> createRequisition(CreateRequisitionRequest request) {
         return requisitionModule.createRequisition(request.toCompatibilityMap());
+    }
+
+    @Transactional
+    public Map<String, Object> analyzeDepartmentRequisition(AnalysisRequest request) {
+        return requisitionSmartService.analyze(request);
+    }
+
+    @Transactional
+    public Map<String, Object> generateDepartmentRequisitions(GenerateRequest request) {
+        return requisitionSmartService.generate(request);
+    }
+
+    @Transactional
+    public Map<String, Object> confirmHighValuePicking(HighValuePickingRequest request) {
+        return deliveryModule.confirmHighValuePicking(request.itemId(), request.traceCodeIds());
     }
 
     @Transactional

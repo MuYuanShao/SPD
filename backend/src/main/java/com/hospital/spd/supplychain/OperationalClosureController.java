@@ -8,8 +8,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 import static com.hospital.spd.supplychain.OperationalCommandRequests.*;
+import static com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.*;
 
 /**
  * Exposes the operational closure endpoints for shortage, requisition, delivery, consumption, and settlement flows.
@@ -45,6 +47,16 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.requisitionDetails(requisitionNo));
     }
 
+    @GetMapping("/requisitions/options")
+    public ApiResponse<Map<String, Object>> requisitionOptions() {
+        return ApiResponse.ok(service.requisitionOptions());
+    }
+
+    @GetMapping("/requisitions/departments/{deptCode}/warehouses")
+    public ApiResponse<List<Map<String, Object>>> requisitionWarehouses(@PathVariable String deptCode) {
+        return ApiResponse.ok(service.requisitionWarehouses(deptCode));
+    }
+
     @GetMapping("/picking/requisitions")
     public ApiResponse<Map<String, Object>> pickingRequisitions() {
         return ApiResponse.ok(service.pickingRequisitions());
@@ -75,6 +87,12 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.confirmLoosePicking(request));
     }
 
+    @PostMapping("/picking/confirm-high-value")
+    public ApiResponse<Map<String, Object>> confirmHighValuePicking(
+            @Valid @RequestBody HighValuePickingRequest request) {
+        return ApiResponse.ok(service.confirmHighValuePicking(request));
+    }
+
     @PostMapping("/shortage/generate")
     public ApiResponse<Map<String, Object>> generateShortage(@Valid @RequestBody ShortageRequest request) {
         return ApiResponse.ok(service.generateShortage(request));
@@ -94,6 +112,18 @@ public class OperationalClosureController {
             response.setHeader("Link", "</api/operational-closure/requisitions>; rel=successor-version");
         }
         return ApiResponse.ok(service.createRequisition(request));
+    }
+
+    @PostMapping("/requisitions/smart-analysis")
+    public ApiResponse<Map<String, Object>> analyzeDepartmentRequisition(
+            @Valid @RequestBody AnalysisRequest request) {
+        return ApiResponse.ok(service.analyzeDepartmentRequisition(request));
+    }
+
+    @PostMapping("/requisitions/from-smart-analysis")
+    public ApiResponse<Map<String, Object>> generateDepartmentRequisitions(
+            @Valid @RequestBody GenerateRequest request) {
+        return ApiResponse.ok(service.generateDepartmentRequisitions(request));
     }
 
     @PutMapping("/requisitions/{requisitionNo}/action")

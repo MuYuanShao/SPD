@@ -1,38 +1,44 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { AlertTriangle, ArrowLeft, Eye, Minus, Plus, RotateCcw, Search, ShoppingCart, UserPlus, X } from '@lucide/vue'
+import { ElDialog } from 'element-plus'
+import 'element-plus/theme-chalk/el-dialog.css'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import PageHeader from '../../components/common/PageHeader.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
 import {
+  analyzeDepartmentRequisition,
   createRequisition,
   fetchClosureList,
-  fetchClosureOptions,
+  fetchDepartmentRequisitionOptions,
+  fetchDepartmentRequisitionWarehouses,
   fetchRequisitionItems,
+  generateRequisitionsFromAnalysis,
+  type DepartmentSmartSuggestion,
+  type RequisitionMode,
   type ClosureOptions
 } from '../../api/operationalClosure'
-import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
+import type { RequisitionWarehouseOption } from '../../api/operationalClosure'
 import {
   fetchDepartmentRequisitionCatalog,
   type DepartmentRequisitionCatalogRow
 } from '../../api/quotaPackages'
 import { formatStatusText } from '../../utils/chineseDisplay'
-
-type RequisitionMode = 'loose' | 'quota_package' | 'unique_code'
+import { useAuthStore } from '../../stores/auth'
 
 interface RequisitionCatalogItem extends DepartmentRequisitionCatalogRow {
   selected: boolean
   quantity: number
   mode: RequisitionMode
-  uniqueCodes: string
 }
 
-const router = useRouter()
 const filters = reactive({
   productCode: '',
   productName: '',
   specModel: '',
   manufacturerName: '',
-  targetDept: '',
+  targetDeptCode: '',
   warehouseName: '',
   mode: ''
 })
@@ -57,12 +63,21 @@ const historyPage = ref(1)
 const historySize = ref(20)
 const historyTotal = ref(0)
 const options = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
-const linkedWarehouses = ref<DepartmentWarehouseRelation[]>([])
+const linkedWarehouses = ref<RequisitionWarehouseOption[]>([])
+const smartOpen = ref(false)
+const smartLoading = ref(false)
+const smartGenerating = ref(false)
+const smartPeriodDays = ref(7)
+const smartAnalysisId = ref(0)
+const smartRows = ref<Array<DepartmentSmartSuggestion & { selected: boolean }>>([])
+const authStore = useAuthStore()
 
 const filteredProducts = computed(() => products.value)
-const selectedDepartment = computed(() => options.value.departments.find((item) => item.deptName === filters.targetDept))
+const selectedDepartment = computed(() => options.value.departments.find((item) => item.deptCode === filters.targetDeptCode))
 const selectedWarehouseLabel = computed(() => filters.warehouseName || '全部关联库房')
 const selectedItems = computed(() => products.value.filter((item) => item.selected))
+const canCreateRequisition = computed(() => authStore.hasPermission('department-requisition:create'))
+const canSmartAnalyze = computed(() => authStore.hasPermission('department-requisition:smart-analysis'))
 
 function money(value: unknown) {
   const amount = Number(value || 0)
@@ -90,9 +105,9 @@ async function loadRequisitionOrders() {
 async function loadOptions() {
   optionsLoading.value = true
   try {
-    options.value = await fetchClosureOptions()
-    if (!filters.targetDept && options.value.departments[0]) {
-      filters.targetDept = options.value.departments[0].deptName
+    options.value = await fetchDepartmentRequisitionOptions()
+    if (!filters.targetDeptCode && options.value.departments[0]) {
+      filters.targetDeptCode = options.value.departments[0].deptCode
     }
     await loadLinkedWarehouses()
   } catch (err) {
@@ -107,7 +122,7 @@ async function loadLinkedWarehouses() {
   filters.warehouseName = ''
   const deptCode = selectedDepartment.value?.deptCode
   if (!deptCode) return
-  const warehouses = await fetchDepartmentWarehouses(deptCode)
+  const warehouses = await fetchDepartmentRequisitionWarehouses(deptCode)
   linkedWarehouses.value = warehouses.filter((item) => Number(item.selected ?? 0) === 1)
   // 选择科室时默认带出科室所关联的库房
   filters.warehouseName = linkedWarehouses.value[0]?.name || ''
@@ -115,7 +130,7 @@ async function loadLinkedWarehouses() {
 
 async function loadCatalog() {
   if (!requisitionStarted.value) return
-  if (!filters.targetDept) {
+  if (!filters.targetDeptCode) {
     error.value = '请先选择科室'
     return
   }
@@ -123,7 +138,8 @@ async function loadCatalog() {
   error.value = ''
   try {
     const result = await fetchDepartmentRequisitionCatalog({
-      deptName: filters.targetDept,
+      deptCode: selectedDepartment.value?.deptCode || '',
+      deptName: selectedDepartment.value?.deptName || '',
       warehouseName: filters.warehouseName,
       productCode: filters.productCode,
       productName: filters.productName,
@@ -134,13 +150,20 @@ async function loadCatalog() {
       size: String(pageSize.value)
     })
     totalItems.value = result.total
-    products.value = result.rows.map((row) => ({
-      ...row,
+    products.value = result.rows.map((row) => {
+      const allowedModes = row.allowedModes?.length
+        ? row.allowedModes
+        : row.defaultMode === 'high_value'
+          ? ['high_value' as RequisitionMode]
+          : row.defaultMode === 'quota_package'
+            ? ['loose' as RequisitionMode, 'quota_package' as RequisitionMode]
+            : ['loose' as RequisitionMode]
+      return {
+      ...row, allowedModes,
       selected: false,
       quantity: 1,
-      mode: row.defaultMode,
-      uniqueCodes: ''
-    }))
+      mode: allowedModes.includes(row.defaultMode) ? row.defaultMode : allowedModes[0]
+    }})
   } catch (err) {
     error.value = err instanceof Error ? err.message : '科室申领目录加载失败'
   } finally {
@@ -149,12 +172,14 @@ async function loadCatalog() {
 }
 
 async function startRequisition() {
-  requisitionStarted.value = true
   message.value = ''
   error.value = ''
   if (!options.value.departments.length) {
     await loadOptions()
+  } else {
+    await loadLinkedWarehouses()
   }
+  requisitionStarted.value = true
   currentPage.value = 1
   await loadCatalog()
 }
@@ -229,41 +254,42 @@ function searchCatalog() {
 }
 
 function availableByMode(item: RequisitionCatalogItem) {
-  if (item.mode === 'unique_code') return Number(item.uniqueCodeAvailableQty || 0)
+  if (item.mode === 'high_value') return Number(item.uniqueCodeAvailableQty || 0)
   return item.mode === 'quota_package' ? Number(item.packageAvailableQty || 0) : Number(item.looseAvailableQty || 0)
 }
 
 function unitByMode(item: RequisitionCatalogItem) {
-  if (item.mode === 'unique_code') return '个唯一码'
+  if (item.mode === 'high_value') return '件（拣配时选码）'
   return item.mode === 'quota_package' ? '包' : item.baseUnit
 }
 
 function baseQtyByMode(item: RequisitionCatalogItem) {
-  if (item.mode === 'unique_code') {
-    return item.uniqueCodes.split(/[,，\s]+/).filter(Boolean).length
-  }
   if (item.mode === 'quota_package') {
     return Number(item.packageQuantity || item.conversionRate || 1) * item.quantity
   }
   return item.quantity
 }
 
-function canUseQuotaPackage(item: RequisitionCatalogItem) {
-  return Number(item.quotaManaged) === 1 && item.templateCode !== '-' && Number(item.packageAvailableQty || 0) > 0
-}
-
 function stepQuantity(item: RequisitionCatalogItem, delta: number) {
+  if (item.mode === 'high_value') {
+    item.quantity = Math.max(1, Math.floor(Number(item.quantity || 1) + delta))
+    return
+  }
   const maxQty = Math.max(1, Math.floor(availableByMode(item)))
   item.quantity = Math.min(maxQty, Math.max(1, Number(item.quantity || 1) + delta))
 }
 
 function normalizeQuantity(item: RequisitionCatalogItem) {
+  if (item.mode === 'high_value') {
+    item.quantity = Math.max(1, Math.floor(Number(item.quantity || 1)))
+    return
+  }
   const maxQty = Math.max(1, Math.floor(availableByMode(item)))
   item.quantity = Math.min(maxQty, Math.max(1, Number(item.quantity || 1)))
 }
 
 async function submitSelectedRequisitions() {
-  if (!filters.targetDept) {
+  if (!filters.targetDeptCode) {
     message.value = '请先选择科室'
     return
   }
@@ -277,20 +303,22 @@ async function submitSelectedRequisitions() {
   try {
     const items: Array<Record<string, unknown>> = []
     for (const item of selectedItems.value) {
-      if (item.mode === 'unique_code' && baseQtyByMode(item) === 0) {
-        throw new Error(`请为高值耗材“${item.productName}”扫描或输入唯一码`)
-      }
-      items.push({
+      const payload: Record<string, unknown> = {
         productCode: item.productCode,
         quantity: baseQtyByMode(item),
-        requisitionMode: item.mode,
-        templateCode: item.templateCode,
-        uniqueCodes: item.mode === 'unique_code' ? item.uniqueCodes : undefined
-      })
+        requisitionMode: item.mode
+      }
+      if (item.mode === 'quota_package') {
+        payload.templateCode = item.templateCode
+        payload.packageCount = item.quantity
+      }
+      items.push(payload)
     }
     const result = await createRequisition({
-      deptName: filters.targetDept,
+      deptCode: selectedDepartment.value?.deptCode,
+      deptName: selectedDepartment.value?.deptName,
       warehouseName: filters.warehouseName,
+      sourceWarehouseId: selectedItems.value[0]?.sourceWarehouseId,
       items
     })
     submittedCount.value += selectedItems.value.length
@@ -319,19 +347,59 @@ function removeFromSelection(item: RequisitionCatalogItem) {
   item.selected = false
 }
 
-function goAutoReplenishment() {
-  if (!filters.targetDept) {
+async function openSmartReplenishment() {
+  if (!filters.targetDeptCode) {
     message.value = '请先选择科室'
     return
   }
-  router.push({
-    path: '/features/replenishment-task',
-    query: {
-      autoSmart: '1',
-      deptName: filters.targetDept,
-      warehouseName: filters.warehouseName
-    }
-  })
+  const deptCode = selectedDepartment.value?.deptCode
+  if (!deptCode) return
+  smartOpen.value = true
+  smartLoading.value = true
+  smartRows.value = []
+  error.value = ''
+  try {
+    const result = await analyzeDepartmentRequisition({
+      deptCode,
+      deptName: selectedDepartment.value?.deptName,
+      destinationWarehouseName: filters.warehouseName || undefined,
+      selectedPeriodDays: smartPeriodDays.value
+    })
+    smartAnalysisId.value = result.analysisId
+    smartRows.value = result.rows.map((row) => ({ ...row, selected: Number(row.recommendedQty || 0) > 0 }))
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '智能补货分析失败'
+    smartOpen.value = false
+  } finally {
+    smartLoading.value = false
+  }
+}
+
+async function generateSmartRequisitions() {
+  const rows = smartRows.value.filter((row) => row.selected && Number(row.recommendedQty) > 0)
+  if (!rows.length) {
+    error.value = '请至少选择一条建议并填写大于零的申领数量'
+    return
+  }
+  smartGenerating.value = true
+  error.value = ''
+  try {
+    const result = await generateRequisitionsFromAnalysis({
+      analysisId: smartAnalysisId.value,
+      items: smartRows.value.map((row) => ({
+        analysisItemId: Number(row.analysisItemId),
+        quantity: Math.max(0, Number(row.recommendedQty || 0)),
+        selected: row.selected
+      }))
+    })
+    message.value = `智能补货已生成 ${result.createdCount} 张申领单：${result.requisitionNos.join('、')}`
+    smartOpen.value = false
+    await loadRequisitionOrders()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : '智能补货生成申领单失败'
+  } finally {
+    smartGenerating.value = false
+  }
 }
 
 async function resetFilters() {
@@ -340,7 +408,7 @@ async function resetFilters() {
     productName: '',
     specModel: '',
     manufacturerName: '',
-    targetDept: options.value.departments[0]?.deptName || '',
+    targetDeptCode: options.value.departments[0]?.deptCode || '',
     warehouseName: '',
     mode: ''
   })
@@ -350,11 +418,10 @@ async function resetFilters() {
 }
 
 onMounted(async () => {
-  await loadOptions()
   await loadRequisitionOrders()
 })
 
-watch(() => filters.targetDept, async () => {
+watch(() => filters.targetDeptCode, async () => {
   if (!requisitionStarted.value) return
   await loadLinkedWarehouses()
   currentPage.value = 1
@@ -371,13 +438,10 @@ watch(() => filters.warehouseName, async () => {
 <template>
   <section class="dept-req-page">
     <section class="dept-req-workspace">
-      <header class="dept-req-breadcrumb dept-req-toolbar">
-        <div>
-          <span>科室申领</span>
-          <strong>科室请购</strong>
-        </div>
+      <PageHeader eyebrow="供应链协同" title="科室申领" description="统一申请散货、定数包和高值耗材">
+        <template #actions>
         <div class="dept-req-actions">
-          <button v-if="!requisitionStarted" class="btn btn-primary" type="button" @click="startRequisition">
+          <button v-if="!requisitionStarted && canCreateRequisition" class="btn btn-primary" type="button" @click="startRequisition">
             <UserPlus :size="16" />
             新增申领
           </button>
@@ -385,12 +449,16 @@ watch(() => filters.warehouseName, async () => {
             <ArrowLeft :size="16" />
             返回
           </button>
-          <button class="btn" type="button" @click="goAutoReplenishment">
+          <button v-if="requisitionStarted && canSmartAnalyze" class="btn" type="button" :disabled="loading || submitting" @click="openSmartReplenishment">
             <AlertTriangle :size="16" />
-            自动补货
+            智能补货
           </button>
         </div>
-      </header>
+        </template>
+      </PageHeader>
+
+      <StatusMessage :message="error" tone="error" />
+      <StatusMessage :message="message" tone="success" />
 
       <section v-if="!requisitionStarted" class="dept-req-table-wrap">
         <table class="dept-req-table requisition-order-table">
@@ -409,10 +477,10 @@ watch(() => filters.warehouseName, async () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="9" class="approval-empty">正在加载科室请购记录...</td>
+              <td colspan="9"><EmptyState message="正在加载科室申领记录..." /></td>
             </tr>
             <tr v-else-if="error">
-              <td colspan="9" class="approval-empty">{{ error }}</td>
+              <td colspan="9"><EmptyState message="科室申领记录加载失败" /></td>
             </tr>
             <template v-else>
               <tr v-for="order in requisitionOrders" :key="String(order.bizNo)">
@@ -433,7 +501,7 @@ watch(() => filters.warehouseName, async () => {
               </tr>
             </template>
             <tr v-if="!loading && !error && requisitionOrders.length === 0">
-              <td colspan="9" class="approval-empty">暂无科室请购记录</td>
+              <td colspan="9"><EmptyState message="暂无科室申领记录" /></td>
             </tr>
           </tbody>
         </table>
@@ -452,9 +520,9 @@ watch(() => filters.warehouseName, async () => {
         <input v-model.trim="filters.productName" placeholder="商品名称 / ID / HRP" />
         <input v-model.trim="filters.specModel" placeholder="规格型号" />
         <input v-model.trim="filters.manufacturerName" placeholder="生产厂家" />
-        <select v-model="filters.targetDept">
+        <select v-model="filters.targetDeptCode">
           <option value="">请选择科室</option>
-          <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptName">
+          <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptCode">
             {{ dept.deptName }}
           </option>
         </select>
@@ -467,7 +535,7 @@ watch(() => filters.warehouseName, async () => {
         <select v-model="filters.mode">
           <option value="">申领形式：全部</option>
           <option value="quota_package">定数包优先</option>
-          <option value="unique_code">高值唯一码</option>
+          <option value="high_value">高值耗材</option>
           <option value="loose">散货申领</option>
         </select>
         <button class="btn btn-primary" type="button" :disabled="loading" @click="searchCatalog">
@@ -484,7 +552,6 @@ watch(() => filters.warehouseName, async () => {
         </button>
       </section>
 
-      <p v-if="message" class="inline-message">{{ message }}</p>
       <p v-if="submittedCount" class="inline-message">本次已成功提交 {{ submittedCount }} 条申领记录</p>
 
       <section v-if="requisitionStarted && selectedItems.length" class="dept-req-selected">
@@ -500,15 +567,14 @@ watch(() => filters.warehouseName, async () => {
             <label>
               <span>默认申领</span>
               <select v-model="item.mode" @change="normalizeQuantity(item)">
-                <option value="loose" :disabled="Number(item.highValue) === 1">散货</option>
-                <option value="quota_package" :disabled="Number(item.highValue) === 1 || !canUseQuotaPackage(item)">定数包</option>
-                <option v-if="Number(item.highValue) === 1" value="unique_code">高值唯一码</option>
+                <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
+                <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
+                <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
               </select>
             </label>
-            <input v-if="item.mode === 'unique_code'" v-model.trim="item.uniqueCodes" class="selected-code-input" placeholder="扫描唯一码，多个用逗号分隔" />
             <div class="qty-stepper">
               <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-              <input v-model.number="item.quantity" type="number" min="1" :disabled="item.mode === 'unique_code'" @change="normalizeQuantity(item)" />
+              <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
               <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
@@ -521,9 +587,10 @@ watch(() => filters.warehouseName, async () => {
       </section>
 
       <section v-if="requisitionStarted" class="dept-req-tags">
-        <span class="yellow">明细仅展示近 15 天有出库记录且未停用的商品</span>
-        <span class="yellow">新增申领统一支持高值唯一码、定数包和散货</span>
+        <span class="yellow">目录来自当前科室有效库房绑定</span>
+        <span class="yellow">同一申领单支持高值耗材、定数包和散货</span>
         <span class="orange">定数包缺货时可转散货申领</span>
+        <span class="blue">高值耗材在拣配时选择唯一码</span>
         <span class="blue">当前库房：{{ selectedWarehouseLabel }}</span>
       </section>
 
@@ -551,10 +618,10 @@ watch(() => filters.warehouseName, async () => {
           </thead>
           <tbody>
             <tr v-if="loading || optionsLoading">
-              <td colspan="16" class="approval-empty">正在加载科室申领目录...</td>
+              <td colspan="16"><EmptyState message="正在加载科室申领目录..." /></td>
             </tr>
             <tr v-else-if="error">
-              <td colspan="16" class="approval-empty">{{ error }}</td>
+              <td colspan="16"><EmptyState message="科室申领目录加载失败" /></td>
             </tr>
             <template v-else>
               <tr
@@ -578,16 +645,15 @@ watch(() => filters.warehouseName, async () => {
                 </td>
                 <td>
                   <select v-model="item.mode" @change="normalizeQuantity(item)">
-                    <option value="loose" :disabled="Number(item.highValue) === 1">散货</option>
-                    <option value="quota_package" :disabled="Number(item.highValue) === 1 || !canUseQuotaPackage(item)">定数包</option>
-                    <option v-if="Number(item.highValue) === 1" value="unique_code">高值唯一码</option>
+                    <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
+                    <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
+                    <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
                   </select>
-                  <input v-if="item.mode === 'unique_code'" v-model.trim="item.uniqueCodes" class="selected-code-input" placeholder="扫描唯一码" />
                 </td>
                 <td>
                   <div class="qty-stepper">
                     <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                    <input v-model.number="item.quantity" type="number" min="1" :disabled="item.mode === 'unique_code'" @change="normalizeQuantity(item)" />
+                    <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
                     <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
                   </div>
                   <small>{{ unitByMode(item) }}</small>
@@ -604,7 +670,7 @@ watch(() => filters.warehouseName, async () => {
               </tr>
             </template>
             <tr v-if="!loading && !error && filteredProducts.length === 0">
-              <td colspan="16" class="approval-empty">当前科室暂无可申领目录</td>
+              <td colspan="16"><EmptyState message="当前科室暂无可申领目录" /></td>
             </tr>
           </tbody>
         </table>
@@ -638,34 +704,40 @@ watch(() => filters.warehouseName, async () => {
               <tr>
                 <th>商品编码</th>
                 <th>商品名称</th>
-                <th>规格</th>
-                <th>型号</th>
+                <th>申领模式</th>
+                <th>模板 / 换算</th>
                 <th>厂家</th>
                 <th>单价</th>
                 <th>申请数量</th>
+                <th>履约进度</th>
+                <th>唯一码</th>
                 <th>申请金额</th>
-                <th>是否带量</th>
                 <th>注册证</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="detailLoading">
-                <td colspan="10" class="approval-empty">正在加载明细...</td>
+                <td colspan="11"><EmptyState message="正在加载申领明细..." /></td>
               </tr>
               <tr v-else-if="detailRows.length === 0">
-                <td colspan="10" class="approval-empty">暂无明细</td>
+                <td colspan="11"><EmptyState message="暂无申领明细" /></td>
               </tr>
               <template v-else>
                 <tr v-for="item in detailRows" :key="`${item.productCode}-${item.registrationNo}`">
                   <td>{{ item.productCode || '-' }}</td>
                   <td>{{ item.productName || '-' }}</td>
-                  <td>{{ item.specModel || '-' }}</td>
-                  <td>{{ item.model || '-' }}</td>
+                  <td>{{ item.itemType === 'quota_package' ? '定数包' : item.itemType === 'high_value' ? '高值耗材' : '散货' }}</td>
+                  <td>
+                    <strong v-if="item.templateCode">{{ item.templateCode }} v{{ item.templateVersion }}</strong>
+                    <small v-if="item.packageCount">{{ item.packageCount }} 包 × {{ item.packageQuantity }} {{ item.packageUnit }}</small>
+                    <span v-if="!item.templateCode">-</span>
+                  </td>
                   <td>{{ item.manufacturerName || '-' }}</td>
                   <td>{{ money(item.unitPrice) }}</td>
                   <td>{{ item.applyQuantity || 0 }}</td>
+                  <td>{{ item.pickedQuantity || 0 }} / {{ item.applyQuantity || 0 }}，剩余 {{ item.remainingQuantity || 0 }}</td>
+                  <td>{{ item.uniqueCodes || (item.itemType === 'high_value' ? '待拣配绑定' : '-') }}</td>
                   <td>{{ money(item.applyAmount) }}</td>
-                  <td>{{ item.volumeBased || '-' }}</td>
                   <td>{{ item.registrationNo || '-' }}</td>
                 </tr>
               </template>
@@ -674,6 +746,51 @@ watch(() => filters.warehouseName, async () => {
         </div>
       </section>
     </div>
+
+    <ElDialog v-model="smartOpen" title="智能补货分析" width="min(1120px, 94vw)" :close-on-click-modal="false">
+      <div class="smart-toolbar">
+        <label>
+          <span>统计周期</span>
+          <select v-model.number="smartPeriodDays" :disabled="smartLoading || smartGenerating" @change="openSmartReplenishment">
+            <option :value="5">近 5 天</option>
+            <option :value="7">近 7 天</option>
+            <option :value="15">近 15 天</option>
+            <option :value="30">近 30 天</option>
+          </select>
+        </label>
+        <span>建议量可调整；来源中心库不足不会截断真实需求。</span>
+      </div>
+      <div class="dept-req-table-wrap smart-table-wrap">
+        <table class="dept-req-table smart-table">
+          <thead>
+            <tr><th>选择</th><th>科室 / 目标库</th><th>商品</th><th>模式</th><th>周期需求</th><th>目标库库存</th><th>来源库可用</th><th>建议申领</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="smartLoading"><td colspan="8"><EmptyState message="正在计算智能补货建议..." /></td></tr>
+            <tr v-for="row in smartRows" :key="row.analysisItemId">
+              <td><input v-model="row.selected" type="checkbox" /></td>
+              <td><strong>{{ row.deptName }}</strong><small>{{ row.warehouseName }}</small></td>
+              <td><strong>{{ row.productName }}</strong><small>{{ row.productCode }}</small></td>
+              <td>{{ row.itemMode === 'quota_package' ? '定数包' : row.itemMode === 'high_value' ? '高值耗材' : '散货' }}</td>
+              <td>{{ row.periodDemand }} {{ row.baseUnit }}</td>
+              <td>{{ row.currentQty }} {{ row.baseUnit }}</td>
+              <td :class="{ shortage: Number(row.sourceAvailableQty) < Number(row.shortageQty) }">{{ row.sourceAvailableQty }} {{ row.baseUnit }}</td>
+              <td>
+                <input v-model.number="row.recommendedQty" type="number" min="0" step="1" :disabled="!row.selected" />
+                <small>{{ row.itemMode === 'quota_package' ? '包' : row.baseUnit }}</small>
+              </td>
+            </tr>
+            <tr v-if="!smartLoading && smartRows.length === 0"><td colspan="8"><EmptyState message="当前范围没有补货建议" /></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <template #footer>
+        <button class="btn" type="button" :disabled="smartGenerating" @click="smartOpen = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="smartLoading || smartGenerating" @click="generateSmartRequisitions">
+          {{ smartGenerating ? '正在生成...' : '确认并生成申领单' }}
+        </button>
+      </template>
+    </ElDialog>
   </section>
 </template>
 
@@ -835,5 +952,43 @@ watch(() => filters.warehouseName, async () => {
 
 .requisition-detail-table {
   min-width: 1120px;
+}
+
+.smart-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+  color: #52677a;
+}
+
+.smart-toolbar label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.smart-table-wrap {
+  max-height: 56vh;
+  overflow: auto;
+}
+
+.smart-table {
+  min-width: 980px;
+}
+
+.smart-table td strong,
+.smart-table td small {
+  display: block;
+}
+
+.smart-table td input[type='number'] {
+  width: 90px;
+}
+
+.smart-table .shortage {
+  color: #b45309;
+  font-weight: 700;
 }
 </style>

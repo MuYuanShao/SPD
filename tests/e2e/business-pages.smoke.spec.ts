@@ -97,6 +97,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   let requisitionPostCount = 0
   let catalogRequestUrl = ''
   let submittedPayload: Record<string, unknown> | undefined
+  let smartGeneratePayload: Record<string, unknown> | undefined
   const ok = (data: unknown) => JSON.stringify({
     code: 0,
     message: 'success',
@@ -104,7 +105,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     timestamp: new Date().toISOString()
   })
 
-  await page.route('**/api/operational-closure/options', route => route.fulfill({
+  await page.route('**/api/operational-closure/requisitions/options', route => route.fulfill({
     contentType: 'application/json',
     body: ok({
       departments: [{ deptCode: 'SURG', deptName: '手术室' }],
@@ -131,9 +132,9 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
       size: 20
     })
   }))
-  await page.route('**/api/master-data/departments/SURG/warehouses', route => route.fulfill({
+  await page.route('**/api/operational-closure/requisitions/departments/SURG/warehouses', route => route.fulfill({
     contentType: 'application/json',
-    body: ok([{ code: 'WH-SURG', name: '手术室二级库', selected: 1 }])
+    body: ok([{ warehouseId: 20, code: 'WH-SURG', name: '手术室二级库', selected: 1 }])
   }))
   await page.route('**/api/quota-packages/requisition-catalog**', route => {
     catalogCallCount += 1
@@ -165,6 +166,8 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
             packageQuantity: null,
             packageUnit: '支',
             defaultMode: 'loose',
+            allowedModes: ['loose'],
+            sourceWarehouseId: 30,
             requisitionStatus: '散货申领'
           },
           {
@@ -190,6 +193,8 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
             packageQuantity: 10,
             packageUnit: '支',
             defaultMode: 'quota_package',
+            allowedModes: ['loose', 'quota_package'],
+            sourceWarehouseId: 30,
             requisitionStatus: '定数包优先'
           },
           {
@@ -214,8 +219,10 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
             templateName: '-',
             packageQuantity: null,
             packageUnit: '个',
-            defaultMode: 'unique_code',
-            requisitionStatus: '高值唯一码申领'
+            defaultMode: 'high_value',
+            allowedModes: ['high_value'],
+            sourceWarehouseId: 30,
+            requisitionStatus: '高值耗材申领'
           }
         ],
         total: 3,
@@ -232,6 +239,38 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
       body: ok({ requisitionNo: 'SL-NEW-001', status: 'pending_approval', itemCount: 3 })
     })
   })
+  await page.route('**/api/operational-closure/requisitions/smart-analysis', route => route.fulfill({
+    contentType: 'application/json',
+    body: ok({
+      analysisId: 88,
+      selectedPeriodDays: 7,
+      groupCount: 1,
+      rows: [{
+        analysisItemId: 801,
+        deptId: 10,
+        deptName: '手术室',
+        warehouseId: 20,
+        warehouseName: '手术室二级库',
+        sourceWarehouseId: 30,
+        productCode: 'LOW-001',
+        productName: '散货耗材',
+        baseUnit: '支',
+        itemMode: 'loose',
+        periodDemand: 12,
+        currentQty: 2,
+        sourceAvailableQty: 5,
+        shortageQty: 10,
+        recommendedQty: 10
+      }]
+    })
+  }))
+  await page.route('**/api/operational-closure/requisitions/from-smart-analysis', async route => {
+    smartGeneratePayload = route.request().postDataJSON()
+    await route.fulfill({
+      contentType: 'application/json',
+      body: ok({ createdCount: 1, requisitionNos: ['SL-SMART-001'], status: 'generated' })
+    })
+  })
 
   await page.goto('/features/department-requisition')
   await login(page)
@@ -243,9 +282,20 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   expect(catalogCallCount).toBeGreaterThan(0)
   const catalogUrl = new URL(catalogRequestUrl)
   expect(catalogUrl.searchParams.get('deptName')).toBe('手术室')
+  expect(catalogUrl.searchParams.get('deptCode')).toBe('SURG')
   expect(catalogUrl.searchParams.get('warehouseName')).toBe('手术室二级库')
   expect(catalogUrl.searchParams.get('page')).toBe('1')
   expect(catalogUrl.searchParams.get('size')).toBe('20')
+
+  await page.getByRole('button', { name: '智能补货' }).click()
+  await expect(page.getByRole('dialog', { name: '智能补货分析' })).toBeVisible()
+  await page.getByRole('dialog', { name: '智能补货分析' }).getByRole('spinbutton').fill('8')
+  await page.getByRole('button', { name: '确认并生成申领单' }).click()
+  await expect(page.getByText(/SL-SMART-001/)).toBeVisible()
+  expect(smartGeneratePayload).toEqual({
+    analysisId: 88,
+    items: [{ analysisItemId: 801, quantity: 8, selected: true }]
+  })
 
   const looseRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'LOW-001' })
   const packageRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'PKG-001' })
@@ -255,37 +305,32 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await packageRow.locator('input[type="checkbox"]').check()
   await packageRow.locator('input[type="number"]').fill('2')
   await highValueRow.locator('input[type="checkbox"]').check()
-
-  await page.getByRole('button', { name: /提交申领/ }).click()
-  await expect(page.getByText(/请为高值耗材.*扫描或输入唯一码/)).toBeVisible()
-  expect(requisitionPostCount).toBe(0)
-
-  await highValueRow.locator('.selected-code-input').fill('UDI-HV-1, UDI-HV-2')
+  await highValueRow.locator('input[type="number"]').fill('2')
   await page.getByRole('button', { name: /提交申领/ }).click()
   await expect(page.getByText(/申请单号：SL-NEW-001/)).toBeVisible()
   expect(requisitionPostCount).toBe(1)
   expect(submittedPayload).toEqual({
+    deptCode: 'SURG',
     deptName: '手术室',
     warehouseName: '手术室二级库',
+    sourceWarehouseId: 30,
     items: [
       {
         productCode: 'LOW-001',
         quantity: 2,
-        requisitionMode: 'loose',
-        templateCode: '-'
+        requisitionMode: 'loose'
       },
       {
         productCode: 'PKG-001',
         quantity: 20,
         requisitionMode: 'quota_package',
-        templateCode: 'TP-001'
+        templateCode: 'TP-001',
+        packageCount: 2
       },
       {
         productCode: 'HV-001',
         quantity: 2,
-        requisitionMode: 'unique_code',
-        templateCode: '-',
-        uniqueCodes: 'UDI-HV-1, UDI-HV-2'
+        requisitionMode: 'high_value'
       }
     ]
   })

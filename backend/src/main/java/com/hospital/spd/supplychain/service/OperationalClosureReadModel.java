@@ -2,6 +2,9 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
+import com.hospital.spd.common.DataScopeService;
+import com.hospital.spd.common.OperatorContext;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -16,9 +19,18 @@ import java.util.Map;
 public class OperationalClosureReadModel {
 
     private final JdbcTemplate jdbcTemplate;
+    private final DepartmentRequisitionAccessService requisitionAccess;
 
     public OperationalClosureReadModel(JdbcTemplate jdbcTemplate) {
+        this(jdbcTemplate, new DepartmentRequisitionAccessService(jdbcTemplate, OperatorContext::system,
+                new DataScopeService(OperatorContext::system)));
+    }
+
+    @Autowired
+    public OperationalClosureReadModel(JdbcTemplate jdbcTemplate,
+                                       DepartmentRequisitionAccessService requisitionAccess) {
         this.jdbcTemplate = jdbcTemplate;
+        this.requisitionAccess = requisitionAccess;
     }
 
     public Map<String, Object> overview() {
@@ -42,13 +54,16 @@ public class OperationalClosureReadModel {
     }
 
     public Map<String, Object> options() {
-        List<Map<String, Object>> departments = jdbcTemplate.queryForList("""
+        StringBuilder deptWhere = new StringBuilder(" WHERE deleted = 0 AND status = 1");
+        List<Object> deptArgs = new ArrayList<>();
+        requisitionAccess.appendScope(deptWhere, deptArgs, "dept_id", null);
+        String departmentsSql = """
                 SELECT dept_code AS deptCode, dept_name AS deptName
                   FROM sys_dept
-                 WHERE deleted = 0 AND status = 1
-                 ORDER BY dept_id
-                 LIMIT 80
-                """);
+                """ + deptWhere + " ORDER BY dept_id LIMIT 80";
+        List<Map<String, Object>> departments = deptArgs.isEmpty()
+                ? jdbcTemplate.queryForList(departmentsSql)
+                : jdbcTemplate.queryForList(departmentsSql, deptArgs.toArray());
         List<Map<String, Object>> warehouses = jdbcTemplate.queryForList("""
                 SELECT warehouse_name AS warehouseName, warehouse_type AS warehouseType
                   FROM warehouse WHERE deleted = 0 AND status = 1 ORDER BY warehouse_id LIMIT 80
@@ -78,6 +93,34 @@ public class OperationalClosureReadModel {
         return Map.of("departments", departments, "warehouses", warehouses, "products", products, "balances", balances);
     }
 
+    /** Lightweight, data-scoped options for the department requisition entry page. */
+    public Map<String, Object> requisitionOptions() {
+        requisitionAccess.requirePermission("department-requisition:read");
+        StringBuilder where = new StringBuilder(" WHERE deleted = 0 AND status = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "dept_id", null);
+        List<Map<String, Object>> departments = jdbcTemplate.queryForList("""
+                SELECT dept_code AS deptCode, dept_name AS deptName
+                  FROM sys_dept
+                """ + where + " ORDER BY sort_order, dept_id", args.toArray());
+        return Map.of("departments", departments, "warehouses", List.of(), "products", List.of(), "balances", List.of());
+    }
+
+    /** Returns only enabled warehouses currently owned by the authorized department. */
+    public List<Map<String, Object>> requisitionWarehouses(String deptCode) {
+        requisitionAccess.requirePermission("department-requisition:read");
+        Map<String, Object> department = requisitionAccess.resolveDepartment(deptCode, null);
+        Long deptId = ((Number) department.get("deptId")).longValue();
+        return jdbcTemplate.queryForList("""
+                SELECT warehouse_id AS warehouseId, warehouse_code AS code, warehouse_name AS name,
+                       warehouse_type AS type, campus_name AS campus, '启用' AS status,
+                       ? AS relatedDepartment, 1 AS selected
+                  FROM warehouse
+                 WHERE dept_id = ? AND deleted = 0 AND status = 1
+                 ORDER BY warehouse_id
+                """, department.get("deptName"), deptId);
+    }
+
     public Map<String, Object> list(String type, Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
 
@@ -93,27 +136,7 @@ public class OperationalClosureReadModel {
                       FROM shortage_replenishment_task ORDER BY create_time DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countLong("shortage_replenishment_task", "1 = 1"), pageReq);
             case "delivery" -> deliveryRecords(params, pageReq);
-            case "requisition" -> PageResponse.of(jdbcTemplate.queryForList("""
-                    SELECT dr.requisition_no AS bizNo, sd.dept_name AS deptName,
-                           COALESCE(w.warehouse_name, '-') AS warehouseName,
-                           COALESCE(u.real_name, u.username, '-') AS applicantName,
-                           COALESCE(SUM(dri.quantity), 0) AS totalQuantity,
-                           COALESCE(SUM(COALESCE(NULLIF(dri.amount, 0), dri.quantity * p.purchase_price)), 0) AS totalAmount,
-                           dr.status,
-                           DATE_FORMAT(dr.apply_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM department_requisition dr
-                      JOIN sys_dept sd ON sd.dept_id = dr.dept_id
-                      LEFT JOIN warehouse w ON w.warehouse_id = dr.warehouse_id
-                      LEFT JOIN sys_user u ON u.user_id = dr.applicant_id
-                      JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
-                      JOIN product p ON p.product_id = dri.product_id
-                     GROUP BY dr.requisition_id, dr.requisition_no, sd.dept_name, w.warehouse_name,
-                              u.real_name, u.username, dr.status, dr.apply_time
-                     ORDER BY dr.apply_time DESC LIMIT ? OFFSET ?
-                    """, pageReq.size(), pageReq.offset()), countJoinedRows("""
-                    SELECT COUNT(*)
-                      FROM department_requisition dr
-                    """), pageReq);
+            case "requisition" -> requisitionRecords(params, pageReq);
             case "consumption" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT dc.consumption_no AS bizNo, sd.dept_name AS deptName, p.product_code AS productCode,
                            p.product_name AS productName, dci.quantity, dci.unit_price AS unitPrice, dci.amount,
@@ -168,6 +191,10 @@ public class OperationalClosureReadModel {
     }
 
     public Map<String, Object> requisitionDetails(String requisitionNo) {
+        StringBuilder where = new StringBuilder(" WHERE dr.requisition_no = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(requisitionNo);
+        requisitionAccess.appendScope(where, args, "dr.dept_id", "dr.applicant_id");
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode,
                        p.product_name AS productName,
@@ -176,6 +203,19 @@ public class OperationalClosureReadModel {
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(NULLIF(dri.unit_price, 0), p.purchase_price) AS unitPrice,
                        dri.quantity AS applyQuantity,
+                       dri.item_type AS itemType,
+                       (SELECT qpt.template_code FROM quota_package_template qpt
+                         WHERE qpt.template_id = dri.quota_template_id) AS templateCode,
+                       dri.quota_template_version AS templateVersion,
+                       dri.quota_package_quantity AS packageQuantity,
+                       dri.quota_package_unit AS packageUnit,
+                       dri.requested_package_count AS packageCount,
+                       COALESCE(picked.pickedQty, dri.picked_quantity, 0) AS pickedQuantity,
+                       GREATEST(dri.quantity - COALESCE(picked.pickedQty, dri.picked_quantity, 0), 0) AS remainingQuantity,
+                       (SELECT GROUP_CONCAT(tc.unique_code ORDER BY tc.unique_code SEPARATOR ', ')
+                          FROM department_requisition_trace_code rtc
+                          JOIN udi_trace_code tc ON tc.trace_code_id = rtc.trace_code_id
+                         WHERE rtc.requisition_item_id = dri.item_id) AS uniqueCodes,
                        COALESCE(NULLIF(dri.amount, 0), dri.quantity * p.purchase_price) AS applyAmount,
                        CASE WHEN p.is_volume_based = 1 THEN '是' ELSE '否' END AS volumeBased,
                        COALESCE(p.registration_no, '-') AS registrationNo
@@ -183,10 +223,63 @@ public class OperationalClosureReadModel {
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN product p ON p.product_id = dri.product_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                 WHERE dr.requisition_no = ?
-                 ORDER BY dri.item_id
-                """, requisitionNo);
+                  LEFT JOIN (
+                    SELECT requisition_item_id, SUM(pickedQty) AS pickedQty
+                      FROM (
+                        SELECT requisition_item_id, SUM(package_quantity) AS pickedQty
+                          FROM spd_delivery_package_binding GROUP BY requisition_item_id
+                        UNION ALL
+                        SELECT rt.requisition_item_id, COUNT(*) AS pickedQty
+                          FROM department_requisition_trace_code rt
+                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                         GROUP BY rt.requisition_item_id
+                        UNION ALL
+                        SELECT requisition_item_id, SUM(quantity) AS pickedQty
+                          FROM spd_delivery_order WHERE delivery_type = 'loose'
+                         GROUP BY requisition_item_id
+                      ) sources GROUP BY requisition_item_id
+                  ) picked ON picked.requisition_item_id = dri.item_id
+                """ + where + " ORDER BY dri.item_id", args.toArray());
+        if (rows.isEmpty()) {
+            Long exists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM department_requisition WHERE requisition_no = ?", Long.class, requisitionNo);
+            if (exists != null && exists > 0) throw new org.springframework.security.access.AccessDeniedException("无权查看该科室申领单");
+        }
         return Map.of("rows", rows, "total", rows.size(), "requisitionNo", requisitionNo);
+    }
+
+    private Map<String, Object> requisitionRecords(Map<String, String> params, PageRequest pageReq) {
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "dr.dept_id", "dr.applicant_id");
+        appendLike(where, args, "dr.requisition_no", params.get("requisitionNo"));
+        appendLike(where, args, "sd.dept_name", params.get("deptName"));
+        appendEquals(where, args, "dr.status", params.get("status"));
+        String countSql = "SELECT COUNT(*) FROM department_requisition dr JOIN sys_dept sd ON sd.dept_id = dr.dept_id" + where;
+        Long total = args.isEmpty() ? jdbcTemplate.queryForObject(countSql, Long.class)
+                : jdbcTemplate.queryForObject(countSql, Long.class, args.toArray());
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(pageReq.size());
+        pageArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT dr.requisition_no AS bizNo, sd.dept_name AS deptName,
+                       COALESCE(w.warehouse_name, '-') AS warehouseName,
+                       COALESCE(u.real_name, u.username, '-') AS applicantName,
+                       COALESCE(SUM(dri.quantity), 0) AS totalQuantity,
+                       COALESCE(SUM(COALESCE(NULLIF(dri.amount, 0), dri.quantity * p.purchase_price)), 0) AS totalAmount,
+                       dr.status, DATE_FORMAT(dr.apply_time, '%Y-%m-%d %H:%i') AS createTime
+                  FROM department_requisition dr
+                  JOIN sys_dept sd ON sd.dept_id = dr.dept_id
+                  LEFT JOIN warehouse w ON w.warehouse_id = dr.warehouse_id
+                  LEFT JOIN sys_user u ON u.user_id = dr.applicant_id
+                  JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
+                  JOIN product p ON p.product_id = dri.product_id
+                """ + where + """
+                 GROUP BY dr.requisition_id, dr.requisition_no, sd.dept_name, w.warehouse_name,
+                          u.real_name, u.username, dr.status, dr.apply_time
+                 ORDER BY dr.apply_time DESC LIMIT ? OFFSET ?
+                """, pageArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     private Map<String, Object> deliveryRecords(Map<String, String> params, PageRequest pageReq) {

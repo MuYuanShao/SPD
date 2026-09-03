@@ -79,9 +79,28 @@ class RbacAuthorizationServiceTest {
 
     @Test
     void operationalClosureReadsRequireRequestedListPermission() {
-        stubPermissions(13L, List.of("department-requisition"));
+        stubPermissions(13L, List.of("department-requisition:read"));
         assertThat(service.isAllowed(13L, List.of("ROLE_DEPT_USER"), "GET", "/api/operational-closure/lists/department-requisition")).isTrue();
         assertThat(service.isAllowed(13L, List.of("ROLE_DEPT_USER"), "GET", "/api/operational-closure/lists/settlement-reconciliation")).isFalse();
+    }
+
+    @Test
+    void departmentRequisitionRoutesRequireTheirFineGrainedPermission() {
+        stubPermissions(14L, List.of("department-requisition:read", "department-requisition:create"));
+        assertThat(service.isAllowed(14L, List.of("ROLE_DEPT_USER"), "GET",
+                "/api/operational-closure/requisitions/options")).isTrue();
+        assertThat(service.isAllowed(14L, List.of("ROLE_DEPT_USER"), "POST",
+                "/api/operational-closure/requisitions")).isTrue();
+        assertThat(service.isAllowed(14L, List.of("ROLE_DEPT_USER"), "POST",
+                "/api/operational-closure/requisitions/smart-analysis")).isFalse();
+        assertThat(service.isAllowed(14L, List.of("ROLE_DEPT_USER"), "POST",
+                "/api/operational-closure/picking/confirm-high-value")).isFalse();
+
+        stubPermissions(15L, List.of("department-requisition:smart-analysis", "department-requisition:pick"));
+        assertThat(service.isAllowed(15L, List.of("ROLE_OPERATOR"), "POST",
+                "/api/operational-closure/requisitions/from-smart-analysis")).isTrue();
+        assertThat(service.isAllowed(15L, List.of("ROLE_OPERATOR"), "GET",
+                "/api/operational-closure/picking/unique-codes")).isTrue();
     }
 
     private void stubPermissions(Long userId, List<String> permissions) {

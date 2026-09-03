@@ -2,6 +2,9 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
+import com.hospital.spd.common.DataScopeService;
+import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.supplychain.QuotaTemplateRequest;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import static com.hospital.spd.common.SqlHelper.*;
@@ -29,17 +32,29 @@ public class QuotaTemplateService {
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
     private final QuotaPermissionGuard permissionGuard;
+    private final DepartmentRequisitionAccessService requisitionAccess;
 
     public QuotaTemplateService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
-        this(jdbcTemplate, support, new QuotaPermissionGuard(jdbcTemplate, com.hospital.spd.common.OperatorContext::system));
+        this(jdbcTemplate, support, new QuotaPermissionGuard(jdbcTemplate, OperatorContext::system),
+                new DepartmentRequisitionAccessService(jdbcTemplate, OperatorContext::system,
+                        new DataScopeService(OperatorContext::system)));
+    }
+
+    public QuotaTemplateService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
+                                QuotaPermissionGuard permissionGuard) {
+        this(jdbcTemplate, support, permissionGuard,
+                new DepartmentRequisitionAccessService(jdbcTemplate, OperatorContext::system,
+                        new DataScopeService(OperatorContext::system)));
     }
 
     @Autowired
     public QuotaTemplateService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
-                                QuotaPermissionGuard permissionGuard) {
+                                QuotaPermissionGuard permissionGuard,
+                                DepartmentRequisitionAccessService requisitionAccess) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.permissionGuard = permissionGuard;
+        this.requisitionAccess = requisitionAccess;
     }
 
     public Map<String, Object> templates(Map<String, String> params) {
@@ -197,10 +212,14 @@ public class QuotaTemplateService {
      * 目录维护完成后即可发起首次申领；已停用目录或商品不展示。
      */
     public Map<String, Object> requisitionCatalog(Map<String, String> params) {
-
+        requisitionAccess.requirePermission("department-requisition:read");
         PageRequest pageReq = PageRequest.from(params);
-        String deptName = params.getOrDefault("deptName", "");
+        Map<String, Object> department = requisitionAccess.resolveDepartment(params.get("deptCode"), params.get("deptName"));
+        String deptName = String.valueOf(department.get("deptName"));
+        Long deptId = ((Number) department.get("deptId")).longValue();
         String warehouseName = params.getOrDefault("warehouseName", "");
+        Long destinationWarehouseId = destinationWarehouseId(params.get("destinationWarehouseId"), warehouseName);
+        requisitionAccess.requireDestinationWarehouse(deptId, destinationWarehouseId);
         assertNoRequisitionTemplateConflicts(deptName);
         List<Object> args = new ArrayList<>();
         Long sourceWarehouseId = sourceWarehouseId(
@@ -223,8 +242,8 @@ public class QuotaTemplateService {
                        t.quantity AS packageQuantity,
                        COALESCE(t.unit, p.unit) AS packageUnit,
                         CASE
-                          WHEN p.is_high_value = 1 THEN 'unique_code'
-                          WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0 AND COALESCE(pkg.package_count, 0) > 0
+                          WHEN p.is_high_value = 1 THEN 'high_value'
+                          WHEN p.is_quota_managed = 1 AND COALESCE(t.template_id, 0) > 0
                            THEN 'quota_package'
                          ELSE 'loose'
                        END AS defaultMode,
@@ -324,11 +343,36 @@ public class QuotaTemplateService {
         List<Object> queryArgs = new ArrayList<>(args);
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(baseSql + """
+        List<Map<String, Object>> queryRows = jdbcTemplate.queryForList(baseSql + """
                  ORDER BY productName, productId
                  LIMIT ? OFFSET ?
                 """, queryArgs.toArray());
+        List<Map<String, Object>> rows = queryRows.stream()
+                .map(java.util.LinkedHashMap::new)
+                .map(row -> (Map<String, Object>) row)
+                .toList();
+        for (Map<String, Object> row : rows) {
+            boolean highValue = row.get("highValue") instanceof Number n && n.intValue() == 1;
+            boolean hasTemplate = row.get("templateCode") != null && !"-".equals(String.valueOf(row.get("templateCode")));
+            List<String> modes = highValue ? List.of("high_value")
+                    : hasTemplate ? List.of("loose", "quota_package") : List.of("loose");
+            row.put("allowedModes", modes);
+        }
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    private Long destinationWarehouseId(String rawId, String warehouseName) {
+        if (!isBlank(rawId)) {
+            try { return Long.valueOf(rawId.trim()); }
+            catch (NumberFormatException ex) { throw new IllegalArgumentException("destinationWarehouseId must be a number"); }
+        }
+        if (isBlank(warehouseName)) throw new IllegalArgumentException("请选择目标科室库房");
+        List<Long> ids = jdbcTemplate.queryForList("""
+                SELECT warehouse_id FROM warehouse
+                 WHERE warehouse_name = ? AND deleted = 0 AND status = 1
+                """, Long.class, warehouseName.trim());
+        if (ids.size() != 1) throw new IllegalArgumentException("目标库房不存在、已停用或名称不唯一");
+        return ids.get(0);
     }
 
     private Long sourceWarehouseId(String rawValue, String deptName, String warehouseName) {

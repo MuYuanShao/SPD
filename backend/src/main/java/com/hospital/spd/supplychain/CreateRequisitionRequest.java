@@ -13,7 +13,8 @@ import java.util.Map;
 
 /** Validated mixed-item department requisition request with one-release legacy field compatibility. */
 public record CreateRequisitionRequest(
-        @NotBlank String deptName,
+        String deptCode,
+        String deptName,
         @JsonAlias("warehouseName") String destinationWarehouseName,
         Long destinationWarehouseId,
         Long sourceWarehouseId,
@@ -22,6 +23,7 @@ public record CreateRequisitionRequest(
         @Positive BigDecimal quantity,
         String requisitionMode,
         String templateCode,
+        @Positive BigDecimal packageCount,
         List<String> uniqueCodes,
         String uniqueCode
 ) {
@@ -30,8 +32,8 @@ public record CreateRequisitionRequest(
                                     List<RequisitionItemRequest> items, String productCode,
                                     BigDecimal quantity, String requisitionMode,
                                     List<String> uniqueCodes, String uniqueCode) {
-        this(deptName, destinationWarehouseName, destinationWarehouseId, sourceWarehouseId,
-                items, productCode, quantity, requisitionMode, null, uniqueCodes, uniqueCode);
+        this(null, deptName, destinationWarehouseName, destinationWarehouseId, sourceWarehouseId,
+                items, productCode, quantity, requisitionMode, null, null, uniqueCodes, uniqueCode);
     }
 
     @AssertTrue(message = "items must be non-empty, or legacy productCode and quantity must be provided")
@@ -40,8 +42,14 @@ public record CreateRequisitionRequest(
                 || (productCode != null && !productCode.isBlank() && quantity != null && quantity.signum() > 0);
     }
 
+    @AssertTrue(message = "deptCode or deptName is required")
+    public boolean hasDepartmentIdentity() {
+        return (deptCode != null && !deptCode.isBlank()) || (deptName != null && !deptName.isBlank());
+    }
+
     public Map<String, Object> toCompatibilityMap() {
         Map<String, Object> body = new LinkedHashMap<>();
+        if (deptCode != null) body.put("deptCode", deptCode);
         body.put("deptName", deptName);
         if (destinationWarehouseName != null) body.put("warehouseName", destinationWarehouseName);
         if (destinationWarehouseId != null) body.put("destinationWarehouseId", destinationWarehouseId);
@@ -53,6 +61,7 @@ public record CreateRequisitionRequest(
             body.put("quantity", quantity);
             if (requisitionMode != null) body.put("requisitionMode", requisitionMode);
             if (templateCode != null) body.put("templateCode", templateCode);
+            if (packageCount != null) body.put("packageCount", packageCount);
             if (uniqueCodes != null) body.put("uniqueCodes", uniqueCodes);
             else if (uniqueCode != null) body.put("uniqueCode", uniqueCode);
         }
@@ -64,6 +73,7 @@ public record CreateRequisitionRequest(
             @Positive BigDecimal quantity,
             String requisitionMode,
             String templateCode,
+            @Positive BigDecimal packageCount,
             List<String> uniqueCodes,
             String uniqueCode
     ) {
@@ -73,6 +83,7 @@ public record CreateRequisitionRequest(
             item.put("quantity", quantity);
             if (requisitionMode != null) item.put("requisitionMode", requisitionMode);
             if (templateCode != null) item.put("templateCode", templateCode);
+            if (packageCount != null) item.put("packageCount", packageCount);
             if (uniqueCodes != null) item.put("uniqueCodes", uniqueCodes);
             else if (uniqueCode != null) item.put("uniqueCode", uniqueCode);
             return item;

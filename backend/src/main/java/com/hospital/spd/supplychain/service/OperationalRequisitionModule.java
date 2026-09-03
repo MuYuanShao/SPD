@@ -2,6 +2,8 @@ package com.hospital.spd.supplychain.service;
 import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.supplychain.RequisitionItemMode;
+import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
@@ -35,10 +37,21 @@ public class OperationalRequisitionModule {
     private final ApprovalFlowGuard approvalFlowGuard;
     private final OperatorContextProvider operatorContextProvider;
     private final HighValueTraceFlowService traceFlowService;
+    private final DepartmentRequisitionAccessService accessService;
 
     public OperationalRequisitionModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support, new ApprovalFlowGuard(jdbcTemplate), OperatorContext::system,
                 new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system));
+    }
+
+    public OperationalRequisitionModule(JdbcTemplate jdbcTemplate,
+                                         SupplyChainSupport support,
+                                         ApprovalFlowGuard approvalFlowGuard,
+                                         OperatorContextProvider operatorContextProvider,
+                                         HighValueTraceFlowService traceFlowService) {
+        this(jdbcTemplate, support, approvalFlowGuard, operatorContextProvider, traceFlowService,
+                new DepartmentRequisitionAccessService(jdbcTemplate, operatorContextProvider,
+                        new DataScopeService(operatorContextProvider)));
     }
 
     @Autowired
@@ -46,25 +59,28 @@ public class OperationalRequisitionModule {
                                          SupplyChainSupport support,
                                          ApprovalFlowGuard approvalFlowGuard,
                                          OperatorContextProvider operatorContextProvider,
-                                         HighValueTraceFlowService traceFlowService) {
+                                         HighValueTraceFlowService traceFlowService,
+                                         DepartmentRequisitionAccessService accessService) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.approvalFlowGuard = approvalFlowGuard;
         this.operatorContextProvider = operatorContextProvider;
         this.traceFlowService = traceFlowService;
+        this.accessService = accessService;
     }
 
     @Transactional
     public Map<String, Object> createRequisition(Map<String, Object> body) {
-        String deptName = requireText(body, "deptName");
-        Long deptId = findDept(deptName);
+        accessService.requirePermission("department-requisition:create");
+        Map<String, Object> department = accessService.resolveDepartment(text(body.get("deptCode")), text(body.get("deptName")));
+        String deptName = String.valueOf(department.get("deptName"));
+        Long deptId = ((Number) department.get("deptId")).longValue();
         Long warehouseId = resolveDestinationWarehouse(body);
         Long sourceWarehouseId = resolveSourceWarehouse(body, warehouseId);
-        requireCurrentDepartment(deptId);
+        accessService.requireDestinationWarehouse(deptId, warehouseId);
         List<PreparedRequisitionItem> items = new ArrayList<>();
         for (Map<String, Object> itemBody : requisitionItems(body)) {
             String productCode = requireText(itemBody, "productCode");
-            BigDecimal quantity = requirePositive(itemBody, "quantity");
             Map<String, Object> product = findProduct(productCode);
             requireDepartmentWarehouseCatalog(deptId, warehouseId,
                     ((Number) product.get("productId")).longValue());
@@ -72,9 +88,17 @@ public class OperationalRequisitionModule {
             if (unitPrice == null || unitPrice.compareTo(BigDecimal.ZERO) < 0) {
                 throw new IllegalArgumentException("product purchase price is required");
             }
-            TemplateSnapshot snapshot = resolveTemplateSnapshot(itemBody, product, deptId);
-            items.add(new PreparedRequisitionItem(itemBody, product, quantity, unitPrice,
-                    quantity.multiply(unitPrice), resolveItemType(product, snapshot), snapshot));
+            RequisitionItemMode mode = resolveItemMode(itemBody, product);
+            TemplateSnapshot snapshot = mode == RequisitionItemMode.QUOTA_PACKAGE
+                    ? resolveTemplateSnapshot(itemBody, product, deptId) : null;
+            BigDecimal packageCount = optionalPositive(itemBody.get("packageCount"), "packageCount");
+            BigDecimal quantity = requirePositive(itemBody, "quantity");
+            if (mode == RequisitionItemMode.QUOTA_PACKAGE && packageCount != null) {
+                quantity = packageCount.multiply(snapshot.packageQuantity());
+            }
+            validateModePayload(itemBody, product, mode, snapshot, quantity);
+            items.add(new PreparedRequisitionItem(itemBody, product, quantity, packageCount, unitPrice,
+                    quantity.multiply(unitPrice), mode.code(), snapshot));
         }
         OperatorContext operator = operatorContextProvider.current();
         String requisitionNo = support.nextNo(DEPARTMENT_REQUISITION);
@@ -103,26 +127,18 @@ public class OperationalRequisitionModule {
                     INSERT INTO department_requisition_item (
                       requisition_id, product_id, quantity, item_type,
                       quota_template_id, quota_template_version, quota_package_quantity, quota_package_unit,
-                      unit, unit_price, amount, remark
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      requested_package_count, unit, unit_price, amount, remark
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, requisitionId, item.product().get("productId"), item.quantity(), item.itemType(),
                     item.snapshot() == null ? null : item.snapshot().templateId(),
                     item.snapshot() == null ? null : item.snapshot().versionNo(),
                     item.snapshot() == null ? null : item.snapshot().packageQuantity(),
                     item.snapshot() == null ? null : item.snapshot().packageUnit(),
+                    item.packageCount(),
                     item.product().get("unit"), item.unitPrice(), item.amount(), "department requisition");
-            if (item.product().get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
-                Object rawCodes = item.body().get("uniqueCodes") == null
-                        ? item.body().get("uniqueCode") : item.body().get("uniqueCodes");
-                List<HighValueTraceFlowService.TraceUnit> units = traceFlowService.requireUnits(
-                        rawCodes, item.quantity(), ((Number) item.product().get("productId")).longValue(),
-                        sourceWarehouseId, List.of("in_stock"));
-                Long itemId = jdbcTemplate.queryForObject(
-                        "SELECT item_id FROM department_requisition_item WHERE requisition_id = ? ORDER BY item_id DESC LIMIT 1",
-                        Long.class, requisitionId);
-                traceFlowService.bindRequisition(requisitionId, itemId, units, requisitionNo, deptName);
-            }
         }
+        support.writeAudit("department_requisition", "create", requisitionId, requisitionNo,
+                "创建科室申领，明细数：" + items.size());
         return Map.of("requisitionNo", requisitionNo, "status", "pending_approval", "itemCount", items.size());
     }
 
@@ -147,7 +163,7 @@ public class OperationalRequisitionModule {
     }
 
     private record PreparedRequisitionItem(Map<String, Object> body, Map<String, Object> product,
-                                           BigDecimal quantity, BigDecimal unitPrice,
+                                           BigDecimal quantity, BigDecimal packageCount, BigDecimal unitPrice,
                                            BigDecimal amount, String itemType, TemplateSnapshot snapshot) {
     }
 
@@ -156,6 +172,7 @@ public class OperationalRequisitionModule {
 
     @Transactional
     public Map<String, Object> action(String requisitionNo, Map<String, Object> body) {
+        accessService.requirePermission("department-requisition:approve");
         Map<String, Object> requisition = jdbcTemplate.queryForMap("""
                 SELECT requisition_id AS requisitionId, dept_id AS deptId, status
                   FROM department_requisition
@@ -165,6 +182,7 @@ public class OperationalRequisitionModule {
         if (!"pending_approval".equals(String.valueOf(requisition.get("status")))) {
             throw new IllegalArgumentException("only pending requisition can be processed");
         }
+        accessService.requireDepartment(((Number) requisition.get("deptId")).longValue());
         String action = requireText(body, "action");
         if (!"approve".equals(action) && !"reject".equals(action)) {
             throw new IllegalArgumentException("requisition action is invalid");
@@ -186,18 +204,40 @@ public class OperationalRequisitionModule {
         return Map.of("requisitionNo", requisitionNo, "status", nextStatus);
     }
 
-    private static String resolveItemType(Map<String, Object> product, TemplateSnapshot snapshot) {
-        // 高值耗材带唯一码申领 → 唯一码类型
-        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
-            return "unique_code";
+    private static RequisitionItemMode resolveItemMode(Map<String, Object> body, Map<String, Object> product) {
+        RequisitionItemMode requested = RequisitionItemMode.parse(body.get("requisitionMode"));
+        if (requested != null) return requested;
+        if (number(product.get("highValue")) == 1) return RequisitionItemMode.HIGH_VALUE;
+        return hasText(body.get("templateCode")) ? RequisitionItemMode.QUOTA_PACKAGE : RequisitionItemMode.LOOSE;
+    }
+
+    private static void validateModePayload(Map<String, Object> body, Map<String, Object> product,
+                                            RequisitionItemMode mode, TemplateSnapshot snapshot,
+                                            BigDecimal quantity) {
+        boolean highValue = number(product.get("highValue")) == 1;
+        boolean hasTemplate = hasText(body.get("templateCode"));
+        boolean hasCodes = hasText(body.get("uniqueCode")) || body.get("uniqueCodes") != null;
+        if (hasCodes) throw new IllegalArgumentException("高值耗材唯一码请在拣配阶段选择");
+        if (mode == RequisitionItemMode.HIGH_VALUE) {
+            if (!highValue) throw new IllegalArgumentException("普通耗材不能使用高值申领模式");
+            if (hasTemplate) throw new IllegalArgumentException("高值申领不得携带定数包模板");
+            try { quantity.intValueExact(); }
+            catch (ArithmeticException ex) { throw new IllegalArgumentException("高值耗材申领数量必须为整数"); }
+        } else if (highValue) {
+            throw new IllegalArgumentException("高值耗材必须使用高值申领模式");
+        } else if (mode == RequisitionItemMode.LOOSE && hasTemplate) {
+            throw new IllegalArgumentException("散货申领不得携带定数包模板");
+        } else if (mode == RequisitionItemMode.QUOTA_PACKAGE && snapshot == null) {
+            throw new IllegalArgumentException("定数包申领必须选择有效模板");
         }
-        return snapshot == null ? "loose" : "quota_package";
     }
 
     private TemplateSnapshot resolveTemplateSnapshot(Map<String, Object> body, Map<String, Object> product, Long deptId) {
-        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) return null;
         Object rawTemplateCode = body.get("templateCode");
-        if (rawTemplateCode == null || String.valueOf(rawTemplateCode).isBlank()) return null;
+        if (rawTemplateCode == null || String.valueOf(rawTemplateCode).isBlank()
+                || "-".equals(String.valueOf(rawTemplateCode).trim())) {
+            throw new IllegalArgumentException("定数包申领必须选择有效模板");
+        }
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpt.template_id AS templateId, qpt.version_no AS versionNo,
                        qpti.quantity AS packageQuantity, qpti.unit AS packageUnit
@@ -222,6 +262,7 @@ public class OperationalRequisitionModule {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,
                        unit, purchase_price AS purchasePrice, is_high_value AS highValue
+                       , is_quota_managed AS quotaManaged
                   FROM product WHERE product_code = ? AND deleted = 0 AND status = 1
                 """, productCode);
     }
@@ -285,20 +326,6 @@ public class OperationalRequisitionModule {
         }
     }
 
-    private Long findDept(String deptName) {
-        List<Long> ids = jdbcTemplate.queryForList("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1",
-                Long.class, deptName);
-        if (ids.isEmpty()) throw new IllegalArgumentException("department does not exist or is disabled");
-        return ids.get(0);
-    }
-
-    private void requireCurrentDepartment(Long deptId) {
-        OperatorContext operator = operatorContextProvider.current();
-        if (!operator.canViewAllData() && !Objects.equals(operator.deptId(), deptId)) {
-            throw new IllegalArgumentException("只能为当前登录科室创建申领单");
-        }
-    }
-
     private void requireDepartmentWarehouseCatalog(Long deptId, Long warehouseId, Long productId) {
         Long count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -326,5 +353,25 @@ public class OperationalRequisitionModule {
         BigDecimal result = new BigDecimal(String.valueOf(value));
         if (result.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
         return result;
+    }
+
+    private static BigDecimal optionalPositive(Object value, String key) {
+        if (value == null || String.valueOf(value).isBlank()) return null;
+        BigDecimal result = new BigDecimal(String.valueOf(value));
+        if (result.signum() <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
+        return result;
+    }
+
+    private static int number(Object value) {
+        return value instanceof Number number ? number.intValue() : 0;
+    }
+
+    private static boolean hasText(Object value) {
+        if (value instanceof Iterable<?> iterable) return iterable.iterator().hasNext();
+        return value != null && !String.valueOf(value).isBlank();
+    }
+
+    private static String text(Object value) {
+        return value == null || String.valueOf(value).isBlank() ? null : String.valueOf(value).trim();
     }
 }

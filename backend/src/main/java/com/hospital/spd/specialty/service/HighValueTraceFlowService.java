@@ -73,6 +73,42 @@ public class HighValueTraceFlowService {
         return units;
     }
 
+    /** Locks high-value units selected by stable identity during picking. */
+    public List<TraceUnit> requireUnitsByIds(List<Long> traceCodeIds, Long productId, Long warehouseId,
+                                             Collection<String> allowedStatuses) {
+        if (traceCodeIds == null || traceCodeIds.isEmpty()) {
+            throw new IllegalArgumentException("请至少选择一个高值唯一码");
+        }
+        LinkedHashSet<Long> uniqueIds = new LinkedHashSet<>(traceCodeIds);
+        if (uniqueIds.size() != traceCodeIds.size()) throw new IllegalArgumentException("高值唯一码不能重复选择");
+        String placeholders = String.join(",", uniqueIds.stream().map(id -> "?").toList());
+        List<Object> args = new ArrayList<>(uniqueIds);
+        args.add(productId);
+        args.add(warehouseId);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT tc.trace_code_id AS traceCodeId, tc.unique_code AS uniqueCode,
+                       ibtc.batch_id AS batchId, ibtc.lifecycle_status AS lifecycleStatus
+                  FROM udi_trace_code tc
+                  JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = tc.trace_code_id
+                  JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
+                 WHERE tc.trace_code_id IN (%s) AND ib.product_id = ? AND ibtc.current_warehouse_id = ?
+                 FOR UPDATE
+                """.formatted(placeholders), args.toArray());
+        if (rows.size() != uniqueIds.size()) throw new IllegalArgumentException("唯一码不存在、商品不匹配或不在来源中心库");
+        Map<Long, Map<String, Object>> byId = rows.stream().collect(java.util.stream.Collectors.toMap(
+                row -> ((Number) row.get("traceCodeId")).longValue(), row -> row));
+        List<TraceUnit> units = new ArrayList<>();
+        for (Long id : uniqueIds) {
+            Map<String, Object> row = byId.get(id);
+            String status = String.valueOf(row.get("lifecycleStatus"));
+            if (!allowedStatuses.contains(status)) {
+                throw new IllegalArgumentException("唯一码“" + row.get("uniqueCode") + "”当前状态不允许拣配：" + status);
+            }
+            units.add(unit(row));
+        }
+        return units;
+    }
+
     public void bindRequisition(Long requisitionId, Long itemId, List<TraceUnit> units, String requisitionNo,
                                 String departmentName) {
         for (TraceUnit unit : units) {

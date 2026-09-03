@@ -4,6 +4,8 @@ import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.common.DataScopeService;
+import com.hospital.spd.common.OperatorContextProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -31,28 +33,33 @@ public class OperationalDeliveryModule {
     private final SupplyChainSupport support;
     private final HighValueTraceFlowService traceFlowService;
     private final QuotaPackageTraceFlowService quotaPackageTraceFlowService;
+    private final DepartmentRequisitionAccessService accessService;
 
     public OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support,
                 new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system),
-                new QuotaPackageTraceFlowService(jdbcTemplate, support));
+                new QuotaPackageTraceFlowService(jdbcTemplate, support),
+                new DepartmentRequisitionAccessService(jdbcTemplate, OperatorContext::system));
     }
 
     OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
                               QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
         this(jdbcTemplate, support,
                 new HighValueTraceFlowService(jdbcTemplate, support, OperatorContext::system),
-                quotaPackageTraceFlowService);
+                quotaPackageTraceFlowService,
+                new DepartmentRequisitionAccessService(jdbcTemplate, OperatorContext::system));
     }
 
     @Autowired
     public OperationalDeliveryModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
                                      HighValueTraceFlowService traceFlowService,
-                                     QuotaPackageTraceFlowService quotaPackageTraceFlowService) {
+                                     QuotaPackageTraceFlowService quotaPackageTraceFlowService,
+                                     DepartmentRequisitionAccessService accessService) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.traceFlowService = traceFlowService;
         this.quotaPackageTraceFlowService = quotaPackageTraceFlowService;
+        this.accessService = accessService;
     }
 
     @Transactional
@@ -99,37 +106,95 @@ public class OperationalDeliveryModule {
      * 仅列出未配送的在库/已申领唯一码。
      */
     public Map<String, Object> availableUniqueCodes(Map<String, String> params) {
+        accessService.requirePermission("department-requisition:pick");
         Long itemId = longValue(params.get("itemId"));
         if (itemId == null) {
             return Map.of("rows", List.of());
         }
+        requireItemAccess(itemId);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT utc.trace_code_id AS traceCodeId, utc.unique_code AS uniqueCode,
                        COALESCE(utc.udi_code, '-') AS udiCode, ib.system_batch_no AS batchNo,
                        DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate
-                  FROM department_requisition_trace_code rt
-                  JOIN udi_trace_code utc ON utc.trace_code_id = rt.trace_code_id
-                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = utc.trace_code_id
-                  LEFT JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
-                 WHERE rt.requisition_item_id = ?
-                   AND utc.current_status IN ('in_stock', 'requisitioned')
+                  FROM department_requisition_item dri
+                  JOIN department_requisition dr ON dr.requisition_id = dri.requisition_id
+                  JOIN inventory_batch ib ON ib.product_id = dri.product_id
+                  JOIN inventory_batch_trace_code ibtc ON ibtc.batch_id = ib.batch_id
+                       AND ibtc.current_warehouse_id = dr.source_warehouse_id
+                  JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
+                 WHERE dri.item_id = ? AND dr.status IN ('approved', 'partial_picked')
+                   AND dri.item_type IN ('high_value', 'unique_code')
+                   AND utc.current_status = 'in_stock' AND ibtc.lifecycle_status = 'in_stock'
                    AND NOT EXISTS (
-                     SELECT 1 FROM spd_delivery_trace_code dt WHERE dt.trace_code_id = rt.trace_code_id
+                     SELECT 1 FROM spd_delivery_trace_code dt WHERE dt.trace_code_id = utc.trace_code_id
                    )
-                 ORDER BY rt.trace_code_id
+                 ORDER BY ib.expire_date IS NULL, ib.expire_date, utc.trace_code_id
                 """, itemId);
         return Map.of("rows", rows);
+    }
+
+    /** Binds selected high-value units at picking time and supports partial fulfillment. */
+    @Transactional
+    public Map<String, Object> confirmHighValuePicking(Long itemId, List<Long> traceCodeIds) {
+        accessService.requirePermission("department-requisition:pick");
+        Map<String, Object> item = jdbcTemplate.queryForMap("""
+                SELECT dr.requisition_id AS requisitionId, dr.requisition_no AS requisitionNo,
+                       dr.dept_id AS deptId, dr.source_warehouse_id AS sourceWarehouseId,
+                       sd.dept_name AS deptName, sw.warehouse_name AS sourceWarehouseName,
+                       dri.item_id AS itemId, dri.product_id AS productId, dri.quantity,
+                       dri.item_type AS itemType, p.product_code AS productCode, p.product_name AS productName
+                  FROM department_requisition dr
+                  JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
+                  JOIN sys_dept sd ON sd.dept_id = dr.dept_id
+                  JOIN warehouse sw ON sw.warehouse_id = dr.source_warehouse_id
+                  JOIN product p ON p.product_id = dri.product_id
+                 WHERE dri.item_id = ? AND dr.status IN ('approved', 'partial_picked')
+                 FOR UPDATE
+                """, itemId);
+        Long deptId = ((Number) item.get("deptId")).longValue();
+        accessService.requireDepartment(deptId);
+        if (!List.of("high_value", "unique_code").contains(String.valueOf(item.get("itemType")))) {
+            throw new IllegalArgumentException("该申请明细不是高值耗材");
+        }
+        BigDecimal requested = (BigDecimal) item.get("quantity");
+        BigDecimal picked = pickedQuantity(itemId);
+        BigDecimal current = BigDecimal.valueOf(traceCodeIds.size());
+        if (current.signum() <= 0 || picked.add(current).compareTo(requested) > 0) {
+            throw new IllegalArgumentException("本次唯一码数量超过申领剩余数量");
+        }
+        Long productId = ((Number) item.get("productId")).longValue();
+        Long sourceWarehouseId = ((Number) item.get("sourceWarehouseId")).longValue();
+        List<HighValueTraceFlowService.TraceUnit> units = traceFlowService.requireUnitsByIds(
+                traceCodeIds, productId, sourceWarehouseId, List.of("in_stock"));
+        String requisitionNo = String.valueOf(item.get("requisitionNo"));
+        String deliveryNo = support.nextNo(DELIVERY_ORDER);
+        Long deliveryId = insertHighValueDelivery(deliveryNo, requisitionNo, itemId,
+                String.valueOf(item.get("deptName")), String.valueOf(item.get("sourceWarehouseName")),
+                String.valueOf(item.get("productCode")), String.valueOf(item.get("productName")), current);
+        traceFlowService.bindRequisition(((Number) item.get("requisitionId")).longValue(), itemId, units,
+                requisitionNo, String.valueOf(item.get("deptName")));
+        traceFlowService.bindDelivery(deliveryId, units, deliveryNo, String.valueOf(item.get("deptName")));
+        jdbcTemplate.update("UPDATE department_requisition_item SET picked_quantity = picked_quantity + ? WHERE item_id = ?",
+                current, itemId);
+        updateRequisitionPickStatus(((Number) item.get("requisitionId")).longValue());
+        support.writeAudit("department_requisition", "pick_high_value",
+                ((Number) item.get("requisitionId")).longValue(), requisitionNo,
+                "高值耗材拣配，配送单：" + deliveryNo + "，数量：" + current);
+        return Map.of("deliveryNo", deliveryNo, "status", "picked", "pickedQuantity", current,
+                "remainingQuantity", requested.subtract(picked).subtract(current));
     }
 
     /**
      * 拣配散货货源：一级库（中心库）中该申请商品的无货位可用余额，按批次展示。
      */
     public Map<String, Object> availableLooseStock(Map<String, String> params) {
+        accessService.requirePermission("department-requisition:pick");
         Long itemId = longValue(params.get("itemId"));
         String warehouseName = params.getOrDefault("warehouseName", "").trim();
         if (itemId == null) {
             return Map.of("rows", List.of());
         }
+        requireItemAccess(itemId);
         List<Object> args = new ArrayList<>();
         args.add(itemId);
         StringBuilder where = new StringBuilder("""
@@ -176,6 +241,7 @@ public class OperationalDeliveryModule {
      */
     @Transactional
     public Map<String, Object> confirmLoosePicking(Map<String, Object> body) {
+        accessService.requirePermission("department-requisition:pick");
         String requisitionNo = text(body, "requisitionNo", "");
         Long itemId = longValue(body.get("itemId"));
         String warehouseName = text(body, "warehouseName", "");
@@ -240,7 +306,11 @@ public class OperationalDeliveryModule {
     }
 
     public Map<String, Object> pickingRequisitions() {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+        accessService.requirePermission("department-requisition:pick");
+        StringBuilder scope = new StringBuilder(" WHERE dr.status IN ('approved', 'partial_picked')");
+        List<Object> scopeArgs = new ArrayList<>();
+        accessService.appendScope(scope, scopeArgs, "dr.dept_id", "dr.applicant_id");
+        String pickingSql = """
                 SELECT dr.requisition_no AS requisitionNo,
                        dr.requisition_id AS requisitionId,
                        sd.dept_name AS deptName,
@@ -278,21 +348,26 @@ public class OperationalDeliveryModule {
                       ) picked_sources
                      GROUP BY requisition_item_id
                   ) picked ON picked.requisition_item_id = dri.item_id
-                 WHERE dr.status IN ('approved', 'partial_picked')
+                """ + scope + """
                  HAVING remainingQty > 0
                  ORDER BY dr.apply_time DESC, dr.requisition_id DESC
                  LIMIT 100
-                """);
+                """;
+        List<Map<String, Object>> rows = scopeArgs.isEmpty()
+                ? jdbcTemplate.queryForList(pickingSql)
+                : jdbcTemplate.queryForList(pickingSql, scopeArgs.toArray());
         return Map.of("rows", rows);
     }
 
     public Map<String, Object> availablePackageLabels(Map<String, String> params) {
+        accessService.requirePermission("department-requisition:pick");
         String requisitionNo = params.getOrDefault("requisitionNo", "").trim();
         Long itemId = longValue(params.get("itemId"));
         String warehouseName = params.getOrDefault("warehouseName", "").trim();
         if (requisitionNo.isBlank() || itemId == null) {
             return Map.of("rows", List.of());
         }
+        requireItemAccess(itemId);
         List<Object> args = new ArrayList<>();
         args.add(requisitionNo);
         args.add(itemId);
@@ -389,6 +464,7 @@ public class OperationalDeliveryModule {
 
     @Transactional
     public Map<String, Object> confirmPicking(Map<String, Object> body) {
+        accessService.requirePermission("department-requisition:pick");
         String requisitionNo = text(body, "requisitionNo", "");
         Long itemId = longValue(body.get("itemId"));
         String warehouseName = text(body, "warehouseName", "");
@@ -547,7 +623,7 @@ public class OperationalDeliveryModule {
     }
     private Map<String, Object> findRequisitionItemForPicking(String requisitionNo, Long itemId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT dr.requisition_id AS requisitionId, dr.status, sd.dept_name AS deptName,
+                SELECT dr.requisition_id AS requisitionId, dr.dept_id AS deptId, dr.status, sd.dept_name AS deptName,
                        dri.item_id AS itemId, dri.product_id AS productId, dri.quantity
                   FROM department_requisition dr
                   JOIN sys_dept sd ON sd.dept_id = dr.dept_id
@@ -561,7 +637,21 @@ public class OperationalDeliveryModule {
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("requisition item is not approved or has been fully picked");
         }
+        if (!accessService.isUnrestricted()) {
+            accessService.requireDepartment(((Number) rows.get(0).get("deptId")).longValue());
+        }
         return rows.get(0);
+    }
+
+    private void requireItemAccess(Long itemId) {
+        if (accessService.isUnrestricted()) return;
+        List<Long> deptIds = jdbcTemplate.queryForList("""
+                SELECT dr.dept_id FROM department_requisition_item dri
+                  JOIN department_requisition dr ON dr.requisition_id = dri.requisition_id
+                 WHERE dri.item_id = ?
+                """, Long.class, itemId);
+        if (deptIds.size() != 1) throw new IllegalArgumentException("申领明细不存在");
+        accessService.requireDepartment(deptIds.get(0));
     }
 
     private BigDecimal pickedQuantity(Long itemId) {
@@ -631,6 +721,25 @@ public class OperationalDeliveryModule {
             ps.setString(6, productCode);
             ps.setString(7, productName);
             ps.setBigDecimal(8, quantity);
+            return ps;
+        }, keyHolder);
+        return Objects.requireNonNull(keyHolder.getKey()).longValue();
+    }
+
+    private Long insertHighValueDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
+                                         String deptName, String warehouseName,
+                                         String productCode, String productName, BigDecimal quantity) {
+        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                    INSERT INTO spd_delivery_order (
+                      delivery_no, requisition_no, requisition_item_id, delivery_type,
+                      dept_name, warehouse_name, product_code, product_name, quantity, status
+                    ) VALUES (?, ?, ?, 'unique_code', ?, ?, ?, ?, ?, 'picked')
+                    """, Statement.RETURN_GENERATED_KEYS);
+            ps.setString(1, deliveryNo); ps.setString(2, requisitionNo); ps.setLong(3, requisitionItemId);
+            ps.setString(4, deptName); ps.setString(5, warehouseName); ps.setString(6, productCode);
+            ps.setString(7, productName); ps.setBigDecimal(8, quantity);
             return ps;
         }, keyHolder);
         return Objects.requireNonNull(keyHolder.getKey()).longValue();

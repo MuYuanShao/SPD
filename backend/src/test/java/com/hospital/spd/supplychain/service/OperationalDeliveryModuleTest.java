@@ -2,6 +2,7 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.common.service.DocumentKind;
 import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
+import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -11,7 +12,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.support.KeyHolder;
+import org.springframework.jdbc.support.GeneratedKeyHolder;
 
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,8 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class OperationalDeliveryModuleTest {
@@ -38,12 +43,73 @@ class OperationalDeliveryModuleTest {
     private SupplyChainSupport support;
     @Mock
     private QuotaPackageTraceFlowService quotaPackageTraceFlowService;
+    @Mock
+    private HighValueTraceFlowService highValueTraceFlowService;
+    @Mock
+    private DepartmentRequisitionAccessService accessService;
 
     private OperationalDeliveryModule module;
 
     @BeforeEach
     void setUp() {
         module = new OperationalDeliveryModule(jdbcTemplate, support, quotaPackageTraceFlowService);
+    }
+
+    @Test
+    void bindsHighValueCodesAtPickingAndKeepsPartialRequisitionOpen() throws Exception {
+        module = new OperationalDeliveryModule(jdbcTemplate, support, highValueTraceFlowService,
+                quotaPackageTraceFlowService, accessService);
+        when(jdbcTemplate.queryForMap(contains("FROM department_requisition dr"), eq(7L)))
+                .thenReturn(Map.ofEntries(
+                        Map.entry("requisitionId", 90L), Map.entry("requisitionNo", "SL001"),
+                        Map.entry("deptId", 10L), Map.entry("sourceWarehouseId", 30L),
+                        Map.entry("deptName", "Surgery"), Map.entry("sourceWarehouseName", "Central"),
+                        Map.entry("itemId", 7L), Map.entry("productId", 100L),
+                        Map.entry("quantity", BigDecimal.valueOf(3)), Map.entry("itemType", "high_value"),
+                        Map.entry("productCode", "HV001"), Map.entry("productName", "Implant")));
+        when(jdbcTemplate.queryForObject(contains("SELECT ("), eq(BigDecimal.class), eq(7L), eq(7L), eq(7L)))
+                .thenReturn(BigDecimal.ONE);
+        var unit = new HighValueTraceFlowService.TraceUnit(501L, "UDI-501", 601L);
+        when(highValueTraceFlowService.requireUnitsByIds(List.of(501L), 100L, 30L, List.of("in_stock")))
+                .thenReturn(List.of(unit));
+        when(support.nextNo(DocumentKind.DELIVERY_ORDER)).thenReturn("PS001");
+        mockGeneratedKey(700L);
+        when(jdbcTemplate.queryForObject(contains("SUM(GREATEST"), eq(BigDecimal.class), eq(90L)))
+                .thenReturn(BigDecimal.ONE);
+
+        Map<String, Object> result = module.confirmHighValuePicking(7L, List.of(501L));
+
+        assertThat(result).containsEntry("deliveryNo", "PS001")
+                .containsEntry("remainingQuantity", BigDecimal.ONE);
+        verify(highValueTraceFlowService).bindRequisition(90L, 7L, List.of(unit), "SL001", "Surgery");
+        verify(highValueTraceFlowService).bindDelivery(700L, List.of(unit), "PS001", "Surgery");
+        verify(jdbcTemplate).update(contains("SET picked_quantity = picked_quantity + ?"), eq(BigDecimal.ONE), eq(7L));
+        verify(jdbcTemplate).update(contains("UPDATE department_requisition"), eq("partial_picked"), eq(90L));
+        verify(support).writeAudit(eq("department_requisition"), eq("pick_high_value"), eq(90L), eq("SL001"),
+                contains("PS001"));
+    }
+
+    @Test
+    void rejectsHighValueOverPickingBeforeCodesOrDeliveryAreWritten() {
+        module = new OperationalDeliveryModule(jdbcTemplate, support, highValueTraceFlowService,
+                quotaPackageTraceFlowService, accessService);
+        when(jdbcTemplate.queryForMap(contains("FROM department_requisition dr"), eq(7L)))
+                .thenReturn(Map.ofEntries(
+                        Map.entry("requisitionId", 90L), Map.entry("requisitionNo", "SL001"),
+                        Map.entry("deptId", 10L), Map.entry("sourceWarehouseId", 30L),
+                        Map.entry("deptName", "Surgery"), Map.entry("sourceWarehouseName", "Central"),
+                        Map.entry("itemId", 7L), Map.entry("productId", 100L),
+                        Map.entry("quantity", BigDecimal.valueOf(2)), Map.entry("itemType", "high_value"),
+                        Map.entry("productCode", "HV001"), Map.entry("productName", "Implant")));
+        when(jdbcTemplate.queryForObject(contains("SELECT ("), eq(BigDecimal.class), eq(7L), eq(7L), eq(7L)))
+                .thenReturn(BigDecimal.ONE);
+
+        assertThatThrownBy(() -> module.confirmHighValuePicking(7L, List.of(501L, 502L)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("超过申领剩余数量");
+
+        verifyNoInteractions(highValueTraceFlowService);
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 
     @Test
@@ -301,5 +367,15 @@ class OperationalDeliveryModuleTest {
     private void mockProduct(String code, String name, Long productId) {
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
                 .thenReturn(Map.of("productId", productId, "productCode", code, "productName", name));
+    }
+
+    private void mockGeneratedKey(Long key) throws Exception {
+        doAnswer(invocation -> {
+            KeyHolder holder = invocation.getArgument(1);
+            Field field = GeneratedKeyHolder.class.getDeclaredField("keyList");
+            field.setAccessible(true);
+            field.set(holder, List.of(Map.of("GENERATED_KEY", key)));
+            return 1;
+        }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 }

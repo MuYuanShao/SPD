@@ -83,15 +83,33 @@ public class RbacAuthorizationService {
     }
 
     private static String operationalClosurePermission(String verb, String path) {
+        if (path.startsWith("/operational-closure/requisitions/smart-analysis")
+                || path.startsWith("/operational-closure/requisitions/from-smart-analysis")) {
+            return "department-requisition:smart-analysis";
+        }
+        if (path.startsWith("/operational-closure/requisitions/") && path.endsWith("/action")) {
+            return "department-requisition:approve";
+        }
+        if (path.equals("/operational-closure/requisitions")) {
+            return isRead(verb) ? "department-requisition:read" : "department-requisition:create";
+        }
+        if (path.startsWith("/operational-closure/requisitions/")) {
+            return "department-requisition:read";
+        }
+        if (path.startsWith("/operational-closure/picking")) {
+            return "department-requisition:pick";
+        }
         String featureCode;
         if (path.equals("/operational-closure/overview") || path.equals("/operational-closure/options")) {
             featureCode = "operational-closure";
         } else if (path.startsWith("/operational-closure/lists/")) {
             String type = path.substring("/operational-closure/lists/".length()).split("/")[0];
+            if ("requisition".equals(type) || "department-requisition".equals(type)) {
+                return "department-requisition:read";
+            }
             featureCode = switch (type) {
                 case "shortage" -> "shortage-reminder";
                 case "delivery" -> "picking-delivery";
-                case "requisition", "department-requisition" -> "department-requisition";
                 case "consumption" -> "department-consumption";
                 case "red-flush" -> "red-flush-management";
                 case "settlement", "settlement-reconciliation" -> "settlement-reconciliation";

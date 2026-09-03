@@ -236,9 +236,8 @@ class OperationalClosureServiceTest {
                 .thenReturn("PC001");
 
         // ensureDept — exists
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString()))
-                .thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("FROM sys_dept WHERE dept_name = ?"), anyString()))
+                .thenReturn(List.of(Map.of("deptId", 10L, "deptCode", "SURG", "deptName", "外科")));
         when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"),
                 eq(Long.class), eq("外科库"))).thenReturn(List.of(20L));
 
@@ -248,6 +247,8 @@ class OperationalClosureServiceTest {
                         "productName", "注射器", "unit", "支", "purchasePrice", BigDecimal.TEN));
         when(jdbcTemplate.queryForObject(contains("FROM department_warehouse_catalog"),
                 eq(Long.class), eq(10L), eq(20L), eq(100L))).thenReturn(1L);
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM warehouse"),
+                eq(Long.class), eq(20L), eq(10L))).thenReturn(1L);
 
 
         when(support.nextNo(eq("SL"), eq("department_requisition"), eq("requisition_no")))
@@ -284,8 +285,7 @@ class OperationalClosureServiceTest {
                 .thenReturn("PC001");
 
         // ensureDept — not found, need to create
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString()))
+        when(jdbcTemplate.queryForList(contains("FROM sys_dept WHERE dept_name = ?"), anyString()))
                 .thenReturn(List.of());
 
         // count() for new dept code generation
@@ -312,7 +312,7 @@ class OperationalClosureServiceTest {
 
         assertThatThrownBy(() -> service.createRequisition(requisitionRequest(body)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("department does not exist");
+                .hasMessageContaining("科室不存在或已停用");
     }
 
     // ==================== createConsumption() ====================

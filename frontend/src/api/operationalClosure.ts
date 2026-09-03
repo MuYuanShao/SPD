@@ -25,6 +25,27 @@ export async function fetchClosureOptions() {
   return getData<ClosureOptions>('/operational-closure/options')
 }
 
+export async function fetchDepartmentRequisitionOptions() {
+  return getData<ClosureOptions>('/operational-closure/requisitions/options')
+}
+
+export interface RequisitionWarehouseOption {
+  warehouseId: number
+  code: string
+  name: string
+  type: string
+  campus: string
+  status: string
+  relatedDepartment: string
+  selected: boolean | number
+}
+
+export async function fetchDepartmentRequisitionWarehouses(deptCode: string) {
+  return getData<RequisitionWarehouseOption[]>(
+    `/operational-closure/requisitions/departments/${encodeURIComponent(deptCode)}/warehouses`
+  )
+}
+
 /**
  * 获取指定类型的业务闭环列表
  * @param type - 列表类型
@@ -87,6 +108,10 @@ export async function confirmLoosePicking(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/picking/confirm-loose', payload)
 }
 
+export async function confirmHighValuePicking(payload: { itemId: number; traceCodeIds: number[] }) {
+  return postData<Record<string, unknown>>('/operational-closure/picking/confirm-high-value', payload)
+}
+
 /**
  * 生成缺货提醒数据
  * @param payload - 生成参数
@@ -98,6 +123,51 @@ export async function generateShortage(payload: Record<string, unknown>) {
 
 export async function smartReplenishmentAnalysis(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/shortage/smart-analysis', payload)
+}
+
+export type RequisitionMode = 'loose' | 'quota_package' | 'high_value'
+
+export interface DepartmentSmartSuggestion {
+  analysisItemId?: number
+  deptId: number
+  deptName: string
+  warehouseId: number
+  warehouseName: string
+  sourceWarehouseId: number
+  productCode: string
+  productName: string
+  baseUnit: string
+  itemMode: RequisitionMode
+  periodDemand: number
+  currentQty: number
+  sourceAvailableQty: number
+  shortageQty: number
+  recommendedQty: number
+  packageQuantity?: number
+  packageUnit?: string
+  selected?: boolean
+}
+
+export async function analyzeDepartmentRequisition(payload: {
+  deptCode: string
+  deptName?: string
+  destinationWarehouseId?: number
+  destinationWarehouseName?: string
+  sourceWarehouseId?: number
+  selectedPeriodDays: number
+}) {
+  return postData<{ analysisId: number; selectedPeriodDays: number; groupCount: number; rows: DepartmentSmartSuggestion[] }>(
+    '/operational-closure/requisitions/smart-analysis', payload
+  )
+}
+
+export async function generateRequisitionsFromAnalysis(payload: {
+  analysisId: number
+  items: Array<{ analysisItemId: number; quantity: number; selected: boolean }>
+}) {
+  return postData<{ createdCount: number; requisitionNos: string[]; status: string }>(
+    '/operational-closure/requisitions/from-smart-analysis', payload
+  )
 }
 
 /**

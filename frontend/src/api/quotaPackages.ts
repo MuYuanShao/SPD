@@ -68,6 +68,7 @@ export interface PackageLabelRow {
 
 export interface DepartmentRequisitionCatalogRow {
   productId: number
+  sourceWarehouseId: number
   productCode: string
   productName: string
   specModel: string
@@ -88,7 +89,8 @@ export interface DepartmentRequisitionCatalogRow {
   templateName: string
   packageQuantity: number | null
   packageUnit: string
-  defaultMode: 'loose' | 'quota_package' | 'unique_code'
+  defaultMode: 'loose' | 'quota_package' | 'high_value'
+  allowedModes: Array<'loose' | 'quota_package' | 'high_value'>
   requisitionStatus: string
 }
 

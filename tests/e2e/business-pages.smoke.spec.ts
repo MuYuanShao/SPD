@@ -335,3 +335,31 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     ]
   })
 })
+
+test('收货验收按需加载选项并正确联动采购与临时来源', async ({ page }) => {
+  let optionCalls = 0
+  page.on('request', request => {
+    if (request.url().includes('/api/receiving-orders/options/')) optionCalls += 1
+  })
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await page.goto('/features/receiving-acceptance')
+  await login(page)
+  await expect(page.getByRole('heading', { name: '收货验收' })).toBeVisible()
+  expect(optionCalls).toBe(0)
+
+  await page.getByRole('button', { name: '新增收货' }).click()
+  const dialog = page.getByRole('dialog', { name: '新增收货单' })
+  await expect(dialog).toBeVisible()
+  await expect.poll(() => optionCalls).toBeGreaterThanOrEqual(4)
+  await expect(dialog.getByRole('button', { name: '删除勾选' })).toBeDisabled()
+  await expect(dialog.getByRole('button', { name: '复制细单' })).toBeDisabled()
+
+  await dialog.getByLabel('收货来源').selectOption('temporary')
+  await expect(dialog.getByLabel('配送商')).toBeEnabled()
+  await expect(dialog.getByTestId('receiving-purchase-order')).toHaveCount(0)
+
+  await dialog.getByLabel('商品码扫描').fill('NO-SUCH-RECEIVING-PRODUCT')
+  await dialog.getByLabel('商品码扫描').press('Enter')
+  await expect(page.getByText('未找到启用的商品编码：NO-SUCH-RECEIVING-PRODUCT')).toBeVisible()
+})

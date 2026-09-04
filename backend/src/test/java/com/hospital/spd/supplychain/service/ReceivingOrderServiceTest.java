@@ -330,6 +330,54 @@ class ReceivingOrderServiceTest {
     class CreateValidationTest {
 
         @Test
+        @DisplayName("非空采购单号不存在时不得降级为临时收货")
+        void shouldRejectUnknownPurchaseOrderInsteadOfTreatingItAsTemporary() {
+            ReceivingOrderRequest invalid = new ReceivingOrderRequest(
+                    "CG-NOT-FOUND", "测试供应商", "主仓库", "normal", false, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
+                            BigDecimal.TEN, BigDecimal.TEN, BigDecimal.ZERO))
+            );
+            when(jdbcTemplate.queryForList(contains("SELECT purchase_order_id"), eq(Long.class), eq("CG-NOT-FOUND")))
+                    .thenReturn(List.of());
+
+            assertThatThrownBy(() -> service.create(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("采购订单不存在或已失效");
+        }
+
+        @Test
+        @DisplayName("退货和换货类型在独立业务流程完成前不得创建")
+        void shouldRejectUnsupportedReceivingType() {
+            ReceivingOrderRequest invalid = new ReceivingOrderRequest(
+                    null, "测试供应商", "主仓库", "return", false, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
+                            BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO))
+            );
+
+            assertThatThrownBy(() -> service.create(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("收货类型仅支持正常收货或代理商直送");
+        }
+
+        @Test
+        @DisplayName("未启用收货能力的库房不得创建收货单")
+        void shouldRejectWarehouseWithoutReceivingCapability() {
+            ReceivingOrderRequest invalid = new ReceivingOrderRequest(
+                    null, "测试供应商", "科室二级库", "normal", false, null,
+                    List.of(new ReceivingItemRequest("P001", null, null, null, null,
+                            BigDecimal.ONE, BigDecimal.ONE, BigDecimal.ZERO))
+            );
+            when(jdbcTemplate.queryForList(contains("FROM supplier"), eq(Long.class), eq("测试供应商")))
+                    .thenReturn(List.of(1L));
+            when(jdbcTemplate.queryForList(contains("receiving_enabled = 1"), eq(Long.class), eq("科室二级库")))
+                    .thenReturn(List.of());
+
+            assertThatThrownBy(() -> service.create(invalid))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("库房不存在、已停用或未启用收货能力");
+        }
+
+        @Test
         @DisplayName("明细为空时抛出异常")
         void shouldThrowWhenItemsEmpty() {
             ReceivingOrderRequest empty = new ReceivingOrderRequest(
@@ -337,7 +385,7 @@ class ReceivingOrderServiceTest {
             );
             assertThatThrownBy(() -> service.create(empty))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("receiving order requires at least one item");
+                    .hasMessageContaining("收货单至少需要一条明细");
         }
 
         @Test
@@ -350,23 +398,23 @@ class ReceivingOrderServiceTest {
             );
             assertThatThrownBy(() -> service.create(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("product code and receiving quantity are required");
+                    .hasMessageContaining("商品编码和收货数量不能为空");
         }
 
         @Test
         @DisplayName("仓库名为空时抛出异常")
         void shouldThrowWhenWarehouseBlank() {
             ReceivingOrderRequest invalid = new ReceivingOrderRequest(
-                    "CG20260601001", "测试供应商", "", null, false, null,
+                    null, "测试供应商", "", null, false, null,
                     List.of(new ReceivingItemRequest("P001", null, null, null, null,
                             BigDecimal.TEN, null, null))
             );
-            when(jdbcTemplate.queryForList(anyString(), eq(Long.class), anyString()))
+            when(jdbcTemplate.queryForList(contains("FROM supplier"), eq(Long.class), anyString()))
                     .thenReturn(List.of(50L));
 
             assertThatThrownBy(() -> service.create(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("warehouse is required");
+                    .hasMessageContaining("请选择收货库房");
         }
 
         @Test
@@ -380,7 +428,7 @@ class ReceivingOrderServiceTest {
 
             assertThatThrownBy(() -> service.create(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("qualified and unqualified quantities must equal receiving quantity");
+                    .hasMessageContaining("合格数量与不合格数量之和必须等于收货数量");
         }
 
         @Test
@@ -398,7 +446,7 @@ class ReceivingOrderServiceTest {
 
             assertThatThrownBy(() -> service.create(invalid))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("exceeds purchase order remaining quantity");
+                    .hasMessageContaining("超过采购订单剩余可收数量");
         }
     }
 
@@ -407,6 +455,29 @@ class ReceivingOrderServiceTest {
     @Nested
     @DisplayName("action() 收货验收动作")
     class ActionTest {
+
+        @Test
+        @DisplayName("approve：全部明细不合格时自动整单拒收且不写库存")
+        void shouldRejectFullyUnqualifiedReceivingWithoutInventoryMutation() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "warehouseId", 10L,
+                            "supplierId", 1L, "receiverId", 7L, "receivingStatus", "draft"));
+            when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                    .thenReturn(List.of(Map.of(
+                            "itemId", 1L, "productId", 20L, "highValue", 0,
+                            "qualifiedQuantity", BigDecimal.ZERO,
+                            "unqualifiedQuantity", BigDecimal.TEN)));
+            doReturn(1).when(jdbcTemplate).update(contains("receiving_status = 'rejected'"), any(Object[].class));
+
+            Map<String, Object> result = service.action("RK001",
+                    new ReceivingActionRequest("approve", "全部不合格"));
+
+            assertThat(result.get("status")).isEqualTo("rejected");
+            verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
+            verify(support, never()).receiveAvailable(anyLong(), anyLong(), anyLong(), any(),
+                    anyString(), anyString(), anyLong(), anyString());
+            verify(jdbcTemplate, never()).update(contains("received_quantity = received_quantity +"), any(Object[].class));
+        }
 
         @Test
         @DisplayName("approve：草稿 -> 已审批")
@@ -594,6 +665,46 @@ class ReceivingOrderServiceTest {
                     new ReceivingActionRequest("reject", "验收不通过"));
 
             assertThat(result.get("status")).isEqualTo("rejected");
+        }
+
+        @Test
+        @DisplayName("reject：拒收原因不能为空")
+        void shouldRequireRejectReason() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "warehouseId", 10L,
+                            "supplierId", 1L, "receiverId", 7L, "receivingStatus", "draft"));
+
+            assertThatThrownBy(() -> service.action("RK001", new ReceivingActionRequest("reject", " ")))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("拒收原因不能为空");
+        }
+
+        @Test
+        @DisplayName("approve：库房收货能力被关闭后不得入库")
+        void shouldRecheckWarehouseCapabilityBeforeApproval() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "warehouseId", 10L,
+                            "supplierId", 1L, "receiverId", 7L, "receivingStatus", "draft",
+                            "receivingEnabled", 0));
+
+            assertThatThrownBy(() -> service.action("RK001", new ReceivingActionRequest("approve", null)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("已停用收货能力");
+            verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
+        }
+
+        @Test
+        @DisplayName("approve：采购订单关闭后不得继续入库")
+        void shouldRecheckPurchaseOrderStatusBeforeApproval() {
+            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
+                    Map.of("receivingOrderId", 100L, "purchaseOrderId", 50L, "warehouseId", 10L,
+                            "supplierId", 1L, "receiverId", 7L, "receivingStatus", "draft",
+                            "receivingEnabled", 1, "purchaseOrderStatus", "closed", "purchaseSupplierId", 1L));
+
+            assertThatThrownBy(() -> service.action("RK001", new ReceivingActionRequest("approve", null)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("状态不允许继续收货");
+            verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
         }
 
         @Test

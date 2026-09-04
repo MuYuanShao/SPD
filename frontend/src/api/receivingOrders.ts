@@ -27,7 +27,10 @@ export interface ReceivingItemPayload {
 
 export interface ReceivingOrderPayload {
   purchaseOrderNo?: string
+  sourceType: 'purchase_order' | 'temporary'
+  supplierId?: number
   supplierName?: string
+  warehouseCode: string
   warehouseName: string
   receivingType?: string
   isAgent?: boolean
@@ -38,6 +41,8 @@ export interface ReceivingOrderPayload {
 export interface ReceivingOptionRow {
   orderNo?: string
   supplierName?: string
+  supplierId?: number
+  warehouseCode?: string
   warehouseName?: string
   productCode?: string
   productName?: string
@@ -47,6 +52,7 @@ export interface ReceivingOptionRow {
 }
 
 export interface SupplierOption {
+  supplierId: number
   supplierName: string
 }
 
@@ -56,6 +62,7 @@ export interface ReceivingOrderDetail {
   total: number
   page: number
   size: number
+  itemsPage?: PageResult<Record<string, unknown>>
 }
 
 /**
@@ -107,7 +114,7 @@ export async function updateReceivingOrder(receivingNo: string, payload: Receivi
  */
 export async function updateReceivingAction(receivingNo: string, action: string, opinion = '') {
   return putData<{ receivingNo: string; status: string }>(
-    `/receiving-orders/${receivingNo}/action`,
+    `/receiving-orders/${receivingNo}/${action}`,
     { action, opinion }
   )
 }
@@ -117,12 +124,17 @@ export async function updateReceivingAction(receivingNo: string, action: string,
  * @returns 收货选项
  */
 export async function fetchReceivingOptions() {
-  return getData<{
-    purchaseOrders: ReceivingOptionRow[]
-    warehouses: ReceivingOptionRow[]
-    products: ReceivingOptionRow[]
-    suppliers: SupplierOption[]
-  }>('/receiving-orders/options')
+  const [purchaseOrders, warehouses, products, suppliers] = await Promise.all([
+    getData<PageResult<ReceivingOptionRow>>('/receiving-orders/options/purchase-orders', { params: { page: 1, size: 200 } }),
+    getData<PageResult<ReceivingOptionRow>>('/receiving-orders/options/warehouses', { params: { page: 1, size: 200 } }),
+    getData<PageResult<ReceivingOptionRow>>('/receiving-orders/options/products', { params: { page: 1, size: 200 } }),
+    getData<PageResult<SupplierOption>>('/receiving-orders/options/suppliers', { params: { page: 1, size: 200 } })
+  ])
+  return { purchaseOrders: purchaseOrders.rows, warehouses: warehouses.rows, products: products.rows, suppliers: suppliers.rows }
+}
+
+export async function fetchReceivingOrderItems(receivingNo: string, params: { page: number; size: number; keyword?: string }) {
+  return getData<PageResult<Record<string, unknown>>>(`/receiving-orders/${receivingNo}/items`, { params })
 }
 
 /**

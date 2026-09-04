@@ -66,6 +66,9 @@ public class RbacAuthorizationService {
         if (path.startsWith("/operational-closure")) {
             return operationalClosurePermission(verb, path);
         }
+        if (path.startsWith("/receiving-orders")) {
+            return receivingOrderPermission(verb, path);
+        }
         if (path.startsWith("/features/")) {
             String featureCode = path.substring("/features/".length()).split("/")[0];
             return isRead(verb) ? featureCode : featureCode + ":write";
@@ -144,6 +147,16 @@ public class RbacAuthorizationService {
             featureCode = null;
         }
         return featureCode == null ? null : isRead(verb) ? featureCode : featureCode + ":write";
+    }
+
+    private static String receivingOrderPermission(String verb, String path) {
+        if (isRead(verb)) return "receiving-order:read";
+        if (path.endsWith("/approve")) return "receiving-order:approve";
+        if (path.endsWith("/reject")) return "receiving-order:reject";
+        if (path.endsWith("/action")) return "receiving-acceptance:write";
+        if ("POST".equals(verb) && "/receiving-orders".equals(path)) return "receiving-order:create";
+        if ("PUT".equals(verb) && path.matches("/receiving-orders/[^/]+")) return "receiving-order:update";
+        return "receiving-order:read";
     }
 
     private static String userManagementPermission(String verb, String path) {

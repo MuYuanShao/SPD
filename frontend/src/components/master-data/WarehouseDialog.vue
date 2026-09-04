@@ -170,6 +170,13 @@ const emit = defineEmits<{
           </select>
         </label>
         <label>
+          <span>允许收货</span>
+          <select v-model="form.receivingEnabled">
+            <option :value="true">允许</option>
+            <option :value="false">不允许</option>
+          </select>
+        </label>
+        <label>
           <span>统计分类</span>
           <input v-model.trim="form.statsCategories" placeholder="耗材、试剂、高值" />
         </label>

@@ -103,6 +103,17 @@ class RbacAuthorizationServiceTest {
                 "/api/operational-closure/picking/unique-codes")).isTrue();
     }
 
+    @Test
+    void receivingRoutesRequireMatchingActionPermission() {
+        stubPermissions(16L, List.of("receiving-order:read", "receiving-order:create", "receiving-order:approve"));
+
+        assertThat(service.isAllowed(16L, List.of("ROLE_OPERATOR"), "GET", "/api/receiving-orders/options/warehouses")).isTrue();
+        assertThat(service.isAllowed(16L, List.of("ROLE_OPERATOR"), "POST", "/api/receiving-orders")).isTrue();
+        assertThat(service.isAllowed(16L, List.of("ROLE_OPERATOR"), "PUT", "/api/receiving-orders/RK001/approve")).isTrue();
+        assertThat(service.isAllowed(16L, List.of("ROLE_OPERATOR"), "PUT", "/api/receiving-orders/RK001/reject")).isFalse();
+        assertThat(service.isAllowed(16L, List.of("ROLE_OPERATOR"), "PUT", "/api/receiving-orders/RK001")).isFalse();
+    }
+
     private void stubPermissions(Long userId, List<String> permissions) {
         when(jdbcTemplate.queryForList(anyString(), eq(String.class), eq(userId))).thenReturn(permissions);
     }

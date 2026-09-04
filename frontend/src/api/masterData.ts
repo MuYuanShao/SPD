@@ -216,6 +216,7 @@ export interface WarehousePayload {
   deptName: string
   deptCode?: string
   participateStats: boolean
+  receivingEnabled: boolean
   statsCategories: string
   status: number
   productCodes: string[]

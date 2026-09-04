@@ -71,6 +71,7 @@ public class WarehouseService {
                                   AND (d.dept_id IS NULL OR d.deleted = 1 OR d.status <> 1)
                             THEN TRUE ELSE FALSE END AS needsDepartmentFix,
                        CASE w.participate_stats WHEN 1 THEN '参与' ELSE '不参与' END AS participateStats,
+                       CASE w.receiving_enabled WHEN 1 THEN TRUE ELSE FALSE END AS receivingEnabled,
                        COALESCE(JSON_UNQUOTE(w.stats_categories), '-') AS statsCategories,
                        CASE w.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
                        DATE_FORMAT(w.update_time, '%Y-%m-%d %H:%i') AS updateTime,
@@ -87,7 +88,7 @@ public class WarehouseService {
         return new MasterDataPage(
                 "库房 / 货位管理",
                 "中心库、科室二级库、虚拟库和货位维护。",
-                List.of("库房编码", "库房名称", "库房类型", "所属院区", "关联科室", "统计", "统计分类",
+                List.of("库房编码", "库房名称", "库房类型", "所属院区", "关联科室", "统计", "允许收货", "统计分类",
                         "状态", "修改时间", "货位数量"),
                 rows,
                 total == null ? 0 : total,
@@ -130,8 +131,8 @@ public class WarehouseService {
         jdbcTemplate.update("""
                 INSERT INTO warehouse (
                   warehouse_code, warehouse_name, warehouse_type, parent_id, campus_name,
-                  dept_id, participate_stats, stats_categories, status
-                ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)
+                  dept_id, participate_stats, stats_categories, receiving_enabled, status
+                ) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?, ?)
                 """,
                 request.warehouseCode().trim(),
                 request.warehouseName().trim(),
@@ -140,6 +141,7 @@ public class WarehouseService {
                 deptId,
                 Boolean.FALSE.equals(request.participateStats()) ? 0 : 1,
                 jsonText(request.statsCategories()),
+                Boolean.TRUE.equals(request.receivingEnabled()) ? 1 : 0,
                 request.status() == null ? 1 : request.status()
         );
         List<String> productCodes = normalizeProductCodes(request.productCodes());
@@ -161,7 +163,7 @@ public class WarehouseService {
         int updatedRows = jdbcTemplate.update("""
                 UPDATE warehouse
                 SET warehouse_name = ?, warehouse_type = ?, campus_name = ?, dept_id = ?,
-                    participate_stats = ?, stats_categories = ?, status = ?
+                    participate_stats = ?, stats_categories = ?, receiving_enabled = COALESCE(?, receiving_enabled), status = ?
                 WHERE warehouse_code = ? AND deleted = 0
                 """,
                 request.warehouseName().trim(),
@@ -170,6 +172,7 @@ public class WarehouseService {
                 deptId,
                 Boolean.FALSE.equals(request.participateStats()) ? 0 : 1,
                 jsonText(request.statsCategories()),
+                request.receivingEnabled() == null ? null : Boolean.TRUE.equals(request.receivingEnabled()) ? 1 : 0,
                 request.status() == null ? 1 : request.status(),
                 warehouseCode.trim()
         );

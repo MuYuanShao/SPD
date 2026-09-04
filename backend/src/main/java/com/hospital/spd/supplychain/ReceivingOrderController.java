@@ -47,9 +47,48 @@ public class ReceivingOrderController {
         return ApiResponse.ok(service.action(receivingNo, request));
     }
 
+    @PutMapping("/{receivingNo}/approve")
+    public ApiResponse<Map<String, Object>> approve(@PathVariable String receivingNo,
+                                                    @RequestBody(required = false) ReceivingActionRequest request) {
+        String opinion = request == null ? null : request.opinion();
+        return ApiResponse.ok(service.action(receivingNo, new ReceivingActionRequest("approve", opinion)));
+    }
+
+    @PutMapping("/{receivingNo}/reject")
+    public ApiResponse<Map<String, Object>> reject(@PathVariable String receivingNo,
+                                                   @RequestBody ReceivingActionRequest request) {
+        return ApiResponse.ok(service.action(receivingNo, new ReceivingActionRequest("reject", request.opinion())));
+    }
+
+    @GetMapping("/{receivingNo}/items")
+    public ApiResponse<Map<String, Object>> items(@PathVariable String receivingNo,
+                                                  @RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.items(receivingNo, params));
+    }
+
     @GetMapping("/options")
     public ApiResponse<Map<String, Object>> options() {
         return ApiResponse.ok(service.options());
+    }
+
+    @GetMapping("/options/purchase-orders")
+    public ApiResponse<Map<String, Object>> purchaseOrderOptions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.purchaseOrderOptions(params));
+    }
+
+    @GetMapping("/options/warehouses")
+    public ApiResponse<Map<String, Object>> warehouseOptions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.warehouseOptions(params));
+    }
+
+    @GetMapping("/options/suppliers")
+    public ApiResponse<Map<String, Object>> supplierOptions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.supplierOptions(params));
+    }
+
+    @GetMapping("/options/products")
+    public ApiResponse<Map<String, Object>> productOptions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.productOptions(params));
     }
 
     @GetMapping("/purchase-order/{orderNo}/items")

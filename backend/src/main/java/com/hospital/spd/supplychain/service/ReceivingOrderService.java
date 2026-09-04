@@ -4,6 +4,7 @@ import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.AuditLogService;
 import com.hospital.spd.supplychain.*;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
 import static com.hospital.spd.common.service.DocumentKind.*;
@@ -34,6 +35,8 @@ public class ReceivingOrderService {
     private final PurchaseFulfillmentService purchaseFulfillmentService;
     private final ApprovalFlowGuard approvalFlowGuard;
     private final SettlementPointService settlementPointService;
+    private final ReceivingPermissionGuard permissionGuard;
+    private final AuditLogService auditLogService;
 
     public ReceivingOrderService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support, OperatorContext::system, new PurchaseFulfillmentService(jdbcTemplate),
@@ -65,24 +68,38 @@ public class ReceivingOrderService {
         this(jdbcTemplate, support, operatorContextProvider, purchaseFulfillmentService, approvalFlowGuard,
                 new SettlementPointService(jdbcTemplate, support));
     }
-    @Autowired
     public ReceivingOrderService(JdbcTemplate jdbcTemplate,
                                  SupplyChainSupport support,
                                  OperatorContextProvider operatorContextProvider,
                                  PurchaseFulfillmentService purchaseFulfillmentService,
                                  ApprovalFlowGuard approvalFlowGuard,
                                  SettlementPointService settlementPointService) {
+        this(jdbcTemplate, support, operatorContextProvider, purchaseFulfillmentService, approvalFlowGuard,
+                settlementPointService, new AuditLogService(jdbcTemplate, operatorContextProvider));
+    }
+
+    @Autowired
+    public ReceivingOrderService(JdbcTemplate jdbcTemplate,
+                                 SupplyChainSupport support,
+                                 OperatorContextProvider operatorContextProvider,
+                                 PurchaseFulfillmentService purchaseFulfillmentService,
+                                 ApprovalFlowGuard approvalFlowGuard,
+                                 SettlementPointService settlementPointService,
+                                 AuditLogService auditLogService) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
         this.operatorContextProvider = operatorContextProvider;
         this.purchaseFulfillmentService = purchaseFulfillmentService;
         this.approvalFlowGuard = approvalFlowGuard;
         this.settlementPointService = settlementPointService;
+        this.permissionGuard = new ReceivingPermissionGuard(jdbcTemplate, operatorContextProvider);
+        this.auditLogService = auditLogService;
     }
 
     // ===== 公开方法 =====
 
     public Map<String, Object> list(Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
@@ -91,6 +108,8 @@ public class ReceivingOrderService {
         appendLike(where, args, "ro.receiving_no", params.get("receivingNo"));
         appendLike(where, args, "po.order_no", params.get("purchaseOrderNo"));
         appendLike(where, args, "s.supplier_name", params.get("supplierName"));
+        String summaryWhere = where.toString();
+        List<Object> summaryArgs = new ArrayList<>(args);
         if (!isBlank(params.get("status"))) {
             where.append(" AND ro.receiving_status = ?");
             args.add(params.get("status").trim());
@@ -118,7 +137,9 @@ public class ReceivingOrderService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT ro.receiving_order_id AS receivingOrderId, ro.receiving_no AS receivingNo,
                        po.order_no AS purchaseOrderNo, s.supplier_name AS supplierName,
+                       s.supplier_id AS supplierId, w.warehouse_code AS warehouseCode,
                        w.warehouse_name AS warehouseName, ro.receiving_status AS receivingStatus,
+                       CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
                        ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
                        DATE_FORMAT(ro.create_time, '%Y-%m-%d %H:%i') AS createTime,
@@ -133,14 +154,16 @@ public class ReceivingOrderService {
                 """ + where + " GROUP BY ro.receiving_order_id ORDER BY ro.create_time DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
-        Map<String, Object> summary = jdbcTemplate.queryForMap("""
-                SELECT COUNT(*) AS totalReceipts,
-                       SUM(CASE WHEN receiving_status = 'draft' THEN 1 ELSE 0 END) AS draftCount,
-                       SUM(CASE WHEN receiving_status = 'approved' THEN 1 ELSE 0 END) AS approvedCount,
-                       SUM(CASE WHEN receiving_status = 'rejected' THEN 1 ELSE 0 END) AS rejectedCount,
-                       SUM(CASE WHEN receiving_status IN ('approved', 'rejected') THEN 1 ELSE 0 END) AS completedCount
-                  FROM receiving_order
-                """);
+        String summarySql = """
+                SELECT COUNT(DISTINCT ro.receiving_order_id) AS totalReceipts,
+                       COUNT(DISTINCT CASE WHEN ro.receiving_status = 'draft' THEN ro.receiving_order_id END) AS draftCount,
+                       COUNT(DISTINCT CASE WHEN ro.receiving_status = 'approved' THEN ro.receiving_order_id END) AS approvedCount,
+                       COUNT(DISTINCT CASE WHEN ro.receiving_status = 'rejected' THEN ro.receiving_order_id END) AS rejectedCount,
+                       COUNT(DISTINCT CASE WHEN ro.receiving_status IN ('approved', 'rejected') THEN ro.receiving_order_id END) AS completedCount
+                """ + fromClause + summaryWhere;
+        Map<String, Object> summary = summaryArgs.isEmpty()
+                ? jdbcTemplate.queryForMap(summarySql)
+                : jdbcTemplate.queryForMap(summarySql, summaryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq, summary);
     }
 
@@ -149,11 +172,15 @@ public class ReceivingOrderService {
     }
 
     public Map<String, Object> detail(String receivingNo, Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
         PageRequest pageReq = PageRequest.from(params);
         Map<String, Object> order = jdbcTemplate.queryForMap("""
                 SELECT ro.receiving_order_id AS receivingOrderId, ro.receiving_no AS receivingNo,
                        po.order_no AS purchaseOrderNo, s.supplier_name AS supplierName,
+                       s.supplier_id AS supplierId, w.warehouse_code AS warehouseCode,
                        w.warehouse_name AS warehouseName, ro.receiving_status AS receivingStatus,
+                       CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
+                       ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        ro.remark, DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
                        DATE_FORMAT(ro.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM receiving_order ro
@@ -208,26 +235,37 @@ public class ReceivingOrderService {
                  ORDER BY roi.item_id
                  LIMIT ? OFFSET ?
                 """, queryArgs.toArray());
-        return Map.of(
-                "order", order,
-                "items", items,
-                "total", total == null ? 0 : total,
-                "page", pageReq.page(),
-                "size", pageReq.size()
-        );
+        Map<String, Object> itemsPage = PageResponse.of(items, total == null ? 0 : total, pageReq);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("order", order);
+        result.put("itemsPage", itemsPage);
+        result.put("items", items);
+        result.put("total", total == null ? 0 : total);
+        result.put("page", pageReq.page());
+        result.put("size", pageReq.size());
+        return result;
+    }
+
+    public Map<String, Object> items(String receivingNo, Map<String, String> params) {
+        Map<String, Object> detail = detail(receivingNo, params);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> page = (Map<String, Object>) detail.get("itemsPage");
+        return page;
     }
 
     @Transactional
     public Map<String, Object> create(ReceivingOrderRequest request) {
+        permissionGuard.require("receiving-order:create");
         validateRequest(request);
+        ReceivingType receivingType = ReceivingType.resolve(request.receivingType(), request.isAgent());
+        ReceivingSourceType sourceType = ReceivingSourceType.resolve(request.sourceType(), request.purchaseOrderNo());
+        validateSource(sourceType, request.purchaseOrderNo());
         OperatorContext operator = operatorContextProvider.current();
-        if (isBlank(request.warehouseName())) {
-            throw new IllegalArgumentException("warehouse is required");
-        }
-        Long purchaseOrderId = findPurchaseOrderId(request.purchaseOrderNo());
+        Long purchaseOrderId = sourceType == ReceivingSourceType.PURCHASE_ORDER
+                ? findPurchaseOrderId(request.purchaseOrderNo()) : null;
         validatePurchaseOrderItems(purchaseOrderId, request.items());
-        Long supplierId = findSupplierId(request.supplierName(), purchaseOrderId);
-        Long warehouseId = findWarehouseId(request.warehouseName());
+        Long supplierId = findSupplierId(request.supplierId(), request.supplierName(), purchaseOrderId);
+        Long warehouseId = findWarehouseId(request.warehouseCode(), request.warehouseName());
         String receivingNo = support.nextNo(RECEIVING_ORDER);
 
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -246,21 +284,25 @@ public class ReceivingOrderService {
             }
             ps.setLong(3, supplierId);
             ps.setLong(4, warehouseId);
-            ps.setString(5, nullIfBlank(request.receivingType()));
-            ps.setInt(6, Boolean.TRUE.equals(request.isAgent()) ? 1 : 0);
+            ps.setString(5, receivingType.code());
+            ps.setInt(6, receivingType.isAgent() ? 1 : 0);
             ps.setLong(7, operator.userId());
             ps.setString(8, nullIfBlank(request.remark()));
             return ps;
         }, keyHolder);
         Long receivingOrderId = Objects.requireNonNull(keyHolder.getKey()).longValue();
         insertReceivingItems(receivingOrderId, request.items());
-        writeAudit("create", receivingOrderId, receivingNo, "create receiving order");
+        writeAudit("create", receivingOrderId, receivingNo, "创建收货单，来源：" + sourceType.code());
         return Map.of("receivingNo", receivingNo);
     }
 
     @Transactional
     public Map<String, Object> update(String receivingNo, ReceivingOrderRequest request) {
+        permissionGuard.require("receiving-order:update");
         validateRequest(request);
+        ReceivingType receivingType = ReceivingType.resolve(request.receivingType(), request.isAgent());
+        ReceivingSourceType sourceType = ReceivingSourceType.resolve(request.sourceType(), request.purchaseOrderNo());
+        validateSource(sourceType, request.purchaseOrderNo());
         Map<String, Object> order = jdbcTemplate.queryForMap("""
                 SELECT receiving_order_id AS receivingOrderId, receiving_status AS receivingStatus
                   FROM receiving_order
@@ -270,10 +312,11 @@ public class ReceivingOrderService {
         Long receivingOrderId = ((Number) order.get("receivingOrderId")).longValue();
         requireStatus(String.valueOf(order.get("receivingStatus")), "draft");
 
-        Long purchaseOrderId = findPurchaseOrderId(request.purchaseOrderNo());
+        Long purchaseOrderId = sourceType == ReceivingSourceType.PURCHASE_ORDER
+                ? findPurchaseOrderId(request.purchaseOrderNo()) : null;
         validatePurchaseOrderItems(purchaseOrderId, request.items());
-        Long supplierId = findSupplierId(request.supplierName(), purchaseOrderId);
-        Long warehouseId = findWarehouseId(request.warehouseName());
+        Long supplierId = findSupplierId(request.supplierId(), request.supplierName(), purchaseOrderId);
+        Long warehouseId = findWarehouseId(request.warehouseCode(), request.warehouseName());
 
         jdbcTemplate.update("""
                 UPDATE receiving_order
@@ -281,8 +324,8 @@ public class ReceivingOrderService {
                        receiving_type = ?, is_agent = ?, remark = ?
                  WHERE receiving_order_id = ?
                 """, purchaseOrderId, supplierId, warehouseId,
-                nullIfBlank(request.receivingType()),
-                Boolean.TRUE.equals(request.isAgent()) ? 1 : 0,
+                receivingType.code(),
+                receivingType.isAgent() ? 1 : 0,
                 nullIfBlank(request.remark()), receivingOrderId);
         jdbcTemplate.update("DELETE FROM receiving_order_item WHERE receiving_order_id = ?", receivingOrderId);
         insertReceivingItems(receivingOrderId, request.items());
@@ -294,21 +337,32 @@ public class ReceivingOrderService {
     public Map<String, Object> action(String receivingNo, ReceivingActionRequest request) {
         Map<String, Object> order = jdbcTemplate.queryForMap("""
                 SELECT receiving_order_id AS receivingOrderId, purchase_order_id AS purchaseOrderId,
-                       warehouse_id AS warehouseId, supplier_id AS supplierId, receiver_id AS receiverId,
-                       receiving_status AS receivingStatus
-                 FROM receiving_order
+                       ro.warehouse_id AS warehouseId, ro.supplier_id AS supplierId, ro.receiver_id AS receiverId,
+                       ro.receiving_status AS receivingStatus, ro.receiving_type AS receivingType,
+                       ro.is_agent AS isAgent, w.dept_id AS warehouseDeptId,
+                       w.receiving_enabled AS receivingEnabled, po.order_status AS purchaseOrderStatus,
+                       po.supplier_id AS purchaseSupplierId
+                 FROM receiving_order ro
+                 JOIN warehouse w ON w.warehouse_id = ro.warehouse_id AND w.deleted = 0 AND w.status = 1
+                 JOIN supplier s ON s.supplier_id = ro.supplier_id AND s.deleted = 0 AND s.status = 1
+                 LEFT JOIN purchase_order po ON po.purchase_order_id = ro.purchase_order_id
                  WHERE receiving_no = ?
                  FOR UPDATE
                 """, receivingNo);
-        String action = request.action() == null ? "" : request.action().trim();
+        ReceivingAction action = ReceivingAction.from(request.action());
         String status = String.valueOf(order.get("receivingStatus"));
         Long receivingOrderId = ((Number) order.get("receivingOrderId")).longValue();
         Long warehouseId = ((Number) order.get("warehouseId")).longValue();
         Long supplierId = ((Number) order.get("supplierId")).longValue();
 
-        if ("reject".equals(action)) {
+        if (action == ReceivingAction.REJECT) {
+            permissionGuard.require("receiving-order:reject");
             requireStatus(status, "draft");
-            approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval", null, number(order.get("receiverId")));
+            if (isBlank(request.opinion())) {
+                throw new IllegalArgumentException("拒收原因不能为空");
+            }
+            approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval",
+                    number(order.get("warehouseDeptId")), number(order.get("receiverId")));
             int updated = jdbcTemplate.update("UPDATE receiving_order SET receiving_status = 'rejected', remark = ? WHERE receiving_no = ? AND receiving_status = 'draft'",
                     nullIfBlank(request.opinion()), receivingNo);
             requireSingleStateChange(updated);
@@ -316,12 +370,41 @@ public class ReceivingOrderService {
             return Map.of("receivingNo", receivingNo, "status", "rejected");
         }
 
-        if (!"approve".equals(action)) {
-            throw new IllegalArgumentException("收货验收仅支持审核入库或拒收操作");
-        }
+        permissionGuard.require("receiving-order:approve");
         requireStatus(status, "draft");
-        approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval", null, number(order.get("receiverId")));
-        approveReceiving(receivingOrderId, receivingNo, warehouseId, supplierId, order.get("purchaseOrderId"));
+        if (order.containsKey("receivingType")) {
+            ReceivingType.resolve(String.valueOf(order.get("receivingType")), asBoolean(order.get("isAgent")));
+        }
+        if (order.containsKey("receivingEnabled") && !asBoolean(order.get("receivingEnabled"))) {
+            throw new IllegalArgumentException("收货库房已停用收货能力，无法审核入库");
+        }
+        if (order.get("purchaseOrderId") != null && order.containsKey("purchaseOrderStatus")) {
+            String purchaseStatus = String.valueOf(order.get("purchaseOrderStatus"));
+            if (!"approved".equals(purchaseStatus) && !"sent".equals(purchaseStatus)) {
+                throw new IllegalArgumentException("采购订单当前状态不允许继续收货");
+            }
+            if (order.get("purchaseSupplierId") instanceof Number purchaseSupplier
+                    && purchaseSupplier.longValue() != supplierId) {
+                throw new IllegalArgumentException("收货单供应商与采购订单供应商不一致");
+            }
+        }
+        approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval",
+                number(order.get("warehouseDeptId")), number(order.get("receiverId")));
+        boolean hasQualifiedInventory = approveReceiving(
+                receivingOrderId, receivingNo, warehouseId, supplierId, order.get("purchaseOrderId"));
+        if (!hasQualifiedInventory) {
+            String reason = isBlank(request.opinion())
+                    ? "全部明细验收不合格"
+                    : "全部明细验收不合格：" + request.opinion().trim();
+            int rejected = jdbcTemplate.update("""
+                    UPDATE receiving_order
+                       SET receiving_status = 'rejected', receive_time = NOW(), remark = ?
+                     WHERE receiving_no = ? AND receiving_status = 'draft'
+                    """, reason, receivingNo);
+            requireSingleStateChange(rejected);
+            writeAudit("reject", receivingOrderId, receivingNo, reason);
+            return Map.of("receivingNo", receivingNo, "status", "rejected", "allUnqualified", true);
+        }
         int updated = jdbcTemplate.update("""
                 UPDATE receiving_order
                    SET receiving_status = 'approved', receive_time = NOW(), remark = COALESCE(?, remark)
@@ -334,10 +417,11 @@ public class ReceivingOrderService {
     }
 
     public Map<String, Object> options() {
+        permissionGuard.require("receiving-order:read");
         List<Map<String, Object>> purchaseOrders = jdbcTemplate.queryForList("""
                 SELECT po.order_no AS orderNo, s.supplier_name AS supplierName, po.order_status AS orderStatus
                   FROM purchase_order po
-                  JOIN supplier s ON s.supplier_id = po.supplier_id
+                  JOIN supplier s ON s.supplier_id = po.supplier_id AND s.deleted = 0 AND s.status = 1
                  WHERE po.order_status IN ('approved', 'sent')
                    AND EXISTS (
                        SELECT 1 FROM purchase_order_item poi
@@ -348,9 +432,9 @@ public class ReceivingOrderService {
                  LIMIT 100
                 """);
         List<Map<String, Object>> warehouses = jdbcTemplate.queryForList("""
-                SELECT warehouse_name AS warehouseName
+                SELECT warehouse_code AS warehouseCode, warehouse_name AS warehouseName
                   FROM warehouse
-                 WHERE deleted = 0 AND status = 1
+                 WHERE deleted = 0 AND status = 1 AND receiving_enabled = 1
                  ORDER BY warehouse_id DESC
                  LIMIT 100
                 """);
@@ -371,13 +455,76 @@ public class ReceivingOrderService {
         return Map.of("purchaseOrders", purchaseOrders, "warehouses", warehouses, "products", products, "suppliers", suppliers);
     }
 
+    public Map<String, Object> purchaseOrderOptions(Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
+        PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE po.order_status IN ('approved', 'sent') AND s.deleted = 0 AND s.status = 1");
+        appendLike(where, args, "CONCAT(po.order_no, ' ', s.supplier_name)", params.get("keyword"));
+        where.append(" AND EXISTS (SELECT 1 FROM purchase_order_item poi WHERE poi.purchase_order_id = po.purchase_order_id AND poi.received_quantity < poi.quantity)");
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM purchase_order po JOIN supplier s ON s.supplier_id = po.supplier_id" + where,
+                Long.class, args.toArray());
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(pageReq.size());
+        pageArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT po.order_no AS orderNo, s.supplier_id AS supplierId,
+                       s.supplier_name AS supplierName, po.order_status AS orderStatus
+                  FROM purchase_order po JOIN supplier s ON s.supplier_id = po.supplier_id
+                """ + where + " ORDER BY po.create_time DESC LIMIT ? OFFSET ?", pageArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    public Map<String, Object> warehouseOptions(Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
+        return simpleOptions(params, "warehouse", "warehouse_id", "warehouse_code AS warehouseCode, warehouse_name AS warehouseName",
+                "deleted = 0 AND status = 1 AND receiving_enabled = 1", "CONCAT(warehouse_code, ' ', warehouse_name)", "warehouse_id DESC");
+    }
+
+    public Map<String, Object> supplierOptions(Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
+        return simpleOptions(params, "supplier", "supplier_id", "supplier_id AS supplierId, supplier_name AS supplierName",
+                "deleted = 0 AND status = 1", "supplier_name", "supplier_name");
+    }
+
+    public Map<String, Object> productOptions(Map<String, String> params) {
+        permissionGuard.require("receiving-order:read");
+        return simpleOptions(params, "product", "product_id",
+                "product_code AS productCode, product_name AS productName, spec_model AS specModel, unit, purchase_price AS purchasePrice",
+                "deleted = 0 AND status = 1", "CONCAT(product_code, ' ', product_name)", "product_id DESC");
+    }
+
+    private Map<String, Object> simpleOptions(Map<String, String> params, String table, String idColumn,
+                                               String selectColumns, String fixedWhere, String searchExpression,
+                                               String orderBy) {
+        PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE ").append(fixedWhere);
+        appendLike(where, args, searchExpression, params.get("keyword"));
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(" + idColumn + ") FROM " + table + where,
+                Long.class, args.toArray());
+        List<Object> pageArgs = new ArrayList<>(args);
+        pageArgs.add(pageReq.size());
+        pageArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT " + selectColumns + " FROM " + table + where + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?",
+                pageArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
     public Map<String, Object> purchaseOrderItems(String orderNo) {
-        Map<String, Object> order = jdbcTemplate.queryForMap("""
-                SELECT po.purchase_order_id AS orderId, po.order_no AS orderNo, s.supplier_name AS supplierName
+        permissionGuard.require("receiving-order:read");
+        List<Map<String, Object>> orders = jdbcTemplate.queryForList("""
+                SELECT po.purchase_order_id AS orderId, po.order_no AS orderNo,
+                       s.supplier_id AS supplierId, s.supplier_name AS supplierName
                   FROM purchase_order po
-                  JOIN supplier s ON s.supplier_id = po.supplier_id
-                 WHERE po.order_no = ?
+                  JOIN supplier s ON s.supplier_id = po.supplier_id AND s.deleted = 0 AND s.status = 1
+                 WHERE po.order_no = ? AND po.order_status IN ('approved', 'sent')
                 """, orderNo);
+        if (orders.isEmpty()) {
+            throw new IllegalArgumentException("采购订单不存在、状态不可收货或供应商已停用");
+        }
+        Map<String, Object> order = orders.get(0);
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        poi.quantity - poi.received_quantity AS pendingQuantity,
@@ -394,7 +541,8 @@ public class ReceivingOrderService {
 
     // ===== 私有辅助方法 =====
 
-    private void approveReceiving(Long receivingOrderId, String receivingNo, Long warehouseId, Long supplierId, Object purchaseOrderIdObject) {
+    private boolean approveReceiving(Long receivingOrderId, String receivingNo, Long warehouseId, Long supplierId,
+                                     Object purchaseOrderIdObject) {
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT roi.item_id AS itemId, roi.product_id AS productId, roi.production_batch_no AS productionBatchNo,
                        roi.udi_code AS udiCode,
@@ -411,6 +559,14 @@ public class ReceivingOrderService {
                  WHERE roi.receiving_order_id = ?
                 """, supplierId, receivingOrderId);
 
+        boolean hasQualifiedInventory = items.stream()
+                .map(item -> (BigDecimal) item.get("qualifiedQuantity"))
+                .filter(Objects::nonNull)
+                .anyMatch(quantity -> quantity.compareTo(BigDecimal.ZERO) > 0);
+        if (!hasQualifiedInventory) {
+            return false;
+        }
+
         validateHighValueUdisBeforeInventoryMutation(items);
         validatePurchaseRemainingBeforeInventoryMutation(purchaseOrderIdObject, items);
 
@@ -423,6 +579,9 @@ public class ReceivingOrderService {
             BigDecimal previewPrice = (BigDecimal) item.get("previewUnitPrice");
             jdbcTemplate.update("UPDATE receiving_order_item SET unit_price = ?, amount = qualified_quantity * ? WHERE item_id = ?",
                     latestPrice, latestPrice, itemId);
+            if (qualifiedQty == null || qualifiedQty.compareTo(BigDecimal.ZERO) == 0) {
+                continue;
+            }
             CreatedInventoryBatch batch = createInventoryBatch(receivingOrderId, itemId, productId, supplierId, item, latestPrice);
             applyInventoryBalance(warehouseId, productId, batch.batchId(), qualifiedQty, receivingOrderId);
             createHighValueTraceCodes(receivingNo, itemId, warehouseId, item, batch, highValueUnitCount);
@@ -431,6 +590,7 @@ public class ReceivingOrderService {
             }
             purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject, productId, qualifiedQty);
         }
+        return true;
     }
 
     private void validatePurchaseRemainingBeforeInventoryMutation(Object purchaseOrderIdObject,
@@ -588,7 +748,7 @@ public class ReceivingOrderService {
 
     private Long applyInventoryBalance(Long warehouseId, Long productId, Long batchId, BigDecimal qualifiedQty, Long receivingOrderId) {
         if (qualifiedQty == null) {
-            throw new IllegalArgumentException("qualified receiving quantity is required");
+            throw new IllegalArgumentException("验收合格数量不能为空");
         }
         return support.receiveAvailable(warehouseId, productId, batchId, qualifiedQty,
                 "purchase_receive_in", "receiving_order", receivingOrderId,
@@ -603,7 +763,7 @@ public class ReceivingOrderService {
                      WHERE product_code = ? AND deleted = 0 AND status = 1
                     """, item.productCode());
             if (products.isEmpty()) {
-                throw new IllegalArgumentException("product code " + item.productCode() + " does not exist or is disabled");
+                throw new IllegalArgumentException("商品编码 " + item.productCode() + " 不存在或已停用");
             }
             Map<String, Object> product = products.get(0);
             Long productId = ((Number) product.get("productId")).longValue();
@@ -628,11 +788,14 @@ public class ReceivingOrderService {
             return null;
         }
         List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT purchase_order_id FROM purchase_order WHERE order_no = ? LIMIT 1",
+                "SELECT purchase_order_id FROM purchase_order WHERE order_no = ?",
                 Long.class,
                 purchaseOrderNo.trim()
         );
-        return ids.isEmpty() ? null : ids.get(0);
+        if (ids.isEmpty()) {
+            throw new IllegalArgumentException("采购订单不存在或已失效");
+        }
+        return ids.get(0);
     }
 
     private void validatePurchaseOrderItems(Long purchaseOrderId, List<ReceivingItemRequest> items) {
@@ -650,99 +813,140 @@ public class ReceivingOrderService {
                      FOR UPDATE
                     """, purchaseOrderId, item.productCode());
             if (rows.isEmpty()) {
-                throw new IllegalArgumentException("receiving product is not included in purchase order");
+                throw new IllegalArgumentException("收货商品不在采购订单明细中");
             }
             Map<String, Object> row = rows.get(0);
             String status = String.valueOf(row.get("orderStatus"));
             if (!"approved".equals(status) && !"sent".equals(status)) {
-                throw new IllegalArgumentException("purchase order status does not allow receiving");
+                throw new IllegalArgumentException("采购订单当前状态不允许收货");
             }
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
             BigDecimal remaining = (BigDecimal) row.get("remainingQuantity");
             if (remaining == null || qualified.compareTo(remaining) > 0) {
-                throw new IllegalArgumentException("qualified receiving quantity exceeds purchase order remaining quantity");
+                throw new IllegalArgumentException("验收合格数量超过采购订单剩余可收数量");
             }
         }
     }
 
-    private Long findSupplierId(String supplierName, Long purchaseOrderId) {
+    private Long findSupplierId(Long requestedSupplierId, String supplierName, Long purchaseOrderId) {
         if (purchaseOrderId != null) {
             List<Long> ids = jdbcTemplate.queryForList(
-                    "SELECT supplier_id FROM purchase_order WHERE purchase_order_id = ?",
+                    """
+                    SELECT po.supplier_id
+                      FROM purchase_order po
+                      JOIN supplier s ON s.supplier_id = po.supplier_id AND s.deleted = 0 AND s.status = 1
+                     WHERE po.purchase_order_id = ?
+                    """,
                     Long.class, purchaseOrderId
             );
             if (ids.isEmpty()) {
-                throw new IllegalArgumentException("purchase order does not exist");
+                throw new IllegalArgumentException("采购订单不存在或其供应商已停用");
+            }
+            Long purchaseSupplierId = ids.get(0);
+            if (requestedSupplierId != null && !requestedSupplierId.equals(purchaseSupplierId)) {
+                throw new IllegalArgumentException("所选供应商与采购订单供应商不一致");
+            }
+            if (!isBlank(supplierName)) {
+                List<String> names = jdbcTemplate.queryForList(
+                        "SELECT supplier_name FROM supplier WHERE supplier_id = ? AND deleted = 0 AND status = 1",
+                        String.class, purchaseSupplierId);
+                if (!names.isEmpty() && !supplierName.trim().equals(names.get(0))) {
+                    throw new IllegalArgumentException("所选供应商与采购订单供应商不一致");
+                }
+            }
+            return purchaseSupplierId;
+        }
+        if (requestedSupplierId != null) {
+            List<Long> ids = jdbcTemplate.queryForList(
+                    "SELECT supplier_id FROM supplier WHERE supplier_id = ? AND deleted = 0 AND status = 1",
+                    Long.class, requestedSupplierId);
+            if (ids.isEmpty()) {
+                throw new IllegalArgumentException("供应商不存在或已停用");
             }
             return ids.get(0);
         }
         if (isBlank(supplierName)) {
-            throw new IllegalArgumentException("supplier is required");
+            throw new IllegalArgumentException("请选择有效供应商");
         }
         List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT supplier_id FROM supplier WHERE supplier_name = ? AND deleted = 0 AND status = 1 LIMIT 1",
+                "SELECT supplier_id FROM supplier WHERE supplier_name = ? AND deleted = 0 AND status = 1",
                 Long.class,
                 supplierName.trim()
         );
         if (ids.isEmpty()) {
             throw new IllegalArgumentException("供应商不存在或已停用");
         }
+        if (ids.size() > 1) {
+            throw new IllegalArgumentException("供应商名称不唯一，请使用供应商ID");
+        }
         return ids.get(0);
     }
 
-    private Long findWarehouseId(String warehouseName) {
+    private Long findWarehouseId(String warehouseCode, String warehouseName) {
+        if (!isBlank(warehouseCode)) {
+            List<Long> ids = jdbcTemplate.queryForList(
+                    "SELECT warehouse_id FROM warehouse WHERE warehouse_code = ? AND deleted = 0 AND status = 1 AND receiving_enabled = 1",
+                    Long.class, warehouseCode.trim());
+            if (ids.isEmpty()) {
+                throw new IllegalArgumentException("库房不存在、已停用或未启用收货能力");
+            }
+            return ids.get(0);
+        }
         if (isBlank(warehouseName)) {
-            throw new IllegalArgumentException("warehouse is required");
+            throw new IllegalArgumentException("请选择收货库房");
         }
         List<Long> ids = jdbcTemplate.queryForList(
-                "SELECT warehouse_id FROM warehouse WHERE warehouse_name = ? AND deleted = 0 AND status = 1 LIMIT 1",
+                "SELECT warehouse_id FROM warehouse WHERE warehouse_name = ? AND deleted = 0 AND status = 1 AND receiving_enabled = 1",
                 Long.class,
                 warehouseName.trim()
         );
         if (ids.isEmpty()) {
-            throw new IllegalArgumentException("warehouse does not exist or is disabled");
+            throw new IllegalArgumentException("库房不存在、已停用或未启用收货能力");
+        }
+        if (ids.size() > 1) {
+            throw new IllegalArgumentException("库房名称不唯一，请使用库房编码");
         }
         return ids.get(0);
     }
 
+    private static void validateSource(ReceivingSourceType sourceType, String purchaseOrderNo) {
+        if (sourceType == ReceivingSourceType.PURCHASE_ORDER && isBlank(purchaseOrderNo)) {
+            throw new IllegalArgumentException("采购订单收货必须选择采购订单");
+        }
+        if (sourceType == ReceivingSourceType.TEMPORARY && !isBlank(purchaseOrderNo)) {
+            throw new IllegalArgumentException("临时收货不得携带采购订单号");
+        }
+    }
+
     private void writeAudit(String operationType, Long receivingOrderId, String receivingNo, String remark) {
-        OperatorContext operator = operatorContextProvider.current();
-        jdbcTemplate.update("""
-                INSERT INTO audit_log (operator_name, operation_type, biz_type, biz_id, after_data, ip_address, remark)
-                VALUES (?, ?, 'receiving_order', ?, JSON_OBJECT('receivingNo', ?), ?, ?)
-                """, operator.username(), operationType, receivingOrderId, receivingNo, operator.ipAddress(), remark);
+        auditLogService.record("receiving_order", operationType, receivingOrderId, receivingNo, remark);
     }
 
     private void writePriceDiffAudit(Long receivingOrderId, String receivingNo, Long productId, BigDecimal previewPrice, BigDecimal latestPrice) {
-        OperatorContext operator = operatorContextProvider.current();
-        jdbcTemplate.update("""
-                INSERT INTO audit_log (operator_name, operation_type, biz_type, biz_id, after_data, ip_address, remark)
-                VALUES (?, 'price_diff_notice', 'receiving_order', ?,
-                        JSON_OBJECT('receivingNo', ?, 'productId', ?, 'orderPreviewPrice', ?, 'latestCatalogPrice', ?),
-                        ?, 'receiving price difference notice')
-                """, operator.username(), receivingOrderId, receivingNo, productId, previewPrice, latestPrice, operator.ipAddress());
+        auditLogService.record("receiving_order", "price_diff_notice", receivingOrderId, receivingNo,
+                "商品ID " + productId + " 订单预览价 " + previewPrice + "，最新目录价 " + latestPrice);
     }
 
     private static void validateRequest(ReceivingOrderRequest request) {
         if (request.items() == null || request.items().isEmpty()) {
-            throw new IllegalArgumentException("receiving order requires at least one item");
+            throw new IllegalArgumentException("收货单至少需要一条明细");
         }
         for (ReceivingItemRequest item : request.items()) {
             if (isBlank(item.productCode()) || item.quantity() == null || item.quantity().compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("product code and receiving quantity are required");
+                throw new IllegalArgumentException("商品编码和收货数量不能为空");
             }
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
             BigDecimal unqualified = item.unqualifiedQuantity() == null ? BigDecimal.ZERO : item.unqualifiedQuantity();
             if (qualified.compareTo(BigDecimal.ZERO) < 0 || unqualified.compareTo(BigDecimal.ZERO) < 0
                     || qualified.add(unqualified).compareTo(item.quantity()) != 0) {
-                throw new IllegalArgumentException("qualified and unqualified quantities must equal receiving quantity");
+                throw new IllegalArgumentException("合格数量与不合格数量之和必须等于收货数量");
             }
         }
     }
 
     private static void requireSingleStateChange(int updated) {
         if (updated != 1) {
-            throw new IllegalArgumentException("receiving order has already been processed");
+            throw new IllegalArgumentException("收货单已被处理，请刷新后重试");
         }
     }
 
@@ -769,6 +973,10 @@ public class ReceivingOrderService {
 
     private static BigDecimal defaultDecimal(BigDecimal value, BigDecimal fallback) {
         return value == null ? fallback : value;
+    }
+
+    private static boolean asBoolean(Object value) {
+        return value instanceof Boolean bool ? bool : value instanceof Number number && number.intValue() == 1;
     }
 
 }

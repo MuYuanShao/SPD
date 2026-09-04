@@ -643,6 +643,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deptName: String(row.dept === '-' ? '' : row.dept ?? ''),
       deptCode: String(row.deptCode ?? ''),
       participateStats: String(row.participateStats ?? '') !== '不参与',
+      receivingEnabled: Boolean(row.receivingEnabled),
       statsCategories: String(row.statsCategories === '-' ? '' : row.statsCategories ?? '').replace(/^\["|"\]$/g, ''),
       status: String(row.status ?? '') === '停用' ? 0 : 1,
       productCodes: []
@@ -962,6 +963,7 @@ function emptyWarehouseForm(): WarehousePayload {
     campusName: '',
     deptName: '',
     participateStats: true,
+    receivingEnabled: false,
     deptCode: '',
     statsCategories: '',
     status: 1,

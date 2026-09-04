@@ -22,10 +22,13 @@ export function useReceivingOrderForm(options: {
   const supplierSearchQuery = ref('')
   const showSupplierDropdown = ref(false)
   const form = reactive({
+    sourceType: 'purchase_order' as 'purchase_order' | 'temporary',
     purchaseOrderNo: '',
+    supplierId: undefined as number | undefined,
     supplierName: '',
+    warehouseCode: '',
     warehouseName: '',
-    receivingType: '',
+    receivingType: 'normal',
     isAgent: false,
     remark: '',
     items: [createEmptyReceivingItem()]
@@ -51,6 +54,8 @@ export function useReceivingOrderForm(options: {
   const currentCreateTime = computed(() => new Date().toLocaleString('zh-CN', { hour12: false }))
 
   function selectSupplier(name: string) {
+    const supplier = options.suppliers.value.find((item) => item.supplierName === name)
+    form.supplierId = supplier?.supplierId
     form.supplierName = name
     supplierSearchQuery.value = name
     showSupplierDropdown.value = false
@@ -58,14 +63,18 @@ export function useReceivingOrderForm(options: {
 
   function clearSupplier() {
     form.supplierName = ''
+    form.supplierId = undefined
     supplierSearchQuery.value = ''
   }
 
   function resetForm() {
+    form.sourceType = 'purchase_order'
     form.purchaseOrderNo = ''
+    form.supplierId = undefined
     form.supplierName = ''
+    form.warehouseCode = ''
     form.warehouseName = ''
-    form.receivingType = ''
+    form.receivingType = 'normal'
     form.isAgent = false
     form.remark = ''
     supplierSearchQuery.value = ''

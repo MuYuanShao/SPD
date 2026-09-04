@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessageBox } from 'element-plus'
 import {
   CheckCircle2,
   CopyPlus,
@@ -10,7 +11,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  Settings,
   Trash2,
   X,
   XCircle
@@ -24,6 +24,10 @@ import {
   type SupplierOption
 } from '../../api/receivingOrders'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import PageHeader from '../../components/common/PageHeader.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
+import { useAuthStore } from '../../stores/auth'
 import { fetchFieldOptions, type FieldOption } from '../../api/fieldOptions'
 import { useReceivingOrderCreateActions } from '../../composables/useReceivingOrderCreateActions'
 import { useReceivingOrderDetail } from '../../composables/useReceivingOrderDetail'
@@ -39,14 +43,32 @@ const warehouses = ref<ReceivingOptionRow[]>([])
 const products = ref<ReceivingOptionRow[]>([])
 const suppliers = ref<SupplierOption[]>([])
 const summary = ref<Record<string, number>>({})
-const receivingTypeOptions = ref<FieldOption[]>([])
+const receivingTypeOptions = ref<FieldOption[]>([
+  { optionId: -1, fieldKey: 'receiving_type', fieldLabel: '收货类型', optionLabel: '正常收货', optionValue: 'normal', sortOrder: 1, status: 1 },
+  { optionId: -2, fieldKey: 'receiving_type', fieldLabel: '收货类型', optionLabel: '代理商直送', optionValue: 'agent', sortOrder: 2, status: 1 }
+])
+const authStore = useAuthStore()
+const optionsLoaded = ref(false)
+const optionsLoading = ref(false)
+const selectedItemIndexes = ref<number[]>([])
+const scanCode = ref('')
+const canCreate = computed(() => authStore.hasPermission('receiving-order:create'))
+const canUpdate = computed(() => authStore.hasPermission('receiving-order:update'))
+const canApprove = computed(() => authStore.hasPermission('receiving-order:approve'))
+const canReject = computed(() => authStore.hasPermission('receiving-order:reject'))
+const quantityMismatch = computed(() => form.items.some((item) =>
+  Number(item.qualifiedQuantity || 0) + Number(item.unqualifiedQuantity || 0) !== Number(item.quantity || 0)
+))
 
 async function loadReceivingTypeOptions() {
   try {
     const options = await fetchFieldOptions('receiving_type')
-    receivingTypeOptions.value = options.filter((item) => item.status === 1)
+    receivingTypeOptions.value = options.filter((item) => item.status === 1 && ['normal', 'agent'].includes(item.optionValue))
   } catch {
-    receivingTypeOptions.value = []
+    receivingTypeOptions.value = [
+      { optionId: -1, fieldKey: 'receiving_type', fieldLabel: '收货类型', optionLabel: '正常收货', optionValue: 'normal', sortOrder: 1, status: 1 },
+      { optionId: -2, fieldKey: 'receiving_type', fieldLabel: '收货类型', optionLabel: '代理商直送', optionValue: 'agent', sortOrder: 2, status: 1 }
+    ]
   }
 }
 const loading = ref(false)
@@ -75,7 +97,7 @@ const {
   selectSupplier,
   clearSupplier,
   resetForm,
-  openCreateModal,
+  openCreateModal: openCreateForm,
   closeCreateModal,
   closeSupplierDropdown,
   addItem,
@@ -97,7 +119,7 @@ const {
 const { currentPage, pageSize, totalItems, changePage, changePageSize, searchOrders } =
   useReceivingOrderPagination({ reload: loadData })
 
-const { fillFromPurchaseOrder, submitCreate, submitCreateAndContinue, openEditModal } =
+const { submitting, fillFromPurchaseOrder, submitCreate, submitCreateAndContinue, openEditModal: openEditForm } =
   useReceivingOrderCreateActions({
     form,
     supplierSearchQuery,
@@ -119,13 +141,6 @@ const tabs = computed(() => [
   { key: 'completed' as const, label: '已验收', count: summary.value.completedCount ?? 0 }
 ])
 
-const stats = computed(() => [
-  { label: '收货单', value: summary.value.totalReceipts ?? rows.value.length },
-  { label: '待验收', value: summary.value.draftCount ?? 0 },
-  { label: '已入库', value: summary.value.approvedCount ?? 0 },
-  { label: '本页数量', value: rows.value.reduce((sum, row) => sum + Number(row.receiveQuantity || 0), 0) }
-])
-
 function statusLabel(status: string) {
   return statusOptions.find((item) => item.value === status)?.label ?? formatStatusText(status)
 }
@@ -139,26 +154,108 @@ function statusTone(status: string) {
 async function loadData() {
   loading.value = true
   try {
-    const [listData, optionData] = await Promise.all([
-      fetchReceivingOrders({
+    const listData = await fetchReceivingOrders({
         ...query,
         statusGroup: activeTab.value,
         page: String(currentPage.value),
         size: String(pageSize.value)
-      }),
-      fetchReceivingOptions()
-    ])
+      })
     rows.value = listData.rows
     totalItems.value = listData.total
     tabPageState[activeTab.value] = { page: currentPage.value, size: pageSize.value }
     summary.value = listData.summary ?? {}
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '收货单加载失败'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function ensureOptions() {
+  if (optionsLoaded.value || optionsLoading.value) return
+  optionsLoading.value = true
+  try {
+    const [optionData] = await Promise.all([fetchReceivingOptions(), loadReceivingTypeOptions()])
     purchaseOrders.value = optionData.purchaseOrders
     warehouses.value = optionData.warehouses
     products.value = optionData.products
     suppliers.value = optionData.suppliers
+    optionsLoaded.value = true
   } finally {
-    loading.value = false
+    optionsLoading.value = false
   }
+}
+
+async function openCreateModal() {
+  await ensureOptions()
+  selectedItemIndexes.value = []
+  openCreateForm()
+}
+
+async function openEditModal(row: ReceivingOrderRow) {
+  await ensureOptions()
+  selectedItemIndexes.value = []
+  await openEditForm(row)
+}
+
+function changeSourceType() {
+  form.purchaseOrderNo = ''
+  clearSupplier()
+  form.items = [{ productCode: '', productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
+}
+
+function deleteSelectedItems() {
+  const selected = new Set(selectedItemIndexes.value)
+  form.items = form.items.filter((_, index) => !selected.has(index))
+  if (!form.items.length) addItem()
+  selectedItemIndexes.value = []
+}
+
+function copySelectedItems() {
+  selectedItemIndexes.value.forEach((index) => {
+    const source = form.items[index]
+    if (!source) return
+    form.items.push({ ...source, productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '' })
+  })
+  selectedItemIndexes.value = []
+}
+
+function scanProduct() {
+  const code = scanCode.value.trim()
+  if (!code) return
+  const product = products.value.find((item) => item.productCode === code)
+  if (!product) {
+    message.value = `未找到启用的商品编码：${code}`
+    return
+  }
+  const existing = form.items.findIndex((item) => item.productCode === code)
+  if (existing >= 0) selectedItemIndexes.value = [existing]
+  else {
+    const blankIndex = form.items.findIndex((item) => !item.productCode)
+    if (blankIndex >= 0) {
+      form.items[blankIndex]!.productCode = code
+      selectedItemIndexes.value = [blankIndex]
+    } else {
+      addItem()
+      form.items[form.items.length - 1]!.productCode = code
+      selectedItemIndexes.value = [form.items.length - 1]
+    }
+  }
+  scanCode.value = ''
+}
+
+async function confirmCloseCreateModal() {
+  const hasInput = form.items.some((item) => item.productCode || item.productionBatchNo || item.udiCode) || Boolean(form.remark)
+  if (hasInput) {
+    try {
+      await ElMessageBox.confirm('当前收货内容尚未保存，确认关闭吗？', '放弃未保存内容', {
+        confirmButtonText: '确认关闭', cancelButtonText: '继续编辑', type: 'warning'
+      })
+    } catch {
+      return
+    }
+  }
+  closeCreateModal()
 }
 
 async function switchTab(tab: ReceivingTab) {
@@ -175,13 +272,17 @@ async function runAction(row: ReceivingOrderRow, action: string) {
   actionLoadingNo.value = `${row.receivingNo}:${action}`
   message.value = ''
   try {
-    const result = await updateReceivingAction(row.receivingNo, action, action === 'approve' ? '验收通过' : '拒收')
+    const opinion = action === 'reject'
+      ? (await ElMessageBox.prompt('请填写拒收原因', `拒收 ${row.receivingNo}`, { inputPattern: /\S+/, inputErrorMessage: '拒收原因不能为空', confirmButtonText: '确认拒收', cancelButtonText: '取消' })).value
+      : (await ElMessageBox.confirm('审核后仅合格数量入库；若全部不合格，系统将自动整单拒收。', `审核 ${row.receivingNo}`, { confirmButtonText: '确认审核', cancelButtonText: '取消', type: 'warning' }), '验收通过')
+    const result = await updateReceivingAction(row.receivingNo, action, opinion)
     message.value =
       result.status === 'approved'
         ? `${row.receivingNo} 已审核入库，系统批次和库存余额已生成`
         : `${row.receivingNo} 已拒收`
     await loadData()
   } catch (error) {
+    if (error === 'cancel' || error === 'close') return
     message.value = error instanceof Error ? error.message : `${row.receivingNo} 操作失败`
   } finally {
     actionLoadingNo.value = ''
@@ -190,37 +291,21 @@ async function runAction(row: ReceivingOrderRow, action: string) {
 
 onMounted(() => {
   loadData()
-  loadReceivingTypeOptions()
 })
 </script>
 
 <template>
   <section class="purchase-page receiving-page">
-    <div class="breadcrumb-line">
-      <span>供应链业务</span>
-      <strong>收货验收</strong>
-    </div>
-
-    <div class="detail-heading">
-      <div>
-        <p>验收入库与系统批次</p>
-        <h2>收货验收</h2>
-        <small>审核通过时读取最新医院目录采购价生成批次单价；订单价只做价差提醒，不阻断入库。</small>
-      </div>
+    <PageHeader eyebrow="供应链业务" title="收货验收" description="验收合格数量审核后入库；不合格数量保留记录但不影响库存。">
+      <template #actions>
       <button class="btn" type="button" @click="loadData">
         <RefreshCw :size="17" />
         刷新
       </button>
-    </div>
+      </template>
+    </PageHeader>
 
-    <div class="foundation-stat-grid">
-      <article v-for="item in stats" :key="item.label">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
-    </div>
-
-    <p v-if="message" class="inline-message">{{ message }}</p>
+    <StatusMessage v-if="message" :message="message" :tone="message.includes('失败') || message.includes('未找到') ? 'error' : 'success'" />
 
     <section class="hospital-catalog-panel">
       <div class="subnav-tabs receiving-status-tabs" role="tablist" aria-label="收货验收状态">
@@ -241,7 +326,7 @@ onMounted(() => {
       </div>
 
       <div class="hospital-action-row">
-        <button class="btn btn-primary" type="button" @click="openCreateModal">
+        <button v-if="canCreate" class="btn btn-primary" type="button" :disabled="optionsLoading" @click="openCreateModal">
           <PackageCheck :size="18" />
           新增收货
         </button>
@@ -294,7 +379,7 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="approval-empty">正在加载收货验收单...</td>
+              <td colspan="10"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="row.receivingNo">
               <td>{{ row.receivingNo }}</td>
@@ -309,12 +394,12 @@ onMounted(() => {
               <td>
                 <div class="row-actions">
                   <button type="button" class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
-                  <button v-if="row.receivingStatus === 'draft'" type="button" class="btn-text" @click="openEditModal(row)">
+                  <button v-if="canUpdate && row.receivingStatus === 'draft'" type="button" class="btn-text" @click="openEditModal(row)">
                     <Pencil :size="15" />
                     修改
                   </button>
                   <button
-                    v-if="row.receivingStatus === 'draft'"
+                    v-if="canApprove && row.receivingStatus === 'draft'"
                     type="button"
                     class="btn-text"
                     :disabled="Boolean(actionLoadingNo)"
@@ -323,7 +408,7 @@ onMounted(() => {
                     {{ actionLoadingNo === `${row.receivingNo}:approve` ? '处理中' : '审核入库' }}
                   </button>
                   <button
-                    v-if="row.receivingStatus === 'draft'"
+                    v-if="canReject && row.receivingStatus === 'draft'"
                     type="button"
                     class="btn-text btn-text-danger"
                     :disabled="Boolean(actionLoadingNo)"
@@ -335,9 +420,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!loading && !rows.length">
-              <td colspan="10" class="approval-empty">
-                {{ activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据' }}
-              </td>
+              <td colspan="10"><EmptyState :message="activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据'" /></td>
             </tr>
           </tbody>
         </table>
@@ -352,20 +435,27 @@ onMounted(() => {
       />
     </section>
 
-    <div v-if="showCreateModal" class="modal-mask receiving-modal-mask">
-      <section class="supplier-modal purchase-modal receiving-create-modal">
+    <div v-if="showCreateModal" class="modal-mask receiving-modal-mask" @click.self="confirmCloseCreateModal">
+      <section class="supplier-modal purchase-modal receiving-create-modal" role="dialog" aria-modal="true" aria-labelledby="receiving-create-title" @keydown.esc="confirmCloseCreateModal">
         <div class="receiving-create-titlebar">
-          <strong>{{ editingReceivingNo ? `修改 ${editingReceivingNo}` : '新增' }}</strong>
-          <button type="button" class="btn-icon" title="关闭" @click="closeCreateModal"><X :size="18" /></button>
+          <strong id="receiving-create-title">{{ editingReceivingNo ? `修改 ${editingReceivingNo}` : '新增收货单' }}</strong>
+          <button type="button" class="btn-icon" aria-label="关闭" @click="confirmCloseCreateModal"><X :size="18" /></button>
         </div>
 
         <div class="receiving-create-body">
           <div class="receiving-form-grid">
             <label class="required">
+              <span>收货来源</span>
+              <select v-model="form.sourceType" autofocus @change="changeSourceType">
+                <option value="purchase_order">采购订单收货</option>
+                <option value="temporary">临时收货</option>
+              </select>
+            </label>
+            <label class="required">
               <span>收货库房</span>
-              <select v-model="form.warehouseName">
+              <select v-model="form.warehouseCode">
                 <option value="">请选择收货库房</option>
-                <option v-for="warehouse in warehouses" :key="warehouse.warehouseName" :value="warehouse.warehouseName">
+                <option v-for="warehouse in warehouses" :key="warehouse.warehouseCode" :value="warehouse.warehouseCode">
                   {{ warehouse.warehouseName }}
                 </option>
               </select>
@@ -373,7 +463,7 @@ onMounted(() => {
             <label class="required supplier-field">
               <span>配送商</span>
               <div class="supplier-select-wrapper">
-                <input v-model="supplierSearchQuery" placeholder="输入供应商名称搜索" @focus="showSupplierDropdown = true" @blur="closeSupplierDropdown()" />
+                <input v-model="supplierSearchQuery" :disabled="form.sourceType === 'purchase_order'" placeholder="输入供应商名称搜索" @focus="showSupplierDropdown = true" @blur="closeSupplierDropdown()" />
                 <button v-if="form.supplierName" type="button" class="supplier-clear" @click="clearSupplier">&times;</button>
                 <ul v-if="showSupplierDropdown && filteredSuppliers.length" class="supplier-dropdown">
                   <li v-for="s in filteredSuppliers" :key="s.supplierName"
@@ -384,10 +474,10 @@ onMounted(() => {
                 </ul>
               </div>
             </label>
-            <label>
+            <label v-if="form.sourceType === 'purchase_order'">
               <span>采购订单</span>
-              <select v-model="form.purchaseOrderNo" @change="fillFromPurchaseOrder">
-                <option value="">无采购订单/临时收货</option>
+              <select v-model="form.purchaseOrderNo" data-testid="receiving-purchase-order" @change="fillFromPurchaseOrder">
+                <option value="">请选择采购订单</option>
                 <option v-for="order in purchaseOrders" :key="order.orderNo" :value="order.orderNo">
                   {{ order.orderNo }} · {{ order.supplierName }}
                 </option>
@@ -402,10 +492,6 @@ onMounted(() => {
                 </option>
               </select>
             </label>
-            <label class="agent-check">
-              <span>是否代理商</span>
-              <input v-model="form.isAgent" type="checkbox" />
-            </label>
             <label>
               <span>备注</span>
               <input v-model="form.remark" placeholder="填写本次收货备注" />
@@ -414,14 +500,12 @@ onMounted(() => {
 
           <div class="receiving-entry-toolbar">
             <button type="button" class="teal-action" @click="addItem"><Plus :size="16" /> 新增</button>
-            <button type="button" class="teal-action" @click="addItem"><CopyPlus :size="16" /> 批量新增</button>
-            <button type="button" class="teal-action danger" @click="removeItem(form.items.length - 1)"><Trash2 :size="16" /> 删除</button>
-            <button type="button" class="teal-action"><CopyPlus :size="16" /> 复制细单</button>
+            <button type="button" class="teal-action danger" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="deleteSelectedItems"><Trash2 :size="16" /> 删除勾选</button>
+            <button type="button" class="teal-action" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="copySelectedItems"><CopyPlus :size="16" /> 复制细单</button>
             <label class="barcode-field">
               <span>商品码扫描</span>
-              <input placeholder="扫描或录入商品码" />
+              <input v-model="scanCode" placeholder="扫描或录入商品码" @keyup.enter="scanProduct" />
             </label>
-            <button type="button" class="teal-action"><Settings :size="16" /> 配置工具条</button>
           </div>
 
           <section class="receiving-detail-sheet">
@@ -437,8 +521,7 @@ onMounted(() => {
                   <th>UDI</th>
                   <th>生产日期</th>
                   <th>失效日期</th>
-                  <th>医院单位数量</th>
-                  <th>验收数量</th>
+                  <th>收货数量</th>
                   <th>合格数量</th>
                   <th>不合格数量</th>
                   <th>操作</th>
@@ -446,7 +529,7 @@ onMounted(() => {
               </thead>
               <tbody>
                 <tr v-for="(item, index) in form.items" :key="index">
-                  <td><input type="checkbox" /></td>
+                  <td><input v-model="selectedItemIndexes" type="checkbox" :value="index" :aria-label="`选择明细 ${index + 1}`" /></td>
                   <td>明细 {{ index + 1 }}</td>
                   <td><input value="[自动生成]" disabled /></td>
                   <td>
@@ -470,7 +553,6 @@ onMounted(() => {
                   <td><input v-model="item.productionDate" type="date" /></td>
                   <td><input v-model="item.expireDate" type="date" /></td>
                   <td><input v-model.number="item.quantity" type="number" min="1" @input="syncQualifiedQuantity(index)" /></td>
-                  <td><input v-model.number="item.quantity" type="number" min="1" @input="syncQualifiedQuantity(index)" /></td>
                   <td><input v-model.number="item.qualifiedQuantity" type="number" min="0" @input="syncUnqualifiedQuantity(index)" /></td>
                   <td><input v-model.number="item.unqualifiedQuantity" type="number" min="0" /></td>
                   <td>
@@ -480,11 +562,12 @@ onMounted(() => {
                   </td>
                 </tr>
                 <tr v-if="!form.items.length">
-                  <td colspan="14" class="sheet-empty">无匹配数据</td>
+                  <td colspan="13"><EmptyState message="暂无收货明细" /></td>
                 </tr>
               </tbody>
             </table>
           </section>
+          <StatusMessage v-if="quantityMismatch" message="每条明细的合格数量与不合格数量之和必须等于收货数量" tone="error" />
         </div>
 
         <div class="receiving-create-footer">
@@ -494,15 +577,15 @@ onMounted(() => {
             <span>不合格:{{ createTotals.unqualifiedQuantity.toFixed(2) }}</span>
           </div>
           <div class="receiving-footer-actions">
-            <button class="teal-action solid" type="button" @click="submitCreate">
+            <button class="teal-action solid" type="button" :disabled="submitting || quantityMismatch" @click="submitCreate">
               <Save :size="16" />
-              保存
+              {{ submitting ? '保存中...' : '保存' }}
             </button>
-            <button v-if="!editingReceivingNo" class="teal-action solid" type="button" @click="submitCreateAndContinue">
+            <button v-if="!editingReceivingNo" class="teal-action solid" type="button" :disabled="submitting || quantityMismatch" @click="submitCreateAndContinue">
               <Save :size="16" />
               保存并继续
             </button>
-            <button class="teal-action dark" type="button" @click="closeCreateModal">
+            <button class="teal-action dark" type="button" @click="confirmCloseCreateModal">
               <X :size="16" />
               取消
             </button>
@@ -512,11 +595,11 @@ onMounted(() => {
     </div>
 
     <div v-if="detail" class="modal-mask receiving-detail-mask">
-      <section class="supplier-modal purchase-modal receiving-detail-modal">
+      <section class="supplier-modal purchase-modal receiving-detail-modal" role="dialog" aria-modal="true" aria-labelledby="receiving-detail-title" @keydown.esc="detail = null">
         <header class="receiving-detail-header">
           <div>
             <p>收货验收单</p>
-            <h3>{{ detail.order.receivingNo }}</h3>
+            <h3 id="receiving-detail-title">{{ detail.order.receivingNo }}</h3>
           </div>
           <button type="button" class="btn btn-sm" @click="detail = null"><X :size="18" /> 关闭</button>
         </header>
@@ -617,4 +700,3 @@ onMounted(() => {
     </div>
   </section>
 </template>
-

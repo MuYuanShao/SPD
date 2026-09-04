@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CheckCircle2, ClipboardCheck, History, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
+import { CheckCircle2, ClipboardCheck, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import InventoryEventLedger from '../../components/inventory/InventoryEventLedger.vue'
 import {
   approveBatchPriceAdjustment,
   approveStocktaking,
@@ -10,7 +11,6 @@ import {
   createStocktakingSheet,
   fetchBatchPriceAdjustments,
   fetchInventoryBalances,
-  fetchInventoryEvents,
   fetchQuotaPackageStock,
   previewStocktakingSheet,
   fetchStocktakingItems,
@@ -25,7 +25,6 @@ import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
 const balances = ref<InventoryBalanceRow[]>([])
-const events = ref<Record<string, unknown>[]>([])
 const stocktakingRows = ref<Record<string, unknown>[]>([])
 const stocktakingScopeOptions = [
   { key: 'highValue', label: '高值耗材' },
@@ -170,7 +169,6 @@ const inventoryPagination = reactive({
   balances: { page: 1, size: 20, total: 0 },
   quotaStock: { page: 1, size: 20, total: 0 },
   codeStock: { page: 1, size: 20, total: 0 },
-  events: { page: 1, size: 20, total: 0 },
   stocktaking: { page: 1, size: 20, total: 0 },
   price: { page: 1, size: 20, total: 0 }
 })
@@ -211,15 +209,6 @@ const query = reactive({
   systemBatchNo: '',
   transactionType: ''
 })
-const transactionTypeOptions = [
-  '验收入库',
-  '打包入库',
-  '解包',
-  '二级库入库',
-  '三级库入库',
-  '二级库出库',
-  '三级库出库'
-] as const
 const priceForm = reactive({
   systemBatchNo: '',
   newUnitPrice: 0,
@@ -250,26 +239,7 @@ const subtitle = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    if (mode.value === 'events') {
-      const eventData = await fetchInventoryEvents({
-        deptName: query.deptName,
-        warehouseName: query.warehouseName,
-        productCode: query.productCode,
-        productName: query.productName,
-        batchNo: query.batchNo,
-        productionBatchNo: query.productionBatchNo,
-        manufacturerName: query.manufacturerName,
-        supplierName: query.supplierName,
-        startTime: query.startTime,
-        endTime: query.endTime,
-        transactionType: query.transactionType,
-        page: String(inventoryPagination.events.page),
-        size: String(inventoryPagination.events.size)
-      })
-      events.value = eventData.rows
-      inventoryPagination.events.total = eventData.total
-      return
-    }
+    if (mode.value === 'events') return
 
     if (mode.value === 'inventory') {
       if (inventoryTab.value === 'quota') {
@@ -349,22 +319,6 @@ async function changeInventoryPageSize(key: keyof typeof inventoryPagination, si
   await loadData()
 }
 
-function resetEventQuery() {
-  query.deptName = ''
-  query.warehouseName = ''
-  query.productCode = ''
-  query.productName = ''
-  query.batchNo = ''
-  query.productionBatchNo = ''
-  query.manufacturerName = ''
-  query.supplierName = ''
-  query.startTime = ''
-  query.endTime = ''
-  query.transactionType = ''
-  inventoryPagination.events.page = 1
-  void loadData()
-}
-
 function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
   if (tab === inventoryTab.value) return
   inventoryTab.value = tab
@@ -392,24 +346,27 @@ async function approvePriceRow(no: string) {
   await loadData()
 }
 
-onMounted(loadData)
+onMounted(() => {
+  if (!isInventoryTransactionLedger.value) void loadData()
+})
 watch(mode, () => {
   inventoryPagination.balances.page = 1
-  inventoryPagination.events.page = 1
   inventoryPagination.stocktaking.page = 1
   inventoryPagination.price.page = 1
-  loadData()
+  if (!isInventoryTransactionLedger.value) void loadData()
 })
 </script>
 
 <template>
   <section class="purchase-page">
-    <div class="breadcrumb-line">
+    <InventoryEventLedger v-if="isInventoryTransactionLedger" />
+
+    <div v-if="!isInventoryTransactionLedger" class="breadcrumb-line">
       <span>{{ mode === 'price' ? '结算与财务' : '供应链业务' }}</span>
       <strong>{{ title }}</strong>
     </div>
 
-    <div class="detail-heading">
+    <div v-if="!isInventoryTransactionLedger" class="detail-heading">
       <div>
         <p>库存账务</p>
         <h2>{{ title }}</h2>
@@ -421,7 +378,7 @@ watch(mode, () => {
       </button>
     </div>
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
+    <p v-if="message && !isInventoryTransactionLedger" class="inline-message">{{ message }}</p>
 
     <section v-if="isInventoryManagement" class="hospital-catalog-panel">
       <div class="subnav-tabs inventory-query-tabs" role="tablist" aria-label="库存查询类型">
@@ -647,101 +604,6 @@ watch(mode, () => {
           @change-size="changeInventoryPageSize('codeStock', $event)"
         />
       </template>
-    </section>
-
-    <section v-if="isInventoryTransactionLedger" class="hospital-catalog-panel">
-      <form class="hospital-query-grid purchase-query-grid" role="search" @submit.prevent="loadData">
-        <label><span>科室</span><input v-model.trim="query.deptName" placeholder="科室名称" /></label>
-        <label><span>库房</span><input v-model.trim="query.warehouseName" placeholder="库房名称" /></label>
-        <label><span>商品编码</span><input v-model.trim="query.productCode" placeholder="商品编码" /></label>
-        <label><span>商品名称</span><input v-model.trim="query.productName" placeholder="商品名称" /></label>
-        <label><span>批号</span><input v-model.trim="query.batchNo" placeholder="系统批号" /></label>
-        <label><span>批次</span><input v-model.trim="query.productionBatchNo" placeholder="生产批次" /></label>
-        <label><span>厂家</span><input v-model.trim="query.manufacturerName" placeholder="厂家名称" /></label>
-        <label><span>供应商</span><input v-model.trim="query.supplierName" placeholder="供应商名称" /></label>
-        <label>
-          <span>交易类型</span>
-          <select v-model="query.transactionType">
-            <option value="">全部交易类型</option>
-            <option v-for="type in transactionTypeOptions" :key="type" :value="type">{{ type }}</option>
-          </select>
-        </label>
-        <label><span>开始日期</span><input v-model="query.startTime" type="date" /></label>
-        <label><span>结束日期</span><input v-model="query.endTime" type="date" /></label>
-        <div class="hospital-query-actions">
-          <button class="btn btn-primary" type="submit">
-            <Search :size="18" />
-            查询
-          </button>
-          <button class="btn" type="button" @click="resetEventQuery">重置</button>
-        </div>
-      </form>
-      <div class="section-title">
-        <History :size="20" />
-        <h3>库存交易流水</h3>
-        <span class="muted-hint">按科室、发生时间排序；批次单价 × 数量即金额</span>
-      </div>
-      <div class="table-scroll inventory-events-scroll">
-        <table class="master-table purchase-detail-table inventory-events-table">
-          <thead>
-            <tr>
-              <th>科室</th>
-              <th>库房</th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>规格型号</th>
-              <th>注册证号</th>
-              <th>批号</th>
-              <th>批次</th>
-              <th>单价</th>
-              <th>单位</th>
-              <th>数量</th>
-              <th>金额</th>
-              <th>厂家</th>
-              <th>供应商</th>
-              <th>定数包码/唯一码</th>
-              <th>UID码</th>
-              <th>交易类型</th>
-              <th>发生时间</th>
-              <th>备注</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in events" :key="String(row.eventNo)">
-              <td>{{ row.deptName }}</td>
-              <td>{{ row.warehouseName }}</td>
-              <td class="code-cell">{{ row.productCode }}</td>
-              <td>{{ row.productName }}</td>
-              <td>{{ row.specModel }}</td>
-              <td>{{ row.registrationNo }}</td>
-              <td>{{ row.batchNo }}</td>
-              <td>{{ row.productionBatchNo }}</td>
-              <td class="number-cell">{{ row.unitPrice }}</td>
-              <td>{{ row.unit }}</td>
-              <td class="number-cell" :class="{ 'qty-out': Number(row.qtyChange) < 0 }">{{ row.qtyChange }}</td>
-              <td class="number-cell">{{ row.amount }}</td>
-              <td>{{ row.manufacturerName }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.traceCode }}</td>
-              <td>{{ row.udiCode }}</td>
-              <td><span class="event-type-chip">{{ row.transactionType }}</span></td>
-              <td class="time-cell">{{ row.eventTime }}</td>
-              <td class="remark-cell">{{ formatRemarkText(row.remark) }}</td>
-            </tr>
-            <tr v-if="!events.length && !loading">
-              <td class="approval-empty" colspan="19">暂无库存交易流水</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="inventoryPagination.events.page"
-        :size="inventoryPagination.events.size"
-        :total="inventoryPagination.events.total"
-        :loading="loading"
-        @change-page="changeInventoryPage('events', $event)"
-        @change-size="changeInventoryPageSize('events', $event)"
-      />
     </section>
 
     <section v-if="mode === 'stocktaking'" class="hospital-catalog-panel">

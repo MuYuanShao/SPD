@@ -153,9 +153,19 @@ class OperationalHighValueMysqlConcurrencyTest {
         } finally {
             List<Long> chargeIds = jdbcTemplate.queryForList(
                     "SELECT charge_id FROM high_value_charge WHERE external_charge_no = ?", Long.class, externalNo);
-            for (Long chargeId : chargeIds) {
-                jdbcTemplate.update("DELETE FROM inventory_event WHERE source_biz_type = 'high_value_charge' AND source_biz_id = ?", chargeId);
-                jdbcTemplate.update("DELETE FROM audit_log WHERE biz_type = 'high_value_charge' AND biz_id = ?", chargeId);
+            jdbcTemplate.execute("SET @spd_allow_inventory_event_maintenance = 1");
+            try {
+                for (Long chargeId : chargeIds) {
+                    jdbcTemplate.update("""
+                            DELETE link FROM inventory_event_trace_code link
+                            JOIN inventory_event ie ON ie.event_id = link.event_id
+                            WHERE ie.source_biz_type = 'high_value_charge' AND ie.source_biz_id = ?
+                            """, chargeId);
+                    jdbcTemplate.update("DELETE FROM inventory_event WHERE source_biz_type = 'high_value_charge' AND source_biz_id = ?", chargeId);
+                    jdbcTemplate.update("DELETE FROM audit_log WHERE biz_type = 'high_value_charge' AND biz_id = ?", chargeId);
+                }
+            } finally {
+                jdbcTemplate.execute("SET @spd_allow_inventory_event_maintenance = NULL");
             }
             jdbcTemplate.update("DELETE FROM high_value_charge WHERE external_charge_no = ?", externalNo);
             if (traceId != null) {

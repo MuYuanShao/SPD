@@ -3,6 +3,7 @@ import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.common.service.InventoryEventCommand;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -157,8 +158,12 @@ public class OperationalHighValueModule {
         }
         Long chargeId = Objects.requireNonNull(keyHolder.getKey()).longValue();
 
-        support.consumeSpecificBatch(warehouseId, productId, ((Number) trace.get("batchId")).longValue(), BigDecimal.ONE,
+        SupplyChainSupport.InventoryDeductionEvent deductionEvent = support.consumeSpecificBatchEvent(
+                warehouseId, productId, ((Number) trace.get("batchId")).longValue(), BigDecimal.ONE,
                 "high_value_billing_deduct", "high_value_charge", chargeId, "billing callback deducts exact unique code");
+        support.linkInventoryEventTraceCodes(deductionEvent.eventId(), List.of(
+                new InventoryEventCommand.TraceLink(((Number) trace.get("traceCodeId")).longValue(),
+                        "high_value_unit", BigDecimal.ONE)));
 
         if (!trace.isEmpty()) {
             writeBillingTrace(body, trace, externalChargeNo, deptName, patientNo, patientNameMasked, roomName);

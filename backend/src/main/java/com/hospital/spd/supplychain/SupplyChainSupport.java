@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain;
 
+import com.hospital.spd.common.service.InventoryEventCommand;
 import com.hospital.spd.common.service.AuditLogService;
 import com.hospital.spd.common.service.DocumentKind;
 import com.hospital.spd.common.service.DocumentNumberService;
@@ -88,6 +89,16 @@ public class SupplyChainSupport {
         return new InventoryDeduction(deduction.batchId(), deduction.quantity(), deduction.unitPrice());
     }
 
+    public InventoryDeductionEvent consumeSpecificBatchEvent(Long warehouseId, Long productId, Long batchId,
+                                                   BigDecimal quantity, String eventType, String sourceType,
+                                                   Long sourceId, String remark) {
+        InventoryMovementService.InventoryDeductionEvent result = inventoryMovementService.consumeSpecificBatchEvent(
+                warehouseId, productId, batchId, quantity, eventType, sourceType, sourceId, remark);
+        InventoryMovementService.InventoryDeduction deduction = result.deduction();
+        return new InventoryDeductionEvent(
+                new InventoryDeduction(deduction.batchId(), deduction.quantity(), deduction.unitPrice()), result.eventId());
+    }
+
     public InventoryDeduction transferSpecificBatch(Long sourceWarehouseId, Long destinationWarehouseId,
                                                     Long productId, Long batchId, BigDecimal quantity,
                                                     String sourceType, Long sourceId, String remark) {
@@ -129,11 +140,18 @@ public class SupplyChainSupport {
                 eventType, sourceType, sourceId, remark);
     }
 
+    public void linkInventoryEventTraceCodes(Long eventId, List<InventoryEventCommand.TraceLink> traceLinks) {
+        inventoryMovementService.linkEventTraceCodes(eventId, traceLinks);
+    }
+
     public void releaseLockedToAvailable(Long balanceId, BigDecimal quantity) {
         inventoryMovementService.releaseLockedToAvailable(balanceId, quantity);
     }
 
     public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+    }
+
+    public record InventoryDeductionEvent(InventoryDeduction deduction, Long eventId) {
     }
 
     public record InventoryReservation(Long balanceId, Long batchId, BigDecimal quantity, BigDecimal unitPrice) {

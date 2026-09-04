@@ -49,13 +49,102 @@ export async function fetchQuotaPackageStock(params: Record<string, string>) {
 export async function fetchUniqueCodeStock(params: Record<string, string>) {
   return getData<PageResult<Record<string, unknown>>>('/inventory/unique-code-stock', { params })
 }
+
+export interface InventoryEventSummary {
+  inboundQty: number
+  outboundQty: number
+  netQty: number
+  movementAmount: number
+  valuationChange: number
+}
+
+export interface InventoryEventRow {
+  eventNo: string
+  eventType: string
+  transactionTypeCode: string
+  transactionTypeName: string
+  eventCategory: 'quantity' | 'valuation'
+  deptName?: string
+  warehouseCode?: string
+  warehouseName: string
+  productCode: string
+  productName: string
+  specModel?: string
+  registrationNo?: string
+  batchNo?: string
+  productionBatchNo?: string
+  unitPrice?: number
+  unit?: string
+  qtyChange: number
+  amount?: number
+  qtyAfter?: number
+  oldUnitPrice?: number
+  newUnitPrice?: number
+  affectedQty?: number
+  valueChange?: number
+  manufacturerName?: string
+  supplierName?: string
+  traceCount: number
+  sourceBizType?: string
+  sourceBizId?: number
+  sourceBizNo?: string
+  snapshotOrigin: 'captured' | 'legacy_backfill'
+  remark?: string
+  eventTime: string
+}
+
+export interface InventoryEventTraceCode {
+  traceCodeId: number
+  traceType: string
+  linkedQuantity: number
+  traceScope?: string
+  uniqueCode?: string
+  udiCode?: string
+  packageLabelNo?: string
+  currentStatus?: string
+}
+
+export interface InventoryEventDetail extends InventoryEventRow {
+  traceCodes: InventoryEventTraceCode[]
+}
+
+export interface InventoryTransactionTypeOption {
+  code: string
+  label: string
+  category: 'quantity' | 'valuation'
+}
+
+export interface InventoryEventQuery {
+  page: number
+  size: number
+  startTime?: string
+  endTime?: string
+  transactionTypeCode?: string
+  warehouseName?: string
+  productName?: string
+  deptName?: string
+  productCode?: string
+  batchNo?: string
+  productionBatchNo?: string
+  manufacturerName?: string
+  supplierName?: string
+  sourceBizNo?: string
+}
 /**
  * 查询库存交易流水记录
  * @param params - 查询参数
  * @returns 库存交易流水列表
  */
-export async function fetchInventoryEvents(params: Record<string, string>) {
-  return getData<PageResult<Record<string, unknown>>>('/inventory/events', { params })
+export async function fetchInventoryEvents(params: InventoryEventQuery) {
+  return getData<PageResult<InventoryEventRow> & { summary?: InventoryEventSummary }>('/inventory/events', { params })
+}
+
+export async function fetchInventoryEventDetail(eventNo: string) {
+  return getData<InventoryEventDetail>(`/inventory/events/${encodeURIComponent(eventNo)}`)
+}
+
+export async function fetchInventoryTransactionTypes() {
+  return getData<{ rows: InventoryTransactionTypeOption[] }>('/inventory/events/options/transaction-types')
 }
 
 /**

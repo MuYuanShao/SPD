@@ -142,65 +142,6 @@ class InventoryServiceTest {
         }
     }
 
-    // ==================== 库存事件追溯 ====================
-
-    @Nested
-    @DisplayName("events() 库存事件追溯")
-    class EventsTest {
-
-        @Test
-        @DisplayName("成功返回库存事件列表")
-        void shouldReturnEventList() {
-            Map<String, String> params = Map.of("page", "1", "size", "20");
-            when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(100L);
-            when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-                    Map.of("eventNo", "KC2026060100001", "eventType", "purchase_receive_in",
-                            "qtyChange", BigDecimal.TEN)
-            ));
-
-            Map<String, Object> result = service.events(params);
-
-            assertThat((List<?>) result.get("rows")).hasSize(1);
-            assertThat(result.get("total")).isEqualTo(100L);
-        }
-
-        @Test
-        @DisplayName("按事件类型筛选时返回过滤结果")
-        void shouldReturnFilteredByEventType() {
-            Map<String, String> params = Map.of("page", "1", "size", "10", "eventType", "purchase_receive_in");
-            when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(5L);
-            when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-                    Map.of("eventNo", "KC2026060100002", "eventType", "purchase_receive_in")
-            ));
-
-            Map<String, Object> result = service.events(params);
-
-            assertThat((List<?>) result.get("rows")).hasSize(1);
-            assertThat(result.get("total")).isEqualTo(5L);
-        }
-
-        @Test
-        @DisplayName("按交易类型筛选时生成交易类型映射条件")
-        void shouldReturnFilteredByTransactionType() {
-            Map<String, String> params = Map.of("page", "1", "size", "10", "transactionType", "验收入库");
-            when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(3L);
-            when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-                    Map.of("eventNo", "KC2026060100003", "transactionType", "验收入库")
-            ));
-
-            Map<String, Object> result = service.events(params);
-
-            assertThat((List<?>) result.get("rows")).hasSize(1);
-            assertThat(result.get("total")).isEqualTo(3L);
-            verify(jdbcTemplate).queryForObject(
-                    argThat(sql -> sql.contains("'验收入库'")
-                            && sql.contains("quota_pack_out")
-                            && sql.contains("二级库入库")
-                            && sql.contains("三级库出库")),
-                    eq(Long.class), any(Object[].class));
-        }
-    }
-
     // ==================== 批次查询 ====================
 
     @Nested

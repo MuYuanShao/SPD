@@ -3,6 +3,7 @@ package com.hospital.spd.specialty.service;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.supplychain.service.SettlementPointService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.common.service.InventoryEventCommand;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -168,10 +169,13 @@ public class HighValueTraceFlowService {
                                    String patientNo, String patientNameMasked) {
         BigDecimal amount = BigDecimal.ZERO;
         for (TraceUnit unit : units) {
-            SupplyChainSupport.InventoryDeduction deduction = support.consumeSpecificBatch(
+            SupplyChainSupport.InventoryDeductionEvent deductionEvent = support.consumeSpecificBatchEvent(
                     warehouseId, productId, unit.batchId(), BigDecimal.ONE,
                     "department_consumption_out", "department_consumption", consumptionId,
                     "high-value department consumption by unique code");
+            SupplyChainSupport.InventoryDeduction deduction = deductionEvent.deduction();
+            support.linkInventoryEventTraceCodes(deductionEvent.eventId(), List.of(
+                    new InventoryEventCommand.TraceLink(unit.traceCodeId(), "high_value_unit", BigDecimal.ONE)));
             BigDecimal itemAmount = deduction.unitPrice();
             jdbcTemplate.update("""
                     INSERT INTO department_consumption_item

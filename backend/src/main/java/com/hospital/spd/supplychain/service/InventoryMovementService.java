@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.service.InventoryEventCommand;
 import com.hospital.spd.common.service.InventoryEventService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -121,6 +122,13 @@ public class InventoryMovementService {
     }
     public InventoryDeduction consumeSpecificBatch(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
                                                     String eventType, String sourceType, Long sourceId, String remark) {
+        return consumeSpecificBatchEvent(warehouseId, productId, batchId, quantity,
+                eventType, sourceType, sourceId, remark).deduction();
+    }
+
+    public InventoryDeductionEvent consumeSpecificBatchEvent(Long warehouseId, Long productId, Long batchId,
+                                                    BigDecimal quantity, String eventType, String sourceType,
+                                                    Long sourceId, String remark) {
         requirePositive(quantity);
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT bal.balance_id AS balanceId, bal.available_qty AS availableQty,
@@ -149,7 +157,8 @@ public class InventoryMovementService {
         Long eventId = recordEvent(eventType, sourceType, sourceId, warehouseId, productId,
                 batchId, quantity.negate(), qtyAfter, remark);
         finalizeBalanceMutation(balanceId, eventId);
-        return new InventoryDeduction(batchId, quantity, (BigDecimal) balance.get("unitPrice"));
+        return new InventoryDeductionEvent(
+                new InventoryDeduction(batchId, quantity, (BigDecimal) balance.get("unitPrice")), eventId);
     }
 
     public InventoryDeduction transferSpecificBatch(Long sourceWarehouseId, Long destinationWarehouseId,
@@ -362,8 +371,12 @@ public class InventoryMovementService {
 
     private Long recordEvent(String eventType, String sourceType, Long sourceId, Long warehouseId, Long productId,
                              Long batchId, BigDecimal qtyChange, BigDecimal qtyAfter, String remark) {
-        return inventoryEventService.record(eventType, sourceType, sourceId, warehouseId, productId,
-                batchId, qtyChange, qtyAfter, remark);
+        return inventoryEventService.record(InventoryEventCommand.quantity(eventType, sourceType, sourceId,
+                warehouseId, productId, batchId, qtyChange, qtyAfter, remark));
+    }
+
+    public void linkEventTraceCodes(Long eventId, List<InventoryEventCommand.TraceLink> traceLinks) {
+        inventoryEventService.linkTraceCodes(eventId, traceLinks);
     }
 
     private static void requirePositive(BigDecimal quantity) {
@@ -373,6 +386,9 @@ public class InventoryMovementService {
     }
 
     public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+    }
+
+    public record InventoryDeductionEvent(InventoryDeduction deduction, Long eventId) {
     }
 
     public record InventoryReservation(Long balanceId, Long batchId, BigDecimal quantity, BigDecimal unitPrice) {

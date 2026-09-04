@@ -2,21 +2,24 @@ package com.hospital.spd.supplychain;
 
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.supplychain.service.InventoryService;
+import com.hospital.spd.supplychain.service.BatchPriceAdjustmentService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 
 /**
- * Exposes inventory balance, batch, event, stocktaking, and batch price adjustment endpoints.
+ * Exposes inventory balance, batch, stocktaking, and batch price adjustment endpoints.
  */
 @RestController
 @RequestMapping("/inventory")
 public class InventoryController {
 
     private final InventoryService service;
+    private final BatchPriceAdjustmentService priceAdjustments;
 
-    public InventoryController(InventoryService service) {
+    public InventoryController(InventoryService service, BatchPriceAdjustmentService priceAdjustments) {
         this.service = service;
+        this.priceAdjustments = priceAdjustments;
     }
 
     @GetMapping("/balances")
@@ -32,11 +35,6 @@ public class InventoryController {
     @GetMapping("/unique-code-stock")
     public ApiResponse<Map<String, Object>> uniqueCodeStock(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(service.uniqueCodeStock(params));
-    }
-
-    @GetMapping("/events")
-    public ApiResponse<Map<String, Object>> events(@RequestParam Map<String, String> params) {
-        return ApiResponse.ok(service.events(params));
     }
 
     @GetMapping("/batches")
@@ -77,12 +75,12 @@ public class InventoryController {
 
     @PostMapping("/batch-price-adjustments")
     public ApiResponse<Map<String, Object>> createPriceAdjustment(@RequestBody BatchPriceAdjustmentRequest request) {
-        return ApiResponse.ok(service.createPriceAdjustment(request));
+        return ApiResponse.ok(priceAdjustments.create(request));
     }
 
     @PutMapping("/batch-price-adjustments/{adjustmentNo}/approve")
     public ApiResponse<Map<String, Object>> approvePriceAdjustment(@PathVariable String adjustmentNo) {
-        return ApiResponse.ok(service.approvePriceAdjustment(adjustmentNo));
+        return ApiResponse.ok(priceAdjustments.approve(adjustmentNo));
     }
 
     @GetMapping("/stocktaking")
@@ -92,7 +90,7 @@ public class InventoryController {
 
     @GetMapping("/batch-price-adjustments")
     public ApiResponse<Map<String, Object>> priceAdjustmentList(@RequestParam Map<String, String> params) {
-        return ApiResponse.ok(service.priceAdjustmentList(params));
+        return ApiResponse.ok(priceAdjustments.list(params));
     }
 
 }

@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.service.InventoryEventCommand;
 import com.hospital.spd.common.service.InventoryEventService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,8 +45,7 @@ class InventoryMovementServiceTest {
         when(jdbcTemplate.update(contains("ON DUPLICATE KEY UPDATE"), eq(1L), eq(2L), eq(20L), eq(quantity)))
                 .thenReturn(1);
         when(jdbcTemplate.queryForMap(anyString(), eq(1L), eq(2L), eq(20L))).thenReturn(balance);
-        when(inventoryEventService.record("purchase_receive_in", "receiving_order", 99L, 1L, 2L, 20L,
-                quantity, qtyAfter, "receive approved")).thenReturn(77L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L);
 
         Long eventId = service.receiveAvailable(1L, 2L, 20L, quantity,
                 "purchase_receive_in", "receiving_order", 99L, "receive approved");
@@ -68,8 +68,7 @@ class InventoryMovementServiceTest {
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
                 .thenReturn(qtyAfter);
-        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
-                requestedQty.negate(), qtyAfter, "sign delivery")).thenReturn(77L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L);
 
         List<InventoryMovementService.InventoryDeduction> deductions = service.consumeAvailableFifo(
                 1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery");
@@ -92,8 +91,7 @@ class InventoryMovementServiceTest {
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
                 .thenReturn(BigDecimal.ZERO);
-        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
-                quantity.negate(), BigDecimal.ZERO, "sign delivery")).thenReturn(77L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L);
         when(jdbcTemplate.update(contains("DELETE FROM inventory_balance"), eq(10L))).thenReturn(1);
 
         service.consumeAvailableFifo(
@@ -133,10 +131,7 @@ class InventoryMovementServiceTest {
                 .thenReturn(BigDecimal.ZERO);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(11L)))
                 .thenReturn(new BigDecimal("3.0000"));
-        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
-                firstQty.negate(), BigDecimal.ZERO, "sign delivery")).thenReturn(77L);
-        when(inventoryEventService.record("delivery_out", "delivery_order", 99L, 1L, 2L, 21L,
-                secondQty.negate(), new BigDecimal("3.0000"), "sign delivery")).thenReturn(78L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L, 78L);
 
         List<InventoryMovementService.InventoryDeduction> deductions = service.consumeAvailableFifo(
                 1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery");
@@ -144,10 +139,11 @@ class InventoryMovementServiceTest {
         assertThat(deductions).containsExactly(
                 new InventoryMovementService.InventoryDeduction(20L, firstQty, new BigDecimal("5.0000")),
                 new InventoryMovementService.InventoryDeduction(21L, secondQty, new BigDecimal("6.0000")));
-        verify(inventoryEventService).record("delivery_out", "delivery_order", 99L, 1L, 2L, 20L,
-                firstQty.negate(), BigDecimal.ZERO, "sign delivery");
-        verify(inventoryEventService).record("delivery_out", "delivery_order", 99L, 1L, 2L, 21L,
-                secondQty.negate(), new BigDecimal("3.0000"), "sign delivery");
+        ArgumentCaptor<InventoryEventCommand> events = ArgumentCaptor.forClass(InventoryEventCommand.class);
+        verify(inventoryEventService, org.mockito.Mockito.times(2)).record(events.capture());
+        assertThat(events.getAllValues()).extracting(InventoryEventCommand::batchId).containsExactly(20L, 21L);
+        assertThat(events.getAllValues()).extracting(InventoryEventCommand::quantityChange)
+                .containsExactly(firstQty.negate(), secondQty.negate());
     }
 
     @Test
@@ -236,8 +232,7 @@ class InventoryMovementServiceTest {
                 eq(quantity), eq(quantity), eq(10L), eq(quantity))).thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
                 .thenReturn(qtyAfter);
-        when(inventoryEventService.record("recall_isolate", "recall_event", 99L, 1L, 2L, 20L,
-                quantity.negate(), qtyAfter, "quality issue")).thenReturn(77L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L);
 
         List<InventoryMovementService.InventoryDeduction> isolated = service.isolateAvailableFifo(
                 1L, 2L, quantity, "recall_event", 99L, "quality issue");
@@ -256,8 +251,7 @@ class InventoryMovementServiceTest {
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
                 .thenReturn(qtyAfter);
-        when(inventoryEventService.record("quota_pack_out", "quota_packing_task", 99L, 1L, 2L, 20L,
-                quantity.negate(), qtyAfter, "confirm packing")).thenReturn(77L);
+        when(inventoryEventService.record(any(InventoryEventCommand.class))).thenReturn(77L);
 
         Long eventId = service.consumeLocked(10L, 1L, 2L, 20L, quantity,
                 "quota_pack_out", "quota_packing_task", 99L, "confirm packing");

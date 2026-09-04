@@ -5,6 +5,7 @@ import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.common.service.AuditLogService;
+import com.hospital.spd.common.service.InventoryEventCommand;
 import com.hospital.spd.supplychain.*;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
 import static com.hospital.spd.common.service.DocumentKind.*;
@@ -583,8 +584,10 @@ public class ReceivingOrderService {
                 continue;
             }
             CreatedInventoryBatch batch = createInventoryBatch(receivingOrderId, itemId, productId, supplierId, item, latestPrice);
-            applyInventoryBalance(warehouseId, productId, batch.batchId(), qualifiedQty, receivingOrderId);
-            createHighValueTraceCodes(receivingNo, itemId, warehouseId, item, batch, highValueUnitCount);
+            Long inventoryEventId = applyInventoryBalance(warehouseId, productId, batch.batchId(), qualifiedQty, receivingOrderId);
+            List<InventoryEventCommand.TraceLink> traceLinks = createHighValueTraceCodes(
+                    receivingNo, itemId, warehouseId, item, batch, highValueUnitCount);
+            support.linkInventoryEventTraceCodes(inventoryEventId, traceLinks);
             if (previewPrice != null && previewPrice.compareTo(latestPrice) != 0) {
                 writePriceDiffAudit(receivingOrderId, receivingNo, productId, previewPrice, latestPrice);
             }
@@ -687,10 +690,12 @@ public class ReceivingOrderService {
         }
         return SettlementPointService.PURCHASE_IN;
     }
-    private void createHighValueTraceCodes(String receivingNo, Long receivingItemId, Long warehouseId,
-                                           Map<String, Object> item, CreatedInventoryBatch batch, int unitCount) {
+    private List<InventoryEventCommand.TraceLink> createHighValueTraceCodes(String receivingNo, Long receivingItemId,
+                                           Long warehouseId, Map<String, Object> item,
+                                           CreatedInventoryBatch batch, int unitCount) {
+        List<InventoryEventCommand.TraceLink> traceLinks = new ArrayList<>();
         if (unitCount == 0) {
-            return;
+            return traceLinks;
         }
         String operatorName = operatorContextProvider.current().username();
         // UDI 取验收录入的 UDI 字段（独立于唯一码）；未录入时留空，唯一码由系统自动生成
@@ -709,6 +714,7 @@ public class ReceivingOrderService {
             Long traceCodeId = jdbcTemplate.queryForObject(
                     "SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?",
                     Long.class, uniqueCode);
+            traceLinks.add(new InventoryEventCommand.TraceLink(traceCodeId, "high_value_unit", BigDecimal.ONE));
             jdbcTemplate.update("""
                     INSERT INTO inventory_batch_trace_code (batch_id, trace_code_id, receiving_item_id, current_warehouse_id)
                     VALUES (?, ?, ?, ?)
@@ -721,6 +727,7 @@ public class ReceivingOrderService {
                               '高值耗材验收合格入库自动生成唯一码', 20)
                     """, traceCodeId, support.nextNo(UDI_TRACE_EVENT), receivingNo, operatorName);
         }
+        return traceLinks;
     }
 
     private static boolean isHighValue(Map<String, Object> item) {

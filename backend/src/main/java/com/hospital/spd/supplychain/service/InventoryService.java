@@ -246,104 +246,6 @@ public class InventoryService {
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
-    /**
-     * 交易类型映射：验收入库、打包入库、解包、二级库入库、三级库入库、二级库出库、三级库出库。
-     * 一级库（中心库）其余出入库按方向归入入库/出库类型展示。
-     */
-    private static final String TRANSACTION_TYPE_EXPR = """
-            (CASE
-               WHEN ie.event_type = 'purchase_receive_in' THEN '验收入库'
-               WHEN ie.event_type = 'quota_pack_out' THEN '打包入库'
-               WHEN ie.event_type IN ('quota_unpack_in', 'quota_terminate_in') THEN '解包'
-               WHEN w.warehouse_type LIKE '%三级%' AND ie.qty_change > 0 THEN '三级库入库'
-               WHEN w.warehouse_type LIKE '%三级%' AND ie.qty_change < 0 THEN '三级库出库'
-               WHEN w.warehouse_type LIKE '%二级%' AND ie.qty_change > 0 THEN '二级库入库'
-               WHEN w.warehouse_type LIKE '%二级%' AND ie.qty_change < 0 THEN '二级库出库'
-               WHEN ie.qty_change > 0 THEN '验收入库'
-               ELSE '二级库出库'
-             END)""";
-
-    public Map<String, Object> events(Map<String, String> params) {
-        PageRequest pageReq = PageRequest.from(params);
-        List<Object> args = new ArrayList<>();
-        StringBuilder where = new StringBuilder("""
-                 WHERE 1 = 1
-                """);
-        appendLike(where, args, "ie.event_type", params.get("eventType"));
-        if (!isBlank(params.get("transactionType"))) {
-            where.append(" AND ").append(TRANSACTION_TYPE_EXPR).append(" = ?");
-            args.add(params.get("transactionType").trim());
-        }
-        appendLike(where, args, "d.dept_name", params.get("deptName"));
-        appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
-        appendLike(where, args, "p.product_code", params.get("productCode"));
-        appendLike(where, args, "p.product_name", params.get("productName"));
-        appendLike(where, args, "ib.system_batch_no", params.get("batchNo"));
-        appendLike(where, args, "ib.production_batch_no", params.get("productionBatchNo"));
-        appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
-        appendLike(where, args, "s.supplier_name", params.get("supplierName"));
-        appendTimeRange(where, args, params.get("startTime"), params.get("endTime"));
-
-        String fromClause = """
-                  FROM inventory_event ie
-                  JOIN warehouse w ON w.warehouse_id = ie.warehouse_id
-                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
-                  JOIN product p ON p.product_id = ie.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
-                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
-                  JOIN inventory_batch ib ON ib.batch_id = ie.batch_id
-                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.batch_id = ie.batch_id
-                  LEFT JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
-                """;
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
-
-        List<Object> queryArgs = new ArrayList<>(args);
-        queryArgs.add(pageReq.size());
-        queryArgs.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT ie.event_no AS eventNo, ie.event_type AS eventType,
-                       """ + TRANSACTION_TYPE_EXPR + """
-                       AS transactionType,
-                       COALESCE(d.dept_name, '-') AS deptName,
-                       w.warehouse_name AS warehouseName, p.product_code AS productCode,
-                       p.product_name AS productName, COALESCE(p.spec_model, '-') AS specModel,
-                       COALESCE(p.registration_no, '-') AS registrationNo,
-                       ib.system_batch_no AS batchNo, COALESCE(ib.production_batch_no, '-') AS productionBatchNo,
-                       ib.batch_unit_price AS unitPrice, p.unit AS unit,
-                       ie.qty_change AS qtyChange,
-                       ROUND(ie.qty_change * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
-                       ie.qty_after AS qtyAfter,
-                       COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       COALESCE(s.supplier_name, '-') AS supplierName,
-                       COALESCE(utc.udi_code, utc.unique_code, '-') AS traceCode,
-                       COALESCE(utc.udi_code, '-') AS udiCode,
-                       ie.remark, DATE_FORMAT(ie.event_time, '%Y-%m-%d %H:%i') AS eventTime
-                  FROM inventory_event ie
-                  JOIN warehouse w ON w.warehouse_id = ie.warehouse_id
-                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
-                  JOIN product p ON p.product_id = ie.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
-                  LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
-                  JOIN inventory_batch ib ON ib.batch_id = ie.batch_id
-                  LEFT JOIN inventory_batch_trace_code ibtc ON ibtc.batch_id = ie.batch_id
-                  LEFT JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
-                """ + where + " ORDER BY d.dept_name, ie.event_time DESC, ie.event_id DESC LIMIT ? OFFSET ?",
-                queryArgs.toArray());
-        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
-    }
-
-    /** 时间段过滤：按发生时间区间（yyyy-MM-dd，含起止当天） */
-    private static void appendTimeRange(StringBuilder sql, List<Object> args, String startTime, String endTime) {
-        if (!isBlank(startTime)) {
-            sql.append(" AND ie.event_time >= ?");
-            args.add(startTime.trim() + " 00:00:00");
-        }
-        if (!isBlank(endTime)) {
-            sql.append(" AND ie.event_time <= ?");
-            args.add(endTime.trim() + " 23:59:59");
-        }
-    }
-
     public Map<String, Object> batches(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
@@ -616,56 +518,6 @@ public class InventoryService {
         return Map.of("stocktakingNo", stocktakingNo, "status", "approved");
     }
 
-    @Transactional
-    public Map<String, Object> createPriceAdjustment(BatchPriceAdjustmentRequest request) {
-        Map<String, Object> batch = jdbcTemplate.queryForMap("""
-                SELECT batch_id AS batchId, system_batch_no AS systemBatchNo,
-                       batch_unit_price AS oldUnitPrice
-                  FROM inventory_batch
-                 WHERE system_batch_no = ?
-                """, request.systemBatchNo());
-        BigDecimal newPrice = request.newUnitPrice();
-        if (newPrice == null || newPrice.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("鏂版壒娆″崟浠峰繀椤诲ぇ浜?0");
-        }
-        BigDecimal affectedQty = jdbcTemplate.queryForObject(
-                "SELECT COALESCE(SUM(available_qty + locked_qty + in_transit_qty + isolated_qty), 0) FROM inventory_balance WHERE batch_id = ?",
-                BigDecimal.class,
-                batch.get("batchId"));
-        String adjustmentNo = support.nextNo(BATCH_PRICE_ADJUSTMENT);
-        jdbcTemplate.update("""
-                INSERT INTO batch_price_adjustment (
-                  adjustment_no, batch_id, old_unit_price, new_unit_price, affected_qty, reason, status
-                ) VALUES (?, ?, ?, ?, ?, ?, 'draft')
-                """, adjustmentNo, batch.get("batchId"), batch.get("oldUnitPrice"), newPrice, affectedQty,
-                nullIfBlank(request.reason()));
-        writeAudit("create_batch_price_adjustment", ((Number) batch.get("batchId")).longValue(), adjustmentNo, "create batch price adjustment");
-        return Map.of("adjustmentNo", adjustmentNo, "affectedQty", affectedQty);
-    }
-
-    @Transactional
-    public Map<String, Object> approvePriceAdjustment(String adjustmentNo) {
-        OperatorContext operator = operatorContextProvider.current();
-        Map<String, Object> adjustment = jdbcTemplate.queryForMap("""
-                SELECT adjustment_id AS adjustmentId, batch_id AS batchId, new_unit_price AS newUnitPrice, status
-                  FROM batch_price_adjustment
-                 WHERE adjustment_no = ?
-                 FOR UPDATE
-                """, adjustmentNo);
-        if (!"draft".equals(String.valueOf(adjustment.get("status")))) {
-            throw new IllegalArgumentException("调价单已处理");
-        }
-        approvalFlowGuard.requireApprovalAccess("batch-price-adjustment", "price-adjustment-approval", null, null);
-        jdbcTemplate.update("UPDATE inventory_batch SET batch_unit_price = ? WHERE batch_id = ?",
-                adjustment.get("newUnitPrice"), adjustment.get("batchId"));
-        int updated = jdbcTemplate.update("UPDATE batch_price_adjustment SET status = 'approved', approve_time = NOW(), approve_by = ? WHERE adjustment_no = ? AND status = 'draft'",
-                operator.userId(), adjustmentNo);
-        requireSingleStateChange(updated, "price adjustment has already been processed");
-        writeAudit("approve_batch_price_adjustment", ((Number) adjustment.get("batchId")).longValue(), adjustmentNo,
-                "batch price adjustment approved");
-        return Map.of("adjustmentNo", adjustmentNo, "status", "approved");
-    }
-
     public Map<String, Object> stocktakingList(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         String fromClause = """
@@ -686,23 +538,6 @@ public class InventoryService {
                   LEFT JOIN inventory_stocktaking_item si ON si.stocktaking_id = st.stocktaking_id
                  GROUP BY st.stocktaking_id
                  ORDER BY st.create_time DESC
-                 LIMIT ? OFFSET ?
-                """, pageReq.size(), pageReq.offset());
-        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
-    }
-
-    public Map<String, Object> priceAdjustmentList(Map<String, String> params) {
-        PageRequest pageReq = PageRequest.from(params);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM batch_price_adjustment", Long.class);
-
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT pa.adjustment_no AS adjustmentNo, ib.system_batch_no AS systemBatchNo,
-                       pa.old_unit_price AS oldUnitPrice, pa.new_unit_price AS newUnitPrice,
-                       pa.affected_qty AS affectedQty, pa.status, pa.reason,
-                       DATE_FORMAT(pa.create_time, '%Y-%m-%d %H:%i') AS createTime
-                  FROM batch_price_adjustment pa
-                  JOIN inventory_batch ib ON ib.batch_id = pa.batch_id
-                 ORDER BY pa.create_time DESC
                  LIMIT ? OFFSET ?
                 """, pageReq.size(), pageReq.offset());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);

@@ -452,23 +452,19 @@ class OperationalClosureServiceTest {
 
         when(jdbcTemplate.queryForMap(contains("FROM spd_delivery_order WHERE delivery_no = ?"), eq(deliveryNo)))
                 .thenReturn(Map.of(
-                        "deliveryId", 1L, "deliveryNo", deliveryNo,
+                        "deliveryId", 1L, "deliveryNo", deliveryNo, "requisitionNo", "SL001",
                         "deptName", "外科",
                         "warehouseName", "主仓库", "productCode", "PC001",
                         "quantity", BigDecimal.valueOf(10), "status", "picked"
                 ));
 
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"),
-                eq(Long.class), anyString()))
-                .thenReturn(1L);
-        when(jdbcTemplate.queryForList(contains("JOIN sys_dept"), eq(Long.class), eq("外科"), eq(1L)))
-                .thenReturn(List.of(2L));
+        when(jdbcTemplate.queryForList(contains("SELECT dr.source_warehouse_id"), eq("SL001")))
+                .thenReturn(List.of(Map.of("sourceWarehouseId", 1L, "destinationWarehouseId", 2L, "deptId", 3L)));
+        when(jdbcTemplate.queryForList(contains("FROM spd_delivery_batch"), eq(1L)))
+                .thenReturn(List.of(Map.of("sourceWarehouseId", 1L, "productId", 100L,
+                        "batchId", 200L, "quantity", BigDecimal.TEN)));
         when(jdbcTemplate.queryForObject(contains("spd_delivery_package_binding"), eq(Integer.class), eq(1L)))
                 .thenReturn(0);
-
-        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
-                .thenReturn(Map.of("productId", 100L, "productCode", "PC001",
-                        "productName", "注射器"));
 
         when(jdbcTemplate.update(contains("UPDATE spd_delivery_order"), eq(2L), eq(deliveryNo))).thenReturn(1);
 
@@ -477,12 +473,12 @@ class OperationalClosureServiceTest {
         assertThat(result)
                 .containsEntry("deliveryNo", deliveryNo)
                 .containsEntry("status", "signed");
-        verify(support).transferAvailableFifo(eq(1L), eq(2L), eq(100L), eq(BigDecimal.valueOf(10)),
-                eq("spd_delivery_order"), eq(1L), anyString());
+        verify(support).receiveAvailable(eq(2L), eq(100L), eq(200L), eq(BigDecimal.TEN),
+                eq("delivery_sign_in"), eq("spd_delivery_order"), eq(1L), anyString());
     }
 
     @Test
-    @DisplayName("签收配送单——已经签收时抛出异常")
+    @DisplayName("签收配送单——重复签收幂等返回")
     void shouldThrowWhenDeliveryAlreadySigned() {
         when(jdbcTemplate.queryForMap(contains("FROM spd_delivery_order WHERE delivery_no = ?"), anyString()))
                 .thenReturn(Map.of(
@@ -490,9 +486,7 @@ class OperationalClosureServiceTest {
                         "status", "signed"
                 ));
 
-        assertThatThrownBy(() -> service.signDelivery("PS001"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("only picked delivery");
+        assertThat(service.signDelivery("PS001")).containsEntry("status", "signed");
     }
 
     // ==================== reverseConsumption() ====================

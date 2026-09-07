@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
+import 'element-plus/theme-chalk/el-drawer.css'
 import { useRouter } from 'vue-router'
 import { Eye, RefreshCw, Search, SlidersHorizontal } from '@lucide/vue'
 import PageHeader from '../common/PageHeader.vue'

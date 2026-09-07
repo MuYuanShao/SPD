@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
+import 'element-plus/theme-chalk/el-dialog.css'
 import { useRoute } from 'vue-router'
 import {
   Activity,
@@ -60,6 +62,8 @@ import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay
 const route = useRoute()
 const loading = ref(false)
 const message = ref('')
+const deliverySubmitting = ref(false)
+const deliveryError = ref('')
 const rows = ref<Record<string, unknown>[]>([])
 const analysisRows = ref<Record<string, unknown>[]>([])
 const pickingRequisitionRows = ref<Record<string, unknown>[]>([])
@@ -351,10 +355,15 @@ async function loadPickingSources() {
     pickingLooseRows.value = []
     return
   }
-  const labelsResult = await fetchPickingPackageLabels(baseParams)
-  pickingPackageRows.value = labelsResult.rows || []
-  const looseResult = await fetchPickingLooseStock(baseParams)
-  pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
+  if (itemType === 'quota_package') {
+    const labelsResult = await fetchPickingPackageLabels(baseParams)
+    pickingPackageRows.value = labelsResult.rows || []
+    pickingLooseRows.value = []
+  } else {
+    const looseResult = await fetchPickingLooseStock(baseParams)
+    pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
+    pickingPackageRows.value = []
+  }
   pickingUniqueCodeRows.value = []
 }
 
@@ -443,10 +452,10 @@ async function confirmSelectedPicking() {
     return
   }
 
-  // 定数包/散货类型：支持混合选择展示（定数包 + 散货）
+  // 履约模式必须与已审批申领快照一致。
   const looseQty = pickingLooseRows.value.reduce((sum, row) => sum + Number(row.pickQty || 0), 0)
   if (!selectedPickingLabels.value.length && looseQty <= 0) {
-    message.value = itemType === 'quota_package' ? '请勾选定数包标签或填写散货数量' : '请填写散货拣配数量'
+    message.value = itemType === 'quota_package' ? '请勾选匹配申领快照的定数包标签' : '请填写散货拣配数量'
     return
   }
   const done: string[] = []
@@ -591,6 +600,21 @@ async function applyRecallScope() {
 }
 
 async function runAction(action: string, row?: Record<string, unknown>) {
+  if (type.value !== 'delivery') return performAction(action, row)
+  if (deliverySubmitting.value) return
+  deliverySubmitting.value = true
+  deliveryError.value = ''
+  message.value = ''
+  try {
+    await performAction(action, row)
+  } catch (error) {
+    deliveryError.value = error instanceof Error ? error.message : '配送操作失败，请重试'
+  } finally {
+    deliverySubmitting.value = false
+  }
+}
+
+async function performAction(action: string, row?: Record<string, unknown>) {
   let result: Record<string, unknown> = {}
   if (action === 'shortage') {
     result = await generateShortage(shortagePayload())
@@ -759,7 +783,7 @@ watch(() => form.productCode, () => {
 </script>
 
 <template>
-  <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption' }">
+  <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption', 'delivery-acceptance-page': type === 'delivery' }">
     <div class="breadcrumb-line">
       <span>一期上线闭环</span>
       <strong>{{ title }}</strong>
@@ -796,7 +820,9 @@ watch(() => form.productCode, () => {
       </article>
     </div>
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
+    <StatusMessage v-if="type === 'delivery'" :message="deliveryError" tone="error" role="alert" />
+    <StatusMessage v-if="type === 'delivery'" :message="message" tone="info" role="status" />
+    <p v-else-if="message" class="inline-message">{{ message }}</p>
     <p v-if="type === 'settlement'" class="inline-message">结算数据在验收入库、科室消耗或患者计费达到批次结算点时自动生成，无需人工生成。</p>
 
     <section v-if="type !== 'settlement'" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption' }">
@@ -915,7 +941,7 @@ watch(() => form.productCode, () => {
           <Save :size="18" />
           提交申领
         </button>
-        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" @click="runAction('delivery')">
+        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading" @click="runAction('delivery')">
           <Truck :size="18" />
           确认拣配出库
         </button>
@@ -1003,6 +1029,11 @@ watch(() => form.productCode, () => {
                   </td>
                   <td>
                     <span class="status-badge">{{ itemTypeLabel(row.itemType) }}</span>
+                    <span v-if="row.itemType === 'quota_package'" class="muted-cell">
+                      版本 {{ row.templateVersion ?? '历史快照缺失' }} ·
+                      {{ row.packageQuantity ?? '-' }} / {{ row.packageUnit ?? '-' }}
+                      · 待拣 {{ row.remainingPackageCount ?? '-' }} 包
+                    </span>
                   </td>
                   <td>{{ row.requisitionQty }}</td>
                   <td>{{ row.pickedQty }}</td>
@@ -1056,10 +1087,10 @@ watch(() => form.productCode, () => {
         </section>
 
         <template v-else>
-        <section class="picking-panel">
+        <section v-if="selectedPickingItemType === 'quota_package'" class="picking-panel">
           <div class="section-title compact">
             <h3>可用定数包</h3>
-            <span v-if="selectedPickingItemType === 'loose'" class="muted-hint">申请类型为散货，可混合选择定数包</span>
+            <span class="muted-hint">按申领模板版本和包装规格选择标签</span>
           </div>
           <div class="consumption-code-search picking-package-scan">
             <input v-model.trim="pickingPackageScanCode" placeholder="扫描或输入定数包码" @keyup.enter="scanPickingPackage" />
@@ -1107,10 +1138,10 @@ watch(() => form.productCode, () => {
           </div>
         </section>
 
-        <section class="picking-panel picking-panel--loose">
+        <section v-if="selectedPickingItemType === 'loose'" class="picking-panel picking-panel--loose">
           <div class="section-title compact">
             <h3>可用散货</h3>
-            <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ form.quantity }}（可混合定数包与散货）</span>
+            <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ form.quantity }}（基础单位）</span>
           </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
@@ -1351,6 +1382,7 @@ watch(() => form.productCode, () => {
                   <button
                     v-if="type === 'delivery' && row.status === 'picked'"
                     type="button"
+                    :disabled="deliverySubmitting || loading"
                     @click="runAction('sign', row)"
                   >
                     <CheckCircle2 :size="15" />
@@ -1466,8 +1498,9 @@ watch(() => form.productCode, () => {
       </section>
     </div>
 
-    <div v-if="packageDetailOpen" class="attachment-preview-mask" @click.self="closePackageDetail">
-      <section class="supplier-dialog package-detail-dialog" role="dialog" aria-modal="true">
+    <ElDialog v-model="packageDetailOpen" title="定数包明细" width="min(960px, 94vw)"
+      :show-close="false" destroy-on-close append-to-body>
+      <section class="package-detail-content">
         <header>
           <div>
             <p>定数包明细</p>
@@ -1477,7 +1510,7 @@ watch(() => form.productCode, () => {
             <X :size="18" />
           </button>
         </header>
-        <p v-if="packageDetailLoading" class="approval-empty">正在加载定数包明细...</p>
+        <EmptyState v-if="packageDetailLoading" message="正在加载定数包明细..." />
         <template v-else-if="packageDetail">
           <div class="package-detail-info">
             <label><span>定数包编码</span><strong>{{ packageDetail.labelNo }}</strong></label>
@@ -1571,11 +1604,22 @@ watch(() => form.productCode, () => {
           </div>
         </template>
       </section>
-    </div>
+    </ElDialog>
   </section>
 </template>
 
 <style scoped>
+.delivery-acceptance-page .picking-workbench { grid-template-columns: minmax(0, 1fr); }
+.delivery-acceptance-page .picking-panel:first-child :is(th, td):first-child { position: sticky; left: 0; z-index: 1; background: white; }
+.delivery-acceptance-page :is(.picking-panel:first-child, .picking-panel--loose) :is(th, td):last-child { position: sticky; right: 0; z-index: 1; background: white; }
+.delivery-acceptance-page .picking-panel tr.selected :is(td:first-child, td:last-child) { background: #e8f7f5; }
+.package-detail-content { min-width: 0; max-height: 72vh; overflow: auto; }
+.package-detail-content header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.package-detail-content header h3 { overflow-wrap: anywhere; }
+.package-detail-content .package-detail-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; margin-block: 16px; }
+.package-detail-content .package-detail-info strong { overflow-wrap: anywhere; }
+.package-detail-content .table-scroll { overflow: auto; max-height: 260px; margin-block: 12px; }
+.package-detail-content .master-table { min-width: 640px; }
 .consumption-saas-page {
   --consumption-blue: #1677ff;
   --consumption-blue-deep: #0958d9;

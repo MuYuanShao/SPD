@@ -72,9 +72,10 @@ class QuotaPackageTraceFlowServiceTest {
         when(support.nextNo(DocumentKind.DEPARTMENT_CONSUMPTION)).thenReturn("XH001");
         when(support.nextNo(DocumentKind.UDI_TRACE_EVENT)).thenReturn("UT001");
         mockGeneratedKey(77L);
-        when(support.consumeSpecificBatch(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
+        when(support.consumeSpecificBatchEvent(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
                 eq("quota_package_scan_out"), eq("department_consumption"), eq(77L), any(String.class)))
-                .thenReturn(new SupplyChainSupport.InventoryDeduction(300L, BigDecimal.TEN, BigDecimal.valueOf(2)));
+                .thenReturn(new SupplyChainSupport.InventoryDeductionEvent(
+                        new SupplyChainSupport.InventoryDeduction(300L, BigDecimal.TEN, BigDecimal.valueOf(2)), 901L));
         lenient().doReturn(1).when(jdbcTemplate)
                 .update(contains("UPDATE quota_package_label SET status = 'consumed'"), eq(8L));
 
@@ -85,6 +86,8 @@ class QuotaPackageTraceFlowServiceTest {
                 .containsEntry("status", "consumed")
                 .containsEntry("amount", BigDecimal.valueOf(20))
                 .containsEntry("settlementEligible", true);
+        verify(support).linkInventoryEventTraceCodes(eq(901L), eq(List.of(
+                new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(88L, "quota_package", BigDecimal.TEN))));
         verify(jdbcTemplate).update(contains("INSERT INTO department_consumption_item"),
                 eq(77L), eq(100L), eq(300L), eq(88L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)),
                 eq(BigDecimal.valueOf(20)));

@@ -100,6 +100,7 @@ public class InventoryEventQueryService {
                        ie.system_batch_no_snapshot AS batchNo, ie.production_batch_no_snapshot AS productionBatchNo,
                        ie.unit_price_snapshot AS unitPrice, ie.unit_snapshot AS unit,
                        ie.qty_change AS qtyChange, ie.amount_snapshot AS amount, ie.qty_after AS qtyAfter,
+                       ie.old_unit_price AS oldUnitPrice, ie.new_unit_price AS newUnitPrice,
                        ie.affected_qty_snapshot AS affectedQty, ie.value_change AS valueChange,
                        ie.manufacturer_name_snapshot AS manufacturerName, ie.supplier_name_snapshot AS supplierName,
                        ie.source_biz_type AS sourceBizType, ie.source_biz_id AS sourceBizId,

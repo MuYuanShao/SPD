@@ -88,11 +88,23 @@ public class BatchPriceAdjustmentService {
         }
         approvalFlowGuard.requireApprovalAccess("batch-price-adjustment", "price-adjustment-approval", null, null);
         Long batchId = ((Number) adjustment.get("batchId")).longValue();
+        BigDecimal currentPrice = jdbcTemplate.queryForObject(
+                "SELECT batch_unit_price FROM inventory_batch WHERE batch_id = ? FOR UPDATE",
+                BigDecimal.class, batchId);
+        if (currentPrice == null || currentPrice.compareTo((BigDecimal) adjustment.get("oldUnitPrice")) != 0) {
+            throw new IllegalArgumentException("批次价格已变化，请重新创建调价申请");
+        }
         jdbcTemplate.queryForList("SELECT balance_id FROM inventory_balance WHERE batch_id = ? FOR UPDATE", batchId);
         BigDecimal oldPrice = (BigDecimal) adjustment.get("oldUnitPrice");
         BigDecimal newPrice = (BigDecimal) adjustment.get("newUnitPrice");
         jdbcTemplate.update("UPDATE inventory_batch SET batch_unit_price = ? WHERE batch_id = ?", newPrice, batchId);
         Long adjustmentId = ((Number) adjustment.get("adjustmentId")).longValue();
+        jdbcTemplate.update("""
+                UPDATE batch_price_adjustment SET affected_qty = (
+                  SELECT COALESCE(SUM(available_qty + locked_qty + in_transit_qty + isolated_qty), 0)
+                    FROM inventory_balance WHERE batch_id = ?
+                ) WHERE adjustment_id = ?
+                """, batchId, adjustmentId);
         List<Long> eventIds = inventoryEventService.recordValuationEvents(adjustmentId, batchId, oldPrice, newPrice,
                 "批次调价：" + adjustmentNo);
         int updated = jdbcTemplate.update("UPDATE batch_price_adjustment SET status = 'approved', approve_time = NOW(), approve_by = ? WHERE adjustment_id = ? AND status = 'draft'",

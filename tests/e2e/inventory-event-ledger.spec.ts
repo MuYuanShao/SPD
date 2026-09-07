@@ -3,6 +3,10 @@ import { expect, test } from '@playwright/test'
 const envelope = (data: unknown) => ({ code: 0, message: 'ok', data, timestamp: '' })
 
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/auth/me', (route) => route.fulfill({
+    json: envelope({ userId: 1, username: 'admin', status: 1, roles: ['ROLE_ADMIN'],
+      permissionCodes: ['*'], menuCodes: ['*'], dataScope: 1 })
+  }))
   await page.addInitScript(() => {
     localStorage.setItem('spd.token', 'inventory-ledger-test')
     localStorage.setItem('spd.user', JSON.stringify({
@@ -44,7 +48,7 @@ test('库存流水一事件一行并在详情展示稳定追溯关系', async ({
 
   await expect(page.getByRole('heading', { name: '库存交易流水' })).toBeVisible()
   await expect(page.getByRole('table').getByRole('row')).toHaveCount(3)
-  await expect(page.getByText('批次调价', { exact: true })).toBeVisible()
+  await expect(page.getByRole('table').getByText('批次调价', { exact: true })).toBeVisible()
   await expect(page.getByText('UDI-001')).toBeHidden()
 
   await page.getByRole('button', { name: '高级筛选' }).click()
@@ -54,6 +58,7 @@ test('库存流水一事件一行并在详情展示稳定追溯关系', async ({
   await expect(page.getByRole('heading', { name: '追溯对象' })).toBeVisible()
   await expect(page.getByText('UDI-001')).toBeVisible()
   await expect(page.getByText('UDI-002')).toBeVisible()
+  await page.getByRole('dialog').getByRole('button', { name: /close/i }).focus()
   await page.keyboard.press('Escape')
   await expect(page.getByText('UDI-001')).toBeHidden()
 })

@@ -168,29 +168,27 @@ class OperationalDeliveryModuleTest {
 
     @Test
     void picksOneQuotaPackageUsingItsBaseQuantity() {
+        mockRoute();
         when(jdbcTemplate.queryForList(contains("FROM department_requisition dr"),
                 eq("SL001"), eq(4L)))
                 .thenReturn(List.of(Map.of(
                         "requisitionId", 3L,
                         "deptName", "Surgery",
                         "productId", 100L,
-                        "quantity", BigDecimal.TEN
+                        "quantity", BigDecimal.TEN, "itemType", "quota_package",
+                        "quotaTemplateId", 15L, "quotaTemplateVersion", 1,
+                        "quotaPackageQuantity", BigDecimal.TEN, "quotaPackageUnit", "包"
                 )));
         when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"),
                 eq(Long.class), eq("Main Warehouse")))
                 .thenReturn(1L);
         when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"),
                 any(Object[].class)))
-                .thenReturn(List.of(Map.of(
-                        "labelId", 8L,
-                        "labelNo", "D001",
-                        "status", "available",
-                        "warehouseId", 1L,
-                        "productId", 100L,
-                        "packageQuantity", BigDecimal.TEN,
-                        "productCode", "PC001",
-                        "productName", "Syringe"
-                )));
+                .thenReturn(List.of(Map.ofEntries(
+                        Map.entry("labelId", 8L), Map.entry("labelNo", "D001"), Map.entry("status", "available"),
+                        Map.entry("warehouseId", 1L), Map.entry("productId", 100L), Map.entry("packageQuantity", BigDecimal.TEN),
+                        Map.entry("productCode", "PC001"), Map.entry("productName", "Syringe"),
+                        Map.entry("templateId", 15L), Map.entry("templateVersion", 1), Map.entry("packageUnit", "包"))));
         when(jdbcTemplate.queryForObject(contains("delivery_type = 'loose'"),
                 eq(BigDecimal.class), eq(4L), eq(4L), eq(4L)))
                 .thenReturn(BigDecimal.ZERO);
@@ -234,14 +232,8 @@ class OperationalDeliveryModuleTest {
     @Test
     void signsDeliveryThroughInventoryMovementBeforeStatusUpdate() {
         mockPickedDelivery();
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), anyString()))
-                .thenReturn(1L);
-        when(jdbcTemplate.queryForList(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq(1L)))
-                .thenReturn(List.of(2L));
-        mockProduct("PC001", "Syringe", 100L);
-        when(support.transferAvailableFifo(anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
-                anyString(), anyLong(), anyString()))
-                .thenReturn(List.of(new SupplyChainSupport.InventoryDeduction(200L, BigDecimal.TEN, BigDecimal.valueOf(5))));
+        mockRoute();
+        mockLooseBatches();
         when(jdbcTemplate.update(contains("UPDATE spd_delivery_order SET status = 'signed'"), eq(2L), eq("PS001")))
                 .thenReturn(1);
 
@@ -250,15 +242,17 @@ class OperationalDeliveryModuleTest {
         assertThat(result)
                 .containsEntry("deliveryNo", "PS001")
                 .containsEntry("status", "signed");
-        verify(support).transferAvailableFifo(eq(1L), eq(2L), eq(100L), eq(BigDecimal.TEN),
-                eq("spd_delivery_order"), eq(10L), eq("delivery sign transfers inventory to department warehouse"));
+        verify(support).receiveAvailable(eq(2L), eq(100L), eq(200L), eq(BigDecimal.TEN),
+                eq("delivery_sign_in"), eq("spd_delivery_order"), eq(10L), anyString());
+        verify(support, never()).transferAvailableFifo(any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void signsQuotaPackageIntoDepartmentInventoryBySourceBatch() {
+        mockRoute();
         when(jdbcTemplate.queryForMap(contains("FROM spd_delivery_order WHERE delivery_no = ?"), eq("PS001")))
                 .thenReturn(Map.of(
-                        "deliveryId", 10L,
+                        "deliveryId", 10L, "requisitionNo", "SL001",
                         "deliveryNo", "PS001",
                         "warehouseName", "Main Warehouse",
                         "deptName", "Surgery",
@@ -266,23 +260,18 @@ class OperationalDeliveryModuleTest {
                         "quantity", BigDecimal.TEN,
                         "status", "picked"
                 ));
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), anyString()))
-                .thenReturn(1L);
-        when(jdbcTemplate.queryForList(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq(1L)))
-                .thenReturn(List.of(2L));
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM spd_delivery_package_binding"),
                 eq(Integer.class), eq(10L)))
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM spd_delivery_trace_code"),
                 eq(Integer.class), eq(10L)))
                 .thenReturn(0);
-        mockProduct("PC001", "Syringe", 100L);
         when(jdbcTemplate.queryForList(contains("JOIN quota_package_label_source"), eq(10L)))
                 .thenReturn(List.of(Map.of(
                         "labelId", 8L,
                         "productId", 100L,
                         "batchId", 200L,
-                        "sourceQty", BigDecimal.TEN
+                        "sourceQty", BigDecimal.TEN, "traceCodeId", 88L
                 )));
         when(support.nextNo(DocumentKind.QUOTA_PACKAGE_EVENT)).thenReturn("DS001");
         org.mockito.Mockito.lenient().when(jdbcTemplate.update(contains("UPDATE spd_delivery_order SET status = 'signed'"), eq(2L), eq("PS001")))
@@ -302,22 +291,17 @@ class OperationalDeliveryModuleTest {
         when(jdbcTemplate.queryForMap(contains("FROM spd_delivery_order WHERE delivery_no = ?"), eq("PS001")))
                 .thenReturn(Map.of("deliveryId", 10L, "deliveryNo", "PS001", "status", "signed"));
 
-        assertThatThrownBy(() -> module.signDelivery("PS001"))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("only picked delivery");
+        assertThat(module.signDelivery("PS001")).containsEntry("status", "signed");
         verify(support, never()).transferAvailableFifo(anyLong(), anyLong(), anyLong(), any(), anyString(), anyLong(), anyString());
     }
 
     @Test
     void doesNotMarkSignedWhenInventoryMovementFails() {
         mockPickedDelivery();
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), anyString()))
-                .thenReturn(1L);
-        when(jdbcTemplate.queryForList(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq(1L)))
-                .thenReturn(List.of(2L));
-        mockProduct("PC001", "Syringe", 100L);
-        when(support.transferAvailableFifo(anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
-                anyString(), anyLong(), anyString()))
+        mockRoute();
+        mockLooseBatches();
+        when(support.receiveAvailable(anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
+                anyString(), anyString(), anyLong(), anyString()))
                 .thenThrow(new IllegalArgumentException("inventory is insufficient"));
 
         assertThatThrownBy(() -> module.signDelivery("PS001"))
@@ -338,21 +322,17 @@ class OperationalDeliveryModuleTest {
                         "quantity", BigDecimal.TEN,
                         "status", "picked"
                 ));
-        when(jdbcTemplate.queryForObject(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), anyString()))
-                .thenReturn(1L);
-        when(jdbcTemplate.queryForList(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq(1L)))
-                .thenReturn(List.of());
 
         assertThatThrownBy(() -> module.signDelivery("PS001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("科室“Surgery”未配置对应的科室库房，请先完成科室库房关联");
+                .hasMessageContaining("申领来源库或目标库无效");
         verify(support, never()).transferAvailableFifo(anyLong(), anyLong(), anyLong(), any(), anyString(), anyLong(), anyString());
     }
 
     private void mockPickedDelivery() {
         when(jdbcTemplate.queryForMap(contains("FROM spd_delivery_order WHERE delivery_no = ?"), eq("PS001")))
                 .thenReturn(Map.of(
-                        "deliveryId", 10L,
+                        "deliveryId", 10L, "requisitionNo", "SL001",
                         "deliveryNo", "PS001",
                         "warehouseName", "Main Warehouse", "deptName", "Surgery",
                         "productCode", "PC001",
@@ -362,6 +342,17 @@ class OperationalDeliveryModuleTest {
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM spd_delivery_package_binding"),
                 eq(Integer.class), eq(10L)))
                 .thenReturn(0);
+    }
+
+    private void mockRoute() {
+        when(jdbcTemplate.queryForList(contains("SELECT dr.source_warehouse_id"), eq("SL001")))
+                .thenReturn(List.of(Map.of("sourceWarehouseId", 1L, "destinationWarehouseId", 2L, "deptId", 3L)));
+    }
+
+    private void mockLooseBatches() {
+        when(jdbcTemplate.queryForList(contains("FROM spd_delivery_batch"), eq(10L)))
+                .thenReturn(List.of(Map.of("sourceWarehouseId", 1L, "productId", 100L,
+                        "batchId", 200L, "quantity", BigDecimal.TEN)));
     }
 
     private void mockProduct(String code, String name, Long productId) {

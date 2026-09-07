@@ -136,9 +136,14 @@ public class QuotaPackageTraceFlowService {
 
     @Transactional
     public void completeSign(Long labelId, String deliveryNo) {
-        Map<String, Object> signed = label(labelId, false);
+        Map<String, Object> signed = label(labelId, true);
         assertDepartmentScope(signed);
-        if ("signed".equals(String.valueOf(signed.get("status")))) {
+        Long traceCodeId = ensureTrace(labelId);
+        Integer completed = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM udi_trace_event
+                 WHERE trace_code_id = ? AND event_type = 'department_sign' AND biz_no = ?
+                """, Integer.class, traceCodeId, deliveryNo);
+        if (completed != null && completed > 0) {
             return;
         }
         transitionLabel(labelId, "signed", "department_sign", "定数包扫码签收入库",
@@ -194,10 +199,14 @@ public class QuotaPackageTraceFlowService {
         BigDecimal amount = BigDecimal.ZERO;
         for (Map<String, Object> source : sources) {
             BigDecimal sourceQty = (BigDecimal) source.get("sourceQty");
-            SupplyChainSupport.InventoryDeduction deduction = support.consumeSpecificBatch(
+            SupplyChainSupport.InventoryDeductionEvent deductionEvent = support.consumeSpecificBatchEvent(
                     warehouseId, productId, ((Number) source.get("batchId")).longValue(), sourceQty,
                     "quota_package_scan_out", "department_consumption", consumptionId,
                     "low-value quota package consumed by unique code");
+            SupplyChainSupport.InventoryDeduction deduction = deductionEvent.deduction();
+            support.linkInventoryEventTraceCodes(deductionEvent.eventId(), List.of(
+                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(
+                            traceCodeId, "quota_package", sourceQty)));
             BigDecimal itemAmount = deduction.quantity().multiply(deduction.unitPrice());
             jdbcTemplate.update("""
                     INSERT INTO department_consumption_item

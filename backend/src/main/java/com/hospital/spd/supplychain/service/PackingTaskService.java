@@ -217,9 +217,9 @@ public class PackingTaskService {
         for (int i = 0; i < packageCount; i++) {
             String labelNo = support.nextNo(QUOTA_PACKAGE_LABEL);
             Long labelId = insertLabel(labelNo, task);
+            traceFlowService.ensureTrace(labelId);
             sourceIndex = insertLabelSources(labelId, consumed, sourceRemaining, sourceIndex,
                     (BigDecimal) task.get("packageQuantity"), warehouseId);
-            traceFlowService.ensureTrace(labelId);
             writePackageEvent(labelId, "pack_confirm", null, "pending_print", (BigDecimal) task.get("packageQuantity"), "pack confirmed and label waits for print");
             labels.add(labelNo);
         }
@@ -458,8 +458,11 @@ public class PackingTaskService {
             Long warehouseId = ((Number) source.get("warehouseId")).longValue();
             Long batchId = ((Number) source.get("batchId")).longValue();
             BigDecimal sourceQty = (BigDecimal) source.get("sourceQty");
-            support.receiveAvailable(warehouseId, ((Number) label.get("productId")).longValue(), batchId, sourceQty,
+            Long inventoryEventId = support.receiveAvailable(warehouseId, ((Number) label.get("productId")).longValue(), batchId, sourceQty,
                     "quota_unpack_in", "quota_package_label", labelId, reason);
+            support.linkInventoryEventTraceCodes(inventoryEventId, List.of(
+                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(
+                            traceFlowService.ensureTrace(labelId), "quota_package", sourceQty)));
             restoredLooseQty = restoredLooseQty.add(sourceQty);
         }
         jdbcTemplate.update("""
@@ -749,7 +752,7 @@ public class PackingTaskService {
                   FROM quota_packing_task_reservation
                  WHERE task_id = ? AND status = 'reserved'
                  ORDER BY reservation_id
-                """, taskId);
+                """, taskId).stream().map(row -> (Map<String, Object>) new java.util.LinkedHashMap<>(row)).toList();
         if (reservations.isEmpty()) {
             throw new IllegalArgumentException("packing task has no reserved loose stock");
         }
@@ -761,11 +764,12 @@ public class PackingTaskService {
                       FROM quota_packing_task
                      WHERE task_id = ?
                     """, taskId);
-            support.consumeLocked(balanceId,
+            Long inventoryEventId = support.consumeLocked(balanceId,
                     ((Number) task.get("warehouseId")).longValue(), ((Number) task.get("productId")).longValue(),
                     ((Number) reservation.get("batchId")).longValue(), deductQty,
                     "quota_pack_out", "quota_packing_task", taskId,
                     "confirm packing from reserved loose stock");
+            reservation.put("inventoryEventId", inventoryEventId);
             jdbcTemplate.update("UPDATE quota_packing_task_reservation SET status = 'consumed' WHERE reservation_id = ?",
                     reservation.get("reservationId"));
         }
@@ -788,6 +792,9 @@ public class PackingTaskService {
                     INSERT INTO quota_package_label_source (label_id, batch_id, source_qty, unit_price, warehouse_id)
                     VALUES (?, ?, ?, ?, ?)
                     """, labelId, row.get("batchId"), sourceQty, row.get("unitPrice"), warehouseId);
+            support.linkInventoryEventTraceCodes(((Number) row.get("inventoryEventId")).longValue(), List.of(
+                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(
+                            traceFlowService.ensureTrace(labelId), "quota_package", sourceQty)));
             sourceRemaining.set(sourceIndex, currentRemaining.subtract(sourceQty));
             remainingPackageQty = remainingPackageQty.subtract(sourceQty);
             if (sourceRemaining.get(sourceIndex).compareTo(BigDecimal.ZERO) <= 0) {

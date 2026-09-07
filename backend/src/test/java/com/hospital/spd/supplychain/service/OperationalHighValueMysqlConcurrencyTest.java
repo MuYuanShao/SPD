@@ -25,9 +25,105 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 @EnabledIfEnvironmentVariable(named = "SPD_MYSQL_INTEGRATION_TESTS", matches = "true")
 class OperationalHighValueMysqlConcurrencyTest {
 
+    private static IsolatedMysqlDatabase database;
+
+    @org.springframework.test.context.DynamicPropertySource
+    static void isolatedDatabase(org.springframework.test.context.DynamicPropertyRegistry properties) {
+        database = new IsolatedMysqlDatabase();
+        database.register(properties);
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void dropTestDatabase() {
+        if (database != null) database.close();
+    }
+
     @Autowired OperationalHighValueModule module;
     @Autowired InventoryMovementService inventoryMovementService;
     @Autowired JdbcTemplate jdbcTemplate;
+
+    private Long fixtureBalanceId;
+
+    @org.junit.jupiter.api.BeforeEach
+    void createIndependentInventoryFixture() {
+        String code = "IT-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("""
+                INSERT INTO product_category (category_code, category_name, level)
+                VALUES (?, '隔离测试分类', 1)
+                """, code);
+        Long categoryId = jdbcTemplate.queryForObject(
+                "SELECT category_id FROM product_category WHERE category_code = ?", Long.class, code);
+        jdbcTemplate.update("""
+                INSERT INTO product (product_code, product_name, spec_model, category_id, unit, is_high_value)
+                VALUES (?, '隔离测试耗材', '测试规格', ?, '个', 1)
+                """, code, categoryId);
+        Long productId = jdbcTemplate.queryForObject(
+                "SELECT product_id FROM product WHERE product_code = ?", Long.class, code);
+        jdbcTemplate.update("""
+                INSERT INTO warehouse (warehouse_code, warehouse_name, warehouse_type, campus_name)
+                VALUES (?, ?, '中心库', '隔离测试院区')
+                """, code, code);
+        Long warehouseId = jdbcTemplate.queryForObject(
+                "SELECT warehouse_id FROM warehouse WHERE warehouse_code = ?", Long.class, code);
+        jdbcTemplate.update("""
+                INSERT INTO inventory_batch (system_batch_no, product_id, batch_unit_price)
+                VALUES (?, ?, 10)
+                """, code, productId);
+        Long batchId = jdbcTemplate.queryForObject(
+                "SELECT batch_id FROM inventory_batch WHERE system_batch_no = ?", Long.class, code);
+        jdbcTemplate.update("""
+                INSERT INTO inventory_balance (warehouse_id, product_id, batch_id, available_qty)
+                VALUES (?, ?, ?, 10)
+                """, warehouseId, productId, batchId);
+        fixtureBalanceId = jdbcTemplate.queryForObject(
+                "SELECT balance_id FROM inventory_balance WHERE batch_id = ?", Long.class, batchId);
+    }
+
+    @Test
+    void maintenanceVariableCannotBypassImmutableEventOrTraceGuards() throws Exception {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap(
+                "SELECT warehouse_id, product_id, batch_id FROM inventory_balance WHERE balance_id = ?",
+                fixtureBalanceId);
+        Long eventId = inventoryMovementService.receiveAvailable(
+                ((Number) fixture.get("warehouse_id")).longValue(),
+                ((Number) fixture.get("product_id")).longValue(),
+                ((Number) fixture.get("batch_id")).longValue(), BigDecimal.ONE,
+                "purchase_receive_in", "receiving_order", 1L, "隔离测试入库");
+        String traceCode = "IT-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("""
+                INSERT INTO udi_trace_code
+                  (udi_code, unique_code, trace_scope, product_code, product_name,
+                   current_location, current_status, risk_level, last_event_time)
+                VALUES (?, ?, 'high_value', 'IT', '隔离测试', '隔离测试库', 'in_stock', 'normal', NOW())
+                """, traceCode, traceCode);
+        Long traceId = jdbcTemplate.queryForObject(
+                "SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?", Long.class, traceCode);
+        jdbcTemplate.update("""
+                INSERT INTO inventory_event_trace_code (event_id, trace_code_id, trace_type, linked_quantity)
+                VALUES (?, ?, 'high_value_unit', 1)
+                """, eventId, traceId);
+        try (var connection = jdbcTemplate.getDataSource().getConnection();
+             var statement = connection.createStatement()) {
+            // Set and exercise the former bypass on the same physical MySQL connection.
+            statement.execute("SET @spd_allow_inventory_event_maintenance = 1");
+            for (String mutation : List.of(
+                    "UPDATE inventory_event SET remark = 'changed' WHERE event_id = " + eventId,
+                    "DELETE FROM inventory_event WHERE event_id = " + eventId,
+                    "UPDATE inventory_event_trace_code SET linked_quantity = 2 WHERE event_id = " + eventId,
+                    "DELETE FROM inventory_event_trace_code WHERE event_id = " + eventId)) {
+                Throwable failure = catchThrowable(() -> statement.executeUpdate(mutation));
+                assertThat(failure).isInstanceOf(java.sql.SQLException.class);
+                assertThat(((java.sql.SQLException) failure).getSQLState()).isEqualTo("45000");
+                assertThat(failure).hasMessageContaining("immutable");
+            }
+            statement.execute("SET @spd_allow_inventory_event_maintenance = NULL");
+        }
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM inventory_event WHERE event_id = ?", Integer.class, eventId)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject(
+                "SELECT linked_quantity FROM inventory_event_trace_code WHERE event_id = ?",
+                BigDecimal.class, eventId)).isEqualByComparingTo(BigDecimal.ONE);
+    }
 
     @Test
     void inventoryMovementRollsBackBalanceWhenEventRecordingFails() {
@@ -35,10 +131,8 @@ class OperationalHighValueMysqlConcurrencyTest {
                 SELECT balance_id AS balanceId, available_qty AS availableQty,
                        warehouse_id AS warehouseId, product_id AS productId, batch_id AS batchId
                   FROM inventory_balance
-                 WHERE available_qty >= 1
-                 ORDER BY balance_id
-                 LIMIT 1
-                """);
+                 WHERE balance_id = ?
+                """, fixtureBalanceId);
         BigDecimal before = (BigDecimal) fixture.get("availableQty");
         String eventType = "atomic_" + UUID.randomUUID().toString().substring(0, 8);
         int eventsBefore = jdbcTemplate.queryForObject(
@@ -84,9 +178,8 @@ class OperationalHighValueMysqlConcurrencyTest {
                   FROM inventory_balance bal
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   JOIN product p ON p.product_id = bal.product_id
-                 WHERE bal.available_qty >= 2 AND w.deleted = 0 AND w.status = 1
-                 ORDER BY bal.balance_id LIMIT 1
-                """);
+                 WHERE bal.balance_id = ?
+                """, fixtureBalanceId);
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         String uniqueCode = "IT-UID-" + suffix;
         String udiCode = "IT-UDI-" + suffix;
@@ -151,32 +244,7 @@ class OperationalHighValueMysqlConcurrencyTest {
                     "SELECT trace_code_id FROM high_value_charge WHERE external_charge_no = ?", Long.class, externalNo))
                     .isEqualTo(traceId);
         } finally {
-            List<Long> chargeIds = jdbcTemplate.queryForList(
-                    "SELECT charge_id FROM high_value_charge WHERE external_charge_no = ?", Long.class, externalNo);
-            jdbcTemplate.execute("SET @spd_allow_inventory_event_maintenance = 1");
-            try {
-                for (Long chargeId : chargeIds) {
-                    jdbcTemplate.update("""
-                            DELETE link FROM inventory_event_trace_code link
-                            JOIN inventory_event ie ON ie.event_id = link.event_id
-                            WHERE ie.source_biz_type = 'high_value_charge' AND ie.source_biz_id = ?
-                            """, chargeId);
-                    jdbcTemplate.update("DELETE FROM inventory_event WHERE source_biz_type = 'high_value_charge' AND source_biz_id = ?", chargeId);
-                    jdbcTemplate.update("DELETE FROM audit_log WHERE biz_type = 'high_value_charge' AND biz_id = ?", chargeId);
-                }
-            } finally {
-                jdbcTemplate.execute("SET @spd_allow_inventory_event_maintenance = NULL");
-            }
-            jdbcTemplate.update("DELETE FROM high_value_charge WHERE external_charge_no = ?", externalNo);
-            if (traceId != null) {
-                jdbcTemplate.update("DELETE FROM udi_trace_event WHERE trace_code_id = ?", traceId);
-                jdbcTemplate.update("DELETE FROM inventory_batch_trace_code WHERE trace_code_id = ?", traceId);
-                jdbcTemplate.update("DELETE FROM udi_trace_code WHERE trace_code_id = ?", traceId);
-            }
-            for (Map<String, Object> balance : balanceSnapshot) {
-                jdbcTemplate.update("UPDATE inventory_balance SET available_qty = ?, last_event_id = ? WHERE balance_id = ?",
-                        balance.get("availableQty"), balance.get("lastEventId"), balance.get("balanceId"));
-            }
+            // The entire isolated database is removed after this test class, including immutable events.
         }
     }
 }

@@ -251,6 +251,13 @@ public class OperationalDeliveryModule {
             throw new IllegalArgumentException("requisitionNo, itemId, warehouseName and quantity are required");
         }
         Map<String, Object> requisition = findRequisitionItemForPicking(requisitionNo, itemId);
+        Map<String, Object> savedRoute = requireDeliveryRoute(requisitionNo);
+        if (!"loose".equals(requisition.get("itemType"))) {
+            throw new IllegalArgumentException("该申领明细不是散货模式");
+        }
+        if (((Number) savedRoute.get("sourceWarehouseId")).longValue() != findWarehouseId(warehouseName)) {
+            throw new IllegalArgumentException("所选来源库与申领保存的来源库不一致");
+        }
         Long requisitionId = ((Number) requisition.get("requisitionId")).longValue();
         Long productId = ((Number) requisition.get("productId")).longValue();
         String deptName = String.valueOf(requisition.get("deptName"));
@@ -295,9 +302,14 @@ public class OperationalDeliveryModule {
         for (Map<String, Object> balance : balances) {
             if (remaining.signum() <= 0) break;
             BigDecimal deduct = ((BigDecimal) balance.get("looseQty")).min(remaining);
-            support.consumeSpecificBatch(warehouseId, productId, ((Number) balance.get("batchId")).longValue(), deduct,
+            SupplyChainSupport.InventoryDeductionEvent deduction = support.consumeSpecificBatchEvent(warehouseId, productId, ((Number) balance.get("batchId")).longValue(), deduct,
                     "delivery_loose_out", "spd_delivery_order", deliveryId,
                     "picked loose stock for requisition " + requisitionNo + ", delivery " + deliveryNo);
+            jdbcTemplate.update("""
+                    INSERT INTO spd_delivery_batch
+                      (delivery_id, source_event_id, source_warehouse_id, product_id, batch_id, quantity)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, deliveryId, deduction.eventId(), warehouseId, productId, balance.get("batchId"), deduct);
             remaining = remaining.subtract(deduct);
         }
         if (remaining.signum() > 0) {
@@ -318,6 +330,11 @@ public class OperationalDeliveryModule {
                        p.product_name AS productName,
                        dri.item_id AS itemId,
                        dri.quantity AS requisitionQty,
+                       dri.quota_template_version AS templateVersion,
+                       dri.quota_package_quantity AS packageQuantity, dri.quota_package_unit AS packageUnit,
+                       CASE WHEN dri.quota_package_quantity > 0 THEN
+                         GREATEST(dri.quantity - COALESCE(picked.picked_qty, 0), 0) / dri.quota_package_quantity
+                         ELSE NULL END AS remainingPackageCount,
                        COALESCE(dri.item_type, CASE WHEN p.is_high_value = 1 THEN 'unique_code'
                                                     WHEN p.is_quota_managed = 1 THEN 'quota_package'
                                                     ELSE 'loose' END) AS itemType,
@@ -376,6 +393,15 @@ public class OperationalDeliveryModule {
                    AND dri.item_id = ?
                    AND qpl.status = 'available'
                    AND qpl.product_id = dri.product_id
+                   AND dri.item_type = 'quota_package'
+                   AND qpl.template_id = dri.quota_template_id
+                   AND qpl.package_quantity = dri.quota_package_quantity
+                   AND qpl.warehouse_id = dr.source_warehouse_id
+                   AND w.deleted = 0 AND w.status = 1
+                   AND EXISTS (SELECT 1 FROM quota_package_template t
+                     JOIN quota_package_template_item ti ON ti.template_id = t.template_id
+                     WHERE t.template_id = qpl.template_id AND t.version_no = dri.quota_template_version
+                       AND ti.product_id = dri.product_id AND ti.deleted = 0 AND ti.unit = dri.quota_package_unit)
                    AND NOT EXISTS (
                      SELECT 1 FROM spd_delivery_package_binding b WHERE b.label_id = qpl.label_id
                    )
@@ -479,12 +505,27 @@ public class OperationalDeliveryModule {
         BigDecimal requested = (BigDecimal) requisition.get("quantity");
         Long warehouseId = findWarehouseId(warehouseName);
         List<Map<String, Object>> labels = findLabelsForUpdate(labelNos);
+        Map<String, Object> savedRoute = requireDeliveryRoute(requisitionNo);
+        if (((Number) savedRoute.get("sourceWarehouseId")).longValue() != warehouseId) {
+            throw new IllegalArgumentException("所选来源库与申领保存的来源库不一致");
+        }
+        if (!"quota_package".equals(requisition.get("itemType")) || requisition.get("quotaTemplateId") == null
+                || requisition.get("quotaTemplateVersion") == null || requisition.get("quotaPackageQuantity") == null
+                || requisition.get("quotaPackageUnit") == null) {
+            throw new IllegalArgumentException("申领定数包模板快照缺失，请核对原申请");
+        }
         validateLabelSet(labels, labelNos, warehouseId);
         BigDecimal selectedPackageQuantity = labels.stream()
                 .map(label -> (BigDecimal) label.get("packageQuantity"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         for (Map<String, Object> label : labels) {
             Long labelProductId = ((Number) label.get("productId")).longValue();
+            if (!Objects.equals(longValue(label.get("templateId")), longValue(requisition.get("quotaTemplateId")))
+                    || !Objects.equals(longValue(label.get("templateVersion")), longValue(requisition.get("quotaTemplateVersion")))
+                    || ((BigDecimal) label.get("packageQuantity")).compareTo((BigDecimal) requisition.get("quotaPackageQuantity")) != 0
+                    || !Objects.equals(label.get("packageUnit"), requisition.get("quotaPackageUnit"))) {
+                throw new IllegalArgumentException("标签模板版本或包装规格与申领快照不一致");
+            }
             if (!labelProductId.equals(productId)) {
                 throw new IllegalArgumentException("selected package label product does not match requisition item");
             }
@@ -497,8 +538,8 @@ public class OperationalDeliveryModule {
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
         Map<String, Object> firstLabel = labels.get(0);
         BigDecimal totalQuantity = selectedPackageQuantity;
-        String productCode = labels.size() == 1 ? String.valueOf(firstLabel.get("productCode")) : "MULTI";
-        String productName = labels.size() == 1 ? String.valueOf(firstLabel.get("productName")) : "定数包组合";
+        String productCode = String.valueOf(firstLabel.get("productCode"));
+        String productName = String.valueOf(firstLabel.get("productName"));
         Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
                 productCode, productName, totalQuantity);
 
@@ -531,6 +572,7 @@ public class OperationalDeliveryModule {
     public Map<String, Object> signDelivery(String deliveryNo) {
         Map<String, Object> delivery = jdbcTemplate.queryForMap("""
                 SELECT delivery_id AS deliveryId, delivery_no AS deliveryNo, warehouse_name AS warehouseName,
+                       requisition_no AS requisitionNo,
                        dept_name AS deptName, product_code AS productCode, quantity, status,
                        destination_warehouse_id AS destinationWarehouseId
                   FROM spd_delivery_order WHERE delivery_no = ?
@@ -538,23 +580,21 @@ public class OperationalDeliveryModule {
                 """, deliveryNo);
         String deliveryStatus = String.valueOf(delivery.get("status"));
         Long deliveryId = ((Number) delivery.get("deliveryId")).longValue();
-        if ("signed".equals(deliveryStatus)
-                && delivery.get("destinationWarehouseId") instanceof Number destinationWarehouseId
-                && hasDeliveredPackageBindings(deliveryId)) {
-            receiveSignedPackages(deliveryId, deliveryNo, destinationWarehouseId.longValue());
-            return Map.of("deliveryNo", deliveryNo, "status", "signed", "repaired", true);
+        if ("signed".equals(deliveryStatus)) {
+            return Map.of("deliveryNo", deliveryNo, "status", "signed");
         }
         if (!"picked".equals(deliveryStatus)) {
             throw new IllegalArgumentException("only picked delivery can be signed");
         }
-        Long sourceWarehouseId = findWarehouseId(String.valueOf(delivery.get("warehouseName")));
-        Long destinationWarehouseId = findDepartmentWarehouseId(String.valueOf(delivery.get("deptName")), sourceWarehouseId);
+        Map<String, Object> route = requireDeliveryRoute(String.valueOf(delivery.get("requisitionNo")));
+        Long sourceWarehouseId = ((Number) route.get("sourceWarehouseId")).longValue();
+        Long destinationWarehouseId = ((Number) route.get("destinationWarehouseId")).longValue();
         Integer packageBindingCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM spd_delivery_package_binding WHERE delivery_id = ?", Integer.class, deliveryId);
         Integer traceBindingCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM spd_delivery_trace_code WHERE delivery_id = ?", Integer.class, deliveryId);
-        Map<String, Object> product = findProduct(String.valueOf(delivery.get("productCode")));
         if (traceBindingCount != null && traceBindingCount > 0) {
+            Map<String, Object> product = findProduct(String.valueOf(delivery.get("productCode")));
             int signedCount = traceFlowService.signDelivery(deliveryId, deliveryNo,
                     ((Number) product.get("productId")).longValue(), sourceWarehouseId, destinationWarehouseId,
                     String.valueOf(delivery.get("deptName")), String.valueOf(delivery.get("deptName")));
@@ -562,11 +602,10 @@ public class OperationalDeliveryModule {
                 throw new IllegalArgumentException("配送唯一码数量与配送数量不一致");
             }
         } else if (packageBindingCount != null && packageBindingCount > 0) {
-            receiveSignedPackages(deliveryId, deliveryNo, destinationWarehouseId);
+            receiveSignedPackages(deliveryId, deliveryNo, sourceWarehouseId, destinationWarehouseId);
         } else {
-            support.transferAvailableFifo(sourceWarehouseId, destinationWarehouseId,
-                    ((Number) product.get("productId")).longValue(), (BigDecimal) delivery.get("quantity"),
-                    "spd_delivery_order", deliveryId, "delivery sign transfers inventory to department warehouse");
+            receiveLooseDelivery(deliveryId, sourceWarehouseId, destinationWarehouseId,
+                    (BigDecimal) delivery.get("quantity"));
         }
         int updated = jdbcTemplate.update("UPDATE spd_delivery_order SET status = 'signed', sign_time = NOW(), destination_warehouse_id = ? WHERE delivery_no = ? AND status = 'picked'",
                 destinationWarehouseId, deliveryNo);
@@ -574,6 +613,44 @@ public class OperationalDeliveryModule {
             throw new IllegalArgumentException("delivery has already been processed");
         }
         return Map.of("deliveryNo", deliveryNo, "status", "signed");
+    }
+
+    private Map<String, Object> requireDeliveryRoute(String requisitionNo) {
+        List<Map<String, Object>> routes = jdbcTemplate.queryForList("""
+                SELECT dr.source_warehouse_id AS sourceWarehouseId, dr.warehouse_id AS destinationWarehouseId,
+                       dr.dept_id AS deptId
+                  FROM department_requisition dr
+                  JOIN warehouse src ON src.warehouse_id = dr.source_warehouse_id AND src.deleted = 0 AND src.status = 1
+                  JOIN warehouse dst ON dst.warehouse_id = dr.warehouse_id AND dst.deleted = 0 AND dst.status = 1
+                    AND dst.dept_id = dr.dept_id
+                  JOIN sys_dept d ON d.dept_id = dr.dept_id AND d.deleted = 0 AND d.status = 1
+                 WHERE dr.requisition_no = ? AND src.warehouse_id <> dst.warehouse_id
+                 FOR UPDATE
+                """, requisitionNo);
+        if (routes.size() != 1) throw new IllegalArgumentException("申领来源库或目标库无效、归属已变化或历史关联缺失，请核对原单");
+        Map<String, Object> route = routes.get(0);
+        if (!accessService.isUnrestricted()) accessService.requireDepartment(((Number) route.get("deptId")).longValue());
+        return route;
+    }
+
+    private void receiveLooseDelivery(Long deliveryId, Long sourceId, Long destinationId, BigDecimal quantity) {
+        List<Map<String, Object>> batches = jdbcTemplate.queryForList("""
+                SELECT source_warehouse_id AS sourceWarehouseId, product_id AS productId,
+                       batch_id AS batchId, quantity
+                  FROM spd_delivery_batch WHERE delivery_id = ? ORDER BY source_event_id FOR UPDATE
+                """, deliveryId);
+        BigDecimal total = batches.stream().map(row -> (BigDecimal) row.get("quantity"))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (batches.isEmpty() || total.compareTo(quantity) != 0 || batches.stream().anyMatch(row ->
+                !sourceId.equals(((Number) row.get("sourceWarehouseId")).longValue())
+                        || ((BigDecimal) row.get("quantity")).signum() <= 0)) {
+            throw new IllegalArgumentException("配送原扣减批次缺失或数量不一致，请核对历史配送单");
+        }
+        for (Map<String, Object> batch : batches) {
+            support.receiveAvailable(destinationId, ((Number) batch.get("productId")).longValue(),
+                    ((Number) batch.get("batchId")).longValue(), (BigDecimal) batch.get("quantity"),
+                    "delivery_sign_in", "spd_delivery_order", deliveryId, "配送原拣配批次签收入库");
+        }
     }
 
     private boolean hasDeliveredPackageBindings(Long deliveryId) {
@@ -585,10 +662,28 @@ public class OperationalDeliveryModule {
                 """, Integer.class, deliveryId);
         return count != null && count > 0;
     }
-    private void receiveSignedPackages(Long deliveryId, String deliveryNo, Long destinationWarehouseId) {
+    private void receiveSignedPackages(Long deliveryId, String deliveryNo, Long sourceWarehouseId, Long destinationWarehouseId) {
+        Integer invalid = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM spd_delivery_package_binding b
+                  LEFT JOIN quota_package_label q ON q.label_id = b.label_id
+                 WHERE b.delivery_id = ? AND (
+                   q.label_id IS NULL OR q.status <> 'delivered' OR q.trace_code_id IS NULL
+                   OR q.warehouse_id <> ? OR q.product_id <> b.product_id
+                   OR q.package_quantity <> b.package_quantity
+                   OR b.package_quantity <= 0
+                   OR (SELECT COALESCE(SUM(s.source_qty), 0) FROM quota_package_label_source s
+                        WHERE s.label_id = b.label_id) <> b.package_quantity
+                   OR EXISTS (SELECT 1 FROM quota_package_label_source s
+                        LEFT JOIN inventory_batch ib ON ib.batch_id = s.batch_id
+                       WHERE s.label_id = b.label_id AND
+                         (s.source_qty <= 0 OR s.warehouse_id <> ? OR ib.batch_id IS NULL OR ib.product_id <> b.product_id)))
+                """, Integer.class, deliveryId, sourceWarehouseId, sourceWarehouseId);
+        if (invalid != null && invalid > 0) {
+            throw new IllegalArgumentException("配送定数包来源批次、数量或状态不完整，请核对全部标签");
+        }
         List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
                 SELECT b.label_id AS labelId, b.product_id AS productId,
-                       s.batch_id AS batchId, s.source_qty AS sourceQty
+                       s.batch_id AS batchId, s.source_qty AS sourceQty, qpl.trace_code_id AS traceCodeId
                   FROM spd_delivery_package_binding b
                   JOIN quota_package_label_source s ON s.label_id = b.label_id
                   JOIN quota_package_label qpl ON qpl.label_id = b.label_id AND qpl.status = 'delivered'
@@ -601,12 +696,17 @@ public class OperationalDeliveryModule {
         List<Long> signedLabelIds = new ArrayList<>();
         for (Map<String, Object> source : sources) {
             Long labelId = ((Number) source.get("labelId")).longValue();
-            support.receiveAvailable(destinationWarehouseId,
+            Long inventoryEventId = support.receiveAvailable(destinationWarehouseId,
                     ((Number) source.get("productId")).longValue(),
                     ((Number) source.get("batchId")).longValue(),
                     (BigDecimal) source.get("sourceQty"),
                     "quota_package_delivery_sign_in", "spd_delivery_order", deliveryId,
                     "signed quota package received into department warehouse");
+            Long traceCodeId = longValue(source.get("traceCodeId"));
+            if (traceCodeId == null) throw new IllegalArgumentException("定数包追溯标识缺失");
+            support.linkInventoryEventTraceCodes(inventoryEventId, List.of(
+                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(
+                            traceCodeId, "quota_package", (BigDecimal) source.get("sourceQty"))));
             jdbcTemplate.update("UPDATE quota_package_label_source SET warehouse_id = ? WHERE label_id = ? AND batch_id = ?",
                     destinationWarehouseId, labelId, source.get("batchId"));
             if (!signedLabelIds.contains(labelId)) {
@@ -624,7 +724,11 @@ public class OperationalDeliveryModule {
     private Map<String, Object> findRequisitionItemForPicking(String requisitionNo, Long itemId) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT dr.requisition_id AS requisitionId, dr.dept_id AS deptId, dr.status, sd.dept_name AS deptName,
-                       dri.item_id AS itemId, dri.product_id AS productId, dri.quantity
+                       dri.item_id AS itemId, dri.product_id AS productId, dri.quantity,
+                       dr.source_warehouse_id AS sourceWarehouseId, dr.warehouse_id AS destinationWarehouseId,
+                       dri.item_type AS itemType, dri.quota_template_id AS quotaTemplateId,
+                       dri.quota_template_version AS quotaTemplateVersion,
+                       dri.quota_package_quantity AS quotaPackageQuantity, dri.quota_package_unit AS quotaPackageUnit
                   FROM department_requisition dr
                   JOIN sys_dept sd ON sd.dept_id = dr.dept_id
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
@@ -679,10 +783,14 @@ public class OperationalDeliveryModule {
         return jdbcTemplate.queryForList("""
                 SELECT qpl.label_id AS labelId, qpl.label_no AS labelNo, qpl.status,
                        qpl.warehouse_id AS warehouseId, qpl.product_id AS productId,
-                       qpl.package_quantity AS packageQuantity,
+                       qpl.package_quantity AS packageQuantity, qpl.template_id AS templateId,
+                       t.version_no AS templateVersion,
+                       (SELECT ti.unit FROM quota_package_template_item ti WHERE ti.template_id = qpl.template_id
+                         AND ti.product_id = qpl.product_id AND ti.deleted = 0 LIMIT 1) AS packageUnit,
                        p.product_code AS productCode, p.product_name AS productName
                   FROM quota_package_label qpl
                   JOIN product p ON p.product_id = qpl.product_id
+                  JOIN quota_package_template t ON t.template_id = qpl.template_id
                  WHERE qpl.label_no IN (%s)
                  FOR UPDATE
                 """.formatted(placeholders), labelNos.toArray());

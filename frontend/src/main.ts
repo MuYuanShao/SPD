@@ -13,6 +13,7 @@ import 'element-plus/theme-chalk/el-popover.css'
 import 'element-plus/theme-chalk/el-table.css'
 import 'element-plus/theme-chalk/el-table-column.css'
 import './styles/main.css'
+import './styles/responsive-medical.css'
 
 createApp(App)
   .use(createPinia())

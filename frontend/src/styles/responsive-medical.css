@@ -1,0 +1,205 @@
+/* Shared desktop layout contract. Load after legacy page styles. */
+:root {
+  --primary: #0f766e;
+  --primary-strong: #115e59;
+  --focus: #0f766e;
+  --line: #dce4e8;
+  --saas-bg: #f5f7f8;
+  --saas-radius: 8px;
+  --saas-control-height: 36px;
+  --saas-page-gap: 16px;
+  --btn-min-h: 36px;
+  --btn-min-h-sm: 36px;
+  --btn-radius: 6px;
+  --btn-gap: 8px;
+  --el-color-primary: #0f766e;
+  --el-color-primary-light-3: #579f98;
+  --el-color-primary-light-9: #edf7f5;
+  --el-font-size-base: 14px;
+  --el-component-size: 36px;
+  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+}
+.main-area {
+  container: workspace / inline-size;
+  padding: 16px;
+  background: var(--saas-bg);
+}
+.main-area > :not(.topbar):not(.ai-chat-mask) { min-width: 0; max-width: 100%; }
+.main-area :is(section, article, form, fieldset) { min-width: 0; }
+.topbar {
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: white;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+.topbar > div { min-width: 0; }
+.topbar h1 { overflow-wrap: anywhere; }
+.brand-mark { background: var(--primary); box-shadow: none; border-radius: 8px; }
+.nav-item:hover, .nav-group-toggle:hover { background: #edf7f5; color: var(--primary-strong); }
+.nav-item.router-link-active { background: #e6f3f0; color: var(--primary-strong); box-shadow: inset 3px 0 var(--primary); }
+.main-area :is(.purchase-page, .master-page, .foundation-page, .approval-page,
+.approval-detail-page, .approval-config-page, .system-config-page, .dept-req-page,
+.invoice-page, .license-page, .print-template-page, .product-form-page, .udi-page,
+.module-detail, .dashboard-grid) { gap: 16px !important; }
+.main-area :is(.master-page-title, .standard-page-header, .detail-heading,
+.approval-page-hero, .approval-detail-header, .workbench-hero, .invoice-header,
+.license-header, .udi-header, .dept-req-header) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px !important;
+  border-radius: 8px !important;
+  background: white !important;
+  box-shadow: none !important;
+}
+.main-area :is(.master-page-title h2, .standard-page-heading h2, .detail-heading h2,
+.approval-page-title h1, .approval-detail-header h1, .workbench-hero h1,
+.invoice-header h2, .license-header h2, .udi-header h2, .dept-req-header h2) {
+  font-size: 20px !important;
+  margin: 0 !important;
+  line-height: 1.4 !important;
+}
+.main-area :is(.hospital-catalog-panel, .master-table-card, .master-toolbar,
+.metric-panel, .module-card, .approval-list-panel, .approval-sidebar,
+.approval-detail-panel, .config-card, .config-panel, .department-panel, .picking-panel,
+.reservation-panel, .subnav-panel, .query-panel, .filter-panel, .form-panel,
+.table-panel, .invoice-panel, .license-panel, .udi-panel, .dept-req-panel, .product-form-card) {
+  padding: 16px !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+.main-area .section-title { flex-wrap: wrap; gap: 8px; margin-bottom: 12px !important; }
+
+/* Grid widths follow the actual content canvas, including sidebar changes. */
+.main-area :is(.hospital-query-grid, .supplier-query-grid, .purchase-query-grid,
+.department-query-grid, .quota-query-grid, .closure-form-grid, .filter-grid,
+.dept-req-filters, .reconciliation-filters, .approval-config-filter) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)) !important;
+  align-items: end;
+  gap: 12px !important;
+}
+.main-area :is(.supplier-form-grid, .quota-form-grid, .form-grid) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)) !important;
+  gap: 12px !important;
+}
+.main-area :is(.hospital-query-grid, .filter-grid, .supplier-form-grid,
+.dept-req-filters, .reconciliation-filters, .approval-config-filter) > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.main-area :is(.hospital-query-grid, .filter-grid, .supplier-form-grid,
+.reconciliation-filters, .approval-config-filter) label > :is(input, select, textarea) {
+  width: 100%; min-width: 0;
+}
+.main-area :is(.hospital-query-actions, .toolbar-actions, .form-actions,
+.standard-page-actions, .dialog-actions, .hospital-action-row, .approval-filter-actions) {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px !important;
+}
+.main-area :is(.hospital-query-actions, .approval-filter-actions) { align-self: end; }
+.main-area :is(.approval-filter-row, .udi-filters, .dept-req-tags) { flex-wrap: wrap; gap: 12px; }
+.main-area :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
+.filter-button, .dept-req-filters button) {
+  min-height: 36px !important;
+  height: 36px;
+  border-radius: 6px !important;
+  font-size: 14px;
+  font-family: inherit;
+}
+.main-area :is(.el-input__inner, .el-range-input) {
+  height: auto !important; min-height: 0 !important; box-shadow: none !important;
+}
+.main-area .btn-icon { width: 36px; min-width: 36px; padding: 0; }
+.main-area :is(.el-input, .el-select, .el-date-editor) { max-width: 100%; min-width: 0; }
+.main-area :is(.btn-primary, .dept-req-filters .query, .dept-req-filters .cart) {
+  background: var(--primary); border-color: var(--primary); color: white;
+}
+.main-area .btn-primary:hover { background: var(--primary-strong); color: white; }
+.main-area :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--focus) !important; outline-offset: 2px;
+}
+.main-area :is(table, input[type=number]) { font-variant-numeric: tabular-nums; }
+.main-area table { font-size: 14px; }
+.main-area :is(.master-table, .hospital-product-table, .el-table) :is(th, td) {
+  padding-top: 8px !important; padding-bottom: 8px !important;
+}
+.main-area :is(.master-table, .hospital-product-table) tbody tr:hover td,
+.main-area .el-table__body tr:hover > td.el-table__cell { background: #f0f8f6 !important; }
+
+/* Preserve wide columns inside their own scroll regions, never the page. */
+.main-area :is(.table-scroll, .table-wrap, .hospital-product-table-wrap,
+.dept-req-table-wrap, .supplier-table-wrap, .manufacturer-table-wrap,
+.campus-table-wrap, .department-table-wrap, .department-warehouse-catalog-table-wrap,
+.reconciliation-table-scroll, .license-table-wrap, .approval-config-table-wrap,
+.field-option-table-wrap, .approval-wide-table-shell, .purchase-entry-table-wrap,
+.receiving-detail-table-wrap) {
+  min-width: 0; max-width: 100%; width: 100%;
+  overflow: auto; overscroll-behavior-inline: contain;
+  scrollbar-gutter: stable;
+}
+.main-area .table-scroll { max-height: max(240px, calc(100dvh - 340px)); }
+.main-area .table-scroll thead th { position: sticky; top: 0; z-index: 2; }
+.main-area :is(.pagination-controls, .hospital-pagination, .approval-pagination) {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  min-width: 0; max-width: 100%; margin-top: 12px;
+}
+.main-area :is(.pagination-controls, .hospital-pagination, .approval-pagination) > * { min-width: 0; }
+.modal-mask, .dialog-mask { padding: 16px; overflow: auto; }
+:is(.supplier-modal, .supplier-dialog, .product-dialog, .stocktaking-detail-dialog,
+.stocktaking-sheet-dialog, .replenishment-analysis-dialog, .el-dialog) {
+  min-width: 0;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100dvh - 32px) !important;
+  overflow: auto;
+  border-radius: 8px !important;
+}
+:is(.supplier-dialog, .supplier-modal) > header {
+  position: sticky; top: 0; z-index: 4; background: white;
+}
+:is(.supplier-dialog, .supplier-modal) .dialog-actions {
+  position: sticky; bottom: 0; z-index: 3; background: white; padding-bottom: 12px;
+}
+@container workspace (max-width: 1100px) {
+  .system-config-layout, .trace-layout, .approval-layout, .catalog-layout, .config-hit-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .analytics-grid, .bottom-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .cockpit-header { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .cockpit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: auto !important; }
+  .cockpit-grid > * { grid-column: auto !important; min-height: 320px; }
+}
+@container workspace (max-width: 700px) {
+  .kpi-grid, .stats-grid, .cockpit-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .cockpit-grid, .cockpit-header { grid-template-columns: minmax(0, 1fr) !important; }
+  .main-area .master-toolbar { grid-template-columns: minmax(0, 1fr); }
+}
+.main-area .operation-cockpit-page { min-width: 0; width: 100%; }
+.cockpit-header { grid-template-columns: minmax(160px, 1fr) 200px minmax(220px, 2fr) 170px; }
+.cockpit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cockpit-header > * { min-width: 0; }
+.cockpit-title h1 { font-size: 20px; overflow-wrap: anywhere; }
+.cockpit-panel > header { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+@media (max-width: 768px) {
+  .main-area { padding: 12px; }
+}
+
+.hospital-pagination-controls, .hospital-pagination-summary { flex-wrap: wrap; }
+.main-area .qty-stepper { grid-template-columns: 36px 56px 36px; border-radius: 6px; }
+.main-area .qty-stepper button { height: 36px; }
+.main-area .qty-stepper input { width: 56px; border-radius: 0 !important; }
+.login-panel input, .login-panel .btn-primary {
+  height: 36px; min-height: 36px; border-radius: 6px;
+}
+.main-area :is(.approval-create-dialog, .approval-flow-modal, .attachment-preview-dialog) {
+  min-width: 0; max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); overflow: auto;
+}
+.main-area :is(.sidebar-toggle, .ai-assistant-entry, .btn):hover {
+  border-color: var(--primary);
+}
+.main-area .btn-danger { color: var(--danger); }
+.main-area .btn-primary:hover { color: white; }

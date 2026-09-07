@@ -78,23 +78,14 @@ function isParentMenuOpen(item: MenuItem) {
 }
 
 /** Preserve table working area on compact desktop screens. */
-let autoCollapsed = false
+let compactViewport: boolean | undefined
 
 function handleResize() {
-  if (window.innerWidth <= 768) {
-    autoCollapsed = false
-    uiStore.setSidebarCollapsed(false)
-    return
-  }
-
-  if (window.innerWidth <= 1366) {
-    if (!uiStore.sidebarCollapsed) {
-      autoCollapsed = true
-      uiStore.setSidebarCollapsed(true)
-    }
-  } else if (autoCollapsed) {
-    autoCollapsed = false
-    uiStore.setSidebarCollapsed(false)
+  const compact = window.innerWidth > 768 && window.innerWidth <= 1366
+  // Apply the breakpoint only when crossing it, preserving manual toggles on resize.
+  if (compact !== compactViewport) {
+    compactViewport = compact
+    uiStore.setSidebarCollapsed(compact)
   }
 }
 
@@ -199,8 +190,7 @@ onBeforeUnmount(() => {
     <main class="main-area">
       <header class="topbar">
         <div>
-          <p>端口 1820 / API 1818</p>
-          <h1>Supply-Processing-Distribution</h1>
+          <h1>院内 SPD 供应链管理平台</h1>
         </div>
         <details class="account-menu">
           <summary>

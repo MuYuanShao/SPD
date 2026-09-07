@@ -7,7 +7,7 @@ import {
 } from '../config/featureCatalog'
 import { useAuthStore } from '../stores/auth'
 
-const DashboardView = () => import('../views/DashboardRealtimeView.vue')
+const DashboardView = () => import('../views/DashboardMockView.vue')
 const FeatureView = () => import('../views/FeatureView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 const AccessDeniedView = () => import('../views/AccessDeniedView.vue')
@@ -50,7 +50,13 @@ export const router = createRouter({
       path: '/',
       name: 'dashboard',
       component: DashboardView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, title: '首页', featureCode: 'dashboard' }
+    },
+    {
+      path: '/dashboard/realtime',
+      name: 'dashboard-realtime',
+      component: () => import('../views/DashboardRealtimeView.vue'),
+      meta: { requiresAuth: true, title: '实时工作台', featureCode: 'dashboard' }
     },
     {
       path: '/login',
@@ -279,7 +285,7 @@ export const router = createRouter({
 
 function permissionCodeForRoute(to: RouteLocationNormalized) {
   if (to.name === 'forbidden' || to.name === 'login') return null
-  if (to.name === 'dashboard') return 'dashboard'
+  if (to.name === 'dashboard' || to.name === 'dashboard-realtime') return 'dashboard'
   if (String(to.name).startsWith('hospital-product-')) return 'hospital-product-catalog'
   if (to.name === 'pending-product-approval-detail') return 'pending-product-catalog'
   if (to.params.code) return String(to.params.code)

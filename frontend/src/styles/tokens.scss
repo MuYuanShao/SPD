@@ -1,0 +1,35 @@
+/* Shared visual tokens; existing business styles continue to consume their aliases. */
+:root {
+  --fli-brand: #009688;
+  --fli-brand-strong: #00796b;
+  --fli-accent: #2ec4b6;
+  --fli-background: #f3f5f7;
+  --fli-surface: #fff;
+  --fli-text: #34454e;
+  --fli-muted: #75858e;
+  --fli-line: #e7edef;
+  --fli-radius: 5px;
+  --fli-gap: 16px;
+  --fli-shadow: 0 2px 8px rgb(32 64 70 / 3%);
+  --fli-home-width: 1200px;
+  --fli-nav-height: 64px;
+  --primary: var(--fli-brand);
+  --primary-strong: var(--fli-brand-strong);
+  --surface: var(--fli-surface);
+  --line: var(--fli-line);
+  --text-muted: var(--fli-muted);
+  --btn-radius: 4px;
+  --btn-font-weight: 500;
+  --el-color-primary: var(--fli-brand);
+  --el-color-primary-dark-2: var(--fli-brand-strong);
+  --el-color-primary-light-3: #4db6ac;
+  --el-color-primary-light-5: #80cbc4;
+  --el-color-primary-light-7: #b2dfdb;
+  --el-color-primary-light-8: #cceae7;
+  --el-color-primary-light-9: #e6f4f2;
+  --el-border-radius-base: var(--fli-radius);
+  --el-border-color: #dce5e8;
+  --el-border-color-light: var(--fli-line);
+  --el-text-color-primary: var(--fli-text);
+  --el-font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+}

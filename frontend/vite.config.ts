@@ -20,12 +20,12 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            if (id.includes('echarts') || id.includes('zrender')) {
+              return 'vendor-charts'
+            }
             if (id.includes('element-plus')) {
               if (id.includes('/components/table/')) {
                 return 'vendor-element-plus-table'
-              }
-              if (id.includes('/components/checkbox/')) {
-                return 'vendor-element-plus-checkbox'
               }
               return 'vendor-element-plus-core'
             }

@@ -6,12 +6,14 @@ import AlertCard from '../components/business/AlertCard.vue'
 import NoticeList, { type NoticeItem } from '../components/business/NoticeList.vue'
 import TodoList, { type TodoItem } from '../components/business/TodoList.vue'
 import TrendChart from '../components/business/TrendChart.vue'
-import { alerts, todos, notices, labels, movementSeries, usageSeries, products } from '../mocks/dashboard'
+import { useHomeWorkbench } from '../composables/useHomeWorkbench'
 import { useLayoutNavigation } from '../layout/useLayoutNavigation'
 import { flattenMenu } from '../config/menu'
 import { featureRouteTarget } from '../config/featureCatalog'
 
 const { auth, groups } = useLayoutNavigation()
+const { rows, total, page, size, keyword, productsLoading, productError, error, refresh,
+  alerts, todos, todoTotal, notices, labels, movementSeries, usageSeries, status, statusDetail, metric } = useHomeWorkbench()
 const availablePages = computed(() => flattenMenu(groups.value).filter(item => !item.children?.length))
 const selectedCodes = ref<string[]>([])
 watch(availablePages, pages => {
@@ -22,32 +24,23 @@ watch(availablePages, pages => {
 }, { immediate: true })
 const shortcuts = computed(() => availablePages.value.filter(item => selectedCodes.value.includes(item.code)))
 const configuring = ref(false)
-const keyword = ref('')
-const page = ref(1)
-const size = ref(5)
-const filtered = computed(() => {
-  const term = keyword.value.trim().toLowerCase()
-  return products.filter(item => [item.name, item.holder, item.specification, item.location].some(value => value.toLowerCase().includes(term)))
-})
-const rows = computed(() => filtered.value.slice((page.value - 1) * size.value, page.value * size.value))
-watch([keyword, size], () => { page.value = 1 })
 const detail = ref<{ title: string; content: string }>()
 function showNotice(item: NoticeItem) { detail.value = { title: item.title, content: item.content } }
-function showTodo(item: TodoItem) { detail.value = { title: item.title, content: '示例单据：' + item.id + '；当前状态：' + item.status + '；处理进度：' + item.progress + '%。此处仅展示示例数据。' } }
+function showTodo(item: TodoItem) { detail.value = { title: item.title, content: '单据编号：' + item.id + '；当前状态：' + item.status + '。请在对应业务模块处理，首页只展示授权范围内的真实待办。' } }
 </script>
 <template>
   <section class="fli-dashboard" aria-label="首页工作台">
-    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" type="info" effect="plain">演示数据 · 2026-09-07</el-tag></div>
+    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" :type="error || productError ? 'danger' : 'info'" effect="plain" :title="statusDetail" role="button" tabindex="0" @click="refresh" @keyup.enter="refresh">{{ status }}</el-tag></div>
     <el-row :gutter="16" class="fli-statistics">
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日销售额" value="128,640.00" unit="元" tone="orange" :icon="Banknote" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日售出数量" value="3,286" unit="件" tone="teal" :icon="Package" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日入库" value="5,420" unit="件" tone="purple" :icon="PackagePlus" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日出库" value="3,680" unit="件" tone="blue" :icon="Truck" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日销售额" :value="metric('salesAmount')" unit="元" tone="orange" :icon="Banknote" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日售出数量" :value="metric('salesQuantity')" unit="件" tone="teal" :icon="Package" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日入库" :value="metric('inboundQuantity')" unit="件" tone="purple" :icon="PackagePlus" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日出库" :value="metric('outboundQuantity')" unit="件" tone="blue" :icon="Truck" /></el-col>
     </el-row>
     <el-row :gutter="16" class="fli-columns">
       <el-col :xs="24" :sm="12" :md="7">
         <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>待办事项</h2><el-tag size="small" effect="light">{{ todos.length }} 项待处理</el-tag></div></template>
+          <template #header><div class="fli-panel-heading"><h2>待办事项</h2><el-tag size="small" effect="light">{{ todoTotal }} 项待处理</el-tag></div></template>
           <TodoList :items="todos" @select="showTodo" />
         </el-card>
         <el-card shadow="never" class="fli-panel">
@@ -80,7 +73,7 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
     </el-row>
     <el-card shadow="never" class="fli-panel fli-products">
       <template #header><div class="fli-panel-heading"><h2>进销存商品列表</h2><el-input v-model="keyword" clearable placeholder="搜索产品、持有人、规格或库位" aria-label="搜索进销存商品" class="fli-product-search" /></div></template>
-      <el-table :data="rows" stripe row-key="id" empty-text="暂无匹配商品">
+      <el-table :data="rows" stripe row-key="id" :empty-text="productsLoading ? '正在加载真实库存…' : productError ? '库存加载失败，请点击顶部重试' : '暂无匹配商品'">
         <el-table-column prop="name" label="产品名称" min-width="200" />
         <el-table-column prop="holder" label="注册证持有人" min-width="220" />
         <el-table-column prop="expiry" label="有效期至" min-width="120" />
@@ -88,7 +81,7 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
         <el-table-column prop="quantity" label="数量" width="90" align="right" />
         <el-table-column prop="location" label="库位" min-width="140" />
       </el-table>
-      <div class="fli-pagination"><span>示例商品，共 {{ filtered.length }} 条</span><el-pagination v-model:current-page="page" v-model:page-size="size" :page-sizes="[5, 10, 20]" :total="filtered.length" layout="sizes, prev, pager, next" background /></div>
+      <div class="fli-pagination"><span>库存记录，共 {{ total }} 条</span><el-pagination v-model:current-page="page" v-model:page-size="size" :page-sizes="[5, 10, 20]" :total="total" layout="sizes, prev, pager, next" background /></div>
     </el-card>
     <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template></el-dialog>
     <el-dialog v-model="configuring" title="选择常用功能" width="min(640px, 92vw)">

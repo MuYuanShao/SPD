@@ -33,3 +33,47 @@ export interface DashboardData {
 export function fetchDashboard() {
   return getData<DashboardData>('/dashboard')
 }
+
+export interface WorkbenchDay {
+  date: string
+  salesAmount: number
+  salesQuantity: number
+  inboundQuantity: number
+  outboundQuantity: number
+  inboundAmount: number
+  outboundAmount: number
+  purchaseAmount: number
+}
+export interface WorkbenchTodo { id: string; title: string; status: string; progress: number; eventTime: string }
+export interface WorkbenchProduct { id: number; name: string; holder: string; expiry: string; specification: string; quantity: number; location: string }
+export interface HomeWorkbench {
+  date: string
+  metrics: WorkbenchDay
+  trend: WorkbenchDay[]
+  alerts: Record<'lowStock' | 'expiry' | 'quality' | 'shortage' | 'license' | 'stagnant', number>
+  todos: { rows: WorkbenchTodo[]; total: number }
+  notices: Array<{ id: string; title: string; date: string; content: string }>
+  noticeSourceAvailable: boolean
+  definitions: { expiryWarningDays: number; stagnantDays: number }
+}
+export async function fetchHomeWorkbench(signal?: AbortSignal) {
+  const data = await getData<HomeWorkbench>('/dashboard/workbench', { signal })
+  if (!data || !data.metrics || !Array.isArray(data.trend) || data.trend.length !== 30 ||
+      !Array.isArray(data.todos?.rows) || !Array.isArray(data.notices) || !data.alerts) {
+    throw new Error('首页汇总数据格式异常')
+  }
+  for (const field of ['salesAmount', 'salesQuantity', 'inboundQuantity', 'outboundQuantity'] as const) {
+    if (!Number.isFinite(data.metrics[field])) throw new Error('首页指标数据格式异常')
+  }
+  for (const day of data.trend) {
+    if (typeof day.date !== 'string' || !['salesAmount', 'inboundAmount', 'outboundAmount', 'purchaseAmount']
+      .every(key => Number.isFinite(day[key as keyof WorkbenchDay]))) throw new Error('首页趋势数据格式异常')
+  }
+  if (!Object.values(data.alerts).every(value => Number.isFinite(value) && value >= 0)) throw new Error('首页预警数据格式异常')
+  return data
+}
+export async function fetchWorkbenchProducts(params: { page: number; size: number; keyword: string }, signal?: AbortSignal) {
+  const data = await getData<{ rows: WorkbenchProduct[]; total: number; page: number; size: number }>('/dashboard/products', { params, signal })
+  if (!Array.isArray(data?.rows) || !Number.isFinite(data.total) || data.total < 0) throw new Error('库存列表数据格式异常')
+  return data
+}

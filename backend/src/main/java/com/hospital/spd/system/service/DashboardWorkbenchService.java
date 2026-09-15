@@ -211,26 +211,29 @@ public class DashboardWorkbenchService {
         String keyword = params.getOrDefault("keyword", "").trim();
         if (keyword.length() > 100) throw new IllegalArgumentException("搜索词不能超过 100 字");
         if (!keyword.isEmpty()) {
-            where.append(" AND (p.product_name LIKE ? ESCAPE '!' OR p.product_code LIKE ? ESCAPE '!' OR p.spec_model LIKE ? ESCAPE '!' OR w.warehouse_name LIKE ? ESCAPE '!' OR loc.location_code LIKE ? ESCAPE '!')");
+            where.append(" AND (p.product_name LIKE ? ESCAPE '!' OR p.product_code LIKE ? ESCAPE '!' OR p.spec_model LIKE ? ESCAPE '!' OR w.warehouse_name LIKE ? ESCAPE '!' OR loc.location_code LIKE ? ESCAPE '!' OR p.registration_no LIKE ? ESCAPE '!' OR m.manufacturer_name LIKE ? ESCAPE '!' OR s.supplier_name LIKE ? ESCAPE '!')");
             String like = "%" + keyword.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-            for (int i = 0; i < 5; i++) args.add(like);
+            for (int i = 0; i < 8; i++) args.add(like);
         }
         String from = """
                  FROM inventory_balance bal JOIN product p ON p.product_id = bal.product_id
                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                  JOIN inventory_batch b ON b.batch_id = bal.batch_id
+                 LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
+                 LEFT JOIN supplier s ON s.supplier_id = b.supplier_id
                  LEFT JOIN warehouse_location loc ON loc.location_id = bal.location_id AND loc.warehouse_id = w.warehouse_id
                 """;
         Long total = jdbc.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
         List<Object> pageArgs = new ArrayList<>(args);
         pageArgs.add(page.size()); pageArgs.add(page.offset());
         List<Map<String, Object>> rows = jdbc.queryForList("""
-                SELECT bal.balance_id AS id, p.product_name AS name, '-' AS holder,
+                SELECT bal.balance_id AS id, p.product_name AS name, COALESCE(p.registration_no, '') AS registrationNo,
+                       COALESCE(m.manufacturer_name, '') AS manufacturerName, COALESCE(s.supplier_name, '') AS distributorName,
                        COALESCE(DATE_FORMAT(b.expire_date, '%Y-%m-%d'), '-') AS expiry,
                        p.spec_model AS specification, bal.available_qty AS quantity,
                        CONCAT(w.warehouse_name, ' / ', COALESCE(loc.location_code, '未分配货位')) AS location
                 """ + from + where + " ORDER BY bal.balance_id DESC LIMIT ? OFFSET ?", pageArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, page,
-                Map.of("holderAvailable", false, "quantityDefinition", "available_qty"));
+                Map.of("quantityDefinition", "available_qty"));
     }
 }

@@ -501,7 +501,8 @@ export const featureCatalog = [
       'spd-his-reconciliation-report',
       'supplier-delivery-ledger-report',
       'centralized-procurement-progress-report',
-      'inventory-movement-summary-report'
+      'inventory-movement-summary-report',
+      'inventory-product-detail-report'
     ]
   },
   {
@@ -536,6 +537,15 @@ export const featureCatalog = [
     title: '全院物资进销存汇总表',
     icon: 'warehouse',
     routeTarget: '/features/inventory-movement-summary-report',
+    viewFamily: 'report-center',
+    nodeKind: 'business',
+    chunkFamily: 'system'
+  },
+  {
+    code: 'inventory-product-detail-report',
+    title: '进销存商品明细',
+    icon: 'clipboard-list',
+    routeTarget: '/features/inventory-product-detail-report',
     viewFamily: 'report-center',
     nodeKind: 'business',
     chunkFamily: 'system'

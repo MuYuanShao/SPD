@@ -17,6 +17,16 @@ class RbacAuthorizationServiceTest {
     private final RbacAuthorizationService service = new RbacAuthorizationService(jdbcTemplate);
 
     @Test
+    void inventory_product_report_uses_its_own_permission_for_both_urls() {
+        stubPermissions(41L, List.of("inventory-product-detail-report"));
+        stubPermissions(42L, List.of("dashboard"));
+        for (String path : List.of("/api/report-center/inventory-products", "/api/dashboard/products")) {
+            assertThat(service.isAllowed(41L, List.of("ROLE_USER"), "GET", path)).isTrue();
+            assertThat(service.isAllowed(42L, List.of("ROLE_USER"), "GET", path)).isFalse();
+        }
+    }
+
+    @Test
     void user_without_role_permissions_cannot_access_user_management() {
         stubPermissions(8L, List.of());
 

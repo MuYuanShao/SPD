@@ -45,7 +45,6 @@ export interface WorkbenchDay {
   purchaseAmount: number
 }
 export interface WorkbenchTodo { id: string; title: string; status: string; progress: number; eventTime: string }
-export interface WorkbenchProduct { id: number; name: string; holder: string; expiry: string; specification: string; quantity: number; location: string }
 export interface HomeWorkbench {
   date: string
   metrics: WorkbenchDay
@@ -70,10 +69,5 @@ export async function fetchHomeWorkbench(signal?: AbortSignal) {
       .every(key => Number.isFinite(day[key as keyof WorkbenchDay]))) throw new Error('首页趋势数据格式异常')
   }
   if (!Object.values(data.alerts).every(value => Number.isFinite(value) && value >= 0)) throw new Error('首页预警数据格式异常')
-  return data
-}
-export async function fetchWorkbenchProducts(params: { page: number; size: number; keyword: string }, signal?: AbortSignal) {
-  const data = await getData<{ rows: WorkbenchProduct[]; total: number; page: number; size: number }>('/dashboard/products', { params, signal })
-  if (!Array.isArray(data?.rows) || !Number.isFinite(data.total) || data.total < 0) throw new Error('库存列表数据格式异常')
   return data
 }

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { getData, postData } from '../api/http'
 import { getSessionAdapter } from '../api/session'
 
@@ -22,10 +23,13 @@ export interface UserInfo {
 export const useAuthStore = defineStore('auth', () => {
   const session = getSessionAdapter()
   const token = ref<string | null>(session.getToken())
-  const currentUser = ref<UserInfo | null>(loadUser())
+  const currentUser = ref<UserInfo | null>(null)
 
-  const isAuthenticated = ref(token.value !== null && currentUser.value !== null)
-  const username = ref(currentUser.value?.username || '')
+  const isAuthenticated = computed(() => Boolean(token.value && currentUser.value))
+  const username = computed(() => currentUser.value?.username || '')
+  const initializationError = ref('')
+  let initialization: Promise<void> | undefined
+  let sessionVersion = 0
 
   async function login(loginUsername: string, password: string) {
     if (!loginUsername.trim() || !password.trim()) {
@@ -46,6 +50,9 @@ export const useAuthStore = defineStore('auth', () => {
       throw new Error('登录失败')
     }
 
+    ++sessionVersion
+    currentUser.value = null
+    initializationError.value = ''
     token.value = data.token
     session.setToken(data.token)
 
@@ -53,45 +60,50 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function fetchCurrentUser() {
+    const version = sessionVersion
     try {
       const user = await getData<UserInfo>('/auth/me')
-      if (user) {
-        currentUser.value = user
-        username.value = user.username
-        isAuthenticated.value = true
-        saveUser(user)
+      if (version !== sessionVersion) throw new Error('登录状态已变更，请重新登录')
+      if (!user) throw new Error('未获取到用户信息，请重试')
+      currentUser.value = user
+      initializationError.value = ''
+      saveUser(user)
+    } catch (error) {
+      if (version !== sessionVersion) {
+        if (isAxiosError(error) && error.response?.status === 401) throw new Error('登录已失效，请重新登录')
+        throw error
       }
-    } catch (e) {
-      console.error('Failed to fetch user info', e)
-      logout()
+      currentUser.value = null
+      const unauthorized = isAxiosError(error) && error.response?.status === 401
+      if (unauthorized) logout()
+      initializationError.value = unauthorized ? '登录已失效，请重新登录' : '用户信息加载失败，请重试登录'
+      throw new Error(initializationError.value)
     }
   }
 
   function logout() {
+    ++sessionVersion
+    initialization = undefined
     token.value = null
     currentUser.value = null
-    username.value = ''
-    isAuthenticated.value = false
+    initializationError.value = ''
     session.clearToken()
-    localStorage.removeItem(USER_KEY)
+    try { localStorage.removeItem(USER_KEY) } catch { /* Storage may be unavailable. */ }
   }
 
-  async function init() {
+  function init(): Promise<void> {
+    if (isAuthenticated.value) return Promise.resolve()
+    if (initialization) return initialization
     const savedToken = session.getToken()
-    if (savedToken) {
-      token.value = savedToken
-      isAuthenticated.value = true
-      await fetchCurrentUser()
-    }
-  }
-
-  function loadUser(): UserInfo | null {
-    try {
-      const raw = localStorage.getItem(USER_KEY)
-      return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
-    }
+    if (!savedToken) return Promise.resolve()
+    token.value = savedToken
+    const pending = fetchCurrentUser().catch(() => {
+      // The route guard opens login; retain the actionable error for that page.
+    }).finally(() => {
+      if (initialization === pending) initialization = undefined
+    })
+    initialization = pending
+    return pending
   }
 
   function saveUser(user: UserInfo) {
@@ -145,6 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     currentUser,
     isAuthenticated,
+    initializationError,
     username,
     login,
     logout,

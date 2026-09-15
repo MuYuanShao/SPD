@@ -183,3 +183,18 @@ export function recordRegulatoryPdfExport(reportCode: string) {
     params: { format: 'PDF' },
   })
 }
+
+export interface InventoryProductDetail {
+  id: number
+  name: string
+  registrationNo: string | null
+  manufacturerName: string | null
+  distributorName: string | null
+  expiry: string
+  specification: string
+  quantity: number
+  location: string
+}
+export function fetchInventoryProductDetails(params: { page: number; size: number; keyword: string }, signal?: AbortSignal) {
+  return getPage<InventoryProductDetail>('/report-center/inventory-products', { params, signal })
+}

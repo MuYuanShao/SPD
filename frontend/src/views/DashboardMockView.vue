@@ -12,7 +12,7 @@ import { flattenMenu } from '../config/menu'
 import { featureRouteTarget } from '../config/featureCatalog'
 
 const { auth, groups } = useLayoutNavigation()
-const { rows, total, page, size, keyword, productsLoading, productError, error, refresh,
+const { error, refresh,
   alerts, todos, todoTotal, notices, labels, movementSeries, usageSeries, status, statusDetail, metric } = useHomeWorkbench()
 const availablePages = computed(() => flattenMenu(groups.value).filter(item => !item.children?.length))
 const selectedCodes = ref<string[]>([])
@@ -30,7 +30,7 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
 </script>
 <template>
   <section class="fli-dashboard" aria-label="首页工作台">
-    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" :type="error || productError ? 'danger' : 'info'" effect="plain" :title="statusDetail" role="button" tabindex="0" @click="refresh" @keyup.enter="refresh">{{ status }}</el-tag></div>
+    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" :type="error ? 'danger' : 'info'" effect="plain" :title="statusDetail" role="button" tabindex="0" @click="refresh" @keyup.enter="refresh">{{ status }}</el-tag></div>
     <el-row :gutter="16" class="fli-statistics">
       <el-col :xs="12" :sm="6"><StatisticCard title="今日销售额" :value="metric('salesAmount')" unit="元" tone="orange" :icon="Banknote" /></el-col>
       <el-col :xs="12" :sm="6"><StatisticCard title="今日售出数量" :value="metric('salesQuantity')" unit="件" tone="teal" :icon="Package" /></el-col>
@@ -71,18 +71,6 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
         <aside class="fli-banner"><HeartPulse :size="38" :stroke-width="1.3" /><div><strong>精益管理 · 守护健康</strong><p>让每一份耗材，服务每一份安心</p></div></aside>
       </el-col>
     </el-row>
-    <el-card shadow="never" class="fli-panel fli-products">
-      <template #header><div class="fli-panel-heading"><h2>进销存商品列表</h2><el-input v-model="keyword" clearable placeholder="搜索产品、持有人、规格或库位" aria-label="搜索进销存商品" class="fli-product-search" /></div></template>
-      <el-table :data="rows" stripe row-key="id" :empty-text="productsLoading ? '正在加载真实库存…' : productError ? '库存加载失败，请点击顶部重试' : '暂无匹配商品'">
-        <el-table-column prop="name" label="产品名称" min-width="200" />
-        <el-table-column prop="holder" label="注册证持有人" min-width="220" />
-        <el-table-column prop="expiry" label="有效期至" min-width="120" />
-        <el-table-column prop="specification" label="规格型号" min-width="110" />
-        <el-table-column prop="quantity" label="数量" width="90" align="right" />
-        <el-table-column prop="location" label="库位" min-width="140" />
-      </el-table>
-      <div class="fli-pagination"><span>库存记录，共 {{ total }} 条</span><el-pagination v-model:current-page="page" v-model:page-size="size" :page-sizes="[5, 10, 20]" :total="total" layout="sizes, prev, pager, next" background /></div>
-    </el-card>
     <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template></el-dialog>
     <el-dialog v-model="configuring" title="选择常用功能" width="min(640px, 92vw)">
       <el-checkbox-group v-model="selectedCodes" class="fli-feature-options"><el-checkbox v-for="item in availablePages" :key="item.code" :value="item.code">{{ item.title }}</el-checkbox></el-checkbox-group>

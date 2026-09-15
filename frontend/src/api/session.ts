@@ -27,6 +27,7 @@ export const browserSessionAdapter: SessionAdapter = {
   },
   handleUnauthorized() {
     this.clearToken()
+    getBrowserStorage()?.removeItem('spd.user')
     if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
       window.location.href = '/login'
     }

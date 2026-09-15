@@ -1,6 +1,8 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import { browserSessionAdapter, setSessionAdapter } from './api/session'
+import { useAuthStore } from './stores/auth'
 import { router } from './router'
 import { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
 import { ElPopover } from 'element-plus/es/components/popover/index.mjs'
@@ -72,4 +74,15 @@ const app = createApp(App)
 for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty]) {
   app.use(component)
 }
+setSessionAdapter({
+  ...browserSessionAdapter,
+  handleUnauthorized() {
+    const auth = useAuthStore()
+    auth.logout()
+    auth.initializationError = '登录已失效，请重新登录'
+    if (router.currentRoute.value.matched.length && router.currentRoute.value.name !== 'login') {
+      void router.replace({ name: 'login', query: { redirect: router.currentRoute.value.fullPath } })
+    }
+  },
+})
 app.mount('#app')

@@ -226,6 +226,8 @@ public class RbacAuthorizationService {
         prefixes.put("/report-center/supplier-delivery-ledger", "supplier-delivery-ledger-report");
         prefixes.put("/report-center/centralized-procurement-progress", "centralized-procurement-progress-report");
         prefixes.put("/report-center/inventory-movement-summary", "inventory-movement-summary-report");
+        prefixes.put("/report-center/inventory-products", "inventory-product-detail-report");
+        prefixes.put("/dashboard/products", "inventory-product-detail-report");
         prefixes.put("/report-center", "spd-his-reconciliation-report");
         prefixes.put("/operation-cockpit", "operation-cockpit");
         prefixes.put("/dashboard", "dashboard");

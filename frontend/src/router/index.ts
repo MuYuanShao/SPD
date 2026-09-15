@@ -275,6 +275,12 @@ export const router = createRouter({
       meta: { requiresAuth: true, reportType: 'inventory' }
     },
     {
+      path: featureRouteTarget('inventory-product-detail-report'),
+      name: 'inventory-product-detail-report',
+      component: () => import('../views/operations/InventoryProductDetailView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
       path: '/features/:code',
       name: 'feature',
       component: FeatureView,

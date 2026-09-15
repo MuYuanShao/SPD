@@ -45,6 +45,7 @@ http.interceptors.response.use(
     return response
   },
   (error) => {
+    if (axios.isCancel(error)) return Promise.reject(error)
     if (error.response) {
       const status = error.response.status
       if (status === 401) {

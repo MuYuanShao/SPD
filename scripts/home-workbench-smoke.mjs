@@ -37,16 +37,7 @@ try {
   assert.ok(stats.includes(amount))
   assert.ok(!(await page.locator('.fli-dashboard').innerText()).includes('演示数据'))
   await page.getByText('暂无公告', { exact: true }).waitFor()
-  const search = page.getByRole('textbox', { name: '搜索进销存商品' })
-  await search.fill(process.env.SPD_HOME_PRODUCT)
-  await page.getByText('库存记录，共 7 条', { exact: true }).waitFor()
-  assert.equal(await page.locator('.fli-products .el-table__body tbody tr').count(), 5)
-  await page.locator('.fli-pagination .el-pager').getByText('2', { exact: true }).click()
-  await ready()
-  await page.waitForFunction(() => document.querySelectorAll('.fli-products .el-table__body tbody tr').length === 2)
-  await search.fill('NO-SUCH-HOME-PRODUCT')
-  await page.getByText('暂无匹配商品', { exact: true }).waitFor()
-  assert.equal(await page.locator('.fli-pagination .el-pager .is-active').innerText(), '1')
+  assert.equal(await page.locator('.fli-products').count(), 0)
   const fail = route => route.fulfill({ status: 503, json: { code: 503, message: '验收模拟服务不可用', data: null } })
   await page.route('**/api/dashboard/workbench', fail)
   await page.getByRole('button', { name: /^实时数据/ }).click()
@@ -55,33 +46,9 @@ try {
   await page.unroute('**/api/dashboard/workbench', fail)
   await page.getByRole('button', { name: '加载失败 · 点击重试' }).click()
   await ready()
-  await search.fill(process.env.SPD_HOME_PRODUCT)
-  await page.getByText('库存记录，共 7 条', { exact: true }).waitFor()
-  let announceSlow, releaseSlow, finishSlow
-  const started = new Promise(resolve => { announceSlow = resolve })
-  const released = new Promise(resolve => { releaseSlow = resolve })
-  const finished = new Promise(resolve => { finishSlow = resolve })
-  await page.route('**/api/dashboard/products?*', async route => {
-    const url = new URL(route.request().url())
-    if (url.searchParams.get('keyword') !== 'STALE-EMPTY') return route.fallback()
-    announceSlow()
-    await released
-    try {
-      const actual = await route.fetch({ url: api + url.pathname + url.search })
-      await route.fulfill({ response: actual })
-    } catch { /* The obsolete browser request may already have been aborted. */ }
-    finally { finishSlow() }
-  })
-  await search.fill('STALE-EMPTY')
-  await started
-  await search.fill(process.env.SPD_HOME_PRODUCT)
-  await ready()
-  releaseSlow()
-  await finished
-  await page.getByText('库存记录，共 7 条', { exact: true }).waitFor()
   await page.screenshot({ path: 'output/playwright/home-workbench-real.png', animations: 'disabled', fullPage: true })
   await writeFile('output/playwright/home-workbench-snapshot.txt', await page.locator('.fli-dashboard').ariaSnapshot(), 'utf8')
-  console.log('PASS: real summary, four unchanged statistic components, no mock fallback, server search/pagination, empty state, failure/retry, obsolete search cancellation')
+  console.log('PASS: real summary, four unchanged statistic components, no mock fallback, inventory list removed, failure/retry')
 } finally {
   await browser.close()
   await client.dispose()

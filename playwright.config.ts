@@ -20,7 +20,7 @@ export default defineConfig({
       timeout: 120_000,
     },
     {
-      command: 'npm run dev:frontend -- --host 127.0.0.1',
+      command: 'npm --prefix frontend run dev -- --host 127.0.0.1',
       url: 'http://127.0.0.1:1820',
       reuseExistingServer: true,
       timeout: 120_000,

@@ -56,7 +56,7 @@ async function submitLogin() {
         <span>密码</span>
         <input v-model="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
       </label>
-      <p v-if="error" class="error-text login-error">{{ error }}</p>
+      <p v-if="error || authStore.initializationError" role="alert" class="error-text login-error">{{ error || authStore.initializationError }}</p>
       <button class="btn btn-primary" type="submit" :disabled="loading">
         <LogIn :size="18" />
         {{ loading ? '登录中...' : '登录' }}

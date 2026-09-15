@@ -1,122 +1,45 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
-import { fetchClosureList } from '../../api/operationalClosure'
+import TableStateRow from '../../components/common/TableStateRow.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
+import { useChargeDetailQuery } from '../../composables/useChargeDetailQuery'
+import { useAuthStore } from '../../stores/auth'
 
-const loading = ref(false)
-const message = ref('')
-const rows = ref<Record<string, unknown>[]>([])
-const currentPage = ref(1)
-const pageSize = ref(20)
-const totalItems = ref(0)
+const auth = useAuthStore()
+const { filters, rows, loading, message, validationMessage, currentPage, pageSize, totalItems,
+  loadData, search, reset, changePage, changePageSize } = useChargeDetailQuery()
 const tableScrollRef = ref<HTMLElement | null>(null)
 const scrollTrackRef = ref<HTMLElement | null>(null)
-const tableScrollState = ref({ left: 0, max: 0 })
+const tableScrollState = ref({ left: 0, max: 0, width: 0, scrollWidth: 0 })
 const scrollDragging = ref(false)
 let scrollDragStartX = 0
 let scrollDragStartLeft = 0
+let resizeObserver: ResizeObserver | undefined
 
-const filters = reactive({
-  patientNo: '',
-  patientName: '',
-  productCode: '',
-  productName: '',
-  dateFrom: '',
-  dateTo: '',
-  uid: '',
-  udi: '',
-  supplierName: '',
-  manufacturerName: '',
-  registrationNo: ''
-})
-
-function requestParams() {
-  const params: Record<string, string> = {
-    page: String(currentPage.value),
-    size: String(pageSize.value)
-  }
-  Object.entries(filters).forEach(([key, value]) => {
-    const text = String(value || '').trim()
-    if (text) {
-      params[key] = text
-    }
-  })
-  return params
-}
-
-async function loadData() {
-  loading.value = true
-  message.value = ''
-  try {
-    const page = await fetchClosureList('high-value', requestParams())
-    rows.value = page.rows
-    totalItems.value = page.total
-    await nextTick()
-    updateTableScrollState()
-  } catch (error) {
-    message.value = error instanceof Error ? error.message : '收费耗材明细加载失败'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function search() {
-  currentPage.value = 1
-  await loadData()
-}
-
-async function reset() {
-  Object.keys(filters).forEach((key) => {
-    filters[key as keyof typeof filters] = ''
-  })
-  currentPage.value = 1
-  await loadData()
-}
-
-async function changePage(page: number) {
-  const totalPages = Math.max(Math.ceil(totalItems.value / Math.max(pageSize.value, 1)), 1)
-  const nextPage = Math.min(Math.max(page, 1), totalPages)
-  if (nextPage === currentPage.value) return
-  currentPage.value = nextPage
-  await loadData()
-}
-
-async function changePageSize(size: number) {
-  if (size === pageSize.value) return
-  pageSize.value = size
-  currentPage.value = 1
-  await loadData()
+function money(value: number | null, digits = 2) {
+  return value == null ? '-' : value.toLocaleString('zh-CN', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
 function updateTableScrollState() {
   const el = tableScrollRef.value
   if (!el) {
-    tableScrollState.value = { left: 0, max: 0 }
+    tableScrollState.value = { left: 0, max: 0, width: 0, scrollWidth: 0 }
     return
   }
   tableScrollState.value = {
     left: el.scrollLeft,
-    max: Math.max(0, el.scrollWidth - el.clientWidth)
+    max: Math.max(0, el.scrollWidth - el.clientWidth), width: el.clientWidth, scrollWidth: el.scrollWidth
   }
 }
 
-/**
- * 轨道滑块宽度 = 可视宽度 / 内容总宽度；滑块位移按可视宽度比例换算，
- * 保证滑块与表格滚动位置始终一一对应（修复左右滑动导航轨道错位问题）。
- */
 const thumbWidthPercent = computed(() => {
-  const el = tableScrollRef.value
-  if (!el || el.scrollWidth <= 0) return 100
-  const ratio = el.clientWidth / el.scrollWidth
-  return Math.min(100, Math.max(8, ratio * 100))
+  const { width, scrollWidth } = tableScrollState.value
+  return scrollWidth ? Math.min(100, Math.max(8, width / scrollWidth * 100)) : 100
 })
-
-const thumbTranslatePercent = computed(() => {
-  const el = tableScrollRef.value
-  if (!el || el.clientWidth <= 0) return 0
-  return (tableScrollState.value.left / el.clientWidth) * 100
-})
+const thumbLeftPercent = computed(() => tableScrollState.value.max
+  ? tableScrollState.value.left / tableScrollState.value.max * (100 - thumbWidthPercent.value) : 0)
 
 function setChargeTableScrollLeft(left: number) {
   const el = tableScrollRef.value
@@ -124,7 +47,7 @@ function setChargeTableScrollLeft(left: number) {
   const max = Math.max(0, el.scrollWidth - el.clientWidth)
   const nextLeft = Math.min(max, Math.max(0, left))
   el.scrollLeft = nextLeft
-  tableScrollState.value = { left: nextLeft, max }
+  updateTableScrollState()
 }
 
 function scrollChargeTable(direction: 'left' | 'right') {
@@ -140,7 +63,8 @@ function setChargeTableScrollFromTrack(event: PointerEvent) {
   const el = tableScrollRef.value
   if (!track || !el) return
   const rect = track.getBoundingClientRect()
-  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / Math.max(1, rect.width)))
+  const thumbWidth = rect.width * thumbWidthPercent.value / 100
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left - thumbWidth / 2) / Math.max(1, rect.width - thumbWidth)))
   setChargeTableScrollLeft((el.scrollWidth - el.clientWidth) * ratio)
 }
 
@@ -149,7 +73,7 @@ function startChargeTrackDrag(event: PointerEvent) {
   if (!el) return
   scrollDragging.value = true
   ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
-  setChargeTableScrollFromTrack(event)
+  if (!(event.target as HTMLElement).classList.contains('charge-scroll-thumb')) setChargeTableScrollFromTrack(event)
   // 点击/拖拽起点以跳转后的位置为锚点，避免首次移动时回跳
   scrollDragStartX = event.clientX
   scrollDragStartLeft = el.scrollLeft
@@ -161,7 +85,7 @@ function moveChargeTrackDrag(event: PointerEvent) {
   const el = tableScrollRef.value
   if (!track || !el) return
   const max = Math.max(1, el.scrollWidth - el.clientWidth)
-  const delta = ((event.clientX - scrollDragStartX) / Math.max(1, track.clientWidth)) * max
+  const delta = ((event.clientX - scrollDragStartX) / Math.max(1, track.clientWidth * (1 - thumbWidthPercent.value / 100))) * max
   setChargeTableScrollLeft(scrollDragStartLeft + delta)
 }
 
@@ -170,41 +94,31 @@ function endChargeTrackDrag(event: PointerEvent) {
   ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
 }
 
-onMounted(loadData)
-onMounted(() => window.addEventListener('resize', updateTableScrollState))
-onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollState))
+watch(rows, async () => { await nextTick(); updateTableScrollState() })
+onMounted(() => {
+  resizeObserver = new ResizeObserver(updateTableScrollState)
+  if (tableScrollRef.value) {
+    resizeObserver.observe(tableScrollRef.value)
+    const table = tableScrollRef.value.querySelector('table')
+    if (table) resizeObserver.observe(table)
+  }
+  updateTableScrollState()
+})
+onBeforeUnmount(() => resizeObserver?.disconnect())
 </script>
 
 <template>
-  <section class="purchase-page closure-page">
-    <div class="breadcrumb-line">
-      <span>专项与合规</span>
-      <strong>收费耗材明细查询</strong>
-    </div>
+  <section class="charge-detail-page" aria-label="收费耗材明细查询">
 
-    <div class="detail-heading">
-      <div>
-        <p>高值耗材收费回传明细</p>
-        <h2>收费耗材明细查询</h2>
-        <small>按患者、商品、日期、住院号/患者号、UDI/唯一码、供应商、厂家、注册证查询收费耗材明细。</small>
-      </div>
-      <button class="btn" type="button" @click="loadData">
-      <RouterLink class="btn btn-primary" to="/features/high-value-consumables/operations">
-        高值耗材计费操作
-      </RouterLink>
-        <RefreshCw :size="17" />
-        刷新
-      </button>
-    </div>
+    <StatusMessage :message="message" tone="error" role="alert" />
+    <StatusMessage :message="validationMessage" tone="warning" role="alert" />
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
-
-    <section class="hospital-catalog-panel">
-      <div class="section-title">
+    <form class="charge-panel" @submit.prevent="search">
+      <div class="charge-section-title">
         <Search :size="20" />
         <h3>查询条件</h3>
       </div>
-      <div class="hospital-query-grid closure-form-grid">
+      <div class="charge-query-grid">
         <label><span>患者号/住院号</span><input v-model.trim="filters.patientNo" placeholder="患者号、住院号" /></label>
         <label><span>患者姓名</span><input v-model.trim="filters.patientName" placeholder="支持脱敏姓名" /></label>
         <label><span>商品编码</span><input v-model.trim="filters.productCode" placeholder="医院目录编码" /></label>
@@ -218,7 +132,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
         <label><span>注册证</span><input v-model.trim="filters.registrationNo" placeholder="注册证号" /></label>
       </div>
       <div class="hospital-action-row">
-        <button class="btn btn-primary" type="button" @click="search">
+        <button class="btn btn-primary" type="submit">
           <Search :size="18" />
           查询
         </button>
@@ -226,11 +140,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
           <X :size="18" />
           重置
         </button>
+        <button class="btn" type="button" @click="loadData"><RefreshCw :size="17" />刷新</button>
+        <RouterLink v-if="auth.canWrite('high-value-consumables')" class="btn" to="/features/high-value-consumables/operations">高值耗材计费操作</RouterLink>
       </div>
-    </section>
+    </form>
 
-    <section class="hospital-catalog-panel">
-      <div class="section-title charge-detail-title">
+    <section class="charge-panel" :aria-busy="loading">
+      <div class="charge-section-title charge-detail-title">
         <h3>收费明细</h3>
         <div class="charge-scroll-actions" aria-label="收费明细横向滚动控制">
           <button class="btn-icon" type="button" aria-label="向左滚动" @click="scrollChargeTable('left')">
@@ -241,7 +157,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
           </button>
         </div>
       </div>
-      <div ref="tableScrollRef" class="table-scroll charge-detail-scroll" @scroll="updateTableScrollState">
+      <div id="charge-detail-table-scroll" ref="tableScrollRef" class="table-scroll charge-detail-scroll" @scroll="updateTableScrollState">
         <table class="master-table purchase-table charge-detail-table">
           <thead>
             <tr>
@@ -258,12 +174,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading">
-              <td colspan="10" class="approval-empty">正在加载收费耗材明细...</td>
-            </tr>
-            <tr v-else-if="!rows.length">
-              <td colspan="10" class="approval-empty">暂无收费耗材明细</td>
-            </tr>
+            <TableStateRow v-if="loading" :colspan="10" state="loading" message="正在加载收费耗材明细..." />
+            <TableStateRow v-else-if="message" :colspan="10" state="error" message="加载失败，请点击刷新重试" />
+            <TableStateRow v-else-if="!rows.length" :colspan="10" message="暂无收费耗材明细" />
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>
                 <strong>{{ row.bizNo }}</strong>
@@ -291,9 +204,9 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
                 <strong>{{ row.uniqueCode || '-' }}</strong>
                 <span class="muted-cell">{{ row.udiCode || '-' }}</span>
               </td>
-              <td>{{ row.chargeQuantity || '-' }}</td>
-              <td>{{ row.unitPrice || '-' }}</td>
-              <td>{{ row.chargeAmount || '-' }}</td>
+              <td>{{ row.chargeQuantity ?? '-' }}</td>
+              <td>{{ money(row.unitPrice, 4) }}</td>
+              <td>{{ money(row.chargeAmount) }}</td>
               <td>{{ row.chargeTime || row.createTime || '-' }}</td>
             </tr>
           </tbody>
@@ -307,6 +220,13 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
           :class="{ dragging: scrollDragging }"
           role="scrollbar"
           aria-orientation="horizontal"
+          aria-label="收费明细横向滚动条"
+          aria-controls="charge-detail-table-scroll"
+          :aria-valuemin="0"
+          @keydown.left.prevent="scrollChargeTable('left')"
+          @keydown.right.prevent="scrollChargeTable('right')"
+          @keydown.home.prevent="setChargeTableScrollLeft(0)"
+          @keydown.end.prevent="setChargeTableScrollLeft(tableScrollState.max)"
           :aria-valuenow="Math.round(tableScrollState.left)"
           :aria-valuemax="Math.round(tableScrollState.max)"
           tabindex="0"
@@ -319,7 +239,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
             class="charge-scroll-thumb"
             :style="{
               width: tableScrollState.max > 0 ? `${thumbWidthPercent}%` : '100%',
-              transform: `translateX(${tableScrollState.max > 0 ? thumbTranslatePercent : 0}%)`
+              left: `${thumbLeftPercent}%`
             }"
           ></span>
         </div>
@@ -337,6 +257,29 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
 </template>
 
 <style scoped>
+.charge-detail-page { display: grid; gap: 16px; min-width: 0; }
+.charge-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--fli-line, #e5eaf0);
+  border-radius: 8px;
+  background: white;
+}
+.charge-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.charge-section-title h3 { margin: 0; font-size: 15px; }
+.charge-section-title > svg { color: var(--primary); }
+.charge-query-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 16px; }
+.charge-query-grid label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.charge-query-grid input {
+  width: 100%; min-width: 0; box-sizing: border-box; height: 36px; padding: 0 10px;
+  border: 1px solid var(--fli-line, #dbe5ec); border-radius: 6px;
+  background: white; color: inherit; font: inherit;
+}
+.charge-query-grid input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.charge-panel .hospital-action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.charge-scroll-track:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
 .charge-detail-title {
   align-items: center;
   justify-content: space-between;
@@ -455,7 +398,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateTableScrollStat
   left: 0;
   border-radius: inherit;
   background: #8298aa;
-  transition: transform 0.16s ease, width 0.16s ease;
+  transition: background-color 0.16s ease;
 }
 
 .charge-scroll-track.dragging .charge-scroll-thumb {

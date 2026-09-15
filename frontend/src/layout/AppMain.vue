@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import TopBar from './TopBar.vue'
 import SubMenu from './SubMenu.vue'
 import AiMedicalAssistant from '../components/common/AiMedicalAssistant.vue'
 import { useLayoutNavigation } from './useLayoutNavigation'
 const { group, title, auth } = useLayoutNavigation()
-onMounted(() => { void auth.init() })
 </script>
 <template>
   <el-container direction="vertical" class="fli-shell">

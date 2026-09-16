@@ -38,7 +38,7 @@ public class InventoryEventQueryService {
               WHEN 'quota_packing_task' THEN (SELECT task_no FROM quota_packing_task WHERE task_id = ie.source_biz_id)
               WHEN 'quota_package_label' THEN (SELECT label_no FROM quota_package_label WHERE label_id = ie.source_biz_id)
               WHEN 'high_value_charge' THEN (SELECT charge_no FROM high_value_charge WHERE charge_id = ie.source_biz_id)
-              WHEN 'recall_event' THEN (SELECT recall_no FROM product_recall_event WHERE recall_id = ie.source_biz_id)
+              WHEN 'recall_event' THEN (SELECT recall_no FROM recall_event WHERE recall_id = ie.source_biz_id)
               ELSE CAST(ie.source_biz_id AS CHAR)
             END)""";
 

@@ -29,6 +29,11 @@ management:
         enabled: true
 
 spd:
+  mobile:
+    # Keep the new mobile API fail-closed until the hospital supplies a stable server id and secret.
+    enabled: ${SPD_MOBILE_ENABLED:false}
+    server-id: ${SPD_MOBILE_SERVER_ID:}
+    review-secret: ${SPD_MOBILE_REVIEW_SECRET:}
   jobs:
     zone: Asia/Shanghai
     inventory-summary:

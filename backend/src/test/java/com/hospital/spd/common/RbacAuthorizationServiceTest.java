@@ -13,6 +13,18 @@ import static org.mockito.Mockito.when;
 
 class RbacAuthorizationServiceTest {
 
+    @Test
+    void mobileSigningRoutesRequireSigningPermissionAndDenyUnknownRoutes() {
+        stubPermissions(50L, List.of("picking-delivery:write"));
+        stubPermissions(51L, List.of("department-consumption:write"));
+        assertThat(service.isAllowed(50L, List.of(), "POST", "/api/mobile/operations")).isTrue();
+        assertThat(service.isAllowed(51L, List.of(), "POST", "/api/mobile/operations")).isFalse();
+        assertThat(service.isAllowed(50L, List.of(), "DELETE", "/api/mobile/operations")).isFalse();
+        assertThat(service.isAllowed(50L, List.of(), "GET", "/api/mobile/unknown")).isFalse();
+        assertThat(service.isAllowed(51L, List.of(), "GET", "/api/mobile/context")).isTrue();
+        assertThat(service.isAllowed(null, List.of(), "GET", "/api/mobile/context")).isFalse();
+    }
+
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final RbacAuthorizationService service = new RbacAuthorizationService(jdbcTemplate);
 

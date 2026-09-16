@@ -35,6 +35,10 @@ public class RbacAuthorizationService {
             return true;
         }
 
+        if (path.equals("/mobile/context")) {
+            return userId != null && "GET".equalsIgnoreCase(method);
+        }
+
         String requiredPermission = requiredPermission(method, path);
         if (requiredPermission == null || userId == null) {
             return false;
@@ -59,6 +63,15 @@ public class RbacAuthorizationService {
 
     private static String requiredPermission(String method, String path) {
         String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
+
+        if (path.startsWith("/mobile/")) {
+            boolean signingRead = "GET".equals(verb) && (path.equals("/mobile/tasks")
+                    || path.matches("/mobile/tasks/SIGN_DELIVERY/[0-9]+")
+                    || path.matches("/mobile/operations/[0-9a-fA-F-]{36}"));
+            boolean signingWrite = "POST".equals(verb) && List.of("/mobile/scans/resolve",
+                    "/mobile/operations/validate", "/mobile/operations").contains(path);
+            return signingRead || signingWrite ? "picking-delivery:write" : null;
+        }
 
         if (path.startsWith("/users")) {
             return userManagementPermission(verb, path);

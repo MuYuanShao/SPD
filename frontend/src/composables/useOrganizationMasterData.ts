@@ -346,7 +346,8 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     keyword = ''
   ) {
     const warehouse = warehouses.find((item) => item.name === warehouseName)
-    const deptName = departmentWarehouseCatalogForm.value.deptName || departmentWarehouseCatalogBatchForm.value.deptName
+    const deptName = departmentWarehouseCatalogBatchDialogOpen.value
+      ? departmentWarehouseCatalogBatchForm.value.deptName : departmentWarehouseCatalogForm.value.deptName
     if (!warehouse?.code || !deptName) {
       clearDepartmentWarehouseCatalogProducts()
       return
@@ -374,7 +375,9 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
 
   async function searchDepartmentWarehouseCatalogProducts(keyword = '') {
     await loadCatalogProductsForWarehouse(
-      departmentWarehouseCatalogForm.value.warehouseName || departmentWarehouseCatalogBatchForm.value.warehouseName,
+      departmentWarehouseCatalogBatchDialogOpen.value
+        ? departmentWarehouseCatalogBatchForm.value.warehouseName
+        : departmentWarehouseCatalogForm.value.warehouseName,
       departmentWarehouseCatalogBatchDialogOpen.value
         ? departmentWarehouseCatalogBatchWarehouses.value
         : departmentWarehouseCatalogWarehouses.value,

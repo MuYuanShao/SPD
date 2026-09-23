@@ -20,17 +20,25 @@ export type SelectedQuotaProductInfo = {
 export function useQuotaProductSelector(templateForm: TemplateProductForm) {
   const productSelectorOpen = ref(false)
   const productLoading = ref(false)
+  const productPage = ref(1)
+  const productSize = ref(10)
+  const productTotal = ref(0)
   const productQuery = reactive({ productCode: '', productName: '' })
   const quotaProducts = ref<Record<string, unknown>[]>([])
   const selectedProductInfo = ref<SelectedQuotaProductInfo | null>(null)
 
-  async function searchQuotaProducts() {
+  async function searchQuotaProducts(page = 1) {
+    productPage.value = page
     productLoading.value = true
     try {
-      quotaProducts.value = await fetchQuotaManagedProducts({
+      const result = await fetchQuotaManagedProducts({
+        page: String(productPage.value),
+        size: String(productSize.value),
         productCode: productQuery.productCode,
         productName: productQuery.productName
       })
+      quotaProducts.value = result.rows
+      productTotal.value = result.total
     } finally {
       productLoading.value = false
     }
@@ -65,6 +73,9 @@ export function useQuotaProductSelector(templateForm: TemplateProductForm) {
   return {
     productSelectorOpen,
     productLoading,
+    productPage,
+    productSize,
+    productTotal,
     productQuery,
     quotaProducts,
     selectedProductInfo,

@@ -37,6 +37,28 @@ class WarehouseServiceTest {
         service = new WarehouseService(jdbcTemplate);
     }
 
+    @Test
+    void occupiedLocationCannotBeDeleted() {
+        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), eq("WH001")))
+                .thenReturn(List.of(10L));
+        when(jdbcTemplate.queryForList(contains("存在非零库存"), eq(10L), eq(20L)))
+                .thenReturn(List.of(Map.of("objectCode", "L01", "objectName", "L01", "reason", "存在非零库存")));
+        assertThatThrownBy(() -> service.deleteWarehouseLocation("WH001", 20L))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("存在非零库存");
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void emptyLocationIsSoftDeletedUsingValidSql() {
+        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), eq("WH001")))
+                .thenReturn(List.of(10L));
+        when(jdbcTemplate.update(anyString(), eq(20L), eq(10L))).thenReturn(1);
+        assertThat(service.deleteWarehouseLocation("WH001", 20L)).containsEntry("deletedRows", 1);
+        verify(jdbcTemplate).update(argThat(sql -> sql.stripLeading().startsWith("UPDATE warehouse_location")
+                && sql.contains("SET deleted = 1")), eq(20L), eq(10L));
+        verify(jdbcTemplate).queryForList(contains("存在非零库存"), eq(10L), eq(20L));
+    }
+
     @Nested
     @DisplayName("分页查询库房 warehouses()")
     class WarehousesTest {

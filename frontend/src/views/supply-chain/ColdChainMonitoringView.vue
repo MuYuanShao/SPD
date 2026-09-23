@@ -11,6 +11,7 @@ import {
 
 const loading = ref(false)
 const submitting = ref(false)
+const exceptionOpen = ref(false)
 const message = ref('')
 const rows = ref<Record<string, unknown>[]>([])
 const options = ref<ClosureOptions>({
@@ -102,9 +103,10 @@ async function submitException() {
       temperature: form.temperature,
       severity: form.severity
     })
-    message.value = `冷链异常已登记：${result.eventNo || ''}`
+    exceptionOpen.value = false
     currentPage.value = 1
     await loadData()
+    message.value = `冷链异常已登记：${result.eventNo || ''}`
   } catch (error) {
     message.value = error instanceof Error ? error.message : '冷链异常登记失败'
   } finally {
@@ -149,7 +151,12 @@ onMounted(async () => {
       </div>
     </header>
 
-    <section class="hospital-catalog-panel">
+    <div class="hospital-action-row">
+      <button class="btn btn-primary" type="button" @click="resetForm(); exceptionOpen = true">登记异常</button>
+      <button class="btn" type="button" :disabled="loading" @click="refresh">刷新列表</button>
+    </div>
+    <p v-if="message && !exceptionOpen" class="form-message">{{ message }}</p>
+    <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body>
       <div class="panel-title">
         <Thermometer :size="20" />
         <h2>异常登记</h2>
@@ -190,7 +197,7 @@ onMounted(async () => {
       <div class="hospital-query-actions">
         <button class="btn btn-primary" type="button" :disabled="submitting" @click="submitException">
           <Search :size="18" />
-          登记异常
+          保存异常
         </button>
         <button class="btn btn-secondary" type="button" :disabled="submitting" @click="resetForm">
           <X :size="18" />
@@ -202,7 +209,7 @@ onMounted(async () => {
         </button>
       </div>
       <p v-if="message" class="form-message">{{ message }}</p>
-    </section>
+    </el-dialog>
 
     <section class="hospital-catalog-panel">
       <div class="panel-title cold-chain-list-title">

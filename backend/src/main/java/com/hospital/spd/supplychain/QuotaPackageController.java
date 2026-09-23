@@ -62,6 +62,11 @@ public class QuotaPackageController {
         return ApiResponse.ok(packingTaskService.packingOptions());
     }
 
+    @GetMapping("/packable-loose-stock")
+    public ApiResponse<Map<String, Object>> packableLooseStock(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(packingTaskService.packableLooseStock(params));
+    }
+
     @GetMapping("/requisition-catalog")
     public ApiResponse<Map<String, Object>> requisitionCatalog(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(templateService.requisitionCatalog(params));

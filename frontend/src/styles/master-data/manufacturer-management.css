@@ -327,18 +327,19 @@
   padding: 5px 7px;
 }
 
-.manufacturer-dialog {
+.supplier-dialog.manufacturer-dialog {
   width: min(820px, calc(100vw - 32px));
   border: 1px solid #cfdfe1;
   border-radius: 12px;
-  overflow: hidden;
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
 }
 
 .manufacturer-dialog .manufacturer-dialog-header {
   position: sticky;
   top: 0;
   z-index: 3;
-  padding: 16px 20px;
+  padding: 12px 16px;
   background: linear-gradient(180deg, #f7fbfa 0%, #ffffff 100%);
 }
 
@@ -376,20 +377,20 @@
   color: #0b665f;
 }
 
-.manufacturer-dialog-form {
-  gap: 14px;
-  padding: 18px 20px 0;
+.manufacturer-dialog .manufacturer-dialog-form {
+  gap: 8px;
+  padding: 12px 16px 0;
 }
 
 .manufacturer-form-section {
   grid-column: 1 / -1;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 8px;
   border: 1px solid #dce7e9;
   border-radius: 9px;
   background: #ffffff;
-  padding: 14px;
+  padding: 10px;
 }
 
 .manufacturer-form-section-title {
@@ -398,7 +399,7 @@
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid #edf2f3;
-  padding-bottom: 10px;
+  padding-bottom: 6px;
   color: #203b46;
   font-size: 14px;
   font-weight: 800;
@@ -421,7 +422,9 @@
 }
 
 .manufacturer-dialog-form input {
-  min-height: 42px;
+  height: 34px;
+  min-height: 34px;
+  box-sizing: border-box;
   border-color: #cbdadd;
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
@@ -453,10 +456,10 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  margin: 0 -20px;
+  margin: 0 -16px;
   border-top: 1px solid #dce7e9;
   background: #ffffff;
-  padding: 13px 20px;
+  padding: 10px 16px;
 }
 
 .manufacturer-dialog-actions .btn {
@@ -464,6 +467,9 @@
   min-height: 40px;
 }
 
+
+.manufacturer-dialog-form label { align-content: start; gap: 4px; min-width: 0; }
+.manufacturer-dialog-form label > input, .manufacturer-dialog-form label > select { width: 100%; height: 34px; min-height: 34px; }
 @media (max-width: 900px) {
   .manufacturer-toolbar {
     align-items: flex-start;
@@ -506,7 +512,7 @@
     min-height: 44px;
   }
 
-  .manufacturer-dialog {
+  .supplier-dialog.manufacturer-dialog {
     width: calc(100vw - 16px);
     max-height: calc(100vh - 16px);
   }

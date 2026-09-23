@@ -15,6 +15,7 @@
     "backend:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 restart",
     "backend:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 stop",
     "backend:status": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 status",
+    "verify:business-list-sort": "node scripts/verify-business-list-sort.mjs",
     "verify:text-encoding": "node scripts/verify-text-encoding.mjs",
     "verify:vue-sfc-structure": "node scripts/verify-vue-sfc-structure.mjs",
     "verify:rbac-permissions": "node scripts/verify-rbac-permissions.mjs",

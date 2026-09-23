@@ -158,7 +158,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
             highValue: 0,
             centralized: 0,
             chargeable: 0,
-            looseAvailableQty: 20,
+            looseAvailableQty: 1,
             packageAvailableQty: 0,
             uniqueCodeAvailableQty: 0,
             templateCode: '-',
@@ -186,7 +186,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
             centralized: 0,
             chargeable: 0,
             looseAvailableQty: 50,
-            packageAvailableQty: 3,
+            packageAvailableQty: 1,
             uniqueCodeAvailableQty: 0,
             templateCode: 'TP-001',
             templateName: '手术室定数包',
@@ -302,6 +302,8 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   const highValueRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'HV-001' })
   await looseRow.locator('input[type="checkbox"]').check()
   await looseRow.locator('input[type="number"]').fill('2')
+  await looseRow.locator('input[type="number"]').blur()
+  await expect(looseRow.locator('input[type="number"]')).toHaveValue('2')
   await packageRow.locator('input[type="checkbox"]').check()
   await packageRow.locator('input[type="number"]').fill('2')
   await highValueRow.locator('input[type="checkbox"]').check()
@@ -316,11 +318,6 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     sourceWarehouseId: 30,
     items: [
       {
-        productCode: 'LOW-001',
-        quantity: 2,
-        requisitionMode: 'loose'
-      },
-      {
         productCode: 'PKG-001',
         quantity: 20,
         requisitionMode: 'quota_package',
@@ -331,7 +328,8 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
         productCode: 'HV-001',
         quantity: 2,
         requisitionMode: 'high_value'
-      }
+      },
+      { productCode: 'LOW-001', quantity: 2, requisitionMode: 'loose' }
     ]
   })
 })

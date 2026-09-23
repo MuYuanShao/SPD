@@ -40,11 +40,17 @@ public class LicenseService {
     private final JdbcTemplate jdbcTemplate;
     private final OperatorContextProvider operatorContextProvider;
     private final Path uploadRoot;
+    private final LicenseOwnerService owners;
+    private final LicenseHistoryService history;
+    private final com.hospital.spd.common.service.AuditLogService audit;
 
     public LicenseService(JdbcTemplate jdbcTemplate,
                           OperatorContextProvider operatorContextProvider,
                           @Value("${spd.upload.dir:./output/license-files}") String uploadDir) {
         this.jdbcTemplate = jdbcTemplate;
+        this.owners = new LicenseOwnerService(jdbcTemplate);
+        this.history = new LicenseHistoryService(jdbcTemplate, operatorContextProvider);
+        this.audit = new com.hospital.spd.common.service.AuditLogService(jdbcTemplate, operatorContextProvider);
         this.operatorContextProvider = operatorContextProvider;
         this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
         try {
@@ -78,7 +84,9 @@ public class LicenseService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT l.license_id AS id, l.license_type AS licenseType, l.license_name AS licenseName,
                        l.license_no AS licenseNo, l.owner_type AS ownerType, l.owner_code AS ownerCode,
-                       l.owner_name AS ownerName, l.party_a AS partyA, l.party_b AS partyB,
+                       l.owner_name AS ownerName, l.owner_id AS ownerId, l.revision_no AS revisionNo,
+                       CASE WHEN l.status = 0 THEN 'invalid' WHEN l.expire_date < CURRENT_DATE THEN 'expired'
+                            WHEN l.issue_date > CURRENT_DATE THEN 'not_effective' ELSE 'valid' END AS effectiveStatus, l.party_a AS partyA, l.party_b AS partyB,
                        l.contract_amount AS contractAmount, l.issue_date AS issueDate,
                        l.expire_date AS expireDate, l.status AS status, l.remark,
                        (SELECT COUNT(*) FROM sys_attachment a
@@ -102,7 +110,7 @@ public class LicenseService {
                        license_no AS licenseNo, owner_type AS ownerType, owner_id AS ownerId,
                        owner_code AS ownerCode, owner_name AS ownerName, party_a AS partyA,
                        party_b AS partyB, contract_amount AS contractAmount, issue_date AS issueDate,
-                       expire_date AS expireDate, status AS status, remark
+                       expire_date AS expireDate, status AS status, remark, revision_no AS revisionNo
                   FROM license_document
                  WHERE license_id = ? AND deleted = 0
                 """, licenseId);
@@ -118,6 +126,7 @@ public class LicenseService {
     public Map<String, Object> create(LicenseUpsertRequest request) {
         validate(request);
         String licenseType = normalizeType(request.licenseType());
+        var owner = owners.resolve(licenseType, request, null);
         jdbcTemplate.update("""
                 INSERT INTO license_document (
                   license_type, license_name, license_no, owner_type, owner_id, owner_code, owner_name,
@@ -127,10 +136,10 @@ public class LicenseService {
                 licenseType,
                 request.licenseName().trim(),
                 nullIfBlank(request.licenseNo()),
-                nullIfBlank(request.ownerType()),
-                request.ownerId(),
-                nullIfBlank(request.ownerCode()),
-                nullIfBlank(request.ownerName()),
+                owner.type(),
+                owner.id(),
+                owner.code(),
+                owner.name(),
                 nullIfBlank(request.partyA()),
                 nullIfBlank(request.partyB()),
                 request.contractAmount(),
@@ -139,42 +148,84 @@ public class LicenseService {
                 request.status() != null && request.status() == 0 ? 0 : 1,
                 nullIfBlank(request.remark()),
                 operatorContextProvider.current().userId());
-        return Map.of("id", lastInsertedId());
+        Long id = lastInsertedId();
+        history.capture(id, "create");
+        audit.record("license", "create", id, request.licenseNo(), "新增证照");
+        return Map.of("id", id);
     }
 
     @Transactional
     public Map<String, Object> update(Long licenseId, LicenseUpsertRequest request) {
+        return saveVersion(licenseId, request, false);
+    }
+
+    @Transactional
+    public Map<String, Object> renew(Long licenseId, LicenseUpsertRequest request) {
+        return saveVersion(licenseId, request, true);
+    }
+
+    private Map<String, Object> saveVersion(Long id, LicenseUpsertRequest request, boolean renewal) {
         validate(request);
-        requireExists(licenseId);
+        Map<String, Object> current = lockDocument(id);
+        String type = String.valueOf(current.get("ownerLicenseType"));
+        if (!type.equals(normalizeType(request.licenseType()))) throw new IllegalArgumentException("编辑不能改变证照类型");
+        if (request.revisionNo() != null && request.revisionNo().intValue() != ((Number) current.get("revisionNo")).intValue()) {
+            throw new IllegalArgumentException("证照已被其他用户修改，请刷新后重试");
+        }
+        var owner = owners.resolve(type, request, current);
+        if (renewal) {
+            Date expiry = parseDate(request.expireDate());
+            if (expiry == null || expiry.toLocalDate().isBefore(LocalDate.now())) throw new IllegalArgumentException("续证有效期必须为今天或之后");
+            Object oldExpiry = current.get("expireDate");
+            if (oldExpiry != null && !expiry.toLocalDate().isAfter(LocalDate.parse(String.valueOf(oldExpiry)))) {
+                throw new IllegalArgumentException("续证有效期必须晚于原有效期");
+            }
+            String previousType = (String) current.get("ownerType");
+            if (previousType == null || previousType.isBlank()) previousType = type;
+            if (current.get("ownerId") instanceof Number previous && (previous.longValue() != owner.id()
+                    || !owner.type().equals(previousType))) throw new IllegalArgumentException("续证不能更换所属主体");
+            if (!Integer.valueOf(1).equals(request.status())) throw new IllegalArgumentException("续证状态应为有效");
+        }
+        history.capture(id, "baseline");
         jdbcTemplate.update("""
-                UPDATE license_document
-                   SET license_name = ?, license_no = ?, owner_type = ?, owner_id = ?, owner_code = ?,
-                       owner_name = ?, party_a = ?, party_b = ?, contract_amount = ?, issue_date = ?,
-                       expire_date = ?, status = ?, remark = ?
-                 WHERE license_id = ? AND deleted = 0
-                """,
-                request.licenseName().trim(),
-                nullIfBlank(request.licenseNo()),
-                nullIfBlank(request.ownerType()),
-                request.ownerId(),
-                nullIfBlank(request.ownerCode()),
-                nullIfBlank(request.ownerName()),
-                nullIfBlank(request.partyA()),
-                nullIfBlank(request.partyB()),
-                request.contractAmount(),
-                parseDate(request.issueDate()),
-                parseDate(request.expireDate()),
-                request.status() != null && request.status() == 0 ? 0 : 1,
-                nullIfBlank(request.remark()),
-                licenseId);
-        return Map.of("id", licenseId);
+                UPDATE license_document SET license_name=?, license_no=?, owner_type=?, owner_id=?, owner_code=?, owner_name=?,
+                  party_a=?, party_b=?, contract_amount=?, issue_date=?, expire_date=?, status=?, remark=?, revision_no=revision_no+1
+                 WHERE license_id=? AND deleted=0
+                """, request.licenseName().trim(), nullIfBlank(request.licenseNo()), owner.type(), owner.id(), owner.code(), owner.name(),
+                nullIfBlank(request.partyA()), nullIfBlank(request.partyB()), request.contractAmount(), parseDate(request.issueDate()),
+                parseDate(request.expireDate()), Integer.valueOf(0).equals(request.status()) ? 0 : 1, nullIfBlank(request.remark()), id);
+        history.capture(id, renewal ? "renew" : "update");
+        audit.record("license", renewal ? "renew" : "update", id, request.licenseNo(), renewal ? "证照续证生效" : "修改证照");
+        return Map.of("id", id);
+    }
+
+    public Map<String, Object> ownerOptions(String type, String keyword, Map<String, String> params) {
+        return owners.options(type, keyword, params);
+    }
+
+    public Map<String, Object> history(Long id) {
+        requireExists(id);
+        return Map.of("history", history.list(id));
+    }
+
+    private Map<String, Object> lockDocument(Long id) {
+        var rows = jdbcTemplate.queryForList("""
+                SELECT license_type AS ownerLicenseType, owner_type AS ownerType, owner_id AS ownerId,
+                       owner_code AS ownerCode, expire_date AS expireDate, revision_no AS revisionNo
+                  FROM license_document WHERE license_id=? AND deleted=0 FOR UPDATE
+                """, id);
+        if (rows.isEmpty()) throw new IllegalArgumentException("证照不存在或已删除");
+        return rows.get(0);
     }
 
     @Transactional
     public Map<String, Object> remove(Long licenseId) {
-        requireExists(licenseId);
-        jdbcTemplate.update("UPDATE license_document SET deleted = 1 WHERE license_id = ?", licenseId);
+        lockDocument(licenseId);
+        history.capture(licenseId, "baseline");
+        jdbcTemplate.update("UPDATE license_document SET deleted = 1, revision_no=revision_no+1 WHERE license_id = ?", licenseId);
         jdbcTemplate.update("UPDATE sys_attachment SET deleted = 1 WHERE biz_type = 'license' AND biz_id = ?", licenseId);
+        history.capture(licenseId, "delete");
+        audit.record("license", "delete", licenseId, String.valueOf(licenseId), "软删除证照与附件");
         return Map.of("id", licenseId);
     }
 
@@ -192,10 +243,11 @@ public class LicenseService {
 
     @Transactional
     public Map<String, Object> uploadAttachment(Long licenseId, MultipartFile file, String category) {
-        requireExists(licenseId);
+        lockDocument(licenseId);
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择要上传的证照附件");
         }
+        history.capture(licenseId, "baseline");
         String originalName = file.getOriginalFilename() == null ? "attachment" : file.getOriginalFilename();
         String ext = extensionOf(originalName);
         String storedName = "license-" + licenseId + "-" + UUID.randomUUID() + ext;
@@ -219,36 +271,33 @@ public class LicenseService {
                 "/licenses/attachments/file/" + storedName,
                 isBlank(category) ? "other" : category.trim(),
                 operatorContextProvider.current().userId());
-        return Map.of("attachmentId", lastInsertedId());
+        Long attachmentId = lastInsertedId();
+        jdbcTemplate.update("UPDATE license_document SET revision_no=revision_no+1 WHERE license_id=?", licenseId);
+        history.capture(licenseId, "attachment");
+        return Map.of("attachmentId", attachmentId);
     }
 
     public ResponseEntity<Resource> downloadAttachment(Long attachmentId) {
-        Map<String, Object> row = jdbcTemplate.queryForMap("""
-                SELECT file_name AS fileName, file_path AS filePath, file_ext AS ext
-                  FROM sys_attachment
-                 WHERE attachment_id = ? AND biz_type = 'license' AND deleted = 0
-                """, attachmentId);
-        String storedName = String.valueOf(row.get("filePath"));
-        Path file = uploadRoot.resolve(storedName).normalize();
-        if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) {
-            throw new IllegalArgumentException("证照附件文件不存在");
-        }
-        String fileName = String.valueOf(row.get("fileName"));
-        String encodedName = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" + encodedName)
-                .contentType(MediaType.parseMediaType(mediaTypeOf(String.valueOf(row.get("ext")))))
-                .body(new FileSystemResource(file));
+        return attachmentFile("a.attachment_id", attachmentId);
     }
 
     public ResponseEntity<Resource> downloadAttachmentByStoredName(String storedName) {
-        Path file = uploadRoot.resolve(storedName).normalize();
-        if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) {
-            throw new IllegalArgumentException("证照附件文件不存在");
-        }
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
-                .contentType(MediaType.parseMediaType(mediaTypeOf(extensionOf(storedName))))
+        return attachmentFile("a.file_path", storedName);
+    }
+
+    private ResponseEntity<Resource> attachmentFile(String selector, Object value) {
+        var rows = jdbcTemplate.queryForList("""
+                SELECT a.file_name AS fileName, a.file_path AS filePath, a.file_ext AS ext
+                  FROM sys_attachment a JOIN license_document l ON l.license_id=a.biz_id
+                 WHERE a.biz_type='license' AND a.deleted=0 AND l.deleted=0 AND
+                """ + selector + " = ?", value);
+        if (rows.size() != 1) throw new IllegalArgumentException("证照附件不存在或已删除");
+        var row = rows.get(0);
+        Path file = uploadRoot.resolve(String.valueOf(row.get("filePath"))).normalize();
+        if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) throw new IllegalArgumentException("证照附件文件不存在");
+        String encodedName = URLEncoder.encode(String.valueOf(row.get("fileName")), StandardCharsets.UTF_8).replace("+", "%20");
+        return ResponseEntity.ok().header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" + encodedName)
+                .contentType(MediaType.parseMediaType(mediaTypeOf(String.valueOf(row.get("ext")))))
                 .body(new FileSystemResource(file));
     }
 
@@ -258,6 +307,9 @@ public class LicenseService {
         if (isBlank(request.licenseType()) || isBlank(request.licenseName())) {
             throw new IllegalArgumentException("证照类型与证照名称为必填项");
         }
+        Date issue = parseDate(request.issueDate());
+        Date expiry = parseDate(request.expireDate());
+        if (issue != null && expiry != null && issue.after(expiry)) throw new IllegalArgumentException("签发日期不能晚于有效期");
     }
 
     private static String normalizeType(String type) {
@@ -289,8 +341,8 @@ public class LicenseService {
         }
         try {
             return Date.valueOf(LocalDate.parse(value.trim()));
-        } catch (DateTimeParseException e) {
-            return null;
+        } catch (IllegalArgumentException | DateTimeParseException e) {
+            throw new IllegalArgumentException("证照日期格式不正确，应为YYYY-MM-DD");
         }
     }
 

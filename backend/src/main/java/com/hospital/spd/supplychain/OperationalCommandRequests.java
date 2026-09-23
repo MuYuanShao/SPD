@@ -73,8 +73,9 @@ public final class OperationalCommandRequests {
     }
 
     public record RecallRequest(String scope, String warehouseName, @NotBlank String productCode,
-                                @NotBlank String batchNo, @NotBlank String reason) implements CompatibleRequest {
-        public Map<String, Object> toCompatibilityMap() { return map("scope", scope, "warehouseName", warehouseName, "productCode", productCode, "batchNo", batchNo, "reason", reason); }
+                                @NotBlank String batchNo, @NotBlank String reason,
+                                @Pattern(regexp = "recall|isolate") String businessType) implements CompatibleRequest {
+        public Map<String, Object> toCompatibilityMap() { return map("scope", scope, "warehouseName", warehouseName, "productCode", productCode, "batchNo", batchNo, "reason", reason, "businessType", businessType == null ? "recall" : businessType); }
     }
 
     public record HighValueChargeRequest(@NotBlank String deptName, @NotBlank String patientNo,

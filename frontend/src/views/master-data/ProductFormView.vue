@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Save } from '@lucide/vue'
 import {
@@ -191,6 +192,7 @@ async function submitForm() {
     const result = editMode.value
       ? await updateHospitalProduct(productCode.value, payload)
       : await createHospitalProduct(payload)
+    ElMessage.success('保存成功，已提交审批')
     router.push({ name: 'pending-product-approval-detail', params: { applicationNo: result.applicationNo } })
   } catch (err) {
     error.value = err instanceof Error ? err.message : editMode.value ? '修改耗材失败' : '新增耗材失败'

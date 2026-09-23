@@ -109,9 +109,9 @@ export async function fetchQuotaTemplates(params: Record<string, string>) {
  * @returns 已启用定数管理的商品列表
  */
 export async function fetchQuotaManagedProducts(query: Record<string, string> = {}) {
-  return (await getData<{ rows: Record<string, unknown>[] }>('/master-data/hospital-products', {
-    params: { ...query, isQuotaManaged: '是', size: '200', page: '1' }
-  })).rows
+  return getData<{ rows: Record<string, unknown>[]; total: number }>('/master-data/hospital-products', {
+    params: { page: '1', size: '10', ...query, isQuotaManaged: '是' }
+  })
 }
 
 /**
@@ -369,4 +369,9 @@ export async function fetchPackageEvents(params: Record<string, string> = {}) {
     '/quota-packages/events',
     { params }
   )
+}
+
+export async function fetchPackableLooseStock(params: Record<string, string>) {
+  return getData<{ rows: Record<string, unknown>[]; total: number; page: number; size: number }>(
+    '/quota-packages/packable-loose-stock', { params })
 }

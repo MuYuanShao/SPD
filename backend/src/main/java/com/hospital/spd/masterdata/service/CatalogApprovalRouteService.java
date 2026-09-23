@@ -76,6 +76,21 @@ public class CatalogApprovalRouteService {
         return "pending_step_1";
     }
 
+    /** Only pre-snapshot rounds may continue using the original dynamic workflow. */
+    public boolean isLegacyDynamicRoute(long applicationId, int approvalRound, String status) {
+        if (status == null || !status.matches("pending_step_[1-9][0-9]*")) return false;
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM pending_product_application a
+                 WHERE a.application_id = ? AND a.approval_round = ?
+                   AND a.submit_time < (SELECT MIN(installed_on) FROM flyway_schema_history
+                                        WHERE version = '71' AND success = 1)
+                   AND NOT EXISTS (SELECT 1 FROM pending_product_approval_route_step r
+                                    WHERE r.application_id = a.application_id
+                                      AND r.approval_round = a.approval_round)
+                """, Integer.class, applicationId, approvalRound);
+        return count != null && count == 1;
+    }
+
     /** Lazily freezes a safe route for pre-V71 applications. */
     public void ensureLegacyRoute(long applicationId, int approvalRound, String applicationType,
                                   String currentStatus, Long documentDeptId) {

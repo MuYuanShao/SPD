@@ -40,6 +40,22 @@ public class LicenseController {
         return ApiResponse.ok(licenseService.list(type, keyword, page, size));
     }
 
+    @GetMapping("/owner-options")
+    public ApiResponse<Map<String, Object>> ownerOptions(@RequestParam String type,
+            @RequestParam(defaultValue = "") String keyword, @RequestParam Map<String, String> params) {
+        return ApiResponse.ok(licenseService.ownerOptions(type, keyword, params));
+    }
+
+    @GetMapping("/{licenseId}/history")
+    public ApiResponse<Map<String, Object>> history(@PathVariable Long licenseId) {
+        return ApiResponse.ok(licenseService.history(licenseId));
+    }
+
+    @PostMapping("/{licenseId}/renew")
+    public ApiResponse<Map<String, Object>> renew(@PathVariable Long licenseId, @RequestBody LicenseUpsertRequest request) {
+        return ApiResponse.ok(licenseService.renew(licenseId, request));
+    }
+
     @GetMapping("/{licenseId}")
     public ApiResponse<Map<String, Object>> detail(@PathVariable Long licenseId) {
         return ApiResponse.ok(licenseService.detail(licenseId));

@@ -40,7 +40,7 @@ const filteredProducts = computed(() => props.options.products)
 watch(() => props.open, (open) => {
   if (open) {
     productKeyword.value = ''
-    deptKeyword.value = ''
+    deptKeyword.value = props.form.deptName
     deptDropdownOpen.value = false
   }
 })
@@ -48,7 +48,7 @@ watch(() => props.open, (open) => {
 function selectDept(deptName: string) {
   props.form.deptName = deptName
   deptDropdownOpen.value = false
-  deptKeyword.value = ''
+  deptKeyword.value = deptName
   emit('changeDept', deptName)
 }
 
@@ -57,7 +57,7 @@ function submitProductSearch() {
 }
 
 function toggleAllFiltered() {
-  const filteredCodes = filteredProducts.value.map((product) => product.productCode)
+  const filteredCodes = filteredProducts.value.filter(product => product.selectable !== 0).map((product) => product.productCode)
   const selected = new Set(props.form.productCodes)
   const allSelected = filteredCodes.length > 0 && filteredCodes.every((code) => selected.has(code))
   filteredCodes.forEach((code) => {
@@ -121,7 +121,6 @@ function toggleAllFiltered() {
               </li>
               <li v-if="!filteredDepartments.length" class="batch-dept-empty">未找到匹配科室</li>
             </ul>
-            <small v-if="form.deptName" class="batch-dept-hint">已选科室：{{ form.deptName }}</small>
           </label>
 
           <label>
@@ -180,10 +179,10 @@ function toggleAllFiltered() {
                 v-model="form.productCodes"
                 type="checkbox"
                 :value="product.productCode"
-                :disabled="saving || (form.productCodes.length >= 500 && !form.productCodes.includes(product.productCode))"
+                :disabled="saving || product.selectable === 0 || (form.productCodes.length >= 500 && !form.productCodes.includes(product.productCode))"
               />
               <span class="product-code">{{ product.productCode }}</span>
-              <span class="product-name">{{ product.productName }}</span>
+              <span class="product-name">{{ product.productName }}{{ product.selectable === 0 ? ' · 未绑定库房或已维护' : '' }}</span>
               <span class="product-spec">{{ product.specModel || '-' }}</span>
             </label>
             <p v-if="!filteredProducts.length" class="product-empty">没有匹配的可用商品</p>

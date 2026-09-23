@@ -117,12 +117,90 @@ class ProductApprovalServiceTest {
                 "new", "P001", "测试商品", "10ml/支",
                 "品牌A", "厂家A", "供应商A",
                 "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
-                "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
+                "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
                 "生产许可001", "经营许可001",
                 true, true, true, "合同001",
                 "一级", "二级", "三级", true, "招采001", 2,
                 false, false, false, "常温", "新增测试商品"
         );
+    }
+
+    @ParameterizedTest
+    @CsvSource({"pending_step_1,true", "pending_step_2,true", "pending_step_3,false"})
+    void legacyDetailUsesOriginalStepsAndPermissions(String status, boolean authorized) throws Exception {
+        var routes = mock(CatalogApprovalRouteService.class);
+        var guard = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        service = new ProductApprovalService(jdbcTemplate, OperatorContext::system, guard,
+                null, null, routes, null, null, null);
+        var rs = mock(java.sql.ResultSet.class);
+        when(rs.getLong("application_id")).thenReturn(100L);
+        when(rs.getInt("approval_round")).thenReturn(1);
+        when(rs.getLong("submit_by")).thenReturn(9L);
+        when(rs.getLong("submit_dept_id")).thenReturn(20L);
+        when(rs.getString("application_no")).thenReturn("APP001");
+        when(rs.getString("approval_status")).thenReturn(status);
+        when(routes.isLegacyDynamicRoute(100L, 1, status)).thenReturn(true);
+        when(jdbcTemplate.queryForList(contains("COUNT(s.step_id)"), eq("pending-product-catalog"), eq("initial-review")))
+                .thenReturn(List.of(Map.of("flowId", 14L)));
+        when(jdbcTemplate.queryForList(contains("SELECT step_order AS stepOrder"), eq(14L)))
+                .thenReturn(List.of(Map.of("stepOrder", 1, "stepName", "一审"),
+                        Map.of("stepOrder", 2, "stepName", "二审"),
+                        Map.of("stepOrder", 3, "stepName", "三审")));
+        int order = Integer.parseInt(status.substring("pending_step_".length()));
+        when(guard.hasApprovalAccess("pending-product-catalog", "initial-review", order, 20L, 9L))
+                .thenReturn(authorized);
+        when(jdbcTemplate.queryForObject(contains("a.application_id"), any(RowMapper.class), eq("APP001")))
+                .thenAnswer(call -> ((RowMapper<PendingProductApplicationDetail>) call.getArgument(1)).mapRow(rs, 0));
+
+        var result = service.getDetail("APP001");
+
+        assertThat(result.applicationNo()).isEqualTo("APP001");
+        assertThat(result.canApprove()).isEqualTo(authorized);
+        assertThat(result.timeline().get(order).status()).isEqualTo("active");
+        verify(routes, never()).ensureLegacyRoute(anyLong(), anyInt(), any(), any(), any());
+        verify(guard).hasApprovalAccess("pending-product-catalog", "initial-review", order, 20L, 9L);
+    }
+
+    @Test
+    void legacyApprovalAdvancesWithoutReconstructingSnapshot() {
+        var routes = mock(CatalogApprovalRouteService.class);
+        var guard = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        var audit = mock(com.hospital.spd.common.service.AuditLogService.class);
+        service = spy(new ProductApprovalService(jdbcTemplate, OperatorContext::system, guard,
+                null, null, routes, audit, null, null));
+        doReturn(detail("pending_step_1", "新品准入")).when(service).getDetail("APP001");
+        when(jdbcTemplate.queryForMap(contains("FOR UPDATE"), eq("APP001")))
+                .thenReturn(Map.of("applicationId", 100L, "approvalRound", 1, "submitBy", 9L,
+                        "documentDeptId", 20L, "applicationType", "新品准入"));
+        when(routes.isLegacyDynamicRoute(100L, 1, "pending_step_1")).thenReturn(true);
+        when(jdbcTemplate.queryForObject(contains("SELECT submit_by"), eq(Long.class), eq("APP001")))
+                .thenReturn(9L);
+
+        var result = service.processAction("APP001", new PendingProductApprovalActionRequest("approve", "同意"));
+
+        assertThat(result.get("status")).isEqualTo("pending_step_2");
+        verify(guard).requireApprovalAccess("pending-product-catalog", "initial-review", 1, 20L, 9L);
+        verify(routes, never()).ensureLegacyRoute(anyLong(), anyInt(), any(), any(), any());
+        verify(routes, never()).completeAndAdvance(anyLong(), anyInt(), anyInt());
+    }
+
+    @Test
+    void legacyEditStillRequiresApprovalPermission() {
+        var routes = mock(CatalogApprovalRouteService.class);
+        var guard = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        service = spy(new ProductApprovalService(jdbcTemplate, OperatorContext::system, guard,
+                null, null, routes, null, null, null));
+        doReturn(detail("pending_step_1", "新品准入")).when(service).getDetail("APP001");
+        when(jdbcTemplate.queryForMap(contains("a.application_id AS applicationId"), eq("APP001")))
+                .thenReturn(Map.of("applicationId", 100L, "approvalRound", 1, "submitBy", 9L,
+                        "documentDeptId", 20L, "applicationType", "新品准入"));
+        when(routes.isLegacyDynamicRoute(100L, 1, "pending_step_1")).thenReturn(true);
+        doThrow(new IllegalArgumentException("当前用户无权审批该节点")).when(guard)
+                .requireApprovalAccess("pending-product-catalog", "initial-review", 1, 20L, 9L);
+
+        assertThatThrownBy(() -> service.updateApplicationData("APP001", validApplicationRequest()))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("无权审批");
+        verify(jdbcTemplate, never()).update(contains("UPDATE pending_product_application"), any(Object[].class));
     }
 
     // ======================== getDetail ========================
@@ -520,7 +598,7 @@ class ProductApprovalServiceTest {
                     "new", "", "测试商品", "10ml/支",
                     "品牌A", "厂家A", "供应商A",
                     "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
-                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
+                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
                     "生产许可001", "经营许可001",
                     true, true, true, "合同001",
                     "一级", "二级", "三级", true, "招采子编码X", 2,
@@ -551,7 +629,7 @@ class ProductApprovalServiceTest {
                     "new", "", "测试商品", "10ml/支",
                     "品牌A", "厂家A", "供应商A",
                     "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
-                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
+                    "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
                     "生产许可001", "经营许可001",
                     true, true, true, "合同001",
                     "一级", "二级", "三级", true, "", 2,

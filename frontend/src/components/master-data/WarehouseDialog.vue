@@ -17,7 +17,7 @@ const props = defineProps<{
   productsLoading: boolean
 }>()
 
-const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库', '科室库'] as const
+const WAREHOUSE_TYPES = ['一级库', '二级库', '三级库'] as const
 
 const productKeyword = ref('')
 const deptResultsOpen = ref(false)

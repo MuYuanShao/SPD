@@ -271,21 +271,14 @@ function baseQtyByMode(item: RequisitionCatalogItem) {
 }
 
 function stepQuantity(item: RequisitionCatalogItem, delta: number) {
-  if (item.mode === 'high_value') {
-    item.quantity = Math.max(1, Math.floor(Number(item.quantity || 1) + delta))
-    return
-  }
-  const maxQty = Math.max(1, Math.floor(availableByMode(item)))
-  item.quantity = Math.min(maxQty, Math.max(1, Number(item.quantity || 1) + delta))
+  item.quantity = Number(item.quantity || 1) + delta
+  normalizeQuantity(item)
 }
 
 function normalizeQuantity(item: RequisitionCatalogItem) {
-  if (item.mode === 'high_value') {
-    item.quantity = Math.max(1, Math.floor(Number(item.quantity || 1)))
-    return
-  }
-  const maxQty = Math.max(1, Math.floor(availableByMode(item)))
-  item.quantity = Math.min(maxQty, Math.max(1, Number(item.quantity || 1)))
+  const quantity = Number(item.quantity)
+  item.quantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 1
+  if (item.mode !== 'loose') item.quantity = Math.max(1, Math.floor(item.quantity))
 }
 
 async function submitSelectedRequisitions() {
@@ -574,7 +567,7 @@ watch(() => filters.warehouseName, async () => {
             </label>
             <div class="qty-stepper">
               <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-              <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
+              <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" @change="normalizeQuantity(item)" />
               <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
@@ -653,10 +646,11 @@ watch(() => filters.warehouseName, async () => {
                 <td>
                   <div class="qty-stepper">
                     <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                    <input v-model.number="item.quantity" type="number" min="1" @change="normalizeQuantity(item)" />
+                    <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" @change="normalizeQuantity(item)" />
                     <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
                   </div>
                   <small>{{ unitByMode(item) }}</small>
+                    <small v-if="item.quantity > availableByMode(item)" class="shortage">超过当前可用库存，按实际需求申领</small>
                 </td>
                 <td>{{ baseQtyByMode(item) }} {{ item.baseUnit }}</td>
                 <td>

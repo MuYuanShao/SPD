@@ -128,7 +128,13 @@ export function useQuotaPackingTaskActions(options: {
 
   async function viewTaskReservations(row: PackingTaskRow) {
     options.selectedTaskNo.value = row.taskNo
-    options.taskReservations.value = await fetchPackingTaskReservations(row.taskNo)
+    options.taskReservations.value = []
+    try {
+      options.taskReservations.value = await fetchPackingTaskReservations(row.taskNo)
+    } catch (error) {
+      options.selectedTaskNo.value = ''
+      options.message.value = error instanceof Error ? error.message : '预占明细加载失败'
+    }
   }
 
   async function recalculateTask(row: PackingTaskRow) {

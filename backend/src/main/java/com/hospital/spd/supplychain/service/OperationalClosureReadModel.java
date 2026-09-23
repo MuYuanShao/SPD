@@ -177,7 +177,7 @@ public class OperationalClosureReadModel {
                            DATE_FORMAT(event_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM cold_chain_exception
                     UNION ALL
-                    SELECT recall_no AS bizNo, '产品召回' AS eventType, product_code AS productCode, product_name AS productName,
+                    SELECT recall_no AS bizNo, CASE business_type WHEN 'isolate' THEN '库存隔离' ELSE '产品召回' END AS eventType, product_code AS productCode, product_name AS productName,
                            warehouse_name AS warehouseName, status, affected_qty AS quantity,
                            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM recall_event

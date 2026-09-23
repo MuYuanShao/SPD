@@ -155,7 +155,8 @@ public class ProductApprovalService {
                     String applicant = "申请人" + rs.getLong("submit_by");
                     List<ConfiguredApprovalStep> approvalSteps;
                     boolean canApprove;
-                    if (catalogApprovalRouteService != null && isPendingStatus(status)) {
+                    if (isPendingStatus(status) && usesSnapshotRoute(
+                            rs.getLong("application_id"), rs.getInt("approval_round"), status)) {
                         long applicationId = rs.getLong("application_id");
                         int approvalRound = rs.getInt("approval_round");
                         Long documentDeptId = nullableLong(rs, "submit_dept_id");
@@ -174,7 +175,7 @@ public class ProductApprovalService {
                         approvalSteps = loadApprovalSteps();
                         canApprove = isPendingStatus(status) && approvalFlowGuard.hasApprovalAccess(
                                 CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
-                                currentStepOrder(status, approvalSteps), null, rs.getLong("submit_by"));
+                                currentStepOrder(status, approvalSteps), nullableLong(rs, "submit_dept_id"), rs.getLong("submit_by"));
                     }
                     List<ApprovalTimelineNode> timeline = buildTimeline(status, applicant, submitTime, approvalSteps);
                     return ProductApprovalMapper.mapDetail(
@@ -429,6 +430,10 @@ public class ProductApprovalService {
         String applicationNo = nextApplicationNo();
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
+        if ("新品准入".equals(applicationType)) {
+            new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate)
+                    .requireEligible(productCode, supplierId, manufacturerId, request.contractCode(), request.registrationExpireDate());
+        }
         Long categoryId = ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
 
         jdbcTemplate.update("""
@@ -551,7 +556,7 @@ public class ProductApprovalService {
         Long documentDeptId = number(application.get("documentDeptId"));
         CatalogApprovalRouteService.RouteSnapshotStep routeStep = null;
         int currentStepOrder;
-        if (catalogApprovalRouteService != null) {
+        if (usesSnapshotRoute(applicationId, approvalRound, detail.approvalStatus())) {
             catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
                     text(application.get("applicationType")), detail.approvalStatus(), documentDeptId);
             routeStep = catalogApprovalRouteService.currentStep(applicationId, approvalRound);
@@ -561,7 +566,7 @@ public class ProductApprovalService {
         } else {
             currentStepOrder = currentStepOrder(detail.approvalStatus(), approvalSteps);
             approvalFlowGuard.requireApprovalAccess(CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
-                    currentStepOrder, null, findApplicationSubmitBy(applicationNo));
+                    currentStepOrder, documentDeptId, findApplicationSubmitBy(applicationNo));
         }
 
         if ("reject".equals(action)) {
@@ -673,6 +678,10 @@ public class ProductApprovalService {
 
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
+        if ("新品准入".equals(applicationType)) {
+            new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate)
+                    .requireEligible(productCode, supplierId, manufacturerId, request.contractCode(), request.registrationExpireDate());
+        }
         Long categoryId = ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
 
         jdbcTemplate.update("""
@@ -783,11 +792,17 @@ public class ProductApprovalService {
             long applicationId = number(identity.get("applicationId"));
             int approvalRound = integer(identity.get("approvalRound"));
             Long documentDeptId = number(identity.get("documentDeptId"));
-            catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
-                    text(identity.get("applicationType")), status, documentDeptId);
-            catalogApprovalRouteService.requireApprovalAccess(
-                    catalogApprovalRouteService.currentStep(applicationId, approvalRound),
-                    documentDeptId, number(identity.get("submitBy")));
+            if (usesSnapshotRoute(applicationId, approvalRound, status)) {
+                catalogApprovalRouteService.ensureLegacyRoute(applicationId, approvalRound,
+                        text(identity.get("applicationType")), status, documentDeptId);
+                catalogApprovalRouteService.requireApprovalAccess(
+                        catalogApprovalRouteService.currentStep(applicationId, approvalRound),
+                        documentDeptId, number(identity.get("submitBy")));
+            } else {
+                approvalFlowGuard.requireApprovalAccess(CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
+                        currentStepOrder(status, loadApprovalSteps()), documentDeptId,
+                        number(identity.get("submitBy")));
+            }
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
@@ -1076,6 +1091,11 @@ public class ProductApprovalService {
         return enriched;
     }
 
+    private boolean usesSnapshotRoute(long applicationId, int approvalRound, String status) {
+        return catalogApprovalRouteService != null
+                && !catalogApprovalRouteService.isLegacyDynamicRoute(applicationId, approvalRound, status);
+    }
+
     private List<ConfiguredApprovalStep> loadApprovalSteps() {
         List<Map<String, Object>> flowRows = jdbcTemplate.queryForList("""
                 SELECT af.flow_id AS flowId, COUNT(s.step_id) AS stepCount
@@ -1351,6 +1371,7 @@ public class ProductApprovalService {
     }
 
     private void syncToHospitalCatalog(String applicationNo) {
+        new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate).requireAdmission(applicationNo);
         jdbcTemplate.update("""
                 INSERT INTO product (
                   product_code, product_name, spec_model, brand, manufacturer_id, supplier_id, category_id,

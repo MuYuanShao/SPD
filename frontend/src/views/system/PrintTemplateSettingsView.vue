@@ -18,8 +18,8 @@ const showEditor = ref(false)
 const editing = ref<PrintTemplateRow | null>(null)
 const fields = ref<PrintTemplateField[]>([])
 const templateName = ref('')
-const paperWidthMm = ref(100)
-const paperHeightMm = ref(70)
+const paperWidthMm = ref(40)
+const paperHeightMm = ref(60)
 const status = ref(1)
 const remark = ref('')
 const saving = ref(false)
@@ -28,7 +28,8 @@ const newFieldLabel = ref('')
 
 const paperPresets = [
   { label: '60 × 40 mm（常见标签纸）', width: 60, height: 40 },
-  { label: '100 × 70 mm（默认）', width: 100, height: 70 },
+  { label: '40 × 60 mm（默认）', width: 40, height: 60 },
+  { label: '100 × 70 mm', width: 100, height: 70 },
   { label: '100 × 100 mm', width: 100, height: 100 },
   { label: 'A4 纵向（210 × 297 mm）', width: 210, height: 297 }
 ]
@@ -50,8 +51,8 @@ async function loadList() {
 function openEditor(row: PrintTemplateRow) {
   editing.value = row
   templateName.value = row.templateName
-  paperWidthMm.value = Number(row.paperWidthMm) || 100
-  paperHeightMm.value = Number(row.paperHeightMm) || 70
+  paperWidthMm.value = Number(row.paperWidthMm) || 40
+  paperHeightMm.value = Number(row.paperHeightMm) || 60
   status.value = Number(row.status ?? 1)
   remark.value = row.remark ?? ''
   fields.value = parseTemplateFields(row.fieldsJson)

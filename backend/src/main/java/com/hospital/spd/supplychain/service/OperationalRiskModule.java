@@ -82,6 +82,11 @@ public class OperationalRiskModule {
      */
     @Transactional
     public Map<String, Object> createRecall(Map<String, Object> body) {
+        String businessType = String.valueOf(body.getOrDefault("businessType", "recall"));
+        if (!List.of("recall", "isolate").contains(businessType)) {
+            throw new IllegalArgumentException("业务类型必须为召回或隔离");
+        }
+        boolean recall = "recall".equals(businessType);
         String scope = normalizeScope(String.valueOf(body.getOrDefault("scope", "all")));
         String warehouseName = text(body.get("warehouseName"));
         Map<String, Object> product = findProduct(requireText(body, "productCode"));
@@ -90,13 +95,13 @@ public class OperationalRiskModule {
         Long productId = ((Number) product.get("productId")).longValue();
         List<Map<String, Object>> candidates = recallInventoryRows(productId, scope, warehouseName, batchNo);
         if (candidates.isEmpty()) throw new IllegalArgumentException("所选范围内没有该商品批号的可召回库存");
-        Map<String, Object> primary = jdbcTemplate.queryForMap("""
+        Map<String, Object> primary = recall ? jdbcTemplate.queryForMap("""
                 SELECT warehouse_id AS warehouseId, warehouse_name AS warehouseName
                   FROM warehouse
                  WHERE deleted = 0 AND status = 1
                    AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
                  ORDER BY warehouse_id LIMIT 1
-                """);
+                """) : candidates.get(0);
         Long primaryWarehouseId = ((Number) primary.get("warehouseId")).longValue();
         String primaryWarehouseName = String.valueOf(primary.get("warehouseName"));
         BigDecimal quantity = candidates.stream()
@@ -109,8 +114,8 @@ public class OperationalRiskModule {
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO recall_event (
-                      recall_no, warehouse_name, product_code, product_name, batch_id, affected_qty, status, reason
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'isolated', ?)
+                      recall_no, warehouse_name, product_code, product_name, batch_id, affected_qty, status, reason, business_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'isolated', ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, recallNo);
             ps.setString(2, primaryWarehouseName);
@@ -123,6 +128,7 @@ public class OperationalRiskModule {
             }
             ps.setBigDecimal(6, quantity);
             ps.setString(7, reason);
+            ps.setString(8, businessType);
             return ps;
         }, keyHolder);
         Long recallId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -132,14 +138,14 @@ public class OperationalRiskModule {
             Long sourceWarehouseId = ((Number) candidate.get("warehouseId")).longValue();
             Long batchId = ((Number) candidate.get("batchId")).longValue();
             BigDecimal totalQty = (BigDecimal) candidate.get("totalQty");
-            if (!sourceWarehouseId.equals(primaryWarehouseId)) {
+            if (recall && !sourceWarehouseId.equals(primaryWarehouseId)) {
                 support.transferSpecificBatch(sourceWarehouseId, primaryWarehouseId, productId, batchId, totalQty,
                         "recall_event", recallId, "召回库存回收到一级库：" + reason);
             }
-            support.isolateSpecificBatch(primaryWarehouseId, productId, batchId, totalQty,
+            support.isolateSpecificBatch(recall ? primaryWarehouseId : sourceWarehouseId, productId, batchId, totalQty,
                     "recall_event", recallId, reason);
         }
-        support.writeAudit("recall", "recall_to_primary_and_isolate", recallId, recallNo,
+        support.writeAudit("recall", recall ? "recall_to_primary_and_isolate" : "isolate_in_place", recallId, recallNo,
                 "scope=" + scope + ", batch=" + batchNo + ", quantity=" + quantity);
         return Map.of("recallNo", recallNo, "status", "isolated", "affectedQty", quantity,
                 "primaryWarehouseName", primaryWarehouseName);

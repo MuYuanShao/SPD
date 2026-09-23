@@ -36,8 +36,8 @@ export async function loadQuotaLabelPrintConfig(): Promise<QuotaLabelPrintConfig
     if (template) {
       return {
         fields: parseTemplateFields(template.fieldsJson),
-        paperWidthMm: Number(template.paperWidthMm) || 100,
-        paperHeightMm: Number(template.paperHeightMm) || 70
+        paperWidthMm: Number(template.paperWidthMm) || 40,
+        paperHeightMm: Number(template.paperHeightMm) || 60
       }
     }
   } catch {
@@ -57,8 +57,8 @@ export function defaultPrintConfig(): QuotaLabelPrintConfig {
       { code: 'batches', label: '来源批次', enabled: true },
       { code: 'footer', label: '页脚', enabled: true, value: 'Printed by SPD' }
     ],
-    paperWidthMm: 100,
-    paperHeightMm: 70
+    paperWidthMm: 40,
+    paperHeightMm: 60
   }
 }
 
@@ -136,24 +136,24 @@ function buildQuotaLabelZpl(row: PackageLabelRow, config: QuotaLabelPrintConfig)
   const lines: string[] = []
   let y = 24
   if (enabled.has('labelNo')) {
-    lines.push(`^FO30,${y}^A0N,26,26^FD${labelNo}^FS`)
-    y += 44
+    lines.push(`^FO16,${y}^A0N,18,18^FD${labelNo}^FS`)
+    y += 36
   }
   if (enabled.has('labelNo')) {
-    lines.push(`^FO30,${y}^BY2,2,70^BCN,70,Y,N,N^FD${labelNo}^FS`)
-    y += 90
+    lines.push(`^FO16,${y}^BY1,2,56^BCN,56,Y,N,N^FD${labelNo}^FS`)
+    y += 76
   }
   const detailFields = config.fields.filter(
     (field) => field.enabled && field.code !== 'labelNo' && field.code !== 'footer'
   )
   for (const field of detailFields) {
     const text = zplText(`${field.label}: ${fieldValue(field, row)}`, 42)
-    lines.push(`^FO30,${y}^A0N,20,20^FD${text}^FS`)
-    y += 30
+    lines.push(`^FO16,${y}^A0N,16,16^FB${width - 32},2,0,L,0^FD${text}^FS`)
+    y += 36
   }
   const footer = config.fields.find((field) => field.code === 'footer' && field.enabled)
   if (footer) {
-    lines.push(`^FO30,${y + 6}^A0N,18,18^FD${zplText(fieldValue(footer, row), 42)}^FS`)
+    lines.push(`^FO16,${y + 6}^A0N,14,14^FD${zplText(fieldValue(footer, row), 42)}^FS`)
   }
   return `^XA
 ^CI28
@@ -175,12 +175,13 @@ function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintC
   printDocument.title = `定数包标签 ${row.labelNo}`
   const style = printDocument.createElement('style')
   style.textContent = `
-    @page { size: ${config.paperWidthMm}mm ${config.paperHeightMm}mm; margin: 4mm; }
+    @page { size: ${config.paperWidthMm}mm ${config.paperHeightMm}mm; margin: 0; }
+    * { box-sizing: border-box; }
     body { margin: 0; color: #111827; font-family: "Microsoft YaHei", sans-serif; }
-    main { width: ${Math.max(config.paperWidthMm - 16, 40)}mm; min-height: ${Math.max(config.paperHeightMm - 16, 30)}mm; border: 1.5px solid #111827; padding: 4mm; }
-    h1 { margin: 0 0 2mm; font-size: 18px; text-align: center; }
-    .code { border-block: 1px solid #111827; padding: 2mm 0; font: 700 20px Consolas, monospace; text-align: center; }
-    dl { display: grid; grid-template-columns: 22mm 1fr; gap: 1.5mm 2mm; margin-top: 3mm; font-size: 12px; }
+    main { width: ${config.paperWidthMm}mm; min-height: ${config.paperHeightMm}mm; padding: 2mm; }
+    h1 { margin: 0 0 1mm; font-size: 9px; text-align: center; }
+    .code { border-block: 1px solid #111827; padding: 1mm 0; font: 700 10px Consolas, monospace; overflow-wrap: anywhere; text-align: center; }
+    dl { display: grid; grid-template-columns: minmax(8mm, 30%) minmax(0, 1fr); gap: 1mm; margin: 2mm 0 0; font-size: 8px; line-height: 1.25; }
     dt { color: #4b5563; }
     dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
   `
@@ -200,7 +201,9 @@ function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintC
       description.textContent = fieldValue(field, row)
       details.append(term, description)
     })
-  label.append(title, code, details)
+  label.append(title)
+  if (enabledFields.some(field => field.code === 'labelNo')) label.append(code)
+  label.append(details)
   printDocument.head.append(style)
   printDocument.body.append(label)
   printWindow.focus()

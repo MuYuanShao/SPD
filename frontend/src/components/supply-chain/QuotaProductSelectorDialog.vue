@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import PaginationControls from '../common/PaginationControls.vue'
 import { Search, X } from '@lucide/vue'
 
 const props = defineProps<{
   open: boolean
   loading: boolean
+  page: number
+  size: number
+  total: number
   productQuery: {
     productCode: string
     productName: string
@@ -15,6 +19,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:open', value: boolean): void
   (event: 'search'): void
+  (event: 'change-page', page: number): void
+  (event: 'change-size', size: number): void
   (event: 'select', row: Record<string, unknown>): void
 }>()
 
@@ -53,7 +59,7 @@ function priceText(value: unknown) {
             查询
           </button>
         </div>
-        <div class="table-scroll">
+        <div class="table-scroll selector-table-scroll">
           <table class="master-table compact-table">
             <thead>
               <tr>
@@ -93,7 +99,15 @@ function priceText(value: unknown) {
             </tbody>
           </table>
         </div>
+        <PaginationControls :page="page" :size="size" :total="total" :loading="loading"
+          @change-page="emit('change-page', $event)" @change-size="emit('change-size', $event)" />
       </div>
     </section>
   </div>
 </template>
+
+<style scoped>
+.product-selector-dialog { width: min(1100px, calc(100vw - 32px)); }
+.selector-table-scroll { max-height: min(42vh, 360px); overflow: auto; }
+.selector-table-scroll thead { position: sticky; top: 0; z-index: 1; background: white; }
+</style>

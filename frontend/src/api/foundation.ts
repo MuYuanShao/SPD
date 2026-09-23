@@ -1,4 +1,4 @@
-import { http, type ApiResponse, type PageResult } from './http'
+import { getData, http, type ApiResponse, type PageResult } from './http'
 
 export interface UserRow {
   userId: number
@@ -74,8 +74,7 @@ export interface RolePayload {
  * @returns 用户列表
  */
 export async function fetchUsers(params: Record<string, string>) {
-  const { data } = await http.get<ApiResponse<PageResult<UserRow>>>('/users', { params })
-  return data.data
+  return getData<PageResult<UserRow>>('/users', { params })
 }
 
 /**
@@ -139,8 +138,7 @@ export async function assignUserRoles(userId: number, roleIds: number[]) {
  * @returns 角色列表
  */
 export async function fetchRoles(params: Record<string, string>) {
-  const { data } = await http.get<ApiResponse<PageResult<RoleRow>>>('/users/roles', { params })
-  return data.data
+  return getData<PageResult<RoleRow>>('/users/roles', { params })
 }
 
 /**
@@ -218,6 +216,5 @@ export async function fetchPermissions() {
  * @returns 部门选项
  */
 export async function fetchDepartmentOptions() {
-  const { data } = await http.get<ApiResponse<DepartmentOption[]>>('/users/departments/options')
-  return data.data
+  return getData<DepartmentOption[]>('/users/departments/options')
 }

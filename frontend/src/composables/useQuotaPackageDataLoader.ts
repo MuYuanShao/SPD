@@ -3,6 +3,7 @@ import {
   fetchPackageEvents,
   fetchPackageLabels,
   fetchPackingOptions,
+  fetchPackableLooseStock,
   fetchPackingTasks,
   fetchQuotaSafety,
   fetchQuotaTemplates,
@@ -21,6 +22,7 @@ type QueryState = {
   deptName: string
   productCode: string
   productName: string
+  warehouseName: string
   templateCode: string
   templateName: string
   labelNo: string
@@ -144,9 +146,12 @@ export function useQuotaPackageDataLoader(options: {
       }
 
       if (options.packageSection.value === 'packable-loose-snapshot') {
-        const optionData = await fetchPackingOptions()
-        options.warehouses.value = optionData.warehouses
-        options.candidates.value = optionData.candidates
+        const data = await fetchPackableLooseStock({
+          page: String(options.quotaPagination.candidates.page), size: String(options.quotaPagination.candidates.size),
+          productCode: options.query.productCode, productName: options.query.productName, warehouseName: options.query.warehouseName
+        })
+        options.candidates.value = data.rows
+        options.quotaPagination.candidates.total = data.total
         return
       }
 

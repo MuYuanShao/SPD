@@ -225,6 +225,7 @@ public class RbacAuthorizationService {
         prefixes.put("/quota-packages/safety", "quota-safety-stock");
         prefixes.put("/quota-packages/packing-tasks", "packing-task-confirmation");
         prefixes.put("/quota-packages/labels", "quota-label-unpack");
+        prefixes.put("/quota-packages/packable-loose-stock", "packable-loose-snapshot");
         prefixes.put("/quota-packages/events", "quota-package-events");
         prefixes.put("/quota-packages", "quota-package-template");
         prefixes.put("/udi-traceability", "udi-traceability");

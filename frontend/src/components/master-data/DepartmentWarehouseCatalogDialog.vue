@@ -31,7 +31,11 @@ const productDropdownOpen = ref(false)
 watch(
   () => props.open,
   (open) => {
-    if (!open) {
+    if (open) {
+      deptKeyword.value = props.form.deptName
+      const selected = props.options.products.find(product => product.productCode === props.form.productCode)
+      productKeyword.value = selected ? `${selected.productName}（${selected.productCode}）` : props.form.productCode
+    } else {
       deptKeyword.value = ''
       productKeyword.value = ''
       deptDropdownOpen.value = false
@@ -53,7 +57,7 @@ const filteredProducts = computed(() => props.options.products)
 function selectDept(deptName: string) {
   props.form.deptName = deptName
   deptDropdownOpen.value = false
-  deptKeyword.value = ''
+  deptKeyword.value = deptName
   emit('changeDept', deptName)
 }
 
@@ -64,6 +68,8 @@ function submitProductSearch() {
 
 function selectProduct(productCode: string) {
   props.form.productCode = productCode
+  const selected = props.options.products.find(product => product.productCode === productCode)
+  productKeyword.value = selected ? `${selected.productName}（${selected.productCode}）` : productCode
   productDropdownOpen.value = false
 }
 </script>
@@ -125,7 +131,6 @@ function selectProduct(productCode: string) {
               </li>
               <li v-if="!filteredDepartments.length" class="catalog-search-empty">未找到匹配科室</li>
             </ul>
-            <small v-if="form.deptName" class="catalog-field-hint">已选科室：{{ form.deptName }}</small>
           </label>
           <label>
             <span>关联库房 *</span>
@@ -149,7 +154,7 @@ function selectProduct(productCode: string) {
             <Boxes :size="19" aria-hidden="true" />
             <div>
               <strong id="catalog-product-heading">目录商品</strong>
-              <span>搜索范围为医院目录，已维护的目录不会展示</span>
+              <span>搜索医院目录；未绑定库房或已维护的商品仅供查看</span>
             </div>
           </div>
           <label class="catalog-search-field">
@@ -169,13 +174,12 @@ function selectProduct(productCode: string) {
             </div>
             <ul v-if="productDropdownOpen" class="catalog-search-results" role="listbox">
               <li v-for="product in filteredProducts" :key="product.productCode">
-                <button type="button" role="option" @click="selectProduct(product.productCode)">
-                  {{ product.productCode }} - {{ product.productName }}（{{ product.specModel || '-' }}）
+                <button type="button" role="option" :disabled="product.selectable === 0" @click="selectProduct(product.productCode)">
+                  {{ product.productCode }} - {{ product.productName }}（{{ product.specModel || '-' }}）{{ product.selectable === 0 ? ' · 未绑定库房或已维护' : '' }}
                 </button>
               </li>
               <li v-if="!filteredProducts.length" class="catalog-search-empty">没有匹配的可用商品</li>
             </ul>
-            <small v-if="form.productCode" class="catalog-field-hint">已选商品：{{ form.productCode }}</small>
           </label>
           <label>
             <span>目录状态</span>

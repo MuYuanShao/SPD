@@ -81,6 +81,24 @@ class CatalogApprovalRouteServiceTest {
                 .hasMessageContaining("配置冲突");
     }
 
+    @Test
+    void onlyIdentifiedPreUpgradeRoundsUseDynamicRoutes() {
+        when(jdbc.queryForObject(anyString(), eq(Integer.class), eq(100L), eq(1)))
+                .thenReturn(1, 0);
+        assertThat(service.isLegacyDynamicRoute(100L, 1, "pending_step_2")).isTrue();
+        assertThat(service.isLegacyDynamicRoute(100L, 1, "pending_step_2")).isFalse();
+        assertThat(service.isLegacyDynamicRoute(100L, 1, "pending_step_invalid")).isFalse();
+        assertThat(service.isLegacyDynamicRoute(100L, 1, "approved")).isFalse();
+    }
+
+    @Test
+    void missingSnapshotStillBlocksUnidentifiedNumberedSteps() {
+        when(jdbc.queryForObject(anyString(), eq(Integer.class), eq(100L), eq(1))).thenReturn(0);
+        assertThatThrownBy(() -> service.ensureLegacyRoute(100L, 1, "新品准入", "pending_step_2", 20L))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("无法安全映射");
+        assertThat(updateCount()).isZero();
+    }
+
     private static Map<String, Object> flow(long id, String scopeType, Long deptId) {
         Map<String, Object> flow = new HashMap<>();
         flow.put("flowId", id);

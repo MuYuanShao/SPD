@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios'
 import { getData, getPage, postData, putData, deleteData, http } from './http'
 
 export type LicenseType = 'product' | 'supplier' | 'manufacturer' | 'contract'
@@ -8,6 +9,9 @@ export interface LicenseRow {
   licenseName: string
   licenseNo?: string
   ownerType?: string
+  ownerId?: number | null
+  revisionNo?: number
+  effectiveStatus?: string
   ownerCode?: string
   ownerName?: string
   partyA?: string
@@ -21,6 +25,7 @@ export interface LicenseRow {
 }
 
 export interface LicensePayload {
+  revisionNo?: number
   licenseType: LicenseType
   licenseName: string
   licenseNo?: string
@@ -83,6 +88,28 @@ export function uploadLicenseAttachment(licenseId: number, file: File, category 
 
 /** 以 blob 形式获取证照附件（携带认证头），返回可预览/下载的对象 URL。 */
 export async function fetchLicenseAttachmentBlob(attachmentId: number) {
-  const response = await http.get(`/licenses/attachments/${attachmentId}/file`, { responseType: 'blob' })
-  return { blob: response.data as Blob, contentType: String(response.headers['content-type'] ?? '') }
+  try {
+    const response = await http.get(`/licenses/attachments/${attachmentId}/file`, { responseType: 'blob' })
+    const contentType = String(response.headers['content-type'] ?? '')
+    if (contentType.includes('json')) {
+      const result = JSON.parse(await (response.data as Blob).text())
+      if (result.code !== 0) throw new Error(result.message || '附件读取失败')
+    }
+    return { blob: response.data as Blob, contentType }
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      let message = ''
+      try { message = JSON.parse(await error.response.data.text()).message || '' } catch { /* Non-JSON transport error. */ }
+      if (message) throw new Error(message)
+    }
+    throw error
+  }
 }
+
+export interface LicenseOwnerOption { id: number; code: string; name: string }
+export interface LicenseRevision { revisionNo: number; operationType: string; snapshotJson: string; operatorName: string; createTime: string }
+export function fetchLicenseOwnerOptions(type: string, keyword: string, page = 1) {
+  return getPage<LicenseOwnerOption>('/licenses/owner-options', { params: { type, keyword, page, size: 10 } })
+}
+export function fetchLicenseHistory(id: number) { return getData<{ history: LicenseRevision[] }>(`/licenses/${id}/history`) }
+export function renewLicense(id: number, payload: LicensePayload) { return postData<{ id: number }>(`/licenses/${id}/renew`, payload) }

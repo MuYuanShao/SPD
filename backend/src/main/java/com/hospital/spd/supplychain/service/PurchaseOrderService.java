@@ -228,6 +228,9 @@ public class PurchaseOrderService {
     @Transactional
     public Map<String, Object> performAction(String orderNo, PurchaseOrderActionRequest request) {
         permissionGuard.require(orderActionPermission(request.action()));
+        if (List.of("submit", "approve", "send").contains(String.valueOf(request.action()).trim().toLowerCase(java.util.Locale.ROOT))) {
+            new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate).requirePurchaseOrder(orderNo);
+        }
         return purchaseFlow.runOrderAction(orderNo, request);
     }
 

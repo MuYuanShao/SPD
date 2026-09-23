@@ -129,6 +129,9 @@ const consumptionResolving = ref(false)
 const recallBatches = ref<Array<Record<string, unknown>>>([])
 const recallBatchesLoading = ref(false)
 const recallBatchId = ref<number | null>(null)
+const recallDialogOpen = ref(false)
+const recallSubmitting = ref(false)
+const recallBusinessType = ref<'recall' | 'isolate'>('recall')
 const recallScope = ref<'all' | 'primary' | 'secondary' | 'tertiary'>('all')
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
@@ -599,6 +602,29 @@ async function applyRecallScope() {
   await loadRecallInventory()
 }
 
+async function openRecallDialog() {
+  message.value = ''
+  recallScope.value = 'secondary'
+  recallBusinessType.value = 'recall'
+  form.reason = ''
+  recallDialogOpen.value = true
+  await applyRecallScope()
+}
+
+async function submitRecallDialog() {
+  if (recallSubmitting.value) return
+  recallSubmitting.value = true
+  message.value = ''
+  try {
+    await performAction('recall')
+    recallDialogOpen.value = false
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '召回隔离登记失败'
+  } finally {
+    recallSubmitting.value = false
+  }
+}
+
 async function runAction(action: string, row?: Record<string, unknown>) {
   if (type.value !== 'delivery') return performAction(action, row)
   if (deliverySubmitting.value) return
@@ -669,6 +695,7 @@ async function performAction(action: string, row?: Record<string, unknown>) {
   }
   if (action === 'recall') {
     result = await createRecall({
+      businessType: recallBusinessType.value,
       scope: recallScope.value,
       deptName: recallScope.value === 'all' ? undefined : form.deptName,
       warehouseName: recallScope.value === 'all' ? undefined : form.warehouseName,
@@ -676,7 +703,9 @@ async function performAction(action: string, row?: Record<string, unknown>) {
       batchNo: recallBatchNo.value,
       reason: form.reason
     })
-    message.value = `召回隔离已完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`
+    message.value = recallBusinessType.value === 'isolate'
+      ? `隔离完成：${result.recallNo}，${result.affectedQty} 件已在原库房隔离`
+      : `召回完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -825,7 +854,26 @@ watch(() => form.productCode, () => {
     <p v-else-if="message" class="inline-message">{{ message }}</p>
     <p v-if="type === 'settlement'" class="inline-message">结算数据在验收入库、科室消耗或患者计费达到批次结算点时自动生成，无需人工生成。</p>
 
-    <section v-if="type !== 'settlement'" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption' }">
+    <div v-if="isRecallPage" class="hospital-action-row">
+      <button class="btn btn-primary" type="button" @click="openRecallDialog">召回隔离</button>
+    </div>
+    <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
+      <form @submit.prevent="submitRecallDialog">
+        <div class="supplier-form-grid">
+          <label><span>业务类型</span><select v-model="recallBusinessType"><option value="recall">召回（回收至一级库并隔离）</option><option value="isolate">隔离（原库房隔离）</option></select></label>
+          <label><span>库存范围</span><select v-model="recallScope" @change="applyRecallScope"><option value="all">全部库房</option><option value="primary">一级库</option><option value="secondary">二级库</option><option value="tertiary">三级库</option></select></label>
+          <label><span>科室</span><select v-model="form.deptName" :disabled="!['secondary', 'tertiary'].includes(recallScope)" :required="['secondary', 'tertiary'].includes(recallScope)"><option value="">请选择科室</option><option v-for="item in options.departments" :key="item.deptCode" :value="item.deptName">{{ item.deptName }}</option></select></label>
+          <label><span>库房</span><select v-model="form.warehouseName" :disabled="recallScope === 'all'" :required="recallScope !== 'all'"><option value="">请选择库房</option><option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option></select></label>
+          <label class="wide"><span>商品</span><select v-model="form.productCode" required><option value="">请选择商品</option><option v-for="item in options.products" :key="item.productCode" :value="item.productCode">{{ item.productName }}（{{ item.productCode }}）</option></select></label>
+          <label><span>批号</span><input v-model.trim="recallBatchNo" required placeholder="系统批号或生产批号" /></label>
+          <label><span>原因</span><input v-model.trim="form.reason" required placeholder="填写召回或隔离原因" /></label>
+        </div>
+        <p v-if="message" role="alert">{{ message }}</p>
+        <div class="dialog-actions"><button class="btn" type="button" :disabled="recallSubmitting" @click="recallDialogOpen = false">取消</button><button class="btn btn-primary" type="submit" :disabled="recallSubmitting">{{ recallSubmitting ? '正在提交...' : '确认登记' }}</button></div>
+      </form>
+    </el-dialog>
+
+    <section v-if="type !== 'settlement' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon"><ScanLine :size="20" /></i>

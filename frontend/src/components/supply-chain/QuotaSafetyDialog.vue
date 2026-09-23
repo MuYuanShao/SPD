@@ -68,7 +68,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 <template>
   <div class="attachment-preview-mask" @click.self="$emit('close')">
-    <section class="supplier-dialog product-selector-dialog" role="dialog" aria-modal="true">
+    <section class="supplier-dialog product-selector-dialog safety-dialog" role="dialog" aria-modal="true">
       <header>
         <div>
           <p>定数安全量</p>
@@ -127,7 +127,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
             <button class="btn" type="button" @click="$emit('close')">取消</button>
           </div>
         </div>
-        <div class="product-selector-search">
+        <div class="safety-catalog"><div class="product-selector-search">
           <input v-model="catalogQuery.templateCode" placeholder="模板编码" @keydown.enter="$emit('change-page', 1)" />
           <input v-model="catalogQuery.templateName" placeholder="模板名称" @keydown.enter="$emit('change-page', 1)" />
           <input v-model="catalogQuery.productName" placeholder="商品名称" @keydown.enter="$emit('change-page', 1)" />
@@ -188,6 +188,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
           @change-page="$emit('change-page', $event)"
           @change-size="$emit('change-size', $event)"
         />
+        </div>
       </div>
     </section>
   </div>
@@ -256,4 +257,11 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   color: #0f6f78;
   font-size: 12px;
 }
+.supplier-dialog.product-selector-dialog.safety-dialog { width: min(1400px, calc(100vw - 32px)); }
+.safety-dialog .product-selector-body { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; padding: 12px; }
+.safety-dialog .supplier-form-grid { padding: 0; align-content: start; gap: 10px; }
+.safety-catalog { min-width: 0; }
+.safety-catalog .table-scroll { max-height: 38vh; overflow: auto; }
+.safety-dialog input { min-height: 34px; }
+@media (max-width: 900px) { .safety-dialog .product-selector-body { grid-template-columns: 1fr; } }
 </style>

@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import {
   createLicense,
+  fetchLicenseDetail,
+  fetchLicenseOwnerOptions,
+  fetchLicenseHistory,
+  renewLicense,
+  type LicenseOwnerOption,
+  type LicenseRevision,
   fetchLicenseAttachmentBlob,
   fetchLicenseAttachments,
   fetchLicenses,
@@ -38,6 +44,57 @@ const showFormModal = ref(false)
 const editId = ref<number | null>(null)
 const form = ref<LicensePayload>(emptyForm())
 const saving = ref(false)
+const formLoading = ref(false)
+const renewalMode = ref(false)
+const previousExpiry = ref('')
+const ownerKeyword = ref('')
+const ownerOptions = ref<LicenseOwnerOption[]>([])
+const ownerLoading = ref(false)
+const ownerPage = ref(1)
+const ownerTotal = ref(0)
+const historyOpen = ref(false)
+const historyLoading = ref(false)
+const revisions = ref<Array<LicenseRevision & { snapshot: Record<string, any> }>>([])
+const historyTitle = ref('')
+const historyFileOpen = ref(false)
+const ownerSearched = ref(false)
+
+async function searchOwners(pageNumber = 1) {
+  ownerLoading.value = true
+  message.value = ''
+  try {
+    const data = await fetchLicenseOwnerOptions(form.value.ownerType || activeTab.value, ownerKeyword.value, pageNumber)
+    ownerSearched.value = true
+    ownerOptions.value = data.rows
+    ownerPage.value = pageNumber
+    ownerTotal.value = data.total
+  } catch (err) { message.value = err instanceof Error ? err.message : '主体搜索失败' }
+  finally { ownerLoading.value = false }
+}
+function selectOwner(owner: LicenseOwnerOption) {
+  form.value.ownerId = owner.id
+  form.value.ownerCode = owner.code
+  form.value.ownerName = owner.name
+  ownerKeyword.value = `${owner.name}（${owner.code}）`
+  ownerOptions.value = []
+}
+function onOwnerInput() { form.value.ownerId = null; form.value.ownerCode = ''; form.value.ownerName = '' }
+function resetOwner() {
+  ownerSearched.value = false
+  form.value.ownerId = null; form.value.ownerCode = ''; form.value.ownerName = ''
+  ownerKeyword.value = ''; ownerOptions.value = []
+}
+async function openHistory(row: LicenseRow) {
+  historyOpen.value = true; historyLoading.value = true; revisions.value = []; historyTitle.value = row.licenseName
+  try {
+    const data = await fetchLicenseHistory(row.id)
+    revisions.value = data.history.map(item => ({ ...item, snapshot: JSON.parse(item.snapshotJson) }))
+  } catch (err) { message.value = err instanceof Error ? err.message : '历史记录加载失败' }
+  finally { historyLoading.value = false }
+}
+function operationText(value: string) {
+  return ({ create: '新增', update: '编辑', renew: '续证', attachment: '附件上传', baseline: '历史原版本', delete: '删除' } as Record<string, string>)[value] || value
+}
 
 const showAttachmentModal = ref(false)
 const attachmentLicense = ref<LicenseRow | null>(null)
@@ -53,7 +110,7 @@ function emptyForm(): LicensePayload {
     licenseType: activeTab.value,
     licenseName: '',
     licenseNo: '',
-    ownerType: '',
+    ownerType: activeTab.value === 'contract' ? 'supplier' : activeTab.value,
     ownerId: null,
     ownerCode: '',
     ownerName: '',
@@ -72,12 +129,16 @@ function typeLabel(type: LicenseType) {
 }
 
 function statusText(row: LicenseRow) {
+  const labels: Record<string, string> = { invalid: '失效', expired: '已过期', not_effective: '尚未生效', valid: '有效' }
+  if (row.effectiveStatus) return labels[row.effectiveStatus] || row.effectiveStatus
+  if (row.status === 0) return '失效'
   if (row.expireDate && row.expireDate < today()) return '已过期'
   return row.status === 1 ? '有效' : '失效'
 }
 
 function today() {
-  return new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
 }
 
 async function loadList() {
@@ -108,6 +169,8 @@ function onSearch() {
 }
 
 function openCreateModal() {
+  renewalMode.value = false
+  ownerKeyword.value = ''; ownerOptions.value = []; ownerSearched.value = false
   editId.value = null
   form.value = emptyForm()
   form.value.licenseType = activeTab.value
@@ -115,26 +178,22 @@ function openCreateModal() {
   showFormModal.value = true
 }
 
-function openEditModal(row: LicenseRow) {
-  editId.value = row.id
-  form.value = {
-    licenseType: row.licenseType,
-    licenseName: row.licenseName,
-    licenseNo: row.licenseNo ?? '',
-    ownerType: row.ownerType ?? '',
-    ownerId: null,
-    ownerCode: row.ownerCode ?? '',
-    ownerName: row.ownerName ?? '',
-    partyA: row.partyA ?? '',
-    partyB: row.partyB ?? '',
-    contractAmount: row.contractAmount ?? null,
-    issueDate: row.issueDate ?? '',
-    expireDate: row.expireDate ?? '',
-    status: row.status,
-    remark: row.remark ?? ''
-  }
-  message.value = ''
-  showFormModal.value = true
+async function openEditModal(row: LicenseRow, renewal = false) {
+  if (formLoading.value) return
+  formLoading.value = true; message.value = ''
+  try {
+    const detail = await fetchLicenseDetail(row.id)
+    editId.value = row.id
+    renewalMode.value = renewal
+    previousExpiry.value = detail.expireDate || ''
+    form.value = { ...detail, ownerType: detail.ownerType || (detail.licenseType === 'contract' ? 'supplier' : detail.licenseType),
+      ownerId: detail.ownerId ?? null, revisionNo: detail.revisionNo,
+      status: renewal ? 1 : detail.status, expireDate: renewal ? '' : detail.expireDate }
+    ownerKeyword.value = detail.ownerName ? `${detail.ownerName}（${detail.ownerCode || ''}）` : ''
+    ownerOptions.value = []; ownerSearched.value = false
+    showFormModal.value = true
+  } catch (err) { message.value = err instanceof Error ? err.message : '证照详情加载失败' }
+  finally { formLoading.value = false }
 }
 
 async function submitForm() {
@@ -142,12 +201,16 @@ async function submitForm() {
     message.value = '证照名称为必填项'
     return
   }
+  if (!form.value.ownerId) { message.value = '请搜索并选择证照所属主体'; return }
   saving.value = true
   message.value = ''
   try {
     if (editId.value === null) {
       await createLicense(form.value)
       message.value = '证照已新增'
+    } else if (renewalMode.value) {
+      await renewLicense(editId.value, form.value)
+      message.value = '续证已保存，到期联动按最新有效期自动恢复'
     } else {
       await updateLicense(editId.value, form.value)
       message.value = '证照已保存'
@@ -175,7 +238,7 @@ async function confirmRemove(row: LicenseRow) {
 async function openAttachments(row: LicenseRow) {
   attachmentLicense.value = row
   attachments.value = []
-  previewBlobUrl.value = ''
+  closePreview()
   showAttachmentModal.value = true
   await loadAttachments()
 }
@@ -245,6 +308,7 @@ async function downloadAttachment(attachment: LicenseAttachment) {
 const isContract = computed(() => activeTab.value === 'contract')
 
 onMounted(loadList)
+onUnmounted(closePreview)
 </script>
 
 <template>
@@ -310,7 +374,7 @@ onMounted(loadList)
           <tr v-for="row in rows" v-else :key="row.id">
             <td>{{ row.licenseName }}</td>
             <td>{{ row.licenseNo || '-' }}</td>
-            <td v-if="isContract">{{ [row.partyA, row.partyB].filter(Boolean).join(' / ') || '-' }}</td>
+            <td v-if="isContract">{{ [row.partyA, row.partyB].filter(Boolean).join(' / ') || '-' }}<small>所属：{{ row.ownerName || '未关联' }} / {{ row.ownerCode || '-' }}</small></td>
             <td v-else>{{ [row.ownerName, row.ownerCode].filter(Boolean).join(' / ') || '-' }}</td>
             <td v-if="isContract">{{ row.contractAmount != null ? `¥${row.contractAmount}` : '-' }}</td>
             <td v-else>{{ row.issueDate || '-' }}</td>
@@ -322,7 +386,9 @@ onMounted(loadList)
             </td>
             <td>{{ row.attachmentCount ?? 0 }}</td>
             <td class="license-actions">
-              <button class="btn-text" type="button" @click="openEditModal(row)"><Pencil :size="14" /> 编辑</button>
+              <button class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row)"><Pencil :size="14" /> 编辑</button>
+              <button class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row, true)">续证</button>
+              <button class="btn-text" type="button" @click="openHistory(row)">历史</button>
               <button class="btn-text" type="button" @click="openAttachments(row)"><FileText :size="14" /> 附件</button>
               <button class="btn-text btn-text-danger" type="button" @click="confirmRemove(row)"><Trash2 :size="14" /> 删除</button>
             </td>
@@ -342,30 +408,32 @@ onMounted(loadList)
         <header>
           <div>
             <p>{{ activeTabInfo.label }}</p>
-            <h3>{{ editId === null ? '新增' : '编辑' }}{{ activeTabInfo.label }}</h3>
+            <h3>{{ renewalMode ? '续证' : editId === null ? '新增' : '编辑' }}{{ activeTabInfo.label }}</h3>
           </div>
           <button class="btn-icon" type="button" aria-label="关闭" @click="showFormModal = false"><X :size="18" /></button>
         </header>
         <form @submit.prevent="submitForm">
           <div class="supplier-form-grid compact">
             <label class="wide"><span>证照名称</span><input v-model.trim="form.licenseName" required /></label>
-            <label><span>证照编号</span><input v-model.trim="form.licenseNo" /></label>
-            <template v-if="!isContract">
-              <label>
-                <span>所属{{ activeTabInfo.ownerLabel }}</span>
-                <input v-model.trim="form.ownerName" :placeholder="`${activeTabInfo.ownerLabel}名称`" />
-              </label>
-              <label><span>{{ activeTabInfo.ownerLabel }}编码</span><input v-model.trim="form.ownerCode" /></label>
-              <label><span>签发日期</span><input v-model="form.issueDate" type="date" /></label>
-            </template>
+            <label><span>{{ isContract ? '合同编号' : '证照编号' }}</span><input v-model.trim="form.licenseNo" /></label>
+            <label v-if="isContract"><span>所属主体类型</span><select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" @change="resetOwner"><option value="supplier">供应商</option><option value="manufacturer">厂家</option><option value="product">商品</option></select></label>
+            <div class="wide license-owner-picker">
+              <label><span>所属主体（搜索名称或编码后选择）</span><div class="license-owner-search"><input v-model="ownerKeyword" placeholder="名称或编码" @input="onOwnerInput" :disabled="renewalMode && Boolean(form.ownerId)" @keydown.enter.prevent="searchOwners()" /><button class="btn" type="button" :disabled="ownerLoading || (renewalMode && Boolean(form.ownerId))" @click="searchOwners()">搜索主体</button></div></label>
+              <div v-if="ownerOptions.length" class="license-owner-options">
+                <button v-for="owner in ownerOptions" :key="owner.id" type="button" class="btn-text" @click="selectOwner(owner)">{{ owner.name }}（{{ owner.code }}）</button>
+                <div><button class="btn" type="button" :disabled="ownerPage <= 1 || ownerLoading" @click="searchOwners(ownerPage - 1)">上一页</button><span> {{ ownerPage }} / {{ Math.ceil(ownerTotal / 10) }} </span><button class="btn" type="button" :disabled="ownerPage * 10 >= ownerTotal || ownerLoading" @click="searchOwners(ownerPage + 1)">下一页</button></div>
+              </div>
+              <p v-if="ownerSearched && !ownerLoading && ownerTotal === 0">没有匹配的有效主体</p>
+              <small v-if="form.ownerId">已关联：{{ form.ownerName }} / {{ form.ownerCode }}</small><small v-else>未关联有效主体，请选择后保存</small>
+            </div>
+            <template v-if="!isContract"><label><span>主体编码</span><input :value="form.ownerCode" readonly /></label><label><span>签发日期</span><input v-model="form.issueDate" type="date" /></label></template>
             <template v-else>
               <label><span>甲方</span><input v-model.trim="form.partyA" placeholder="医院/甲方名称" /></label>
               <label><span>乙方</span><input v-model.trim="form.partyB" placeholder="供应商/乙方名称" /></label>
               <label><span>合同金额</span><input v-model.number="form.contractAmount" type="number" step="0.01" min="0" /></label>
-              <label><span>合同编号</span><input v-model.trim="form.licenseNo" placeholder="合同编号" /></label>
               <label><span>签订日期</span><input v-model="form.issueDate" type="date" /></label>
             </template>
-            <label><span>有效期至</span><input v-model="form.expireDate" type="date" /></label>
+            <label><span>有效期至</span><input v-model="form.expireDate" type="date" :required="renewalMode" /><small v-if="renewalMode">原有效期：{{ previousExpiry || '未维护' }}；续证须延长有效期</small></label>
             <label>
               <span>状态</span>
               <select v-model.number="form.status">
@@ -375,6 +443,7 @@ onMounted(loadList)
             </label>
             <label class="wide"><span>备注</span><textarea v-model.trim="form.remark" rows="2" /></label>
           </div>
+          <p v-if="message" class="license-message" role="alert">{{ message }}</p>
           <div class="dialog-actions">
             <button class="btn" type="button" :disabled="saving" @click="showFormModal = false">取消</button>
             <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
@@ -382,6 +451,25 @@ onMounted(loadList)
         </form>
       </section>
     </div>
+
+    <el-dialog destroy-on-close v-model="historyOpen" :title="`证照历史：${historyTitle}`" width="min(1100px, 94vw)" append-to-body>
+      <p v-if="historyLoading">正在加载历史...</p>
+      <p v-else-if="!revisions.length">该历史证照尚未产生版本记录；首次编辑或续证时会保留原版本。</p>
+      <article v-for="revision in revisions" :key="revision.revisionNo" class="license-history-item">
+        <h4>版本 {{ revision.revisionNo }} · {{ operationText(revision.operationType) }} · {{ revision.operatorName }} · {{ revision.createTime }}</h4>
+        <p>{{ revision.snapshot.licenseName }} / {{ revision.snapshot.licenseNo || '-' }}</p>
+        <p>主体：{{ revision.snapshot.ownerName || '-' }}（{{ revision.snapshot.ownerCode || '-' }}） · 签发：{{ revision.snapshot.issueDate || '-' }} · 到期：{{ revision.snapshot.expireDate || '-' }} · {{ revision.snapshot.status === 1 ? '有效' : '失效' }}</p>
+        <p>备注：{{ revision.snapshot.remark || '-' }}</p>
+        <div><span>当时附件：</span><button v-for="file in revision.snapshot.attachments || []" :key="file.id" class="btn-text" @click="historyFileOpen = true; closePreview(); previewAttachment(file)">{{ file.fileName }}</button><span v-if="!revision.snapshot.attachments?.length">无</span></div>
+      </article>
+    </el-dialog>
+
+    <el-dialog destroy-on-close v-model="historyFileOpen" :title="previewName || '历史附件阅览'" width="min(1000px, 94vw)" append-to-body @closed="closePreview">
+      <p v-if="previewing">正在加载附件...</p>
+      <img v-else-if="previewBlobUrl && previewContentType.startsWith('image/')" :src="previewBlobUrl" :alt="previewName" style="max-width:100%;max-height:65vh;object-fit:contain" />
+      <iframe v-else-if="previewBlobUrl && previewContentType.includes('pdf')" :src="previewBlobUrl" :title="previewName" style="width:100%;height:65vh;border:0" />
+      <p v-else>{{ message || '该格式请从附件列表下载查看' }}</p>
+    </el-dialog>
 
     <!-- 附件阅览 -->
     <div v-if="showAttachmentModal" class="attachment-preview-mask" @click.self="closePreview(); showAttachmentModal = false">
@@ -640,4 +728,10 @@ onMounted(loadList)
   border: none;
   object-fit: contain;
 }
+.license-owner-search { display: flex; gap: 8px; }
+.license-owner-search input { flex: 1; min-width: 0; }
+.license-owner-options { display: grid; gap: 6px; max-height: 230px; overflow: auto; border: 1px solid #dce4e8; padding: 10px; }
+.license-owner-options > button { text-align: left; }
+.license-history-item { padding: 12px 0; border-bottom: 1px solid #dce4e8; }
+.license-history-item h4 { margin: 0 0 8px; }
 </style>

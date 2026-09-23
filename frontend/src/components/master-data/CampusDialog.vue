@@ -96,11 +96,7 @@ const emit = defineEmits<{
               autocomplete="tel"
             />
           </label>
-          <label>
-            <span>显示排序</span>
-            <input v-model.number="form.sortOrder" name="sortOrder" type="number" min="0" inputmode="numeric" />
-            <small class="campus-form-hint">数值越小，在院区选项中越靠前</small>
-          </label>
+
           <label>
             <span>启停状态</span>
             <select v-model.number="form.status" name="status">

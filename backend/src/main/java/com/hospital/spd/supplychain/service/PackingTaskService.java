@@ -62,7 +62,19 @@ public class PackingTaskService {
                    AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
                  ORDER BY warehouse_id
                 """);
-        List<Map<String, Object>> candidates = jdbcTemplate.queryForList("""
+        Object candidates = packableLooseStock(Map.of("page", "1", "size", "200")).get("rows");
+        return Map.of("warehouses", warehouses, "candidates", candidates);
+    }
+
+    /** Paged stock projection; quantities remain owned by inventory movement and reservations. */
+    public Map<String, Object> packableLooseStock(Map<String, String> params) {
+        PageRequest page = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder filters = new StringBuilder();
+        appendLike(filters, args, "p.product_code", params.get("productCode"));
+        appendLike(filters, args, "p.product_name", params.get("productName"));
+        appendLike(filters, args, "w.warehouse_name", params.get("warehouseName"));
+        String query = """
                 SELECT w.warehouse_name AS warehouseName, p.product_code AS productCode,
                        p.product_name AS productName, ib.system_batch_no AS systemBatchNo,
                        ib.production_batch_no AS productionBatchNo, DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
@@ -74,12 +86,16 @@ public class PackingTaskService {
                  WHERE p.is_quota_managed = 1 AND p.is_high_value = 0 AND p.is_cold_chain = 0
                    AND w.deleted = 0 AND w.status = 1
                    AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+                   AND p.deleted = 0 AND p.status = 1
                    AND bal.available_qty > 0
-                 GROUP BY w.warehouse_id, p.product_id, ib.batch_id
-                 ORDER BY w.warehouse_name, p.product_name, ib.expire_date
-                 LIMIT 200
-                """);
-        return Map.of("warehouses", warehouses, "candidates", candidates);
+
+                """ + filters + " GROUP BY w.warehouse_id, p.product_id, ib.batch_id";
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM (" + query + ") stock", Long.class, args.toArray());
+        args.add(page.size());
+        args.add(page.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(query
+                + " ORDER BY p.product_name, w.warehouse_name, ib.expire_date, ib.batch_id LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0L : total, page);
     }
 
     public Map<String, Object> tasks(Map<String, String> params) {

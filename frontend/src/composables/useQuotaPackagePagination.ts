@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 
-export type QuotaPackagePageKey = 'templates' | 'safety' | 'tasks' | 'labels' | 'events'
+export type QuotaPackagePageKey = 'templates' | 'safety' | 'tasks' | 'labels' | 'events' | 'candidates'
 
 type LoadData = () => Promise<void>
 
@@ -10,6 +10,7 @@ export function useQuotaPackagePagination(loadData: LoadData) {
     safety: { page: 1, size: 20, total: 0 },
     tasks: { page: 1, size: 20, total: 0 },
     labels: { page: 1, size: 20, total: 0 },
+    candidates: { page: 1, size: 20, total: 0 },
     events: { page: 1, size: 20, total: 0 }
   })
 
@@ -36,6 +37,7 @@ export function useQuotaPackagePagination(loadData: LoadData) {
     quotaPagination.tasks.page = 1
     quotaPagination.labels.page = 1
     quotaPagination.events.page = 1
+    quotaPagination.candidates.page = 1
   }
 
   return {

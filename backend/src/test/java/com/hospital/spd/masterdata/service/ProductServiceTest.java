@@ -279,7 +279,7 @@ class ProductServiceTest {
                     "品牌A", "厂家A", "供应商A",
                     "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150),
                     BigDecimal.ONE, "箱", BigDecimal.valueOf(10), null,
-                    "UDI001", "注册证号001", "2025-12-31",
+                    "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
                     "生产许可001", "经营许可001",
                     true, true, true, "合同001",
                     "一级", "二级", "三级", true, "招采001",

@@ -16,6 +16,7 @@ public record LicenseUpsertRequest(
         String issueDate,
         String expireDate,
         Integer status,
-        String remark
+        String remark,
+        Integer revisionNo
 ) {
 }

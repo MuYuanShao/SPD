@@ -271,18 +271,19 @@ public class DepartmentWarehouseCatalogService {
                 SELECT p.product_code AS productCode, p.product_name AS productName,
                        COALESCE(p.spec_model, '-') AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       p.unit
+                       p.unit,
+                       CASE WHEN b.binding_id IS NOT NULL AND NOT EXISTS (
+                         SELECT 1 FROM department_warehouse_catalog dwc
+                          WHERE dwc.dept_id = ? AND dwc.warehouse_id = ? AND dwc.product_id = p.product_id AND dwc.deleted = 0
+                       ) THEN 1 ELSE 0 END AS selectable
                   FROM product p
-                  JOIN warehouse_product_binding b ON b.product_id = p.product_id
+                  LEFT JOIN warehouse_product_binding b ON b.product_id = p.product_id
                      AND b.warehouse_id = ? AND b.deleted = 0 AND b.status = 1
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
                  WHERE p.deleted = 0 AND p.status = 1
-                   AND NOT EXISTS (
-                     SELECT 1 FROM department_warehouse_catalog dwc
-                      WHERE dwc.dept_id = ? AND dwc.warehouse_id = ? AND dwc.product_id = p.product_id AND dwc.deleted = 0
-                   )
+
                 """);
-        List<Object> args = new ArrayList<>(List.of(warehouseId, deptId, warehouseId));
+        List<Object> args = new ArrayList<>(List.of(deptId, warehouseId, warehouseId));
         if (!isBlank(keyword)) {
             sql.append("""
                      AND (p.product_code LIKE ? OR p.product_name LIKE ? OR p.spec_model LIKE ?

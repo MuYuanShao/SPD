@@ -409,6 +409,10 @@ public class ProductService {
         OperatorContext operator = operatorContextProvider.current();
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
+        if ("新品准入".equals(normalizedType)) {
+            new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate)
+                    .requireEligible(productCode, supplierId, manufacturerId, request.contractCode(), request.registrationExpireDate());
+        }
         Long categoryId = ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
 
         jdbcTemplate.update("""

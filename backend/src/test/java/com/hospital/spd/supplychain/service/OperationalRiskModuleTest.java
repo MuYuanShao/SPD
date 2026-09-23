@@ -34,6 +34,24 @@ class OperationalRiskModuleTest {
     }
 
     @Test
+    void isolationKeepsStockInOriginalWarehouse() {
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
+                .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "耗材"));
+        when(jdbcTemplate.queryForList(contains("converted_stock"), any(Object[].class)))
+                .thenReturn(java.util.List.of(Map.of("warehouseId", 20L, "warehouseName", "二级库", "batchId", 66L,
+                        "looseQty", BigDecimal.valueOf(5), "packageQty", BigDecimal.ZERO, "totalQty", BigDecimal.valueOf(5))));
+        when(support.nextNo(DocumentKind.RECALL_EVENT)).thenReturn("ZH-ISOLATE");
+        PurchaseOrderServiceTest.mockKeyHolderInsert(jdbcTemplate, 99L);
+
+        module.createRecall(Map.of("businessType", "isolate", "scope", "secondary", "warehouseName", "二级库",
+                "productCode", "PC001", "batchNo", "B001", "reason", "质量异常"));
+
+        verify(support).isolateSpecificBatch(20L, 100L, 66L, BigDecimal.valueOf(5), "recall_event", 99L, "质量异常");
+        verify(support, never()).transferSpecificBatch(any(), any(), any(), any(), any(), anyString(), any(), anyString());
+        verify(jdbcTemplate, never()).queryForMap(contains("warehouse_type LIKE '%一级%'"));
+    }
+
+    @Test
     void recallsSecondaryInventoryToPrimaryWarehouseAndIsolatesIt() {
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
                 .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "支架"));

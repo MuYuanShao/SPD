@@ -45,6 +45,20 @@ class PackingTaskServiceTest {
     }
 
     @Test
+    void looseStockProjectionUsesRequestedPageAndCompleteCount() {
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM ("), eq(Long.class), any(Object[].class)))
+                .thenReturn(405L);
+        when(jdbcTemplate.queryForList(contains("LIMIT ? OFFSET ?"), any(Object[].class)))
+                .thenReturn(List.of(Map.of("productName", "纱布")));
+
+        var result = service.packableLooseStock(Map.of("page", "3", "size", "20", "productName", "纱布"));
+
+        assertThat(result).containsEntry("total", 405L).containsEntry("page", 3).containsEntry("size", 20);
+        verify(jdbcTemplate).queryForList(contains("LIMIT ? OFFSET ?"), eq("%纱布%"), eq(20), eq(40));
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+    }
+
+    @Test
     void createsTaskAndReservesLooseStock() throws Exception {
         mockTemplate();
         mockWarehouse();

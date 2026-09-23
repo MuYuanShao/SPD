@@ -358,8 +358,8 @@ public class WarehouseService {
     @Transactional
     public Map<String, Object> deleteWarehouseLocation(String warehouseCode, Long locationId) {
         Long warehouseId = findWarehouseId(warehouseCode);
-        int deletedRows = jdbcTemplate.update("""
         referenceGuard.requireLocationDeletable(warehouseId, locationId);
+        int deletedRows = jdbcTemplate.update("""
                 UPDATE warehouse_location
                    SET deleted = 1
                  WHERE location_id = ? AND warehouse_id = ? AND deleted = 0

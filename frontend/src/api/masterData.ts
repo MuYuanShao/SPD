@@ -223,6 +223,7 @@ export interface WarehousePayload {
 }
 
 export interface WarehouseProductOption {
+  selectable?: number
   productCode: string
   productName: string
   specModel: string

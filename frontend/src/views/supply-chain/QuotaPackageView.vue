@@ -74,12 +74,20 @@ const labels = ref<PackageLabelRow[]>([])
 const events = ref<Record<string, unknown>[]>([])
 const warehouses = ref<Array<{ warehouseName: string; warehouseType: string }>>([])
 const candidates = ref<Array<Record<string, unknown>>>([])
+const snapshotColumns = ref([
+  { key: 'warehouseName', label: '库房', visible: true }, { key: 'productCode', label: '商品编码', visible: true },
+  { key: 'productName', label: '商品名称', visible: true }, { key: 'systemBatchNo', label: '系统批次', visible: true },
+  { key: 'productionBatchNo', label: '生产批号', visible: true }, { key: 'expireDate', label: '有效期', visible: true },
+  { key: 'batchUnitPrice', label: '批次单价', visible: true }, { key: 'availableQty', label: '可用数量', visible: true }
+])
+const visibleSnapshotColumns = computed(() => snapshotColumns.value.filter(column => column.visible))
 const selectedTaskNo = ref('')
 const taskReservations = ref<Record<string, unknown>[]>([])
 const taskLoading = ref(false)
 const safetyImporting = ref(false)
 
 const query = reactive({
+  warehouseName: '',
   taskNo: '',
   eventNo: '',
   eventType: '',
@@ -199,6 +207,9 @@ const {
   productLoading,
   productQuery,
   quotaProducts,
+  productPage,
+  productSize,
+  productTotal,
   selectedProductInfo,
   searchQuotaProducts,
   openProductSelector,
@@ -630,14 +641,13 @@ watch(
                 <th>每包数量</th>
                 <th>计划扣减散货</th>
                 <th>预占散货</th>
-                <th>预占批次</th>
                 <th>创建时间</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载打包任务..." />
-              <TableStateRow v-else-if="tasks.length === 0" :colspan="12" message="暂无符合条件的打包任务" />
+              <TableStateRow v-if="loading" :colspan="11" state="loading" message="正在加载打包任务..." />
+              <TableStateRow v-else-if="tasks.length === 0" :colspan="11" message="暂无符合条件的打包任务" />
               <tr v-for="row in tasks" :key="row.taskNo">
                 <td>{{ row.taskNo }}</td>
                 <td>
@@ -660,7 +670,6 @@ watch(
                 <td>{{ row.packageQuantity }}</td>
                 <td>{{ row.plannedLooseQty }}</td>
                 <td>{{ row.reservedLooseQty }}</td>
-                <td>{{ row.reservationSummary || '-' }}</td>
                 <td>{{ row.createTime }}</td>
                 <td>
                   <div class="row-actions">
@@ -803,10 +812,11 @@ watch(
             </table>
           </div>
         </div>
-        <div v-if="selectedTaskNo" class="reservation-panel">
+        <el-dialog :model-value="Boolean(selectedTaskNo)" title="预占明细" width="min(1000px, 94vw)" append-to-body @close="selectedTaskNo = ''">
+          <div class="reservation-panel">
           <div class="section-title compact">
             <ClipboardList :size="18" />
-            <h3>预占来源批次：{{ selectedTaskNo }}</h3>
+            <h3>打包任务：{{ selectedTaskNo }}</h3>
           </div>
           <div class="table-scroll">
             <table class="master-table compact-table">
@@ -833,7 +843,8 @@ watch(
               </tbody>
             </table>
           </div>
-        </div>
+          </div>
+        </el-dialog>
       </section>
 
       <section v-if="packageSection === 'quota-label-unpack'" class="hospital-catalog-panel">
@@ -980,36 +991,29 @@ watch(
           <ShieldCheck :size="20" />
           <h3>可打包散货快照</h3>
         </div>
+        <div class="hospital-query-grid">
+          <label><span>商品名称</span><input v-model="query.productName" @keyup.enter="quotaPagination.candidates.page = 1; loadData()" /></label>
+          <label><span>商品编码</span><input v-model="query.productCode" /></label>
+          <label><span>库房</span><input v-model="query.warehouseName" /></label>
+          <button class="btn btn-primary" @click="quotaPagination.candidates.page = 1; loadData()">查询</button>
+        </div>
+        <details class="snapshot-column-settings"><summary class="btn">显示列</summary>
+          <label v-for="column in snapshotColumns" :key="column.key"><input v-model="column.visible" type="checkbox" :disabled="column.visible && visibleSnapshotColumns.length === 1" />{{ column.label }}</label>
+        </details>
         <div class="table-scroll">
           <table class="master-table purchase-detail-table">
-            <thead>
-              <tr>
-                <th>库房</th>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>系统批次</th>
-                <th>生产批号</th>
-                <th>有效期</th>
-                <th>批次单价</th>
-                <th>可用数量</th>
-              </tr>
-            </thead>
+            <thead><tr><th v-for="column in visibleSnapshotColumns" :key="column.key">{{ column.label }}</th></tr></thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="8" state="loading" message="正在加载可打包散货..." />
-              <TableStateRow v-else-if="candidates.length === 0" :colspan="8" message="当前没有可打包散货" />
-              <tr v-for="row in candidates" :key="`${row.warehouseName}-${row.systemBatchNo}`">
-                <td>{{ row.warehouseName }}</td>
-                <td>{{ row.productCode }}</td>
-                <td>{{ row.productName }}</td>
-                <td>{{ row.systemBatchNo }}</td>
-                <td>{{ row.productionBatchNo || '-' }}</td>
-                <td>{{ row.expireDate || '-' }}</td>
-                <td>¥ {{ Number(row.batchUnitPrice || 0).toFixed(2) }}</td>
-                <td>{{ row.availableQty }}</td>
+              <TableStateRow v-if="loading" :colspan="visibleSnapshotColumns.length" state="loading" message="正在加载可打包散货..." />
+              <TableStateRow v-else-if="candidates.length === 0" :colspan="visibleSnapshotColumns.length" message="当前没有可打包散货" />
+              <tr v-for="row in candidates" :key="`${row.warehouseName}-${row.productCode}-${row.systemBatchNo}`">
+                <td v-for="column in visibleSnapshotColumns" :key="column.key">{{ column.key === 'batchUnitPrice' ? `¥ ${Number(row[column.key] || 0).toFixed(2)}` : row[column.key] ?? '-' }}</td>
               </tr>
             </tbody>
           </table>
         </div>
+        <PaginationControls :page="quotaPagination.candidates.page" :size="quotaPagination.candidates.size" :total="quotaPagination.candidates.total" :loading="loading"
+          @change-page="changeQuotaPage('candidates', $event)" @change-size="changeQuotaPageSize('candidates', $event)" />
       </section>
     </template>
 
@@ -1202,8 +1206,9 @@ watch(
       v-model:open="productSelectorOpen"
       :loading="productLoading"
       :product-query="productQuery"
-      :products="quotaProducts"
-      @search="searchQuotaProducts"
+      :products="quotaProducts" :page="productPage" :size="productSize" :total="productTotal"
+      @change-page="searchQuotaProducts($event)" @change-size="productSize = $event; searchQuotaProducts()"
+      @search="searchQuotaProducts()"
       @select="selectProduct"
     />
   </section>

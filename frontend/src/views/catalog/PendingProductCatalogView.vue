@@ -388,7 +388,7 @@ async function loadApplications() {
 
 function rowPrimaryActionLabel() {
   if (isReturnedMineDirectory.value) return '修改'
-  if (activeScope.value === 'handled') return '查看'
+  if (activeScope.value !== 'todo') return '查看'
   return '审批'
 }
 

@@ -50,6 +50,27 @@ const error = ref('')
 const message = ref('')
 const submittedCount = ref(0)
 const products = ref<RequisitionCatalogItem[]>([])
+const quantityDrafts = new Map<string, Pick<RequisitionCatalogItem, 'quantity' | 'mode' | 'selected'>>()
+let draftScope = ''
+let catalogRequestVersion = 0
+
+function draftKey(row: DepartmentRequisitionCatalogRow) {
+  return JSON.stringify([row.productCode, row.sourceWarehouseId, row.templateCode])
+}
+
+function rememberQuantities() {
+  products.value.forEach(({ quantity, mode, selected, ...row }) => {
+    quantityDrafts.set(draftKey(row), { quantity, mode, selected })
+  })
+}
+
+function clearQuantityDrafts() {
+  catalogRequestVersion++
+  quantityDrafts.clear()
+  draftScope = ''
+  products.value = []
+}
+
 const requisitionOrders = ref<Record<string, unknown>[]>([])
 const detailRows = ref<Record<string, unknown>[]>([])
 const detailOpen = ref(false)
@@ -131,8 +152,18 @@ async function loadLinkedWarehouses() {
 async function loadCatalog() {
   if (!requisitionStarted.value) return
   if (!filters.targetDeptCode) {
+    clearQuantityDrafts()
+    totalItems.value = 0
+    loading.value = false
     error.value = '请先选择科室'
     return
+  }
+  const requestVersion = ++catalogRequestVersion
+  const scope = JSON.stringify([filters.targetDeptCode, filters.warehouseName])
+  if (scope !== draftScope) {
+    quantityDrafts.clear()
+    products.value = []
+    draftScope = scope
   }
   loading.value = true
   error.value = ''
@@ -149,6 +180,8 @@ async function loadCatalog() {
       page: String(currentPage.value),
       size: String(pageSize.value)
     })
+    if (requestVersion !== catalogRequestVersion || !requisitionStarted.value) return
+    rememberQuantities()
     totalItems.value = result.total
     products.value = result.rows.map((row) => {
       const allowedModes = row.allowedModes?.length
@@ -158,20 +191,23 @@ async function loadCatalog() {
           : row.defaultMode === 'quota_package'
             ? ['loose' as RequisitionMode, 'quota_package' as RequisitionMode]
             : ['loose' as RequisitionMode]
-      return {
-      ...row, allowedModes,
-      selected: false,
-      quantity: 1,
-      mode: allowedModes.includes(row.defaultMode) ? row.defaultMode : allowedModes[0]
-    }})
+      const draft = quantityDrafts.get(draftKey(row))
+      const mode = draft && allowedModes.includes(draft.mode)
+        ? draft.mode : allowedModes.includes(row.defaultMode) ? row.defaultMode : allowedModes[0]
+      const item = { ...row, allowedModes, selected: draft?.selected ?? false, quantity: draft?.quantity ?? 1, mode }
+      if (draft && draft.mode !== mode) normalizeQuantity(item)
+      return item
+    })
   } catch (err) {
+    if (requestVersion !== catalogRequestVersion || !requisitionStarted.value) return
     error.value = err instanceof Error ? err.message : '科室申领目录加载失败'
   } finally {
-    loading.value = false
+    if (requestVersion === catalogRequestVersion) loading.value = false
   }
 }
 
 async function startRequisition() {
+  clearQuantityDrafts()
   message.value = ''
   error.value = ''
   if (!options.value.departments.length) {
@@ -185,6 +221,7 @@ async function startRequisition() {
 }
 
 function leaveRequisition() {
+  clearQuantityDrafts()
   requisitionStarted.value = false
   products.value = []
   totalItems.value = 0
@@ -271,7 +308,8 @@ function baseQtyByMode(item: RequisitionCatalogItem) {
 }
 
 function stepQuantity(item: RequisitionCatalogItem, delta: number) {
-  item.quantity = Number(item.quantity || 1) + delta
+  const minimum = item.mode === 'loose' ? 0.0001 : 1
+  item.quantity = Math.max(minimum, Number(item.quantity || minimum) + delta)
   normalizeQuantity(item)
 }
 
@@ -282,6 +320,7 @@ function normalizeQuantity(item: RequisitionCatalogItem) {
 }
 
 async function submitSelectedRequisitions() {
+  if (submitting.value || loading.value) return
   if (!filters.targetDeptCode) {
     message.value = '请先选择科室'
     return
@@ -294,8 +333,9 @@ async function submitSelectedRequisitions() {
   message.value = ''
   error.value = ''
   try {
+    const submittedItems = [...selectedItems.value]
     const items: Array<Record<string, unknown>> = []
-    for (const item of selectedItems.value) {
+    for (const item of submittedItems) {
       const payload: Record<string, unknown> = {
         productCode: item.productCode,
         quantity: baseQtyByMode(item),
@@ -311,14 +351,12 @@ async function submitSelectedRequisitions() {
       deptCode: selectedDepartment.value?.deptCode,
       deptName: selectedDepartment.value?.deptName,
       warehouseName: filters.warehouseName,
-      sourceWarehouseId: selectedItems.value[0]?.sourceWarehouseId,
+      sourceWarehouseId: submittedItems[0]?.sourceWarehouseId,
       items
     })
-    submittedCount.value += selectedItems.value.length
-    message.value = `已提交 ${selectedItems.value.length} 条科室申领明细${result.requisitionNo ? `，申请单号：${result.requisitionNo}` : ''}`
-    products.value.forEach((item) => {
-      item.selected = false
-    })
+    submittedCount.value += submittedItems.length
+    message.value = `已提交 ${submittedItems.length} 条科室申领明细${result.requisitionNo ? `，申请单号：${result.requisitionNo}` : ''}`
+    clearQuantityDrafts()
     await loadCatalog()
     await loadRequisitionOrders()
   } catch (err) {
@@ -539,7 +577,7 @@ watch(() => filters.warehouseName, async () => {
           <RotateCcw :size="16" />
           重置
         </button>
-        <button class="btn" type="button" :disabled="submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
+        <button class="btn" type="button" :disabled="loading || submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
           <ShoppingCart :size="16" />
           提交申领{{ selectedItems.length ? `(${selectedItems.length})` : '' }}
         </button>
@@ -559,19 +597,19 @@ watch(() => filters.warehouseName, async () => {
             <small class="selected-spec">{{ item.specModel }}</small>
             <label>
               <span>默认申领</span>
-              <select v-model="item.mode" @change="normalizeQuantity(item)">
+              <select v-model="item.mode" :disabled="submitting" @change="normalizeQuantity(item)">
                 <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
                 <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
                 <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
               </select>
             </label>
             <div class="qty-stepper">
-              <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-              <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" @change="normalizeQuantity(item)" />
-              <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+              <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
+              <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
+              <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
-            <button class="btn-text btn-text-danger" type="button" @click="removeFromSelection(item)">
+            <button class="btn-text btn-text-danger" type="button" :disabled="submitting" @click="removeFromSelection(item)">
               <X :size="14" />
               移除
             </button>
@@ -622,7 +660,7 @@ watch(() => filters.warehouseName, async () => {
                 :key="item.productCode"
                 :class="{ selected: item.selected, low: item.requisitionStatus.includes('缺货') }"
               >
-                <td><input v-model="item.selected" type="checkbox" /></td>
+                <td><input v-model="item.selected" :disabled="submitting" type="checkbox" /></td>
                 <td>{{ item.productCode }}</td>
                 <td>
                   <strong>{{ item.productName }}</strong>
@@ -637,7 +675,7 @@ watch(() => filters.warehouseName, async () => {
                   <small v-if="item.packageQuantity">1 包 = {{ item.packageQuantity }} {{ item.packageUnit }}</small>
                 </td>
                 <td>
-                  <select v-model="item.mode" @change="normalizeQuantity(item)">
+                  <select v-model="item.mode" :disabled="submitting" @change="normalizeQuantity(item)">
                     <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
                     <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
                     <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
@@ -645,9 +683,9 @@ watch(() => filters.warehouseName, async () => {
                 </td>
                 <td>
                   <div class="qty-stepper">
-                    <button class="btn-text" type="button" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                    <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" @change="normalizeQuantity(item)" />
-                    <button class="btn-text" type="button" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+                    <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
+                    <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
+                    <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
                   </div>
                   <small>{{ unitByMode(item) }}</small>
                     <small v-if="item.quantity > availableByMode(item)" class="shortage">超过当前可用库存，按实际需求申领</small>
@@ -821,7 +859,7 @@ watch(() => filters.warehouseName, async () => {
 }
 .dept-req-selected-list li {
   display: grid;
-  grid-template-columns: 130px minmax(160px, 1fr) minmax(120px, 0.8fr) 170px 130px 100px auto;
+  grid-template-columns: 130px minmax(160px, 1fr) minmax(120px, 0.8fr) 170px 146px 100px auto;
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
@@ -985,4 +1023,7 @@ watch(() => filters.warehouseName, async () => {
   color: #b45309;
   font-weight: 700;
 }
+.qty-stepper { grid-template-columns: 28px 88px 28px; }
+.qty-stepper input { width: 88px; min-width: 0; height: 32px; padding: 0 6px; box-sizing: border-box; }
+.qty-stepper button { height: 32px; }
 </style>

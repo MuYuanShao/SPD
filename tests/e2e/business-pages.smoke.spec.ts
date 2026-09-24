@@ -301,9 +301,16 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   const packageRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'PKG-001' })
   const highValueRow = page.locator('.requisition-catalog-table tbody tr').filter({ hasText: 'HV-001' })
   await looseRow.locator('input[type="checkbox"]').check()
-  await looseRow.locator('input[type="number"]').fill('2')
-  await looseRow.locator('input[type="number"]').blur()
-  await expect(looseRow.locator('input[type="number"]')).toHaveValue('2')
+  const selectedLoose = page.locator('.dept-req-selected-list li').filter({ hasText: 'LOW-001' })
+  await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).fill('12.5')
+  await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).blur()
+  await selectedLoose.getByRole('button', { name: '增加申领数量' }).click()
+  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('13.5')
+  await selectedLoose.getByRole('button', { name: '减少申领数量' }).click()
+  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
+  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
   await packageRow.locator('input[type="checkbox"]').check()
   await packageRow.locator('input[type="number"]').fill('2')
   await highValueRow.locator('input[type="checkbox"]').check()
@@ -329,9 +336,11 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
         quantity: 2,
         requisitionMode: 'high_value'
       },
-      { productCode: 'LOW-001', quantity: 2, requisitionMode: 'loose' }
+      { productCode: 'LOW-001', quantity: 12.5, requisitionMode: 'loose' }
     ]
   })
+  await expect(page.locator('.dept-req-selected')).toHaveCount(0)
+  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('1')
 })
 
 test('收货验收按需加载选项并正确联动采购与临时来源', async ({ page }) => {

@@ -20,11 +20,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+/** Saves versioned approval settings without changing submitted catalog route snapshots. */
 @Service
 public class ApprovalFlowService {
     private static final List<ApprovalFlowNodeOption> DEFAULT_NODES = List.of(
-            new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "initial-review", "目录初审"),
-            new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "final-review", "目录终审"),
+            new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "initial-review", "目录顺序审批"),
+            new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "final-review", "历史目录终审（不用于新单）"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "demand-review", "采购需求审核"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "plan-approval", "采购计划审批"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "order-approval", "采购订单审批"),
@@ -127,7 +128,9 @@ public class ApprovalFlowService {
 
     @Transactional
     public Map<String, Object> create(ApprovalFlowRequest request) {
+        request = normalizeCatalogScope(request);
         validate(request);
+        requireUniqueCatalogFlow(request, null);
         OperatorContext operator = operatorContextProvider.current();
         String featureCode = textRequired(request.featureCode(), "featureCode");
         String featureName = textRequired(request.featureName(), "featureName");
@@ -156,6 +159,7 @@ public class ApprovalFlowService {
             replaceSteps(flowId, request.steps());
             return Map.of("flowId", flowId);
         } catch (DuplicateKeyException ex) {
+            if ("pending-product-catalog".equals(featureCode)) throw new IllegalArgumentException("该范围已有启用的目录审批流，请编辑现有流程或先停用原流程");
             Long existingFlowId = findExistingFlowId(featureCode, nodeCode, scopeType, scopeId);
             if (existingFlowId == null) {
                 throw new IllegalArgumentException("审批流配置已存在，请刷新后编辑");
@@ -167,8 +171,11 @@ public class ApprovalFlowService {
 
     @Transactional
     public Map<String, Object> update(Long flowId, ApprovalFlowRequest request) {
+        request = normalizeCatalogScope(request);
         validate(request);
-        jdbcTemplate.update("""
+        jdbcTemplate.queryForList("SELECT flow_id FROM approval_flow WHERE flow_id=? AND deleted=0 FOR UPDATE", flowId);
+        requireUniqueCatalogFlow(request, flowId);
+        int updated = jdbcTemplate.update("""
                 UPDATE approval_flow
                    SET feature_code = ?, feature_name = ?, node_code = ?, node_name = ?,
                        scope_type = ?, scope_id = ?, data_scope = ?, status = ?, remark = ?, dept_id = ?
@@ -185,11 +192,23 @@ public class ApprovalFlowService {
                 emptyToNull(request.remark()),
                 request.deptId(),
                 flowId);
+        if (updated != 1) throw new IllegalArgumentException("审批流程不存在或已删除");
         replaceSteps(flowId, request.steps());
         return Map.of("updated", 1);
     }
 
+    @Transactional
     public Map<String, Object> updateStatus(Long flowId, Integer status) {
+        var row = jdbcTemplate.queryForMap("SELECT * FROM approval_flow WHERE flow_id=? AND deleted=0 FOR UPDATE", flowId);
+        if (nvl(status, 1) == 1 && "pending-product-catalog".equals(row.get("feature_code"))) {
+            if (!"initial-review".equals(row.get("node_code"))) throw new IllegalArgumentException("历史终审流程不能用于新单，请配置目录顺序审批");
+            var request = new ApprovalFlowRequest("pending-product-catalog", "待审批目录", "initial-review", "目录顺序审批",
+                    text(row.get("scope_type")), text(row.get("scope_id")), integer(row.get("data_scope")), 1, null,
+                    number(row.get("dept_id")), null);
+            requireUniqueCatalogFlow(normalizeCatalogScope(request), flowId);
+            Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM approval_flow_step WHERE flow_id=? AND status=1", Integer.class, flowId);
+            if (count == null || count == 0) throw new IllegalArgumentException("目录审批流至少需要一个启用步骤");
+        }
         jdbcTemplate.update("UPDATE approval_flow SET status = ? WHERE flow_id = ? AND deleted = 0", nvl(status, 1), flowId);
         return Map.of("updated", 1);
     }
@@ -205,7 +224,7 @@ public class ApprovalFlowService {
                   LEFT JOIN sys_role r ON r.role_id = s.role_id
                   LEFT JOIN sys_user u ON u.user_id = s.user_id
                   LEFT JOIN sys_dept d ON d.dept_id = s.dept_id
-                 WHERE s.flow_id = ?
+                 WHERE s.flow_id = ? AND s.revision_no=(SELECT revision_no FROM approval_flow WHERE flow_id=s.flow_id)
                  ORDER BY s.step_order, s.step_id
                 """, flowId).stream().map(row -> new ApprovalFlowStepRow(
                 number(row.get("stepId")),
@@ -236,7 +255,9 @@ public class ApprovalFlowService {
     }
 
     private void replaceSteps(Long flowId, List<ApprovalFlowStepRequest> steps) {
-        jdbcTemplate.update("DELETE FROM approval_flow_step WHERE flow_id = ?", flowId);
+        Integer previous = jdbcTemplate.queryForObject("SELECT MAX(revision_no) FROM approval_flow_step WHERE flow_id=?", Integer.class, flowId);
+        int revision = previous == null ? 1 : previous + 1;
+        jdbcTemplate.update("UPDATE approval_flow_step SET status=0 WHERE flow_id=? AND status=1", flowId);
         List<ApprovalFlowStepRequest> safeSteps = steps == null || steps.isEmpty()
                 ? List.of(new ApprovalFlowStepRequest(null, 1, "一级审批", "role", null, null, null, 1, false, OperatorContext.DATA_SCOPE_ALL, 1))
                 : steps;
@@ -245,8 +266,8 @@ public class ApprovalFlowService {
             int order = step.stepOrder() == null ? fallbackOrder : step.stepOrder();
             jdbcTemplate.update("""
                     INSERT INTO approval_flow_step
-                    (flow_id, step_order, step_name, approver_type, role_id, user_id, dept_id, min_approvals, allow_self_approve, data_scope, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (flow_id, step_order, step_name, approver_type, role_id, user_id, dept_id, min_approvals, allow_self_approve, data_scope, status, revision_no)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     flowId,
                     order,
@@ -258,9 +279,38 @@ public class ApprovalFlowService {
                     nvl(step.minApprovals(), 1),
                     Boolean.TRUE.equals(step.allowSelfApprove()) ? 1 : 0,
                     nvl(step.dataScope(), OperatorContext.DATA_SCOPE_ALL),
-                    nvl(step.status(), 1));
+                    nvl(step.status(), 1), revision);
             fallbackOrder++;
         }
+        jdbcTemplate.update("UPDATE approval_flow SET revision_no=? WHERE flow_id=?", revision, flowId);
+    }
+
+    private ApprovalFlowRequest normalizeCatalogScope(ApprovalFlowRequest request) {
+        if (!"pending-product-catalog".equals(request.featureCode()) || !"initial-review".equals(request.nodeCode())) return request;
+        String scope = defaultText(request.scopeType(), "global");
+        String scopeId = defaultText(request.scopeId(), "default");
+        Long deptId = request.deptId();
+        if ("global".equals(scope)) { scopeId = "default"; deptId = null; }
+        else if ("department".equals(scope)) {
+            if (deptId == null) {
+                try { deptId = Long.valueOf(scopeId); } catch (NumberFormatException error) { throw new IllegalArgumentException("科室范围必须选择科室或填写科室ID"); }
+            }
+            if (deptId <= 0) throw new IllegalArgumentException("科室ID必须大于零");
+            scopeId = deptId.toString();
+        } else if ("role".equals(scope)) {
+            scopeId = scopeId.toLowerCase(java.util.Locale.ROOT).replaceFirst("^role_", "");
+            if ("default".equals(scopeId)) throw new IllegalArgumentException("角色范围必须填写角色编码");
+        } else throw new IllegalArgumentException("目录审批支持全局、科室或角色范围");
+        return new ApprovalFlowRequest(request.featureCode(), request.featureName(), request.nodeCode(), "目录顺序审批",
+                scope, scopeId, request.dataScope(), request.status(), request.remark(), deptId, request.steps());
+    }
+
+    private void requireUniqueCatalogFlow(ApprovalFlowRequest request, Long flowId) {
+        if (!"pending-product-catalog".equals(request.featureCode()) || !"initial-review".equals(request.nodeCode()) || nvl(request.status(), 1) != 1) return;
+        String key = request.scopeType() + ":" + ("global".equals(request.scopeType()) ? "default" : request.scopeId());
+        Integer count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM approval_flow WHERE active_catalog_scope=? AND (? IS NULL OR flow_id<>?)",
+                Integer.class, key, flowId, flowId);
+        if (count != null && count > 0) throw new IllegalArgumentException("该范围已有启用的目录审批流，请编辑现有流程或先停用原流程");
     }
 
     private static void appendOperatorScope(StringBuilder where, List<Object> args, OperatorContext operator) {
@@ -284,6 +334,11 @@ public class ApprovalFlowService {
         textRequired(request.featureName(), "featureName");
         textRequired(request.nodeCode(), "nodeCode");
         textRequired(request.nodeName(), "nodeName");
+        if ("pending-product-catalog".equals(request.featureCode()) && nvl(request.status(), 1) == 1) {
+            if (!"initial-review".equals(request.nodeCode())) throw new IllegalArgumentException("目录审批只配置一条顺序流程，不再追加独立终审");
+            if (request.steps() == null || request.steps().stream().noneMatch(step -> nvl(step.status(), 1) == 1))
+                throw new IllegalArgumentException("目录审批流至少需要一个启用步骤");
+        }
         validateSteps(request.steps());
     }
 
@@ -300,6 +355,7 @@ public class ApprovalFlowService {
             if (!orders.add(order)) {
                 throw new IllegalArgumentException("审批顺序不能重复，请调整后再保存");
             }
+            if (nvl(step.minApprovals(), 1) < 1) throw new IllegalArgumentException("最少通过人数必须大于零");
             textRequired(step.stepName(), "stepName");
             String approverType = defaultText(step.approverType(), "role");
             if ("role".equals(approverType) && step.roleId() == null) {

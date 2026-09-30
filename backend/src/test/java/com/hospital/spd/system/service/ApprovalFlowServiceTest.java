@@ -79,10 +79,10 @@ class ApprovalFlowServiceTest {
 
         assertThat(result).containsEntry("flowId", 88L);
         verify(jdbcTemplate, times(1)).update(
-                eq("DELETE FROM approval_flow_step WHERE flow_id = ?"),
+                eq("UPDATE approval_flow_step SET status=0 WHERE flow_id=? AND status=1"),
                 eq(88L)
         );
-        verify(jdbcTemplate, times(3)).update(anyString(), any(Object[].class));
+        verify(jdbcTemplate, times(4)).update(anyString(), any(Object[].class));
     }
 
     @Test
@@ -91,10 +91,10 @@ class ApprovalFlowServiceTest {
         when(operatorContextProvider.current()).thenReturn(new OperatorContext(
                 9L, "admin", "127.0.0.1", List.of("ROLE_ADMIN"), 3L, OperatorContext.DATA_SCOPE_ALL));
         ApprovalFlowRequest request = new ApprovalFlowRequest(
-                "pending-product-catalog",
-                "待审批目录",
-                "initial-review",
-                "目录初审",
+                "purchase-management",
+                "采购管理",
+                "order-approval",
+                "采购订单审批",
                 "global",
                 "default",
                 OperatorContext.DATA_SCOPE_ALL,
@@ -125,7 +125,7 @@ class ApprovalFlowServiceTest {
 
         assertThat(result).containsEntry("flowId", 66L).containsEntry("updated", 1);
         verify(jdbcTemplate, times(1)).update(
-                eq("DELETE FROM approval_flow_step WHERE flow_id = ?"),
+                eq("UPDATE approval_flow_step SET status=0 WHERE flow_id=? AND status=1"),
                 eq(66L)
         );
     }
@@ -164,10 +164,21 @@ class ApprovalFlowServiceTest {
 
         assertThat(result).containsEntry("updated", 1);
         verify(jdbcTemplate, times(1)).update(
-                eq("DELETE FROM approval_flow_step WHERE flow_id = ?"),
+                eq("UPDATE approval_flow_step SET status=0 WHERE flow_id=? AND status=1"),
                 eq(88L)
         );
-        verify(jdbcTemplate, times(3)).update(anyString(), any(Object[].class));
+        verify(jdbcTemplate, times(4)).update(anyString(), any(Object[].class));
+    }
+
+    @Test
+    void duplicateGlobalCatalogScopeIsRejectedInsteadOfOverwriting() {
+        var request = new ApprovalFlowRequest("pending-product-catalog", "待审批目录", "initial-review", "目录顺序审批",
+                "global", "another-global-name", 1, 1, null, null,
+                List.of(new ApprovalFlowStepRequest(null, 1, "设备科审批", "role", 5L, null, null, 1, false, 1, 1)));
+        when(jdbcTemplate.queryForObject(org.mockito.ArgumentMatchers.contains("active_catalog_scope"), eq(Integer.class),
+                eq("global:default"), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull())).thenReturn(1);
+        assertThatThrownBy(() -> approvalFlowService.create(request)).hasMessageContaining("已有启用的目录审批流");
+        org.mockito.Mockito.verify(jdbcTemplate, org.mockito.Mockito.never()).update(anyString(), any(Object[].class));
     }
 
     @Test

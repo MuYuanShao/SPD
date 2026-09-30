@@ -484,7 +484,7 @@ async function submitResubmitForm() {
   }
   try {
     await resubmitPendingProductApplication(detail.value.applicationNo, resubmitForm)
-    actionMessage.value = '已重新提交，审批单回到初审待审批'
+    actionMessage.value = '已重新提交，按最新审批流从第一步开始审批'
     resubmitModalOpen.value = false
     captureResubmitSnapshot()
     await loadDetail()

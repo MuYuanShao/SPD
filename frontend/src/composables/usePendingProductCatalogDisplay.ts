@@ -92,7 +92,7 @@ export function approvalWideField(row: PendingProductApplicationRow, field: stri
     purchasePrice: money(row.purchasePrice),
     udiCode: row.udiCode || '-',
     quotaManaged: yesNo(row.quotaManaged),
-    wait: row.status.includes('复审') ? '复审中 / 6小时' : row.warning ? '初审中 / 1天' : '初审中 / 18小时'
+    wait: row.status || '-'
   }
   return values[field] ?? '-'
 }

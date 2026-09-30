@@ -172,7 +172,9 @@ public class ProductApprovalService {
                             canApprove = false;
                         }
                     } else {
-                        approvalSteps = loadApprovalSteps();
+                        List<ConfiguredApprovalStep> frozen = catalogApprovalRouteService == null ? List.of()
+                                : catalogApprovalRouteService.configuredSteps(rs.getLong("application_id"), rs.getInt("approval_round"));
+                        approvalSteps = frozen.isEmpty() ? loadApprovalSteps() : frozen;
                         canApprove = isPendingStatus(status) && approvalFlowGuard.hasApprovalAccess(
                                 CATALOG_FEATURE_CODE, CATALOG_NODE_CODE,
                                 currentStepOrder(status, approvalSteps), nullableLong(rs, "submit_dept_id"), rs.getLong("submit_by"));
@@ -259,7 +261,10 @@ public class ProductApprovalService {
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
                                a.is_quota_managed, a.is_key_monitored,
-                               a.approval_status, a.submit_by, a.submit_time
+                               a.approval_status, a.submit_by, a.submit_time,
+                               (SELECT r.step_name FROM pending_product_approval_route_step r
+                                 WHERE r.application_id=a.application_id AND r.approval_round=a.approval_round
+                                   AND r.route_status='pending' ORDER BY r.route_order LIMIT 1) AS current_step_name
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
                         %s
@@ -911,34 +916,24 @@ public class ProductApprovalService {
                 : String.join(",", Collections.nCopies(roles.size(), "?"));
         whereClause.append("""
                 AND EXISTS (
-                  SELECT 1
-                    FROM approval_flow af
-                    JOIN approval_flow_step step ON step.flow_id = af.flow_id AND step.status = 1
-                    LEFT JOIN sys_role role ON role.role_id = step.role_id
-                   WHERE af.feature_code = 'pending-product-catalog'
-                     AND af.node_code = 'initial-review'
-                     AND af.status = 1 AND af.deleted = 0
-                     AND step.step_order = %s
-                     AND (step.allow_self_approve = 1 OR a.submit_by <> ?)
-                     AND (
-                       (step.approver_type = 'user' AND step.user_id = ?)
-                       OR (step.approver_type = 'role' AND LOWER(REPLACE(role.role_code, 'ROLE_', '')) IN (%s))
-                       OR (step.approver_type = 'dept_manager' AND ? IS NOT NULL
-                           AND (step.dept_id IS NULL OR step.dept_id = ?))
-                     )
-                     AND (
-                       af.scope_type IS NULL OR af.scope_type = 'global'
-                       OR (af.scope_type = 'role' AND LOWER(REPLACE(af.scope_id, 'ROLE_', '')) IN (%s))
-                       OR (af.scope_type = 'department' AND CAST(af.scope_id AS UNSIGNED) = ?)
-                     )
+                  SELECT 1 FROM pending_product_approval_route_step step
+                  LEFT JOIN sys_role role ON role.role_id=step.role_id AND role.status=1 AND role.deleted=0
+                  LEFT JOIN sys_user applicant ON applicant.user_id=a.submit_by
+                  WHERE step.application_id=a.application_id AND step.approval_round=a.approval_round
+                    AND step.route_status='pending'
+                    AND (step.allow_self_approve=1 OR a.submit_by<>?)
+                    AND ((step.approver_type='user' AND step.user_id=?)
+                      OR (step.approver_type='role' AND (CASE WHEN LEFT(LOWER(role.role_code),5)='role_' THEN SUBSTRING(LOWER(role.role_code),6) ELSE LOWER(role.role_code) END) IN (%s))
+                      OR (step.approver_type='dept_manager' AND COALESCE(step.dept_id,applicant.dept_id)=?))
+                    AND (step.data_scope<=1 OR (step.data_scope=4 AND a.submit_by=?)
+                      OR (step.data_scope>1 AND step.data_scope<>4 AND applicant.dept_id=?))
                 )
-                """.formatted(currentStep, rolePlaceholders, rolePlaceholders));
+                """.formatted(rolePlaceholders));
         args.add(operator.userId());
         args.add(operator.userId());
         args.addAll(roles);
         args.add(operator.deptId());
-        args.add(operator.deptId());
-        args.addAll(roles);
+        args.add(operator.userId());
         args.add(operator.deptId());
     }
 

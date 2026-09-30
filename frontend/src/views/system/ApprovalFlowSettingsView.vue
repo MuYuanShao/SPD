@@ -55,8 +55,8 @@ const featureNameMap: Record<string, string> = {
 }
 
 const nodeNameMap: Record<string, string> = {
-  'initial-review': '目录初审',
-  'final-review': '目录终审',
+  'initial-review': '目录顺序审批',
+  'final-review': '历史目录终审（不用于新单）',
   'demand-review': '采购需求审核',
   'plan-approval': '采购计划审批',
   'order-approval': '采购订单审批',
@@ -160,7 +160,7 @@ function ensureActiveForm() {
   if (editingFlowId.value && rows.value.some((row) => row.flowId === editingFlowId.value)) {
     return
   }
-  const firstRow = rows.value[0]
+  const firstRow = rows.value.find(row => row.status === 1) ?? rows.value[0]
   if (firstRow) {
     openEdit(firstRow, false)
     return
@@ -247,7 +247,8 @@ function openEdit(row: ApprovalFlowRow, notify = true) {
 
 function onNodeChange(event: Event) {
   const value = (event.target as HTMLSelectElement).value
-  const existing = rows.value.find((row) => row.featureCode === value)
+  const existing = rows.value.find((row) => row.featureCode === value && row.status === 1)
+    ?? rows.value.find((row) => row.featureCode === value)
   if (existing) {
     openEdit(existing)
     return
@@ -287,6 +288,7 @@ function removeStep(index: number) {
     return
   }
   form.steps.splice(index, 1)
+  form.steps.forEach((step, order) => { step.stepOrder = order + 1 })
 }
 
 function normalizeStepOrders() {
@@ -327,10 +329,16 @@ async function saveFlow() {
   try {
     saving.value = true
     const existingFlow = editingFlowId.value ? undefined : findExistingFlow(payload)
+    if (!editingFlowId.value && existingFlow && payload.featureCode === 'pending-product-catalog') {
+      error.value = '该范围已有目录审批流，请选择现有流程编辑，不会自动覆盖原配置'
+      return
+    }
     const targetFlowId = editingFlowId.value ?? existingFlow?.flowId
     if (targetFlowId) {
       await updateApprovalFlow(targetFlowId, payload)
-      message.value = '审批流配置已保存成功，当前页面已锁定。点击“审批流配置”可继续修改。'
+      message.value = payload.featureCode === 'pending-product-catalog'
+        ? '审批流配置已保存。新提交和退回重提使用新配置，在途单据保留原审批流程。'
+        : '审批流配置已保存成功，当前页面已锁定。'
     } else {
       const result = await createApprovalFlow(payload)
       editingFlowId.value = result.flowId
@@ -464,6 +472,7 @@ onMounted(loadAll)
       <div class="approval-config-count">共 <strong>{{ rows.length }}</strong> 条配置</div>
     </header>
 
+    <p v-if="form.featureCode === 'pending-product-catalog'" class="inline-message">目录按当前顺序流的启用步骤依次审批，最后一步通过即结束，不再额外拼接终审。修改不改变已提交单据的审批路线。</p>
     <p v-if="message" class="inline-message">{{ message }}</p>
     <p v-if="error" class="inline-message danger">{{ error }}</p>
 
@@ -501,7 +510,7 @@ onMounted(loadAll)
         <label>
           <span>适用范围</span>
           <select v-model="form.scopeType" :disabled="!editMode">
-            <option v-for="scope in scopeOptions" :key="scope.value" :value="scope.value">{{ scope.label }}</option>
+            <option v-for="scope in scopeOptions.filter(item => form.featureCode !== 'pending-product-catalog' || item.value !== 'warehouse')" :key="scope.value" :value="scope.value">{{ scope.label }}</option>
           </select>
         </label>
         <label>

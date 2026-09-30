@@ -33,7 +33,7 @@ public class CatalogApprovalRouteService {
     public String snapshotRoute(long applicationId, int approvalRound, String applicationType, Long documentDeptId) {
         List<Node> nodes = "价格调整".equals(applicationType)
                 ? List.of(new Node(PRICE_FEATURE, PRICE_NODE))
-                : List.of(new Node(CATALOG_FEATURE, INITIAL_NODE), new Node(CATALOG_FEATURE, FINAL_NODE));
+                : List.of(new Node(CATALOG_FEATURE, INITIAL_NODE));
         List<RouteStep> route = new ArrayList<>();
         int routeOrder = 1;
         for (Node node : nodes) {
@@ -84,6 +84,7 @@ public class CatalogApprovalRouteService {
                  WHERE a.application_id = ? AND a.approval_round = ?
                    AND a.submit_time < (SELECT MIN(installed_on) FROM flyway_schema_history
                                         WHERE version = '71' AND success = 1)
+                   AND NOT EXISTS (SELECT 1 FROM flyway_schema_history WHERE version='86' AND success=1)
                    AND NOT EXISTS (SELECT 1 FROM pending_product_approval_route_step r
                                     WHERE r.application_id = a.application_id
                                       AND r.approval_round = a.approval_round)
@@ -91,7 +92,7 @@ public class CatalogApprovalRouteService {
         return count != null && count == 1;
     }
 
-    /** Lazily freezes a safe route for pre-V71 applications. */
+    /** Legacy pending routes are frozen by migration; never reconstruct a submitted route from current settings. */
     public void ensureLegacyRoute(long applicationId, int approvalRound, String applicationType,
                                   String currentStatus, Long documentDeptId) {
         Integer count = jdbcTemplate.queryForObject("""
@@ -99,29 +100,7 @@ public class CatalogApprovalRouteService {
                  WHERE application_id = ? AND approval_round = ?
                 """, Integer.class, applicationId, approvalRound);
         if (count != null && count > 0) return;
-        if (currentStatus != null && currentStatus.startsWith("pending_step_")) {
-            throw new IllegalArgumentException("历史审批步骤无法安全映射，请管理员处理审批路由");
-        }
-        snapshotRoute(applicationId, approvalRound, applicationType, documentDeptId);
-        if ("pending_final".equals(currentStatus)) {
-            jdbcTemplate.update("""
-                    UPDATE pending_product_approval_route_step
-                       SET route_status = 'completed', complete_time = NOW()
-                     WHERE application_id = ? AND approval_round = ? AND node_code = ?
-                    """, applicationId, approvalRound, INITIAL_NODE);
-            jdbcTemplate.update("""
-                    UPDATE pending_product_approval_route_step
-                       SET route_status = CASE
-                         WHEN route_order = (SELECT first_final FROM (SELECT MIN(route_order) first_final
-                           FROM pending_product_approval_route_step WHERE application_id = ? AND approval_round = ?
-                             AND node_code = ?) x) THEN 'pending' ELSE 'waiting' END,
-                           complete_time = NULL
-                     WHERE application_id = ? AND approval_round = ? AND node_code = ?
-                    """, applicationId, approvalRound, FINAL_NODE,
-                    applicationId, approvalRound, FINAL_NODE);
-        } else if (!"pending_initial".equals(currentStatus)) {
-            throw new IllegalArgumentException("当前审批状态无法生成兼容路由");
-        }
+        throw new IllegalArgumentException("历史审批步骤无法安全映射：缺少提交时流程快照，请管理员核查");
     }
 
     public RouteSnapshotStep currentStep(long applicationId, int approvalRound) {
@@ -166,8 +145,7 @@ public class CatalogApprovalRouteService {
         boolean allowed = switch (step.approverType()) {
             case "user" -> Objects.equals(step.userId(), operator.userId());
             case "dept_manager" -> operator.deptId() != null
-                    && (step.deptId() == null || Objects.equals(step.deptId(), operator.deptId()))
-                    && (documentDeptId == null || Objects.equals(documentDeptId, operator.deptId()));
+                    && Objects.equals(step.deptId() != null ? step.deptId() : documentDeptId, operator.deptId());
             default -> step.roleId() != null && roleCode(step.roleId()).map(roles::contains).orElse(false);
         };
         if (!allowed) throw new IllegalArgumentException("当前用户无权审批该节点");
@@ -227,6 +205,7 @@ public class CatalogApprovalRouteService {
                 SELECT flow_id AS flowId, scope_type AS scopeType, scope_id AS scopeId, dept_id AS deptId
                   FROM approval_flow
                  WHERE feature_code = ? AND node_code = ? AND status = 1 AND deleted = 0
+                 FOR UPDATE
                 """, node.featureCode(), node.nodeCode());
         OperatorContext operator = operatorContextProvider.current();
         List<String> roles = operator.roles() == null ? List.of() : operator.roles().stream()
@@ -252,7 +231,7 @@ public class CatalogApprovalRouteService {
         if ("department".equals(type)) {
             Long configured = number(flow.get("deptId"));
             if (configured == null) configured = parseLong(text(flow.get("scopeId")));
-            return Objects.equals(configured, documentDeptId) || Objects.equals(configured, operatorDeptId);
+            return Objects.equals(configured, documentDeptId != null ? documentDeptId : operatorDeptId);
         }
         return "role".equals(type) && roles.contains(normalizeRole(text(flow.get("scopeId"))));
     }

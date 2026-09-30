@@ -529,7 +529,7 @@ class ProductApprovalServiceTest {
             verify(jdbcTemplate).queryForObject(
                     argThat(sql -> sql.contains("NOT EXISTS")
                             && sql.contains("pending_product_approval_action")
-                            && sql.contains("approval_flow_step")
+                            && sql.contains("pending_product_approval_route_step")
                             && sql.contains("step_order")),
                     eq(Long.class), any(Object[].class));
         }

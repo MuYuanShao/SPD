@@ -755,7 +755,8 @@ thead .approval-sticky-action {
 
 .approval-sticky-action {
   right: 0;
-  width: 160px;
+  width: 250px;
+  min-width: 250px;
   text-align: right !important;
   box-shadow: -10px 0 16px rgba(16, 32, 51, 0.06);
 }

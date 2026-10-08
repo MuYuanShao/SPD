@@ -38,6 +38,7 @@ public class PendingProductAttachmentService {
     private final OperatorContextProvider operatorContextProvider;
     private final ApprovalFlowGuard approvalFlowGuard;
     private final Path uploadRoot;
+    private final Path licenseUploadRoot;
     private final CatalogApprovalRouteService catalogApprovalRouteService;
 
     public PendingProductAttachmentService(JdbcTemplate jdbcTemplate,
@@ -57,7 +58,8 @@ public class PendingProductAttachmentService {
         this.operatorContextProvider = operatorContextProvider;
         this.approvalFlowGuard = approvalFlowGuard;
         this.catalogApprovalRouteService = catalogApprovalRouteService;
-        this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize().resolve("pending-products");
+        this.licenseUploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+        this.uploadRoot = licenseUploadRoot.resolve("pending-products");
         try {
             Files.createDirectories(uploadRoot);
         } catch (IOException ex) {
@@ -75,6 +77,52 @@ public class PendingProductAttachmentService {
                  WHERE biz_type = 'pending_product_application' AND biz_id = ? AND deleted = 0
                  ORDER BY attachment_id
                 """, number(application.get("applicationId")));
+    }
+
+    /** Includes current linked licenses without changing the immutable submitted approval route. */
+    public List<Map<String, Object>> qualificationAttachments(String applicationNo) {
+        Map<String, Object> application = requireAccess(applicationNo);
+        Long applicationId = number(application.get("applicationId"));
+        return jdbcTemplate.queryForList("""
+                SELECT a.attachment_id AS attachmentId, a.file_name AS fileName, a.file_type AS contentType,
+                       a.file_size AS fileSize, a.category, DATE_FORMAT(a.create_time, '%Y-%m-%d %H:%i') AS createTime,
+                       'application' AS source, NULL AS licenseName, NULL AS licenseNo, NULL AS ownerName,
+                       NULL AS licenseType, NULL AS expireDate, NULL AS licenseStatus
+                  FROM sys_attachment a
+                 WHERE a.biz_type='pending_product_application' AND a.biz_id=? AND a.deleted=0
+                UNION ALL
+                SELECT a.attachment_id, a.file_name, a.file_type, a.file_size, a.category,
+                       DATE_FORMAT(a.create_time, '%Y-%m-%d %H:%i'), 'license', l.license_name,
+                       l.license_no, l.owner_name, l.license_type, DATE_FORMAT(l.expire_date, '%Y-%m-%d'),
+                       CASE WHEN l.status=0 THEN 'invalid' WHEN l.expire_date<CURRENT_DATE THEN 'expired'
+                            WHEN l.issue_date>CURRENT_DATE THEN 'not_effective' ELSE 'valid' END
+                  FROM sys_attachment a JOIN license_document l ON a.biz_type='license' AND a.biz_id=l.license_id
+                  JOIN pending_product_application p ON p.application_id=?
+                  LEFT JOIN product pr ON pr.product_code=p.product_code AND pr.deleted=0
+                 WHERE a.deleted=0 AND l.deleted=0
+                   AND (l.license_type<>'contract' OR l.license_no=p.contract_code)
+                   AND (
+                     (COALESCE(NULLIF(l.owner_type,''),l.license_type)='product' AND
+                       (l.owner_id=pr.product_id OR (l.owner_id IS NULL AND l.owner_code=p.product_code)))
+                     OR (COALESCE(NULLIF(l.owner_type,''),l.license_type)='supplier' AND
+                       (l.owner_id=COALESCE(p.supplier_id,pr.supplier_id) OR (l.owner_id IS NULL AND l.owner_code=
+                         (SELECT supplier_code FROM supplier WHERE supplier_id=COALESCE(p.supplier_id,pr.supplier_id)))))
+                     OR (COALESCE(NULLIF(l.owner_type,''),l.license_type)='manufacturer' AND
+                       (l.owner_id=COALESCE(p.manufacturer_id,pr.manufacturer_id) OR (l.owner_id IS NULL AND l.owner_code=
+                         (SELECT manufacturer_code FROM manufacturer WHERE manufacturer_id=COALESCE(p.manufacturer_id,pr.manufacturer_id)))))
+                   )
+                 ORDER BY source, attachmentId
+                """, applicationId, applicationId);
+    }
+
+    public ResponseEntity<Resource> previewQualification(String applicationNo, Long attachmentId) {
+        Map<String, Object> linked = qualificationAttachments(applicationNo).stream()
+                .filter(row -> Objects.equals(number(row.get("attachmentId")), attachmentId))
+                .findFirst().orElseThrow(() -> new IllegalArgumentException("附件未关联当前审批申请或已删除"));
+        String storedName = jdbcTemplate.queryForObject("SELECT file_path FROM sys_attachment WHERE attachment_id=? AND deleted=0",
+                String.class, attachmentId);
+        Path root = "license".equals(linked.get("source")) ? licenseUploadRoot : uploadRoot;
+        return fileResponse(root, storedName, String.valueOf(linked.get("fileName")), String.valueOf(linked.get("contentType")));
     }
 
     @Transactional
@@ -124,16 +172,21 @@ public class PendingProductAttachmentService {
     public ResponseEntity<Resource> preview(Long attachmentId) {
         Map<String, Object> row = attachment(attachmentId);
         requireAccess(String.valueOf(row.get("applicationNo")));
-        Path file = uploadRoot.resolve(String.valueOf(row.get("filePath"))).normalize();
-        if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) {
-            throw new IllegalArgumentException("证照附件文件不存在");
-        }
-        String encodedName = URLEncoder.encode(String.valueOf(row.get("fileName")), StandardCharsets.UTF_8)
-                .replace("+", "%20");
+        return fileResponse(uploadRoot, String.valueOf(row.get("filePath")),
+                String.valueOf(row.get("fileName")), String.valueOf(row.get("contentType")));
+    }
+
+    private ResponseEntity<Resource> fileResponse(Path root, String storedName, String name, String contentType) {
+        if (storedName == null || storedName.isBlank()) throw new IllegalArgumentException("证照附件文件不存在");
+        Path file = root.resolve(storedName).normalize();
+        if (!file.startsWith(root) || !Files.isRegularFile(file)) throw new IllegalArgumentException("证照附件文件不存在");
+        String encodedName = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+        String safeContentType = List.of("application/pdf", "image/png", "image/jpeg", "image/webp", "image/gif").contains(contentType)
+                ? contentType : MediaType.APPLICATION_OCTET_STREAM_VALUE;
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" + encodedName)
                 .header("X-Content-Type-Options", "nosniff")
-                .contentType(MediaType.parseMediaType(String.valueOf(row.get("contentType"))))
+                .contentType(MediaType.parseMediaType(safeContentType))
                 .body(new FileSystemResource(file));
     }
 

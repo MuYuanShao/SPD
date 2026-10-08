@@ -18,7 +18,6 @@ import java.util.Optional;
 public class CatalogApprovalRouteService {
     static final String CATALOG_FEATURE = "pending-product-catalog";
     static final String INITIAL_NODE = "initial-review";
-    static final String FINAL_NODE = "final-review";
     static final String PRICE_FEATURE = "batch-price-adjustment";
     static final String PRICE_NODE = "price-adjustment-approval";
 

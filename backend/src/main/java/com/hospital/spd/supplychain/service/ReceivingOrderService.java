@@ -337,7 +337,7 @@ public class ReceivingOrderService {
     @Transactional
     public Map<String, Object> action(String receivingNo, ReceivingActionRequest request) {
         Map<String, Object> order = jdbcTemplate.queryForMap("""
-                SELECT receiving_order_id AS receivingOrderId, purchase_order_id AS purchaseOrderId,
+                SELECT ro.receiving_order_id AS receivingOrderId, ro.purchase_order_id AS purchaseOrderId,
                        ro.warehouse_id AS warehouseId, ro.supplier_id AS supplierId, ro.receiver_id AS receiverId,
                        ro.receiving_status AS receivingStatus, ro.receiving_type AS receivingType,
                        ro.is_agent AS isAgent, w.dept_id AS warehouseDeptId,

@@ -47,6 +47,9 @@ const saving = ref(false)
 const formLoading = ref(false)
 const renewalMode = ref(false)
 const previousExpiry = ref('')
+const formAttachmentFiles = ref<File[]>([])
+const createdFormLicenseId = ref<number | null>(null)
+const uploadedFormAttachmentCount = ref(0)
 const ownerKeyword = ref('')
 const ownerOptions = ref<LicenseOwnerOption[]>([])
 const ownerLoading = ref(false)
@@ -168,7 +171,38 @@ function onSearch() {
   loadList()
 }
 
+function resetFormAttachments() {
+  formAttachmentFiles.value = []
+  createdFormLicenseId.value = null
+  uploadedFormAttachmentCount.value = 0
+}
+
+function closeFormModal() {
+  if (saving.value) return
+  showFormModal.value = false
+  resetFormAttachments()
+}
+
+function selectFormAttachments(event: Event) {
+  const input = event.target as HTMLInputElement
+  const selected = Array.from(input.files ?? [])
+  const invalid: string[] = []
+  for (const file of selected) {
+    if (!/\.(pdf|png|jpe?g|gif|webp)$/i.test(file.name) || file.size === 0) {
+      invalid.push(file.name)
+      continue
+    }
+    if (!formAttachmentFiles.value.some(existing => existing.name === file.name
+        && existing.size === file.size && existing.lastModified === file.lastModified)) {
+      formAttachmentFiles.value.push(file)
+    }
+  }
+  input.value = ''
+  message.value = invalid.length ? `以下文件为空或格式不支持：${invalid.join('、')}。请选择 PDF 或图片文件。` : ''
+}
+
 function openCreateModal() {
+  resetFormAttachments()
   renewalMode.value = false
   ownerKeyword.value = ''; ownerOptions.value = []; ownerSearched.value = false
   editId.value = null
@@ -183,6 +217,7 @@ async function openEditModal(row: LicenseRow, renewal = false) {
   formLoading.value = true; message.value = ''
   try {
     const detail = await fetchLicenseDetail(row.id)
+    resetFormAttachments()
     editId.value = row.id
     renewalMode.value = renewal
     previousExpiry.value = detail.expireDate || ''
@@ -197,6 +232,7 @@ async function openEditModal(row: LicenseRow, renewal = false) {
 }
 
 async function submitForm() {
+  if (saving.value) return
   if (!form.value.licenseName.trim()) {
     message.value = '证照名称为必填项'
     return
@@ -206,8 +242,23 @@ async function submitForm() {
   message.value = ''
   try {
     if (editId.value === null) {
-      await createLicense(form.value)
-      message.value = '证照已新增'
+      if (createdFormLicenseId.value === null) {
+        const result = await createLicense(form.value)
+        createdFormLicenseId.value = result.id
+        form.value.revisionNo = 1
+      } else {
+        await updateLicense(createdFormLicenseId.value, form.value)
+        form.value.revisionNo = (form.value.revisionNo ?? 1) + 1
+      }
+      // Remove only acknowledged uploads so retries keep the same license and remaining files.
+      while (formAttachmentFiles.value.length) {
+        const file = formAttachmentFiles.value[0]
+        await uploadLicenseAttachment(createdFormLicenseId.value, file, 'license')
+        formAttachmentFiles.value.shift()
+        uploadedFormAttachmentCount.value += 1
+        form.value.revisionNo = (form.value.revisionNo ?? 1) + 1
+      }
+      message.value = uploadedFormAttachmentCount.value ? '证照已新增，附件上传成功' : '证照已新增'
     } else if (renewalMode.value) {
       await renewLicense(editId.value, form.value)
       message.value = '续证已保存，到期联动按最新有效期自动恢复'
@@ -216,9 +267,16 @@ async function submitForm() {
       message.value = '证照已保存'
     }
     showFormModal.value = false
+    resetFormAttachments()
     await loadList()
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '证照保存失败'
+    const detail = err instanceof Error ? err.message : '证照保存失败'
+    if (createdFormLicenseId.value !== null) {
+      message.value = `证照已保存，当前还有 ${formAttachmentFiles.value.length} 个附件未上传。本次保存未完成：${detail}。请重试保存。`
+      await loadList()
+    } else {
+      message.value = detail
+    }
   } finally {
     saving.value = false
   }
@@ -403,17 +461,17 @@ onUnmounted(closePreview)
     </div>
 
     <!-- 新增 / 编辑证照 -->
-    <div v-if="showFormModal" class="attachment-preview-mask" @click.self="showFormModal = false">
+    <div v-if="showFormModal" class="attachment-preview-mask" @click.self="closeFormModal">
       <section class="supplier-dialog product-dialog license-form-dialog" role="dialog" aria-modal="true">
         <header>
           <div>
             <p>{{ activeTabInfo.label }}</p>
             <h3>{{ renewalMode ? '续证' : editId === null ? '新增' : '编辑' }}{{ activeTabInfo.label }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="showFormModal = false"><X :size="18" /></button>
+          <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="closeFormModal"><X :size="18" /></button>
         </header>
         <form @submit.prevent="submitForm">
-          <div class="supplier-form-grid compact">
+          <fieldset class="supplier-form-grid compact license-form-fields" :disabled="saving">
             <label class="wide"><span>证照名称</span><input v-model.trim="form.licenseName" required /></label>
             <label><span>{{ isContract ? '合同编号' : '证照编号' }}</span><input v-model.trim="form.licenseNo" /></label>
             <label v-if="isContract"><span>所属主体类型</span><select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" @change="resetOwner"><option value="supplier">供应商</option><option value="manufacturer">厂家</option><option value="product">商品</option></select></label>
@@ -442,10 +500,29 @@ onUnmounted(closePreview)
               </select>
             </label>
             <label class="wide"><span>备注</span><textarea v-model.trim="form.remark" rows="2" /></label>
-          </div>
+            <div v-if="editId === null" class="wide license-form-attachments">
+              <div class="license-form-upload-row">
+                <span>证照附件</span>
+                <label class="btn">
+                  <Upload :size="15" /> 选择附件
+                  <input type="file" hidden multiple aria-label="选择证照附件" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" @change="selectFormAttachments" />
+                </label>
+                <small>支持多选 PDF 与图片，点击保存后上传</small>
+              </div>
+              <p v-if="uploadedFormAttachmentCount" class="license-form-uploaded">已上传 {{ uploadedFormAttachmentCount }} 个附件</p>
+              <ul v-if="formAttachmentFiles.length" class="license-form-file-list">
+                <li v-for="(file, index) in formAttachmentFiles" :key="`${file.name}-${file.size}-${file.lastModified}`">
+                  <span :title="file.name">{{ file.name }}</span>
+                  <small>{{ (file.size / 1024).toFixed(1) }} KB</small>
+                  <button type="button" class="btn-text btn-text-danger" :aria-label="`移除附件 ${file.name}`" @click="formAttachmentFiles.splice(index, 1)"><X :size="14" /> 移除</button>
+                </li>
+              </ul>
+              <small v-else-if="!uploadedFormAttachmentCount">尚未选择附件</small>
+            </div>
+          </fieldset>
           <p v-if="message" class="license-message" role="alert">{{ message }}</p>
           <div class="dialog-actions">
-            <button class="btn" type="button" :disabled="saving" @click="showFormModal = false">取消</button>
+            <button class="btn" type="button" :disabled="saving" @click="closeFormModal">取消</button>
             <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
           </div>
         </form>
@@ -648,6 +725,66 @@ onUnmounted(closePreview)
   padding: 12px;
   font-size: 13px;
   color: #64748b;
+}
+.supplier-form-grid.license-form-fields {
+  padding: 12px 16px;
+  gap: 10px;
+  border: 0;
+  margin: 0;
+  min-width: 0;
+}
+.license-form-attachments {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
+.license-form-upload-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.license-form-upload-row label.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.license-form-attachments small {
+  color: #64748b;
+  font-size: 12px;
+}
+.license-form-upload-row > span {
+  color: #475569;
+  font-size: 13px;
+}
+.license-form-file-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  max-height: 120px;
+  overflow: auto;
+}
+.license-form-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+}
+.license-form-file-list li > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+.license-form-file-list li > button,
+.license-form-file-list li > small {
+  flex-shrink: 0;
+}
+.license-form-uploaded {
+  font-size: 12px;
+  color: #047857;
+  margin: 6px 0;
 }
 .license-form-dialog {
   width: min(680px, 92vw);

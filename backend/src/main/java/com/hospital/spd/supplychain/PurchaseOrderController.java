@@ -116,6 +116,11 @@ public class PurchaseOrderController {
         return ApiResponse.ok(service.getTracking(orderNo));
     }
 
+    @GetMapping("/product-selection")
+    public ApiResponse<Map<String, Object>> productSelection(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.listSelectableProducts(params));
+    }
+
     @GetMapping("/options")
     public ApiResponse<Map<String, Object>> options() {
         return ApiResponse.ok(service.getOptions());

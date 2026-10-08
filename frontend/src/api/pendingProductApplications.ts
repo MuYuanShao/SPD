@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios'
 import { deleteData, getData, http, postData, putData } from './http'
 import type { PartnerOption } from './masterData'
 
@@ -13,6 +14,13 @@ export interface PendingProductAttachment {
   fileSize: number
   category: string
   createTime: string
+  source?: 'application' | 'license'
+  licenseName?: string
+  licenseNo?: string
+  ownerName?: string
+  licenseType?: string
+  expireDate?: string
+  licenseStatus?: string
 }
 
 export interface PendingProductTypeCount {
@@ -192,6 +200,31 @@ export async function fetchPendingProductApplicationDetail(applicationNo: string
 
 export async function fetchPendingProductAttachments(applicationNo: string) {
   return getData<PendingProductAttachment[]>(`/pending-product-applications/${applicationNo}/attachments`)
+}
+
+export function fetchPendingProductQualificationAttachments(applicationNo: string) {
+  return getData<PendingProductAttachment[]>(`/pending-product-applications/${encodeURIComponent(applicationNo)}/qualification-attachments`)
+}
+
+export async function fetchPendingProductQualificationBlob(applicationNo: string, attachmentId: number) {
+  try {
+    const response = await http.get<Blob>(
+      `/pending-product-applications/${encodeURIComponent(applicationNo)}/qualification-attachments/${attachmentId}/file`,
+      { responseType: 'blob' }
+    )
+    if (response.data.type.includes('json')) {
+      const result = JSON.parse(await response.data.text())
+      throw new Error(result.message || '附件读取失败')
+    }
+    return response.data
+  } catch (error) {
+    if (isAxiosError(error) && error.response?.data instanceof Blob) {
+      let message = ''
+      try { message = JSON.parse(await error.response.data.text()).message || '' } catch { /* Binary transport error. */ }
+      if (message) throw new Error(message)
+    }
+    throw error
+  }
 }
 
 export async function fetchPendingProductAttachmentBlob(attachmentId: number) {

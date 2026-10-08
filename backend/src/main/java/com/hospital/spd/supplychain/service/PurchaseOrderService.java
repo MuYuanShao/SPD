@@ -600,6 +600,48 @@ public class PurchaseOrderService {
         return trackingRows(orderId);
     }
 
+    /** 科室目录仅限定科室入口，普通新增始终查询启用的医院商品目录。 */
+    public Map<String, Object> listSelectableProducts(Map<String, String> params) {
+        permissionGuard.require("purchase-demand:create");
+        PageRequest pageReq = PageRequest.from(params);
+        List<Object> args = new ArrayList<>();
+        StringBuilder where = new StringBuilder(" WHERE p.deleted = 0 AND p.status = 1");
+        if ("department".equals(params.get("scope"))) {
+            if (isBlank(params.get("deptCode"))) {
+                throw new IllegalArgumentException("目前没有选择发起科室，请先选择发起科室");
+            }
+            Long deptId = resolveDemandDepartment(Map.of("deptCode", params.get("deptCode")));
+            where.append("""
+                     AND EXISTS (
+                       SELECT 1 FROM department_warehouse_catalog dwc
+                       JOIN warehouse w ON w.warehouse_id = dwc.warehouse_id
+                        AND w.deleted = 0 AND w.status = 1
+                       WHERE dwc.product_id = p.product_id AND dwc.dept_id = ?
+                         AND dwc.deleted = 0 AND dwc.status = 1
+                     )
+                    """);
+            args.add(deptId);
+        }
+        if (!isBlank(params.get("keyword"))) {
+            where.append(" AND (p.product_code LIKE ? OR p.product_name LIKE ? OR p.spec_model LIKE ?)");
+            String keyword = "%" + params.get("keyword").trim() + "%";
+            args.add(keyword);
+            args.add(keyword);
+            args.add(keyword);
+        }
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM product p" + where,
+                Long.class, args.toArray());
+        List<Object> rowArgs = new ArrayList<>(args);
+        rowArgs.add(pageReq.size());
+        rowArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, p.unit, p.purchase_price AS purchasePrice
+                  FROM product p
+                """ + where + " ORDER BY p.product_code, p.product_id LIMIT ? OFFSET ?", rowArgs.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
     public Map<String, Object> getOptions() {
         List<Map<String, Object>> suppliers = jdbcTemplate.queryForList("""
                 SELECT supplier_name AS supplierName

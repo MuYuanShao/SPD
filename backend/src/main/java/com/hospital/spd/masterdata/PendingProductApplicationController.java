@@ -117,6 +117,16 @@ public class PendingProductApplicationController {
                 .body(importExportService.template());
     }
 
+    @GetMapping("/{applicationNo}/qualification-attachments")
+    public ApiResponse<List<Map<String, Object>>> qualificationAttachments(@PathVariable String applicationNo) {
+        return ApiResponse.ok(attachmentService.qualificationAttachments(applicationNo));
+    }
+
+    @GetMapping("/{applicationNo}/qualification-attachments/{attachmentId}/file")
+    public ResponseEntity<Resource> qualificationFile(@PathVariable String applicationNo, @PathVariable Long attachmentId) {
+        return attachmentService.previewQualification(applicationNo, attachmentId);
+    }
+
     @GetMapping("/{applicationNo}/attachments")
     public ApiResponse<List<Map<String, Object>>> attachments(@PathVariable String applicationNo) {
         return ApiResponse.ok(attachmentService.list(applicationNo));

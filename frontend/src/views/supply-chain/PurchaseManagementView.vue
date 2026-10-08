@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { fetchPurchaseSelectableProducts, type PurchaseProductOption } from '../../api/purchaseOrders'
 import {
   Ban,
   CheckCircle2,
@@ -40,6 +41,7 @@ const {
   showSmartAnalysisDialog,
   smartAnalysisLoading,
   smartAnalysisError,
+  products,
   suppliers,
   departments,
   loading,
@@ -76,7 +78,6 @@ const {
   statusOptions,
   actionQueryLabel,
   filteredProducts,
-  demandFilteredProducts,
   demandValidItemCount,
   demandEstimatedAmount,
   productByCode,
@@ -99,7 +100,6 @@ const {
   changePurchasePageSize,
   submitCreate,
   submitDemand,
-  addDemandItem,
   removeDemandItem,
   generatePlans,
   runOrderAction,
@@ -120,6 +120,101 @@ const {
   closeOrderAttachmentDialog
 } = usePurchaseManagement()
 const authStore = useAuthStore()
+
+const showProductPicker = ref(false)
+const pickerScope = ref<'hospital' | 'department'>('hospital')
+const pickerDeptCode = ref('')
+const pickerKeyword = ref('')
+const pickerRows = ref<PurchaseProductOption[]>([])
+const pickerSelected = reactive(new Map<string, PurchaseProductOption>())
+const pickerLoading = ref(false)
+const pickerError = ref('')
+const entryMessage = ref('')
+const pickerPagination = reactive({ page: 1, size: 20, total: 0 })
+let pickerRequestId = 0
+const visibleDemandItems = computed(() => demandForm.items
+  .map((item, index) => ({ item, index }))
+  .filter(({ item }) => {
+    const product = productByCode(item.productCode)
+    const keyword = demandProductSearchQuery.value.trim().toLowerCase()
+    return !keyword || [product?.productCode, product?.productName, product?.specModel]
+      .some(value => value?.toLowerCase().includes(keyword))
+  }))
+
+watch(showDemandModal, () => {
+  showProductPicker.value = false
+  entryMessage.value = ''
+})
+watch(() => demandForm.deptCode, () => {
+  entryMessage.value = ''
+  if (pickerScope.value === 'department') showProductPicker.value = false
+})
+watch(showProductPicker, value => {
+  if (!value) {
+    pickerRequestId++
+    pickerLoading.value = false
+    pickerSelected.clear()
+  }
+})
+
+async function loadPickerProducts(page = 1) {
+  const requestId = ++pickerRequestId
+  pickerLoading.value = true
+  pickerError.value = ''
+  pickerRows.value = []
+  pickerPagination.page = page
+  try {
+    const result = await fetchPurchaseSelectableProducts({
+      scope: pickerScope.value,
+      deptCode: pickerScope.value === 'department' ? pickerDeptCode.value : '',
+      keyword: pickerKeyword.value,
+      page: String(page), size: String(pickerPagination.size)
+    })
+    if (requestId !== pickerRequestId) return
+    pickerRows.value = result.rows
+    pickerPagination.total = result.total
+  } catch (error) {
+    if (requestId !== pickerRequestId) return
+    pickerError.value = error instanceof Error ? error.message : '商品目录加载失败'
+    pickerPagination.total = 0
+  } finally {
+    if (requestId === pickerRequestId) pickerLoading.value = false
+  }
+}
+
+function openProductPicker(scope: 'hospital' | 'department') {
+  if (scope === 'department' && !demandForm.deptCode) {
+    entryMessage.value = '目前没有选择发起科室，请先选择发起科室'
+    return
+  }
+  entryMessage.value = ''
+  pickerRequestId++
+  pickerScope.value = scope
+  pickerDeptCode.value = scope === 'department' ? demandForm.deptCode : ''
+  pickerKeyword.value = ''
+  pickerSelected.clear()
+  pickerPagination.total = 0
+  showProductPicker.value = true
+  void loadPickerProducts()
+}
+
+function togglePickerProduct(product: PurchaseProductOption, checked: boolean) {
+  if (checked) pickerSelected.set(product.productCode, product)
+  else pickerSelected.delete(product.productCode)
+}
+
+function addSelectedProducts() {
+  if (pickerLoading.value || pickerError.value) return
+  if (pickerScope.value === 'department' && pickerDeptCode.value !== demandForm.deptCode) return
+  for (const product of pickerSelected.values()) {
+    if (!productByCode(product.productCode)) products.value.push(product)
+    if (demandForm.items.some(item => item.productCode === product.productCode)) continue
+    const blank = demandForm.items.find(item => !item.productCode)
+    if (blank) Object.assign(blank, { productCode: product.productCode, quantity: 1 })
+    else demandForm.items.push({ productCode: product.productCode, quantity: 1 })
+  }
+  showProductPicker.value = false
+}
 
 const orderAttachmentInput = ref<HTMLInputElement | null>(null)
 
@@ -799,7 +894,7 @@ async function handleOrderAttachmentUpload(event: Event) {
             </div>
             <div class="purchase-entry-meta-grid">
               <label>
-                <span><em>*</em> 申请科室</span>
+                <span><em>*</em> 发起科室</span>
                 <select v-model="demandForm.deptCode" @change="demandForm.deptName = departments.find((item) => item.deptCode === demandForm.deptCode)?.deptName || ''">
                   <option value="">请选择授权范围内科室</option>
                   <option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
@@ -836,16 +931,20 @@ async function handleOrderAttachmentUpload(event: Event) {
             </div>
 
             <div class="purchase-entry-toolbar">
-              <button class="btn btn-primary" type="button" @click="addDemandItem">
-                <Plus :size="17" />
-                新增商品行
+              <button class="btn btn-primary" type="button" @click="openProductPicker('hospital')">
+                <Plus :size="17" /> 新增
+              </button>
+              <button class="btn" type="button" @click="openProductPicker('department')">
+                <List :size="17" /> 科室目录新增
               </button>
               <label class="purchase-entry-search">
                 <Search :size="16" />
-                <input v-model="demandProductSearchQuery" placeholder="搜索商品编码、名称或规格" />
+                <span>商品检索</span>
+                <input v-model="demandProductSearchQuery" aria-label="商品检索" placeholder="商品编码、名称或规格" />
               </label>
             </div>
 
+            <p v-if="entryMessage" class="inline-message" role="alert">{{ entryMessage }}</p>
             <div class="purchase-entry-table-wrap">
               <table class="master-table purchase-entry-table">
                 <thead>
@@ -861,15 +960,10 @@ async function handleOrderAttachmentUpload(event: Event) {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(item, index) in demandForm.items" :key="index">
+                  <tr v-for="{ item, index } in visibleDemandItems" :key="item.productCode || index">
                     <td class="purchase-code-cell">{{ productByCode(item.productCode)?.productCode || '-' }}</td>
                     <td class="purchase-product-cell">
-                      <select v-model="item.productCode" :aria-label="`第 ${index + 1} 行商品`">
-                        <option value="">请选择商品</option>
-                        <option v-for="product in demandFilteredProducts" :key="product.productCode" :value="product.productCode">
-                          {{ product.productName }} · {{ product.productCode }}
-                        </option>
-                      </select>
+                      {{ productByCode(item.productCode)?.productName || '请点击新增选择商品' }}
                     </td>
                     <td>{{ productByCode(item.productCode)?.specModel || '-' }}</td>
                     <td>{{ productByCode(item.productCode)?.unit || '-' }}</td>
@@ -881,7 +975,7 @@ async function handleOrderAttachmentUpload(event: Event) {
                       ¥ {{ (Number(item.quantity || 0) * Number(productByCode(item.productCode)?.purchasePrice || 0)).toFixed(2) }}
                     </td>
                     <td>
-                      <button class="purchase-row-delete" type="button" :disabled="demandForm.items.length === 1" @click="removeDemandItem(index)">
+                      <button class="purchase-row-delete" type="button" @click="removeDemandItem(index)">
                         <Trash2 :size="15" />
                         删除
                       </button>
@@ -906,6 +1000,39 @@ async function handleOrderAttachmentUpload(event: Event) {
               {{ demandSubmitting ? '保存中…' : '保存' }}
             </button>
           </div>
+        </footer>
+      </section>
+    </div>
+
+    <div v-if="showProductPicker && showDemandModal" class="modal-mask purchase-product-picker-mask" @click.self="showProductPicker = false" @keydown.esc.stop="showProductPicker = false">
+      <section class="edit-modal wide" role="dialog" aria-modal="true" aria-labelledby="purchase-product-picker-title">
+        <header>
+          <h3 id="purchase-product-picker-title">{{ pickerScope === 'department' ? '科室目录新增' : '新增商品' }}</h3>
+          <button class="btn-icon" aria-label="关闭商品选择" @click="showProductPicker = false"><X :size="18" /></button>
+        </header>
+        <p v-if="pickerScope === 'department'">发起科室：{{ demandForm.deptName }}</p>
+        <form class="purchase-entry-toolbar" @submit.prevent="loadPickerProducts()">
+          <label class="purchase-entry-search"><span>商品检索</span><input v-model="pickerKeyword" aria-label="选择商品检索" placeholder="商品编码、名称或规格" /></label>
+          <button class="btn btn-primary" :disabled="pickerLoading">查询</button>
+        </form>
+        <p v-if="pickerError" class="inline-message" role="alert">{{ pickerError }}</p>
+        <div class="table-scroll">
+          <table class="master-table">
+            <thead><tr><th>选择</th><th>商品编码</th><th>商品名称</th><th>规格型号</th><th>单位</th><th>参考单价</th></tr></thead>
+            <tbody>
+              <tr v-if="pickerLoading"><td colspan="6">正在加载商品目录...</td></tr>
+              <tr v-for="product in pickerRows" v-else :key="product.productCode">
+                <td><input type="checkbox" :aria-label="`选择商品 ${product.productCode}`" :checked="pickerSelected.has(product.productCode)" :disabled="demandForm.items.some(item => item.productCode === product.productCode)" @change="togglePickerProduct(product, ($event.target as HTMLInputElement).checked)" /><small v-if="demandForm.items.some(item => item.productCode === product.productCode)">已添加</small></td>
+                <td>{{ product.productCode }}</td><td>{{ product.productName }}</td><td>{{ product.specModel || '-' }}</td><td>{{ product.unit }}</td><td>¥ {{ Number(product.purchasePrice || 0).toFixed(2) }}</td>
+              </tr>
+              <tr v-if="!pickerLoading && !pickerError && !pickerRows.length"><td colspan="6"><EmptyState :message="pickerScope === 'department' ? '当前发起科室暂无匹配的启用目录商品' : '暂无匹配商品'" /></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls :page="pickerPagination.page" :size="pickerPagination.size" :total="pickerPagination.total" :loading="pickerLoading" @change-page="loadPickerProducts" @change-size="pickerPagination.size = $event; loadPickerProducts()" />
+        <footer>
+          <span>已选 {{ pickerSelected.size }} 项（支持跨页多选）</span>
+          <div><button class="btn" @click="showProductPicker = false">取消</button><button class="btn btn-primary" :disabled="!pickerSelected.size || pickerLoading || !!pickerError" @click="addSelectedProducts">加入采购明细</button></div>
         </footer>
       </section>
     </div>
@@ -1456,6 +1583,15 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .edit-modal.wide {
   width: min(980px, 100%);
+}
+
+.purchase-product-picker-mask {
+  z-index: 60;
+}
+
+.purchase-entry-search > span {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .purchase-entry-mask {

@@ -99,6 +99,10 @@ export interface PurchasePlanRow {
   createTime: string
 }
 
+export async function fetchPurchaseSelectableProducts(params: Record<string, string>) {
+  return getPage<PurchaseProductOption>('/purchase-orders/product-selection', { params })
+}
+
 export interface PurchaseProductOption {
   productCode: string
   productName: string

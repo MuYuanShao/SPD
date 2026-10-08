@@ -56,7 +56,6 @@ const featureNameMap: Record<string, string> = {
 
 const nodeNameMap: Record<string, string> = {
   'initial-review': '目录顺序审批',
-  'final-review': '历史目录终审（不用于新单）',
   'demand-review': '采购需求审核',
   'plan-approval': '采购计划审批',
   'order-approval': '采购订单审批',
@@ -215,7 +214,8 @@ function openCreate(node?: ApprovalFlowNodeOption) {
   message.value = ''
   error.value = ''
   const existing = node
-    ? rows.value.find((row) => row.featureCode === node.featureCode && row.nodeCode === node.nodeCode)
+    ? rows.value.find((row) => row.featureCode === node.featureCode && row.nodeCode === node.nodeCode && row.status === 1)
+      ?? rows.value.find((row) => row.featureCode === node.featureCode && row.nodeCode === node.nodeCode)
     : undefined
   if (existing) {
     openEdit(existing)
@@ -472,7 +472,7 @@ onMounted(loadAll)
       <div class="approval-config-count">共 <strong>{{ rows.length }}</strong> 条配置</div>
     </header>
 
-    <p v-if="form.featureCode === 'pending-product-catalog'" class="inline-message">目录按当前顺序流的启用步骤依次审批，最后一步通过即结束，不再额外拼接终审。修改不改变已提交单据的审批路线。</p>
+    <p v-if="form.featureCode === 'pending-product-catalog'" class="inline-message">目录按配置中的启用步骤依次审批，最后一级通过即结束。新提交及退回重提使用最新配置，在途单据保留提交时的审批流程。</p>
     <p v-if="message" class="inline-message">{{ message }}</p>
     <p v-if="error" class="inline-message danger">{{ error }}</p>
 

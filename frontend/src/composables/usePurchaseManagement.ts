@@ -408,7 +408,7 @@ export function usePurchaseManagement() {
     demandSubmitting.value = true
     try {
       if (!demandForm.deptCode) {
-        message.value = '请选择申请科室'
+        message.value = '请选择发起科室'
         return
       }
       if (!demandForm.demandSource.trim()) {
@@ -467,7 +467,7 @@ export function usePurchaseManagement() {
   }
 
   function removeDemandItem(index: number) {
-    if (demandForm.items.length > 1) demandForm.items.splice(index, 1)
+    demandForm.items.splice(index, 1)
   }
 
   async function generatePlans() {

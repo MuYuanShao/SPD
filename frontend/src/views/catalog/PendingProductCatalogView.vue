@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, UserRound, X, XCircle } from '@lucide/vue'
+import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
@@ -36,6 +37,8 @@ import type { PartnerOption } from '../../api/masterData'
 
 const route = useRoute()
 const router = useRouter()
+const qualificationApplicationNo = ref('')
+const qualificationModalOpen = ref(false)
 const { selectType, selectScope, selectMineStatus } = usePendingProductCatalogNavigation({ route, router })
 
 const approvalTypes = [
@@ -669,6 +672,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <td class="approval-change-summary">{{ row.changeSummary || '-' }}</td>
                 <td class="approval-sticky-action">
                   <div class="approval-row-actions">
+                    <button class="btn btn-sm" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
                     <RouterLink
                       class="btn btn-sm"
                       :to="rowDetailRoute(row)"
@@ -765,6 +769,10 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         </footer>
       </main>
     </div>
+
+    <el-dialog v-model="qualificationModalOpen" :title="`资质证照附件 · ${qualificationApplicationNo}`" width="min(980px, 94vw)" append-to-body destroy-on-close>
+      <PendingProductQualificationAttachments v-if="qualificationModalOpen" :application-no="qualificationApplicationNo" />
+    </el-dialog>
 
     <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="showBatchApproveModal = false">
       <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">

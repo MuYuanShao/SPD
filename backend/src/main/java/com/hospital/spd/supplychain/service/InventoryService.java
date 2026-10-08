@@ -55,9 +55,8 @@ public class InventoryService {
     // ===== 公开方法 =====
 
     /**
-     * 库存汇总查询：按库房与商品聚合散货余额，数量 = 散货数量（中心库散货）+ 在库定数包内的散货数量，
-     * 金额 = 数量 × 商品采购价。散货口径为无货位余额（location_id IS NULL），定数包口径为
-     * 在库标签（待打印/已打印可用）的 package_quantity 之和。
+     * 库存汇总数量为无货位余额与中心库在库定数包之和；已签收包已进入科室余额，不重复累加。
+     * 金额沿用医院目录采购价。
      */
     public Map<String, Object> balances(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
@@ -83,7 +82,7 @@ public class InventoryService {
                    LEFT JOIN (
                      SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty
                        FROM quota_package_label
-                      WHERE status IN ('pending_print', 'available', 'signed')
+                      WHERE status IN ('pending_print', 'available')
                       GROUP BY warehouse_id, product_id
                    ) qp ON qp.warehouse_id = lo.warehouse_id AND qp.product_id = lo.product_id
                    JOIN warehouse w ON w.warehouse_id = lo.warehouse_id
@@ -124,7 +123,7 @@ public class InventoryService {
     }
 
     /**
-     * 定数包库存查询：在库定数包标签（待打印/已打印可用）按库房与模板汇总，附带同商品散货数量。
+     * 定数包库存按库房与模板汇总待打印、可用和已签收包；同商品散货数量扣除余额中已包含的签收包。
      */
     public Map<String, Object> quotaPackageStock(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
@@ -134,36 +133,32 @@ public class InventoryService {
                 """);
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "d.dept_name", params.get("deptName"));
+        appendLike(where, args, "qpt.template_code", params.get("packageCode"));
         appendLike(where, args, "qpt.template_name", params.get("packageName"));
+        appendLike(where, args, "p.product_code", params.get("productCode"));
         appendLike(where, args, "p.product_name", params.get("productName"));
 
-        String groupKeys = "d.dept_name, w.warehouse_name, qpt.template_code, qpt.template_name, p.product_id";
-        String fromClause = """
-                  FROM quota_package_label qpl
-                  JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
-                  JOIN product p ON p.product_id = qpl.product_id
-                  JOIN warehouse w ON w.warehouse_id = qpl.warehouse_id
-                  LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
-                """;
-        Long total = jdbcTemplate.queryForObject(
-                "SELECT COUNT(DISTINCT " + groupKeys + ") " + fromClause + where, Long.class, args.toArray());
-
-        List<Object> queryArgs = new ArrayList<>(args);
-        queryArgs.add(pageReq.size());
-        queryArgs.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+        // Signed packages are already represented in department balances, across all templates.
+        String looseQuantity = "GREATEST(COALESCE(lo.loose_qty, 0) - COALESCE(qpl.signed_qty, 0), 0)";
+        String groupedSql = """
                 SELECT w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
                        qpt.template_code AS packageCode, qpt.template_name AS packageName,
                        p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
                        COALESCE(p.purchase_price, 0) AS unitPrice, p.unit AS unit,
                        COUNT(qpl.label_id) AS packageCount,
                        COALESCE(SUM(qpl.package_quantity), 0) AS packageQty,
-                       COALESCE(lo.loose_qty, 0) AS looseQty,
-                       ROUND((COALESCE(SUM(qpl.package_quantity), 0) + COALESCE(lo.loose_qty, 0))
+                       %s AS looseQty,
+                       ROUND((COALESCE(SUM(qpl.package_quantity), 0) + %s)
                              * COALESCE(p.purchase_price, 0), 2) AS amount,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName
-                  FROM quota_package_label qpl
+                  FROM (
+                    SELECT labels.*,
+                           SUM(CASE WHEN labels.status = 'signed' THEN labels.package_quantity ELSE 0 END)
+                             OVER (PARTITION BY labels.warehouse_id, labels.product_id) AS signed_qty
+                      FROM quota_package_label labels
+                     WHERE labels.status IN ('pending_print', 'available', 'signed')
+                  ) qpl
                   JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
                   JOIN product p ON p.product_id = qpl.product_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
@@ -176,10 +171,20 @@ public class InventoryService {
                      WHERE location_id IS NULL
                      GROUP BY warehouse_id, product_id
                   ) lo ON lo.warehouse_id = qpl.warehouse_id AND lo.product_id = qpl.product_id
-                """ + where + " GROUP BY " + groupKeys
-                + ", p.spec_model, p.registration_no, p.purchase_price, p.unit, m.manufacturer_name, s.supplier_name"
-                + ", lo.loose_qty"
-                + " ORDER BY w.warehouse_name, qpt.template_code LIMIT ? OFFSET ?",
+                """.formatted(looseQuantity, looseQuantity) + where + """
+                 GROUP BY qpl.warehouse_id, qpl.template_id, d.dept_name, w.warehouse_name,
+                          qpt.template_code, qpt.template_name, p.product_id, p.spec_model,
+                          p.registration_no, p.purchase_price, p.unit, m.manufacturer_name,
+                          s.supplier_name, lo.loose_qty, qpl.signed_qty
+                """;
+        // Count the same grouped rows; COUNT(DISTINCT ...) drops groups containing NULL departments.
+        Long total = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM (" + groupedSql + ") package_stock", Long.class, args.toArray());
+        List<Object> queryArgs = new ArrayList<>(args);
+        queryArgs.add(pageReq.size());
+        queryArgs.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(groupedSql
+                + " ORDER BY w.warehouse_name, qpt.template_code, qpl.warehouse_id, qpl.template_id LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
@@ -192,7 +197,9 @@ public class InventoryService {
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
                  WHERE bal.available_qty > 0 AND bal.location_id IS NULL
-                   AND utc.current_status = 'in_stock'
+                   AND utc.trace_scope = 'high_value'
+                   AND utc.current_status IN ('in_stock', 'requisitioned', 'signed', 'patient_bound')
+                   AND ibtc.lifecycle_status IN ('in_stock', 'requisitioned', 'signed', 'patient_bound')
                 """);
         appendLike(where, args, "d.dept_name", params.get("deptName"));
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
@@ -200,14 +207,16 @@ public class InventoryService {
         appendLike(where, args, "p.product_name", params.get("productName"));
         appendLike(where, args, "ib.system_batch_no", params.get("batchNo"));
         appendLike(where, args, "utc.unique_code", params.get("uniqueCode"));
-        appendLike(where, args, "roi.udi_code", params.get("udiCode"));
+        appendLike(where, args, "COALESCE(utc.udi_code, roi.udi_code)", params.get("udiCode"));
 
         String fromClause = """
                   FROM inventory_batch_trace_code ibtc
                   JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
                   JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
                   LEFT JOIN receiving_order_item roi ON roi.item_id = ib.receiving_item_id
-                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id
+                   AND bal.product_id = ib.product_id AND bal.warehouse_id = ibtc.current_warehouse_id
+                   AND bal.location_id IS NULL
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = ib.product_id
@@ -225,17 +234,19 @@ public class InventoryService {
                        p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
                        ib.system_batch_no AS batchNo, COALESCE(ib.production_batch_no, '-') AS productionBatchNo,
                        ib.batch_unit_price AS unitPrice, p.unit AS unit,
-                       bal.available_qty AS qty,
-                       ROUND(bal.available_qty * COALESCE(ib.batch_unit_price, 0), 2) AS amount,
+                       1 AS qty,
+                       ROUND(COALESCE(ib.batch_unit_price, 0), 2) AS amount,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName,
                        COALESCE(utc.unique_code, '-') AS uniqueCode,
-                       COALESCE(roi.udi_code, '-') AS udiCode
+                       COALESCE(utc.udi_code, roi.udi_code, '-') AS udiCode
                   FROM inventory_batch_trace_code ibtc
                   JOIN udi_trace_code utc ON utc.trace_code_id = ibtc.trace_code_id
                   JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
                   LEFT JOIN receiving_order_item roi ON roi.item_id = ib.receiving_item_id
-                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id AND bal.location_id IS NULL
+                  JOIN inventory_balance bal ON bal.batch_id = ib.batch_id
+                   AND bal.product_id = ib.product_id AND bal.warehouse_id = ibtc.current_warehouse_id
+                   AND bal.location_id IS NULL
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                   JOIN product p ON p.product_id = ib.product_id

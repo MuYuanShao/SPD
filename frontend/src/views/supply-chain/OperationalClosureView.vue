@@ -27,6 +27,7 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import {
   bindHighValuePatient,
+  confirmHighValuePicking,
   confirmLoosePicking,
   confirmPicking,
   createColdChainException,
@@ -314,6 +315,7 @@ async function loadPickingRequisitions() {
 /** 申请明细类型展示：唯一码/定数包/散货，与申请单申请的商品明细类型配对 */
 function itemTypeLabel(itemType: unknown) {
   switch (String(itemType || '')) {
+    case 'high_value':
     case 'unique_code':
       return '唯一码'
     case 'quota_package':
@@ -328,7 +330,7 @@ function itemTypeLabel(itemType: unknown) {
 async function selectPickingRequisition(row: Record<string, unknown>) {
   selectedPickingRequisitionNo.value = String(row.requisitionNo || '')
   selectedPickingItemId.value = String(row.itemId || '')
-  selectedPickingItemType.value = String(row.itemType || 'loose')
+  selectedPickingItemType.value = row.itemType === 'high_value' ? 'unique_code' : String(row.itemType || 'loose')
   form.requisitionNo = selectedPickingRequisitionNo.value
   form.deptName = String(row.deptName || form.deptName)
   form.productCode = String(row.productCode || form.productCode)
@@ -442,11 +444,16 @@ async function confirmSelectedPicking() {
       message.value = '请先勾选唯一码/UDI'
       return
     }
-    const result = await createDelivery({
-      ...form,
-      requisitionNo: selectedPickingRequisitionNo.value,
-      quantity: selectedPickingUniqueCodes.value.length,
-      uniqueCodes: selectedPickingUniqueCodes.value.join(',')
+    const traceCodeIds = selectedPickingUniqueCodes.value.map(code =>
+      Number(pickingUniqueCodeRows.value.find(row => String(row.uniqueCode) === code)?.traceCodeId)
+    )
+    if (traceCodeIds.some(id => !Number.isSafeInteger(id) || id <= 0)) {
+      message.value = '所选唯一码已失效，请刷新货源后重试'
+      return
+    }
+    const result = await confirmHighValuePicking({
+      itemId: Number(selectedPickingItemId.value),
+      traceCodeIds
     })
     form.deliveryNo = String(result.deliveryNo || '')
     message.value = `拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`

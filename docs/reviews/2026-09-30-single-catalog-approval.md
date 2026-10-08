@@ -25,3 +25,9 @@ Flyway V86 已成功应用到 ISPD。当前采用原流程14的四级配置；�
 日志：output/single-approval-all-tests.log、output/single-approval-migration-test.log、output/single-approval-real-mysql.log、output/single-approval-ui-smoke.log。
 
 真实数据库测试使用系统操作人，未穷举普通角色的所有字段和权限组合；部门审批匹配另有单元测试覆盖。
+
+## 移除独立终审配置入口
+
+按用户补充要求，审批流选项及配置列表不再返回目录的独立final-review流程，页面只提供目录顺序审批；原历史记录仍保留供已提交单据快照使用。配置入口优先加载启用的流程。
+
+审批相关回归55项全部通过，包含真实MySQL回滚事务的四级、三级及退回重提场景；前端构建通过。真实浏览器确认API选项、配置列表均不含目录终审，页面展示当前四级配置。证据：`output/catalog-no-final-tests.log`、`output/catalog-no-final-browser.log`。

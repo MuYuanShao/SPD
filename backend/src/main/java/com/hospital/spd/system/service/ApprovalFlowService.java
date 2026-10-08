@@ -25,7 +25,6 @@ import java.util.Set;
 public class ApprovalFlowService {
     private static final List<ApprovalFlowNodeOption> DEFAULT_NODES = List.of(
             new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "initial-review", "目录顺序审批"),
-            new ApprovalFlowNodeOption("pending-product-catalog", "待审批目录", "final-review", "历史目录终审（不用于新单）"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "demand-review", "采购需求审核"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "plan-approval", "采购计划审批"),
             new ApprovalFlowNodeOption("purchase-management", "采购管理", "order-approval", "采购订单审批"),
@@ -48,7 +47,7 @@ public class ApprovalFlowService {
     public List<ApprovalFlowRow> list(String featureCode, String keyword, String status) {
         OperatorContext operator = operatorContextProvider.current();
         List<Object> args = new ArrayList<>();
-        StringBuilder where = new StringBuilder(" WHERE af.deleted = 0");
+        StringBuilder where = new StringBuilder(" WHERE af.deleted = 0 AND NOT (af.feature_code = 'pending-product-catalog' AND af.node_code = 'final-review')");
         if (featureCode != null && !featureCode.isBlank()) {
             where.append(" AND af.feature_code = ?");
             args.add(featureCode.trim());

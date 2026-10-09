@@ -221,7 +221,7 @@ public class ReceivingOrderService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
-                       roi.production_batch_no AS productionBatchNo,
+                       roi.purchase_order_item_id AS purchaseOrderItemId, roi.production_batch_no AS productionBatchNo,
                        roi.udi_code AS udiCode,
                        DATE_FORMAT(roi.production_date, '%Y-%m-%d') AS productionDate,
                        DATE_FORMAT(roi.expire_date, '%Y-%m-%d') AS expireDate,
@@ -528,7 +528,7 @@ public class ReceivingOrderService {
         Map<String, Object> order = orders.get(0);
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
-                       poi.quantity - poi.received_quantity AS pendingQuantity,
+                       poi.item_id AS purchaseOrderItemId, poi.quantity - poi.received_quantity AS pendingQuantity,
                        poi.unit, poi.estimated_unit_price AS estimatedUnitPrice,
                        p.purchase_price AS latestCatalogPrice
                   FROM purchase_order_item poi
@@ -546,7 +546,7 @@ public class ReceivingOrderService {
                                      Object purchaseOrderIdObject) {
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT roi.item_id AS itemId, roi.product_id AS productId, roi.production_batch_no AS productionBatchNo,
-                       roi.udi_code AS udiCode,
+                       roi.udi_code AS udiCode, roi.purchase_order_item_id AS purchaseOrderItemId,
                        roi.production_date AS productionDate, roi.expire_date AS expireDate,
                        roi.quantity, roi.qualified_quantity AS qualifiedQuantity,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
@@ -571,7 +571,7 @@ public class ReceivingOrderService {
         validateHighValueUdisBeforeInventoryMutation(items);
         validatePurchaseRemainingBeforeInventoryMutation(purchaseOrderIdObject, items);
 
-        for (Map<String, Object> item : items) {
+        for (Map<String, Object> item : items.stream().sorted(java.util.Comparator.comparing(item -> !(item.get("purchaseOrderItemId") instanceof Number))).toList()) {
             Long itemId = ((Number) item.get("itemId")).longValue();
             Long productId = ((Number) item.get("productId")).longValue();
             BigDecimal qualifiedQty = (BigDecimal) item.get("qualifiedQuantity");
@@ -591,7 +591,8 @@ public class ReceivingOrderService {
             if (previewPrice != null && previewPrice.compareTo(latestPrice) != 0) {
                 writePriceDiffAudit(receivingOrderId, receivingNo, productId, previewPrice, latestPrice);
             }
-            purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject, productId, qualifiedQty);
+            if(item.get("purchaseOrderItemId") instanceof Number lineId) purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject,productId,qualifiedQty,lineId.longValue());
+            else purchaseFulfillmentService.recordAcceptedReceipt(purchaseOrderIdObject, productId, qualifiedQty);
         }
         return true;
     }
@@ -625,6 +626,16 @@ public class ReceivingOrderService {
             if (entry.getValue().compareTo(remaining) > 0) {
                 throw new IllegalStateException("采购订单剩余可收数量已变化，本次验收未写入库存，请刷新后重试");
             }
+        }
+        var explicit=new java.util.LinkedHashMap<Long,BigDecimal>();
+        var lineProducts=new java.util.HashMap<Long,Long>();
+        for(var item:receivingItems) if(item.get("purchaseOrderItemId") instanceof Number id) {
+            explicit.merge(id.longValue(),(BigDecimal)item.get("qualifiedQuantity"),BigDecimal::add);
+            lineProducts.put(id.longValue(),((Number)item.get("productId")).longValue());
+        }
+        for(var entry:explicit.entrySet()) {
+            BigDecimal remaining=jdbcTemplate.queryForObject("SELECT quantity-received_quantity FROM purchase_order_item WHERE item_id=? AND purchase_order_id=? AND product_id=? FOR UPDATE",BigDecimal.class,entry.getKey(),purchaseOrderId.longValue(),lineProducts.get(entry.getKey()));
+            if(remaining==null || entry.getValue().compareTo(remaining)>0) throw new IllegalStateException("指定采购明细剩余可收数量不足，本次验收未写入库存");
         }
     }
 
@@ -774,6 +785,10 @@ public class ReceivingOrderService {
             }
             Map<String, Object> product = products.get(0);
             Long productId = ((Number) product.get("productId")).longValue();
+            if(item.purchaseOrderItemId()!=null) {
+                Integer matches=jdbcTemplate.queryForObject("SELECT COUNT(*) FROM purchase_order_item po JOIN receiving_order ro ON ro.purchase_order_id=po.purchase_order_id WHERE ro.receiving_order_id=? AND po.item_id=? AND po.product_id=?",Integer.class,receivingOrderId,item.purchaseOrderItemId(),productId);
+                if(matches==null || matches!=1) throw new IllegalArgumentException("指定采购明细与收货订单或商品不一致");
+            }
             BigDecimal quantity = defaultDecimal(item.quantity(), BigDecimal.ZERO);
             BigDecimal qualified = item.qualifiedQuantity() == null ? quantity : item.qualifiedQuantity();
             BigDecimal unqualified = item.unqualifiedQuantity() == null ? BigDecimal.ZERO : item.unqualifiedQuantity();
@@ -781,12 +796,12 @@ public class ReceivingOrderService {
             jdbcTemplate.update("""
                     INSERT INTO receiving_order_item (
                       receiving_order_id, product_id, production_batch_no, udi_code, production_date, expire_date,
-                      quantity, unit_price, amount, qualified_quantity, unqualified_quantity
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      quantity, unit_price, amount, qualified_quantity, unqualified_quantity, purchase_order_item_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, receivingOrderId, productId, nullIfBlank(item.productionBatchNo()),
                     nullIfBlank(item.udiCode()),
                     parseDate(item.productionDate()), parseDate(item.expireDate()), quantity,
-                    latestPrice, qualified.multiply(latestPrice), qualified, unqualified);
+                    latestPrice, qualified.multiply(latestPrice), qualified, unqualified,item.purchaseOrderItemId());
         }
     }
 

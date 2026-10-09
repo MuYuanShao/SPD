@@ -4,6 +4,7 @@ import type { SupplierOption } from '../api/receivingOrders'
 function createEmptyReceivingItem() {
   return {
     productCode: '',
+    purchaseOrderItemId: undefined as number | undefined,
     productionBatchNo: '',
     udiCode: '',
     productionDate: '',

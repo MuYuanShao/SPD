@@ -201,7 +201,7 @@ async function openEditModal(row: ReceivingOrderRow) {
 function changeSourceType() {
   form.purchaseOrderNo = ''
   clearSupplier()
-  form.items = [{ productCode: '', productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
+  form.items = [{ productCode: '', purchaseOrderItemId: undefined, productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
 }
 
 function deleteSelectedItems() {
@@ -533,7 +533,7 @@ onMounted(() => {
                   <td>明细 {{ index + 1 }}</td>
                   <td><input value="[自动生成]" disabled /></td>
                   <td>
-                    <select v-model="item.productCode">
+                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
                       <option value="">选择商品</option>
                       <option v-for="product in products" :key="product.productCode" :value="product.productCode">
                         {{ product.productName }}
@@ -541,7 +541,7 @@ onMounted(() => {
                     </select>
                   </td>
                   <td>
-                    <select v-model="item.productCode">
+                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
                       <option value="">商品编码</option>
                       <option v-for="product in products" :key="product.productCode" :value="product.productCode">
                         {{ product.productCode }}

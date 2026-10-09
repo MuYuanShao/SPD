@@ -13,6 +13,7 @@ import {
 import EmptyState from '../../components/common/EmptyState.vue'
 import SectionTitle from '../../components/common/SectionTitle.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import McpConnectionSettings from '../../components/system/McpConnectionSettings.vue'
 
 const configTypes = [
   { code: '', label: '全部配置', desc: '查看所有配置项' },
@@ -206,6 +207,7 @@ onMounted(loadConfigs)
       </aside>
 
       <main class="system-config-main">
+        <McpConnectionSettings v-if="activeType === 'integration'" @saved="loadConfigs" />
         <section class="hospital-catalog-panel">
           <div class="hospital-action-row">
             <button type="button" class="btn btn-primary" @click="openCreate">

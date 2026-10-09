@@ -270,9 +270,7 @@ public class ProductService {
                 WHERE p.product_code = ? AND p.deleted = 0
                 """, (rs, rowNum) -> {
             Long productId = rs.getLong("product_id");
-            List<ProductAttachment> attachments = loadProductAttachments(productId, rs.getString("registration_no"),
-                    rs.getString("registration_expire_date"), rs.getString("production_license_no"),
-                    rs.getString("business_license_no"));
+            List<ProductAttachment> attachments = loadProductAttachments(productId);
 
             return new ProductDetail(
                     productId,
@@ -317,11 +315,8 @@ public class ProductService {
 
     // ==================== 私有辅助方法 ====================
 
-    private List<ProductAttachment> loadProductAttachments(Long productId, String registrationNo,
-                                                           String registrationExpireDate,
-                                                           String productionLicenseNo,
-                                                           String businessLicenseNo) {
-        List<ProductAttachment> attachments = jdbcTemplate.query("""
+    private List<ProductAttachment> loadProductAttachments(Long productId) {
+        return jdbcTemplate.query("""
                 SELECT file_name, category, file_url, valid_date
                 FROM sys_attachment
                 WHERE biz_type = 'product' AND biz_id = ? AND deleted = 0
@@ -333,25 +328,6 @@ public class ProductService {
                 rs.getString("file_url"),
                 dateString(rs.getDate("valid_date"))
         ), productId);
-
-        if (!attachments.isEmpty()) {
-            return attachments;
-        }
-
-        List<ProductAttachment> fallbackAttachments = new ArrayList<>();
-        if (registrationNo != null && !registrationNo.isBlank() && !"-".equals(registrationNo)) {
-            fallbackAttachments.add(new ProductAttachment("注册证附件.pdf", "注册证", "可查看", "", registrationExpireDate));
-        }
-        if (productionLicenseNo != null && !productionLicenseNo.isBlank()) {
-            fallbackAttachments.add(new ProductAttachment("生产许可证附件.pdf", "生产许可", "可查看", "", ""));
-        }
-        if (businessLicenseNo != null && !businessLicenseNo.isBlank()) {
-            fallbackAttachments.add(new ProductAttachment("经营许可证附件.pdf", "经营许可", "可查看", "", ""));
-        }
-        if (fallbackAttachments.isEmpty()) {
-            fallbackAttachments.add(new ProductAttachment("商品资质材料.pdf", "资质材料", "可查看", "", ""));
-        }
-        return fallbackAttachments;
     }
 
     private Long ensureCategory(String firstCategory, String secondCategory, String thirdCategory) {

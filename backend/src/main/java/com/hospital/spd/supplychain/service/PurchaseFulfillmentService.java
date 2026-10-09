@@ -54,4 +54,11 @@ public class PurchaseFulfillmentService {
             throw new IllegalStateException("采购订单剩余可收数量不足，请刷新后重试");
         }
     }
+    public void recordAcceptedReceipt(Object purchaseOrderIdObject,Long productId,BigDecimal acceptedQty,Long purchaseOrderItemId) {
+        if(purchaseOrderItemId==null) {recordAcceptedReceipt(purchaseOrderIdObject,productId,acceptedQty);return;}
+        if(purchaseOrderIdObject==null || acceptedQty==null || acceptedQty.signum()<=0) return;
+        long orderId=((Number)purchaseOrderIdObject).longValue();
+        int changed=jdbcTemplate.update("UPDATE purchase_order_item SET received_quantity=received_quantity+? WHERE item_id=? AND purchase_order_id=? AND product_id=? AND received_quantity+?<=quantity",acceptedQty,purchaseOrderItemId,orderId,productId,acceptedQty);
+        if(changed!=1) throw new IllegalStateException("指定采购明细剩余可收数量已变化，请刷新后重试");
+    }
 }

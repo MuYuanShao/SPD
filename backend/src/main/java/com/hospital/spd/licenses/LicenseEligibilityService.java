@@ -25,6 +25,7 @@ public class LicenseEligibilityService {
     }
 
     public void requireEligible(String productCode, Long supplierId, Long manufacturerId, String contractCode) {
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbc).requireEligible(productCode);
         var blocked = jdbc.queryForList("""
                 SELECT l.license_id AS licenseId, l.license_name AS licenseName, l.license_no AS licenseNo,
                        l.expire_date AS expireDate
@@ -65,6 +66,7 @@ public class LicenseEligibilityService {
                   FROM pending_product_application WHERE application_no=? AND application_type='新品准入'
                 """, applicationNo);
         for (var row : applications) {
+            new com.hospital.spd.integration.McpLicenseLifecycleService(jdbc).requireAdmission(applicationNo);
             requireCandidateRegistration(row.get("registrationExpiry") == null ? null : String.valueOf(row.get("registrationExpiry")));
             check(row);
         }

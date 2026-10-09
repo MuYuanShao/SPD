@@ -1,25 +1,25 @@
 <script setup lang="ts">
-import TopBar from './TopBar.vue'
-import SubMenu from './SubMenu.vue'
-import AiMedicalAssistant from '../components/common/AiMedicalAssistant.vue'
-import { useLayoutNavigation } from './useLayoutNavigation'
-const { group, title, auth } = useLayoutNavigation()
+/**
+ * AppMain — 整合后的主应用外壳
+ *
+ * 整合自 SPD 模板项目的设计语言：
+ * - SpdTopNav 水平顶部导航
+ * - 主内容区由 SpdTopNav 内嵌的 router-view 渲染
+ *
+ * AI 助手为可选附加功能，单独按需引入
+ */
+import { defineAsyncComponent } from 'vue'
+import SpdTopNav from './SpdTopNav.vue'
+
+// 可选：保留旧版的 AI 助手（异步加载）
+const AiMedicalAssistant = defineAsyncComponent(
+  () => import('../components/common/AiMedicalAssistant.vue')
+)
 </script>
+
 <template>
-  <el-container direction="vertical" class="fli-shell">
-    <TopBar />
-    <SubMenu />
-    <el-main class="fli-main">
-      <div class="fli-content" :class="{ 'fli-content-home': $route.name === 'dashboard' }">
-        <el-breadcrumb separator="/" class="fli-breadcrumb">
-          <el-breadcrumb-item :to="auth.canAccessMenu('dashboard') ? '/' : undefined">工作空间</el-breadcrumb-item>
-          <el-breadcrumb-item v-if="group">{{ group.title }}</el-breadcrumb-item>
-          <el-breadcrumb-item>{{ title }}</el-breadcrumb-item>
-        </el-breadcrumb>
-        <RouterView />
-        <footer class="fli-footer">© {{ new Date().getFullYear() }} 院内 SPD · 医用耗材精益管理平台</footer>
-      </div>
-      <AiMedicalAssistant />
-    </el-main>
-  </el-container>
+  <div class="fli-shell">
+    <SpdTopNav />
+    <AiMedicalAssistant />
+  </div>
 </template>

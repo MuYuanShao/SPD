@@ -1,80 +1,198 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { Banknote, Package, PackagePlus, Truck, HeartPulse, UserRound } from '@lucide/vue'
-import StatisticCard from '../components/business/StatisticCard.vue'
-import AlertCard from '../components/business/AlertCard.vue'
-import NoticeList, { type NoticeItem } from '../components/business/NoticeList.vue'
-import TodoList, { type TodoItem } from '../components/business/TodoList.vue'
-import TrendChart from '../components/business/TrendChart.vue'
-import { useHomeWorkbench } from '../composables/useHomeWorkbench'
+/**
+ * DashboardView — 现代化工作台首页
+ *
+ * 仅保留业务模块快捷入口（按大模块分组，渐变色头 + 子功能网格）。
+ */
+import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  Database,
+  FileText,
+  Search,
+  LayoutDashboard
+} from '@lucide/vue'
 import { useLayoutNavigation } from '../layout/useLayoutNavigation'
-import { flattenMenu } from '../config/menu'
 import { featureRouteTarget } from '../config/featureCatalog'
 
-const { auth, groups } = useLayoutNavigation()
-const { error, refresh,
-  alerts, todos, todoTotal, notices, labels, movementSeries, usageSeries, status, statusDetail, metric } = useHomeWorkbench()
-const availablePages = computed(() => flattenMenu(groups.value).filter(item => !item.children?.length))
-const selectedCodes = ref<string[]>([])
-watch(availablePages, pages => {
-  const allowed = new Set(pages.map(item => item.code))
-  selectedCodes.value = selectedCodes.value.length
-    ? selectedCodes.value.filter(code => allowed.has(code))
-    : pages.slice(0, 4).map(item => item.code)
-}, { immediate: true })
-const shortcuts = computed(() => availablePages.value.filter(item => selectedCodes.value.includes(item.code)))
-const configuring = ref(false)
-const detail = ref<{ title: string; content: string }>()
-function showNotice(item: NoticeItem) { detail.value = { title: item.title, content: item.content } }
-function showTodo(item: TodoItem) { detail.value = { title: item.title, content: '单据编号：' + item.id + '；当前状态：' + item.status + '。请在对应业务模块处理，首页只展示授权范围内的真实待办。' } }
+const router = useRouter()
+const { groups } = useLayoutNavigation()
+
+const quickSearch = ref('')
+
+// 颜色盘（业务模块快捷入口）
+const COLOR_PALETTE = [
+  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+  'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+  'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)'
+]
+
+// 图标映射
+const ICON_MAP: Record<string, any> = {
+  Database,
+  FileText,
+  Search,
+  LayoutDashboard
+}
+
+function colorClass(index: number): string {
+  return COLOR_PALETTE[index % COLOR_PALETTE.length]
+}
+
+// 从 menuGroups 提取业务大模块与子功能
+interface QuickGroupUI {
+  key: string
+  label: string
+  desc: string
+  icon: any
+  color: string
+  children: { path: string; label: string; icon: any; color: string }[]
+}
+
+const quickGroups = computed<QuickGroupUI[]>(() => {
+  const groupDescs: Record<string, string> = {
+    'master-data-quota': '主数据·定数包',
+    'supply-chain': '采购·库存·配送',
+    'special-compliance': 'UDI·冷链·召回',
+    'settlement-finance': '对账·红冲·发票',
+    'operations-decision': '运营驾驶舱·报表',
+    'system-management': '用户·权限·配置'
+  }
+
+  return groups.value.map((group, gi) => {
+    const children: { path: string; label: string; icon: any; color: string }[] = []
+    let childIndex = 0
+    for (const child of group.children || []) {
+      if (child.children?.length) {
+        for (const sub of child.children) {
+          children.push({
+            path: featureRouteTarget(sub.code),
+            label: sub.title,
+            icon: sub.icon || ICON_MAP[sub.code] || FileText,
+            color: colorClass(childIndex)
+          })
+          childIndex++
+        }
+      } else {
+        children.push({
+          path: featureRouteTarget(child.code),
+          label: child.title,
+          icon: child.icon || ICON_MAP[child.code] || FileText,
+          color: colorClass(childIndex)
+        })
+        childIndex++
+      }
+    }
+    return {
+      key: group.code,
+      label: group.title,
+      desc: groupDescs[group.code] || '',
+      icon: group.icon || ICON_MAP[group.code] || Database,
+      color: colorClass(gi),
+      children
+    }
+  })
+})
+
+// 搜索过滤
+const filteredQuickGroups = computed<QuickGroupUI[]>(() => {
+  const kw = quickSearch.value.trim().toLowerCase()
+  if (!kw) return quickGroups.value
+  return quickGroups.value
+    .map((g) => {
+      const groupHit = g.label.toLowerCase().includes(kw) || g.desc.toLowerCase().includes(kw)
+      const childHits = g.children.filter(
+        (c) => c.label.toLowerCase().includes(kw) || c.path.toLowerCase().includes(kw)
+      )
+      if (groupHit) return g
+      if (childHits.length > 0) return { ...g, children: childHits }
+      return null
+    })
+    .filter((g): g is QuickGroupUI => g !== null)
+})
+
+function goTo(path: string) {
+  router.push(path)
+}
 </script>
+
 <template>
-  <section class="fli-dashboard" aria-label="首页工作台">
-    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" :type="error ? 'danger' : 'info'" effect="plain" :title="statusDetail" role="button" tabindex="0" @click="refresh" @keyup.enter="refresh">{{ status }}</el-tag></div>
-    <el-row :gutter="16" class="fli-statistics">
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日销售额" :value="metric('salesAmount')" unit="元" tone="orange" :icon="Banknote" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日售出数量" :value="metric('salesQuantity')" unit="件" tone="teal" :icon="Package" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日入库" :value="metric('inboundQuantity')" unit="件" tone="purple" :icon="PackagePlus" /></el-col>
-      <el-col :xs="12" :sm="6"><StatisticCard title="今日出库" :value="metric('outboundQuantity')" unit="件" tone="blue" :icon="Truck" /></el-col>
-    </el-row>
-    <el-row :gutter="16" class="fli-columns">
-      <el-col :xs="24" :sm="12" :md="7">
-        <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>待办事项</h2><el-tag size="small" effect="light">{{ todoTotal }} 项待处理</el-tag></div></template>
-          <TodoList :items="todos" @select="showTodo" />
-        </el-card>
-        <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>近30天出入库金额</h2><span>万元</span></div></template>
-          <TrendChart :labels="labels" :series="movementSeries" title="近30天出入库金额趋势" />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="12" :md="10">
-        <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>预警信息</h2><span>请及时关注</span></div></template>
-          <div class="fli-alert-grid"><AlertCard v-for="alert in alerts" :key="alert.title" v-bind="alert" /></div>
-        </el-card>
-        <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>耗用与采购趋势</h2><span>近30天</span></div></template>
-          <TrendChart :labels="labels" :series="usageSeries" title="近30天耗用与采购趋势" :height="225" />
-        </el-card>
-      </el-col>
-      <el-col :xs="24" :sm="24" :md="7">
-        <el-card shadow="never" class="fli-panel fli-profile">
-          <div class="fli-profile-heading"><span class="fli-profile-avatar"><UserRound :size="26" /></span><div><h2>{{ auth.currentUser?.realName || auth.username }}，您好</h2><p>欢迎使用医用耗材精益管理平台</p></div></div>
-          <div class="fli-panel-heading"><h3>可用功能</h3><el-button link type="primary" @click="configuring = true">设置</el-button></div>
-          <div class="fli-shortcuts"><RouterLink v-for="item in shortcuts" :key="item.code" :to="featureRouteTarget(item.code)">{{ item.title }}</RouterLink><span v-if="!shortcuts.length">暂无已选功能</span></div>
-        </el-card>
-        <el-card shadow="never" class="fli-panel">
-          <template #header><div class="fli-panel-heading"><h2>系统公告</h2><span>{{ notices.length }} 条</span></div></template>
-          <NoticeList :items="notices" @select="showNotice" />
-        </el-card>
-        <aside class="fli-banner"><HeartPulse :size="38" :stroke-width="1.3" /><div><strong>精益管理 · 守护健康</strong><p>让每一份耗材，服务每一份安心</p></div></aside>
-      </el-col>
-    </el-row>
-    <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template></el-dialog>
-    <el-dialog v-model="configuring" title="选择常用功能" width="min(640px, 92vw)">
-      <el-checkbox-group v-model="selectedCodes" class="fli-feature-options"><el-checkbox v-for="item in availablePages" :key="item.code" :value="item.code">{{ item.title }}</el-checkbox></el-checkbox-group>
-      <template #footer><el-button type="primary" @click="configuring = false">完成</el-button></template>
-    </el-dialog>
-  </section>
+  <div class="spd-dashboard">
+    <!-- 第一行：业务模块快捷入口 -->
+    <section class="spd-modules-section">
+      <div class="spd-modules-header">
+        <div class="spd-modules-title">
+          <LayoutDashboard :size="20" />
+          <h2 class="spd-modules-name">业务模块快捷入口</h2>
+          <span class="spd-modules-hint">点击直达各功能模块</span>
+        </div>
+        <el-input
+          v-model="quickSearch"
+          placeholder="搜索模块或功能"
+          clearable
+          size="default"
+          class="spd-modules-search"
+        >
+          <template #prefix>
+            <Search :size="14" />
+          </template>
+        </el-input>
+      </div>
+      <div class="spd-modules-grid">
+        <div
+          v-for="group in filteredQuickGroups"
+          :key="group.key"
+          class="spd-module-card"
+        >
+          <div class="spd-module-header" :style="{ background: group.color }">
+            <div class="spd-module-icon">
+              <component :is="group.icon" :size="22" />
+            </div>
+            <div class="spd-module-title">
+              <div class="spd-module-name">{{ group.label }}</div>
+              <div class="spd-module-desc">{{ group.desc }}</div>
+            </div>
+            <div class="spd-module-count">{{ group.children.length }}</div>
+          </div>
+          <div class="spd-module-body">
+            <div
+              v-for="child in group.children"
+              :key="child.path"
+              class="spd-module-child"
+              @click="goTo(child.path)"
+              :title="child.label"
+            >
+              <div class="spd-child-icon" :style="{ background: child.color }">
+                <component :is="child.icon" :size="14" />
+              </div>
+              <div class="spd-child-label">{{ child.label }}</div>
+            </div>
+          </div>
+        </div>
+        <div v-if="filteredQuickGroups.length === 0" class="spd-modules-empty">
+          <el-empty description="未找到匹配的模块" :image-size="80" />
+        </div>
+      </div>
+    </section>
+  </div>
 </template>
+
+<style scoped>
+.is-loading {
+  animation: spd-rotating 1s linear infinite;
+}
+
+@keyframes spd-rotating {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

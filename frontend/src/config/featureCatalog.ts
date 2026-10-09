@@ -752,7 +752,14 @@ export function featureCodesByViewFamily(viewFamily: FeatureViewFamily): string[
 }
 
 export function findFeature(code: string): FeatureCatalogEntry | undefined {
-  return featureCatalog.find((feature) => feature.code === code)
+  // 精确匹配优先；其次匹配别名（aliases 指向主条目，主条目包含完整 title）
+  const direct = featureCatalog.find((feature) => feature.code === code)
+  if (direct) return direct
+  for (const feature of featureCatalog) {
+    const aliases = (feature as { aliases?: readonly string[] }).aliases
+    if (aliases && aliases.includes(code)) return feature
+  }
+  return undefined
 }
 
 export function featureRouteTarget(code: string): string {

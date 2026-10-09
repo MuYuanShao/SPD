@@ -1,3 +1,7 @@
+@import "./theme.css";
+@import "./spd-theme.css";
+@import "./spd-layout.css";
+@import "./spd-dashboard.css";
 @import "./system/approval-flow-settings.css";
 @import "./system/system-config.css";
 @import "./supply-chain/quota-package.css";
@@ -21,6 +25,7 @@
 @import "./components/app-chrome.css";
 @import "./master-data/foundation.css";
 @import "./medical-saas.css";
+@import "./spd-override.css";
 
 :root {
   color-scheme: light;
@@ -193,7 +198,7 @@ textarea:focus-visible {
 
 .standard-page-heading h2 {
   margin: 4px 0 8px;
-  color: #06152b;
+  color: var(--spd-text-primary);
   font-size: 28px;
 }
 

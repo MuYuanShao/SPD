@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { chatWithAi } from '../../api/aiAssistant'
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -15,7 +16,6 @@ import {
 } from '@lucide/vue'
 import {
   assistantQuickActions,
-  assistantReplies,
   assistantReplyForPrompt,
   type AssistantActionKey,
   type AssistantReply
@@ -26,6 +26,8 @@ interface ConversationMessage {
   role: 'user' | 'assistant'
   text?: string
   time?: string
+  image?: string
+  failed?: boolean
   reply?: AssistantReply
 }
 
@@ -43,19 +45,32 @@ const actionIcons = {
 }
 const quickActions = assistantQuickActions.map(action => ({ ...action, icon: actionIcons[action.key] }))
 
-const messages = ref<ConversationMessage[]>([
-  {
-    id: 1,
-    role: 'user',
-    text: '骨科有哪些库存不足的重点监控耗材？',
-    time: '16:16'
-  },
-  {
-    id: 2,
-    role: 'assistant',
-    reply: assistantReplies.inventory
+const messages = ref<ConversationMessage[]>([])
+const busy = ref(false)
+const selectedImage = ref('')
+const imageError = ref('')
+
+async function selectImage(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  imageError.value = ''
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type) || file.size > 2 * 1024 * 1024) {
+    imageError.value = '请选择不超过2MB的PNG、JPEG或WebP图片'
+    return
   }
-])
+  try {
+    selectedImage.value = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(String(reader.result))
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  } catch {
+    imageError.value = '图片读取失败，请重新选择'
+  }
+}
 
 function currentTime() {
   return new Intl.DateTimeFormat('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date())
@@ -78,19 +93,41 @@ function closeAssistant() {
   open.value = false
 }
 
-function submitPrompt(value = prompt.value) {
-  const normalized = value.trim()
-  if (!normalized) return
-  messages.value.push({ id: nextMessageId++, role: 'user', text: normalized, time: currentTime() })
-  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: assistantReplyForPrompt(normalized) })
+async function submitPrompt(value = prompt.value) {
+  const normalized = value.trim() || (selectedImage.value ? '请识别这张图片中的耗材信息。' : '')
+  if (!normalized || busy.value) return
+  const image = selectedImage.value || undefined
+  messages.value.push({ id: nextMessageId++, role: 'user', text: normalized, image, time: currentTime() })
   prompt.value = ''
+  selectedImage.value = ''
+  busy.value = true
   scrollToLatest()
+  try {
+    const history = messages.value.filter(message => message.text && !message.failed).slice(-20)
+    // Keep recent image context within the backend's three-image limit.
+    let imageCount = 0
+    const payload = history.slice().reverse().map(message => ({
+      role: message.role,
+      text: message.text!,
+      image: message.image && ++imageCount <= 3 ? message.image : undefined
+    })).reverse()
+    const response = await chatWithAi(payload)
+    const guidance = assistantReplyForPrompt(normalized)
+    messages.value.push({ id: nextMessageId++, role: 'assistant', text: response.text,
+      reply: guidance.actionRoute ? { ...guidance, title: '', lines: [] } : undefined })
+  } catch (error) {
+    messages.value.push({ id: nextMessageId++, role: 'assistant', failed: true,
+      text: error instanceof Error ? error.message : 'AI服务暂时不可用，请重试' })
+    prompt.value = normalized
+    selectedImage.value = image || ''
+  } finally {
+    busy.value = false
+    scrollToLatest()
+  }
 }
 
-function runQuickAction(key: AssistantActionKey, label: string) {
-  messages.value.push({ id: nextMessageId++, role: 'user', text: label, time: currentTime() })
-  messages.value.push({ id: nextMessageId++, role: 'assistant', reply: assistantReplies[key] })
-  scrollToLatest()
+function runQuickAction(_key: AssistantActionKey, label: string) {
+  void submitPrompt(label)
 }
 
 function navigateTo(route?: string) {
@@ -151,6 +188,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
               v-for="action in quickActions"
               :key="action.key"
               type="button"
+              :disabled="busy"
               @click="runQuickAction(action.key, action.label)"
             >
               <component :is="action.icon" :size="22" stroke-width="2.2" />
@@ -163,20 +201,22 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
               <div class="ai-medical-user-bubble">
                 <span class="ai-medical-user-icon"><Stethoscope :size="18" /></span>
                 <p>{{ message.text }}</p>
+                <img v-if="message.image" :src="message.image" class="ai-image-preview" alt="上传的耗材图片" />
               </div>
               <time>{{ message.time }}</time>
             </template>
 
-            <template v-else-if="message.reply">
+            <template v-else>
               <div class="ai-medical-answer">
                 <span class="ai-medical-avatar compact"><Sparkles :size="16" fill="currentColor" /></span>
                 <div>
-                  <p>{{ message.reply.title }}</p>
-                  <ul>
+                  <p class="ai-response-text">{{ message.text }}</p>
+                  <p v-if="message.reply?.title">{{ message.reply.title }}</p>
+                  <ul v-if="message.reply?.lines.length">
                     <li v-for="line in message.reply.lines" :key="line">{{ line }}</li>
                   </ul>
                   <button
-                    v-if="message.reply.actionLabel"
+                    v-if="message.reply?.actionLabel"
                     class="ai-medical-link"
                     type="button"
                     @click="navigateTo(message.reply.actionRoute)"
@@ -188,22 +228,27 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
               </div>
             </template>
           </article>
+          <p v-if="busy" role="status">正在识别和思考，请稍候…</p>
         </div>
 
         <footer class="ai-medical-composer">
+          <label>上传图片（最多2MB）<input type="file" accept="image/png,image/jpeg,image/webp" :disabled="busy" @change="selectImage" /></label>
+          <div v-if="selectedImage"><img :src="selectedImage" class="ai-image-preview" alt="待发送图片" /><button type="button" @click="selectedImage = ''">移除</button></div>
+          <p v-if="imageError" role="alert">{{ imageError }}</p>
           <div class="ai-medical-input-wrap">
             <textarea
               v-model="prompt"
               rows="2"
-              placeholder="输入您的问题，支持耗材、库存、订单、UDI查询…"
+              maxlength="8000"
+              placeholder="输入SPD业务问题，或上传耗材图片进行识别…"
               aria-label="向AI医护助手提问"
               @keydown.enter.exact.prevent="submitPrompt()"
             ></textarea>
-            <button type="button" aria-label="发送问题" :disabled="!prompt.trim()" @click="submitPrompt()">
+            <button type="button" aria-label="发送问题" :disabled="busy || (!prompt.trim() && !selectedImage)" @click="submitPrompt()">
               <Send :size="19" fill="currentColor" />
             </button>
           </div>
-          <small>内容仅供院内SPD业务协作使用</small>
+          <small>AI可识别图片及解答流程；实时业务数据请通过业务页面查询</small>
         </footer>
       </aside>
     </Transition>
@@ -211,6 +256,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeydown))
 </template>
 
 <style scoped>
+.ai-response-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-image-preview { max-width: 120px; max-height: 100px; object-fit: contain; }
+.ai-medical-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
 .ai-medical-fab {
   position: fixed;
   right: 34px;

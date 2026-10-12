@@ -61,14 +61,23 @@ test('待审批新品准入字段导航与表头及分组保持一致', async ({
 })
 
 test('AI医护助手的自定义补货问题返回补货建议入口', async ({ page }) => {
+  test.setTimeout(150_000)
   await page.goto('/')
   await login(page)
 
   await page.getByRole('button', { name: '打开AI医护助手' }).click()
   await page.getByRole('textbox', { name: '向AI医护助手提问' }).fill('请生成补货建议')
+  const responsePromise = page.waitForResponse(response =>
+    response.url().endsWith('/api/ai-assistant/chat') && response.request().method() === 'POST',
+    { timeout: 130_000 })
   await page.getByRole('button', { name: '发送问题' }).click()
-
-  await expect(page.getByText('查看实时补货建议')).toBeVisible()
+  const response = await responsePromise
+  expect(response.ok()).toBeTruthy()
+  const body = await response.json()
+  expect(body.code).toBe(0)
+  expect(body.data.model).toBe('qwen3-vl:8b')
+  expect(body.data.text.trim()).toBeTruthy()
+  await expect(page.locator('.ai-response-text').last()).toHaveText(body.data.text)
   await expect(page.getByRole('button', { name: '进入补货任务' })).toBeVisible()
 })
 

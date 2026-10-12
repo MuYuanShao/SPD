@@ -12,6 +12,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RbacAuthorizationServiceTest {
+    @Test
+    void assistantRequiresAuthenticatedUserAndOnlyAllowsKnownOperations() {
+        assertThat(service.isAllowed(50L, List.of(), "POST", "/api/ai-assistant/chat")).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "GET", "/api/ai-assistant/models")).isTrue();
+        assertThat(service.isAllowed(null, List.of(), "POST", "/api/ai-assistant/chat")).isFalse();
+        assertThat(service.isAllowed(50L, List.of(), "DELETE", "/api/ai-assistant/chat")).isFalse();
+    }
 
     @Test
     void mobileSigningRoutesRequireSigningPermissionAndDenyUnknownRoutes() {

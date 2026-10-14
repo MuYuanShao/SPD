@@ -175,37 +175,160 @@ function handleSupplierChange() {
   min-height: 0;
   overflow-y: auto;
   padding: 2px 18px 10px;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
 }
 
 .product-dialog-section h4 {
   margin: 0;
-  padding: 14px 0 10px;
+  padding: 10px 0 8px;
   border-bottom: 1px solid var(--line);
   color: #102033;
   font-size: 14px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .product-dialog-section .supplier-form-grid {
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px 16px;
-  padding: 14px 0 6px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px 12px;
+  padding: 10px 0 4px;
 }
 
 .product-dialog-section .dialog-toggle-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 22px;
-  padding: 14px 0 6px;
+  gap: 8px;
+  padding: 10px 0 4px;
+}
+
+.product-dialog-section .dialog-toggle-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default, #d9dde2);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-container, #ffffff);
+  color: var(--spd-text-primary, #1f2a37);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.product-dialog-section .dialog-toggle-row label:hover {
+  border-color: var(--primary, #1890ff);
+  color: var(--primary, #1890ff);
+  background: var(--spd-primary-bg, #e6f7ff);
+}
+
+.product-dialog-section .dialog-toggle-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--primary, #1890ff);
 }
 
 .product-dialog-actions {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
   gap: 10px;
   flex: none;
   border-top: 1px solid var(--line);
   background: #fbfcfd;
-  padding: 12px 18px;
+  padding: 10px 18px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+}
+
+.product-dialog-actions .btn {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  border: 1px solid var(--spd-border-default, #d9dde2) !important;
+  background: var(--spd-bg-container, #ffffff) !important;
+  color: var(--spd-text-primary, #1f2a37) !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.product-dialog-actions .btn:hover {
+  border-color: var(--primary, #1890ff) !important;
+  color: var(--primary, #1890ff) !important;
+  background: var(--spd-primary-bg, #e6f7ff) !important;
+}
+
+.product-dialog-actions .btn.btn-primary {
+  background: var(--primary, #1890ff) !important;
+  border-color: var(--primary, #1890ff) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+}
+
+.product-dialog-actions .btn.btn-primary:hover {
+  background: var(--primary-strong, #096dd9) !important;
+  border-color: var(--primary-strong, #096dd9) !important;
+  color: #ffffff !important;
+}
+
+/* 表单输入 32px 统一 */
+.product-dialog-section .supplier-form-grid label {
+  display: flex !important;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.product-dialog-section .supplier-form-grid label > span {
+  color: var(--spd-text-secondary, #5b6b7a) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.product-dialog-section .supplier-form-grid input,
+.product-dialog-section .supplier-form-grid select {
+  min-height: 32px !important;
+  height: 32px !important;
+  border: 1px solid var(--spd-border-default, #d9dde2) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 0 10px !important;
+  background: var(--spd-bg-container, #ffffff) !important;
+  color: var(--spd-text-primary, #1f2a37) !important;
+  font-size: 13px !important;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.product-dialog-section .supplier-form-grid input:focus,
+.product-dialog-section .supplier-form-grid select:focus {
+  border-color: var(--primary, #1890ff) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15) !important;
+}
+
+.product-dialog-section .supplier-form-grid input[readonly] {
+  background: var(--spd-bg-page, #f0f2f5) !important;
+  color: var(--spd-text-tertiary, #8693a3) !important;
+  cursor: not-allowed;
+}
+
+.product-dialog-section .supplier-form-grid select:disabled {
+  background: var(--spd-bg-page, #f0f2f5) !important;
+  color: var(--spd-text-tertiary, #8693a3) !important;
+  cursor: not-allowed;
 }
 </style>

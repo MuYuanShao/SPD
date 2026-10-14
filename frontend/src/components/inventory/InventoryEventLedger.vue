@@ -4,7 +4,7 @@ import { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 import 'element-plus/theme-chalk/el-drawer.css'
 import { useRouter } from 'vue-router'
 import { Eye, RefreshCw, Search, SlidersHorizontal } from '@lucide/vue'
-import PageHeader from '../common/PageHeader.vue'
+import MdPageHeader from '../master-data/MdPageHeader.vue'
 import SectionTitle from '../common/SectionTitle.vue'
 import StatusMessage from '../common/StatusMessage.vue'
 import EmptyState from '../common/EmptyState.vue'
@@ -138,37 +138,39 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="inventory-ledger-page">
-    <PageHeader eyebrow="供应链业务 / 库存账务" title="库存交易流水" description="按事件发生时快照查询不可变库存事实，主表始终一条事件一行。">
-      <template #actions>
-        <button class="btn" type="button" :disabled="loading" @click="load"><RefreshCw :size="17" />刷新</button>
-      </template>
-    </PageHeader>
+  <section class="md-page inventory-ledger-page">
+    <MdPageHeader
+      crumb="供应链业务 / 库存账务"
+      title="库存交易流水"
+      description="按事件发生时快照查询不可变库存事实，主表始终一条事件一行。"
+      :loading="loading"
+      @refresh="load"
+    />
 
     <StatusMessage v-if="error" :message="error" tone="error" />
 
     <section class="hospital-catalog-panel ledger-panel">
       <form class="ledger-filter" role="search" @submit.prevent="search">
-        <label><span>开始日期</span><input v-model="query.startTime" type="date" /></label>
-        <label><span>结束日期</span><input v-model="query.endTime" type="date" /></label>
-        <label><span>交易类型</span><select v-model="query.transactionTypeCode"><option value="">全部类型</option><option v-for="type in types" :key="type.code" :value="type.code">{{ type.label }}</option></select></label>
-        <label><span>库房</span><input v-model.trim="query.warehouseName" placeholder="库房名称" /></label>
-        <label><span>商品</span><input v-model.trim="query.productName" placeholder="商品名称" /></label>
+        <label><span>开始日期</span><input v-model="query.startTime" class="md-input" type="date" /></label>
+        <label><span>结束日期</span><input v-model="query.endTime" class="md-input" type="date" /></label>
+        <label><span>交易类型</span><select v-model="query.transactionTypeCode" class="md-select"><option value="">全部类型</option><option v-for="type in types" :key="type.code" :value="type.code">{{ type.label }}</option></select></label>
+        <label><span>库房</span><input v-model.trim="query.warehouseName" class="md-input" placeholder="库房名称" /></label>
+        <label><span>商品</span><input v-model.trim="query.productName" class="md-input" placeholder="商品名称" /></label>
         <div class="ledger-filter-actions">
-          <button class="btn btn-primary" type="submit" :disabled="loading"><Search :size="17" />查询</button>
-          <button class="btn" type="button" @click="reset">重置</button>
-          <button class="btn advanced-toggle" :class="{ active: advancedOpen || hasAdvancedFilter }" type="button" :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
-            <SlidersHorizontal :size="17" />高级筛选<span v-if="hasAdvancedFilter" class="filter-dot" aria-label="高级筛选已启用"></span>
+          <button class="btn btn-primary md-btn md-btn-primary" type="submit" :disabled="loading"><Search :size="15" />查询</button>
+          <button class="btn md-btn" type="button" @click="reset">重置</button>
+          <button class="btn md-btn advanced-toggle" :class="{ active: advancedOpen || hasAdvancedFilter }" type="button" :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
+            <SlidersHorizontal :size="15" />高级筛选<span v-if="hasAdvancedFilter" class="filter-dot" aria-label="高级筛选已启用"></span>
           </button>
         </div>
         <div v-if="advancedOpen" class="advanced-filters">
-          <label><span>科室</span><input v-model.trim="query.deptName" placeholder="科室名称" /></label>
-          <label><span>商品编码</span><input v-model.trim="query.productCode" placeholder="商品编码" /></label>
-          <label><span>系统批次</span><input v-model.trim="query.batchNo" placeholder="系统批次号" /></label>
-          <label><span>生产批号</span><input v-model.trim="query.productionBatchNo" placeholder="生产批号" /></label>
-          <label><span>厂家</span><input v-model.trim="query.manufacturerName" placeholder="生产厂家" /></label>
-          <label><span>供应商</span><input v-model.trim="query.supplierName" placeholder="供应商" /></label>
-          <label><span>来源单据</span><input v-model.trim="query.sourceBizNo" placeholder="来源单号" /></label>
+          <label><span>科室</span><input v-model.trim="query.deptName" class="md-input" placeholder="科室名称" /></label>
+          <label><span>商品编码</span><input v-model.trim="query.productCode" class="md-input" placeholder="商品编码" /></label>
+          <label><span>系统批次</span><input v-model.trim="query.batchNo" class="md-input" placeholder="系统批次号" /></label>
+          <label><span>生产批号</span><input v-model.trim="query.productionBatchNo" class="md-input" placeholder="生产批号" /></label>
+          <label><span>厂家</span><input v-model.trim="query.manufacturerName" class="md-input" placeholder="生产厂家" /></label>
+          <label><span>供应商</span><input v-model.trim="query.supplierName" class="md-input" placeholder="供应商" /></label>
+          <label><span>来源单据</span><input v-model.trim="query.sourceBizNo" class="md-input" placeholder="来源单号" /></label>
         </div>
       </form>
 
@@ -188,7 +190,7 @@ onMounted(async () => {
           <tbody>
             <tr v-for="row in rows" :key="row.eventNo" :class="{ 'valuation-row': row.eventCategory === 'valuation' }">
               <td class="code-cell sticky-event">{{ row.eventNo }}</td>
-              <td><strong>{{ row.warehouseName || '-' }}</strong><small>{{ row.deptName || '无科室归属' }}</small></td>
+              <td class="ledger-pair-cell"><strong>{{ row.warehouseName || '-' }}</strong><small>{{ row.deptName || '无科室归属' }}</small></td>
               <td class="sticky-product"><strong>{{ row.productName }}</strong><small>{{ row.productCode }}</small></td>
               <td><span class="event-type-chip" :class="row.eventCategory">{{ row.transactionTypeName }}</span></td>
               <td class="number-cell" :class="{ 'qty-out': Number(row.qtyChange) < 0 }">{{ row.eventCategory === 'valuation' ? '0.0000' : signed(row.qtyChange) }}</td>
@@ -228,5 +230,438 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.inventory-ledger-page{display:grid;gap:16px}.ledger-panel{display:grid;gap:14px}.ledger-filter{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px;align-items:end}.ledger-filter label,.advanced-filters label{display:grid;gap:6px;font-size:13px;color:var(--text-secondary,#596579)}.ledger-filter input,.ledger-filter select{min-height:36px;border:1px solid var(--border-color,#dfe4eb);border-radius:6px;padding:0 10px;background:#fff;color:inherit}.ledger-filter-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.advanced-toggle{position:relative}.advanced-toggle.active{border-color:#3b82f6;color:#2563eb}.filter-dot{width:7px;height:7px;border-radius:50%;background:#2563eb}.advanced-filters{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;padding:12px;background:#f7f9fc;border:1px solid #e8edf3;border-radius:8px}.ledger-summary{display:flex;gap:8px 22px;flex-wrap:wrap;padding:9px 12px;border-left:3px solid #2563eb;background:#f5f8fc;color:#596579;font-size:13px}.ledger-summary strong{margin-left:5px;color:#172033;font-variant-numeric:tabular-nums}.section-title{display:flex;align-items:center;gap:10px}.ledger-table{min-width:1160px}.ledger-table th,.ledger-table td{white-space:nowrap}.ledger-table td strong,.ledger-table td small{display:block}.ledger-table td small{margin-top:3px;color:#7b8798}.event-type-chip{display:inline-flex;padding:3px 8px;border-radius:999px;background:#eaf2ff;color:#245fb8;font-size:12px}.event-type-chip.valuation{background:#fff2dd;color:#9a5b00}.valuation-row{background:#fffaf1}.qty-out{color:#c2413b}.time-cell{font-variant-numeric:tabular-nums}.ledger-detail{display:grid;gap:18px}.detail-grid{display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #e7ebf0;border-left:1px solid #e7ebf0}.detail-grid>div{display:grid;gap:5px;padding:11px;border-right:1px solid #e7ebf0;border-bottom:1px solid #e7ebf0}.detail-grid span,.trace-list span{font-size:12px;color:#738095}.detail-grid strong{font-size:14px;font-weight:600}.source-link{border:0;padding:0;background:none;color:#2563eb;font:inherit;font-weight:600;cursor:pointer}.source-link:hover{text-decoration:underline}.trace-list{display:grid;gap:8px}.trace-list>div{display:flex;justify-content:space-between;gap:16px;padding:10px 12px;border:1px solid #e7ebf0;border-radius:7px}.detail-remark{margin:0;padding:10px 12px;background:#f7f9fc;border-radius:7px}@media(max-width:1280px){.ledger-filter{grid-template-columns:repeat(3,minmax(150px,1fr))}.advanced-filters{grid-template-columns:repeat(3,minmax(150px,1fr))}}@media(max-width:760px){.ledger-filter,.advanced-filters,.detail-grid{grid-template-columns:1fr}.ledger-filter-actions{grid-column:1}.ledger-summary{display:grid;grid-template-columns:1fr 1fr}.inventory-ledger-page{gap:10px}}
+/* ================================================================
+   库存交易流水 ledger
+   ----------------------------------------------------------------
+   与采购管理 / 收货验收 / 库存管理 统一到 md 设计语言：
+   1. 页头改用 MdPageHeader
+   2. 面板 md 卡片化，查询区紧凑
+   3. 表格 md 密度：表头 12px / 9px 12px，表体 13px / 8px 12px
+   4. 汇总条去掉硬编码蓝色，改用主色令牌
+   5. 补齐此前缺失的样式：sticky-event / sticky-product /
+      code-cell / number-cell / ledger-table-wrap 等类名在旧版
+      样式表中未定义，导致吸附列与数字对齐从未生效，本次补上。
+
+   优先级：.master-table 的 padding / font-size / color 由
+   spd-override.css 以 !important 统一设定，覆盖时加
+   .inventory-ledger-page 前缀提高特指度。
+   ================================================================ */
+
+/* ---------- 页面外壳 ---------- */
+.inventory-ledger-page {
+  display: flex !important;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px 20px 24px;
+}
+
+/* ---------- 面板卡片 ---------- */
+.inventory-ledger-page .ledger-panel {
+  display: flex !important;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+/* ---------- 查询区 ---------- */
+.ledger-filter {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: 10px 14px;
+  align-items: end;
+  padding: 12px;
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
+}
+
+.ledger-filter label,
+.advanced-filters label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.ledger-filter label > span,
+.advanced-filters label > span {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.ledger-filter .md-input,
+.ledger-filter .md-select,
+.advanced-filters .md-input {
+  min-height: 30px;
+  font-size: 13px;
+}
+
+.ledger-filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ledger-filter-actions .md-btn {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.ledger-filter-actions .md-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.advanced-toggle {
+  position: relative;
+}
+
+/* 高级筛选启用态：用主色令牌，不再使用硬编码蓝 */
+.advanced-toggle.active {
+  border-color: var(--md-primary, var(--spd-primary));
+  color: var(--md-primary, var(--spd-primary));
+  background: var(--md-primary-soft, var(--spd-primary-bg));
+}
+
+.filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--md-primary, var(--spd-primary));
+}
+
+.advanced-filters {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  gap: 10px 14px;
+  padding: 12px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
+}
+
+/* ---------- 汇总条 ---------- */
+.ledger-summary {
+  display: flex;
+  gap: 8px 22px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 9px 12px;
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-left: 3px solid var(--md-primary, var(--spd-primary));
+  border-radius: var(--md-radius, 6px);
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+}
+
+.ledger-summary strong {
+  margin-left: 5px;
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.muted-hint {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+}
+
+/* ---------- 表格 ---------- */
+.ledger-table-wrap {
+  max-height: max(300px, calc(100dvh - 460px));
+  overflow: auto;
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
+  background: var(--md-bg-card, #fff);
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
+}
+
+.ledger-table-wrap::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.ledger-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--md-border, var(--spd-border-default));
+  border-radius: 4px;
+}
+
+.inventory-ledger-page .ledger-table {
+  min-width: 1160px;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px !important;
+}
+
+.inventory-ledger-page .ledger-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 9px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  color: var(--md-text-heading) !important;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
+}
+
+.inventory-ledger-page .ledger-table tbody td {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  color: var(--md-text) !important;
+  border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  vertical-align: middle;
+  white-space: nowrap;
+  background: var(--md-bg-card, #fff) !important;
+}
+
+.inventory-ledger-page .ledger-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted, #fafbfc) !important;
+}
+
+.inventory-ledger-page .ledger-table tbody tr:hover td {
+  background: var(--md-primary-soft, #f0f7f6) !important;
+}
+
+/* ---------- 吸附列（此前未定义，本次补齐） ---------- */
+.ledger-table .sticky-event {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 12px !important;
+  color: var(--md-text-heading) !important;
+}
+
+/* 商品列不能同为 left:0 —— 会与事件号列叠在一起。
+   这里改为不吸附，仅保留最小宽度；事件号列已足够作为定位锚点。 */
+.ledger-table .sticky-product {
+  min-width: 180px;
+}
+
+/* 吸附列在斑马纹/hover 下需保持不透明，否则会与下方内容透叠 */
+.ledger-table tbody tr:nth-child(even) .sticky-event {
+  background: var(--md-bg-muted, #fafbfc) !important;
+}
+
+.ledger-table tbody tr:hover .sticky-event {
+  background: var(--md-primary-soft, #f0f7f6) !important;
+}
+
+.ledger-table thead th.sticky-event {
+  z-index: 4;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+}
+
+/* ---------- 数字 / 编码列（此前未定义，本次补齐） ---------- */
+.ledger-table .number-cell {
+  text-align: right;
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledger-table .code-cell {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 12px !important;
+  white-space: nowrap;
+}
+
+.ledger-table .time-cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
+  white-space: nowrap;
+}
+
+/* 库房 / 科室 与 商品 / 编码 两行结构 */
+.ledger-table .ledger-pair-cell strong,
+.ledger-table .sticky-product strong {
+  display: block;
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-weight: 600;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ledger-table .ledger-pair-cell small,
+.ledger-table .sticky-product small {
+  display: block;
+  margin-top: 1px;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 11px;
+}
+
+/* ---------- 出库 / 调价 标识 ---------- */
+/* 需压过上面的 `.inventory-ledger-page .ledger-table tbody td`（同为
+   !important，但特指度更高），故这里加表选择器前缀。 */
+.ledger-table tbody td.qty-out {
+  color: var(--md-danger, var(--spd-danger)) !important;
+  font-weight: 600;
+}
+
+.event-type-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--md-primary-soft, #e8f1ef);
+  color: var(--md-primary-strong, var(--md-primary, #0d6b63));
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 调价事件：橙色系，与主色区分 */
+.event-type-chip.valuation {
+  background: var(--spd-warning-bg, #fff4e5);
+  color: var(--spd-warning-text, #9a5b00);
+}
+
+/* 调价事件：橙色系，与主色区分。
+   同为 !important，需比 tbody td 更高的特指度。 */
+.ledger-table tbody tr.valuation-row td {
+  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 45%, white) !important;
+}
+
+.ledger-table tbody tr.valuation-row:hover td {
+  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 70%, white) !important;
+}
+
+.ledger-table tbody tr.valuation-row .sticky-event {
+  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 45%, white) !important;
+}
+
+/* ---------- 详情抽屉 ---------- */
+.ledger-detail {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid var(--md-border-soft, #e7ebf0);
+  border-left: 1px solid var(--md-border-soft, #e7ebf0);
+  border-radius: var(--md-radius, 6px);
+  overflow: hidden;
+}
+
+.detail-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 11px;
+  border-right: 1px solid var(--md-border-soft, #e7ebf0);
+  border-bottom: 1px solid var(--md-border-soft, #e7ebf0);
+}
+
+.detail-grid span,
+.trace-list span {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+}
+
+.detail-grid strong {
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.source-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--md-primary, var(--spd-primary));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.source-link:hover {
+  text-decoration: underline;
+}
+
+.trace-list {
+  display: grid;
+  gap: 8px;
+}
+
+.trace-list > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--md-border-soft, #e7ebf0);
+  border-radius: var(--md-radius, 6px);
+}
+
+.trace-list strong {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: var(--md-text-heading, var(--spd-text-heading));
+}
+
+.detail-remark {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  border-radius: var(--md-radius, 6px);
+  color: var(--md-text, var(--spd-text-primary));
+  font-size: 13px;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1280px) {
+  .ledger-filter {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+
+  .advanced-filters {
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .inventory-ledger-page {
+    padding: 12px 12px 20px;
+  }
+
+  .ledger-filter,
+  .advanced-filters,
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ledger-filter-actions {
+    grid-column: 1;
+  }
+
+  .ledger-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .ledger-table-wrap {
+    max-height: max(240px, calc(100dvh - 400px));
+  }
+}
 </style>
+

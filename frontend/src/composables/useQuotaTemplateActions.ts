@@ -7,6 +7,9 @@ import {
 } from '../api/quotaPackages'
 import { downloadCsvContent } from '../utils/downloadCsv'
 
+/** 统一操作结果：tone=success 就地显示，tone=error/warning 弹出提示 */
+export type QuotaActionResult = { text: string; tone: 'success' | 'error' | 'warning' }
+
 type TemplateForm = {
   templateCode: string
   templateName: string
@@ -40,9 +43,13 @@ export function useQuotaTemplateActions(options: {
   templateDialogMode: Ref<'create' | 'edit'>
   templateError: Ref<string>
   importInput: Ref<HTMLInputElement | null>
-  message: Ref<string>
+  message: Ref<QuotaActionResult>
   reload: () => Promise<void>
 }) {
+  /** 写入操作结果，视图据此决定「就地提示」还是「弹出提示」 */
+  function setResult(text: string, tone: QuotaActionResult['tone'] = 'success') {
+    options.message.value = { text, tone }
+  }
   function fillTemplate(row: QuotaTemplateRow) {
     options.templateForm.templateCode = row.templateCode
     options.templateForm.templateName = row.templateName
@@ -79,7 +86,7 @@ export function useQuotaTemplateActions(options: {
   function openEditTemplate(row?: QuotaTemplateRow) {
     const target = row || options.selectedTemplates.value[0]
     if (!target) {
-      options.message.value = '请先选择一条定数包模板记录'
+      setResult('请先选择一条定数包模板记录', 'warning')
       return
     }
     options.templateDialogMode.value = 'edit'
@@ -104,7 +111,7 @@ export function useQuotaTemplateActions(options: {
     }
     try {
       const result = await saveQuotaTemplate(options.templateForm)
-      options.message.value = `定数包模板已保存：${result.templateCode}`
+      setResult(`定数包模板已保存：${result.templateCode}`)
       options.templateDialogOpen.value = false
       await options.reload()
     } catch (error: any) {
@@ -115,7 +122,7 @@ export function useQuotaTemplateActions(options: {
   async function disableSelectedTemplates(row?: QuotaTemplateRow) {
     const rows = row ? [row] : options.selectedTemplates.value
     if (!rows.length) {
-      options.message.value = '请先选择需要停用的定数包模板'
+      setResult('请先选择需要停用的定数包模板', 'warning')
       return
     }
     if (!window.confirm(`确认停用 ${rows.length} 条定数包模板？`)) {
@@ -125,14 +132,14 @@ export function useQuotaTemplateActions(options: {
       await disableQuotaTemplate(item.templateCode)
     }
     options.selectedTemplateCodes.value = []
-    options.message.value = `已停用 ${rows.length} 条定数包模板`
+    setResult(`已停用 ${rows.length} 条定数包模板`)
     await options.reload()
   }
 
   async function enableSelectedTemplates(row?: QuotaTemplateRow) {
     const rows = row ? [row] : options.selectedTemplates.value.filter((item) => item.status === '禁用')
     if (!rows.length) {
-      options.message.value = '请先选择需要启用的定数包模板'
+      setResult('请先选择需要启用的定数包模板', 'warning')
       return
     }
     if (!window.confirm(`确认启用 ${rows.length} 条定数包模板？`)) {
@@ -143,10 +150,10 @@ export function useQuotaTemplateActions(options: {
         await enableQuotaTemplate(item.templateCode)
       }
       options.selectedTemplateCodes.value = []
-      options.message.value = `已启用 ${rows.length} 条定数包模板`
+      setResult(`已启用 ${rows.length} 条定数包模板`)
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || error?.message || '启用失败，请重试'
+      setResult(error?.response?.data?.message || error?.message || '启用失败，请重试', 'error')
     }
   }
 
@@ -189,10 +196,10 @@ export function useQuotaTemplateActions(options: {
         })
         successCount += 1
       }
-      options.message.value = `已按模板导入 ${successCount} 条定数包模板`
+      setResult(`已按模板导入 ${successCount} 条定数包模板`)
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || '导入失败，请检查模板内容'
+      setResult(error?.response?.data?.message || '导入失败，请检查模板内容', 'error')
     } finally {
       input.value = ''
     }

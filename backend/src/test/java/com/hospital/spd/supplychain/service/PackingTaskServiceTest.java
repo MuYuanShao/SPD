@@ -110,7 +110,7 @@ class PackingTaskServiceTest {
         assertThatThrownBy(() -> service.createTask(
                 new PackingTaskRequest("TP001", "MAIN", BigDecimal.valueOf(3), null)))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("one package");
+                .hasMessageContaining("散货库存不足 1 包");
     }
 
     @Test
@@ -215,7 +215,7 @@ class PackingTaskServiceTest {
 
         assertThatThrownBy(() -> service.confirmTask("DB2026060800001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("only pending task can be confirmed");
+                .hasMessageContaining("只有待确认的打包任务可以确认");
     }
 
     @Test
@@ -226,7 +226,7 @@ class PackingTaskServiceTest {
 
         assertThatThrownBy(() -> service.confirmTask("DB2026060800001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("not locked");
+                .hasMessageContaining("预占散货未锁定");
         verify(support, never()).consumeLocked(anyLong(), anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
                 anyString(), anyString(), anyLong(), anyString());
     }
@@ -239,7 +239,7 @@ class PackingTaskServiceTest {
 
         assertThatThrownBy(() -> service.confirmTask("DB2026060800001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("reservation is incomplete");
+                .hasMessageContaining("预占明细不完整");
         verify(support, never()).consumeLocked(anyLong(), anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
                 anyString(), anyString(), anyLong(), anyString());
     }
@@ -409,7 +409,7 @@ class PackingTaskServiceTest {
 
         assertThatThrownBy(() -> service.printLabel("D000001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("can be printed");
+                .hasMessageContaining("定数包标签可以打印");
         verify(jdbcTemplate, never()).update(contains("print_count = print_count + 1"), anyLong());
     }
 

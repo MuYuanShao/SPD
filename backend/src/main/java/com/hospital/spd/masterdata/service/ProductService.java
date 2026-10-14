@@ -98,6 +98,29 @@ public class ProductService {
                 LEFT JOIN supplier s ON p.supplier_id = s.supplier_id
                 """ + where, Long.class, args.toArray());
 
+        // 统计汇总：按当前筛选条件 + 全院范围（不过滤状态）便于展示
+        String baseFrom = " FROM product p LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id "
+                + "LEFT JOIN supplier s ON p.supplier_id = s.supplier_id ";
+        Map<String, Long> scopeRow = jdbcTemplate.queryForObject("""
+                SELECT
+                  COUNT(*) AS scopeTotal,
+                  SUM(CASE WHEN p.is_centralized_procurement = 1 THEN 1 ELSE 0 END) AS centralizedTotal,
+                  SUM(CASE WHEN p.is_domestic = 1 THEN 1 ELSE 0 END) AS domesticTotal,
+                  SUM(CASE WHEN p.status = 0 THEN 1 ELSE 0 END) AS disabledTotal
+                """ + baseFrom, (rs, n) -> {
+            Map<String, Long> map = new java.util.LinkedHashMap<>();
+            map.put("scopeTotal", rs.getLong("scopeTotal"));
+            map.put("centralizedTotal", rs.getLong("centralizedTotal"));
+            map.put("domesticTotal", rs.getLong("domesticTotal"));
+            map.put("disabledTotal", rs.getLong("disabledTotal"));
+            return map;
+        });
+        Map<String, Object> summary = new java.util.LinkedHashMap<>();
+        summary.put("scopeTotal", scopeRow.get("scopeTotal"));
+        summary.put("centralizedTotal", scopeRow.get("centralizedTotal"));
+        summary.put("domesticTotal", scopeRow.get("domesticTotal"));
+        summary.put("disabledTotal", scopeRow.get("disabledTotal"));
+
         List<Object> queryArgs = new ArrayList<>(args);
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
@@ -135,7 +158,8 @@ public class ProductService {
                 rows,
                 total == null ? 0 : total,
                 pageReq.page(),
-                pageReq.size()
+                pageReq.size(),
+                summary
         );
     }
 
@@ -270,9 +294,7 @@ public class ProductService {
                 WHERE p.product_code = ? AND p.deleted = 0
                 """, (rs, rowNum) -> {
             Long productId = rs.getLong("product_id");
-            List<ProductAttachment> attachments = loadProductAttachments(productId, rs.getString("registration_no"),
-                    rs.getString("registration_expire_date"), rs.getString("production_license_no"),
-                    rs.getString("business_license_no"));
+            List<ProductAttachment> attachments = loadProductAttachments(productId);
 
             return new ProductDetail(
                     productId,
@@ -317,11 +339,8 @@ public class ProductService {
 
     // ==================== 私有辅助方法 ====================
 
-    private List<ProductAttachment> loadProductAttachments(Long productId, String registrationNo,
-                                                           String registrationExpireDate,
-                                                           String productionLicenseNo,
-                                                           String businessLicenseNo) {
-        List<ProductAttachment> attachments = jdbcTemplate.query("""
+    private List<ProductAttachment> loadProductAttachments(Long productId) {
+        return jdbcTemplate.query("""
                 SELECT file_name, category, file_url, valid_date
                 FROM sys_attachment
                 WHERE biz_type = 'product' AND biz_id = ? AND deleted = 0
@@ -333,25 +352,6 @@ public class ProductService {
                 rs.getString("file_url"),
                 dateString(rs.getDate("valid_date"))
         ), productId);
-
-        if (!attachments.isEmpty()) {
-            return attachments;
-        }
-
-        List<ProductAttachment> fallbackAttachments = new ArrayList<>();
-        if (registrationNo != null && !registrationNo.isBlank() && !"-".equals(registrationNo)) {
-            fallbackAttachments.add(new ProductAttachment("注册证附件.pdf", "注册证", "可查看", "", registrationExpireDate));
-        }
-        if (productionLicenseNo != null && !productionLicenseNo.isBlank()) {
-            fallbackAttachments.add(new ProductAttachment("生产许可证附件.pdf", "生产许可", "可查看", "", ""));
-        }
-        if (businessLicenseNo != null && !businessLicenseNo.isBlank()) {
-            fallbackAttachments.add(new ProductAttachment("经营许可证附件.pdf", "经营许可", "可查看", "", ""));
-        }
-        if (fallbackAttachments.isEmpty()) {
-            fallbackAttachments.add(new ProductAttachment("商品资质材料.pdf", "资质材料", "可查看", "", ""));
-        }
-        return fallbackAttachments;
     }
 
     private Long ensureCategory(String firstCategory, String secondCategory, String thirdCategory) {

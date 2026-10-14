@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { saveQuotaSafety, type QuotaSafetyRow } from '../api/quotaPackages'
+import type { QuotaActionResult } from './useQuotaTemplateActions'
 
 type SafetyCatalogQuery = {
   templateCode: string
@@ -19,7 +20,7 @@ type SafetyForm = {
 
 export function useQuotaSafetyDialog(options: {
   safetyForm: SafetyForm
-  message: Ref<string>
+  message: Ref<QuotaActionResult>
   safetyCatalogQuery: SafetyCatalogQuery
   resetSafetyCatalogQuery: () => void
   reload: () => Promise<void>
@@ -73,7 +74,10 @@ export function useQuotaSafetyDialog(options: {
 
   async function submitSafety() {
     const result = await saveQuotaSafety(options.safetyForm)
-    options.message.value = `安全量${editingSafetyId.value ? '已修改' : '已保存'}：${result.deptName} / ${result.productCode}`
+    options.message.value = {
+      text: `安全量${editingSafetyId.value ? '已修改' : '已保存'}：${result.deptName} / ${result.productCode}`,
+      tone: 'success'
+    }
     editingSafetyId.value = null
     safetyDialogOpen.value = false
     await options.reload()

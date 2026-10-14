@@ -162,7 +162,7 @@ public class PackingTaskService {
                 .divideToIntegralValue(packageQuantity)
                 .min(packageCount);
         if (packableCount.compareTo(BigDecimal.ONE) < 0) {
-            throw new IllegalArgumentException("loose stock is insufficient for one package");
+            throw new IllegalArgumentException("散货库存不足 1 包，无法创建打包任务");
         }
         if (packableCount.compareTo(packageCount) < 0) {
             if (!request.allowPartial()
@@ -218,7 +218,7 @@ public class PackingTaskService {
 
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
-            throw new IllegalArgumentException("only pending task can be confirmed");
+            throw new IllegalArgumentException("只有待确认的打包任务可以确认");
         }
         Long warehouseId = ((Number) task.get("warehouseId")).longValue();
         validateLockedReservations(((Number) task.get("taskId")).longValue(), (BigDecimal) task.get("plannedLooseQty"));
@@ -245,7 +245,7 @@ public class PackingTaskService {
                  WHERE task_no = ? AND status = 'pending_confirm'
                 """, taskNo);
         if (updated != 1) {
-            throw new IllegalArgumentException("packing task status changed, please refresh and retry");
+            throw new IllegalArgumentException("打包任务状态已变更，请刷新后重试");
         }
         support.writeAudit("quota_package", "confirm_quota_pack_task", ((Number) task.get("taskId")).longValue(), taskNo, "confirm packing task and generate labels");
         return Map.of("taskNo", taskNo, "labels", labels);
@@ -257,7 +257,7 @@ public class PackingTaskService {
 
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
-            throw new IllegalArgumentException("only pending task can be cancelled");
+            throw new IllegalArgumentException("只有待确认的打包任务可以取消");
         }
         Long taskId = ((Number) task.get("taskId")).longValue();
         releaseReservations(taskId);
@@ -266,7 +266,7 @@ public class PackingTaskService {
                    SET status = 'cancelled', reserved_loose_qty = 0, cancel_time = NOW(), remark = COALESCE(?, remark)
                  WHERE task_id = ? AND status = 'pending_confirm'
                 """, nullIfBlank(request == null ? null : request.reason()), taskId);
-        if (updated != 1) throw new IllegalArgumentException("packing task status changed, please refresh and retry");
+        if (updated != 1) throw new IllegalArgumentException("打包任务状态已变更，请刷新后重试");
         support.writeAudit("quota_package", "cancel_quota_pack_task", taskId, taskNo, "cancel packing task and release reservation");
         return Map.of("taskNo", taskNo, "status", "cancelled");
     }
@@ -278,7 +278,7 @@ public class PackingTaskService {
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status) && !"confirmed".equals(status)) {
-            throw new IllegalArgumentException("only pending, recalculating, or confirmed task can be terminated");
+            throw new IllegalArgumentException("只有待确认、需重算或已确认的打包任务可以终止");
         }
 
         Long taskId = ((Number) task.get("taskId")).longValue();
@@ -323,7 +323,7 @@ public class PackingTaskService {
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status)) {
-            throw new IllegalArgumentException("only pending task can be recalculated");
+            throw new IllegalArgumentException("只有待确认或需重算的打包任务可以重算");
         }
         Long taskId = ((Number) task.get("taskId")).longValue();
         Long warehouseId = ((Number) task.get("warehouseId")).longValue();
@@ -346,7 +346,7 @@ public class PackingTaskService {
         List<Long> taskIds = jdbcTemplate.queryForList("SELECT task_id FROM quota_packing_task WHERE task_no = ?",
                 Long.class, taskNo.trim());
         if (taskIds.isEmpty()) {
-            throw new IllegalArgumentException("packing task " + taskNo + " does not exist");
+            throw new IllegalArgumentException("打包任务 " + taskNo + " 不存在");
         }
         Long taskId = taskIds.get(0);
         return jdbcTemplate.queryForList("""
@@ -426,7 +426,7 @@ public class PackingTaskService {
                 """, labelNo);
         String statusBefore = String.valueOf(label.get("status"));
         if (!"pending_print".equals(statusBefore) && !"available".equals(statusBefore)) {
-            throw new IllegalArgumentException("only pending or available package label can be printed");
+            throw new IllegalArgumentException("只有待打印或可用的定数包标签可以打印");
         }
         Long labelId = ((Number) label.get("labelId")).longValue();
         jdbcTemplate.update("""
@@ -455,7 +455,7 @@ public class PackingTaskService {
                    FOR UPDATE
                 """, labelNo);
         if (!"available".equals(String.valueOf(label.get("status")))) {
-            throw new IllegalArgumentException("only available package label can be unpacked");
+            throw new IllegalArgumentException("只有可用的定数包标签可以解包");
         }
         Long labelId = ((Number) label.get("labelId")).longValue();
         List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
@@ -674,7 +674,7 @@ public class PackingTaskService {
                    AND t.is_current = 1 AND ti.deleted = 0
                 """, templateCode.trim());
         if (templates.isEmpty()) {
-            throw new IllegalArgumentException("quota package template " + templateCode + " does not exist or is disabled");
+            throw new IllegalArgumentException("定数包模板 " + templateCode + " 不存在或已停用");
         }
         return templates.get(0);
     }
@@ -688,7 +688,7 @@ public class PackingTaskService {
                  LIMIT 1
                 """, Long.class, warehouseName.trim());
         if (ids.isEmpty()) {
-            throw new IllegalArgumentException("warehouse " + warehouseName + " does not exist or is disabled");
+            throw new IllegalArgumentException("库房 " + warehouseName + " 不存在或已停用");
         }
         return ids.get(0);
     }
@@ -720,7 +720,7 @@ public class PackingTaskService {
                  WHERE task_no = ?
                 """ + (forUpdate ? " FOR UPDATE" : ""), taskNo.trim());
         if (tasks.isEmpty()) {
-            throw new IllegalArgumentException("packing task " + taskNo + " does not exist");
+            throw new IllegalArgumentException("打包任务 " + taskNo + " 不存在");
         }
         return tasks.get(0);
     }
@@ -740,12 +740,12 @@ public class PackingTaskService {
             BigDecimal reservedQty = (BigDecimal) reservation.get("reservedQty");
             BigDecimal lockedQty = (BigDecimal) reservation.get("lockedQty");
             if (lockedQty.compareTo(reservedQty) < 0) {
-                throw new IllegalArgumentException("reserved loose stock is not locked, please recalculate packing task");
+                throw new IllegalArgumentException("预占散货未锁定，请先重算打包任务");
             }
             reservedTotal = reservedTotal.add(reservedQty);
         }
         if (reservedTotal.compareTo(plannedLooseQty) != 0) {
-            throw new IllegalArgumentException("packing task reservation is incomplete, please recalculate packing task");
+            throw new IllegalArgumentException("打包任务预占明细不完整，请先重算打包任务");
         }
     }
 
@@ -770,7 +770,7 @@ public class PackingTaskService {
                  ORDER BY reservation_id
                 """, taskId).stream().map(row -> (Map<String, Object>) new java.util.LinkedHashMap<>(row)).toList();
         if (reservations.isEmpty()) {
-            throw new IllegalArgumentException("packing task has no reserved loose stock");
+            throw new IllegalArgumentException("打包任务没有可用的预占散货");
         }
         for (Map<String, Object> reservation : reservations) {
             BigDecimal deductQty = (BigDecimal) reservation.get("deductQty");
@@ -818,7 +818,7 @@ public class PackingTaskService {
             }
         }
         if (remainingPackageQty.compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalArgumentException("packing task source batches cannot cover package quantity");
+            throw new IllegalArgumentException("打包任务来源批次无法覆盖每包数量");
         }
         return sourceIndex;
     }

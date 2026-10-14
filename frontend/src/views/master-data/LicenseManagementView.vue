@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import {
   createLicense,
   fetchLicenseDetail,
@@ -371,13 +372,11 @@ onUnmounted(closePreview)
 
 <template>
   <div class="license-page">
-    <header class="license-header">
-      <div>
-        <p>主数据</p>
-        <h2>证照管理</h2>
-        <span>集中管理商品、供应商、厂家的证照与合同，支持附件上传与阅览。</span>
-      </div>
-    </header>
+    <MdPageHeader
+      crumb="主数据"
+      title="证照管理"
+      description="集中管理商品、供应商、厂家的证照与合同，支持附件上传与阅览。"
+    />
 
     <div class="license-tabs">
       <button
@@ -600,55 +599,62 @@ onUnmounted(closePreview)
 
 <style scoped>
 .license-page {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 24px;
+  max-width: 100%;
+  margin: 0;
+  padding: 24px 32px 40px;
+  display: grid;
+  gap: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  background: var(--md-bg-page, #f5f7f8);
+  color: var(--md-text, #1d2a35);
+  font-family: var(--md-font, "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
 }
-.license-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  margin-bottom: 16px;
-}
-.license-header p {
-  margin: 0 0 4px;
-  color: #64748b;
-  font-size: 13px;
-}
-.license-header h2 {
-  margin: 0 0 6px;
-  font-size: 22px;
-  color: #0f172a;
-}
-.license-header span {
-  color: #64748b;
-  font-size: 13px;
-}
+
 .license-tabs {
   display: flex;
   gap: 4px;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 16px;
+  border: 1px solid #dce4e8;
+  border-radius: 8px;
+  padding: 6px;
+  background: #ffffff;
+  margin-bottom: 0;
+  box-shadow: 0 1px 2px rgba(15, 42, 58, 0.04);
 }
 .license-tab {
   border: none;
   background: transparent;
-  padding: 10px 18px;
+  padding: 0 16px;
+  min-height: 34px;
   font-size: 14px;
   color: #475569;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: color 0.18s ease, background 0.18s ease;
+}
+.license-tab:hover {
+  color: var(--primary);
+  background: #edf7f5;
 }
 .license-tab.active {
-  color: #2563eb;
-  border-bottom-color: #2563eb;
+  color: #0f766e;
+  background: #edf7f5;
   font-weight: 600;
 }
 .license-toolbar {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 0;
+  background: #ffffff;
+  border: 1px solid #dce4e8;
+  border-radius: 8px;
+  padding: 12px 16px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 .license-search {
   display: flex;

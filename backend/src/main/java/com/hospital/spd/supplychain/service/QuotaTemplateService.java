@@ -116,7 +116,7 @@ public class QuotaTemplateService {
         permissionGuard.require("quota-template-maintenance:write");
 
         if (isBlank(request.productCode())) {
-            throw new IllegalArgumentException("product code is required");
+            throw new IllegalArgumentException("商品编码不能为空");
         }
         BigDecimal quantity = positive(request.quantity(), "定数包模板数量必须大于零");
         Map<String, Object> product = findEligibleProduct(request.productCode());
@@ -460,10 +460,10 @@ public class QuotaTemplateService {
                    FOR UPDATE
                 """, productCode.trim());
         if (((Number) product.get("quotaManaged")).intValue() != 1) {
-            throw new IllegalArgumentException("product is not quota managed");
+            throw new IllegalArgumentException("商品未启用定数管理");
         }
         if (((Number) product.get("highValue")).intValue() == 1 || ((Number) product.get("coldChain")).intValue() == 1) {
-            throw new IllegalArgumentException("high value and cold chain product are not allowed for quota package template");
+            throw new IllegalArgumentException("高值耗材和冷链商品不允许维护定数包模板");
         }
         return product;
     }
@@ -497,11 +497,11 @@ public class QuotaTemplateService {
         if (!purchaseUnit.isBlank() && requestUnit.equals(purchaseUnit)) {
             BigDecimal conversionRate = (BigDecimal) product.get("conversionRate");
             if (conversionRate == null || conversionRate.compareTo(BigDecimal.ZERO) <= 0) {
-                throw new IllegalArgumentException("product conversion rate must be greater than zero");
+                throw new IllegalArgumentException("商品换算率必须大于零");
             }
             return quantity.multiply(conversionRate);
         }
-        throw new IllegalArgumentException("quota template unit must be product base unit or purchase unit");
+        throw new IllegalArgumentException("定数包单位必须是商品的基本单位或采购单位");
     }
 
     private void ensureTemplateNotDuplicate(String templateCode, Long deptId, Long productId) {
@@ -515,7 +515,7 @@ public class QuotaTemplateService {
                    AND ((? IS NULL AND qpt.dept_id IS NULL) OR qpt.dept_id = ?)
                 """, Integer.class, productId, templateCode, deptId, deptId);
         if (count != null && count > 0) {
-            throw new IllegalArgumentException("same active quota template already exists");
+            throw new IllegalArgumentException("同一商品已存在启用中的定数包模板");
         }
     }
 
@@ -527,7 +527,7 @@ public class QuotaTemplateService {
         if (!ids.isEmpty()) {
             return ids.get(0);
         }
-        throw new IllegalArgumentException("department does not exist or is disabled");
+        throw new IllegalArgumentException("科室不存在或已停用");
     }
 
     private static void appendLike(StringBuilder sql, List<Object> args, String column, String value) {

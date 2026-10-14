@@ -19,6 +19,7 @@ type ReceivingForm = {
   isAgent?: boolean
   remark: string
   items: Array<{
+    purchaseOrderItemId?: number
     productCode: string
     productionBatchNo: string
     udiCode: string
@@ -50,6 +51,7 @@ export function useReceivingOrderCreateActions(options: {
     options.form.supplierId = Number(data.order.supplierId)
     options.supplierSearchQuery.value = supplierName
     options.form.items = data.items.map((item) => ({
+      purchaseOrderItemId: Number(item.purchaseOrderItemId) || undefined,
       productCode: String(item.productCode ?? ''),
       productionBatchNo: '',
       udiCode: '',
@@ -121,6 +123,7 @@ export function useReceivingOrderCreateActions(options: {
       const quantity = Number(item.quantity ?? 1)
       const qualifiedQuantity = Number(item.qualifiedQuantity ?? quantity)
       return {
+        purchaseOrderItemId: Number(item.purchaseOrderItemId) || undefined,
         productCode: String(item.productCode ?? ''),
         productionBatchNo: String(item.productionBatchNo ?? ''),
         udiCode: String(item.udiCode ?? ''),

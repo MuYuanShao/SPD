@@ -70,6 +70,7 @@ public class SystemConfigService {
 
     public Map<String, Object> create(SystemConfigRequest request) {
         validate(request);
+        validateMcpConnection(request);
         jdbcTemplate.update("""
                 INSERT INTO system_config (
                   config_type, scope_type, scope_id, config_key, config_value,
@@ -91,6 +92,7 @@ public class SystemConfigService {
 
     public Map<String, Object> update(Long configId, SystemConfigRequest request) {
         validate(request);
+        validateMcpConnection(request);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE system_config
                 SET config_type = ?, scope_type = ?, scope_id = ?, config_key = ?,
@@ -258,6 +260,7 @@ public class SystemConfigService {
 
     private static String configName(String key) {
         return switch (key) {
+            case "integration.mcp-ui.connection" -> "MCP-UI对接地址";
             case "hospital.info" -> "医院信息配置";
             case "approval.product.admission" -> "商品准入审批流程";
             case "approval.purchase.order" -> "采购订单审批流程";
@@ -268,6 +271,16 @@ public class SystemConfigService {
             case "integration.his.sync" -> "HIS接口同步配置";
             default -> key;
         };
+    }
+
+    private static void validateMcpConnection(SystemConfigRequest request) {
+        if (!com.hospital.spd.integration.McpConnectionAddress.CONFIG_KEY.equals(request.configKey().trim())) return;
+        if (!"integration".equals(request.configType()) || !"global".equals(request.scopeType()) || !"default".equals(request.scopeId()) || !"realtime".equals(request.effectiveMode()))
+            throw new IllegalArgumentException("MCP-UI连接必须使用全局默认范围和实时生效模式");
+        try {
+            var value=new com.fasterxml.jackson.databind.ObjectMapper().readTree(request.configValue());
+            com.hospital.spd.integration.McpConnectionAddress.apiUrl(value);
+        } catch(com.fasterxml.jackson.core.JsonProcessingException e) {throw new IllegalArgumentException("MCP-UI连接配置必须为合法JSON");}
     }
 
     private static String sourceLevelName(String scopeType) {

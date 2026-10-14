@@ -8,6 +8,7 @@ export interface MasterDataPage {
   total: number
   page: number
   size: number
+  summary?: Record<string, unknown>
 }
 
 export interface ColumnConfig {

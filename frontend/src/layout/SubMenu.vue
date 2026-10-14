@@ -10,3 +10,4 @@ const { auth, pages, activeCode } = useLayoutNavigation()
     <RouterLink v-for="page in pages" :key="page.code" :to="featureRouteTarget(page.code)" :class="{ selected: activeCode === page.code }">{{ page.title }}</RouterLink>
   </nav>
 </template>
+

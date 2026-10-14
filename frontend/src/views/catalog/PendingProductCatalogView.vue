@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, UserRound, X, XCircle } from '@lucide/vue'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, Settings2, UserRound, X, XCircle } from '@lucide/vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
@@ -37,6 +37,7 @@ import type { PartnerOption } from '../../api/masterData'
 
 const route = useRoute()
 const router = useRouter()
+const importMenuRef = ref<HTMLDetailsElement | null>(null)
 const qualificationApplicationNo = ref('')
 const qualificationModalOpen = ref(false)
 const { selectType, selectScope, selectMineStatus } = usePendingProductCatalogNavigation({ route, router })
@@ -231,6 +232,21 @@ async function openCreateModal() {
   await loadPartnerOptions()
 }
 
+function handleImportMenuToggle(e: Event) {
+  /* 关闭其他打开的 menu（虽然这里只有一个，但保持模式一致） */
+  if ((e.target as HTMLDetailsElement).open) {
+    const all = document.querySelectorAll('.import-menu')
+    all.forEach((el) => { if (el !== e.target) (el as HTMLDetailsElement).open = false })
+  }
+}
+
+function handleOutsideClick(e: MouseEvent) {
+  if (!importMenuRef.value) return
+  if (!importMenuRef.value.contains(e.target as Node)) {
+    importMenuRef.value.open = false
+  }
+}
+
 async function handleCreateSubmit() {
   message.value = ''
   if (!isNewApplication.value && !sourceSelected.value) {
@@ -308,7 +324,7 @@ const allVisibleSelected = computed(() => {
 const approvalMetricCards = computed(() => {
   const totalTodo = approvalTypes.reduce((total, item) => total + (typeCountMap.value.get(item.key) ?? 0), 0)
   return [
-    { label: '待我审批', value: totalTodo, hint: '按风险与时效排序' },
+    { label: '待我审批', value: totalTodo, hint: '按风险与时效排序', tone: 'primary' },
     { label: '新品准入', value: typeCountMap.value.get('new') ?? 0, hint: '重点核验准入资料' },
     { label: '信息变更', value: typeCountMap.value.get('change') ?? 0, hint: '关注价格与供应商' },
     { label: '已展示字段', value: 18, hint: '可按分组快速定位' },
@@ -362,6 +378,64 @@ const {
   reload: loadApplications
 })
 
+// 列设置
+const showColumnSettings = ref(false)
+const columnSettingsVisible = ref(false)
+// 固定列（不允许隐藏）
+const fixedColumns = ['审批单号', '商品名称 / 规格', '操作']
+const columnOptions = [
+  { key: 'type', label: '申请类型' },
+  { key: 'applicant', label: '申请人' },
+  { key: 'supplier', label: '供应商' },
+  { key: 'manufacturer', label: '厂家' },
+  { key: 'registrationNo', label: '注册证号' },
+  { key: 'contractCode', label: '合同编码' },
+  { key: 'firstCategory', label: '一级分类' },
+  { key: 'secondCategory', label: '二级分类' },
+  { key: 'thirdCategory', label: '三级分类' },
+  { key: 'volumeBased', label: '是否带量' },
+  { key: 'centralized', label: '是否集采' },
+  { key: 'domestic', label: '是否国产' },
+  { key: 'chargeable', label: '是否收费' },
+  { key: 'keyMonitored', label: '重点监控' },
+  { key: 'purchasePrice', label: '采购价' },
+  { key: 'udiCode', label: 'UDI 编码' },
+  { key: 'risk', label: '风险标签' },
+  { key: 'wait', label: '节点 / 等待' },
+  { key: 'changeSummary', label: '变更记录' },
+]
+
+function openColumnSettings() {
+  columnSettingsVisible.value = true
+}
+
+function closeColumnSettings() {
+  columnSettingsVisible.value = false
+}
+
+function resetColumns() {
+  // 重置为默认全部显示
+  columnOptions.forEach(col => {
+    localStorage.setItem(`pp-col-${col.key}`, 'true')
+  })
+  columnOptions.forEach(col => { columnVisibility.value[col.key] = true })
+}
+
+// 列可见性状态（从 localStorage 恢复）
+const columnVisibility = ref<Record<string, boolean>>({})
+function loadColumnVisibility() {
+  const v: Record<string, boolean> = {}
+  columnOptions.forEach(col => {
+    const stored = localStorage.getItem(`pp-col-${col.key}`)
+    v[col.key] = stored !== 'false'
+  })
+  columnVisibility.value = v
+}
+function toggleColumn(key: string) {
+  columnVisibility.value[key] = !columnVisibility.value[key]
+  localStorage.setItem(`pp-col-${key}`, String(columnVisibility.value[key]))
+}
+
 async function loadApplications() {
   loading.value = true
   error.value = ''
@@ -412,7 +486,9 @@ function rowEditRoute(row: PendingProductApplicationRow) {
 
 onMounted(() => {
   void loadApplications()
+  void loadColumnVisibility()
   requestAnimationFrame(updateApprovalScrollState)
+  document.addEventListener('click', handleOutsideClick)
 })
 watch([activeTypeKey, activeScope, activeMineStatus], () => {
   resetPage()
@@ -506,32 +582,35 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           </div>
           <div v-if="activeScope === 'todo'" class="approval-action-row">
             <button type="button" class="btn btn-primary" @click="openCreateModal">
-              <Plus :size="17" />
+              <Plus :size="16" />
               新增
             </button>
-            <details class="import-menu">
-              <summary class="btn">
-                <FileUp :size="17" />
-                导入
-                <ChevronDown :size="15" />
+            <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
+              <summary class="btn" tabindex="0">
+                <FileUp :size="16" />
+                <span>导入</span>
+                <ChevronDown :size="14" />
               </summary>
               <div>
                 <button class="btn-text" type="button" @click="downloadTemplate">
-                  <FileDown :size="16" />
+                  <FileDown :size="15" />
                   模板导出
                 </button>
                 <button class="btn-text" type="button" @click="importInput?.click()">
-                  <FileUp :size="16" />
+                  <FileUp :size="15" />
                   按模板导入
                 </button>
               </div>
             </details>
             <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
             <button type="button" class="btn" @click="exportRows">
-              <Download :size="17" />
-              导出
+              <Download :size="16" />
+              <span>导出</span>
             </button>
-            <button type="button" class="btn">列设置</button>
+            <button type="button" class="btn" @click="openColumnSettings">
+              <Settings2 :size="16" />
+              <span>列设置</span>
+            </button>
           </div>
         </div>
         <p v-if="message" class="inline-message">{{ message }}</p>
@@ -809,11 +888,11 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
     </div>
 
     <div v-if="showCreateModal" class="attachment-preview-mask" @click.self="showCreateModal = false">
-      <section class="supplier-dialog product-dialog approval-create-dialog" role="dialog" aria-modal="true">
-        <header>
+      <section class="supplier-dialog product-dialog approval-create-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-create-title">
+        <header class="approval-create-head">
           <div>
             <p>待审批目录</p>
-            <h3>新增待审批目录</h3>
+            <h3 id="approval-create-title">新增待审批目录</h3>
           </div>
           <button class="btn-icon" type="button" aria-label="关闭" @click="showCreateModal = false">
             <X :size="18" />
@@ -842,7 +921,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <div class="approval-source-search">
                   <input v-model="sourceKeyword" placeholder="输入商品编码、名称或规格" @keyup.enter.prevent="searchSourceProducts" />
                   <button class="btn" type="button" :disabled="sourceLoading" @click="searchSourceProducts">
-                    <Search :size="16" /> {{ sourceLoading ? '搜索中' : '搜索' }}
+                    <Search :size="15" /> {{ sourceLoading ? '搜索中' : '搜索' }}
                   </button>
                 </div>
               </label>
@@ -860,7 +939,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           <section class="approval-create-section">
             <h4>商品基础信息</h4>
             <div class="supplier-form-grid compact">
-              <label><span>商品编码</span><input v-model="createForm.productCode" :readonly="!isNewApplication" placeholder="选填，留空取招采子编码，均空时自动生成" /></label>
+              <label><span>商品编码</span><input v-model="createForm.productCode" :readonly="!isNewApplication" placeholder="选填，留空取招采子编码" /></label>
               <label><span>商品名称</span><input v-model="createForm.productName" :readonly="!canEditInformation" required /></label>
               <label><span>规格型号</span><input v-model="createForm.specModel" :readonly="!canEditInformation" required /></label>
               <label><span>品牌</span><input v-model="createForm.brand" :readonly="!canEditInformation" /></label>
@@ -961,11 +1040,46 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           <div class="dialog-actions approval-create-actions">
             <button class="btn" type="button" @click="showCreateModal = false">取消</button>
             <button class="btn btn-primary" type="submit">
-              <Send :size="18" />
+              <Send :size="16" />
               提交审批
             </button>
           </div>
         </form>
+      </section>
+    </div>
+
+    <div v-if="columnSettingsVisible" class="attachment-preview-mask" @click.self="closeColumnSettings">
+      <section class="approval-create-dialog column-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="col-settings-title">
+        <header class="approval-create-head">
+          <div>
+            <p>待审批目录</p>
+            <h3 id="col-settings-title">列设置</h3>
+          </div>
+          <button class="btn-icon" type="button" aria-label="关闭" @click="closeColumnSettings">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="column-settings-body">
+          <p class="col-settings-tip">选择要在表格中显示的列。固定列（审批单号、商品名称、操作）始终显示。</p>
+          <div class="col-settings-grid">
+            <label
+              v-for="col in columnOptions"
+              :key="col.key"
+              class="col-settings-item"
+            >
+              <input
+                type="checkbox"
+                :checked="columnVisibility[col.key] !== false"
+                @change="toggleColumn(col.key)"
+              />
+              <span>{{ col.label }}</span>
+            </label>
+          </div>
+        </div>
+        <div class="approval-create-actions">
+          <button class="btn" type="button" @click="resetColumns">恢复默认</button>
+          <button class="btn btn-primary" type="button" @click="closeColumnSettings">确定</button>
+        </div>
       </section>
     </div>
 

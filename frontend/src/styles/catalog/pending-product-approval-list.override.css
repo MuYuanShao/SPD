@@ -1,0 +1,1789 @@
+/* =====================================================================
+   待审批目录 (PendingProductCatalogView) — Ant Pro 风格重写覆盖
+   ---------------------------------------------------------------------
+   在原 pending-product-approval-list.css 基础上覆盖：
+   1. 页面 padding 24px + 背景主题色
+   2. KPI 卡片主题化
+   3. 侧边栏任务列表主色化
+   4. 列表卡片主色化 + 字段导航白底
+   5. 风险 chip / 状态 chip / 申请类型 chip 主题化
+   6. 选中行主色化
+   7. 操作列 sticky 阴影主题化
+   8. 按钮、徽章、滚动条主题化
+   ===================================================================== */
+
+/* ===== Page 容器 ===== */
+.approval-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: var(--spd-page-padding, 24px) !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 20px;
+  box-sizing: border-box;
+}
+
+/* 强制恢复被 main.css 隐藏的 KPI 区域 */
+.approval-page-title p,
+.approval-metric-card small,
+.approval-metric-card .metric-hint,
+.approval-context > div > p {
+  display: block !important;
+}
+
+.approval-metric-grid,
+.approval-metric-card {
+  display: grid !important;
+}
+
+.approval-metric-card {
+  display: flex !important;
+}
+
+/* ===== 页面标题（主题色顶栏） ===== */
+.approval-page-title {
+  background: var(--md-bg-header) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  padding: 18px 24px !important;
+  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
+              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  margin-bottom: 0 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.approval-page-title::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+  pointer-events: none;
+}
+
+.approval-page-title h2 {
+  margin: 0 0 6px !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.2px !important;
+  font-family: var(--spd-font-family-display) !important;
+  position: relative;
+}
+
+.approval-page-title p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 13px !important;
+  line-height: 1.6;
+  position: relative;
+}
+
+/* ===== KPI 指标区 ===== */
+.approval-metric-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+  margin-bottom: 0 !important;
+}
+
+.approval-metric-card {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 18px 20px !important;
+  display: flex !important;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.approval-metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 3px;
+  height: 100%;
+  background: var(--primary);
+  opacity: 0.6;
+  transition: opacity 0.2s, width 0.2s;
+}
+
+.approval-metric-card:hover {
+  border-color: var(--primary) !important;
+  box-shadow: var(--spd-shadow-2) !important;
+  transform: translateY(-1px);
+}
+
+.approval-metric-card.primary::before {
+  background: var(--primary);
+  opacity: 0.85 !important;
+}
+
+.approval-metric-card.primary strong {
+  color: var(--primary) !important;
+}
+
+.approval-metric-card:hover::before {
+  opacity: 1;
+  width: 4px;
+}
+
+.approval-metric-card span {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.approval-metric-card strong {
+  display: block !important;
+  margin-top: 4px !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 28px !important;
+  font-weight: 700 !important;
+  line-height: 1.2;
+  font-family: var(--spd-font-family-display) !important;
+}
+
+.approval-metric-card small {
+  display: block !important;
+  margin-top: 4px !important;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.approval-metric-card.alert strong {
+  color: #fa8c16 !important;
+}
+
+.approval-metric-card.alert::before {
+  background: #fa8c16 !important;
+  opacity: 0.8 !important;
+}
+
+/* ===== Workspace（左右布局） ===== */
+.approval-workspace {
+  display: grid !important;
+  grid-template-columns: 280px minmax(0, 1fr) !important;
+  gap: 16px !important;
+  min-height: 540px;
+}
+
+/* ===== 侧边栏 ===== */
+.approval-sidebar-card,
+.approval-list-card {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+.approval-sidebar-card {
+  min-height: 540px;
+  padding: 18px 16px !important;
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+}
+
+.approval-sidebar-card::-webkit-scrollbar {
+  width: 6px;
+}
+
+.approval-sidebar-card::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 3px;
+}
+
+.approval-sidebar-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding-bottom: 14px !important;
+  margin-bottom: 14px !important;
+}
+
+.approval-sidebar-title h3 {
+  margin: 0 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: var(--spd-text-heading) !important;
+  font-family: var(--spd-font-family-display) !important;
+}
+
+.approval-sidebar-title p {
+  margin: 4px 0 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  line-height: 1.4;
+}
+
+.approval-sidebar-title .el-icon,
+.approval-sidebar-title > svg {
+  color: var(--primary) !important;
+  font-size: 20px;
+}
+
+/* ===== 任务列表（主色化） ===== */
+.approval-task-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.approval-task-group {
+  display: grid;
+  gap: 6px;
+}
+
+.approval-task-item {
+  border-radius: var(--spd-radius-sm, 6px) !important;
+  background: transparent;
+  transition: all 0.18s ease;
+}
+
+.approval-task-item:hover {
+  background: var(--spd-bg-page, #f0f2f5) !important;
+}
+
+.approval-task-item.active,
+.approval-task-item.scope-button.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
+.approval-task-item > div {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+
+.approval-task-item span {
+  font-weight: 600 !important;
+  font-size: 13px;
+  color: inherit;
+}
+
+.approval-task-item strong {
+  display: grid;
+  place-items: center;
+  min-width: 32px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 8px;
+}
+
+.approval-task-item.active strong,
+.approval-task-item.scope-button.active strong {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.approval-task-item.orange svg,
+.approval-task-item.orange > div > svg {
+  color: #fa8c16;
+}
+
+.approval-task-item.blue svg,
+.approval-task-item.blue > div > svg {
+  color: var(--primary);
+}
+
+.approval-task-item.green svg,
+.approval-task-item.green > div > svg {
+  color: #52c41a;
+}
+
+/* ===== 子列表 ===== */
+.approval-sub-list {
+  display: grid;
+  gap: 2px;
+  border-left: 1px solid var(--spd-border-subtle) !important;
+  margin-left: 14px;
+  padding-left: 12px;
+}
+
+.approval-sub-list button {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--spd-radius-sm, 6px);
+  background: transparent;
+  color: var(--spd-text-primary) !important;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-align: left;
+}
+
+.approval-sub-list button:hover {
+  background: var(--spd-bg-page) !important;
+  color: var(--primary) !important;
+}
+
+.approval-sub-list button.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
+.approval-sub-list em {
+  color: var(--spd-text-tertiary) !important;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.approval-sub-list button.active em {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+/* ===== 主列表卡片 ===== */
+.approval-list-card {
+  padding: 0 !important;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* ===== 上下文标题区 ===== */
+.approval-context {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 16px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  margin-bottom: 0 !important;
+  padding: 20px 24px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.approval-context h3 {
+  margin: 0 0 6px !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 18px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display) !important;
+  letter-spacing: -0.2px;
+}
+
+.approval-context p {
+  margin: 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.approval-action-row {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-bottom: 0 !important;
+  white-space: nowrap;
+}
+
+/* ===== 筛选行 ===== */
+.approval-filter-row {
+  display: grid !important;
+  grid-template-columns: minmax(260px, 1fr) 140px 140px auto !important;
+  gap: 10px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  margin-bottom: 0 !important;
+  padding: 14px 24px !important;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+}
+
+.approval-search,
+.filter-select,
+.filter-button {
+  min-height: 36px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font: inherit;
+  font-size: 14px;
+  transition: all 0.18s ease;
+}
+
+.approval-search {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+
+.approval-search:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent) !important;
+}
+
+.approval-search svg {
+  color: var(--spd-text-tertiary) !important;
+  flex-shrink: 0;
+}
+
+.approval-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  background: transparent;
+  color: var(--spd-text-primary);
+}
+
+.approval-search input::placeholder {
+  color: var(--spd-text-placeholder);
+}
+
+.filter-select,
+.filter-button {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 0 12px;
+}
+
+.filter-select:hover,
+.filter-button:hover {
+  border-color: var(--primary);
+}
+
+.filter-button {
+  border-color: var(--primary) !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-weight: 500;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+}
+
+.filter-button:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+
+/* ===== 字段导航 ===== */
+.approval-field-nav {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-container) !important;
+  padding: 14px 24px 12px !important;
+}
+
+.approval-field-nav-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.approval-field-nav-head strong {
+  color: var(--spd-text-heading) !important;
+  font-size: 14px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.approval-field-nav-head span {
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+}
+
+.subnav-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+  padding-bottom: 4px;
+}
+
+.subnav-tabs button {
+  background: transparent;
+  border: 0;
+  color: var(--spd-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: var(--spd-radius-sm, 4px) 4px 0 0;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.18s ease;
+}
+
+.subnav-tabs button:hover {
+  color: var(--primary);
+}
+
+.subnav-tabs button.active {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.subnav-tabs button.active::after {
+  content: '';
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: -5px;
+  height: 2px;
+  background: var(--primary);
+  border-radius: 1px;
+}
+
+.subnav-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.subnav-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.subnav-chip {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--spd-bg-page, #f0f2f5);
+  border: 1px solid transparent;
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.subnav-chip:hover {
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  background: var(--spd-primary-bg);
+}
+
+.subnav-chip.active {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  border-color: var(--primary) !important;
+  font-weight: 600;
+}
+
+/* ===== 表格容器 ===== */
+.approval-wide-table-shell {
+  position: relative;
+  max-height: 480px;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: var(--spd-bg-container);
+}
+
+.approval-wide-table-shell::-webkit-scrollbar {
+  display: none;
+}
+
+.approval-wide-table {
+  width: 100%;
+  min-width: 2060px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  font-size: 13px;
+  color: var(--spd-text-primary);
+}
+
+.approval-wide-table thead {
+  background: #fafafa;
+}
+
+.approval-wide-table th,
+.approval-wide-table td {
+  overflow: hidden;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 12px !important;
+  text-align: left;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.approval-wide-table th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display) !important;
+  letter-spacing: 0;
+}
+
+.approval-wide-table td {
+  color: var(--spd-text-primary) !important;
+  font-size: 13px;
+}
+
+.approval-wide-table tbody tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+.approval-wide-table tbody tr:hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-wide-table tbody tr:has(input:checked) td {
+  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
+  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+}
+
+/* ===== Sticky 列 ===== */
+.approval-sticky-check,
+.approval-sticky-no,
+.approval-sticky-product,
+.approval-sticky-action {
+  position: sticky;
+  z-index: 2;
+  background: var(--spd-bg-container) !important;
+}
+
+thead .approval-sticky-check,
+thead .approval-sticky-no,
+thead .approval-sticky-product,
+thead .approval-sticky-action {
+  z-index: 3;
+  background: #fafafa !important;
+}
+
+.approval-sticky-check {
+  left: 0;
+  width: 48px;
+  text-align: center !important;
+  box-shadow: 4px 0 6px rgba(0, 0, 0, 0.04) !important;
+}
+
+.approval-sticky-no {
+  left: 48px;
+  width: 150px;
+}
+
+.approval-sticky-product {
+  left: 198px;
+  width: 230px;
+  box-shadow: 6px 0 12px rgba(0, 0, 0, 0.04) !important;
+}
+
+.approval-sticky-action {
+  right: 0;
+  width: 250px;
+  min-width: 250px;
+  text-align: right !important;
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* ===== 单元格内容 ===== */
+.approval-product-cell strong,
+.approval-product-cell small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.approval-product-cell strong {
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+}
+
+.approval-product-cell small {
+  margin-top: 4px;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+}
+
+.approval-money {
+  color: var(--primary) !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.approval-no {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary) !important;
+  font-weight: 500;
+  font-family: var(--spd-font-family-mono);
+}
+
+.approval-no svg {
+  color: #fa8c16;
+  flex-shrink: 0;
+}
+
+.approval-change-summary {
+  max-width: 240px;
+  min-width: 160px;
+  color: #fa541c !important;
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  word-break: break-all;
+}
+
+/* ===== 申请类型 Chip ===== */
+.approval-type {
+  display: inline-flex !important;
+  min-height: 24px;
+  align-items: center;
+  border-radius: var(--spd-radius-sm, 4px);
+  padding: 0 8px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.approval-type.new {
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  border-color: color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.approval-type.change {
+  background: #f9f0ff;
+  color: #722ed1;
+  border-color: #d3adf7;
+}
+
+.approval-type.qualification {
+  background: #f6ffed;
+  color: #52c41a;
+  border-color: #b7eb8f;
+}
+
+.approval-type.price {
+  background: #fff7e6;
+  color: #fa8c16;
+  border-color: #ffd591;
+}
+
+.approval-type.deactivate {
+  background: #fff1f0;
+  color: #f5222d;
+  border-color: #ffa39e;
+}
+
+/* ===== 状态 Chip ===== */
+.approval-status {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  border-radius: 999px;
+  padding: 0 10px;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.approval-status.orange {
+  background: #fff7e6;
+  color: #d46b08;
+}
+
+.approval-status.blue {
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+}
+
+.approval-status.red {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.approval-status.green {
+  background: #f6ffed;
+  color: #389e0d;
+}
+
+/* ===== 风险 Chip ===== */
+.approval-risk-chip {
+  display: inline-flex !important;
+  align-items: center;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.approval-risk-chip + .approval-risk-chip {
+  margin-left: 4px;
+}
+
+.approval-risk-chip.orange {
+  background: #fff7e6;
+  color: #d46b08;
+  border: 1px solid #ffd591;
+}
+
+.approval-risk-chip.blue {
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+}
+
+.approval-risk-chip.green {
+  background: #f6ffed;
+  color: #389e0d;
+  border: 1px solid #b7eb8f;
+}
+
+.approval-risk-chip.red {
+  background: #fff1f0;
+  color: #cf1322;
+  border: 1px solid #ffa39e;
+}
+
+/* ===== 行操作 ===== */
+.approval-row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.approval-row-actions .btn {
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: var(--spd-radius-sm, 4px);
+  border: 1px solid var(--spd-border-default);
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.approval-row-actions .btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.approval-row-actions .btn.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+}
+
+.approval-row-actions .btn.btn-primary:hover {
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
+  color: #ffffff;
+}
+
+/* ===== Checkbox ===== */
+.approval-check-cell input[type="checkbox"],
+.approval-sticky-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+/* ===== 横向滚动条（自定义） ===== */
+.approval-wide-scroll-rail {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--spd-bg-page, #f0f2f5);
+  margin: 8px 24px 12px;
+  cursor: pointer;
+}
+
+.approval-wide-scroll-thumb {
+  position: absolute;
+  inset-block: 1px;
+  left: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: grab;
+  transition: background 0.15s ease;
+}
+
+.approval-wide-scroll-thumb:hover,
+.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
+  background: var(--primary);
+}
+
+.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
+  cursor: grabbing;
+}
+
+/* ===== 批量操作条 ===== */
+.approval-batch-bar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px;
+  padding: 12px 24px !important;
+  margin: 0 !important;
+  background: var(--spd-primary-bg) !important;
+  border-top: 1px solid color-mix(in srgb, var(--primary) 18%, transparent) !important;
+  border-radius: 0 !important;
+  font-size: 13px;
+  color: var(--spd-text-primary);
+}
+
+.approval-batch-bar > span {
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.approval-batch-bar .btn {
+  background: var(--spd-bg-container);
+  border: 1px solid var(--spd-border-default);
+  color: var(--spd-text-primary);
+  border-radius: var(--spd-radius-sm, 4px);
+  padding: 0 10px;
+  min-height: 28px;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.approval-batch-bar .btn:hover:not(:disabled) {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.approval-batch-bar .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== 空状态 ===== */
+.approval-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 16px;
+  gap: 14px;
+  color: var(--spd-text-tertiary);
+}
+
+.approval-empty-state p {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 14px !important;
+  margin: 0;
+}
+
+.approval-empty-state svg {
+  stroke: var(--spd-border-default) !important;
+}
+
+/* ===== 分页 ===== */
+.approval-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px !important;
+  margin: 0 !important;
+  font-size: 13px;
+  color: var(--spd-text-secondary);
+  border-top: 1px solid var(--spd-border-subtle);
+  background: var(--spd-bg-container);
+}
+
+.approval-pagination-info {
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px;
+}
+
+.approval-pagination-pages {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.approval-pagination-pages .page-num {
+  min-width: 32px;
+  text-align: center;
+}
+
+.approval-pagination-pages .page-num.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+/* ===== 导入下拉菜单 ===== */
+.import-menu {
+  position: relative;
+}
+
+.import-menu summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default);
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  border-radius: var(--spd-radius, 6px);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.import-menu summary:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.import-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.import-menu > div {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 15;
+  display: grid;
+  gap: 4px;
+  width: 160px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-2);
+  padding: 6px;
+}
+
+.import-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  border: 0;
+  border-radius: var(--spd-radius-sm, 4px);
+  background: transparent;
+  color: var(--spd-text-primary);
+  padding: 0 8px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.import-menu button:hover {
+  background: var(--spd-bg-page, #f0f2f5);
+  color: var(--primary);
+}
+
+/* ===== 行内消息提示 ===== */
+.inline-message {
+  margin: 0 24px 12px;
+  padding: 8px 12px;
+  background: var(--spd-primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  color: var(--primary);
+  border-radius: var(--spd-radius, 6px);
+  font-size: 13px;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1400px) {
+  .approval-metric-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+  .approval-workspace {
+    grid-template-columns: 240px minmax(0, 1fr) !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .approval-workspace {
+    grid-template-columns: 1fr !important;
+  }
+  .approval-sidebar-card {
+    position: static;
+    max-height: none;
+  }
+  .approval-metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .approval-filter-row {
+    grid-template-columns: 1fr !important;
+  }
+  .approval-context {
+    flex-direction: column;
+  }
+  .approval-action-row {
+    width: 100%;
+  }
+}
+
+/* =====================================================================
+   工具栏按钮统一规格：所有 .btn + summary 等高 32px
+   ===================================================================== */
+.approval-action-row {
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.approval-action-row .btn,
+.approval-action-row .import-menu > summary,
+.approval-action-row .import-menu[open] > summary {
+  /* 关键：覆盖 .main-area .btn 的 min-height: 40px !important */
+  min-height: 32px !important;
+  height: 32px !important;
+  line-height: 1 !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.approval-action-row .btn:hover,
+.approval-action-row .import-menu > summary:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-action-row .btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+}
+
+.approval-action-row .btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+
+/* 让导入 <details> summary 内部的小箭头与文字在同一行 */
+.approval-action-row .import-menu {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.approval-action-row .import-menu > summary {
+  list-style: none;
+}
+
+.approval-action-row .import-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.approval-action-row .import-menu[open] > summary {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-action-row .import-menu > div {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 160px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12) !important;
+  padding: 6px;
+  display: grid;
+  gap: 2px;
+}
+
+.approval-action-row .import-menu button {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px;
+  min-height: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.approval-action-row .import-menu button:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+/* =====================================================================
+   新增弹窗：限制最大高度 + 内部滚动 + 居中布局
+   ===================================================================== */
+body .attachment-preview-mask,
+.attachment-preview-mask.attachment-preview-mask {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 60;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  /* 上下各留 16px 呼吸距离；
+     max-height 由内部 dialog 决定，mask 自身不再占空间 */
+  padding: 16px !important;
+  box-sizing: border-box !important;
+  overflow: auto;
+}
+
+body .approval-create-dialog.approval-create-dialog,
+.approval-create-dialog.approval-create-dialog {
+  position: relative;
+  width: min(880px, 100%) !important;
+  /* 高度自适应 = min(自然高度, 视口 - 88 - 16 = 视口 - 104) */
+  max-height: calc(100vh - 104px) !important;
+  margin: 0 !important;
+  top: auto !important;
+  left: auto !important;
+  transform: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 10px) !important;
+  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.24),
+              0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  overflow: hidden !important;
+  animation: dialog-pop 0.18s ease;
+}
+
+@keyframes dialog-pop {
+  from { transform: translateY(8px) scale(0.985); opacity: 0; }
+  to   { transform: translateY(0)   scale(1);      opacity: 1; }
+}
+
+.approval-create-head {
+  flex: none;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px;
+  padding: 10px 18px !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+}
+
+.approval-create-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.approval-create-head p {
+  margin: 0 !important;
+  color: var(--primary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.approval-create-head h3 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display);
+  letter-spacing: -0.2px;
+}
+
+.approval-create-form {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.approval-create-form .approval-create-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: scroll;
+  /* 关键：scrollbar-gutter 永远为滚动条预留空间，
+     解决"溢出时滚动条突然出现/消失"造成的整页 reflow + 上下抖动 */
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+  padding: 8px 24px 12px;
+  box-sizing: border-box;
+  /* 隐藏原生滚动条但保留滚动能力，避免内容抖动 */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+.approval-create-form .approval-create-scroll::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+
+.approval-create-form .approval-create-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.approval-create-form .approval-create-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.32);
+  background-clip: padding-box;
+}
+
+.approval-create-section {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.approval-create-section + .approval-create-section {
+  margin-top: 4px;
+}
+
+.approval-create-section h4 {
+  margin: 0;
+  padding: 14px 0 8px;
+  border-bottom: 1px dashed var(--spd-border-subtle);
+  color: var(--spd-text-heading);
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.approval-create-section h4::before {
+  content: "";
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--primary);
+}
+
+.approval-create-section .supplier-form-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+  gap: 12px 14px !important;
+  padding: 12px 0 4px;
+}
+
+.approval-create-section .supplier-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.approval-create-section .supplier-form-grid label > span {
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.approval-create-section .supplier-form-grid input,
+.approval-create-section .supplier-form-grid select,
+.approval-create-section .supplier-form-grid textarea {
+  min-height: 32px !important;
+  height: 32px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 0 10px !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+}
+
+.approval-create-section .supplier-form-grid textarea {
+  min-height: 64px !important;
+  height: auto !important;
+  padding: 6px 10px !important;
+  resize: vertical;
+}
+
+.approval-create-section .supplier-form-grid input:focus,
+.approval-create-section .supplier-form-grid select:focus,
+.approval-create-section .supplier-form-grid textarea:focus {
+  border-color: var(--primary) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+.approval-create-section .supplier-form-grid input[readonly],
+.approval-create-section .supplier-form-grid select:disabled {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  cursor: not-allowed;
+}
+
+.approval-source-picker {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-page, #f0f2f5);
+}
+
+.approval-source-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.approval-source-search input {
+  flex: 1;
+  min-height: 32px !important;
+  height: 32px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 0 10px !important;
+  font-size: 13px !important;
+  background: var(--spd-bg-container) !important;
+  box-sizing: border-box;
+}
+
+.approval-source-results {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.approval-source-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 8px 10px !important;
+  cursor: pointer;
+  font-size: 12px !important;
+  min-height: 0 !important;
+  height: auto !important;
+  box-sizing: border-box;
+  box-shadow: none !important;
+}
+
+.approval-source-results button:hover:not(:disabled) {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-source-results button strong {
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.approval-source-results button span {
+  color: var(--spd-text-tertiary);
+  font-size: 12px;
+}
+
+.approval-source-selected {
+  margin: 8px 0 0 !important;
+  padding: 6px 10px !important;
+  background: var(--spd-primary-bg) !important;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  color: var(--primary) !important;
+  font-size: 12px !important;
+}
+
+.approval-attachment-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-page, #f0f2f5);
+}
+
+.approval-attachment-summary strong {
+  color: var(--spd-text-heading);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.approval-attachment-summary span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+}
+
+.approval-upload-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.approval-upload-list button {
+  min-height: 24px !important;
+  height: 24px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 999px !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  cursor: pointer;
+}
+
+.approval-upload-list button:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+}
+
+.dialog-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 4px;
+}
+
+.dialog-toggle-row label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 12px !important;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.dialog-toggle-row label:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.dialog-toggle-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.approval-create-actions {
+  flex: none !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 10px;
+  padding: 12px 24px !important;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+}
+
+.approval-create-actions .btn {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.approval-create-actions .btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-create-actions .btn.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+}
+
+.approval-create-actions .btn.btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+
+.approval-create-head .btn-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  min-height: 28px !important;
+  border: 0 !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  background: transparent !important;
+  color: var(--spd-text-tertiary) !important;
+  cursor: pointer;
+  padding: 0 !important;
+  transition: all 0.18s ease;
+}
+
+.approval-create-head .btn-icon:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+/* 资质阅览弹窗也走相同规格 */
+.el-dialog {
+  max-height: calc(100vh - 96px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.el-dialog__body {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* =====================================================================
+   列设置弹窗
+   ===================================================================== */
+body .column-settings-dialog.column-settings-dialog {
+  width: min(480px, 100%) !important;
+  max-height: calc(100vh - 32px) !important;
+  flex-shrink: 0;
+}
+
+.column-settings-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  scrollbar-gutter: stable;
+}
+
+.col-settings-tip {
+  margin: 0 0 16px;
+  color: var(--spd-text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.col-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.col-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-container);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-size: 13px;
+  color: var(--spd-text-primary);
+  box-sizing: border-box;
+}
+
+.col-settings-item:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--spd-primary-bg);
+}
+
+.col-settings-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+

@@ -284,14 +284,78 @@
 
 .catalog-dialog {
   width: min(760px, calc(100vw - 32px));
-  max-height: calc(100dvh - 48px);
-  overflow: auto;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
   background: #fff;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dbe8ee;
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
 }
 
-.catalog-dialog-header,
-.batch-catalog-header {
+.catalog-dialog > header {
+  flex: none;
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: 12px;
+  padding: 12px 18px !important;
+  border-bottom: 1px solid #e1eaee !important;
   background: linear-gradient(180deg, #f8fcfc 0%, #fff 100%);
+}
+
+.catalog-dialog > header > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.catalog-dialog > header > div > p {
+  margin: 0;
+  color: #0f7580;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.catalog-dialog > header > div > h3 {
+  margin: 0;
+  color: #102033;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.catalog-dialog > header > div > span {
+  color: #687e8a;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.catalog-dialog > header > .btn-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #dbe8ee;
+  border-radius: 6px;
+  background: #fff;
+  color: #5b6b7a;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.catalog-dialog > header > .btn-icon:hover {
+  border-color: #16838d;
+  color: #16838d;
+  background: #effaf8;
 }
 
 .catalog-dialog-kicker,
@@ -307,18 +371,21 @@
 }
 
 .catalog-dialog-form {
-  display: grid;
-  gap: 16px;
-  padding: 20px 24px 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 12px;
+  padding: 14px 18px 0;
 }
 
 .catalog-dialog-section {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  padding: 16px;
+  gap: 10px 12px;
+  padding: 12px;
   border: 1px solid #deeaee;
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fbfdfd;
 }
 
@@ -326,8 +393,10 @@
 .batch-catalog-scope-heading {
   grid-column: 1 / -1;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed #e1eaee;
 }
 
 .catalog-dialog-section-heading svg,
@@ -337,50 +406,67 @@
 }
 
 .catalog-dialog-section-heading strong,
-.catalog-dialog-section-heading span,
-.batch-catalog-scope-heading strong,
-.batch-catalog-scope-heading span {
-  display: block;
-}
-
-.catalog-dialog-section-heading strong,
 .batch-catalog-scope-heading strong {
   color: #173440;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .catalog-dialog-section-heading span,
 .batch-catalog-scope-heading span {
-  margin-top: 3px;
   color: #687e8a;
   font-size: 12px;
+  font-weight: 400;
 }
 
 .catalog-dialog-form label,
 .batch-catalog-fields label {
-  display: grid;
-  gap: 7px;
-  color: #425d6a;
-  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: #5b6b7a;
+  font-weight: 500;
+  font-size: 12px;
+  min-width: 0;
 }
 
+.catalog-dialog-form label > span {
+  color: #5b6b7a;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.catalog-dialog-form input,
 .catalog-dialog-form select,
 .batch-catalog-fields select {
-  min-height: 42px;
-  border: 1px solid #cadde3;
-  border-radius: 8px;
-  padding: 0 12px;
-  background: #fff;
-  color: #173440;
-  font: inherit;
+  min-height: 32px !important;
+  height: 32px !important;
+  border: 1px solid #cadde3 !important;
+  border-radius: 6px !important;
+  padding: 0 10px !important;
+  background: #fff !important;
+  color: #173440 !important;
+  font: inherit !important;
+  font-size: 13px !important;
   transition: border-color 180ms ease, box-shadow 180ms ease;
+  width: 100%;
+  box-sizing: border-box;
 }
 
+.catalog-dialog-form input:focus,
 .catalog-dialog-form select:focus,
 .batch-catalog-fields select:focus,
 .product-search:focus-within {
-  border-color: #16838d;
-  box-shadow: 0 0 0 3px rgba(22, 131, 141, 0.12);
-  outline: 0;
+  border-color: #16838d !important;
+  box-shadow: 0 0 0 3px rgba(22, 131, 141, 0.12) !important;
+  outline: 0 !important;
+}
+
+.catalog-dialog-form select:disabled,
+.catalog-dialog-form input:disabled {
+  background: #f0f2f5 !important;
+  color: #8693a3 !important;
+  cursor: not-allowed;
 }
 
 .catalog-field-hint {
@@ -395,11 +481,59 @@
   position: sticky;
   bottom: 0;
   z-index: 3;
-  margin: 0 -24px;
-  padding: 14px 24px;
+  flex: none;
+  margin: 0 -18px;
+  padding: 10px 18px;
   border-top: 1px solid #e1eaee;
   background: rgba(255, 255, 255, 0.97);
   backdrop-filter: blur(8px);
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 8px;
+}
+
+.catalog-dialog-actions .btn,
+.batch-catalog-actions .btn {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.catalog-dialog-actions .btn {
+  border: 1px solid #dbe8ee !important;
+  background: #fff !important;
+  color: #25384a !important;
+  font-weight: 500 !important;
+}
+
+.catalog-dialog-actions .btn:hover {
+  border-color: #16838d !important;
+  color: #16838d !important;
+  background: #effaf8 !important;
+}
+
+.catalog-dialog-actions .btn.btn-primary,
+.batch-catalog-actions .btn.btn-primary {
+  background: #16838d !important;
+  border-color: #16838d !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+  box-shadow: 0 2px 4px rgba(22, 131, 141, 0.18) !important;
+}
+
+.catalog-dialog-actions .btn.btn-primary:hover,
+.batch-catalog-actions .btn.btn-primary:hover {
+  background: #0f6c75 !important;
+  border-color: #0f6c75 !important;
+  color: #fff !important;
 }
 
 .batch-catalog-fields {

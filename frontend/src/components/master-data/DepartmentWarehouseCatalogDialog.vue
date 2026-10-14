@@ -88,7 +88,7 @@ function selectProduct(productCode: string) {
       aria-labelledby="catalog-dialog-title"
       aria-describedby="catalog-dialog-description"
     >
-      <header class="master-data-dialog-header catalog-dialog-header">
+      <header class="catalog-dialog-header">
         <div>
           <p class="catalog-dialog-kicker"><Boxes :size="15" /> 科室库房目录</p>
           <h3 id="catalog-dialog-title">{{ mode === 'create' ? '新增可申领商品' : '编辑目录关系' }}</h3>
@@ -190,7 +190,7 @@ function selectProduct(productCode: string) {
           </label>
         </section>
 
-        <div class="master-data-dialog-actions catalog-dialog-actions">
+        <div class="catalog-dialog-actions">
           <button class="btn" type="button" @click="emit('close')">取消</button>
           <button class="btn btn-primary" type="submit">
             <Save :size="16" />
@@ -220,7 +220,23 @@ function selectProduct(productCode: string) {
 
 .catalog-search-box .search-trigger {
   flex: 0 0 auto;
-  height: 38px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #cadde3 !important;
+  border-radius: 6px !important;
+  background: #fff !important;
+  color: #5b6b7a !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.catalog-search-box .search-trigger:hover {
+  border-color: #16838d !important;
+  color: #16838d !important;
+  background: #effaf8 !important;
 }
 
 .catalog-search-results {

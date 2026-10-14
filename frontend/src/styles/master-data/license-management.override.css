@@ -1,0 +1,794 @@
+/* =====================================================================
+   证照管理 (LicenseManagementView) — Ant Pro 风格覆盖
+   ---------------------------------------------------------------------
+   适用范围：hospital-product-catalog 菜单下的 证照管理 子页面
+   目标：page / header / tabs / toolbar / search / table / pagination /
+        form dialog / status / history / attachment — 全部主题化
+   ===================================================================== */
+
+/* ===== 页面壳 ===== */
+.license-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 16px !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 16px;
+  box-sizing: border-box;
+  max-width: 100%;
+  width: 100%;
+}
+
+@media (max-width: 700px) {
+  .license-page {
+    padding: 12px !important;
+    gap: 12px;
+  }
+}
+
+/* ===== 页面标题 ===== */
+.license-header {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 16px !important;
+  margin-bottom: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px;
+}
+
+.license-header p {
+  margin: 0 0 4px !important;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.license-header h2 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 22px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display) !important;
+  letter-spacing: -0.2px;
+}
+
+.license-header span {
+  display: block;
+  margin: 6px 0 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px !important;
+  line-height: 1.5;
+}
+
+/* ===== Tabs（4 个 tab：商品 / 供应商 / 厂家 / 合同） ===== */
+.license-tabs {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-container) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  padding: 6px !important;
+  box-shadow: var(--spd-shadow-1) !important;
+}
+
+.license-tab {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: transparent !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 14px !important;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.license-tab:hover {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-primary) !important;
+}
+
+.license-tab.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary-text) !important;
+  font-weight: 600;
+  box-shadow: 0 0 0 1px var(--spd-primary) inset;
+}
+
+/* ===== Toolbar ===== */
+.license-toolbar {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 12px 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 0 !important;
+}
+
+.license-search {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 280px;
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  padding: 0 12px;
+  transition: all 0.18s ease;
+}
+
+.license-search:focus-within {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+}
+
+.license-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  color: var(--spd-text-primary);
+  padding: 0;
+  min-height: 0;
+}
+
+.license-search input::placeholder {
+  color: var(--spd-text-placeholder);
+}
+
+/* ===== 消息提示 ===== */
+.license-message,
+.license-error {
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+}
+
+.license-message {
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary-text) !important;
+  border-color: var(--spd-primary-border) !important;
+}
+
+.license-error {
+  background: var(--spd-danger-bg) !important;
+  color: var(--spd-danger-text) !important;
+  border-color: var(--spd-danger-border) !important;
+}
+
+/* ===== 表格容器 ===== */
+.license-table-wrap {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.license-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 14px;
+  color: var(--spd-text-primary) !important;
+  min-width: 760px;
+}
+
+.license-table thead {
+  background: #fafafa !important;
+}
+
+.license-table th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-size: 14px;
+  font-family: var(--spd-font-family-display);
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  padding: 12px 14px !important;
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.license-table th:last-child,
+.license-table td:last-child {
+  border-right: 0;
+}
+
+.license-table td {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  padding: 12px 14px !important;
+  color: var(--spd-text-primary) !important;
+  white-space: nowrap;
+}
+
+.license-table td small {
+  display: block;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  margin-top: 2px;
+  font-weight: 400;
+}
+
+.license-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.license-table tbody tr:hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+.license-table tbody tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+.license-table tbody tr:nth-child(even):hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+/* ===== Empty / Loading 行 ===== */
+.license-table .approval-empty {
+  text-align: center !important;
+  color: var(--spd-text-tertiary) !important;
+  padding: 48px 16px !important;
+  font-size: 14px;
+}
+
+/* ===== Status Badge ===== */
+.license-status {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.license-status.ok {
+  background: var(--spd-success-bg);
+  color: var(--spd-success-text);
+  border-color: var(--spd-success-border);
+}
+
+.license-status.warn {
+  background: var(--spd-warning-bg);
+  color: var(--spd-warning-text);
+  border-color: var(--spd-warning-border);
+}
+
+/* ===== Action 列 ===== */
+.license-actions {
+  display: flex !important;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px !important;
+}
+
+.license-actions .btn-text {
+  min-height: 28px;
+  padding: 0 8px;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.18s ease;
+}
+
+.license-actions .btn-text:hover {
+  color: var(--spd-primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.license-actions .btn-text-danger {
+  color: var(--spd-text-tertiary) !important;
+}
+
+.license-actions .btn-text-danger:hover {
+  color: var(--spd-danger) !important;
+  background: var(--spd-danger-bg) !important;
+}
+
+/* ===== Pagination ===== */
+.license-pagination {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px 20px !important;
+  border-top: 1px solid var(--spd-border-subtle);
+  background: var(--spd-bg-container);
+  font-size: 13px;
+  color: var(--spd-text-secondary) !important;
+}
+
+.license-pagination .btn {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.license-pagination .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.license-pagination .btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.license-pagination span {
+  font-family: var(--spd-font-family-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+}
+
+/* ===== Form Dialog ===== */
+.license-form-dialog {
+  border-radius: var(--spd-radius-md, 8px) !important;
+  background: var(--spd-bg-container) !important;
+  box-shadow: var(--spd-shadow-3) !important;
+  overflow: hidden;
+  max-width: 720px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.license-form-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 14px 16px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.license-form-dialog header p {
+  margin: 0;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.license-form-dialog header h3 {
+  margin: 4px 0 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 18px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.license-form-dialog header .btn-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  background: var(--spd-bg-container) !important;
+  cursor: pointer;
+  color: var(--spd-text-secondary);
+  transition: all 0.18s ease;
+}
+
+.license-form-dialog header .btn-icon:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.license-form-dialog form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.license-form-fields {
+  padding: 16px !important;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.license-form-fields label {
+  display: grid;
+  gap: 6px;
+}
+
+.license-form-fields label > span {
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+.license-form-fields input,
+.license-form-fields select,
+.license-form-fields textarea {
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.license-form-fields input:focus,
+.license-form-fields select:focus,
+.license-form-fields textarea:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+  outline: none;
+}
+
+.license-form-fields input[readonly] {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  cursor: not-allowed;
+}
+
+.license-form-fields small {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* ===== Owner Picker（主体选择器） ===== */
+.license-owner-picker {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-page) !important;
+  padding: 12px 14px;
+}
+
+.license-owner-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.license-owner-search input {
+  flex: 1;
+  min-height: 34px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+}
+
+.license-owner-search input:focus {
+  border-color: var(--spd-primary) !important;
+  outline: none;
+  box-shadow: var(--spd-shadow-focus) !important;
+}
+
+.license-owner-search .btn {
+  min-height: 34px;
+  padding: 0 16px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.license-owner-search .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.license-owner-search .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.license-owner-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.license-owner-options .btn-text {
+  display: block;
+  text-align: left;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  cursor: pointer;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  transition: all 0.15s ease;
+}
+
+.license-owner-options .btn-text:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary) !important;
+}
+
+.license-owner-options > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--spd-border-subtle);
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--spd-text-secondary) !important;
+}
+
+.license-owner-options > div .btn {
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.license-owner-options > div .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.license-owner-options > div .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ===== Form Upload Row ===== */
+.license-form-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.license-form-uploaded {
+  margin: 4px 0 0 !important;
+  color: var(--spd-success-text) !important;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.license-form-file-list {
+  margin: 8px 0 0 !important;
+  padding: 0 !important;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.license-form-file-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  font-size: 13px;
+  color: var(--spd-text-primary) !important;
+}
+
+/* ===== Dialog Actions（底部） ===== */
+.license-form-dialog .dialog-actions,
+.license-form-dialog form > div:last-child,
+.license-form-dialog .supplier-form-grid + div {
+  display: flex !important;
+  justify-content: flex-end;
+  gap: 8px !important;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  padding: 12px 16px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+/* ===== History ===== */
+.license-history-item {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 12px 14px !important;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--spd-text-primary) !important;
+  transition: all 0.18s ease;
+}
+
+.license-history-item:hover {
+  border-color: var(--spd-primary-border) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+}
+
+/* ===== Attachment Dialog ===== */
+.license-attachment-body {
+  display: grid;
+  gap: 12px;
+}
+
+.license-attachment-list {
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 12px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.license-upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.license-attachment-items {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.license-attachment-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  font-size: 13px;
+  color: var(--spd-text-primary) !important;
+  transition: all 0.15s ease;
+}
+
+.license-attachment-items li:hover {
+  border-color: var(--spd-primary-border) !important;
+}
+
+.license-attachment-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.license-attachment-info strong {
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.license-attachment-info small {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+}
+
+.license-attachment-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.license-attachment-actions .btn-text {
+  min-height: 28px;
+  padding: 0 8px;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--spd-primary) !important;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.15s ease;
+}
+
+.license-attachment-actions .btn-text:hover {
+  background: var(--spd-primary-bg) !important;
+}
+
+.license-attachment-actions .btn-text-danger {
+  color: var(--spd-danger) !important;
+}
+
+.license-attachment-actions .btn-text-danger:hover {
+  background: var(--spd-danger-bg) !important;
+}
+
+.license-attachment-preview {
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 12px;
+  min-height: 200px;
+  display: grid;
+  place-items: center;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 13px;
+}

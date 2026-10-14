@@ -319,6 +319,9 @@ export function usePurchaseManagement() {
           size: String(purchasePagination.orders.size)
         })
         rows.value = result.rows
+        if (selectedOrder.value) {
+          selectedOrder.value = rows.value.find((row) => row.orderNo === selectedOrder.value?.orderNo) ?? null
+        }
         purchasePagination.orders.total = result.total
         summary.value = result.summary ?? {}
       } else if (activeTab.value === 'demands') {

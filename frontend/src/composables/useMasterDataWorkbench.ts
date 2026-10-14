@@ -30,6 +30,9 @@ export function useMasterDataWorkbench() {
   const catalogPageJumpInput = ref('1')
   const partnerCurrentPage = ref(1)
   const partnerPageSize = ref(20)
+  // 院区 / 科室 / 库房货位列表分页状态（后端分页，前端只维护页码）
+  const listCurrentPage = ref(1)
+  const listPageSize = ref(20)
   const tableRef = ref<any>(null)
   const columnSettingsOpen = ref(false)
   const importInput = ref<HTMLInputElement | null>(null)
@@ -167,6 +170,9 @@ export function useMasterDataWorkbench() {
     } else if (isSupplierManagement.value || isManufacturerManagement.value) {
       params.page = String(partnerCurrentPage.value)
       params.size = String(partnerPageSize.value)
+    } else if (isCampusManagement.value || isDepartmentManagement.value || isWarehouseManagement.value) {
+      params.page = String(listCurrentPage.value)
+      params.size = String(listPageSize.value)
     }
     return params
   })
@@ -193,6 +199,15 @@ export function useMasterDataWorkbench() {
     Math.max(1, Math.ceil(hospitalTotal.value / Math.max(1, hospitalPageSize.value)))
   )
   const hospitalPageSizeOptions = [10, 20, 50, 100, 200]
+  const hospitalStats = computed(() => {
+    const summary = (page.value?.summary ?? {}) as Record<string, unknown>
+    return {
+      scopeTotal: Number(summary.scopeTotal ?? summary.total ?? hospitalTotal.value ?? 0),
+      centralizedTotal: Number(summary.centralizedTotal ?? 0),
+      domesticTotal: Number(summary.domesticTotal ?? 0),
+      disabledTotal: Number(summary.disabledTotal ?? 0)
+    }
+  })
   const catalogTotal = computed(() => Number(page.value?.total ?? 0))
   const catalogPageTotal = computed(() =>
     Math.max(1, Math.ceil(catalogTotal.value / Math.max(1, catalogPageSize.value)))
@@ -200,6 +215,20 @@ export function useMasterDataWorkbench() {
   const catalogPageSizeOptions = [15, 30, 50, 100, 200]
   const partnerTotal = computed(() => Number(page.value?.total ?? 0))
   const partnerPageSizeOptions = [10, 20, 50, 100, 200]
+
+  /**
+   * 非医院目录页面的统计：直接从当前页 rows 算（避免后端再开 summary）。
+   * 字段 status 形如 "启用" / "停用"。
+   */
+  const partnerStats = computed(() => {
+    const rows = (page.value?.rows ?? []) as Array<Record<string, unknown>>
+    return {
+      total: rows.length,
+      enabled: rows.filter((row) => row.status === '启用' || row.status === 1 || row.status === '1').length,
+      disabled: rows.filter((row) => row.status === '停用' || row.status === 0 || row.status === '0').length,
+      selected: selectedCodes.value.length
+    }
+  })
 
   const hospitalColumnGroups = [
     { key: 'all', label: '全部字段', fields: [] },
@@ -373,8 +402,19 @@ export function useMasterDataWorkbench() {
     loadPage()
   }
 
-  function changeHospitalPageSize() {
-    hospitalPageSize.value = Math.min(200, Math.max(1, Number(hospitalPageSize.value) || 20))
+  /**
+   * 切换每页条数。
+   * 修复：原实现靠 v-model.number + @change 同元素双绑定存在竞争，
+   *     且 loadPage 完成后会用响应 size 覆盖本地 ref，导致切换后回显错乱。
+   *     改为：调用方传入已选 size，这里只做夹紧 + 重置当前页 + 触发加载。
+   */
+  function changeHospitalPageSize(nextSize: number) {
+    const sizeNumber = Math.floor(Number(nextSize) || 20)
+    const clamped = Math.min(200, Math.max(1, sizeNumber))
+    if (clamped === hospitalPageSize.value && hospitalCurrentPage.value === 1) {
+      return
+    }
+    hospitalPageSize.value = clamped
     hospitalCurrentPage.value = 1
     hospitalPageJumpInput.value = '1'
     loadPage()
@@ -402,11 +442,13 @@ export function useMasterDataWorkbench() {
 
   function resetCampusQuery() {
     resetQuery(campusQuery.value)
+    listCurrentPage.value = 1
     loadPage()
   }
 
   function resetDepartmentQuery() {
     resetQuery(departmentQuery.value)
+    listCurrentPage.value = 1
     loadPage()
   }
 
@@ -423,8 +465,13 @@ export function useMasterDataWorkbench() {
     loadPage()
   }
 
-  function changeDepartmentWarehouseCatalogPageSize() {
-    catalogPageSize.value = Math.min(200, Math.max(1, Number(catalogPageSize.value) || 15))
+  function changeDepartmentWarehouseCatalogPageSize(nextSize: number) {
+    const sizeNumber = Math.floor(Number(nextSize) || 15)
+    const clamped = Math.min(200, Math.max(1, sizeNumber))
+    if (clamped === catalogPageSize.value && catalogCurrentPage.value === 1) {
+      return
+    }
+    catalogPageSize.value = clamped
     catalogCurrentPage.value = 1
     catalogPageJumpInput.value = '1'
     loadPage()
@@ -504,6 +551,22 @@ export function useMasterDataWorkbench() {
     loadPage()
   }
 
+  const listTotal = computed(() => Number(page.value?.total ?? 0))
+  const listTotalPages = computed(() =>
+    Math.max(1, Math.ceil(listTotal.value / Math.max(1, listPageSize.value)))
+  )
+
+  function changeListPage(pageNumber: number) {
+    listCurrentPage.value = Math.max(1, Math.floor(Number(pageNumber) || 1))
+    loadPage()
+  }
+
+  function changeListPageSize(size: number) {
+    listPageSize.value = Math.max(1, Math.floor(Number(size) || 20))
+    listCurrentPage.value = 1
+    loadPage()
+  }
+
   return {
     page,
     loading,
@@ -523,9 +586,11 @@ export function useMasterDataWorkbench() {
     hospitalTotal,
     hospitalPageTotal,
     hospitalPageSizeOptions,
+    hospitalStats,
     catalogTotal,
     catalogPageTotal,
     catalogPageSizeOptions,
+    partnerTotal,
     hospitalColumnGroups,
     tableRef,
     columnSettingsOpen,
@@ -562,10 +627,16 @@ export function useMasterDataWorkbench() {
     switchPartnerTab,
     partnerCurrentPage,
     partnerPageSize,
-    partnerTotal,
     partnerPageSizeOptions,
+    partnerStats,
     changePartnerPage,
     changePartnerPageSize,
+    listCurrentPage,
+    listPageSize,
+    listTotal,
+    listTotalPages,
+    changeListPage,
+    changeListPageSize,
     isSupplierManagement,
     isManufacturerManagement,
     isCampusManagement,

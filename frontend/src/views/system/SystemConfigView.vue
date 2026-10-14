@@ -11,6 +11,7 @@ import {
   type SystemConfigRow
 } from '../../api/systemConfig'
 import EmptyState from '../../components/common/EmptyState.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import SectionTitle from '../../components/common/SectionTitle.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 
@@ -168,92 +169,62 @@ onMounted(loadConfigs)
 </script>
 
 <template>
-  <section class="system-config-page">
-    <header class="master-page-title">
-      <div>
-        <p>系统管理</p>
-        <h2>系统配置</h2>
-        <span>为基础信息、流程、权限、参数、审计、数据和系统集成提供统一配置中心。</span>
+  <div class="md-page sys-page">
+    <MdPageHeader
+      crumb="系统管理"
+      title="系统配置"
+      description="为基础信息、流程、权限、参数、审计、数据和系统集成提供统一配置中心。"
+      :loading="loading"
+      @refresh="loadConfigs"
+    />
+
+    <!-- 汇总 -->
+    <div class="md-content sys-content">
+      <div class="sys-stat-grid">
+        <article v-for="item in summary" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </article>
       </div>
-      <button type="button" class="btn" @click="loadConfigs">
-        <RefreshCw :size="17" />
-        刷新
-      </button>
-    </header>
 
-    <section class="config-summary-grid">
-      <article v-for="item in summary" :key="item.label">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
-    </section>
-
-    <section class="system-config-layout">
-      <aside class="subnav-panel">
+      <!-- 类型导航 -->
+      <div class="md-tabs sys-tabs" style="margin:0">
         <button
           v-for="item in configTypes"
           :key="item.code"
           type="button"
-          :class="{ active: activeType === item.code }"
+          :class="['md-tab', { active: activeType === item.code }]"
           @click="selectType(item.code)"
         >
-          <Settings :size="17" />
-          <span>
-            <strong>{{ item.label }}</strong>
-            <small>{{ item.desc }}</small>
-          </span>
+          {{ item.label }}
         </button>
-      </aside>
+      </div>
 
-      <main class="system-config-main">
-        <section class="hospital-catalog-panel">
-          <div class="hospital-action-row">
-            <button type="button" class="btn btn-primary" @click="openCreate">
-              <Plus :size="17" />
-              新增配置
-            </button>
-            <button type="button" class="btn" @click="loadConfigs">
-              <ClipboardList :size="17" />
-              配置列表查询
-            </button>
+      <!-- 工具栏 -->
+      <div class="md-toolbar sys-toolbar" style="margin:0">
+        <div class="sys-search-wrap">
+          <span class="sys-search-label">关键词</span>
+          <div class="sys-search-input-wrap">
+            <input v-model.trim="keyword" class="sys-search-input" placeholder="配置键 / 配置名" @keyup.enter="loadConfigs" />
+            <button class="sys-search-btn" type="button" @click="loadConfigs"><Search :size="15" /></button>
           </div>
+          <select v-model="status" class="md-select" style="min-height:34px;width:auto;flex-shrink:0">
+            <option value="">全部</option>
+            <option value="启用">启用</option>
+            <option value="停用">停用</option>
+          </select>
+        </div>
+        <div class="sys-toolbar-right">
+          <button class="md-btn md-btn-primary" type="button" @click="openCreate"><Plus :size="15" /> 新增配置</button>
+        </div>
+      </div>
 
-          <form class="hospital-query-grid config-query-grid" @submit.prevent="loadConfigs">
-            <label>
-              <span>配置关键字</span>
-              <input v-model.trim="keyword" type="text" placeholder="配置键 / 适用对象" />
-            </label>
-            <label>
-              <span>状态</span>
-              <select v-model="status">
-                <option value="">全部</option>
-                <option value="启用">启用</option>
-                <option value="停用">停用</option>
-              </select>
-            </label>
-            <div class="hospital-query-actions">
-              <button type="submit" class="btn btn-primary">
-                <Search :size="17" />
-                查询
-              </button>
-              <button type="button" class="btn" @click="resetQuery">重置</button>
-            </div>
-          </form>
-          <StatusMessage :message="actionError" tone="error" />
-          <StatusMessage :message="actionMessage" tone="success" />
-        </section>
+      <div v-if="actionError" class="md-error">{{ actionError }}</div>
+      <div v-if="actionMessage" class="md-message">{{ actionMessage }}</div>
 
-        <section class="master-table-card">
-          <SectionTitle :level="3">
-            <template #icon>
-              <SlidersHorizontal :size="20" />
-            </template>
-            <h3>配置项</h3>
-          </SectionTitle>
-
-          <p v-if="loading" class="approval-empty">正在加载...</p>
-          <EmptyState v-else-if="error" :message="error" />
-          <table v-else class="master-table config-table">
+      <div class="md-table-card">
+        <div class="table-scroll">
+          <table class="md-table">
             <thead>
               <tr>
                 <th>配置类型</th>
@@ -270,7 +241,9 @@ onMounted(loadConfigs)
               </tr>
             </thead>
             <tbody>
-              <tr v-for="row in rows" :key="row.configId">
+              <tr v-if="loading"><td colspan="11" class="text-center muted">正在加载...</td></tr>
+              <tr v-else-if="!rows.length"><td colspan="11" class="text-center muted">暂无配置</td></tr>
+              <tr v-else v-for="row in rows" :key="row.configId">
                 <td>{{ row.configTypeName }}</td>
                 <td>{{ row.configName }}</td>
                 <td>{{ row.scopeType }}</td>
@@ -278,108 +251,60 @@ onMounted(loadConfigs)
                 <td>{{ row.configKey }}</td>
                 <td class="config-value-cell">{{ row.configValue }}</td>
                 <td>{{ row.effectiveMode }}</td>
-                <td>{{ row.riskLevel }}</td>
-                <td>{{ formatStatusText(row.status) }}</td>
+                <td><span :class="['md-chip', row.riskLevel === 'high' ? 'danger' : '']">{{ row.riskLevel }}</span></td>
+                <td><span :class="['md-status', row.status === '启用' ? 'success' : 'danger']">{{ formatStatusText(row.status) }}</span></td>
                 <td>{{ row.updateTime }}</td>
                 <td>
-                  <button type="button" class="btn-text" @click="openEdit(row)">编辑</button>
-                  <button type="button" class="btn-text" @click="toggleStatus(row)">
-                    {{ row.status === '启用' ? '停用' : '启用' }}
-                  </button>
+                  <button class="md-btn-text" type="button" @click="openEdit(row)">编辑</button>
+                  <button class="md-btn-text" type="button" @click="toggleStatus(row)">{{ row.status === '启用' ? '停用' : '启用' }}</button>
                 </td>
-              </tr>
-              <tr v-if="!rows.length">
-                <td class="approval-empty" colspan="11">暂无配置</td>
               </tr>
             </tbody>
           </table>
-        </section>
-      </main>
-    </section>
-
-    <div v-if="dialogOpen" class="attachment-preview-mask" @click.self="dialogOpen = false">
-      <section class="supplier-dialog" role="dialog" aria-modal="true">
-        <header>
-          <div>
-            <p>系统配置</p>
-            <h3>{{ dialogMode === 'create' ? '新增配置' : '编辑配置' }}</h3>
-          </div>
-          <button type="button" class="btn-icon" aria-label="关闭" @click="dialogOpen = false">
-            <X :size="18" />
-          </button>
-        </header>
-        <form class="supplier-form-grid" @submit.prevent="saveConfig">
-          <label>
-            <span>配置类型</span>
-            <select v-model="form.configType">
-              <option value="base">基础配置</option>
-              <option value="workflow">业务流程配置</option>
-              <option value="permission">权限配置</option>
-              <option value="parameter">参数配置</option>
-              <option value="audit">日志审计</option>
-              <option value="data">数据管理</option>
-              <option value="integration">系统集成</option>
-            </select>
-          </label>
-          <label>
-            <span>适用范围</span>
-            <select v-model="form.scopeType">
-              <option value="global">全局</option>
-              <option value="hospital">医院</option>
-              <option value="campus">院区</option>
-              <option value="department">科室</option>
-              <option value="warehouse">库房</option>
-              <option value="role">角色</option>
-            </select>
-          </label>
-          <label>
-            <span>适用对象</span>
-            <input v-model.trim="form.scopeId" required />
-          </label>
-          <label>
-            <span>配置键</span>
-            <input v-model.trim="form.configKey" required />
-          </label>
-          <label>
-            <span>生效方式</span>
-            <select v-model="form.effectiveMode">
-              <option value="realtime">实时生效</option>
-              <option value="scheduled">定时生效</option>
-              <option value="manual">手动发布</option>
-            </select>
-          </label>
-          <label>
-            <span>风险等级</span>
-            <select v-model="form.riskLevel">
-              <option value="low">低</option>
-              <option value="medium">中</option>
-              <option value="high">高</option>
-            </select>
-          </label>
-          <label>
-            <span>失效日期</span>
-            <input v-model="form.expireTime" type="date" />
-          </label>
-          <label>
-            <span>状态</span>
-            <select v-model.number="form.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label class="wide">
-            <span>配置值 JSON</span>
-            <textarea v-model.trim="form.configValue" required></textarea>
-          </label>
-          <div class="product-form-actions wide">
-            <button type="button" class="btn" @click="dialogOpen = false">取消</button>
-            <button type="submit" class="btn btn-primary">
-              <CheckCircle2 :size="17" />
-              保存
-            </button>
-          </div>
-        </form>
-      </section>
+        </div>
+      </div>
     </div>
-  </section>
+
+    <!-- 弹窗 -->
+    <div v-if="dialogOpen" class="md-dialog-mask" @click.self="dialogOpen = false">
+      <div class="md-dialog">
+        <div class="md-dialog-header">
+          <h3>{{ dialogMode === 'create' ? '新增配置' : '编辑配置' }}</h3>
+          <button class="md-btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
+        </div>
+        <div class="md-dialog-body">
+          <div class="md-form-grid">
+            <label><span>配置类型</span><select v-model="form.configType" class="md-select"><option value="base">基础配置</option><option value="workflow">业务流程配置</option><option value="permission">权限配置</option><option value="parameter">参数配置</option><option value="audit">日志审计</option><option value="data">数据管理</option><option value="integration">系统集成</option></select></label>
+            <label><span>适用范围</span><select v-model="form.scopeType" class="md-select"><option value="global">全局</option><option value="department">科室</option><option value="warehouse">库房</option><option value="role">角色</option></select></label>
+            <label><span>适用对象</span><input v-model.trim="form.scopeId" class="md-input" /></label>
+            <label><span>配置键</span><input v-model.trim="form.configKey" class="md-input" /></label>
+            <label><span>生效方式</span><select v-model="form.effectiveMode" class="md-select"><option value="realtime">实时生效</option><option value="scheduled">定时生效</option><option value="manual">手动发布</option></select></label>
+            <label><span>风险等级</span><select v-model="form.riskLevel" class="md-select"><option value="low">低</option><option value="medium">中</option><option value="high">高</option></select></label>
+            <label><span>失效日期</span><input v-model="form.expireTime" type="date" class="md-input" /></label>
+            <label><span>状态</span><select v-model.number="form.status" class="md-select"><option :value="1">启用</option><option :value="0">停用</option></select></label>
+            <label class="wide"><span>配置值 JSON</span><textarea v-model.trim="form.configValue" class="md-textarea" rows="3" /></label>
+          </div>
+        </div>
+        <div class="md-dialog-footer">
+          <button class="md-btn" type="button" @click="dialogOpen = false">取消</button>
+          <button class="md-btn md-btn-primary" type="button" @click="saveConfig"><CheckCircle2 :size="15" /> 保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.sys-page { display: flex; flex-direction: column; }
+.sys-content { padding: 12px 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.sys-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+.sys-stat-grid article { background: var(--md-bg-card); border: 1px solid var(--md-border); border-radius: var(--md-radius-md); padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.sys-stat-grid article span { font-size: 12px; color: var(--md-text-secondary); font-weight: 500; }
+.sys-stat-grid article strong { font-size: 24px; color: var(--md-text-heading); font-weight: 700; font-family: var(--md-font-mono); }
+.sys-tabs { overflow-x: auto; }
+.sys-toolbar { margin: 0; }
+.table-scroll { overflow-x: auto; }
+.text-center { text-align: center; }
+.muted { color: var(--md-text-muted); padding: 32px; }
+.config-value-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--md-font-mono); font-size: 12px; }
+</style>

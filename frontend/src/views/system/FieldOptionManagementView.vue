@@ -11,6 +11,7 @@ import {
   type FieldOptionField
 } from '../../api/fieldOptions'
 import PageHeader from '../../components/common/PageHeader.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 
 const fields = ref<FieldOptionField[]>([])
 const options = ref<FieldOption[]>([])
@@ -170,141 +171,154 @@ onMounted(() => loadFields(true))
 </script>
 
 <template>
-  <main class="approval-detail-page field-option-page">
-    <PageHeader eyebrow="系统管理" title="字段管理" description="维护所有表格中下拉选字段的选项，支持新增、修改与停用。">
+  <div class="md-page sys-page">
+    <MdPageHeader
+      crumb="系统管理"
+      title="字段管理"
+      description="维护所有表格中下拉选字段的选项，支持新增、修改与停用。"
+      :loading="loading"
+      @refresh="loadFields(false)"
+    >
       <template #actions>
-        <button class="btn btn-primary" type="button" @click="openNewFieldDialog">
-          <Plus :size="17" aria-hidden="true" />
-          新增字段
-        </button>
+        <button class="md-btn md-btn-primary" type="button" @click="openNewFieldDialog"><Plus :size="15" /> 新增字段</button>
       </template>
-    </PageHeader>
+    </MdPageHeader>
 
-    <p v-if="error" class="error-text">{{ error }}</p>
-    <p v-if="message" class="success-text">{{ message }}</p>
-    <p v-if="loading" class="approval-empty">正在加载字段...</p>
+    <div class="md-content sys-content">
+      <div v-if="error" class="md-error">{{ error }}</div>
+      <div v-if="message" class="md-message">{{ message }}</div>
 
-    <div v-else class="field-option-layout">
-      <aside class="field-option-fields" aria-label="下拉字段列表">
-        <h3>下拉字段</h3>
-        <button
-          v-for="field in fields"
-          :key="field.fieldKey"
-          type="button"
-          class="field-option-field-item"
-          :class="{ active: field.fieldKey === activeFieldKey }"
-          @click="activeFieldKey = field.fieldKey; loadOptions()"
-        >
-          <span class="field-option-field-name">{{ field.fieldLabel }}</span>
-          <span class="field-option-field-meta">{{ field.fieldKey }} · {{ field.optionCount }} 项</span>
-        </button>
-        <p v-if="!fields.length" class="approval-empty">暂无下拉字段</p>
-      </aside>
-
-      <section class="field-option-panel" aria-labelledby="field-option-panel-title">
-        <header class="field-option-panel-heading">
-          <div>
-            <h3 id="field-option-panel-title">{{ activeField?.fieldLabel ?? '未选择字段' }}</h3>
-            <p v-if="activeField">字段键 {{ activeField.fieldKey }}，表格中该下拉字段的可用选项如下。</p>
-          </div>
-          <button v-if="activeField" class="btn btn-primary" type="button" @click="openNewOptionDialog">
-            <Plus :size="16" aria-hidden="true" />
-            新增选项
-          </button>
-        </header>
-
-        <div v-if="options.length" class="field-option-table-wrap">
-          <table class="field-option-table">
-            <thead>
-              <tr>
-                <th scope="col">选项值</th>
-                <th scope="col">显示名</th>
-                <th scope="col">排序</th>
-                <th scope="col">状态</th>
-                <th scope="col">备注</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="option in options" :key="option.optionId">
-                <td>{{ option.optionValue === '' ? '（空值）' : option.optionValue }}</td>
-                <td>{{ option.optionLabel }}</td>
-                <td>{{ option.sortOrder }}</td>
-                <td>
-                  <span class="field-option-status" :class="{ inactive: option.status !== 1 }">
-                    {{ option.status === 1 ? '启用' : '停用' }}
-                  </span>
-                </td>
-                <td>{{ option.remark || '-' }}</td>
-                <td>
-                  <div class="field-option-actions">
-                    <button class="btn-text" type="button" @click="openEditOptionDialog(option)">编辑</button>
-                    <button class="btn-text btn-text-danger" type="button" @click="handleRemoveOption(option)">删除</button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <p v-else class="product-detail-empty-state">该字段暂无选项，点击“新增选项”添加。</p>
-      </section>
-    </div>
-
-    <div v-if="dialogOpen" class="attachment-preview-mask" @click.self="dialogOpen = false">
-      <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
-        <header>
-          <div>
-            <p>字段管理</p>
-            <h3>{{ dialogMode === 'edit-option' ? '编辑选项' : dialogMode === 'new-field' ? '新增字段' : '新增选项' }}</h3>
-          </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="dialogOpen = false">
-            <X :size="18" />
-          </button>
-        </header>
-        <form class="supplier-form-grid compact" @submit.prevent="submitDialog">
-          <label v-if="dialogMode === 'new-field'">
-            <span>字段键 <b class="required-mark" aria-hidden="true">*</b></span>
-            <input v-model.trim="dialogForm.fieldKey" placeholder="如 supplier_type" required />
-          </label>
-          <label>
-            <span>字段名称 <b class="required-mark" aria-hidden="true">*</b></span>
-            <input v-model.trim="dialogForm.fieldLabel" placeholder="如 供应商类型" required />
-          </label>
-          <label>
-            <span>选项值 <b class="required-mark" aria-hidden="true">*</b></span>
-            <input v-model="dialogForm.optionValue" :readonly="dialogMode === 'edit-option'" placeholder="保存到数据库的值" required />
-          </label>
-          <label>
-            <span>显示名 <b class="required-mark" aria-hidden="true">*</b></span>
-            <input v-model.trim="dialogForm.optionLabel" placeholder="界面展示的文字" required />
-          </label>
-          <label>
-            <span>排序</span>
-            <input v-model.number="dialogForm.sortOrder" type="number" min="0" step="1" />
-          </label>
-          <label>
-            <span>状态</span>
-            <select v-model.number="dialogForm.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label class="wide">
-            <span>备注</span>
-            <input v-model.trim="dialogForm.remark" placeholder="选项说明（可选）" />
-          </label>
-          <div class="dialog-actions wide">
-            <button class="btn" type="button" @click="dialogOpen = false">取消</button>
-            <button class="btn btn-primary" type="submit">
-              <Settings :size="16" aria-hidden="true" />
-              保存
+      <div class="field-option-layout">
+        <aside class="field-option-fields">
+          <div class="md-panel-header"><h4 class="md-panel-title">下拉字段</h4></div>
+          <div class="field-option-fields-list">
+            <button
+              v-for="field in fields"
+              :key="field.fieldKey"
+              type="button"
+              :class="['field-option-field-item', { active: field.fieldKey === activeFieldKey }]"
+              @click="activeFieldKey = field.fieldKey; loadOptions()"
+            >
+              <span class="field-option-field-name">{{ field.fieldLabel }}</span>
+              <span class="field-option-field-meta">{{ field.fieldKey }} · {{ field.optionCount }} 项</span>
             </button>
+            <p v-if="!fields.length" class="text-center muted">暂无下拉字段</p>
           </div>
-        </form>
-      </section>
+        </aside>
+
+        <section class="md-table-card">
+          <div class="md-panel-header">
+            <h4 class="md-panel-title">{{ activeField?.fieldLabel ?? '未选择字段' }}</h4>
+            <button v-if="activeField" class="md-btn md-btn-primary" type="button" @click="openNewOptionDialog"><Plus :size="14" /> 新增选项</button>
+          </div>
+          <div v-if="activeField" class="md-panel-body"><small class="field-option-sub">字段键 {{ activeField.fieldKey }}，表格中该下拉字段的可用选项如下。</small></div>
+          <div v-if="options.length" class="table-scroll">
+            <table class="md-table">
+              <thead>
+                <tr>
+                  <th>选项值</th>
+                  <th>显示名</th>
+                  <th>排序</th>
+                  <th>状态</th>
+                  <th>备注</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="loading"><td colspan="6" class="text-center muted">正在加载字段...</td></tr>
+                <tr v-for="option in options" v-else :key="option.optionId">
+                  <td>{{ option.optionValue === '' ? '（空值）' : option.optionValue }}</td>
+                  <td>{{ option.optionLabel }}</td>
+                  <td>{{ option.sortOrder }}</td>
+                  <td><span :class="['md-status', option.status === 1 ? 'success' : 'neutral']">{{ option.status === 1 ? '启用' : '停用' }}</span></td>
+                  <td>{{ option.remark || '-' }}</td>
+                  <td>
+                    <button class="md-btn-text" type="button" @click="openEditOptionDialog(option)">编辑</button>
+                    <button class="md-btn-text md-btn-text-danger" type="button" @click="handleRemoveOption(option)">删除</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="text-center muted" style="padding:48px 16px">{{ activeField ? '该字段暂无选项，点击"新增选项"添加。' : '请选择左侧字段查看选项' }}</p>
+        </section>
+      </div>
     </div>
-  </main>
+
+    <div v-if="dialogOpen" class="md-dialog-mask" @click.self="dialogOpen = false">
+      <div class="md-dialog">
+        <div class="md-dialog-header">
+          <h3>{{ dialogMode === 'edit-option' ? '编辑选项' : dialogMode === 'new-field' ? '新增字段' : '新增选项' }}</h3>
+          <button class="md-btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
+        </div>
+        <div class="md-dialog-body">
+          <div class="md-form-grid">
+            <label v-if="dialogMode === 'new-field'"><span>字段键</span><input v-model.trim="dialogForm.fieldKey" class="md-input" placeholder="如 supplier_type" /></label>
+            <label><span>字段名称</span><input v-model.trim="dialogForm.fieldLabel" class="md-input" placeholder="如 供应商类型" /></label>
+            <label><span>选项值</span><input v-model="dialogForm.optionValue" :readonly="dialogMode === 'edit-option'" class="md-input" placeholder="保存到数据库的值" /></label>
+            <label><span>显示名</span><input v-model.trim="dialogForm.optionLabel" class="md-input" placeholder="界面展示的文字" /></label>
+            <label><span>排序</span><input v-model.number="dialogForm.sortOrder" type="number" min="0" step="1" class="md-input" /></label>
+            <label><span>状态</span><select v-model.number="dialogForm.status" class="md-select"><option :value="1">启用</option><option :value="0">停用</option></select></label>
+            <label class="wide"><span>备注</span><input v-model.trim="dialogForm.remark" class="md-input" placeholder="选项说明（可选）" /></label>
+          </div>
+        </div>
+        <div class="md-dialog-footer">
+          <button class="md-btn" type="button" @click="dialogOpen = false">取消</button>
+          <button class="md-btn md-btn-primary" type="button" @click="submitDialog"><Settings :size="15" /> 保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.sys-page { display: flex; flex-direction: column; }
+.sys-content { padding: 12px 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.field-option-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.field-option-fields {
+  background: var(--md-bg-card);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-md);
+  display: flex;
+  flex-direction: column;
+}
+.field-option-fields-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.field-option-field-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--md-radius);
+  background: transparent;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--md-text);
+  transition: all .15s;
+}
+.field-option-field-item:hover { background: var(--md-primary-soft); color: var(--md-primary-strong); }
+.field-option-field-item.active { background: var(--md-primary-soft); color: var(--md-primary-strong); border-color: rgba(13, 107, 99, .24); font-weight: 600; }
+.field-option-field-name { font-size: 14px; }
+.field-option-field-meta { color: var(--md-text-muted); font-size: 12px; }
+.field-option-sub { color: var(--md-text-muted); font-size: 12px; }
+.table-scroll { overflow-x: auto; }
+.text-center { text-align: center; }
+.muted { color: var(--md-text-muted); padding: 24px 12px; }
+</style>
 
 <style scoped>
 .field-option-page {

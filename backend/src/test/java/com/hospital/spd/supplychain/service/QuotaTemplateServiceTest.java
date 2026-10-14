@@ -295,7 +295,7 @@ class QuotaTemplateServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("product code");
+                .hasMessageContaining("商品编码不能为空");
     }
 
     @Test
@@ -328,7 +328,7 @@ class QuotaTemplateServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("not quota managed");
+                .hasMessageContaining("商品未启用定数管理");
     }
 
     @Test
@@ -348,7 +348,7 @@ class QuotaTemplateServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("high value");
+                .hasMessageContaining("高值耗材和冷链商品不允许");
     }
 
     @Test
@@ -373,7 +373,7 @@ class QuotaTemplateServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("already exists");
+                .hasMessageContaining("已存在启用中的定数包模板");
     }
 
     @Test

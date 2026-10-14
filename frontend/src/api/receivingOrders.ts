@@ -15,6 +15,7 @@ export interface ReceivingOrderRow {
 }
 
 export interface ReceivingItemPayload {
+  purchaseOrderItemId?: number
   productCode: string
   productionBatchNo: string
   udiCode: string

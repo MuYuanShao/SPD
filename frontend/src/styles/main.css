@@ -5,6 +5,7 @@
 @import "./system/approval-flow-settings.css";
 @import "./system/system-config.css";
 @import "./supply-chain/quota-package.css";
+@import "./supply-chain/quota-package.override.css";
 @import "./supply-chain/receiving-acceptance.css";
 @import "./supply-chain/department-requisition.css";
 @import "./catalog/product-catalog.css";
@@ -13,9 +14,6 @@
 @import "./catalog/pending-product-approval-detail.css";
 @import "./views/login.css";
 @import "./views/dashboard.css";
-@import "./views/spd-his-reconciliation-report.css";
-@import "./views/regulatory-report-center.css";
-@import "./views/operation-cockpit.css";
 @import "./components/pagination.css";
 @import "./components/table-overrides.css";
 @import "./components/modal.css";
@@ -24,8 +22,13 @@
 @import "./components/subnav.css";
 @import "./components/app-chrome.css";
 @import "./master-data/foundation.css";
+@import "./master-data.theme.css";
 @import "./medical-saas.css";
 @import "./spd-override.css";
+@import "./dashboard-override.css";
+@import "./catalog/pending-product-approval-list.override.css";
+@import "./master-data/master-data-all.override.css";
+@import "./master-data/master-data-list.override.css";
 
 :root {
   color-scheme: light;
@@ -108,14 +111,8 @@ body {
 
 /* Hide explanatory helper copy across feature pages; keep titles, data, controls, and table content visible. */
 .workbench-hero p,
-.approval-page-title p,
 .approval-sidebar-title p,
 .approval-list-title p,
-.approval-metric-card .metric-hint,
-.approval-metric-card small,
-.approval-context > div > p,
-.master-page-title > div > p,
-.master-page-title > div > span,
 .standard-page-heading > p,
 .standard-page-heading > span,
 .detail-heading > div > p,
@@ -1459,19 +1456,21 @@ textarea:focus-visible {
 
 
 
-/* Top overview sections are intentionally hidden across feature pages. */
+/* Top overview sections are intentionally hidden across feature pages — 但保留待审批目录的 KPI（业务强相关） */
 .main-area > .workbench-hero,
 .main-area .detail-heading,
-.main-area .master-page-title,
 .main-area .approval-page-hero,
 .main-area .approval-metrics,
-.main-area .approval-metric-grid,
-.main-area .foundation-stat-grid,
-.main-area .quota-stat-grid,
 .main-area .config-summary-grid,
 .main-area .stats-grid,
 .main-area .metric-panel {
   display: none !important;
+}
+
+/* 待审批目录 KPI 区域恢复显示（在 override 中也再次强制） */
+.main-area .approval-metric-grid,
+.main-area .approval-metric-card {
+  display: revert !important;
 }
 
 

@@ -28,6 +28,10 @@ public class RbacAuthorizationService {
         }
 
         String path = normalizePath(requestPath);
+        if ((path.equals("/ai-assistant/models") && "GET".equalsIgnoreCase(method))
+                || (path.equals("/ai-assistant/chat") && "POST".equalsIgnoreCase(method))) {
+            return userId != null;
+        }
         if ("/auth/me".equals(path)) {
             return true;
         }

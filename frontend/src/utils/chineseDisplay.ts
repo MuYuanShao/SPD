@@ -81,7 +81,11 @@ const DISPLAY_TEXT: Record<string, string> = {
   cancel_packing_task: '取消打包任务',
   terminate_packing_task: '终止打包任务',
   print_quota_package_label: '打印定数包标签',
-  unpack_quota_package_label: '定数包拆包'
+  unpack_quota_package_label: '定数包拆包',
+  terminate_to_loose: '终止并退回散货',
+  delivery_sign: '科室签收',
+  recall_unpack_to_loose: '召回解包退回散货',
+  unpacked: '已解包'
 }
 
 const REMARK_TEXT: Record<string, string> = {
@@ -133,4 +137,26 @@ export function formatRemarkText(value: unknown, emptyText = '-') {
   if (signedDelivery) return `配送单 ${signedDelivery[1]} 已签收入科室库房`
   if (/[A-Za-z]/.test(text)) return '系统业务备注（原始记录已保留）'
   return text
+}
+
+/**
+ * 后端异常文案 -> 可读中文。
+ * 后端部分校验只抛英文 IllegalArgumentException（例如库存不足），
+ * 直接透传给用户不可读，这里统一翻译并保留可诊断的原始语义。
+ */
+const ERROR_TEXT: Record<string, string> = {
+  'inventory is insufficient, negative stock is not allowed':
+    '库存不足，无法扣减；为避免形成负库存，本次操作已取消',
+  'source and destination warehouses must be different': '调出与调入库房不能相同',
+  'inventory adjustment quantity must not be zero': '库存调整数量不能为零'
+}
+
+export function formatApiErrorText(value: unknown, fallback = '操作失败，请重试') {
+  const text = normalized(value)
+  if (!text) return fallback
+  const direct = ERROR_TEXT[text.toLowerCase()]
+  if (direct) return direct
+  // 已经是中文就直接展示
+  if (!/[A-Za-z]/.test(text)) return text
+  return fallback
 }

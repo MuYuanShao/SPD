@@ -813,7 +813,8 @@ public class ProductApprovalService {
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, applicationNo);
-        validateNoExistingCatalogMatch(request, applicationNo);
+        if("新品准入".equals(applicationType)) validateNoExistingCatalogMatch(request, applicationNo);
+        else validateExistingApplicationSource(productCode,applicationType,request.purchasePrice(),applicationNo);
 
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
@@ -1366,6 +1367,7 @@ public class ProductApprovalService {
     }
 
     private void syncToHospitalCatalog(String applicationNo) {
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).prepareApproval(applicationNo);
         new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate).requireAdmission(applicationNo);
         jdbcTemplate.update("""
                 INSERT INTO product (
@@ -1411,6 +1413,7 @@ public class ProductApprovalService {
                   is_key_monitored = VALUES(is_key_monitored),
                   storage_condition = VALUES(storage_condition), status = VALUES(status), deleted = 0
                 """, ensureCategory("未分类", null, null), applicationNo);
+        retireMcpLicenseAttachments(applicationNo);
         jdbcTemplate.update("""
                 INSERT INTO sys_attachment (
                   biz_type, biz_id, file_name, file_ext, file_type, file_size, file_path, file_url,
@@ -1431,15 +1434,30 @@ public class ProductApprovalService {
                    AND promoted.source_attachment_id = source.attachment_id AND promoted.deleted = 0
                  WHERE application.application_no = ? AND promoted.attachment_id IS NULL
                 """, applicationNo);
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo);
     }
 
     private void disableHospitalCatalogProduct(String applicationNo) {
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).prepareApproval(applicationNo);
+        retireMcpLicenseAttachments(applicationNo);
         jdbcTemplate.update("""
                 UPDATE product p
                 JOIN pending_product_application a ON a.product_code = p.product_code
                    SET p.status = 0, p.deleted = 0
                  WHERE a.application_no = ? AND p.deleted = 0
                 """, applicationNo);
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo);
+    }
+
+    private void retireMcpLicenseAttachments(String applicationNo) {
+        jdbcTemplate.update("""
+                UPDATE sys_attachment promoted
+                JOIN mcp_license_retirement retirement ON retirement.source_attachment_id=promoted.source_attachment_id
+                JOIN pending_product_application application ON application.application_no=retirement.application_no
+                JOIN product p ON p.product_id=promoted.biz_id AND p.product_code=application.product_code
+                SET promoted.deleted=1
+                WHERE application.application_no=? AND promoted.biz_type='product' AND promoted.deleted=0
+                """,applicationNo);
     }
 
     /** Prevents an older approval from overwriting catalog changes made after submission. */

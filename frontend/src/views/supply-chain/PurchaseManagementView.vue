@@ -26,6 +26,7 @@ import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const {
@@ -236,28 +237,19 @@ async function handleOrderAttachmentUpload(event: Event) {
 </script>
 
 <template>
-  <section class="purchase-page">
-    <div class="breadcrumb-line">
-      <span>供应链业务</span>
-      <strong>采购管理</strong>
-    </div>
-
-    <div class="detail-heading">
-      <div>
-        <p>采购需求到订单履约闭环</p>
-        <h2>采购管理</h2>
-        <small>需求池、采购计划、采购订单、订单跟踪按子流程拆分；验收入库按最新医院目录采购价生成系统批次单价。</small>
-      </div>
-      <button class="btn" type="button" @click="loadData">
-        <RefreshCw :size="17" />
-        刷新
-      </button>
-    </div>
+  <section class="md-page purchase-page">
+    <MdPageHeader
+      crumb="供应链业务"
+      title="采购管理"
+      description="需求池、采购计划、采购订单、订单跟踪按子流程拆分；验收入库按最新医院目录采购价生成系统批次单价。"
+      :loading="loading"
+      @refresh="loadData"
+    />
 
     <p v-if="message" class="inline-message">{{ message }}</p>
 
-    <section class="hospital-catalog-panel">
-      <div class="subnav-tabs">
+    <section class="purchase-workspace">
+      <div class="subnav-tabs purchase-tabs">
         <button
           v-for="tab in tabs"
           :key="tab.key"
@@ -269,70 +261,70 @@ async function handleOrderAttachmentUpload(event: Event) {
         </button>
       </div>
 
-      <div class="hospital-action-row" :class="`action-row--${activeTab}`">
+      <div class="hospital-action-row purchase-toolbar" :class="`action-row--${activeTab}`">
         <label v-if="activeTab === 'smart'" class="inline-field">
           <span>分析周期</span>
-          <select v-model.number="smartSelectedPeriod" class="inline-select">
+          <select v-model.number="smartSelectedPeriod" class="inline-select md-select">
             <option v-for="period in smartPeriods" :key="period" :value="period">近{{ period }}天</option>
           </select>
         </label>
-        <button v-if="activeTab === 'smart'" class="btn btn-primary" type="button" @click="runSmartAnalysis">
+        <button v-if="activeTab === 'smart'" class="btn btn-primary md-btn md-btn-primary" type="button" @click="runSmartAnalysis">
           <Search :size="17" />
           智能补货分析
         </button>
-        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:create')" class="btn btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
+        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:create')" class="btn btn-primary md-btn md-btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
           <PackagePlus :size="18" />
           新增采购
         </button>
-        <select v-if="activeTab === 'demands'" v-model="planForm.supplierName" class="inline-select" title="计划供应商">
+        <select v-if="activeTab === 'demands'" v-model="planForm.supplierName" class="inline-select md-select" title="计划供应商">
           <option value="">按商品默认供应商生成计划</option>
           <option v-for="supplier in suppliers" :key="supplier.supplierName" :value="supplier.supplierName">
             {{ supplier.supplierName }}
           </option>
         </select>
-        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" class="btn" type="button" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
+        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" class="btn md-btn" type="button" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
           <FileCheck2 :size="17" />
           需求转计划
         </button>
-        <button v-if="activeTab === 'orders' && authStore.hasPermission('purchase-order:create')" class="btn btn-primary" type="button" @click="resetOrderForm(); showCreateModal = true">
+        <button v-if="activeTab === 'orders' && authStore.hasPermission('purchase-order:create')" class="btn btn-primary md-btn md-btn-primary" type="button" @click="resetOrderForm(); showCreateModal = true">
           <PackagePlus :size="18" />
           新增订单
         </button>
         <template v-if="activeTab === 'orders'">
-          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
+          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn md-btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
             <Send :size="16" /> 提交
           </button>
-          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
+          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn md-btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
             <CheckCircle2 :size="16" /> 审批
           </button>
           <button
             v-if="authStore.hasPermission('purchase-order:void')"
-            class="btn btn-danger-soft"
+            class="btn btn-danger-soft md-btn"
             type="button"
             :disabled="!selectedOrder || !['draft', 'pending_approval', 'approved'].includes(selectedOrder.orderStatus)"
             @click="openOrderOperation('void')"
           >
             <Ban :size="16" /> 作废
           </button>
-          <button v-if="authStore.hasPermission('purchase-order:create')" class="btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
+          <button v-if="authStore.hasPermission('purchase-order:create')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
             <Copy :size="16" /> 复制订单
           </button>
-          <button v-if="authStore.hasPermission('purchase-order:attachment')" class="btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
+          <button v-if="authStore.hasPermission('purchase-order:attachment')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
             <Upload :size="16" /> 上传附件
           </button>
           <input ref="orderAttachmentInput" type="file" hidden @change="handleOrderAttachmentUpload" />
-          <button class="btn" type="button" :disabled="!selectedOrder" @click="openOrderAttachments">
+          <button class="btn md-btn" type="button" :disabled="!selectedOrder" @click="openOrderAttachments">
             <Paperclip :size="16" /> 附件阅览
           </button>
-          <button v-if="authStore.hasPermission('purchase-order:remark')" class="btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
+          <button v-if="authStore.hasPermission('purchase-order:remark')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
             <MessageSquare :size="16" /> 添加备注
           </button>
         </template>
-        <button v-if="activeTab !== 'smart'" class="btn" type="button" @click="loadData">
+        <button v-if="activeTab !== 'smart'" class="btn md-btn" type="button" @click="loadData">
           <Search :size="17" />
           {{ actionQueryLabel }}
         </button>
-        <button v-if="activeTab === 'tracking' && detail" class="btn" type="button" @click="detail = null">
+        <button v-if="activeTab === 'tracking' && detail" class="btn md-btn" type="button" @click="detail = null">
           <X :size="17" />
           清空跟踪
         </button>
@@ -341,21 +333,21 @@ async function handleOrderAttachmentUpload(event: Event) {
       </div>
 
       <div v-if="activeTab !== 'smart'" class="hospital-query-grid purchase-query-grid">
-        <label v-if="activeTab === 'orders'"><span>订单编号</span><input v-model="query.orderNo" placeholder="CG2026..." /></label>
-        <label v-if="activeTab === 'demands'"><span>需求编号</span><input v-model="query.demandNo" placeholder="XQ2026..." /></label>
-        <label v-if="activeTab === 'demands'"><span>科室</span><select v-model="query.deptCode"><option value="">全部授权科室</option><option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option></select></label>
-        <label v-if="activeTab === 'plans'"><span>计划编号</span><input v-model="query.planNo" placeholder="JH2026..." /></label>
-        <label v-if="activeTab === 'plans' || activeTab === 'orders'"><span>供应商</span><input v-model="query.supplierName" placeholder="模糊查询供应商" /></label>
-        <label v-if="activeTab !== 'tracking'"><span>商品</span><input v-model="query.keyword" placeholder="商品编码/名称/规格" /></label>
+        <label v-if="activeTab === 'orders'"><span>订单编号</span><input v-model="query.orderNo" class="md-input" placeholder="CG2026..." /></label>
+        <label v-if="activeTab === 'demands'"><span>需求编号</span><input v-model="query.demandNo" class="md-input" placeholder="XQ2026..." /></label>
+        <label v-if="activeTab === 'demands'"><span>科室</span><select v-model="query.deptCode" class="md-select"><option value="">全部授权科室</option><option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option></select></label>
+        <label v-if="activeTab === 'plans'"><span>计划编号</span><input v-model="query.planNo" class="md-input" placeholder="JH2026..." /></label>
+        <label v-if="activeTab === 'plans' || activeTab === 'orders'"><span>供应商</span><input v-model="query.supplierName" class="md-input" placeholder="模糊查询供应商" /></label>
+        <label v-if="activeTab !== 'tracking'"><span>商品</span><input v-model="query.keyword" class="md-input" placeholder="商品编码/名称/规格" /></label>
         <label>
           <span>状态</span>
-          <select v-model="query.status">
+          <select v-model="query.status" class="md-select">
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
       </div>
 
-      <div v-if="activeTab === 'demands'" class="table-scroll">
+      <div v-if="activeTab === 'demands'" class="table-scroll purchase-list-scroll">
         <table class="master-table purchase-table purchase-demand-table">
           <thead>
             <tr>
@@ -413,7 +405,7 @@ async function handleOrderAttachmentUpload(event: Event) {
         @change-size="changePurchasePageSize('demands', $event)"
       />
 
-      <div v-if="activeTab === 'plans'" class="table-scroll">
+      <div v-if="activeTab === 'plans'" class="table-scroll purchase-list-scroll">
         <table class="master-table purchase-table purchase-plan-table">
           <thead>
             <tr>
@@ -461,7 +453,7 @@ async function handleOrderAttachmentUpload(event: Event) {
         @change-size="changePurchasePageSize('plans', $event)"
       />
 
-      <div v-if="activeTab === 'orders'" class="table-scroll">
+      <div v-if="activeTab === 'orders'" class="table-scroll purchase-list-scroll">
         <table class="master-table purchase-table">
           <thead>
             <tr>
@@ -1137,46 +1129,103 @@ async function handleOrderAttachmentUpload(event: Event) {
 </template>
 
 <style scoped>
-.purchase-page {
-  display: grid;
-  gap: 18px;
+/* =====================================================================
+   采购管理 样式优化
+   ---------------------------------------------------------------------
+   目标：整体切到主数据 md-* 设计语言（页头 + 卡片工作区 + md 表格）。
+   1. 页面外壳：md-page 纵向 flex，去掉原 breadcrumb/detail-heading 双段标题
+   2. 工作区卡片：页签 / 工具条 / 查询区 / 表格 四段式，与其他菜单一致
+   3. 表格：md-table 密度（13px / 10px 12px）、sticky 表头、卡片化滚动容器
+   4. 业务列强化：单据号等宽、金额右对齐、选中行主色条、状态徽标收敛
+   ===================================================================== */
+.purchase-page.md-page {
+  /* md-page 自带 padding-bottom 40px，这里只收紧顶部间距 */
+  padding: 16px 20px 24px;
+  gap: 14px;
+}
+
+/* ---------- 工作区卡片 ---------- */
+.purchase-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  padding: 14px 16px 16px;
+}
+
+/* ---------- 页签 ---------- */
+.purchase-tabs {
+  gap: 6px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+}
+
+.purchase-tabs button {
+  min-height: 30px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--md-radius, 6px);
+}
+
+/* ---------- 工具条 ---------- */
+.purchase-toolbar {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 10px 12px !important;
+  background: var(--md-bg-page, var(--spd-bg-page)) !important;
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  border-radius: var(--md-radius, 6px) !important;
+}
+
+.purchase-toolbar .btn {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.purchase-toolbar .btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
 .inline-message {
   margin: 0;
-  padding: 12px 14px;
-  border: 1px solid #b7ded8;
-  border-radius: 8px;
-  color: #0f766e;
-  background: #f0fdfa;
+  padding: 10px 14px;
+  border: 1px solid var(--spd-primary-border);
+  border-radius: var(--md-radius, 6px);
+  color: var(--spd-primary-text);
+  background: var(--spd-primary-bg);
+  font-size: 13px;
 }
 
 .inline-select {
-  min-height: 42px;
-  border: 1px solid #d6e0ea;
-  border-radius: 8px;
-  padding: 0 12px;
-  font: inherit;
-  color: #0f2233;
-  background: #fff;
+  min-height: 30px;
+  font-size: 13px;
 }
 
 .inline-field {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: #52677a;
-  font-weight: 600;
-}
-
-.hospital-action-row {
-  align-items: center;
+  gap: 6px;
+  color: var(--spd-text-secondary);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .action-hint {
-  color: #66788a;
-  font-size: 14px;
+  color: var(--spd-text-tertiary);
+  font-size: 12px;
   line-height: 1.4;
+  margin-left: auto;
 }
 
 .action-row--plans .inline-select,
@@ -1185,77 +1234,291 @@ async function handleOrderAttachmentUpload(event: Event) {
   display: none;
 }
 
+/* ---------- 查询区 ---------- */
 .purchase-query-grid {
-  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px 14px;
+  padding: 12px !important;
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
 }
 
-.purchase-table td strong,
-.purchase-table td small {
-  display: block;
+.purchase-query-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
 }
 
-.purchase-table td small {
-  color: #718096;
+.purchase-query-grid label > span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
 }
 
-.purchase-plan-table {
-  min-width: 2400px;
+.purchase-query-grid .md-input,
+.purchase-query-grid .md-select {
+  min-height: 30px;
+  font-size: 13px;
 }
 
-.purchase-plan-table th {
+/* ---------- 列表滚动容器 ---------- */
+.purchase-list-scroll {
+  max-height: max(300px, calc(100dvh - 420px));
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
+  background: var(--md-bg-card, #fff);
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
+}
+
+.purchase-list-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.purchase-list-scroll::-webkit-scrollbar-thumb {
+  background: var(--md-border, var(--spd-border-default));
+  border-radius: 4px;
+}
+
+/* ---------- 表格：md 密度 ---------- */
+/* .master-table 的 padding / font-size 由 spd-override.css 以 !important
+   统一设定，覆盖时需同级 !important 才能进入同一优先级层级 */
+.purchase-table {
+  min-width: 100%;
+  width: 100%;
+  font-size: 13px !important;
+}
+
+.purchase-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 9px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  letter-spacing: 0.2px;
   white-space: nowrap;
+  color: var(--md-text-heading) !important;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
+}
+
+.purchase-table tbody td {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  color: var(--md-text) !important;
+  border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  vertical-align: middle;
+}
+
+.purchase-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted, #fafbfc);
+}
+
+.purchase-table tbody tr:hover td {
+  background: var(--md-primary-soft, var(--spd-bg-active)) !important;
+}
+
+.purchase-table tbody td strong {
+  color: var(--md-text-heading) !important;
+  font-weight: 600;
+}
+
+.purchase-table tbody td small {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+/* ---------- 单据号 / 金额 ---------- */
+.document-no-cell {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 12px !important;
+  font-weight: 600;
+  color: var(--md-text-heading) !important;
+  white-space: nowrap;
+}
+
+.purchase-plan-amount {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--md-primary-strong, var(--spd-text-heading));
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* 采购计划仅 8 列，保留适度最小宽度避免字段挤压 */
+.purchase-plan-table {
+  min-width: 1080px;
 }
 
 .purchase-plan-table td {
   vertical-align: middle;
 }
 
-.purchase-plan-table td:nth-child(3),
-.purchase-plan-table td:nth-child(4),
-.purchase-plan-table td:nth-child(5),
-.purchase-plan-table td:nth-child(6),
-.purchase-plan-table td:nth-child(15),
-.purchase-plan-table td:nth-child(16) {
-  min-width: 150px;
-}
-
-.document-no-cell {
-  color: #24566b;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.purchase-plan-amount {
-  color: #0f766e;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
+/* ---------- 选择列 ---------- */
 .order-select-column {
-  width: 56px;
+  width: 44px;
   text-align: center;
 }
 
 .order-select-column input {
-  width: 16px;
-  height: 16px;
-  accent-color: #0f766e;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--md-primary, var(--spd-primary));
   cursor: pointer;
+  vertical-align: middle;
+  margin: 0;
 }
 
+/* 选中订单：淡背景 + 左侧主色条 */
 .selected-order-row td {
-  background: #eef8f6;
+  background: var(--md-primary-soft, var(--spd-primary-bg)) !important;
+}
+
+.selected-order-row td:first-child {
+  box-shadow: inset 3px 0 0 var(--md-primary, var(--spd-primary));
+}
+
+/* ---------- 状态徽标 ---------- */
+.purchase-table .status-badge {
+  min-height: 20px;
+  padding: 0 9px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+
+/* ---------- 行内操作 ---------- */
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.row-actions .btn-text {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+/* ---------- 履约进度 ---------- */
+.fulfillment-cell {
+  display: grid;
+  gap: 3px;
+  min-width: 88px;
+}
+
+.fulfillment-cell span {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+}
+
+.fulfillment-cell i {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--md-border-soft, var(--spd-border-subtle));
+  overflow: hidden;
+}
+
+.fulfillment-cell b {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--md-primary, var(--spd-primary));
+  transition: width 0.2s ease;
+}
+
+/* ---------- 剩余数量 ---------- */
+.quantity-gap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: var(--md-radius-sm, 4px);
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.quantity-gap.pending {
+  color: var(--spd-warning-text, #a15c00);
+  background: var(--spd-warning-bg, #fff7e6);
+}
+
+.quantity-gap.done {
+  color: var(--spd-success-text, #087a4d);
+  background: var(--spd-success-bg, #eaf8f2);
+}
+
+/* ---------- 明细角标 ---------- */
+.item-count-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.item-summary {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+}
+
+.demand-group-items-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- 空状态 ---------- */
+.purchase-table .approval-empty {
+  padding: 52px 16px;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 13px;
+  text-align: center;
 }
 
 .btn-danger-soft {
-  border-color: #efc4c4;
-  background: #fff6f6;
-  color: #b83a3a;
+  border-color: var(--spd-danger-border) !important;
+  background: var(--spd-danger-bg) !important;
+  color: var(--spd-danger-text) !important;
 }
 
 .btn-danger-soft:hover:not(:disabled) {
-  border-color: #d97777;
-  background: #fff0f0;
+  border-color: var(--spd-danger) !important;
+  background: color-mix(in srgb, var(--spd-danger) 12%, white) !important;
+  color: var(--spd-danger-text) !important;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 900px) {
+  .purchase-page.md-page {
+    padding: 12px 12px 20px;
+  }
+
+  .purchase-workspace {
+    padding: 12px 12px 14px;
+  }
+
+  .purchase-query-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+
+  .purchase-list-scroll {
+    max-height: max(240px, calc(100dvh - 380px));
+  }
 }
 
 .order-detail-modal {

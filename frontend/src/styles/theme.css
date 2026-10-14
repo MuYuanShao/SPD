@@ -1,0 +1,790 @@
+/* =====================================================================
+   Theme System — 医疗蓝 / 暖意黄 / 森林绿
+   通过 data-theme 属性切换：默认 (无) = 医疗蓝
+   --------------------------------------------------------------------- */
+
+/* 所有主题共享的 Element Plus 颜色变量（由主色派生） */
+:root,
+:root[data-theme] {
+  /* Element Plus 品牌色 — 派生色由主题主色决定 */
+  --el-color-primary: var(--theme-primary);
+  --el-color-primary-dark-2: var(--theme-primary-strong);
+  --el-color-primary-light-3: color-mix(in srgb, var(--theme-primary) 80%, white);
+  --el-color-primary-light-5: color-mix(in srgb, var(--theme-primary) 60%, white);
+  --el-color-primary-light-7: color-mix(in srgb, var(--theme-primary) 40%, white);
+  --el-color-primary-light-8: color-mix(in srgb, var(--theme-primary) 28%, white);
+  --el-color-primary-light-9: color-mix(in srgb, var(--theme-primary) 16%, white);
+  --el-border-color: var(--theme-line);
+  --el-border-color-light: var(--theme-line);
+  --el-text-color-primary: var(--theme-text);
+}
+
+:root,
+:root[data-theme="medical-blue"] {
+  color-scheme: light;
+
+  /* 基础调色板 — 对齐 web-vue 医疗蓝 (Ant Design 蓝) */
+  --theme-primary: #1890ff;
+  --theme-primary-strong: #096dd9;
+  --theme-accent: #40a9ff;
+  --theme-bg: #f0f2f5;
+  --theme-surface: #ffffff;
+  --theme-line: #e8eaec;
+  --theme-text: #1f1f1f;
+  --theme-text-muted: #595959;
+  --theme-focus: #40a9ff;
+
+  /* 医疗语义色 */
+  --theme-mint: #e6f7ff;
+  --theme-aqua: #bae7ff;
+  --theme-warm: #fff7e6;
+  --theme-warm-strong: #ffa940;
+
+  /* 侧栏（商业 SPD 风格 — 白底深字；主色用于品牌区与激活态） */
+  --sidebar-bg: #ffffff;
+  --topbar-bg: #ffffff;
+
+  /* 组件表面 */
+  --card-bg: #ffffff;
+  --header-bg: #fafafa;
+  --row-hover: #f5f9fc;
+  --row-stripe: #fbfdfd;
+  --shadow-soft: 0 16px 48px rgba(24, 144, 255, 0.10);
+
+  /* fli-layout 直接引用这些变量 */
+  --fli-brand: var(--theme-primary);
+  --fli-brand-strong: var(--theme-primary-strong);
+  --fli-accent: var(--theme-accent);
+  --fli-background: var(--theme-bg);
+  --fli-surface: var(--theme-surface);
+  --fli-text: var(--theme-text);
+  --fli-muted: var(--theme-text-muted);
+  --fli-line: var(--theme-line);
+}
+
+:root[data-theme="warm-yellow"] {
+  color-scheme: light;
+
+  /* 暖意黄 — 对齐 web-vue (Ant Design 金) */
+  --theme-primary: #faad14;
+  --theme-primary-strong: #d48806;
+  --theme-accent: #ffc53d;
+  --theme-bg: #fffbe6;
+  --theme-surface: #ffffff;
+  --theme-line: #ffe58f;
+  --theme-text: #3d2814;
+  --theme-text-muted: #8c6e3a;
+  --theme-focus: #ffc53d;
+
+  --theme-mint: #fff7e6;
+  --theme-aqua: #ffe7ba;
+  --theme-warm: #fff1b8;
+  --theme-warm-strong: #fa8c16;
+
+  --sidebar-bg: #ffffff;
+  --topbar-bg: #fffbe6;
+
+  --card-bg: #ffffff;
+  --header-bg: #fff7d6;
+  --row-hover: #fff5cc;
+  --row-stripe: #fffaeb;
+  --shadow-soft: 0 16px 48px rgba(250, 173, 20, 0.14);
+
+  --fli-brand: var(--theme-primary);
+  --fli-brand-strong: var(--theme-primary-strong);
+  --fli-accent: var(--theme-accent);
+  --fli-background: var(--theme-bg);
+  --fli-surface: var(--theme-surface);
+  --fli-text: var(--theme-text);
+  --fli-muted: var(--theme-text-muted);
+  --fli-line: var(--theme-line);
+}
+
+:root[data-theme="forest-green"] {
+  color-scheme: light;
+
+  /* 森林绿 — 对齐 web-vue (Ant Design 绿) */
+  --theme-primary: #52c41a;
+  --theme-primary-strong: #389e0d;
+  --theme-accent: #73d13d;
+  --theme-bg: #f6ffed;
+  --theme-surface: #ffffff;
+  --theme-line: #b7eb8f;
+  --theme-text: #1f3a14;
+  --theme-text-muted: #5b7a4a;
+  --theme-focus: #73d13d;
+
+  --theme-mint: #d9f7be;
+  --theme-aqua: #b7eb8f;
+  --theme-warm: #fffbe6;
+  --theme-warm-strong: #faad14;
+
+  --sidebar-bg: #ffffff;
+  --topbar-bg: #f6ffed;
+
+  --card-bg: #ffffff;
+  --header-bg: #f6ffed;
+  --row-hover: #e8f7d8;
+  --row-stripe: #fcffef;
+  --shadow-soft: 0 16px 48px rgba(82, 196, 26, 0.14);
+
+  --fli-brand: var(--theme-primary);
+  --fli-brand-strong: var(--theme-primary-strong);
+  --fli-accent: var(--theme-accent);
+  --fli-background: var(--theme-bg);
+  --fli-surface: var(--theme-surface);
+  --fli-text: var(--theme-text);
+  --fli-muted: var(--theme-text-muted);
+  --fli-line: var(--theme-line);
+}
+
+/* =====================================================================
+   主题应用到 :root 现有 token
+   这样 main.css 中所有用 var(--primary) 的组件都会跟随主题
+   --------------------------------------------------------------------- */
+:root,
+:root[data-theme] {
+  --primary: var(--theme-primary);
+  --primary-strong: var(--theme-primary-strong);
+  --accent: var(--theme-accent);
+  --surface: var(--theme-surface);
+  --line: var(--theme-line);
+  --text-muted: var(--theme-text-muted);
+  --focus: var(--theme-focus);
+  --medical-mint: var(--theme-mint);
+  --medical-aqua: var(--theme-aqua);
+  --medical-warm: var(--theme-warm);
+  --medical-warm-strong: var(--theme-warm-strong);
+  --tech-blue: var(--theme-accent);
+  --shadow-soft: var(--shadow-soft);
+
+  --sidebar-bg: var(--sidebar-bg);
+}
+
+/* 主题色应用到 body */
+body {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+#app {
+  background: var(--theme-bg);
+  color: var(--theme-text);
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* 全局过渡，避免主题切换时颜色骤变 */
+.main-area,
+.fli-topbar,
+.sidebar,
+.metric-panel,
+.module-board,
+.module-detail,
+.empty-state,
+.workflow-band,
+.master-table-card,
+.hospital-catalog-panel,
+.master-toolbar,
+.dialog,
+.el-dialog,
+.el-message-box,
+.el-card,
+.el-table,
+.el-input__wrapper,
+.el-select__wrapper,
+.el-button {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+/* =====================================================================
+   主题全局强化 — 侧栏 / 菜单 / 顶栏 / Element Plus 主题色对齐
+   让切换主题时整个界面都跟着变化（不只按钮）
+   --------------------------------------------------------------------- */
+
+/* 顶栏：白底 + 主色品牌 + 顶栏主色细线 */
+.fli-topbar {
+  background: var(--topbar-bg) !important;
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.fli-topbar .fli-brand,
+.fli-topbar .fli-brand-symbol,
+.fli-topbar .fli-brand small {
+  color: var(--primary-strong);
+}
+
+.fli-topbar .fli-main-menu.el-menu {
+  background: transparent;
+  border-bottom: none;
+}
+
+.fli-topbar .fli-main-menu .el-menu-item,
+.fli-topbar .fli-main-menu .el-sub-menu__title {
+  color: var(--text);
+}
+
+.fli-topbar .fli-main-menu .el-menu-item:hover,
+.fli-topbar .fli-main-menu .el-sub-menu__title:hover {
+  color: var(--primary);
+  background: var(--row-hover);
+}
+
+.fli-topbar .fli-main-menu .el-menu-item.is-active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+/* Element Plus 主按钮 — 跟随主题 */
+.el-button--primary {
+  --el-button-bg-color: var(--primary);
+  --el-button-border-color: var(--primary);
+  --el-button-hover-bg-color: var(--primary-strong);
+  --el-button-hover-border-color: var(--primary-strong);
+  --el-button-active-bg-color: var(--primary-strong);
+  --el-button-active-border-color: var(--primary-strong);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+.el-button--primary:hover,
+.el-button--primary:focus {
+  background: var(--primary-strong);
+  border-color: var(--primary-strong);
+  color: #ffffff;
+}
+.el-button--primary.is-plain {
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+  color: var(--primary);
+}
+.el-button--primary.is-plain:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #ffffff;
+}
+
+/* Element Plus 链接 / 主色文字 */
+.el-link.el-link--primary,
+a.el-link {
+  color: var(--primary);
+}
+.el-link.el-link--primary:hover {
+  color: var(--primary-strong);
+}
+
+/* Element Plus 标签 / Tag primary */
+.el-tag.el-tag--primary {
+  --el-tag-bg-color: color-mix(in srgb, var(--primary) 12%, transparent);
+  --el-tag-border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  --el-tag-text-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
+}
+
+/* Element Plus Input / Select focus 边框 */
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--primary) inset !important;
+}
+
+/* Element Plus Table 表头底色与条纹 */
+.el-table th.el-table__cell {
+  background-color: var(--header-bg) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--line) !important;
+}
+.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+  background-color: var(--row-hover) !important;
+}
+
+/* Element Plus Checkbox / Radio 选中色 */
+.el-checkbox__input.is-checked .el-checkbox__inner,
+.el-radio__input.is-checked .el-radio__inner {
+  background-color: var(--primary) !important;
+  border-color: var(--primary) !important;
+}
+.el-checkbox__input.is-checked + .el-checkbox__label,
+.el-radio__input.is-checked + .el-radio__label {
+  color: var(--primary);
+}
+
+/* Element Plus Pagination / Switch 主题色 */
+.el-switch.is-checked {
+  --el-switch-on-color: var(--primary);
+}
+.el-pager li.is-active,
+.el-pagination .is-active {
+  background-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* Element Plus Menu（侧边垂直菜单）激活色 */
+.el-menu-item.is-active {
+  color: var(--primary) !important;
+}
+.el-menu-item:hover,
+.el-sub-menu__title:hover {
+  color: var(--primary) !important;
+}
+
+/* 卡片 / 弹窗 / 抽屉 边框 */
+.el-card,
+.el-dialog,
+.el-drawer,
+.el-message-box {
+  border-color: var(--line) !important;
+}
+
+/* =====================================================================
+   商业 SPD 风格 — 经典垂直侧栏白底深字 + 业务模块分块
+   --------------------------------------------------------------------- */
+
+/* 主垂直侧栏（layout-shell 中 .sidebar）：白底深字 */
+.app-shell .sidebar {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border-right: 1px solid var(--spd-border-default) !important;
+}
+
+.app-shell .brand {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border-bottom: 1px solid var(--spd-border-subtle);
+  padding: 14px 16px !important;
+}
+
+.app-shell .brand-link strong {
+  color: var(--spd-text-primary) !important;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.app-shell .brand-link small {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 11px;
+}
+
+.app-shell .brand-mark {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.app-shell .sidebar-toggle {
+  background: var(--spd-bg-surface) !important;
+  border-color: var(--spd-border-default) !important;
+  color: var(--spd-text-secondary) !important;
+}
+
+.app-shell .sidebar-toggle:hover {
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  background: var(--spd-bg-hover) !important;
+}
+
+/* 侧栏导航项 — 紧凑深字 */
+.app-shell .nav-item,
+.app-shell .nav-group summary,
+.app-shell .nav-group-toggle {
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+  transition: background 0.14s, color 0.14s;
+}
+
+.app-shell .nav-item:hover,
+.app-shell .nav-group-toggle:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.app-shell .nav-item.router-link-active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.app-shell .nav-item.child {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 500;
+}
+
+.app-shell .nav-item.grandchild {
+  color: var(--spd-text-tertiary) !important;
+}
+
+.app-shell .nav-group {
+  border-top: 1px solid var(--spd-border-subtle) !important;
+}
+
+.app-shell .nav-parent-arrow {
+  color: var(--spd-text-tertiary) !important;
+}
+
+/* 顶栏（spd-topnav 风格）：品牌区 + 水平菜单 + 操作区 */
+.spd-topnav {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 1px 0 var(--spd-border-subtle);
+}
+
+.spd-topnav-logo {
+  color: var(--spd-text-primary) !important;
+}
+
+.spd-topnav-logo .spd-logo-name {
+  color: var(--spd-text-primary) !important;
+  font-weight: 700;
+}
+
+.spd-logo-icon {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.spd-menu-label {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 500;
+}
+
+.spd-menu-item:hover .spd-menu-label,
+.spd-menu-item.active .spd-menu-label {
+  color: var(--primary) !important;
+}
+
+.spd-menu-item.active .spd-menu-label::after {
+  background: var(--primary) !important;
+}
+
+/* SPD 顶栏下拉子菜单：白底深字（强化）*/
+.spd-menu-dropdown {
+  background: var(--spd-bg-surface) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+}
+
+.spd-dropdown-link {
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+}
+
+.spd-dropdown-link:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.spd-dropdown-link.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+
+.spd-dropdown-link.active .spd-dropdown-link-icon {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.spd-dropdown-link-icon {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-text-secondary) !important;
+}
+
+.spd-dropdown-group-title {
+  color: var(--spd-text-tertiary) !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  letter-spacing: 0.5px;
+}
+
+/* SPD 迷你侧栏（spd-mini-sidebar）：白底深字 */
+.spd-mini-sidebar {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border-right: 1px solid var(--spd-border-default) !important;
+}
+
+.spd-mini-sidebar-title {
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  text-transform: uppercase;
+  font-size: 11px !important;
+  letter-spacing: 0.5px;
+}
+
+.spd-mini-nav-item {
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+}
+
+.spd-mini-nav-item:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.spd-mini-nav-item.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.spd-mini-nav-group-title {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 600;
+}
+
+.spd-mini-nav-group-title:hover {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+.spd-mini-nav-sub {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 500;
+}
+
+.spd-mini-nav-sub:hover {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.spd-mini-nav-sub.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+
+.spd-mini-nav-sub.active .spd-mini-nav-sub-dot {
+  background: var(--primary) !important;
+}
+
+.spd-mini-nav-group-count {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-text-tertiary) !important;
+}
+
+/* Tab Bar + 内容区 */
+.spd-tabbar {
+  background: var(--spd-bg-surface) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 1px 0 var(--spd-border-subtle);
+}
+
+.spd-tabbar-tab {
+  color: var(--spd-text-secondary) !important;
+  background: var(--spd-bg-page) !important;
+  border-color: var(--spd-border-default) !important;
+}
+
+.spd-tabbar-tab.active {
+  background: var(--spd-bg-surface) !important;
+  color: var(--primary) !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 -2px 0 var(--primary) inset;
+}
+
+.spd-tabbar-tab:hover:not(.active) {
+  color: var(--primary) !important;
+  background: var(--spd-bg-hover) !important;
+}
+
+.spd-content {
+  background: var(--spd-bg-page) !important;
+}
+
+.spd-content-inner {
+  padding: 0 !important;
+}
+
+/* 业务页面通用 */
+.standard-page,
+.master-page,
+.workflow-page,
+.report-page,
+.dashboard-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+.standard-page-card,
+.metric-panel,
+.module-board,
+.module-detail,
+.workflow-band,
+.master-table-card,
+.hospital-catalog-panel,
+.master-toolbar {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  border-radius: 8px !important;
+}
+
+.standard-page-title,
+.page-title,
+.module-board h2,
+.module-detail h2,
+.metric-panel h3 {
+  color: var(--spd-text-primary) !important;
+  font-weight: 700;
+}
+
+.standard-page-subtitle,
+.page-subtitle,
+.module-board p,
+.module-detail p,
+.metric-panel .metric-label {
+  color: var(--spd-text-secondary) !important;
+}
+
+/* Element Plus Form Label */
+.el-form-item__label {
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+}
+
+/* Element Plus Card 业务页面 */
+.el-card {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+/* 主题色圆环 / 进度条 / loading */
+.el-progress-bar__inner {
+  background-color: var(--primary) !important;
+}
+.el-loading-spinner .circular {
+  stroke: var(--primary) !important;
+}
+
+/* 业务工作台模块卡片色块：跟随主题 */
+.spd-module-header,
+.spd-child-icon,
+.spd-theme-trigger,
+.spd-theme-card-preview {
+  color: inherit;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* =====================================================================
+   主题切换器 UI
+   --------------------------------------------------------------------- */
+.theme-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card-bg);
+  cursor: pointer;
+  color: var(--text);
+  transition: all 0.16s ease;
+}
+
+.theme-switcher:hover {
+  border-color: var(--primary);
+}
+
+.theme-switcher[aria-expanded="true"] {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+}
+
+.theme-switcher .theme-active-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  flex-shrink: 0;
+}
+
+.theme-switcher .theme-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.theme-switcher .theme-caret {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.theme-menu {
+  display: grid !important;
+  gap: 4px;
+  padding: 6px;
+  min-width: 180px;
+}
+
+.theme-menu .theme-option {
+  display: grid;
+  grid-template-columns: 22px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text);
+  transition: background-color 0.12s ease;
+}
+
+.theme-menu .theme-option:hover {
+  background: var(--row-hover);
+}
+
+.theme-menu .theme-option.is-active {
+  background: color-mix(in srgb, var(--primary) 14%, transparent);
+  color: var(--primary-strong);
+}
+
+.theme-menu .theme-option-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.5);
+}
+
+.theme-menu .theme-option-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.theme-menu .theme-option-check {
+  color: var(--primary);
+  display: inline-flex;
+  align-items: center;
+}
+
+.theme-menu .theme-option-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+  font-weight: 500;
+}
+
+@media (max-width: 760px) {
+  .theme-switcher .theme-label {
+    display: none;
+  }
+}

@@ -46,6 +46,6 @@ class MinimalTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("high value");
+                .hasMessageContaining("高值耗材和冷链商品不允许");
     }
 }

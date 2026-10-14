@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { AlertTriangle, Boxes, CheckCircle2, RefreshCw, ScanLine, Search, ShieldCheck } from '@lucide/vue'
+import { RefreshCw, ScanLine, Search, ShieldCheck } from '@lucide/vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import EmptyState from '../../components/common/EmptyState.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import {
   consumeQuotaPackageByCode,
@@ -85,11 +87,11 @@ const eventText = computed(() =>
 )
 
 const stats = computed(() => [
-  { label: '追溯对象', value: summary.value.totalCodes ?? 0, icon: ScanLine, tone: 'teal' },
-  { label: '高值耗材', value: summary.value.highValueCodes ?? 0, icon: ShieldCheck, tone: 'teal' },
-  { label: '低值定数包', value: summary.value.quotaPackageCodes ?? 0, icon: Boxes, tone: 'blue' },
-  { label: '异常 / 隔离', value: summary.value.exceptionCodes ?? 0, icon: AlertTriangle, tone: 'red' },
-  { label: '已完成消耗', value: summary.value.consumedCodes ?? 0, icon: CheckCircle2, tone: 'green' }
+  { label: '追溯对象', value: summary.value.totalCodes ?? 0 },
+  { label: '高值耗材', value: summary.value.highValueCodes ?? 0 },
+  { label: '低值定数包', value: summary.value.quotaPackageCodes ?? 0 },
+  { label: '异常 / 隔离', value: summary.value.exceptionCodes ?? 0 },
+  { label: '已完成消耗', value: summary.value.consumedCodes ?? 0 }
 ])
 
 const activeRecord = computed(() => selected.value?.record ?? records.value[0])
@@ -224,76 +226,89 @@ onMounted(async () => {
 
 <template>
   <main class="udi-page">
-    <section class="udi-header">
-      <div>
-        <p class="eyebrow">专项与合规</p>
-        <h1>UDI / 唯一码追溯</h1>
-        <p class="subtitle">高值耗材以手麻/手术系统计费回传作为库存扣减和追溯触发点，低值定数包按包码、标签码追溯。</p>
-      </div>
-      <form class="scan-bar" @submit.prevent="submitSearch">
-        <ScanLine :size="20" />
-        <input v-model.trim="query.keyword" type="search" placeholder="扫描或输入 UDI / 唯一码 / 定数包码 / 批号 / 商品" />
-        <button class="icon-btn primary" type="submit" title="查询">
-          <Search :size="18" />
-        </button>
-        <button class="icon-btn" type="button" title="重置" @click="resetSearch">
-          <RefreshCw :size="18" />
-        </button>
-      </form>
-    </section>
+    <MdPageHeader
+      crumb="专项与合规"
+      title="UDI / 唯一码追溯"
+      description="高值耗材以手麻/手术系统计费回传作为库存扣减和追溯触发点，低值定数包按包码、标签码追溯。"
+      :loading="loading"
+      @refresh="loadRecords"
+    />
 
     <section class="udi-filters">
-      <select v-model="query.traceScope" @change="submitSearch">
-        <option value="">全部对象</option>
-        <option v-for="item in traceScopeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-      </select>
-      <select v-model="query.status" @change="submitSearch">
-        <option value="">全部状态</option>
-        <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-      </select>
-      <div class="event-tabs" aria-label="追溯事件筛选">
-        <button type="button" :class="{ active: query.eventType === '' }" @click="selectEventType('')">全部</button>
-        <button
-          v-for="item in eventTypeOptions"
-          :key="item.value"
-          type="button"
-          :class="{ active: query.eventType === item.value }"
-          @click="selectEventType(item.value)"
-        >
-          {{ item.label }}
+      <form class="scan-bar" @submit.prevent="submitSearch">
+        <ScanLine :size="16" />
+        <input v-model.trim="query.keyword" type="search" placeholder="扫描或输入 UDI / 唯一码 / 定数包码 / 批号 / 商品" />
+        <button class="btn btn-sm udi-scan-btn" type="submit">
+          <Search :size="15" />
+          查询
         </button>
+        <button class="btn btn-sm" type="button" @click="resetSearch">
+          <RefreshCw :size="15" />
+          重置
+        </button>
+      </form>
+      <div class="udi-filter-fields">
+        <label><span>对象类型</span>
+          <select v-model="query.traceScope" @change="submitSearch">
+            <option value="">全部对象</option>
+            <option v-for="item in traceScopeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
+        <label><span>当前状态</span>
+          <select v-model="query.status" @change="submitSearch">
+            <option value="">全部状态</option>
+            <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+          </select>
+        </label>
       </div>
+    </section>
+
+    <section class="udi-event-tabs" aria-label="追溯事件筛选">
+      <button type="button" :class="{ active: query.eventType === '' }" @click="selectEventType('')">全部事件</button>
+      <button
+        v-for="item in eventTypeOptions"
+        :key="item.value"
+        type="button"
+        :class="{ active: query.eventType === item.value }"
+        @click="selectEventType(item.value)"
+      >
+        {{ item.label }}
+      </button>
     </section>
 
     <section class="quota-scan-actions">
-      <div>
+      <div class="quota-scan-intro">
         <strong>低值定数包扫码作业</strong>
         <span>支持扫描 UDI、唯一码或定数包标签码，签收入库后可整包消耗并进入结算。</span>
       </div>
-      <input v-model.trim="packageAction.code" placeholder="扫描 UDI / 唯一码 / 定数包码" @keyup.enter="signQuotaPackage" />
-      <input v-model.trim="packageAction.deptName" placeholder="消耗科室（可自动识别）" />
-      <button class="text-btn" type="button" :disabled="packageActionLoading" @click="signQuotaPackage">签收入库</button>
-      <button class="icon-btn primary quota-consume-btn" type="button" :disabled="packageActionLoading" @click="consumeQuotaPackage">
-        扫码消耗
-      </button>
+      <label><span>扫描码</span>
+        <input v-model.trim="packageAction.code" placeholder="UDI / 唯一码 / 定数包码" @keyup.enter="signQuotaPackage" />
+      </label>
+      <label><span>消耗科室</span>
+        <input v-model.trim="packageAction.deptName" placeholder="可自动识别" />
+      </label>
+      <div class="quota-scan-btns">
+        <button class="btn btn-sm" type="button" :disabled="packageActionLoading" @click="signQuotaPackage">签收入库</button>
+        <button class="btn btn-sm btn-primary" type="button" :disabled="packageActionLoading" @click="consumeQuotaPackage">扫码消耗</button>
+      </div>
     </section>
 
     <p v-if="message" class="form-message">{{ message }}</p>
 
-    <section class="stats-grid">
-      <article v-for="item in stats" :key="item.label" class="stat-tile" :class="`tone-${item.tone}`">
-        <component :is="item.icon" :size="22" />
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
+    <section class="udi-summary" aria-label="追溯汇总">
+      <div v-for="item in stats" :key="item.label" class="udi-summary-item">
+        <span class="udi-summary-label">{{ item.label }}</span>
+        <strong class="udi-summary-value">{{ item.value }}</strong>
+      </div>
     </section>
 
     <section class="trace-layout">
       <div class="trace-main">
-        <header class="panel-header">
+        <header class="udi-panel-header">
           <div>
-            <h2>追溯时间线</h2>
-            <p>{{ activeRecord ? `${scopeText[activeRecord.traceScope] || '追溯对象'} · ${activeRecord.uniqueCode}` : '暂无追溯对象' }}</p>
+            <h3>追溯时间线</h3>
+            <p v-if="activeRecord">{{ scopeText[activeRecord.traceScope] || '追溯对象' }} · {{ activeRecord.uniqueCode }}</p>
+            <p v-else>暂无追溯对象</p>
           </div>
           <span v-if="activeRecord" class="status-pill" :class="`tone-${statusTone[activeRecord.currentStatus] || 'gray'}`">
             {{ labelStatus(activeRecord.currentStatus) }}
@@ -310,12 +325,12 @@ onMounted(async () => {
             </div>
           </li>
         </ol>
-        <div v-else class="empty-state">暂无追溯节点</div>
+        <EmptyState v-else message="暂无追溯节点" />
       </div>
 
       <aside class="trace-detail">
-        <header class="panel-header compact">
-          <h2>单件详情</h2>
+        <header class="udi-panel-header compact">
+          <h3>单件详情</h3>
           <span v-if="detailLoading">加载中</span>
         </header>
         <dl v-if="activeRecord" class="detail-list">
@@ -347,14 +362,13 @@ onMounted(async () => {
           <dd v-if="activeRecord.traceScope === 'high_value'">{{ activeRecord.patientNo || '-' }} {{ activeRecord.patientNameMasked || '' }}</dd>
           <dd v-else>{{ formatStatusText(activeRecord.packageStatus) }}</dd>
         </dl>
-        <div v-else class="empty-state">请选择追溯记录</div>
+        <EmptyState v-else message="请选择追溯记录" />
       </aside>
     </section>
 
     <section class="record-panel">
-      <header class="panel-header compact">
-        <h2>唯一码记录</h2>
-        <span>{{ total }} 条</span>
+      <header class="udi-panel-header compact">
+        <h3>唯一码记录</h3>
       </header>
       <div class="table-wrap">
         <table>
@@ -371,35 +385,50 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in records" :key="row.uniqueCode" :class="{ selected: row.uniqueCode === activeRecord?.uniqueCode }">
-              <td>
-                <strong>{{ row.uniqueCode }}</strong>
-                <small>{{ row.udiCode }}</small>
-              </td>
-              <td>
-                <span class="scope-pill">{{ scopeText[row.traceScope] || '-' }}</span>
-                <small v-if="row.packageLabelNo">{{ row.packageLabelNo }}</small>
-              </td>
-              <td>
-                {{ row.productName }}
-                <small>{{ row.productCode }} · {{ row.specModel || '-' }}</small>
-                <small v-if="row.templateName">{{ row.templateName }} · {{ row.packageQuantity || '-' }}{{ row.packageUnit || '' }}</small>
-              </td>
-              <td>{{ row.batchNo || '-' }}</td>
-              <td>
-                <span class="status-pill" :class="`tone-${statusTone[row.currentStatus] || 'gray'}`">
-                  {{ labelStatus(row.currentStatus) }}
-                </span>
-              </td>
-              <td>{{ row.currentLocation || '-' }}</td>
-              <td>
-                {{ row.lastEventName || '-' }}
-                <small>{{ row.lastEventTime || '-' }}</small>
-              </td>
-              <td>
-                <button class="text-btn" type="button" @click="loadDetail(row.uniqueCode)">追溯</button>
-              </td>
+            <tr v-if="loading">
+              <td colspan="8"><EmptyState message="正在加载追溯记录..." /></td>
             </tr>
+            <tr v-else-if="message && !records.length">
+              <td colspan="8"><EmptyState message="追溯记录加载失败" /></td>
+            </tr>
+            <template v-else>
+              <tr
+                v-for="row in records"
+                :key="row.uniqueCode"
+                :class="{ selected: row.uniqueCode === activeRecord?.uniqueCode }"
+              >
+                <td>
+                  <strong>{{ row.uniqueCode }}</strong>
+                  <small>{{ row.udiCode }}</small>
+                </td>
+                <td>
+                  <span class="scope-pill">{{ scopeText[row.traceScope] || '-' }}</span>
+                  <small v-if="row.packageLabelNo">{{ row.packageLabelNo }}</small>
+                </td>
+                <td>
+                  {{ row.productName }}
+                  <small>{{ row.productCode }} · {{ row.specModel || '-' }}</small>
+                  <small v-if="row.templateName">{{ row.templateName }} · {{ row.packageQuantity || '-' }}{{ row.packageUnit || '' }}</small>
+                </td>
+                <td>{{ row.batchNo || '-' }}</td>
+                <td>
+                  <span class="status-pill" :class="`tone-${statusTone[row.currentStatus] || 'gray'}`">
+                    {{ labelStatus(row.currentStatus) }}
+                  </span>
+                </td>
+                <td>{{ row.currentLocation || '-' }}</td>
+                <td>
+                  {{ row.lastEventName || '-' }}
+                  <small>{{ row.lastEventTime || '-' }}</small>
+                </td>
+                <td>
+                  <button class="btn btn-sm" type="button" @click="loadDetail(row.uniqueCode)">追溯</button>
+                </td>
+              </tr>
+              <tr v-if="!loading && records.length === 0">
+                <td colspan="8"><EmptyState message="暂无符合条件的追溯记录" /></td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -409,270 +438,296 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* =====================================================================
+   UDI / 唯一码追溯
+   全部使用项目设计令牌（--spd-*），与科室申领、拣配配送等页面保持一致。
+   ===================================================================== */
 .udi-page {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 24px;
-  color: #1f2a37;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 16px 20px 24px;
+  border: 0 !important;
+  background: transparent;
+  overflow: visible;
 }
 
-.udi-header {
-  display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(360px, 560px);
-  gap: 20px;
-  align-items: end;
-}
-
-.eyebrow {
-  margin: 0 0 6px;
-  color: #0f766e;
-  font-size: 13px;
-  font-weight: 700;
-}
-
-h1,
-h2,
-p {
+.udi-page h3,
+.udi-page p {
   margin: 0;
 }
 
-h1 {
-  font-size: 28px;
-  line-height: 1.25;
-}
-
-h2 {
-  font-size: 18px;
-}
-
-.subtitle {
-  margin-top: 8px;
-  max-width: 760px;
-  color: #607083;
-  line-height: 1.6;
+/* ---------- 查询区 ---------- */
+.udi-filters {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(0, 1.15fr);
+  gap: 12px 16px;
+  align-items: end;
+  padding: 14px 16px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-1);
 }
 
 .scan-bar {
   display: grid;
-  grid-template-columns: 24px minmax(0, 1fr) 40px 40px;
+  grid-template-columns: 18px minmax(0, 1fr) auto auto;
   gap: 8px;
   align-items: center;
-  min-height: 52px;
-  padding: 0 10px 0 14px;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 12px 28px rgba(15, 118, 110, 0.08);
+  height: 38px;
+  padding: 0 10px 0 12px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  background: var(--spd-bg-container);
+  color: var(--spd-text-tertiary);
 }
 
-.scan-bar input,
-.udi-filters select {
+.scan-bar:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--spd-primary-bg);
+}
+
+.scan-bar input {
   min-width: 0;
   border: 0;
   outline: 0;
-  color: #1f2a37;
+  background: transparent;
+  color: var(--spd-text-primary);
   font: inherit;
+  font-size: 13px;
 }
 
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 36px;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
-  background: #fff;
-  color: #405467;
-  cursor: pointer;
+.scan-bar .btn {
+  height: 30px;
+  white-space: nowrap;
 }
 
-.icon-btn.primary {
-  border-color: #0f766e;
-  background: #0f766e;
-  color: #fff;
+.udi-scan-btn {
+  color: var(--primary) !important;
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent) !important;
+  background: var(--spd-primary-bg) !important;
 }
 
-.udi-filters {
+.udi-filter-fields {
   display: grid;
-  grid-template-columns: 160px 160px minmax(0, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  align-items: center;
 }
 
-.udi-filters select {
-  height: 40px;
-  padding: 0 12px;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
-  background: #fff;
+.udi-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
-.event-tabs {
+.udi-filters label > span,
+.quota-scan-actions label > span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.udi-filters select,
+.quota-scan-actions input {
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  outline: 0;
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.udi-filters select:focus,
+.quota-scan-actions input:focus {
+  border-color: var(--primary);
+}
+
+/* ---------- 事件筛选标签 ---------- */
+.udi-event-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   overflow-x: auto;
   padding-bottom: 2px;
 }
 
-.event-tabs button,
-.text-btn {
-  min-height: 36px;
-  border: 1px solid #d7e2ea;
-  border-radius: 8px;
-  background: #fff;
-  color: #405467;
+.udi-event-tabs button {
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: 999px;
+  background: var(--spd-bg-container);
+  color: var(--spd-text-secondary);
   font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
   cursor: pointer;
+}
+
+.udi-event-tabs button:hover {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
+}
+
+.udi-event-tabs button.active {
+  border-color: var(--primary);
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* ---------- 定数包扫码作业 ---------- */
+.quota-scan-actions {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.1fr) minmax(200px, 1fr) minmax(160px, 0.8fr) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px 16px;
+  border: 1px solid var(--spd-border-subtle);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-1);
+}
+
+.quota-scan-intro {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 2px;
+}
+
+.quota-scan-intro strong {
+  color: var(--spd-text-heading);
+  font-size: 14px;
+}
+
+.quota-scan-intro span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quota-scan-actions label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quota-scan-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.quota-scan-btns .btn {
+  height: 38px;
   white-space: nowrap;
 }
 
-.event-tabs button {
-  padding: 0 12px;
+.form-message {
+  padding: 10px 12px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  background: var(--spd-primary-bg);
+  color: var(--spd-text-primary);
+  font-size: 13px;
 }
 
-.event-tabs button.active {
-  border-color: #0f766e;
-  background: #e6f5f3;
-  color: #0f766e;
+/* ---------- 汇总条（紧凑，非统计卡） ---------- */
+.udi-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 8px 4px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+}
+
+.udi-summary-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 18px;
+  border-right: 1px solid var(--spd-border-subtle);
+}
+
+.udi-summary-item:last-child {
+  border-right: 0;
+}
+
+.udi-summary-label {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.udi-summary-value {
+  color: var(--spd-text-heading);
+  font-size: 17px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(140px, 1fr));
-  gap: 12px;
-}
-
-.stat-tile,
+/* ---------- 面板通用 ---------- */
 .trace-main,
 .trace-detail,
 .record-panel {
-  border: 1px solid #e1e8ee;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.stat-tile {
-  display: grid;
-  grid-template-columns: 32px 1fr;
-  grid-template-rows: auto auto;
-  gap: 4px 10px;
-  align-items: center;
-  min-height: 92px;
+  min-width: 0;
   padding: 16px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-1);
 }
 
-.stat-tile strong {
-  grid-column: 2;
-  font-size: 26px;
-}
-
-.stat-tile span {
-  color: #607083;
-}
-
-.trace-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  gap: 16px;
-}
-
-.trace-main,
-.trace-detail,
-.record-panel {
-  padding: 20px;
-}
-
-.panel-header {
+.udi-panel-header {
   display: flex;
   justify-content: space-between;
   gap: 12px;
   align-items: flex-start;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
-.panel-header p,
-.panel-header span {
-  color: #607083;
-  font-size: 13px;
-}
-
-.panel-header.compact {
+.udi-panel-header.compact {
   align-items: center;
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
+.udi-panel-header h3 {
+  color: var(--spd-text-heading);
+  font-size: 15px;
+  font-weight: 600;
 }
 
-.scope-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 9px;
-  border-radius: 8px;
-  background: #eef8f7;
-  color: #0f766e;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
+.udi-panel-header p,
+.udi-panel-header > span {
+  margin-top: 4px;
+  color: var(--spd-text-secondary);
+  font-size: 12px;
 }
 
-.tone-teal,
-.tone-green {
-  color: #0f766e;
-}
-
-.tone-blue {
-  color: #2563eb;
-}
-
-.tone-amber {
-  color: #b45309;
-}
-
-.tone-red {
-  color: #b91c1c;
-}
-
-.status-pill.tone-blue {
-  background: #eff6ff;
-}
-
-.status-pill.tone-amber {
-  background: #fff7ed;
-}
-
-.status-pill.tone-green {
-  background: #ecfdf5;
-}
-
-.status-pill.tone-red {
-  background: #fef2f2;
-}
-
-.status-pill.tone-gray {
-  background: #f3f4f6;
-  color: #4b5563;
+/* ---------- 时间线 ---------- */
+.trace-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
 }
 
 .timeline {
   display: flex;
   flex-direction: column;
-  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
-  opacity: 1;
+  transition: opacity 0.15s ease;
 }
 
 .timeline.loading {
@@ -681,190 +736,229 @@ h2 {
 
 .timeline li {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  min-height: 86px;
+  grid-template-columns: 28px minmax(0, 1fr);
   position: relative;
+  padding-bottom: 16px;
 }
 
 .timeline li:not(:last-child)::before {
   content: '';
   position: absolute;
-  top: 32px;
+  top: 26px;
   bottom: 0;
-  left: 15px;
+  left: 13px;
   width: 2px;
-  background: #d7e2ea;
+  background: var(--spd-border-subtle);
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
 }
 
 .timeline-dot {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: #e6f5f3;
-  color: #0f766e;
+  background: var(--spd-primary-bg);
+  color: var(--primary);
   z-index: 1;
 }
 
 .timeline strong {
   display: block;
-  margin-bottom: 4px;
+  padding-top: 4px;
+  color: var(--spd-text-heading);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .timeline p,
 .timeline small,
 .timeline em {
   display: block;
-  color: #607083;
+  margin-top: 3px;
+  color: var(--spd-text-secondary);
+  font-size: 12px;
   font-style: normal;
   line-height: 1.5;
 }
 
+.timeline em {
+  color: var(--spd-text-tertiary);
+}
+
+/* ---------- 单件详情 ---------- */
 .detail-list {
   display: grid;
-  grid-template-columns: 92px minmax(0, 1fr);
-  gap: 10px 14px;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 9px 12px;
   margin: 0;
 }
 
 .detail-list dt {
-  color: #607083;
+  color: var(--spd-text-secondary);
+  font-size: 12px;
 }
 
 .detail-list dd {
   margin: 0;
   min-width: 0;
+  color: var(--spd-text-primary);
+  font-size: 13px;
+  font-weight: 500;
   overflow-wrap: anywhere;
-  font-weight: 600;
 }
 
+/* ---------- 状态标签 ---------- */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.scope-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--spd-radius-sm, 4px);
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-pill.tone-blue {
+  background: var(--spd-info-bg, #eff6ff);
+  color: #2563eb;
+}
+
+.status-pill.tone-amber {
+  background: var(--spd-warning-bg, #fff7ed);
+  color: #b45309;
+}
+
+.status-pill.tone-green {
+  background: var(--spd-success-bg, #ecfdf5);
+  color: #047857;
+}
+
+.status-pill.tone-red {
+  background: var(--spd-danger-bg, #fef2f2);
+  color: #b91c1c;
+}
+
+.status-pill.tone-gray {
+  background: var(--spd-bg-subtle, #f3f4f6);
+  color: var(--spd-text-secondary);
+}
+
+/* ---------- 记录表 ---------- */
 .table-wrap {
+  /* 未超出容器时不保留滚动条轨道 */
   overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+
+.table-wrap::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--spd-text-tertiary, #cbd5e1);
+}
+
+.table-wrap::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+.table-wrap::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 table {
   width: 100%;
-  min-width: 1100px;
+  /* 容器足够宽时铺满，不够时才产生横向滚动 */
+  min-width: 860px;
   border-collapse: collapse;
+  font-size: 13px;
 }
 
 th,
 td {
-  padding: 13px 12px;
-  border-bottom: 1px solid #e8eef3;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--spd-border-subtle);
   text-align: left;
   vertical-align: middle;
 }
 
 th {
-  background: #f6f8fb;
-  color: #607083;
-  font-weight: 700;
+  background: var(--spd-bg-subtle, #f6f8fb);
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:hover {
+  background: var(--spd-primary-bg);
+}
+
+tr.selected {
+  background: var(--spd-primary-bg);
+  box-shadow: inset 3px 0 0 var(--primary);
 }
 
 td small {
   display: block;
-  margin-top: 4px;
-  color: #607083;
+  margin-top: 3px;
+  color: var(--spd-text-tertiary);
+  font-size: 12px;
 }
 
-tr.selected {
-  background: #f0fdfa;
-}
-
-.text-btn {
-  padding: 0 12px;
-  color: #0f766e;
-  font-weight: 700;
-}
-
-.empty-state {
-  display: grid;
-  place-items: center;
-  min-height: 160px;
-  color: #607083;
-  background: #f8fafc;
-  border-radius: 8px;
-}
-
-.form-message {
-  padding: 10px 12px;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-  background: #fff1f2;
-  color: #b91c1c;
-}
-
-@media (max-width: 1180px) {
-  .udi-header,
-  .trace-layout {
-    grid-template-columns: 1fr;
+/* ---------- 响应式 ---------- */
+@media (max-width: 1280px) {
+  .udi-filters,
+  .quota-scan-actions {
+    grid-template-columns: 1fr 1fr;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  .trace-layout {
+    grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 720px) {
   .udi-page {
-    padding: 16px;
+    padding: 12px 12px 20px;
   }
 
   .udi-filters,
-  .stats-grid {
+  .udi-filter-fields,
+  .quota-scan-actions {
     grid-template-columns: 1fr;
   }
 
   .scan-bar {
-    grid-template-columns: 24px minmax(0, 1fr) 40px;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
   }
 
-  .scan-bar .icon-btn:last-child {
+  .scan-bar .btn:last-child {
     display: none;
   }
-}
-.quota-scan-actions {
-  display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(220px, 1fr) minmax(180px, 0.7fr) auto auto;
-  gap: 10px;
-  align-items: center;
-  padding: 14px 16px;
-  border: 1px solid #cfe3df;
-  border-radius: 8px;
-  background: #f7fbfa;
-}
 
-.quota-scan-actions > div {
-  display: grid;
-  gap: 4px;
-}
-
-.quota-scan-actions span {
-  color: #607083;
-  font-size: 12px;
-}
-
-.quota-scan-actions input {
-  min-width: 0;
-  height: 38px;
-  padding: 0 10px;
-  border: 1px solid #d7e2ea;
-  border-radius: 6px;
-  background: #fff;
-}
-
-.quota-consume-btn {
-  width: auto;
-  min-width: 92px;
-  padding: 0 14px;
-}
-
-@media (max-width: 1100px) {
-  .quota-scan-actions {
-    grid-template-columns: 1fr 1fr;
+  .udi-summary-item {
+    border-right: 0;
   }
 }
 </style>

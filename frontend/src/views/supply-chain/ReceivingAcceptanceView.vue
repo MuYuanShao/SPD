@@ -8,7 +8,6 @@ import {
   PackageCheck,
   Pencil,
   Plus,
-  RefreshCw,
   Save,
   Search,
   Trash2,
@@ -24,9 +23,9 @@ import {
   type SupplierOption
 } from '../../api/receivingOrders'
 import PaginationControls from '../../components/common/PaginationControls.vue'
-import PageHeader from '../../components/common/PageHeader.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchFieldOptions, type FieldOption } from '../../api/fieldOptions'
 import { useReceivingOrderCreateActions } from '../../composables/useReceivingOrderCreateActions'
@@ -201,7 +200,7 @@ async function openEditModal(row: ReceivingOrderRow) {
 function changeSourceType() {
   form.purchaseOrderNo = ''
   clearSupplier()
-  form.items = [{ productCode: '', productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
+  form.items = [{ productCode: '', purchaseOrderItemId: undefined, productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
 }
 
 function deleteSelectedItems() {
@@ -295,19 +294,18 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="purchase-page receiving-page">
-    <PageHeader eyebrow="供应链业务" title="收货验收" description="验收合格数量审核后入库；不合格数量保留记录但不影响库存。">
-      <template #actions>
-      <button class="btn" type="button" @click="loadData">
-        <RefreshCw :size="17" />
-        刷新
-      </button>
-      </template>
-    </PageHeader>
+  <section class="md-page receiving-page">
+    <MdPageHeader
+      crumb="供应链业务"
+      title="收货验收"
+      description="验收合格数量审核后入库；不合格数量保留记录但不影响库存。"
+      :loading="loading"
+      @refresh="loadData"
+    />
 
     <StatusMessage v-if="message" :message="message" :tone="message.includes('失败') || message.includes('未找到') ? 'error' : 'success'" />
 
-    <section class="hospital-catalog-panel">
+    <section class="receiving-workspace">
       <div class="subnav-tabs receiving-status-tabs" role="tablist" aria-label="收货验收状态">
         <button
           v-for="tab in tabs"
@@ -325,24 +323,24 @@ onMounted(() => {
         </button>
       </div>
 
-      <div class="hospital-action-row">
-        <button v-if="canCreate" class="btn btn-primary" type="button" :disabled="optionsLoading" @click="openCreateModal">
+      <div class="hospital-action-row receiving-toolbar">
+        <button v-if="canCreate" class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="optionsLoading" @click="openCreateModal">
           <PackageCheck :size="18" />
           新增收货
         </button>
-        <button class="btn" type="button" @click="searchOrders">
+        <button class="btn md-btn" type="button" @click="searchOrders">
           <Search :size="17" />
           收货单查询
         </button>
       </div>
 
-      <div class="hospital-query-grid purchase-query-grid">
-        <label><span>收货单号</span><input v-model="query.receivingNo" placeholder="RK2026..." /></label>
-        <label><span>采购订单</span><input v-model="query.purchaseOrderNo" placeholder="CG2026..." /></label>
-        <label><span>供应商</span><input v-model="query.supplierName" placeholder="模糊查询供应商" /></label>
+      <div class="hospital-query-grid receiving-query-grid">
+        <label><span>收货单号</span><input v-model="query.receivingNo" class="md-input" placeholder="RK2026..." /></label>
+        <label><span>采购订单</span><input v-model="query.purchaseOrderNo" class="md-input" placeholder="CG2026..." /></label>
+        <label><span>供应商</span><input v-model="query.supplierName" class="md-input" placeholder="模糊查询供应商" /></label>
         <label v-if="activeTab === 'completed'">
           <span>状态</span>
-          <select v-model="query.status">
+          <select v-model="query.status" class="md-select">
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
@@ -350,19 +348,19 @@ onMounted(() => {
           <span>当前范围</span>
           <input value="待验收（草稿）" disabled />
         </label>
-        <button class="btn btn-primary" type="button" @click="searchOrders">
-          <Search :size="18" />
+        <button class="btn btn-primary md-btn md-btn-primary receiving-query-button" type="button" @click="searchOrders">
+          <Search :size="16" />
           查询
         </button>
       </div>
 
       <div
         :id="`receiving-panel-${activeTab}`"
-        class="table-scroll"
+        class="table-scroll receiving-list-scroll"
         role="tabpanel"
         :aria-labelledby="`receiving-tab-${activeTab}`"
       >
-        <table class="master-table purchase-table">
+        <table class="master-table purchase-table receiving-table">
           <thead>
             <tr>
               <th>收货单号</th>
@@ -379,18 +377,18 @@ onMounted(() => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
+              <td colspan="10" class="receiving-loading-cell"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="row.receivingNo">
-              <td>{{ row.receivingNo }}</td>
-              <td>{{ row.purchaseOrderNo || '-' }}</td>
+              <td class="document-no-cell">{{ row.receivingNo }}</td>
+              <td class="document-no-cell">{{ row.purchaseOrderNo || '-' }}</td>
               <td>{{ row.supplierName }}</td>
               <td>{{ row.warehouseName }}</td>
-              <td>{{ row.itemCount }}</td>
-              <td>{{ row.receiveQuantity }}</td>
-              <td>¥ {{ Number(row.receiveAmount).toFixed(2) }}</td>
+              <td class="receiving-num-cell">{{ row.itemCount }}</td>
+              <td class="receiving-num-cell">{{ row.receiveQuantity }}</td>
+              <td class="receiving-amount-cell">¥ {{ Number(row.receiveAmount).toFixed(2) }}</td>
               <td><span :class="['status-badge', statusTone(row.receivingStatus)]">{{ statusLabel(row.receivingStatus) }}</span></td>
-              <td>{{ row.receiveTime || '-' }}</td>
+              <td class="receiving-time-cell">{{ row.receiveTime || '-' }}</td>
               <td>
                 <div class="row-actions">
                   <button type="button" class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
@@ -420,7 +418,9 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!loading && !rows.length">
-              <td colspan="10"><EmptyState :message="activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据'" /></td>
+              <td colspan="10" class="receiving-empty-cell">
+                <EmptyState :message="activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据'" />
+              </td>
             </tr>
           </tbody>
         </table>
@@ -533,7 +533,7 @@ onMounted(() => {
                   <td>明细 {{ index + 1 }}</td>
                   <td><input value="[自动生成]" disabled /></td>
                   <td>
-                    <select v-model="item.productCode">
+                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
                       <option value="">选择商品</option>
                       <option v-for="product in products" :key="product.productCode" :value="product.productCode">
                         {{ product.productName }}
@@ -541,7 +541,7 @@ onMounted(() => {
                     </select>
                   </td>
                   <td>
-                    <select v-model="item.productCode">
+                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
                       <option value="">商品编码</option>
                       <option v-for="product in products" :key="product.productCode" :value="product.productCode">
                         {{ product.productCode }}

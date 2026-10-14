@@ -36,6 +36,10 @@ function displayValue(value: unknown) {
   return value === null || value === undefined || value === '' ? '-' : String(value)
 }
 
+function openAttachment(file: ProductAttachment) {
+  previewFile.value = file
+}
+
 function money(value: ProductDetail['purchasePrice'] | null) {
   if (value === null || value === undefined || value === '') return '-'
   const amount = Number(value)
@@ -136,7 +140,7 @@ onMounted(loadDetail)
 <template>
   <main class="approval-detail-page product-detail-page">
     <button class="btn product-detail-back" type="button" @click="router.back()">
-      <ArrowLeft :size="17" aria-hidden="true" />
+      <ArrowLeft :size="16" aria-hidden="true" />
       返回医院目录
     </button>
 
@@ -154,24 +158,33 @@ onMounted(loadDetail)
         eyebrow="医院目录商品"
         :title="detail.productName"
         :description="`${detail.productCode} · ${detail.specModel || '暂无规格'}`"
-      >
-        <template #actions>
-          <span
-            class="product-detail-status"
-            :class="{ active: detail.statusLabel.includes('启用') || detail.statusLabel.includes('正常') }"
-          >
-            {{ detail.statusLabel }}
-          </span>
+      />
+      <div class="product-detail-toolbar">
+        <span
+          class="product-detail-status"
+          :class="{ active: detail.statusLabel.includes('启用') || detail.statusLabel.includes('正常') }"
+        >
+          {{ detail.statusLabel }}
+        </span>
+        <div class="product-detail-toolbar-actions">
           <button
-            class="btn primary"
+            class="btn"
+            type="button"
+            @click="router.back()"
+          >
+            <ArrowLeft :size="15" aria-hidden="true" />
+            返回列表
+          </button>
+          <button
+            class="btn btn-primary"
             type="button"
             @click="router.push({ name: 'hospital-product-edit', params: { productCode } })"
           >
-            <Pencil :size="16" aria-hidden="true" />
+            <Pencil :size="15" aria-hidden="true" />
             编辑商品
           </button>
-        </template>
-      </PageHeader>
+        </div>
+      </div>
 
       <div class="product-detail-sections">
         <section
@@ -233,7 +246,11 @@ onMounted(loadDetail)
                 <td data-label="状态">{{ formatStatusText(file.status) }}</td>
                 <td data-label="有效期">{{ file.validDate || '-' }}</td>
                 <td data-label="操作">
-                  <button class="btn-text" type="button" @click="previewFile = file">
+                  <button
+                    class="btn-text"
+                    type="button"
+                    @click="openAttachment(file)"
+                  >
                     <Eye :size="16" aria-hidden="true" />
                     查看
                   </button>
@@ -262,10 +279,10 @@ onMounted(loadDetail)
             :src="previewFile.fileUrl"
             title="附件预览"
           ></iframe>
-          <div v-else class="attachment-preview-body">
-            <FileText :size="42" aria-hidden="true" />
+          <div v-else class="attachment-preview-empty">
+            <FileText :size="36" aria-hidden="true" />
             <strong>{{ previewFile.fileName }}</strong>
-            <span>当前附件暂无真实文件地址，接入文件 URL 后可在此预览 PDF 或图片。</span>
+            <span>未配置预览</span>
           </div>
         </section>
       </div>
@@ -274,209 +291,7 @@ onMounted(loadDetail)
 </template>
 
 <style scoped>
-.product-detail-page {
-  max-width: 1280px;
-  min-width: 0;
-}
-
-.product-detail-back {
-  width: fit-content;
-  min-height: 40px;
-}
-
-.product-detail-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  border: 1px solid #f3cfcf;
-  border-radius: 999px;
-  background: #fff5f5;
-  color: #b42318;
-  padding: 0 11px;
-  font-size: 13px;
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.product-detail-status.active {
-  border-color: #b7ded7;
-  background: #eaf7f3;
-  color: #087f71;
-}
-
-.product-detail-sections {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
-}
-
-.product-detail-section {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  box-shadow: 0 2px 8px rgba(27, 39, 51, 0.06);
-}
-
-.product-detail-section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  border-bottom: 1px solid var(--line);
-  background: #f7fafb;
-  padding: 12px 16px;
-}
-
-.product-detail-section-heading h3,
-.product-detail-section-heading p {
-  margin: 0;
-}
-
-.product-detail-section-heading h3 {
-  color: #102033;
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.product-detail-section-heading p {
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.product-detail-section-heading > span {
-  flex: 0 0 auto;
-  color: #607486;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-/* 简洁规整的字段网格：标签在上、值在下，自动换列 */
-.product-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  margin: 0;
-}
-
-.product-detail-field {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  min-height: 62px;
-  padding: 11px 16px;
-  border-bottom: 1px solid #eef2f5;
-  border-right: 1px solid #eef2f5;
-}
-
-.product-detail-field dt {
-  color: #607486;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.product-detail-field dd {
-  margin: 0;
-  color: #25384a;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.product-detail-field.emphasis dd {
-  color: #102033;
-  font-weight: 800;
-}
-
-.product-attachment-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.product-attachment-table-wrap {
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.product-attachment-table th,
-.product-attachment-table td {
-  border-bottom: 1px solid #e8eef1;
-  padding: 10px 12px;
-  text-align: left;
-  vertical-align: top;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
-.product-attachment-table tbody tr:last-child > * {
-  border-bottom: 0;
-}
-
-.product-attachment-table th {
-  background: #fbfcfd;
-  color: #607486;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.product-attachment-table td {
-  color: #25384a;
-  font-size: 13px;
-}
-
-.product-attachment-table th:first-child {
-  width: 34%;
-}
-
-.product-attachment-table th:last-child {
-  width: 88px;
-}
-
-.product-attachment-name,
-.product-attachment-table .btn-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.product-attachment-name svg {
-  flex: 0 0 auto;
-  color: #087f71;
-}
-
-.product-attachment-table .btn-text {
-  min-height: 36px;
-  cursor: pointer;
-}
-
-.product-detail-empty-state {
-  margin: 0;
-  color: var(--text-muted);
-  padding: 28px 16px;
-  text-align: center;
-}
-
-.product-detail-error {
-  display: grid;
-  justify-items: start;
-  gap: 8px;
-  border: 1px solid #f3cfcf;
-  border-radius: 8px;
-  background: #fff7f7;
-  color: #b42318;
-  padding: 18px;
-}
-
-.product-detail-error span {
-  color: #7a2e2e;
-}
-
+/* 注：详细样式由 master-data-all.override.css 统一控制 */
 .sr-only {
   position: absolute;
   width: 1px;
@@ -492,57 +307,6 @@ onMounted(loadDetail)
 button:focus-visible {
   outline: 3px solid rgba(8, 127, 113, 0.28);
   outline-offset: 2px;
-}
-
-@media (max-width: 680px) {
-  .product-detail-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  }
-
-  .product-detail-field {
-    padding: 9px 12px;
-    min-height: 54px;
-  }
-
-  .product-attachment-table,
-  .product-attachment-table tbody,
-  .product-attachment-table tr,
-  .product-attachment-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .product-attachment-table thead {
-    display: none;
-  }
-
-  .product-attachment-table tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 9px 14px;
-    border-bottom: 1px solid var(--line);
-    padding: 12px;
-  }
-
-  .product-attachment-table td {
-    border: 0;
-    padding: 0;
-  }
-
-  .product-attachment-table td::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 3px;
-    color: #607486;
-    font-size: 12px;
-    font-weight: 700;
-  }
-}
-
-@media (max-width: 440px) {
-  .product-attachment-table tr {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -17,8 +17,7 @@ export const assistantQuickActions: Array<{ key: AssistantActionKey; label: stri
 ]
 
 /**
- * The assistant is a navigation aid until a dedicated assistant backend is available.
- * Never present fabricated quantities or amounts as live hospital data.
+ * Business navigation complements model replies; real data remains in authenticated business pages.
  */
 export const assistantReplies: Record<AssistantActionKey, AssistantReply> = {
   inventory: {

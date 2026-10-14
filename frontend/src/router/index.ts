@@ -35,9 +35,11 @@ const SystemConfigView = () => import('../views/system/SystemConfigView.vue')
 const FieldOptionManagementView = () => import('../views/system/FieldOptionManagementView.vue')
 const ApprovalFlowSettingsView = () => import('../views/system/ApprovalFlowSettingsView.vue')
 const UserRoleManagementView = () => import('../views/system/UserRoleManagementView.vue')
+const AuditLogView = () => import('../views/system/AuditLogView.vue')
 const OperationCockpitView = () => import('../views/operations/OperationCockpitView.vue')
 const SpdHisReconciliationReportView = () => import('../views/operations/SpdHisReconciliationReportView.vue')
 const RegulatoryReportView = () => import('../views/operations/RegulatoryReportView.vue')
+const DataTableDemoView = () => import('../views/common/DataTableDemoView.vue')
 
 function featureCodePattern(viewFamily: FeatureViewFamily): string {
   return featureCodesByViewFamily(viewFamily).join('|')
@@ -156,9 +158,7 @@ export const router = createRouter({
     },
     {
       path: '/features/high-value-consumables/operations',
-      name: 'high-value-consumable-operations',
-      component: OperationalClosureView,
-      meta: { requiresAuth: true, operationalType: 'high-value-consumables' }
+      redirect: { path: featureRouteTarget('high-value-consumables'), query: { tab: 'operations' } }
     },
     {
       path: featureRouteTarget('high-value-consumables'),
@@ -245,6 +245,12 @@ export const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      path: featureRouteTarget('audit-log'),
+      name: 'audit-log',
+      component: AuditLogView,
+      meta: { requiresAuth: true }
+    },
+    {
       path: featureRouteTarget('operation-cockpit'),
       name: 'operation-cockpit',
       component: OperationCockpitView,
@@ -278,6 +284,12 @@ export const router = createRouter({
       path: featureRouteTarget('inventory-product-detail-report'),
       name: 'inventory-product-detail-report',
       component: () => import('../views/operations/InventoryProductDetailView.vue'),
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/features/data-table-demo',
+      name: 'data-table-demo',
+      component: DataTableDemoView,
       meta: { requiresAuth: true }
     },
     {

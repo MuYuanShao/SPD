@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   Database,
   KeyRound,
@@ -12,9 +12,11 @@ import {
   Search,
   ShieldCheck,
   Trash2,
-  UserCheck
+  UserCheck,
+  X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import {
   assignRolePermissions,
   assignUserRoles,
@@ -33,11 +35,13 @@ import {
   type DepartmentOption,
   type PermissionRow,
   type RoleRow,
-  type UserRow
+  type UserRow,
+  type UserPayload
 } from '../../api/foundation'
 import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const pageMode = computed(() => (String(route.params.code) === 'role-permission' ? 'role' : 'user'))
 const users = ref<UserRow[]>([])
@@ -55,58 +59,42 @@ const modal = ref<'user' | 'role' | 'user-role' | 'role-permission' | 'data-perm
 const editingUserId = ref<number | null>(null)
 const editingRoleId = ref<number | null>(null)
 
-const userQuery = reactive({
-  username: '',
-  realName: '',
-  status: '',
-  deptName: ''
-})
-const roleQuery = reactive({
-  roleName: '',
-  roleCode: '',
-  status: ''
-})
-const userForm = reactive({
+const userQuery = reactive({ username: '', realName: '', status: '', deptName: '' })
+const roleQuery = reactive({ roleName: '', roleCode: '', status: '' })
+const userForm = reactive<UserPayload & { password: string }>({
   username: '',
   password: '',
   realName: '',
   phone: '',
   email: '',
   gender: 0,
-  deptId: '',
+  deptId: 0,
   status: 1,
-  roleIds: [] as number[]
-})
+  roleIds: []
+} as UserPayload & { password: string })
 const roleForm = reactive({
-  roleName: '',
-  roleCode: '',
-  description: '',
-  dataScope: 1,
-  status: 1,
-  sortOrder: 99
+  roleName: '', roleCode: '', description: '',
+  dataScope: 1, status: 1, sortOrder: 99
 })
 const permissionForm = reactive({
-  roleId: '',
-  permissionIds: [] as number[],
-  dataScope: 1,
-  deptIds: [] as number[]
+  roleId: '', permissionIds: [] as number[], dataScope: 1, deptIds: [] as number[]
 })
 
-const selectedUser = computed(() => users.value.find((item) => item.userId === selectedUserIds.value[0]))
-const selectedRole = computed(() => roles.value.find((item) => item.roleId === selectedRoleIds.value[0]))
-const title = computed(() => (pageMode.value === 'role' ? '角色权限' : '用户管理'))
+const selectedUser = computed(() => users.value.find(item => item.userId === selectedUserIds.value[0]))
+const selectedRole = computed(() => roles.value.find(item => item.roleId === selectedRoleIds.value[0]))
+const title = computed(() => pageMode.value === 'role' ? '角色权限' : '用户管理')
 const subtitle = computed(() =>
   pageMode.value === 'role'
     ? '维护角色、菜单按钮权限与数据权限范围。'
     : '维护系统账号、所属科室、角色分配与密码重置。'
 )
 const userStats = computed(() => [
-  { label: '启用用户', value: users.value.filter((item) => item.status === 1).length },
-  { label: '停用用户', value: users.value.filter((item) => item.status === 0).length },
-  { label: '已分配角色', value: users.value.filter((item) => item.roleNames).length }
+  { label: '启用用户', value: users.value.filter(item => item.status === 1).length },
+  { label: '停用用户', value: users.value.filter(item => item.status === 0).length },
+  { label: '已分配角色', value: users.value.filter(item => item.roleNames).length }
 ])
 const roleStats = computed(() => [
-  { label: '启用角色', value: roles.value.filter((item) => item.status === 1).length },
+  { label: '启用角色', value: roles.value.filter(item => item.status === 1).length },
   { label: '权限点', value: permissions.value.length },
   { label: '已关联用户', value: roles.value.reduce((sum, item) => sum + Number(item.userCount || 0), 0) }
 ])
@@ -114,306 +102,185 @@ const roleStats = computed(() => [
 function roleIdsFrom(row?: UserRow) {
   return row?.roleIds ? row.roleIds.split(',').map(Number).filter(Boolean) : []
 }
-
 function permissionIdsFrom(row?: RoleRow) {
   return row?.permissionIds ? row.permissionIds.split(',').map(Number).filter(Boolean) : []
 }
-function customDeptIdsFrom(row?: RoleRow) {
-  return row?.customDeptIds ? row.customDeptIds.split(',').map(Number).filter(Boolean) : []
-}
-
 
 async function loadAll() {
   loading.value = true
+  message.value = ''
+  userFormError.value = ''
   try {
-    const [userRows, roleRows, permissionRows, deptRows] = await Promise.all([
+    const [u, r, p, d] = await Promise.all([
       fetchUsers({ ...userQuery, page: String(userPagination.page), size: String(userPagination.size) }),
       fetchRoles({ ...roleQuery, page: String(rolePagination.page), size: String(rolePagination.size) }),
       fetchPermissions(),
       fetchDepartmentOptions()
     ])
-    users.value = userRows.rows
-    userPagination.total = userRows.total
-    roles.value = roleRows.rows
-    rolePagination.total = roleRows.total
-    permissions.value = permissionRows
-    departments.value = deptRows
-  } finally {
-    loading.value = false
-  }
+    users.value = u.rows
+    userPagination.total = u.total
+    roles.value = r.rows
+    rolePagination.total = r.total
+    permissions.value = p
+    departments.value = d
+  } catch (err: any) { message.value = err?.message || '数据加载失败' }
+  finally { loading.value = false }
 }
 
-async function changeUserPage(page: number) {
-  const totalPages = Math.max(Math.ceil(userPagination.total / Math.max(userPagination.size, 1)), 1)
-  const nextPage = Math.min(Math.max(page, 1), totalPages)
-  if (nextPage === userPagination.page) return
-  userPagination.page = nextPage
-  await loadAll()
-}
-
-async function changeUserPageSize(size: number) {
-  if (size === userPagination.size) return
-  userPagination.size = size
-  userPagination.page = 1
-  await loadAll()
-}
-
-async function changeRolePage(page: number) {
-  const totalPages = Math.max(Math.ceil(rolePagination.total / Math.max(rolePagination.size, 1)), 1)
-  const nextPage = Math.min(Math.max(page, 1), totalPages)
-  if (nextPage === rolePagination.page) return
-  rolePagination.page = nextPage
-  await loadAll()
-}
-
-async function changeRolePageSize(size: number) {
-  if (size === rolePagination.size) return
-  rolePagination.size = size
-  rolePagination.page = 1
-  await loadAll()
-}
-
-function resetUserForm() {
-  editingUserId.value = null
-  userFormError.value = ''
-  Object.assign(userForm, {
-    username: '',
-    password: '',
-    realName: '',
-    phone: '',
-    email: '',
-    gender: 0,
-    deptId: '',
-    status: 1,
-    roleIds: []
-  })
-}
-
-function resetRoleForm() {
-  editingRoleId.value = null
-  Object.assign(roleForm, {
-    roleName: '',
-    roleCode: '',
-    description: '',
-    dataScope: 1,
-    status: 1,
-    sortOrder: 99
-  })
-}
+function changeUserPage(p: number, s?: number) { if (s !== undefined) userPagination.size = s; userPagination.page = p; loadAll() }
+function changeRolePage(p: number, s?: number) { if (s !== undefined) rolePagination.size = s; rolePagination.page = p; loadAll() }
+function changeUserPageSize(s: number) { changeUserPage(1, s) }
+function changeRolePageSize(s: number) { changeRolePage(1, s) }
 
 function openUserCreate() {
-  resetUserForm()
-  modal.value = 'user'
-}
-
-function openUserEdit(row?: UserRow) {
-  const target = row || selectedUser.value
-  if (!target) {
-    message.value = '请先勾选一个用户'
-    return
-  }
-  editingUserId.value = target.userId
   userFormError.value = ''
-  selectedUserIds.value = [target.userId]
-  Object.assign(userForm, {
-    username: target.username,
-    password: '',
-    realName: target.realName,
-    phone: target.phone ?? '',
-    email: target.email ?? '',
-    gender: target.gender ?? 0,
-    deptId: target.deptId ? String(target.deptId) : '',
-    status: target.status,
-    roleIds: roleIdsFrom(target)
-  })
+  editingUserId.value = null
+  Object.assign(userForm, { username: '', password: '', realName: '', phone: '', email: '', gender: 0, deptId: 0, status: 1, roleIds: [] })
   modal.value = 'user'
 }
-
+function openUserEdit(row?: UserRow) {
+  userFormError.value = ''
+  if (row) { selectedUserIds.value = [row.userId]; editingUserId.value = row.userId }
+  else if (!selectedUserIds.value.length) { message.value = '请先勾选要编辑的用户'; return }
+  const u = selectedUser.value
+  if (!u) return
+  Object.assign(userForm, { username: u.username, password: '', realName: u.realName, phone: u.phone || '', email: u.email || '', gender: u.gender || 0, deptId: Number(u.deptId) || 0, status: u.status, roleIds: roleIdsFrom(u) })
+  modal.value = 'user'
+}
 function openRoleCreate() {
-  resetRoleForm()
+  editingRoleId.value = null
+  Object.assign(roleForm, { roleName: '', roleCode: '', description: '', dataScope: 1, status: 1, sortOrder: 99 })
   modal.value = 'role'
 }
-
 function openRoleEdit() {
-  const row = selectedRole.value
-  if (!row) {
-    message.value = '请先勾选一个角色'
-    return
-  }
-  editingRoleId.value = row.roleId
-  Object.assign(roleForm, {
-    roleName: row.roleName,
-    roleCode: row.roleCode,
-    description: row.description ?? '',
-    dataScope: row.dataScope,
-    status: row.status,
-    sortOrder: row.sortOrder
-  })
+  if (!selectedRoleIds.value.length) { message.value = '请先勾选要编辑的角色'; return }
+  const r = selectedRole.value
+  if (!r) return
+  editingRoleId.value = r.roleId
+  Object.assign(roleForm, { roleName: r.roleName, roleCode: r.roleCode, description: r.description || '', dataScope: r.dataScope || 1, status: r.status, sortOrder: r.sortOrder || 99 })
   modal.value = 'role'
 }
-
+function openPermissionAssign() {
+  if (!selectedRoleIds.value.length) { message.value = '请先勾选要分配权限的角色'; return }
+  const r = selectedRole.value
+  if (!r) return
+  permissionForm.roleId = String(r.roleId)
+  permissionForm.permissionIds = permissionIdsFrom(r)
+  modal.value = 'role-permission'
+}
+function openDataPermission() {
+  if (!selectedRoleIds.value.length) { message.value = '请先勾选角色'; return }
+  const r = selectedRole.value
+  if (!r) return
+  permissionForm.roleId = String(r.roleId)
+  permissionForm.dataScope = r.dataScope || 1
+  permissionForm.deptIds = []
+  modal.value = 'data-permission'
+}
 function openUserRoleAssign() {
-  const row = selectedUser.value
-  if (!row) {
-    message.value = '请先勾选一个用户'
-    return
-  }
-  editingUserId.value = row.userId
-  userForm.roleIds = roleIdsFrom(row)
+  if (!selectedUserIds.value.length) { message.value = '请先勾选要分配角色的用户'; return }
+  userForm.roleIds = roleIdsFrom(selectedUser.value)
   modal.value = 'user-role'
 }
 
-function openPermissionAssign() {
-  const row = selectedRole.value
-  if (!row) {
-    message.value = '请先勾选一个角色'
-    return
-  }
-  permissionForm.roleId = String(row.roleId)
-  permissionForm.permissionIds = permissionIdsFrom(row)
-  modal.value = 'role-permission'
-}
-
-function openDataPermission() {
-  const row = selectedRole.value
-  if (!row) {
-    message.value = '请先勾选一个角色'
-    return
-  }
-  permissionForm.roleId = String(row.roleId)
-  permissionForm.dataScope = row.dataScope
-  modal.value = 'data-permission'
-  permissionForm.deptIds = customDeptIdsFrom(row)
-}
-
 async function saveUser() {
-  userFormError.value = ''
-  const payload = {
-    username: userForm.username.trim(),
-    password: userForm.password,
-    realName: userForm.realName.trim(),
-    phone: userForm.phone.trim(),
-    email: userForm.email.trim(),
-    gender: Number(userForm.gender),
-    deptId: userForm.deptId ? Number(userForm.deptId) : undefined,
-    status: Number(userForm.status),
-    roleIds: userForm.roleIds
-  }
+  if (!userForm.username?.trim()) { userFormError.value = '用户名为必填项'; return }
   try {
-    if (editingUserId.value) {
-      await updateUser(editingUserId.value, payload)
-      message.value = '用户已保存'
-    } else {
-      await createUser(payload)
-      message.value = '用户已新增'
-    }
+    if (editingUserId.value === null) {
+      if (!userForm.password?.trim()) { userFormError.value = '新增用户需填写初始密码'; return }
+      await createUser(userForm)
+    } else { await updateUser(editingUserId.value, userForm) }
     modal.value = null
+    message.value = '用户已保存'
     await loadAll()
-  } catch (error: any) {
-    const errorMessage =
-      error?.response?.data?.message || error?.message || '用户保存失败，请检查用户信息'
-    userFormError.value = errorMessage
-    message.value = errorMessage
-  }
-}
-
-async function saveRole() {
-  const payload = {
-    roleName: roleForm.roleName.trim(),
-    roleCode: roleForm.roleCode.trim() || undefined,
-    description: roleForm.description.trim(),
-    dataScope: Number(roleForm.dataScope),
-    status: Number(roleForm.status),
-    sortOrder: Number(roleForm.sortOrder)
-  }
-  try {
-    if (editingRoleId.value) {
-      await updateRole(editingRoleId.value, payload)
-      message.value = '角色已保存'
-    } else {
-      await createRole(payload)
-      message.value = '角色已新增'
-    }
-    modal.value = null
-    await loadAll()
-  } catch (error: any) {
-    message.value = error?.response?.data?.message || error?.message || '角色保存失败，请检查角色信息'
-  }
+  } catch (err: any) { userFormError.value = err?.message || '保存失败' }
 }
 
 async function removeUsers() {
-  if (!selectedUserIds.value.length) {
-    message.value = '请先勾选用户'
-    return
-  }
-  await deleteUsers(selectedUserIds.value)
-  selectedUserIds.value = []
-  message.value = '用户已删除'
-  await loadAll()
-}
-
-async function removeRoles() {
-  if (!selectedRoleIds.value.length) {
-    message.value = '请先勾选角色'
-    return
-  }
-  await deleteRoles(selectedRoleIds.value)
-  selectedRoleIds.value = []
-  message.value = '角色已删除'
-  await loadAll()
+  if (!selectedUserIds.value.length) { message.value = '请勾选要删除的用户'; return }
+  if (!confirm(`确认删除选中的 ${selectedUserIds.value.length} 个用户？`)) return
+  try {
+    await deleteUsers(selectedUserIds.value)
+    message.value = '用户已删除'
+    selectedUserIds.value = []
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '删除失败' }
 }
 
 async function resetPasswords() {
-  if (!selectedUserIds.value.length) {
-    message.value = '请先勾选用户'
-    return
-  }
-  const result = await resetUserPasswords(selectedUserIds.value)
-  message.value = `已重置为临时密码：${result.temporaryPassword}`
-  await loadAll()
+  if (!selectedUserIds.value.length) { message.value = '请勾选要重置密码的用户'; return }
+  if (!confirm(`确认重置 ${selectedUserIds.value.length} 个用户的密码？`)) return
+  try {
+    await resetUserPasswords(selectedUserIds.value)
+    message.value = '密码已重置为默认密码'
+  } catch (err: any) { message.value = err?.message || '重置失败' }
 }
 
 async function saveUserRoles() {
-  if (!editingUserId.value) return
-  await assignUserRoles(editingUserId.value, userForm.roleIds)
-  modal.value = null
-  message.value = '角色分配已保存'
-  await loadAll()
+  if (!selectedUserIds.value.length) return
+  try {
+    await assignUserRoles(selectedUserIds.value[0], userForm.roleIds)
+    modal.value = null
+    message.value = '角色分配已保存'
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '保存失败' }
+}
+
+async function saveRole() {
+  if (!roleForm.roleName.trim()) { message.value = '角色名称为必填项'; return }
+  if (!roleForm.roleCode.trim()) { message.value = '角色编码为必填项'; return }
+  try {
+    if (editingRoleId.value === null) { await createRole(roleForm) }
+    else { await updateRole(editingRoleId.value, roleForm) }
+    modal.value = null
+    message.value = '角色已保存'
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '保存失败' }
+}
+
+async function removeRoles() {
+  if (!selectedRoleIds.value.length) { message.value = '请勾选要删除的角色'; return }
+  if (!confirm(`确认删除选中的 ${selectedRoleIds.value.length} 个角色？`)) return
+  try {
+    await deleteRoles(selectedRoleIds.value)
+    message.value = '角色已删除'
+    selectedRoleIds.value = []
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '删除失败' }
 }
 
 async function saveRolePermissions() {
-  await assignRolePermissions(Number(permissionForm.roleId), permissionForm.permissionIds)
-  modal.value = null
-  message.value = '权限分配已保存'
-  await loadAll()
+  try {
+    await assignRolePermissions(Number(permissionForm.roleId), permissionForm.permissionIds)
+    modal.value = null
+    message.value = '权限分配已保存'
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '保存失败' }
 }
 
 async function saveDataPermission() {
-  await updateDataPermission(
-    Number(permissionForm.roleId),
-    Number(permissionForm.dataScope),
-    permissionForm.deptIds
-  )
-  modal.value = null
-  message.value = '数据权限已保存'
-  await loadAll()
-}
-
-function toggleUser(id: number) {
-  selectedUserIds.value = selectedUserIds.value.includes(id)
-    ? selectedUserIds.value.filter((item) => item !== id)
-    : [...selectedUserIds.value, id]
-}
-
-function toggleRole(id: number) {
-  selectedRoleIds.value = selectedRoleIds.value.includes(id)
-    ? selectedRoleIds.value.filter((item) => item !== id)
-    : [...selectedRoleIds.value, id]
+  try {
+    await updateDataPermission(Number(permissionForm.roleId), permissionForm.dataScope, permissionForm.deptIds)
+    modal.value = null
+    message.value = '数据权限已保存'
+    await loadAll()
+  } catch (err: any) { message.value = err?.message || '保存失败' }
 }
 
 function dataScopeName(scope: number) {
   return ['-', '全部数据', '本部门数据', '本部门及子部门', '仅本人数据', '自定义部门'][scope] ?? '全部数据'
 }
+function onUserCheckbox(id: number, e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  selectedUserIds.value = checked ? [...selectedUserIds.value, id] : selectedUserIds.value.filter(x => x !== id)
+}
+function onRoleCheckbox(id: number, e: Event) {
+  const checked = (e.target as HTMLInputElement).checked
+  selectedRoleIds.value = checked ? [...selectedRoleIds.value, id] : selectedRoleIds.value.filter(x => x !== id)
+}
+
+function switchToUser() { router.push('/features/user-management') }
+function switchToRole() { router.push('/features/role-permission') }
 
 onMounted(loadAll)
 watch(pageMode, () => {
@@ -427,295 +294,284 @@ watch(pageMode, () => {
 </script>
 
 <template>
-  <section class="foundation-page">
-    <div class="breadcrumb-line">
-      <span>系统管理</span>
-      <strong>{{ title }}</strong>
-    </div>
+  <div class="md-page sys-page">
+    <!-- 顶栏（与采购管理 / 证照管理一致：MdPageHeader 渐变） -->
+    <MdPageHeader
+      crumb="系统管理"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadAll"
+    />
 
-    <div class="detail-heading">
-      <div>
-        <p>基础权限</p>
-        <h2>{{ title }}</h2>
-        <small>{{ subtitle }}</small>
-      </div>
-      <button class="btn" type="button" @click="loadAll">
-        <RefreshCw :size="17" />
-        刷新
+    <!-- Tab -->
+    <div class="md-tabs sys-tabs">
+      <button type="button" :class="['md-tab', { active: pageMode === 'user' }]" @click="switchToUser">
+        <LayoutList :size="14" /> 用户管理
+      </button>
+      <button type="button" :class="['md-tab', { active: pageMode === 'role' }]" @click="switchToRole">
+        <ShieldCheck :size="14" /> 角色权限
       </button>
     </div>
 
-    <div class="foundation-stat-grid">
-      <article v-for="item in pageMode === 'role' ? roleStats : userStats" :key="item.label">
-        <span>{{ item.label }}</span>
-        <strong>{{ item.value }}</strong>
-      </article>
+    <!-- 工具栏 -->
+    <div class="md-toolbar sys-toolbar">
+      <div class="sys-search-wrap">
+        <span class="sys-search-label">关键词</span>
+        <div class="sys-search-input-wrap">
+          <input
+            v-if="pageMode === 'user'"
+            v-model="userQuery.username"
+            class="sys-search-input"
+            placeholder="用户名 / 姓名 / 科室"
+            @keyup.enter="loadAll"
+          />
+          <input
+            v-else
+            v-model="roleQuery.roleName"
+            class="sys-search-input"
+            placeholder="角色名称 / 编码"
+            @keyup.enter="loadAll"
+          />
+          <button class="sys-search-btn" type="button" @click="loadAll"><Search :size="15" /></button>
+        </div>
+      </div>
+      <div class="sys-toolbar-right">
+        <template v-if="pageMode === 'user'">
+          <button v-if="authStore.hasPermission('user:create')" class="md-btn md-btn-primary" type="button" @click="openUserCreate"><Plus :size="15" /> 新增</button>
+          <button v-if="authStore.hasPermission('user:update')" class="md-btn" type="button" @click="openUserEdit()"><Pencil :size="15" /> 编辑</button>
+          <button v-if="authStore.hasPermission('user:delete')" class="md-btn md-btn-danger" type="button" @click="removeUsers"><Trash2 :size="15" /> 删除</button>
+          <button v-if="authStore.hasPermission('user:reset-password')" class="md-btn" type="button" @click="resetPasswords"><KeyRound :size="15" /> 重置密码</button>
+          <button v-if="authStore.hasPermission('user:assign-role')" class="md-btn" type="button" @click="openUserRoleAssign"><UserCheck :size="15" /> 分配角色</button>
+        </template>
+        <template v-else>
+          <button v-if="authStore.hasPermission('role:create')" class="md-btn md-btn-primary" type="button" @click="openRoleCreate"><Plus :size="15" /> 新增</button>
+          <button v-if="authStore.hasPermission('role:update')" class="md-btn" type="button" @click="openRoleEdit()"><Pencil :size="15" /> 编辑</button>
+          <button v-if="authStore.hasPermission('role:delete')" class="md-btn md-btn-danger" type="button" @click="removeRoles"><Trash2 :size="15" /> 删除</button>
+          <button v-if="authStore.hasPermission('role:assign-permission')" class="md-btn" type="button" @click="openPermissionAssign"><ShieldCheck :size="15" /> 分配权限</button>
+          <button v-if="authStore.hasPermission('role:data-permission')" class="md-btn" type="button" @click="openDataPermission"><Database :size="15" /> 数据权限</button>
+        </template>
+      </div>
     </div>
 
-    <p v-if="message" class="inline-message">{{ message }}</p>
+    <!-- 内容 -->
+    <div class="md-content sys-content">
 
-    <section v-if="pageMode === 'user'" class="hospital-catalog-panel">
-      <div class="hospital-action-row">
-        <button class="btn" type="button" @click="loadAll"><LayoutList :size="17" /> 用户列表查询</button>
-        <button v-if="authStore.hasPermission('user:create')" class="btn btn-primary" type="button" @click="openUserCreate"><Plus :size="18" /> 新增</button>
-        <button v-if="authStore.hasPermission('user:update')" class="btn" type="button" @click="openUserEdit()"><Pencil :size="17" /> 编辑</button>
-        <button v-if="authStore.hasPermission('user:delete')" class="btn btn-danger" type="button" @click="removeUsers"><Trash2 :size="17" /> 删除</button>
-        <button v-if="authStore.hasPermission('user:reset-password')" class="btn" type="button" @click="resetPasswords"><KeyRound :size="17" /> 重置密码</button>
-        <button v-if="authStore.hasPermission('user:assign-role')" class="btn" type="button" @click="openUserRoleAssign"><UserCheck :size="17" /> 分配角色</button>
+      <!-- 汇总卡片 -->
+      <div class="sys-stat-grid">
+        <article v-for="item in (pageMode === 'role' ? roleStats : userStats)" :key="item.label">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </article>
       </div>
 
-      <div class="hospital-query-grid foundation-query-grid">
-        <label><span>用户名</span><input v-model="userQuery.username" placeholder="模糊查询用户名" /></label>
-        <label><span>真实姓名</span><input v-model="userQuery.realName" placeholder="模糊查询真实姓名" /></label>
-        <label><span>科室</span><input v-model="userQuery.deptName" placeholder="模糊查询科室" /></label>
-        <label>
-          <span>状态</span>
-          <select v-model="userQuery.status">
-            <option value="">全部</option>
-            <option value="1">启用</option>
-            <option value="0">停用</option>
-          </select>
-        </label>
-        <button class="btn btn-primary" type="button" @click="loadAll"><Search :size="18" /> 查询</button>
+      <!-- 消息 -->
+      <div v-if="message" class="md-message">{{ message }}</div>
+
+      <!-- 用户列表 -->
+      <div v-if="pageMode === 'user'" class="md-table-card">
+        <div class="table-scroll">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th style="width:40px"></th>
+                <th>用户名</th>
+                <th>真实姓名</th>
+                <th>所属科室</th>
+                <th>角色</th>
+                <th>手机</th>
+                <th>邮箱</th>
+                <th>状态</th>
+                <th>更新时间</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading"><td colspan="10" class="text-center muted">正在加载...</td></tr>
+              <tr v-else-if="!users.length"><td colspan="10" class="text-center muted">暂无数据</td></tr>
+              <tr v-else v-for="row in users" :key="row.userId">
+                <td><input type="checkbox" :checked="selectedUserIds.includes(row.userId)" @change="onUserCheckbox(row.userId, $event)" /></td>
+                <td>{{ row.username }}</td>
+                <td>{{ row.realName }}</td>
+                <td>{{ row.deptName || '-' }}</td>
+                <td>{{ row.roleNames || '未分配' }}</td>
+                <td>{{ row.phone || '-' }}</td>
+                <td>{{ row.email || '-' }}</td>
+                <td><span :class="['md-status', row.status === 1 ? 'success' : 'danger']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
+                <td>{{ row.updateTime || '-' }}</td>
+                <td><button class="md-btn-text" type="button" @click="openUserEdit(row)"><Pencil :size="13" /> 编辑</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="md-pagination">
+          <span>共 <strong>{{ userPagination.total }}</strong> 条</span>
+          <PaginationControls :page="userPagination.page" :size="userPagination.size" :total="userPagination.total" :loading="loading" @change-page="changeUserPage" @change-size="changeUserPageSize" />
+        </div>
       </div>
 
-      <div class="table-scroll">
-        <table class="master-table foundation-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>用户名</th>
-              <th>真实姓名</th>
-              <th>所属科室</th>
-              <th>角色</th>
-              <th>手机</th>
-              <th>邮箱</th>
-              <th>状态</th>
-              <th>更新时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in users" :key="row.userId" @dblclick="openUserEdit(row)">
-              <td><input type="checkbox" :checked="selectedUserIds.includes(row.userId)" @change="toggleUser(row.userId)" /></td>
-              <td>{{ row.username }}</td>
-              <td>{{ row.realName }}</td>
-              <td>{{ row.deptName || '-' }}</td>
-              <td>{{ row.roleNames || '未分配' }}</td>
-              <td>{{ row.phone || '-' }}</td>
-              <td>{{ row.email || '-' }}</td>
-              <td><span :class="['status-badge', row.status === 1 ? 'enabled' : 'disabled']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
-              <td>{{ row.updateTime || '-' }}</td>
-              <td>
-                <div class="row-actions">
-                  <button v-if="authStore.hasPermission('user:update')" class="btn-text" type="button" @click.stop="openUserEdit(row)">
-                    <Pencil :size="15" />
-                    编辑
-                  </button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- 角色列表 -->
+      <div v-else class="md-table-card">
+        <div class="table-scroll">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th style="width:40px"></th>
+                <th>角色名称</th>
+                <th>角色编码</th>
+                <th>数据权限</th>
+                <th>用户数</th>
+                <th>权限点</th>
+                <th>状态</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading"><td colspan="8" class="text-center muted">正在加载...</td></tr>
+              <tr v-else-if="!roles.length"><td colspan="8" class="text-center muted">暂无数据</td></tr>
+              <tr v-else v-for="row in roles" :key="row.roleId">
+                <td><input type="checkbox" :checked="selectedRoleIds.includes(row.roleId)" @change="onRoleCheckbox(row.roleId, $event)" /></td>
+                <td>{{ row.roleName }}</td>
+                <td>{{ row.roleCode }}</td>
+                <td>{{ dataScopeName(row.dataScope) }}</td>
+                <td>{{ row.userCount }}</td>
+                <td>{{ row.permissionCount }}</td>
+                <td><span :class="['md-status', row.status === 1 ? 'success' : 'danger']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
+                <td>{{ row.description || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="md-pagination">
+          <span>共 <strong>{{ rolePagination.total }}</strong> 条</span>
+          <PaginationControls :page="rolePagination.page" :size="rolePagination.size" :total="rolePagination.total" :loading="loading" @change-page="changeRolePage" @change-size="changeRolePageSize" />
+        </div>
       </div>
-      <PaginationControls
-        :page="userPagination.page"
-        :size="userPagination.size"
-        :total="userPagination.total"
-        :loading="loading"
-        @change-page="changeUserPage"
-        @change-size="changeUserPageSize"
-      />
-    </section>
+    </div>
 
-    <section v-else class="hospital-catalog-panel">
-      <div class="hospital-action-row">
-        <button class="btn" type="button" @click="loadAll"><LayoutList :size="17" /> 角色列表查询</button>
-        <button v-if="authStore.hasPermission('role:create')" class="btn btn-primary" type="button" @click="openRoleCreate"><Plus :size="18" /> 新增</button>
-        <button v-if="authStore.hasPermission('role:update')" class="btn" type="button" @click="openRoleEdit"><Pencil :size="17" /> 编辑</button>
-        <button v-if="authStore.hasPermission('role:delete')" class="btn btn-danger" type="button" @click="removeRoles"><Trash2 :size="17" /> 删除</button>
-        <button v-if="authStore.hasPermission('role:assign-permission')" class="btn" type="button" @click="openPermissionAssign"><ShieldCheck :size="17" /> 分配权限</button>
-        <button v-if="authStore.hasPermission('role:data-permission')" class="btn" type="button" @click="openDataPermission"><Database :size="17" /> 数据权限</button>
-      </div>
-
-      <div class="hospital-query-grid foundation-query-grid">
-        <label><span>角色名称</span><input v-model="roleQuery.roleName" placeholder="模糊查询角色名称" /></label>
-        <label><span>角色编码</span><input v-model="roleQuery.roleCode" placeholder="模糊查询角色编码" /></label>
-        <label>
-          <span>状态</span>
-          <select v-model="roleQuery.status">
-            <option value="">全部</option>
-            <option value="1">启用</option>
-            <option value="0">停用</option>
-          </select>
-        </label>
-        <button class="btn btn-primary" type="button" @click="loadAll"><Search :size="18" /> 查询</button>
-      </div>
-
-      <div class="table-scroll">
-        <table class="master-table foundation-table">
-          <thead>
-            <tr>
-              <th></th>
-              <th>角色名称</th>
-              <th>角色编码</th>
-              <th>数据权限</th>
-              <th>用户数</th>
-              <th>权限点</th>
-              <th>状态</th>
-              <th>说明</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in roles" :key="row.roleId">
-              <td><input type="checkbox" :checked="selectedRoleIds.includes(row.roleId)" @change="toggleRole(row.roleId)" /></td>
-              <td>{{ row.roleName }}</td>
-              <td>{{ row.roleCode }}</td>
-              <td>{{ dataScopeName(row.dataScope) }}</td>
-              <td>{{ row.userCount }}</td>
-              <td>{{ row.permissionCount }}</td>
-              <td><span :class="['status-badge', row.status === 1 ? 'enabled' : 'disabled']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
-              <td>{{ row.description || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="rolePagination.page"
-        :size="rolePagination.size"
-        :total="rolePagination.total"
-        :loading="loading"
-        @change-page="changeRolePage"
-        @change-size="changeRolePageSize"
-      />
-    </section>
-
-    <div v-if="modal" class="modal-mask">
-      <section class="supplier-modal foundation-modal">
-        <div class="modal-heading">
+    <!-- 弹窗 -->
+    <div v-if="modal" class="md-dialog-mask" @click.self="modal = null">
+      <div class="md-dialog">
+        <div class="md-dialog-header">
           <h3>
             {{
-              modal === 'user'
-                ? editingUserId
-                  ? '编辑用户'
-                  : '新增用户'
-                : modal === 'role'
-                  ? editingRoleId
-                    ? '编辑角色'
-                    : '新增角色'
-                  : modal === 'user-role'
-                    ? '分配角色'
-                    : modal === 'role-permission'
-                      ? '分配权限'
-                      : '数据权限'
+              modal === 'user' ? (editingUserId ? '编辑用户' : '新增用户')
+              : modal === 'role' ? (editingRoleId ? '编辑角色' : '新增角色')
+              : modal === 'user-role' ? `为 ${selectedUser?.realName} 分配角色`
+              : modal === 'role-permission' ? `为 ${selectedRole?.roleName} 分配菜单与按钮权限`
+              : '数据权限'
             }}
           </h3>
-          <button class="btn" type="button" @click="modal = null">关闭</button>
+          <button class="md-btn-icon" type="button" @click="modal = null"><X :size="16" /></button>
         </div>
+        <div class="md-dialog-body">
 
-        <div v-if="modal === 'user'" class="supplier-form-grid">
-          <label><span>用户名</span><input v-model="userForm.username" /></label>
-          <label v-if="!editingUserId"><span>初始密码</span><input v-model="userForm.password" /></label>
-          <label><span>真实姓名</span><input v-model="userForm.realName" /></label>
-          <label><span>手机号</span><input v-model="userForm.phone" /></label>
-          <label><span>邮箱</span><input v-model="userForm.email" /></label>
-          <label>
-            <span>性别</span>
-            <select v-model.number="userForm.gender">
-              <option :value="0">未知</option>
-              <option :value="1">男</option>
-              <option :value="2">女</option>
-            </select>
-          </label>
-          <label>
-            <span>所属科室</span>
-            <select v-model="userForm.deptId">
-              <option value="">未选择</option>
-              <option v-for="dept in departments" :key="dept.deptId" :value="String(dept.deptId)">{{ dept.deptName }}</option>
-            </select>
-          </label>
-          <label>
-            <span>状态</span>
-            <select v-model.number="userForm.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <div class="checkbox-cloud">
-            <span>角色</span>
-            <label v-for="role in roles" :key="role.roleId">
-              <input v-model="userForm.roleIds" type="checkbox" :value="role.roleId" />
-              {{ role.roleName }}
-            </label>
+          <!-- 用户表单 -->
+          <div v-if="modal === 'user'" class="md-form-grid">
+            <label><span>用户名</span><input v-model="userForm.username" class="md-input" /></label>
+            <label v-if="!editingUserId"><span>初始密码</span><input v-model="userForm.password" type="password" class="md-input" /></label>
+            <label><span>真实姓名</span><input v-model="userForm.realName" class="md-input" /></label>
+            <label><span>手机号</span><input v-model="userForm.phone" class="md-input" /></label>
+            <label><span>邮箱</span><input v-model="userForm.email" class="md-input" /></label>
+            <label><span>性别</span><select v-model.number="userForm.gender" class="md-select"><option :value="0">未知</option><option :value="1">男</option><option :value="2">女</option></select></label>
+            <label><span>所属科室</span><select v-model="userForm.deptId" class="md-select"><option :value="0">未选择</option><option v-for="d in departments" :key="d.deptId" :value="d.deptId">{{ d.deptName }}</option></select></label>
+            <label><span>状态</span><select v-model.number="userForm.status" class="md-select"><option :value="1">启用</option><option :value="0">停用</option></select></label>
+            <label class="wide"><span>角色分配</span></label>
+            <div class="sys-perm-checkboxes">
+              <label v-for="r in roles" :key="r.roleId"><input v-model="userForm.roleIds" type="checkbox" :value="r.roleId" /> {{ r.roleName }}</label>
+            </div>
+            <p v-if="userFormError" class="md-error wide">{{ userFormError }}</p>
           </div>
-          <p v-if="userFormError" class="inline-message full-line">{{ userFormError }}</p>
-          <button class="btn btn-primary" type="button" @click="saveUser"><Save :size="18" /> 保存</button>
-        </div>
 
-        <div v-else-if="modal === 'role'" class="supplier-form-grid">
-          <label><span>角色名称</span><input v-model="roleForm.roleName" /></label>
-          <label><span>角色编码</span><input v-model="roleForm.roleCode" :disabled="Boolean(editingRoleId)" /></label>
-          <label>
-            <span>数据权限</span>
-            <select v-model.number="roleForm.dataScope">
-              <option :value="1">全部数据</option>
-              <option :value="2">本部门数据</option>
-              <option :value="3">本部门及子部门</option>
-              <option :value="4">仅本人数据</option>
-              <option :value="5">自定义部门</option>
-            </select>
-          </label>
-          <label>
-            <span>状态</span>
-            <select v-model.number="roleForm.status">
-              <option :value="1">启用</option>
-              <option :value="0">停用</option>
-            </select>
-          </label>
-          <label><span>排序</span><input v-model.number="roleForm.sortOrder" type="number" /></label>
-          <label class="full-line"><span>角色说明</span><textarea v-model="roleForm.description" /></label>
-          <button class="btn btn-primary" type="button" @click="saveRole"><Save :size="18" /> 保存</button>
-        </div>
-
-        <div v-else-if="modal === 'user-role'" class="checkbox-cloud modal-cloud">
-          <span>为 {{ selectedUser?.realName }} 分配角色</span>
-          <label v-for="role in roles" :key="role.roleId">
-            <input v-model="userForm.roleIds" type="checkbox" :value="role.roleId" />
-            {{ role.roleName }}
-          </label>
-          <button class="btn btn-primary" type="button" @click="saveUserRoles"><Save :size="18" /> 保存</button>
-        </div>
-
-        <div v-else-if="modal === 'role-permission'" class="checkbox-cloud modal-cloud">
-          <span>为 {{ selectedRole?.roleName }} 分配菜单与按钮权限</span>
-          <label v-for="permission in permissions" :key="permission.permissionId">
-            <input v-model="permissionForm.permissionIds" type="checkbox" :value="permission.permissionId" />
-            {{ permission.permissionType === 1 ? '菜单' : '按钮' }} · {{ permission.permissionName }}
-          </label>
-          <button class="btn btn-primary" type="button" @click="saveRolePermissions"><Save :size="18" /> 保存</button>
-        </div>
-
-        <div v-else class="supplier-form-grid">
-          <label>
-            <span>数据权限范围</span>
-            <select v-model.number="permissionForm.dataScope">
-              <option :value="1">全部数据</option>
-              <option :value="2">本部门数据</option>
-              <option :value="3">本部门及子部门</option>
-              <option :value="4">仅本人数据</option>
-              <option :value="5">自定义部门</option>
-            </select>
-          </label>
-          <button class="btn btn-primary" type="button" @click="saveDataPermission"><Save :size="18" /> 保存</button>
-          <div v-if="permissionForm.dataScope === 5" class="checkbox-cloud full-line">
-            <span>授权部门</span>
-            <label v-for="dept in departments" :key="dept.deptId">
-              <input v-model="permissionForm.deptIds" type="checkbox" :value="dept.deptId" />
-              {{ dept.deptName }}
-            </label>
+          <!-- 角色表单 -->
+          <div v-else-if="modal === 'role'" class="md-form-grid">
+            <label><span>角色名称</span><input v-model="roleForm.roleName" class="md-input" /></label>
+            <label><span>角色编码</span><input v-model="roleForm.roleCode" class="md-input" :disabled="Boolean(editingRoleId)" /></label>
+            <label><span>数据权限</span><select v-model.number="roleForm.dataScope" class="md-select"><option :value="1">全部数据</option><option :value="2">本部门数据</option><option :value="3">本部门及子部门</option><option :value="4">仅本人数据</option><option :value="5">自定义部门</option></select></label>
+            <label><span>状态</span><select v-model.number="roleForm.status" class="md-select"><option :value="1">启用</option><option :value="0">停用</option></select></label>
+            <label><span>排序</span><input v-model.number="roleForm.sortOrder" type="number" class="md-input" /></label>
+            <label class="wide"><span>角色说明</span><textarea v-model="roleForm.description" class="md-textarea" rows="2" /></label>
           </div>
+
+          <!-- 分配角色 -->
+          <div v-else-if="modal === 'user-role'" class="sys-perm-checkboxes wide">
+            <label v-for="r in roles" :key="r.roleId"><input v-model="userForm.roleIds" type="checkbox" :value="r.roleId" /> {{ r.roleName }}</label>
+          </div>
+
+          <!-- 分配权限 -->
+          <div v-else-if="modal === 'role-permission'" class="sys-perm-checkboxes wide">
+            <label v-for="p in permissions" :key="p.permissionId"><input v-model="permissionForm.permissionIds" type="checkbox" :value="p.permissionId" /> {{ p.permissionType === 1 ? '菜单' : '按钮' }} · {{ p.permissionName }}</label>
+          </div>
+
+          <!-- 数据权限 -->
+          <div v-else class="md-form-grid">
+            <label><span>数据权限范围</span><select v-model.number="permissionForm.dataScope" class="md-select"><option :value="1">全部数据</option><option :value="2">本部门数据</option><option :value="3">本部门及子部门</option><option :value="4">仅本人数据</option><option :value="5">自定义部门</option></select></label>
+            <div v-if="permissionForm.dataScope === 5" class="sys-perm-checkboxes wide">
+              <label v-for="d in departments" :key="d.deptId"><input v-model="permissionForm.deptIds" type="checkbox" :value="d.deptId" /> {{ d.deptName }}</label>
+            </div>
+          </div>
+
         </div>
-      </section>
+        <div class="md-dialog-footer">
+          <button class="md-btn" type="button" @click="modal = null">取消</button>
+          <button v-if="modal === 'user'" class="md-btn md-btn-primary" type="button" @click="saveUser"><Save :size="15" /> 保存</button>
+          <button v-else-if="modal === 'role'" class="md-btn md-btn-primary" type="button" @click="saveRole"><Save :size="15" /> 保存</button>
+          <button v-else-if="modal === 'user-role'" class="md-btn md-btn-primary" type="button" @click="saveUserRoles"><Save :size="15" /> 保存</button>
+          <button v-else-if="modal === 'role-permission'" class="md-btn md-btn-primary" type="button" @click="saveRolePermissions"><Save :size="15" /> 保存</button>
+          <button v-else class="md-btn md-btn-primary" type="button" @click="saveDataPermission"><Save :size="15" /> 保存</button>
+        </div>
+      </div>
     </div>
-  </section>
+
+  </div>
 </template>
+
+<style scoped>
+.sys-page { display: flex; flex-direction: column; }
+.sys-tabs { margin: 12px 0 0; }
+.sys-toolbar { margin: 0; }
+.sys-content { padding: 12px 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.sys-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+.sys-stat-grid article {
+  background: var(--md-bg-card);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius-md);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.sys-stat-grid article span { font-size: 12px; color: var(--md-text-secondary); font-weight: 500; }
+.sys-stat-grid article strong { font-size: 24px; color: var(--md-text-heading); font-weight: 700; font-family: var(--md-font-mono); }
+.table-scroll { overflow-x: auto; }
+.sys-perm-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 8px;
+  background: var(--md-bg-muted);
+  border: 1px solid var(--md-border);
+  border-radius: var(--md-radius);
+  grid-column: 1 / -1;
+}
+.sys-perm-checkboxes label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--md-text);
+  padding: 4px 6px;
+  border-radius: var(--md-radius-sm);
+  transition: background .15s;
+}
+.sys-perm-checkboxes label:hover { background: var(--md-primary-soft); color: var(--md-primary-strong); }
+.text-center { text-align: center; }
+.muted { color: var(--md-text-muted); padding: 32px; }
+</style>

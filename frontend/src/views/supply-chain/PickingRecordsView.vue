@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { History, RefreshCw, RotateCcw, Search } from '@lucide/vue'
+import { History, RotateCcw, Search } from '@lucide/vue'
 import EmptyState from '../../components/common/EmptyState.vue'
-import PageHeader from '../../components/common/PageHeader.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
-import SectionTitle from '../../components/common/SectionTitle.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { fetchPickingRecords } from '../../api/operationalClosure'
 import { formatStatusText } from '../../utils/chineseDisplay'
@@ -102,54 +101,47 @@ onMounted(loadRecords)
 
 <template>
   <section class="picking-record-page">
-    <PageHeader
-      eyebrow="供应链业务"
+    <MdPageHeader
+      crumb="供应链业务"
       title="拣配记录"
       description="集中查询中心库拣配出库及科室签收记录"
-    >
-      <template #actions>
-        <button class="btn" type="button" :disabled="loading" @click="loadRecords">
-          <RefreshCw :size="16" />
-          刷新
-        </button>
-      </template>
-    </PageHeader>
+      :loading="loading"
+      @refresh="loadRecords"
+    />
 
-    <section class="record-query-card" aria-label="拣配记录查询条件">
-      <form class="record-query-grid" @submit.prevent="search">
-        <label><span>配送单号</span><input v-model.trim="query.deliveryNo" placeholder="请输入配送单号" /></label>
-        <label><span>申领单号</span><input v-model.trim="query.requisitionNo" placeholder="请输入申领单号" /></label>
-        <label><span>科室</span><input v-model.trim="query.deptName" placeholder="请输入科室名称" /></label>
-        <label><span>库房</span><input v-model.trim="query.warehouseName" placeholder="请输入库房名称" /></label>
-        <label><span>商品</span><input v-model.trim="query.productKeyword" placeholder="商品编码 / 名称" /></label>
-        <label><span>定数包码</span><input v-model.trim="query.labelNo" placeholder="请输入定数包码" /></label>
+    <StatusMessage :message="message" tone="error" />
+
+    <section class="record-workspace" aria-label="拣配记录查询与列表">
+      <form class="hospital-query-grid record-query-grid" role="search" @submit.prevent="search">
+        <label><span>配送单号</span><input v-model.trim="query.deliveryNo" class="md-input" placeholder="请输入配送单号" /></label>
+        <label><span>申领单号</span><input v-model.trim="query.requisitionNo" class="md-input" placeholder="请输入申领单号" /></label>
+        <label><span>科室</span><input v-model.trim="query.deptName" class="md-input" placeholder="请输入科室名称" /></label>
+        <label><span>库房</span><input v-model.trim="query.warehouseName" class="md-input" placeholder="请输入库房名称" /></label>
+        <label><span>商品</span><input v-model.trim="query.productKeyword" class="md-input" placeholder="商品编码 / 名称" /></label>
+        <label><span>定数包码</span><input v-model.trim="query.labelNo" class="md-input" placeholder="请输入定数包码" /></label>
         <label>
           <span>状态</span>
-          <select v-model="query.status">
+          <select v-model="query.status" class="md-select">
             <option value="">全部</option>
             <option value="picked">待签收</option>
             <option value="signed">已签收</option>
           </select>
         </label>
-        <label><span>开始日期</span><input v-model="query.dateFrom" type="date" /></label>
-        <label><span>结束日期</span><input v-model="query.dateTo" type="date" /></label>
+        <label><span>开始日期</span><input v-model="query.dateFrom" class="md-input" type="date" /></label>
+        <label><span>结束日期</span><input v-model="query.dateTo" class="md-input" type="date" /></label>
         <div class="record-query-actions">
-          <button class="btn btn-primary" type="submit" :disabled="loading"><Search :size="16" />查询</button>
-          <button class="btn" type="button" :disabled="loading" @click="reset"><RotateCcw :size="16" />重置</button>
+          <button class="btn btn-primary md-btn md-btn-primary" type="submit" :disabled="loading"><Search :size="16" />查询</button>
+          <button class="btn md-btn" type="button" :disabled="loading" @click="reset"><RotateCcw :size="16" />重置</button>
         </div>
       </form>
-    </section>
 
-    <StatusMessage :message="message" tone="error" />
-
-    <section class="record-table-card">
       <div class="record-table-title">
-        <SectionTitle title="拣配记录列表" :level="3">
-          <template #icon><History :size="19" /></template>
-        </SectionTitle>
+        <History :size="19" />
+        <h3>拣配记录列表</h3>
         <span>共 {{ total }} 条</span>
       </div>
-      <div class="record-table-viewport">
+
+      <div class="table-scroll record-table-viewport">
         <table class="master-table record-table">
           <thead>
             <tr>
@@ -189,70 +181,238 @@ onMounted(loadRecords)
 </template>
 
 <style scoped>
+/* =====================================================================
+   拣配记录 picking-record-page
+   ---------------------------------------------------------------------
+   视觉沿用采购管理 / 收货验收 / 库存管理的 md-* 设计语言：
+     1. 页头用 MdPageHeader（渐变底 + 白色标题）
+     2. 查询区与表格合并为单张工作区卡片，避免两层卡片割裂
+     3. 表格 md 密度：表头 12px、表体 13px、sticky 表头
+   ===================================================================== */
 .picking-record-page {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  height: calc(100dvh - 48px);
-  min-height: 600px;
-  max-width: 1600px;
-  margin: 0 auto;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  padding: 16px 20px 24px;
   container-type: inline-size;
 }
 
-.record-query-card, .record-table-card {
-  box-sizing: border-box;
-  border: 1px solid #e5eaf1;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(31 50 79 / 4%);
+.picking-record-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
 }
 
-.record-query-card { padding: 16px; }
-.record-query-grid { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 14px 16px; }
-.record-query-grid label { grid-column: span 6; display: grid; gap: 6px; min-width: 0; }
-.record-query-grid label > span { color: #53657a; font-size: 13px; font-weight: 600; }
-.record-query-grid input, .record-query-grid select {
+/* ---------- 工作区卡片：查询 + 列表 ---------- */
+.record-workspace {
+  box-sizing: border-box;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 420px;
+  padding: 16px 18px 18px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+/* ---------- 查询区 ---------- */
+.record-query-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+.record-query-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.record-query-grid label > span {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.record-query-grid :is(input, select) {
   box-sizing: border-box;
   width: 100%;
-  height: 36px;
-  border: 1px solid #d9e0e9;
-  border-radius: 6px;
-  background: #fff;
+  min-height: 32px;
+  height: 32px;
   padding: 0 11px;
-  color: #17233d;
+  color: var(--md-text, var(--spd-text-primary));
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
+  font-size: 13px;
   outline: none;
 }
-.record-query-grid input:focus, .record-query-grid select:focus { border-color: #1677ff; box-shadow: 0 0 0 2px rgb(22 119 255 / 12%); }
-.record-query-actions { grid-column: 19 / span 6; display: flex; align-items: flex-end; justify-content: flex-end; gap: 8px; }
 
-.record-table-card { display: flex; flex: 1; flex-direction: column; min-height: 360px; padding: 16px; overflow: hidden; }
-.record-table-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.record-table-title > div { display: flex; align-items: center; gap: 8px; color: #17233d; }
-.record-table-title > span { color: #7a8699; font-size: 13px; }
-.record-table-viewport { flex: 1; min-height: 240px; overflow: auto; border-top: 1px solid #edf1f5; }
-.record-table { min-width: 1280px; }
-.record-table thead { position: sticky; top: 0; z-index: 1; }
-.record-table th, .record-table td { height: 46px; padding: 9px 12px; }
-.record-table td { color: #34445b; }
-.record-table td strong, .record-table td small { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-.record-table td small { margin-top: 3px; color: #8b98a9; font-size: 12px; }
-.record-table .primary-cell { color: #1677ff; font-weight: 650; }
-.record-table .numeric-cell { text-align: right; }
-.record-table .label-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-.record-empty { height: 180px !important; color: #8b98a9 !important; text-align: center !important; }
-:deep(.hospital-pagination) { margin-top: auto; padding-top: 14px; border-top: 1px solid #edf1f5; }
-
-@container (max-width: 1160px) {
-  .record-query-grid label { grid-column: span 12; }
-  .record-query-actions { grid-column: 13 / span 12; }
+.record-query-grid :is(input, select):focus {
+  border-color: var(--md-primary, var(--primary));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary, var(--primary)) 14%, transparent);
 }
 
-@container (max-width: 680px) {
-  .record-query-grid label, .record-query-actions { grid-column: 1 / -1; }
-  .record-query-actions { justify-content: stretch; }
-  .record-query-actions .btn { flex: 1; }
+.record-query-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.record-query-actions .btn {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+/* ---------- 列表标题 ---------- */
+.record-table-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--md-primary, var(--primary));
+}
+
+.record-table-title h3 {
+  margin: 0;
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.record-table-title > span {
+  margin-left: auto;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 表格：md 密度 + sticky ---------- */
+.record-table-viewport {
+  flex: 1;
+  min-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+.record-table {
+  width: 100%;
+  min-width: 1280px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.record-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  padding: 9px 12px !important;
+  background: var(--md-bg-subtle, #f6f8fb) !important;
+  color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
+}
+
+.record-table tbody td {
+  height: 40px;
+  padding: 9px 12px !important;
+  color: var(--md-text, var(--spd-text-primary)) !important;
+  font-size: 13px !important;
+  vertical-align: middle;
+  background: var(--md-bg-card, #fff) !important;
+  border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
+}
+
+.record-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--md-bg-subtle, #f6f8fb) 46%, #ffffff) !important;
+}
+
+.record-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, #ffffff) !important;
+}
+
+.record-table td strong,
+.record-table td small {
+  display: block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-table td small {
+  margin-top: 3px;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+}
+
+.record-table .primary-cell {
+  color: var(--md-primary, var(--primary));
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-table .numeric-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.record-table .label-cell {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-empty {
+  height: 180px !important;
+  color: var(--md-text-muted, var(--spd-text-tertiary)) !important;
+  text-align: center !important;
+}
+
+:deep(.hospital-pagination) {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+/* ---------- 响应式 ---------- */
+@container (max-width: 900px) {
+  .record-query-grid {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+@container (max-width: 620px) {
+  .record-query-actions {
+    grid-column: 1 / -1;
+    justify-content: stretch;
+  }
+
+  .record-query-actions .btn {
+    flex: 1;
+  }
+}
+
+@media (max-width: 760px) {
+  .picking-record-page {
+    padding: 12px 12px 20px;
+  }
+
+  .record-workspace {
+    padding: 14px;
+  }
 }
 </style>

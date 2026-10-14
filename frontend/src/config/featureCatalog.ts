@@ -614,8 +614,9 @@ export const featureCatalog = [
     title: '审计日志',
     icon: 'clipboard-list',
     routeTarget: '/features/audit-log',
-    viewFamily: 'feature',
-    nodeKind: 'deferred'
+    viewFamily: 'system-audit-log',
+    chunkFamily: 'system',
+    nodeKind: 'business'
   },
   {
     code: 'shortage-reminder',

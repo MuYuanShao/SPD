@@ -137,10 +137,21 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
 .campus-table-wrap, .department-table-wrap, .department-warehouse-catalog-table-wrap,
 .reconciliation-table-scroll, .license-table-wrap, .approval-config-table-wrap,
 .field-option-table-wrap, .approval-wide-table-shell, .purchase-entry-table-wrap,
-.receiving-detail-table-wrap) {
+.receiving-detail-table-wrap, .md-hospital-table-wrap, .md-table-wrap) {
   min-width: 0; max-width: 100%; width: 100%;
   overflow: auto; overscroll-behavior-inline: contain;
   scrollbar-gutter: stable;
+}
+/* Wide table wraps must be vertically constrained so the body scrolls inside,
+   not the whole page. Keep the page chrome (header / filter / pagination)
+   always visible above the fold. */
+.main-area :is(.approval-wide-table-shell, .md-hospital-table-wrap, .md-table-wrap) {
+  max-height: max(320px, calc(100dvh - 360px));
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.main-area :is(.approval-wide-table-shell, .md-hospital-table-wrap, .md-table-wrap) thead th {
+  position: sticky; top: 0; z-index: 3;
 }
 .main-area .table-scroll { max-height: max(240px, calc(100dvh - 340px)); }
 .main-area .table-scroll thead th { position: sticky; top: 0; z-index: 2; }
@@ -154,8 +165,8 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
 .stocktaking-sheet-dialog, .replenishment-analysis-dialog, .el-dialog) {
   min-width: 0;
   max-width: calc(100vw - 32px) !important;
-  max-height: calc(100dvh - 32px) !important;
-  overflow: auto;
+  max-height: calc(100vh - 32px) !important;
+  overflow: hidden;
   border-radius: 8px !important;
 }
 :is(.supplier-dialog, .supplier-modal) > header {
@@ -172,11 +183,36 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   .cockpit-header { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .cockpit-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; grid-template-rows: auto !important; }
   .cockpit-grid > * { grid-column: auto !important; min-height: 320px; }
+  /* Master-data table card: stack toolbars, shrink action button labels, let filter go single-col */
+  .md-table-toolbar { flex-direction: column; align-items: stretch; }
+  .md-table-toolbar-main { width: 100%; }
+  .md-table-toolbar-info { margin-left: 0; justify-content: flex-start; }
+  .md-table-toolbar .md-btn span { display: none; }
+  .md-table-toolbar .md-btn { padding: 0 8px; }
+  .md-hospital-filter { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .md-hospital-filter .md-hospital-filter-actions { grid-column: 1 / -1; }
 }
 @container workspace (max-width: 700px) {
   .kpi-grid, .stats-grid, .cockpit-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .cockpit-grid, .cockpit-header { grid-template-columns: minmax(0, 1fr) !important; }
   .main-area .master-toolbar { grid-template-columns: minmax(0, 1fr); }
+  .md-hospital-filter { grid-template-columns: minmax(0, 1fr) !important; }
+  .md-table-card .el-table { font-size: 12px; }
+  .md-table-card .el-table :is(th, td) { padding-top: 6px !important; padding-bottom: 6px !important; }
+  /* Warehouse table: hide the 2nd-tier columns on phones so the card stays scannable */
+  .md-table-card .warehouse-table :is(.warehouse-stats-cell, .warehouse-update-time, .warehouse-location-count-cell),
+  .md-table-card .warehouse-table thead th:nth-child(8),
+  .md-table-card .warehouse-table thead th:nth-child(9),
+  .md-table-card .warehouse-table thead th:nth-child(11),
+  .md-table-card .warehouse-table thead th:nth-child(12) {
+    display: none;
+  }
+  .md-table-card .warehouse-table tbody td:nth-child(8),
+  .md-table-card .warehouse-table tbody td:nth-child(9),
+  .md-table-card .warehouse-table tbody td:nth-child(11),
+  .md-table-card .warehouse-table tbody td:nth-child(12) {
+    display: none;
+  }
 }
 .main-area .operation-cockpit-page { min-width: 0; width: 100%; }
 .cockpit-header { grid-template-columns: minmax(160px, 1fr) 200px minmax(220px, 2fr) 170px; }

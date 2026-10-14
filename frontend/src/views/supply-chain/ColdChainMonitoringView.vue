@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { RefreshCw, Search, Thermometer, X } from '@lucide/vue'
+import { Thermometer } from '@lucide/vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
+import TableStateRow from '../../components/common/TableStateRow.vue'
 import {
   createColdChainException,
   fetchClosureList,
@@ -89,6 +92,12 @@ async function resetForm() {
   form.severity = 'high'
 }
 
+function openExceptionDialog() {
+  resetForm()
+  message.value = ''
+  exceptionOpen.value = true
+}
+
 async function submitException() {
   if (!form.warehouseName || !form.productCode || !form.temperature) {
     message.value = '请填写库房、商品和温度'
@@ -136,88 +145,31 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="purchase-page closure-page">
-    <div class="breadcrumb-line">供应链业务 / 冷链监控</div>
-
-    <header class="detail-heading cold-chain-heading">
-      <div>
-        <span class="eyebrow">Cold Chain Monitoring</span>
-        <h1>冷链监控</h1>
-        <p>登记冷链温度异常，并查看冷链异常事件记录。</p>
-      </div>
-      <div class="cold-chain-total">
-        <span>异常记录</span>
-        <strong>{{ totalItems }}</strong>
-      </div>
-    </header>
-
-    <div class="hospital-action-row">
-      <button class="btn btn-primary" type="button" @click="resetForm(); exceptionOpen = true">登记异常</button>
-      <button class="btn" type="button" :disabled="loading" @click="refresh">刷新列表</button>
-    </div>
-    <p v-if="message && !exceptionOpen" class="form-message">{{ message }}</p>
-    <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body>
-      <div class="panel-title">
-        <Thermometer :size="20" />
-        <h2>异常登记</h2>
-      </div>
-      <div class="hospital-query-grid cold-chain-form">
-        <label>
-          库房
-          <select v-model="form.warehouseName">
-            <option v-for="warehouse in options.warehouses" :key="warehouse.warehouseName" :value="warehouse.warehouseName">
-              {{ warehouse.warehouseName }}
-            </option>
-          </select>
-        </label>
-        <label>
-          商品
-          <select v-model="form.productCode">
-            <option v-for="product in options.products" :key="product.productCode" :value="product.productCode">
-              {{ product.productName }} / {{ product.productCode }}
-            </option>
-          </select>
-        </label>
-        <label>
-          当前温度
-          <input v-model="form.temperature" type="number" step="0.1" placeholder="例如 9.5" />
-        </label>
-        <label>
-          严重程度
-          <select v-model="form.severity">
-            <option value="high">高</option>
-            <option value="medium">中</option>
-            <option value="low">低</option>
-          </select>
-        </label>
-      </div>
-      <p v-if="selectedProduct" class="cold-chain-product">
-        当前商品：{{ selectedProduct.productName }}，规格 {{ selectedProduct.specModel || '-' }}，单位 {{ selectedProduct.unit || '-' }}
-      </p>
-      <div class="hospital-query-actions">
-        <button class="btn btn-primary" type="button" :disabled="submitting" @click="submitException">
-          <Search :size="18" />
-          保存异常
+  <main class="cold-chain-page">
+    <MdPageHeader
+      crumb="供应链业务"
+      title="冷链监控"
+      description="登记冷链温度异常，并查看冷链异常事件记录。"
+      :loading="loading"
+      @refresh="refresh"
+    >
+      <template #actions>
+        <button class="btn btn-primary md-btn" type="button" @click="openExceptionDialog">
+          <Thermometer :size="16" />
+          登记异常
         </button>
-        <button class="btn btn-secondary" type="button" :disabled="submitting" @click="resetForm">
-          <X :size="18" />
-          重置
-        </button>
-        <button class="btn btn-secondary" type="button" :disabled="loading" @click="refresh">
-          <RefreshCw :size="18" />
-          刷新列表
-        </button>
-      </div>
-      <p v-if="message" class="form-message">{{ message }}</p>
-    </el-dialog>
+      </template>
+    </MdPageHeader>
 
-    <section class="hospital-catalog-panel">
-      <div class="panel-title cold-chain-list-title">
-        <Thermometer :size="20" />
-        <h2>冷链异常记录</h2>
-      </div>
-      <div class="table-scroll">
-        <table class="master-table purchase-table">
+    <StatusMessage :message="message" tone="success" role="status" />
+
+    <section class="cold-chain-panel" :aria-busy="loading">
+      <header class="cold-chain-panel-header">
+        <h3>冷链异常记录</h3>
+        <span class="cold-chain-count">共 {{ totalItems }} 条</span>
+      </header>
+      <div class="table-scroll cold-chain-scroll">
+        <table class="cold-chain-table">
           <thead>
             <tr>
               <th>异常编号</th>
@@ -230,28 +182,34 @@ onMounted(async () => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading">
-              <td colspan="7" class="empty-cell">加载中...</td>
+            <TableStateRow v-if="loading" :colspan="7" state="loading" message="正在加载冷链异常记录..." />
+            <TableStateRow v-else-if="!rows.length" :colspan="7" message="暂无冷链异常记录" />
+            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
+              <td>
+                <strong>{{ row.bizNo || '-' }}</strong>
+              </td>
+              <td>{{ row.warehouseName || '-' }}</td>
+              <td>
+                <strong>{{ row.productName || '-' }}</strong>
+                <small>{{ row.productCode || '-' }}</small>
+              </td>
+              <td>
+                <span class="cold-temp" :class="`is-${String(row.severity || '').toLowerCase()}`">
+                  {{ row.temperature || '-' }}<em v-if="row.temperature">℃</em>
+                </span>
+              </td>
+              <td>
+                <span class="severity-pill" :class="`is-${String(row.severity || '').toLowerCase()}`">
+                  {{ severityText(row.severity) }}
+                </span>
+              </td>
+              <td>
+                <span class="status-pill" :class="`is-${String(row.status || '').toLowerCase()}`">
+                  {{ statusText(row.status) }}
+                </span>
+              </td>
+              <td class="cold-chain-time">{{ row.createTime || '-' }}</td>
             </tr>
-            <tr v-else-if="rows.length === 0">
-              <td colspan="7" class="empty-cell">暂无冷链异常记录</td>
-            </tr>
-            <template v-else>
-              <tr v-for="row in rows" :key="String(row.bizNo)">
-                <td>
-                  <strong>{{ row.bizNo || '-' }}</strong>
-                </td>
-                <td>{{ row.warehouseName || '-' }}</td>
-                <td>
-                  <strong>{{ row.productName || '-' }}</strong>
-                  <span class="muted-cell">{{ row.productCode || '-' }}</span>
-                </td>
-                <td>{{ row.temperature || '-' }}</td>
-                <td>{{ severityText(row.severity) }}</td>
-                <td>{{ statusText(row.status) }}</td>
-                <td>{{ row.createTime || '-' }}</td>
-              </tr>
-            </template>
           </tbody>
         </table>
       </div>
@@ -264,78 +222,282 @@ onMounted(async () => {
         @change-size="changePageSize"
       />
     </section>
-  </section>
+
+    <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body class="cold-chain-dialog">
+      <div class="cold-chain-form">
+        <label><span>库房</span>
+          <select v-model="form.warehouseName">
+            <option v-for="warehouse in options.warehouses" :key="warehouse.warehouseName" :value="warehouse.warehouseName">
+              {{ warehouse.warehouseName }}
+            </option>
+          </select>
+        </label>
+        <label><span>商品</span>
+          <select v-model="form.productCode">
+            <option v-for="product in options.products" :key="product.productCode" :value="product.productCode">
+              {{ product.productName }} / {{ product.productCode }}
+            </option>
+          </select>
+        </label>
+        <label><span>当前温度（℃）</span>
+          <input v-model="form.temperature" type="number" step="0.1" placeholder="例如 9.5" />
+        </label>
+        <label><span>严重程度</span>
+          <select v-model="form.severity">
+            <option value="high">高</option>
+            <option value="medium">中</option>
+            <option value="low">低</option>
+          </select>
+        </label>
+      </div>
+      <p v-if="selectedProduct" class="cold-chain-product">
+        当前商品：{{ selectedProduct.productName }}，规格 {{ selectedProduct.specModel || '-' }}，单位 {{ selectedProduct.unit || '-' }}
+      </p>
+      <div class="cold-chain-dialog-actions">
+        <button class="btn btn-primary" type="button" :disabled="submitting" @click="submitException">保存异常</button>
+        <button class="btn" type="button" :disabled="submitting" @click="resetForm">重置</button>
+      </div>
+    </el-dialog>
+  </main>
 </template>
 
 <style scoped>
-.cold-chain-heading {
-  align-items: center;
+/* =====================================================================
+   冷链监控
+   全部使用项目设计令牌（--spd-*），与科室申领、UDI 追溯等页面保持一致。
+   ===================================================================== */
+.cold-chain-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 16px 20px 24px;
+  border: 0 !important;
+  background: transparent;
+  overflow: visible;
+}
+
+.cold-chain-page h3,
+.cold-chain-page p {
+  margin: 0;
+}
+
+/* ---------- 面板 ---------- */
+.cold-chain-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-1);
+}
+
+.cold-chain-panel-header {
+  display: flex;
+  align-items: baseline;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
-.cold-chain-total {
-  min-width: 128px;
-  padding: 14px 18px;
-  border: 1px solid #dbe5ec;
-  border-radius: 8px;
-  background: #ffffff;
-  text-align: right;
-}
-
-.cold-chain-total span,
-.cold-chain-product {
-  color: #64748b;
-}
-
-.cold-chain-total strong {
-  display: block;
-  margin-top: 4px;
-  color: #0f766e;
-  font-size: 28px;
-}
-
-.cold-chain-form {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.cold-chain-product {
-  margin: 12px 0 0;
-}
-
-.cold-chain-list-title {
-  margin-bottom: 16px;
-}
-
-.form-message {
-  margin: 14px 0 0;
-  color: #0f766e;
+.cold-chain-panel-header h3 {
+  color: var(--spd-text-heading);
+  font-size: 15px;
   font-weight: 600;
 }
 
-.table-scroll {
+.cold-chain-count {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+}
+
+/* ---------- 表格 ---------- */
+.cold-chain-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
-.muted-cell {
-  display: block;
-  margin-top: 4px;
-  color: #64748b;
+.cold-chain-table {
+  width: 100%;
+  /* 仅 7 列，容器足够宽时铺满，不产生横向滚动 */
+  min-width: 760px;
+  border-collapse: collapse;
   font-size: 13px;
 }
 
-.empty-cell {
-  padding: 28px;
-  color: #64748b;
-  text-align: center;
+th,
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+  text-align: left;
+  vertical-align: middle;
 }
 
+th {
+  background: var(--spd-bg-subtle, #f6f8fb);
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:hover {
+  background: var(--spd-primary-bg);
+}
+
+td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--spd-text-tertiary);
+  font-size: 12px;
+}
+
+.cold-chain-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 温度 ---------- */
+.cold-temp {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.cold-temp em {
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 400;
+}
+
+.cold-temp.is-high {
+  color: #b91c1c;
+}
+
+.cold-temp.is-medium {
+  color: #b45309;
+}
+
+.cold-temp.is-low {
+  color: #047857;
+}
+
+/* ---------- 标签 ---------- */
+.severity-pill,
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.severity-pill.is-high {
+  background: var(--spd-danger-bg, #fef2f2);
+  color: #b91c1c;
+}
+
+.severity-pill.is-medium {
+  background: var(--spd-warning-bg, #fff7ed);
+  color: #b45309;
+}
+
+.severity-pill.is-low {
+  background: var(--spd-success-bg, #ecfdf5);
+  color: #047857;
+}
+
+.status-pill.is-pending_dispose {
+  background: var(--spd-warning-bg, #fff7ed);
+  color: #b45309;
+}
+
+.status-pill.is-disposed {
+  background: var(--spd-info-bg, #eff6ff);
+  color: #2563eb;
+}
+
+.status-pill.is-closed {
+  background: var(--spd-bg-subtle, #f3f4f6);
+  color: var(--spd-text-secondary);
+}
+
+/* ---------- 登记弹窗 ---------- */
+.cold-chain-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px 16px;
+}
+
+.cold-chain-form label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cold-chain-form label > span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.cold-chain-form select,
+.cold-chain-form input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  outline: 0;
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.cold-chain-form select:focus,
+.cold-chain-form input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--spd-primary-bg);
+}
+
+.cold-chain-product {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: var(--spd-radius-sm, 6px);
+  background: var(--spd-primary-bg);
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cold-chain-dialog-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--spd-border-subtle);
+}
+
+/* ---------- 响应式 ---------- */
 @media (max-width: 760px) {
-  .cold-chain-heading {
-    align-items: stretch;
+  .cold-chain-page {
+    padding: 12px 12px 20px;
   }
 
-  .cold-chain-total {
-    text-align: left;
+  .cold-chain-form {
+    grid-template-columns: 1fr;
   }
 }
 </style>

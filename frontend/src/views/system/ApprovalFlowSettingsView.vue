@@ -23,6 +23,7 @@ import {
   type ApprovalFlowRow,
   type ApprovalFlowStep
 } from '../../api/approvalFlows'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 
 const scopeOptions = [
   { value: 'global', label: '全局' },
@@ -449,214 +450,113 @@ onMounted(loadAll)
 </script>
 
 <template>
-  <section class="approval-config-page">
-    <header class="approval-config-toolbar">
-      <div class="approval-config-actions">
-        <button type="button" class="btn btn-primary" @click="openCreate()">
-          <Plus :size="17" />
-          新增审批流
-        </button>
-        <button type="button" class="btn" @click="showPlaceholderAction('批量导入')">
-          <Upload :size="17" />
-          批量导入
-        </button>
-        <button type="button" class="btn" @click="showPlaceholderAction('导出 Excel')">
-          <Download :size="17" />
-          导出 Excel
-        </button>
-        <button type="button" class="btn btn-outline-primary" @click="enterEditMode">
-          <Settings2 :size="17" />
-          审批流配置
-        </button>
-      </div>
-      <div class="approval-config-count">共 <strong>{{ rows.length }}</strong> 条配置</div>
-    </header>
+  <div class="md-page sys-page">
+    <MdPageHeader
+      crumb="系统管理"
+      title="审批流设置"
+      description="维护各业务菜单的审批节点、参与角色、人员与数据隔离范围。"
+      :loading="loading"
+      @refresh="loadAll"
+    >
+      <template #actions>
+        <button class="md-btn" type="button" @click="showPlaceholderAction('批量导入')"><Upload :size="15" /> 批量导入</button>
+        <button class="md-btn" type="button" @click="showPlaceholderAction('导出 Excel')"><Download :size="15" /> 导出 Excel</button>
+      </template>
+    </MdPageHeader>
 
-    <p v-if="form.featureCode === 'pending-product-catalog'" class="inline-message">目录按配置中的启用步骤依次审批，最后一级通过即结束。新提交及退回重提使用最新配置，在途单据保留提交时的审批流程。</p>
-    <p v-if="message" class="inline-message">{{ message }}</p>
-    <p v-if="error" class="inline-message danger">{{ error }}</p>
+    <div class="md-tabs sys-tabs">
+      <button type="button" :class="['md-tab', { active: activeFeatureCode === '' }]" @click="selectFeature('')">
+        <GitBranch :size="14" /> 全部菜单 <span v-if="rows.length" class="md-tab-count">{{ rows.length }}</span>
+      </button>
+      <button v-for="feature in featureGroups" :key="feature.featureCode" type="button" :class="['md-tab', { active: activeFeatureCode === feature.featureCode }]" @click="selectFeature(feature.featureCode)">
+        <ClipboardCheck :size="14" /> {{ featureLabel(feature) }} <span class="md-tab-count">{{ feature.count }}</span>
+      </button>
+    </div>
 
-    <section class="approval-config-shell">
-      <div class="approval-config-head">
-        <div class="approval-config-title">
-          <Settings2 :size="22" />
-          <h2>{{ featureLabel(form) }}审批流程配置</h2>
+    <div class="md-toolbar sys-toolbar">
+      <div class="sys-search-wrap">
+        <span class="sys-search-label">关键词</span>
+        <div class="sys-search-input-wrap">
+          <input v-model.trim="keyword" class="sys-search-input" placeholder="功能、节点、备注" @keyup.enter="loadAll" />
+          <button class="sys-search-btn" type="button" @click="loadAll"><Search :size="15" /></button>
         </div>
-        <div class="approval-config-head-actions">
-          <button type="button" class="btn" :disabled="!editMode" @click="addStep">
-            <Plus :size="17" />
-            新增审批步骤
-          </button>
-          <button type="button" class="btn btn-primary" :disabled="saving || !editMode" @click="saveFlow">
-            <Save :size="17" />
-            保存配置
-          </button>
-        </div>
+        <select v-model="status" class="md-select" style="min-height:34px;width:auto;flex-shrink:0">
+          <option value="">全部状态</option>
+          <option value="1">启用</option>
+          <option value="0">停用</option>
+        </select>
       </div>
-
-      <form class="approval-config-filter" @submit.prevent="loadAll">
-        <label>
-          <span>菜单界面</span>
-          <select :value="form.featureCode" :disabled="!editMode" @change="onNodeChange">
-            <option
-              v-for="node in menuOptions"
-              :key="node.featureCode"
-              :value="node.featureCode"
-            >
-              {{ menuLabel(node) }}
-            </option>
-          </select>
-        </label>
-        <label>
-          <span>适用范围</span>
-          <select v-model="form.scopeType" :disabled="!editMode">
-            <option v-for="scope in scopeOptions.filter(item => form.featureCode !== 'pending-product-catalog' || item.value !== 'warehouse')" :key="scope.value" :value="scope.value">{{ scope.label }}</option>
-          </select>
-        </label>
-        <label>
-          <span>适用对象</span>
-          <input v-model.trim="form.scopeId" :readonly="!editMode" placeholder="default" />
-        </label>
-        <label>
-          <span>流程数据隔离</span>
-          <select v-model.number="form.dataScope" :disabled="!editMode">
-            <option v-for="scope in dataScopeOptions" :key="scope.value" :value="scope.value">{{ scope.label }}</option>
-          </select>
-        </label>
-        <label>
-          <span>查询关键字</span>
-          <input v-model.trim="keyword" placeholder="功能、节点、备注" />
-        </label>
-        <label>
-          <span>筛选状态</span>
-          <select v-model="status">
-            <option value="">全部</option>
-            <option value="1">启用</option>
-            <option value="0">停用</option>
-          </select>
-        </label>
-        <div class="approval-filter-actions">
-          <button type="submit" class="btn btn-primary">
-            <Search :size="17" />
-            查询
-          </button>
-          <button type="button" class="btn" @click="resetQuery">重置</button>
-          <button type="button" class="btn" @click="loadAll">
-            <RefreshCw :size="17" />
-            刷新
-          </button>
-        </div>
-      </form>
-
-      <div class="approval-feature-strip">
-        <button type="button" :class="{ active: activeFeatureCode === '' }" @click="selectFeature('')">
-          <GitBranch :size="16" />
-          全部菜单
-        </button>
-        <button
-          v-for="feature in featureGroups"
-          :key="feature.featureCode"
-          type="button"
-          :class="{ active: activeFeatureCode === feature.featureCode }"
-          @click="selectFeature(feature.featureCode)"
-        >
-          <ClipboardCheck :size="16" />
-          {{ featureLabel(feature) }}
-          <strong>{{ feature.count }}</strong>
-        </button>
+      <div class="sys-toolbar-right">
+        <button class="md-btn md-btn-primary" type="button" @click="openCreate()"><Plus :size="15" /> 新增审批流</button>
+        <button class="md-btn" type="button" @click="enterEditMode"><Settings2 :size="15" /> {{ editMode ? '已可编辑' : '审批流配置' }}</button>
+        <button class="md-btn md-btn-primary" type="button" :disabled="saving || !editMode" @click="saveFlow"><Save :size="15" /> 保存配置</button>
       </div>
+    </div>
 
-      <div class="approval-config-tip">
-        <span>提示</span>
-        当前审批流绑定菜单界面 <strong>{{ menuLabel(form) }}</strong>，下方可维护审批顺序、角色参与、人员参与、部门参与和数据隔离，保存后立即生效。
-      </div>
+    <div class="md-content sys-content">
+      <div v-if="message" class="md-message">{{ message }}</div>
+      <div v-if="error" class="md-error">{{ error }}</div>
 
-      <div class="approval-timeline-panel">
-        <div class="approval-timeline">
-          <article v-for="step in currentSteps" :key="step.stepOrder" class="approval-timeline-node">
-            <div class="approval-timeline-index">{{ step.stepOrder }}</div>
-            <strong>{{ cleanText(step.stepName, nodeLabel(form)) }}</strong>
-            <span>{{ approverName(step) }}</span>
-          </article>
+      <div class="md-form-section">
+        <h4>绑定菜单与作用域</h4>
+        <div class="md-form-grid">
+          <label><span>菜单界面</span><select :value="form.featureCode" :disabled="!editMode" class="md-select" @change="onNodeChange"><option v-for="node in menuOptions" :key="node.featureCode" :value="node.featureCode">{{ menuLabel(node) }}</option></select></label>
+          <label><span>适用范围</span><select v-model="form.scopeType" :disabled="!editMode" class="md-select"><option v-for="scope in scopeOptions.filter(item => form.featureCode !== 'pending-product-catalog' || item.value !== 'warehouse')" :key="scope.value" :value="scope.value">{{ scope.label }}</option></select></label>
+          <label><span>适用对象</span><input v-model.trim="form.scopeId" :readonly="!editMode" class="md-input" placeholder="default" /></label>
+          <label><span>流程数据隔离</span><select v-model.number="form.dataScope" :disabled="!editMode" class="md-select"><option v-for="scope in dataScopeOptions" :key="scope.value" :value="scope.value">{{ scope.label }}</option></select></label>
         </div>
       </div>
 
-      <div class="approval-config-table-wrap">
-        <table class="approval-config-table">
-          <thead>
-            <tr>
-              <th>审批顺序</th>
-              <th>审批步骤名称</th>
-              <th>角色参与</th>
-              <th>人员参与</th>
-              <th>部门参与</th>
-              <th>最少通过</th>
-              <th>数据隔离</th>
-              <th>启用</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(step, index) in form.steps" :key="index">
-              <td class="approval-order-cell"><input v-model.number="step.stepOrder" :readonly="!editMode" min="1" type="number" /></td>
-              <td><input v-model.trim="step.stepName" :readonly="!editMode" required /></td>
-              <td>
-                <select v-model.number="step.roleId" :disabled="!editMode" @change="setStepApproverType(step, 'role')">
-                  <option :value="undefined">不指定角色</option>
-                  <option v-for="role in options.roles" :key="role.roleId" :value="role.roleId">{{ role.roleName }}</option>
-                </select>
-              </td>
-              <td>
-                <select v-model.number="step.userId" :disabled="!editMode" @change="setStepApproverType(step, 'user')">
-                  <option :value="undefined">不指定人员</option>
-                  <option v-for="user in options.users" :key="user.userId" :value="user.userId">{{ user.realName }}</option>
-                </select>
-              </td>
-              <td>
-                <select v-model.number="step.deptId" :disabled="!editMode" @change="setStepApproverType(step, 'dept_manager')">
-                  <option :value="undefined">按单据科室</option>
-                  <option v-for="dept in options.departments" :key="dept.deptId" :value="dept.deptId">{{ dept.deptName }}</option>
-                </select>
-              </td>
-              <td class="approval-min-cell"><input v-model.number="step.minApprovals" :readonly="!editMode" min="1" type="number" /></td>
-              <td>
-                <select v-model.number="step.dataScope" :disabled="!editMode">
-                  <option v-for="scope in dataScopeOptions" :key="scope.value" :value="scope.value">{{ scope.label }}</option>
-                </select>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  :class="['approval-enable-pill', step.status === 1 ? 'enabled' : 'disabled']"
-                  :disabled="!editMode"
-                  @click="step.status = step.status === 1 ? 0 : 1"
-                >
-                  {{ step.status === 1 ? '启用' : '停用' }}
-                </button>
-              </td>
-              <td>
-                <button type="button" class="btn-text danger" :disabled="!editMode" @click="removeStep(index)">删除</button>
-              </td>
-            </tr>
-            <tr v-if="loading">
-              <td colspan="9" class="approval-empty">正在加载审批流配置...</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="md-table-card">
+        <div class="md-panel-header">
+          <h4 class="md-panel-title">{{ featureLabel(form) }} · 审批步骤</h4>
+          <button class="md-btn" type="button" :disabled="!editMode" @click="addStep"><Plus :size="14" /> 新增步骤</button>
+        </div>
+        <div class="table-scroll">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th style="width:90px">审批顺序</th>
+                <th>审批步骤名称</th>
+                <th>角色参与</th>
+                <th>人员参与</th>
+                <th>部门参与</th>
+                <th>最少通过</th>
+                <th>数据隔离</th>
+                <th>启用</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading"><td colspan="9" class="text-center muted">正在加载...</td></tr>
+              <tr v-else v-for="(step, index) in form.steps" :key="index">
+                <td><input v-model.number="step.stepOrder" :readonly="!editMode" min="1" type="number" class="md-input" style="min-width:70px" /></td>
+                <td><input v-model.trim="step.stepName" :readonly="!editMode" class="md-input" /></td>
+                <td><select v-model.number="step.roleId" :disabled="!editMode" class="md-select" @change="setStepApproverType(step, 'role')"><option :value="undefined">不指定角色</option><option v-for="r in options.roles" :key="r.roleId" :value="r.roleId">{{ r.roleName }}</option></select></td>
+                <td><select v-model.number="step.userId" :disabled="!editMode" class="md-select" @change="setStepApproverType(step, 'user')"><option :value="undefined">不指定人员</option><option v-for="u in options.users" :key="u.userId" :value="u.userId">{{ u.realName }}</option></select></td>
+                <td><select v-model.number="step.deptId" :disabled="!editMode" class="md-select" @change="setStepApproverType(step, 'dept_manager')"><option :value="undefined">按单据科室</option><option v-for="d in options.departments" :key="d.deptId" :value="d.deptId">{{ d.deptName }}</option></select></td>
+                <td><input v-model.number="step.minApprovals" :readonly="!editMode" min="1" type="number" class="md-input" style="min-width:60px" /></td>
+                <td><select v-model.number="step.dataScope" :disabled="!editMode" class="md-select"><option v-for="scope in dataScopeOptions" :key="scope.value" :value="scope.value">{{ scope.label }}</option></select></td>
+                <td><span :class="['md-status', step.status === 1 ? 'success' : 'danger']">{{ step.status === 1 ? '启用' : '停用' }}</span></td>
+                <td>
+                  <button class="md-btn-text" type="button" :disabled="!editMode" @click="step.status = step.status === 1 ? 0 : 1">{{ step.status === 1 ? '停用' : '启用' }}</button>
+                  <button class="md-btn-text md-btn-text-danger" type="button" :disabled="!editMode" @click="removeStep(index)">删除</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
-
-      <div class="approval-existing-list">
-        <button
-          v-for="row in rows"
-          :key="row.flowId"
-          type="button"
-          :class="{ active: editingFlowId === row.flowId }"
-          @click="openEdit(row)"
-        >
-          <span>{{ menuLabel(row) }}</span>
-          <small>{{ dataScopeName(row.dataScope) }} · {{ row.status === 1 ? '启用' : '停用' }}</small>
-        </button>
-      </div>
-    </section>
-  </section>
+    </div>
+  </div>
 </template>
+
+<style scoped>
+.sys-page { display: flex; flex-direction: column; }
+.sys-tabs { margin: 12px 0 0; overflow-x: auto; }
+.sys-toolbar { margin: 0; }
+.sys-content { padding: 12px 0 24px; display: flex; flex-direction: column; gap: 12px; }
+.table-scroll { overflow-x: auto; }
+.text-center { text-align: center; }
+.muted { color: var(--md-text-muted); padding: 32px; }
+</style>

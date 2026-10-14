@@ -1,6 +1,7 @@
 import type { Ref } from 'vue'
 import { fetchQuotaSafety, saveQuotaSafety, type QuotaSafetyRow } from '../api/quotaPackages'
 import { csvCell, downloadCsvContent, parseCsvLine } from '../utils/downloadCsv'
+import type { QuotaActionResult } from './useQuotaTemplateActions'
 
 type SafetyQuery = {
   deptName: string
@@ -20,7 +21,7 @@ export function useQuotaSafetyImportExport(options: {
   safetyRows: Ref<QuotaSafetyRow[]>
   safetyPagination: SafetyPagination
   query: SafetyQuery
-  message: Ref<string>
+  message: Ref<QuotaActionResult>
   reload: () => Promise<void>
 }) {
   function triggerSafetyImport() {
@@ -89,11 +90,17 @@ export function useQuotaSafetyImportExport(options: {
           failedCount += 1
         }
       }
-      options.message.value = `已导入 ${successCount} 条安全量配置${skippedCount ? `，跳过 ${skippedCount} 行` : ''}${failedCount ? `，失败 ${failedCount} 行` : ''}`
+      options.message.value = {
+        text: `已导入 ${successCount} 条安全量配置${skippedCount ? `，跳过 ${skippedCount} 行` : ''}${failedCount ? `，失败 ${failedCount} 行` : ''}`,
+        tone: failedCount ? 'warning' : 'success'
+      }
       options.safetyPagination.page = 1
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || error?.message || '导入失败，请检查 CSV 内容'
+      options.message.value = {
+        text: error?.response?.data?.message || error?.message || '导入失败，请检查 CSV 内容',
+        tone: 'error'
+      }
     } finally {
       options.safetyImporting.value = false
       input.value = ''

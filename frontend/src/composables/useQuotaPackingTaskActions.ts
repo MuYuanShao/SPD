@@ -36,21 +36,25 @@ async function confirmAction(message: string, title: string, confirmButtonText: 
 
 export function useQuotaPackingTaskActions(options: {
   packingForm: PackingTaskForm
-  message: Ref<string>
+  /** 操作结果：tone=success 就地显示，tone=error 用 ElMessage 弹出 */
+  message: Ref<{ text: string; tone: 'success' | 'error' | 'warning' }>
   taskLoading: Ref<boolean>
   selectedTaskNo: Ref<string>
   taskReservations: Ref<Record<string, unknown>[]>
   reload: () => Promise<void>
   showGeneratedLabels?: (labelNos: string[]) => Promise<void> | void
 }) {
+  function setResult(text: string, tone: 'success' | 'error' | 'warning' = 'success') {
+    options.message.value = { text, tone }
+  }
   async function submitPackingTask() {
     if (options.taskLoading.value) return
     if (!options.packingForm.templateCode) {
-      options.message.value = '请先选择模板编码'
+      setResult('请先选择打包模板')
       return
     }
     options.taskLoading.value = true
-    options.message.value = ''
+    options.message.value = { text: '', tone: 'success' }
     try {
       let result = await createPackingTask(options.packingForm)
       if (result.requiresConfirmation && !result.created) {
@@ -67,19 +71,21 @@ export function useQuotaPackingTaskActions(options: {
           expectedPackableCount: packable
         })
         if (result.requiresConfirmation || !result.created) {
-          options.message.value = '库存已发生变化，请根据最新可打包数量再次确认'
+          setResult('库存已发生变化，请根据最新可打包数量再次确认', 'warning')
           return
         }
       }
       const reservedLooseQty = result.reservedLooseQty ?? result.plannedLooseQty
       const requestedCount = result.requestedPackageCount ?? options.packingForm.packageCount
       const actualCount = result.packageCount ?? requestedCount
-      options.message.value = actualCount < requestedCount
-        ? `已确认部分创建 ${actualCount}/${requestedCount} 包：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
-        : `打包任务已创建：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
+      setResult(
+        actualCount < requestedCount
+          ? `已按当前库存部分创建 ${actualCount}/${requestedCount} 包，任务号 ${result.taskNo}，已锁定散货 ${reservedLooseQty}`
+          : `打包任务创建成功：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
+      )
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || error?.message || '创建打包任务失败，请重试'
+      setResult(error?.response?.data?.message || error?.message || '创建打包任务失败，请重试', 'error')
     } finally {
       options.taskLoading.value = false
     }
@@ -87,7 +93,7 @@ export function useQuotaPackingTaskActions(options: {
 
   async function approveTask(row: PackingTaskRow) {
     const result = await confirmPackingTask(row.taskNo)
-    options.message.value = `${result.taskNo} 已确认，生成待打印标签 ${result.labels.join('、')}`
+    setResult(`${result.taskNo} 已确认，生成待打印标签 ${result.labels.join('、')}`)
     await options.showGeneratedLabels?.(result.labels)
     await options.reload()
   }
@@ -95,7 +101,7 @@ export function useQuotaPackingTaskActions(options: {
   async function cancelTask(row: PackingTaskRow) {
     if (!await confirmAction(`确认取消打包任务 ${row.taskNo} 并释放预占散货？`, '取消打包任务', '确认取消')) return
     const result = await cancelPackingTask(row.taskNo, '页面取消打包任务')
-    options.message.value = `${result.taskNo} 已取消，预占散货已释放`
+    setResult(`${result.taskNo} 已取消，预占散货已释放`)
     options.selectedTaskNo.value = ''
     options.taskReservations.value = []
     await options.reload()
@@ -104,7 +110,7 @@ export function useQuotaPackingTaskActions(options: {
   async function terminateTask(row: PackingTaskRow) {
     if (!await confirmAction(`确认终止打包任务 ${row.taskNo}？仅未进入配送、签收、消耗或结算的标签可回退。`, '终止打包任务', '确认终止')) return
     const result = await terminatePackingTask(row.taskNo, '页面终止打包任务并退回散货库存')
-    options.message.value = `${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`
+    setResult(`${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`)
     options.selectedTaskNo.value = ''
     options.taskReservations.value = []
     await options.reload()
@@ -120,7 +126,7 @@ export function useQuotaPackingTaskActions(options: {
     })
     if (!await confirmAction(`确认终止打包任务 ${value.trim()}？仅可逆标签会退回散货。`, '确认终止', '确认终止')) return
     const result = await terminatePackingTask(value.trim(), '页面终止打包任务并退回散货库存')
-    options.message.value = `${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`
+    setResult(`${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`)
     options.selectedTaskNo.value = ''
     options.taskReservations.value = []
     await options.reload()
@@ -133,13 +139,13 @@ export function useQuotaPackingTaskActions(options: {
       options.taskReservations.value = await fetchPackingTaskReservations(row.taskNo)
     } catch (error) {
       options.selectedTaskNo.value = ''
-      options.message.value = error instanceof Error ? error.message : '预占明细加载失败'
+      setResult(error instanceof Error ? error.message : '预占明细加载失败', 'error')
     }
   }
 
   async function recalculateTask(row: PackingTaskRow) {
     const result = await recalculatePackingTask(row.taskNo)
-    options.message.value = `${result.taskNo} 已重算，预占散货 ${result.reservedLooseQty}`
+    setResult(`${result.taskNo} 已重算，预占散货 ${result.reservedLooseQty}`)
     await viewTaskReservations(row)
     await options.reload()
   }
@@ -148,10 +154,10 @@ export function useQuotaPackingTaskActions(options: {
     if (!await confirmAction(`确认将定数包标签 ${row.labelNo} 解包成散货？解包后原标签不可继续使用。`, '定数包解包', '确认解包')) return
     try {
       const result = await unpackPackageLabel(row.labelNo, '页面操作解包回散货')
-      options.message.value = `${result.labelNo} 已解包，恢复散货 ${result.restoredLooseQty}`
+      setResult(`${result.labelNo} 已解包，恢复散货 ${result.restoredLooseQty}`)
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || error?.message || '定数包解包失败，请重试'
+      setResult(error?.response?.data?.message || error?.message || '定数包解包失败，请重试', 'error')
     }
   }
 
@@ -159,10 +165,10 @@ export function useQuotaPackingTaskActions(options: {
     try {
       const printerName = await printQuotaLabel(row)
       const result = await printPackageLabel(row.labelNo)
-      options.message.value = `${result.labelNo} 已发送至${printerName}，打印次数 ${result.printCount}`
+      setResult(`${result.labelNo} 已发送至${printerName}，打印次数 ${result.printCount}`)
       await options.reload()
     } catch (error: any) {
-      options.message.value = error?.response?.data?.message || error?.message || '定数包标签打印失败，请重试'
+      setResult(error?.response?.data?.message || error?.message || '定数包标签打印失败，请重试', 'error')
     }
   }
 

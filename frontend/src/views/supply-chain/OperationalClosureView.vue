@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import 'element-plus/theme-chalk/el-dialog.css'
+import 'element-plus/theme-chalk/el-message.css'
 import { useRoute } from 'vue-router'
 import {
   Activity,
@@ -10,6 +12,7 @@ import {
   CheckCircle2,
   ClipboardCheck,
   FileCheck2,
+  FileText,
   History,
   PackageCheck,
   RefreshCw,
@@ -17,7 +20,6 @@ import {
   Save,
   ScanLine,
   Search,
-  ShieldCheck,
   Smartphone,
   Truck,
   X
@@ -25,6 +27,9 @@ import {
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import PageHeader from '../../components/common/PageHeader.vue'
+import HighValueOperationsPanel from '../../components/supply-chain/HighValueOperationsPanel.vue'
 import {
   bindHighValuePatient,
   confirmHighValuePicking,
@@ -58,13 +63,30 @@ import {
 } from '../../api/operationalClosure'
 import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
 import { consumeQuotaPackageByCode } from '../../api/udiTraceability'
-import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import { formatApiErrorText, formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
 
 const route = useRoute()
 const loading = ref(false)
-const message = ref('')
+const actionError = ref('')
+const recallDialogError = ref('')
 const deliverySubmitting = ref(false)
-const deliveryError = ref('')
+
+/** 各业务动作的兜底失败文案，避免一律显示"操作失败" */
+const ACTION_FAILURE_TEXT: Record<string, string> = {
+  shortage: '补货任务生成失败，请重试',
+  requisition: '科室申领提交失败，请重试',
+  approveRequisition: '申领审批失败，请重试',
+  rejectRequisition: '申领驳回失败，请重试',
+  delivery: '拣配出库失败，请重试',
+  sign: '配送签收失败，请重试',
+  consumption: '消耗登记失败，请检查科室库存后重试',
+  reverse: '反消耗红冲失败，请重试',
+  pda: 'PDA 离线补传失败，请重试',
+  cold: '冷链异常登记失败，请重试',
+  recall: '召回隔离失败，请重试',
+  bindPatient: '患者绑定失败，请重试',
+  billingCallback: '计费回传失败，请重试'
+}
 const rows = ref<Record<string, unknown>[]>([])
 const analysisRows = ref<Record<string, unknown>[]>([])
 const pickingRequisitionRows = ref<Record<string, unknown>[]>([])
@@ -156,7 +178,7 @@ const titleMap: Record<string, string> = {
   delivery: '拣配配送',
   requisition: '科室申领',
   consumption: '科室消耗',
-  settlement: '结算对账 / 供应商明细口径',
+  settlement: '结算对账',
   pda: 'PDA 基础作业与离线补传',
   risk: '冷链异常 / 召回隔离',
   'high-value': '高值使用计费基础'
@@ -164,7 +186,7 @@ const titleMap: Record<string, string> = {
 const title = computed(() => pageCode.value === 'red-flush-management' ? '红冲管理' : titleMap[type.value])
 const subtitle = computed(() => {
   if (type.value === 'red-flush') return '展示反消耗生成并持久化到数据库的红冲记录。'
-  if (type.value === 'settlement') return '按库存批次固化的结算点自动生成结算明细，财务只需复核确认。'
+  if (type.value === 'settlement') return '按库存批次固化的结算点自动生成明细，财务复核即可。'
   if (type.value === 'risk') return '登记冷链异常与召回隔离事件，形成合规追踪入口。'
   if (type.value === 'pda') return '模拟 PDA 离线作业补传，记录设备、作业类型与回放状态。'
   if (type.value === 'delivery') return '中心库按科室申领单拣配定数包，绑定申领明细后出一级库。'
@@ -206,6 +228,35 @@ const effectiveReplenishmentDays = computed(() => {
   return Number.isFinite(days) && days > 0 ? days : 7
 })
 
+/** 结算对账：本页结算金额合计，用于表头摘要行 */
+const settlementTotalAmount = computed(() => {
+  if (type.value !== 'settlement') return 0
+  return rows.value.reduce((sum, row) => sum + Number(row.settlementAmount || 0), 0)
+})
+const settlementTotalQuantity = computed(() => {
+  if (type.value !== 'settlement') return 0
+  return rows.value.reduce((sum, row) => sum + Number(row.settlementQuantity || 0), 0)
+})
+/** 结算 KPI：供应商数 = 结算供应商去重，结算单数 = 当前页内 settlementNo 去重 */
+const settlementSupplierCount = computed(() => {
+  if (type.value !== 'settlement') return 0
+  const set = new Set<string>()
+  for (const row of rows.value) {
+    const v = String(row.settlementSupplier || '').trim()
+    if (v && v !== '-') set.add(v)
+  }
+  return set.size
+})
+const settlementDocumentCount = computed(() => {
+  if (type.value !== 'settlement') return 0
+  const set = new Set<string>()
+  for (const row of rows.value) {
+    const v = String(row.settlementNo || row.bizNo || '').trim()
+    if (v && v !== '-') set.add(v)
+  }
+  return set.size
+})
+
 function shortagePayload() {
   return {
     ...form,
@@ -241,7 +292,7 @@ async function loadLinkedWarehouses() {
   } catch (error) {
     linkedWarehouses.value = []
     if (type.value !== 'delivery') form.warehouseName = ''
-    message.value = error instanceof Error ? error.message : '关联库房加载失败'
+    notifyError(apiErrorText(error, '关联库房加载失败'))
   }
 }
 
@@ -391,14 +442,14 @@ function scanPickingPackage() {
   if (!code) return
   const matched = pickingPackageRows.value.find(row => String(row.labelNo || '').toLowerCase() === code.toLowerCase())
   if (!matched) {
-    message.value = `定数包码 ${code} 不属于当前申请商品或不在所选一级库`
+    notifyError(`定数包码 ${code} 不属于当前申请商品或不在所选一级库`, 'warning')
     return
   }
   if (!selectedPickingLabels.value.includes(String(matched.labelNo))) {
     selectedPickingLabels.value = [...selectedPickingLabels.value, String(matched.labelNo)]
   }
   pickingPackageScanCode.value = ''
-  message.value = `已扫码选中定数包：${matched.labelNo}`
+  notifySuccess(`已扫码选中定数包：${matched.labelNo}`)
 }
 
 function togglePickingUniqueCode(code: string, checked: boolean) {
@@ -422,13 +473,25 @@ const selectedPickingTotal = computed(() => {
   return labels + codes + loose
 })
 
+/** 当前选中申领明细的待拣配数量，取自申领行本身，不复用 form.quantity */
+const selectedPendingQty = computed(() => {
+  const row = pickingRequisitionRows.value.find(
+    (item) => String(item.itemId) === selectedPickingItemId.value
+  )
+  if (!row) return 0
+  if (row.itemType === 'quota_package') {
+    return Number(row.remainingPackageCount ?? row.remainingQty ?? 0)
+  }
+  return Number(row.remainingQty ?? 0)
+})
+
 async function confirmSelectedPicking() {
   if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
-    message.value = '请先选择科室申领明细'
+    notifyError('请先选择科室申领明细', 'warning')
     return
   }
   if (!form.warehouseName) {
-    message.value = '请先选择中心库'
+    notifyError('请先选择中心库', 'warning')
     return
   }
   const itemType = selectedPickingItemType.value
@@ -441,14 +504,14 @@ async function confirmSelectedPicking() {
   // 唯一码类型：按唯一码/UDI 拣配（配对申请单的唯一码）
   if (itemType === 'unique_code') {
     if (!selectedPickingUniqueCodes.value.length) {
-      message.value = '请先勾选唯一码/UDI'
+      notifyError('请先勾选唯一码/UDI', 'warning')
       return
     }
     const traceCodeIds = selectedPickingUniqueCodes.value.map(code =>
       Number(pickingUniqueCodeRows.value.find(row => String(row.uniqueCode) === code)?.traceCodeId)
     )
     if (traceCodeIds.some(id => !Number.isSafeInteger(id) || id <= 0)) {
-      message.value = '所选唯一码已失效，请刷新货源后重试'
+      notifyError('所选唯一码已失效，请刷新货源后重试', 'warning')
       return
     }
     const result = await confirmHighValuePicking({
@@ -456,7 +519,7 @@ async function confirmSelectedPicking() {
       traceCodeIds
     })
     form.deliveryNo = String(result.deliveryNo || '')
-    message.value = `拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`
+    notifySuccess(`拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`)
     selectedPickingUniqueCodes.value = []
     await loadData()
     return
@@ -465,7 +528,7 @@ async function confirmSelectedPicking() {
   // 履约模式必须与已审批申领快照一致。
   const looseQty = pickingLooseRows.value.reduce((sum, row) => sum + Number(row.pickQty || 0), 0)
   if (!selectedPickingLabels.value.length && looseQty <= 0) {
-    message.value = itemType === 'quota_package' ? '请勾选匹配申领快照的定数包标签' : '请填写散货拣配数量'
+    notifyError(itemType === 'quota_package' ? '请勾选匹配申领快照的定数包标签' : '请填写散货拣配数量', 'warning')
     return
   }
   const done: string[] = []
@@ -481,7 +544,7 @@ async function confirmSelectedPicking() {
     done.push(`散货 ${looseQty}（${looseResult.deliveryNo}）`)
   }
   form.deliveryNo = String(done[0]?.split('（')[1]?.replace('）', '') || '')
-  message.value = `拣配出库完成：${done.join('、')}`
+  notifySuccess(`拣配出库完成：${done.join('、')}`)
   selectedPickingLabels.value = []
   pickingLooseRows.value = pickingLooseRows.value.map((row) => ({ ...row, pickQty: 0 }))
   await loadData()
@@ -496,7 +559,7 @@ async function openPackageDetail(labelNo: unknown) {
   try {
     packageDetail.value = await fetchPickingPackageLabelDetail(no)
   } catch (error) {
-    message.value = error instanceof Error ? error.message : '定数包明细加载失败'
+    notifyError(apiErrorText(error, '定数包明细加载失败'))
   } finally {
     packageDetailLoading.value = false
   }
@@ -526,11 +589,10 @@ async function changePageSize(size: number) {
 async function resolveConsumption() {
   const code = consumptionQueryCode.value.trim()
   if (!code) {
-    message.value = '请输入定数包码、UDI 或唯一码'
+    notifyError('请输入定数包码、UDI 或唯一码', 'warning')
     return
   }
   consumptionResolving.value = true
-  message.value = ''
   consumptionResolved.value = null
   try {
     const result = await resolveConsumptionProduct(code)
@@ -545,9 +607,9 @@ async function resolveConsumption() {
         form.warehouseName = String(result.warehouseName)
       }
     }
-    message.value = `已定位商品：${result.productCode} / ${result.productName}（${result.sourceType === 'package' ? '定数包码' : 'UDI/唯一码'}）`
+    notifySuccess(`已定位商品：${result.productCode} / ${result.productName}（${result.sourceType === 'package' ? '定数包码' : 'UDI/唯一码'}）`)
   } catch (error) {
-    message.value = error instanceof Error ? error.message : '查询码解析失败'
+    notifyError(apiErrorText(error, '查询码解析失败'))
   } finally {
     consumptionResolving.value = false
   }
@@ -565,7 +627,7 @@ async function loadRecallBatches() {
     recallBatchId.value = recallBatches.value[0] ? Number(recallBatches.value[0].batchId) : null
   } catch (error) {
     recallBatches.value = []
-    message.value = error instanceof Error ? error.message : '召回批次加载失败'
+    notifyError(apiErrorText(error, '召回批次加载失败'))
   } finally {
     recallBatchesLoading.value = false
   }
@@ -584,7 +646,7 @@ async function loadRecallInventory() {
     })
     recallInventoryRows.value = result.rows || []
   } catch (error) {
-    message.value = error instanceof Error ? error.message : '召回范围库存加载失败'
+    notifyError(apiErrorText(error, '召回范围库存加载失败'))
   } finally {
     recallBatchesLoading.value = false
   }
@@ -610,7 +672,7 @@ async function applyRecallScope() {
 }
 
 async function openRecallDialog() {
-  message.value = ''
+  recallDialogError.value = ''
   recallScope.value = 'secondary'
   recallBusinessType.value = 'recall'
   form.reason = ''
@@ -621,27 +683,66 @@ async function openRecallDialog() {
 async function submitRecallDialog() {
   if (recallSubmitting.value) return
   recallSubmitting.value = true
-  message.value = ''
   try {
-    await performAction('recall')
-    recallDialogOpen.value = false
-  } catch (error) {
-    message.value = error instanceof Error ? error.message : '召回隔离登记失败'
+    // runAction 内部已统一兜底错误提示；失败时保留弹窗与已填内容
+    if (await runAction('recall')) {
+      recallDialogOpen.value = false
+    } else {
+      recallDialogError.value = '召回隔离登记失败，请重试'
+    }
   } finally {
     recallSubmitting.value = false
   }
 }
 
-async function runAction(action: string, row?: Record<string, unknown>) {
-  if (type.value !== 'delivery') return performAction(action, row)
-  if (deliverySubmitting.value) return
+/** 从接口异常中提取后端返回的业务文案（兼容 axios 与裸 Error） */
+function apiErrorText(error: unknown, fallback: string) {
+  const data = (error as { response?: { data?: { message?: string } } }).response?.data
+  return formatApiErrorText(data?.message || (error instanceof Error ? error.message : ''), fallback)
+}
+
+/* =====================================================================
+   统一反馈出口
+   ---------------------------------------------------------------------
+   失败 / 警告用 ElMessage 弹出，不占用页面版面、不挤压表格可视区域；
+   成功也统一弹出，保证操作后列表已刷新，用户不需要再找页面内横幅。
+   与 QuotaPackageView 的反馈策略保持一致。
+   ===================================================================== */
+function notifyError(text: string, tone: 'error' | 'warning' = 'error') {
+  actionError.value = ''
+  ElMessage({ message: text, type: tone, duration: 4000, showClose: true })
+}
+
+function notifySuccess(text: string) {
+  actionError.value = ''
+  ElMessage({ message: text, type: 'success', duration: 3000, showClose: true })
+}
+
+/**
+ * 所有业务动作的统一入口，返回是否成功。
+ * 任何后端校验失败（如库存不足）都用 ElMessage 提示，
+ * 不能变成 unhandled rejection 让用户点了按钮"没反应"。
+ */
+async function runAction(action: string, row?: Record<string, unknown>): Promise<boolean> {
+  const fallback = ACTION_FAILURE_TEXT[action] || '操作失败，请重试'
+  actionError.value = ''
+  if (type.value !== 'delivery') {
+    try {
+      await performAction(action, row)
+      return true
+    } catch (error) {
+      notifyError(apiErrorText(error, fallback))
+      return false
+    }
+  }
+  if (deliverySubmitting.value) return false
   deliverySubmitting.value = true
-  deliveryError.value = ''
-  message.value = ''
   try {
     await performAction(action, row)
+    return true
   } catch (error) {
-    deliveryError.value = error instanceof Error ? error.message : '配送操作失败，请重试'
+    notifyError(apiErrorText(error, fallback))
+    return false
   } finally {
     deliverySubmitting.value = false
   }
@@ -651,22 +752,22 @@ async function performAction(action: string, row?: Record<string, unknown>) {
   let result: Record<string, unknown> = {}
   if (action === 'shortage') {
     result = await generateShortage(shortagePayload())
-    message.value = `补货任务已生成：${result.taskNo}，周期 ${result.periodDays} 天，建议 ${result.formulaReplenishQty}，实际 ${result.replenishQty}`
+    notifySuccess(`补货任务已生成：${result.taskNo}，周期 ${result.periodDays} 天，建议 ${result.formulaReplenishQty}，实际 ${result.replenishQty}`)
   }
   if (action === 'requisition') {
     result = await createRequisition(form)
     form.requisitionNo = String(result.requisitionNo || '')
-    message.value = `科室申领已提交待审批：${result.requisitionNo}`
+    notifySuccess(`科室申领已提交待审批：${result.requisitionNo}`)
   }
   if (action === 'approveRequisition' || action === 'rejectRequisition') {
     result = await processRequisition(String(row?.bizNo || ''), action === 'approveRequisition' ? 'approve' : 'reject')
-    message.value = action === 'approveRequisition' ? `申领已审批：${result.requisitionNo}` : `申领已驳回：${result.requisitionNo}`
+    notifySuccess(action === 'approveRequisition' ? `申领已审批：${result.requisitionNo}` : `申领已驳回：${result.requisitionNo}`)
   }
   if (action === 'delivery') {
     if (form.uniqueCodes.trim()) {
       result = await createDelivery(form)
       form.deliveryNo = String(result.deliveryNo || '')
-      message.value = `高值耗材已按唯一码拣配：${result.deliveryNo}`
+      notifySuccess(`高值耗材已按唯一码拣配：${result.deliveryNo}`)
     } else {
       await confirmSelectedPicking()
       return
@@ -674,7 +775,7 @@ async function performAction(action: string, row?: Record<string, unknown>) {
   }
   if (action === 'sign') {
     result = await signDelivery(String(row?.bizNo || form.deliveryNo))
-    message.value = `配送已签收：${result.deliveryNo}`
+    notifySuccess(`配送已签收：${result.deliveryNo}`)
   }
   if (action === 'consumption') {
     if (consumptionResolved.value?.sourceType === 'package') {
@@ -686,19 +787,19 @@ async function performAction(action: string, row?: Record<string, unknown>) {
       result = await createConsumption(form)
     }
     form.consumptionNo = String(result.consumptionNo || '')
-    message.value = `科室消耗已登记：${result.consumptionNo}`
+    notifySuccess(`科室消耗已登记：${result.consumptionNo}`)
   }
   if (action === 'reverse') {
     result = await reverseConsumption(String(row?.bizNo || form.consumptionNo))
-    message.value = `反消耗红冲已生成：${result.flushNo}`
+    notifySuccess(`反消耗红冲已生成：${result.flushNo}`)
   }
   if (action === 'pda') {
     result = await uploadPdaOffline(form)
-    message.value = `PDA 离线记录已补传：${result.recordNo}`
+    notifySuccess(`PDA 离线记录已补传：${result.recordNo}`)
   }
   if (action === 'cold') {
     result = await createColdChainException(form)
-    message.value = `冷链异常已登记：${result.eventNo}`
+    notifySuccess(`冷链异常已登记：${result.eventNo}`)
   }
   if (action === 'recall') {
     result = await createRecall({
@@ -710,14 +811,14 @@ async function performAction(action: string, row?: Record<string, unknown>) {
       batchNo: recallBatchNo.value,
       reason: form.reason
     })
-    message.value = recallBusinessType.value === 'isolate'
+    notifySuccess(recallBusinessType.value === 'isolate'
       ? `隔离完成：${result.recallNo}，${result.affectedQty} 件已在原库房隔离`
-      : `召回完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`
+      : `召回完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`)
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
     result = await bindHighValuePatient({ ...form, uniqueCode })
-    message.value = `唯一码 ${result.uniqueCode} 已绑定患者 ${result.patientNo}`
+    notifySuccess(`唯一码 ${result.uniqueCode} 已绑定患者 ${result.patientNo}`)
   }
   if (action === 'billingCallback') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -727,14 +828,13 @@ async function performAction(action: string, row?: Record<string, unknown>) {
       quantity: 1,
       externalChargeNo: form.externalChargeNo
     })
-    message.value = `高值耗材已按唯一码计费扣减：${result.chargeNo}`
+    notifySuccess(`高值耗材已按唯一码计费扣减：${result.chargeNo}`)
   }
   await loadData()
 }
 
 async function openSmartAnalysis() {
   // 支持全院分析：未选择科室时按全院科室库房出库核算
-  message.value = ''
   analysisError.value = ''
   await loadLinkedWarehouses()
   const linkedWarehouseName = linkedWarehouses.value.some(item => item.name === form.warehouseName)
@@ -757,8 +857,8 @@ async function openSmartAnalysis() {
   } catch (error) {
     analysisRows.value = []
     analysisMeta.value = null
-    analysisError.value = error instanceof Error ? error.message : '智能补货分析失败'
-    message.value = analysisError.value
+    analysisError.value = apiErrorText(error, '智能补货分析失败')
+    notifyError(analysisError.value)
   } finally {
     analysisLoading.value = false
   }
@@ -777,12 +877,8 @@ async function createTaskFromAnalysis(row: Record<string, unknown>) {
   form.currentQty = Number(row.currentQty || 0)
   form.replenishQty = Number(row.recommendedQty || 0)
   form.replenishmentDays = Number(analysisMeta.value?.selectedPeriodDays || 7)
-  try {
-    await runAction('shortage')
-    analysisDialogOpen.value = false
-  } catch (error) {
-    message.value = error instanceof Error ? error.message : '补货任务生成失败'
-  }
+  // runAction 内部已统一兜底错误提示；失败时保留分析弹窗
+  if (await runAction('shortage')) analysisDialogOpen.value = false
 }
 
 onMounted(loadData)
@@ -819,29 +915,123 @@ watch(() => form.productCode, () => {
 </script>
 
 <template>
-  <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption', 'delivery-acceptance-page': type === 'delivery' }">
-    <div class="breadcrumb-line">
-      <span>一期上线闭环</span>
-      <strong>{{ title }}</strong>
-    </div>
+    <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption', 'delivery-acceptance-page': type === 'delivery', 'shortage-task-page': type === 'shortage', 'pda-offline-page': type === 'pda', 'recall-isolation-page': isRecallPage, 'finance-settlement-page': type === 'settlement' || type === 'red-flush', 'high-value-operation-page': type === 'high-value' }">
+    <!-- 补货任务 / 拣配配送：页头复用 MdPageHeader，与采购/库存等页面完全一致 -->
+    <MdPageHeader
+      v-if="type === 'shortage'"
+      crumb="供应链业务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
 
-    <div class="detail-heading">
-      <div>
-        <div v-if="type === 'consumption'" class="consumption-eyebrow">
-          <ShieldCheck :size="14" />
-          科室库存闭环
+    <MdPageHeader
+      v-else-if="type === 'delivery'"
+      crumb="供应链业务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
+
+    <MdPageHeader
+      v-else-if="type === 'consumption'"
+      crumb="供应链业务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
+
+    <template v-else-if="type === 'pda' || isRecallPage">
+      <MdPageHeader
+        crumb="供应链业务"
+        :title="title"
+        :description="subtitle"
+        :loading="loading"
+        @refresh="loadData"
+      >
+        <template #actions>
+          <button v-if="type === 'pda'" class="btn btn-primary md-btn" type="button" @click="runAction('pda')">
+            <Smartphone :size="16" />
+            离线补传
+          </button>
+          <button v-else class="btn btn-primary md-btn" type="button" @click="openRecallDialog">
+            <RotateCcw :size="16" />
+            召回隔离
+          </button>
+        </template>
+      </MdPageHeader>
+    </template>
+
+    <MdPageHeader
+      v-else-if="type === 'high-value'"
+      crumb="供应链业务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
+
+    <MdPageHeader
+      v-else-if="type === 'settlement'"
+      crumb="结算与财务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
+
+    <MdPageHeader
+      v-else-if="type === 'red-flush'"
+      crumb="结算与财务"
+      :title="title"
+      :description="subtitle"
+      :loading="loading"
+      @refresh="loadData"
+    />
+
+    <!-- 结算对账：4 项 KPI 摘要卡（参考 UDI udi-summary 风格） -->
+    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总">
+      <div class="settlement-kpi-item">
+        <i class="settlement-kpi-icon is-doc"><FileText :size="18" /></i>
+        <div>
+          <span class="settlement-kpi-label">结算单数</span>
+          <strong class="settlement-kpi-value">{{ settlementDocumentCount }} <small>/ {{ totalItems }}</small></strong>
+          <span class="settlement-kpi-hint">本屏结算单去重数 / 总条数</span>
         </div>
-        <p>第 6-10 批业务闭环</p>
-        <h2>{{ title }}</h2>
-        <small>{{ subtitle }}</small>
       </div>
-      <button class="btn" type="button" @click="loadData">
-        <RefreshCw :size="17" />
-        刷新
-      </button>
-    </div>
+      <div class="settlement-kpi-item">
+        <i class="settlement-kpi-icon is-supplier"><Building2 :size="18" /></i>
+        <div>
+          <span class="settlement-kpi-label">供应商数</span>
+          <strong class="settlement-kpi-value">{{ settlementSupplierCount }}</strong>
+          <span class="settlement-kpi-hint">结算供应商去重</span>
+        </div>
+      </div>
+      <div class="settlement-kpi-item">
+        <i class="settlement-kpi-icon is-qty"><PackageCheck :size="18" /></i>
+        <div>
+          <span class="settlement-kpi-label">数量合计</span>
+          <strong class="settlement-kpi-value">{{ settlementTotalQuantity }}</strong>
+          <span class="settlement-kpi-hint">本屏结算数量累加</span>
+        </div>
+      </div>
+      <div class="settlement-kpi-item is-amount">
+        <i class="settlement-kpi-icon is-amount"><CheckCircle2 :size="18" /></i>
+        <div>
+          <span class="settlement-kpi-label">金额合计</span>
+          <strong class="settlement-kpi-value">¥ {{ settlementTotalAmount.toFixed(2) }}</strong>
+          <span class="settlement-kpi-hint">本屏结算金额累加</span>
+        </div>
+      </div>
+    </section>
 
-    <div v-if="type !== 'delivery'" class="foundation-stat-grid closure-stat-grid">
+    <!-- PDA / 召回隔离：顶部统计卡与重复操作按钮已移除，操作入口统一收敛到页头动作位。
+         结算对账 / 红冲管理属于结算与财务类页面，无关业务统计卡也已隐藏。
+         高值耗材计费操作同样不展示通用运营 KPI。 -->
+    <div v-if="displayStats.length && type !== 'delivery' && type !== 'pda' && !isRecallPage && type !== 'settlement' && type !== 'red-flush' && type !== 'high-value'" class="foundation-stat-grid closure-stat-grid">
       <article v-for="item in displayStats" :key="item.label">
         <i v-if="type === 'consumption'" class="consumption-stat-icon" :class="`is-${item.icon}`">
           <Activity v-if="item.icon === 'records'" :size="20" />
@@ -856,14 +1046,6 @@ watch(() => form.productCode, () => {
       </article>
     </div>
 
-    <StatusMessage v-if="type === 'delivery'" :message="deliveryError" tone="error" role="alert" />
-    <StatusMessage v-if="type === 'delivery'" :message="message" tone="info" role="status" />
-    <p v-else-if="message" class="inline-message">{{ message }}</p>
-    <p v-if="type === 'settlement'" class="inline-message">结算数据在验收入库、科室消耗或患者计费达到批次结算点时自动生成，无需人工生成。</p>
-
-    <div v-if="isRecallPage" class="hospital-action-row">
-      <button class="btn btn-primary" type="button" @click="openRecallDialog">召回隔离</button>
-    </div>
     <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
       <form @submit.prevent="submitRecallDialog">
         <div class="supplier-form-grid">
@@ -875,13 +1057,13 @@ watch(() => form.productCode, () => {
           <label><span>批号</span><input v-model.trim="recallBatchNo" required placeholder="系统批号或生产批号" /></label>
           <label><span>原因</span><input v-model.trim="form.reason" required placeholder="填写召回或隔离原因" /></label>
         </div>
-        <p v-if="message" role="alert">{{ message }}</p>
+        <StatusMessage :message="recallDialogError" tone="error" role="alert" />
         <div class="dialog-actions"><button class="btn" type="button" :disabled="recallSubmitting" @click="recallDialogOpen = false">取消</button><button class="btn btn-primary" type="submit" :disabled="recallSubmitting">{{ recallSubmitting ? '正在提交...' : '确认登记' }}</button></div>
       </form>
     </el-dialog>
 
-    <section v-if="type !== 'settlement' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption' }">
-      <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
+    <section v-if="type !== 'settlement' && type !== 'high-value' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+      <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon"><ScanLine :size="20" /></i>
           <div>
@@ -889,6 +1071,13 @@ watch(() => form.productCode, () => {
             <p class="consumption-section-description">扫描追溯码定位耗材，系统将实时校验科室库房库存</p>
           </div>
           <span class="consumption-live-badge"><span></span>实时库存校验</span>
+        </template>
+        <template v-else-if="type === 'delivery'">
+          <Truck :size="20" />
+          <div>
+            <h3>拣配出库</h3>
+            <p class="delivery-section-description">选择待拣配申领单，再按定数包、唯一码或散货完成拣配并出库</p>
+          </div>
         </template>
         <template v-else>
           <ClipboardCheck :size="20" />
@@ -969,14 +1158,10 @@ watch(() => form.productCode, () => {
             <input v-model.trim="form.reason" placeholder="填写召回原因" />
           </label>
         </template>
-        <label v-if="type === 'high-value'"><span>患者号</span><input v-model="form.patientNo" /></label>
-        <label v-if="['requisition', 'delivery', 'consumption', 'high-value'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
+        <label v-if="['requisition', 'delivery', 'consumption'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
           <span>高值唯一码</span>
           <input v-model.trim="form.uniqueCodes" placeholder="扫描或输入唯一码；多码用逗号分隔" />
         </label>
-        <label v-if="type === 'high-value'"><span>患者姓名</span><input v-model.trim="form.patientNameMasked" placeholder="脱敏姓名" /></label>
-        <label v-if="type === 'high-value'" class="wide-field"><span>外部计费流水</span>
-          <input v-model.trim="form.externalChargeNo" placeholder="HIS/AIMS 计费流水号" /></label>
         <template v-if="type === 'shortage'">
           <label>
             <span>补货周期</span>
@@ -986,8 +1171,12 @@ watch(() => form.productCode, () => {
           </label>
         </template>
       </div>
-      <div class="hospital-action-row" :class="{ 'consumption-action-row': type === 'consumption' }">
+      <div class="hospital-action-row" :class="{ 'consumption-action-row': type === 'consumption', 'delivery-action-row': type === 'delivery' }">
         <span v-if="type === 'consumption'" class="consumption-action-hint">登记后将同步扣减所选科室库房库存，并写入追溯记录</span>
+        <span v-else-if="type === 'delivery'" class="delivery-action-hint">
+          <template v-if="!selectedPickingItemId">请先在下方「待拣配申领单」中选择要拣配的申领明细</template>
+          <template v-else>已选 {{ selectedPickingLabels.length }} 个定数包 / {{ selectedPickingUniqueCodes.length }} 个唯一码 / 散货 {{ selectedPickingTotal }}，待拣配 {{ selectedPendingQty }}</template>
+        </span>
         <button v-if="type === 'shortage'" class="btn btn-primary" type="button" @click="openSmartAnalysis">
           <AlertTriangle :size="18" />
           智能补货分析
@@ -996,7 +1185,7 @@ watch(() => form.productCode, () => {
           <Save :size="18" />
           提交申领
         </button>
-        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading" @click="runAction('delivery')">
+        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId" @click="runAction('delivery')">
           <Truck :size="18" />
           确认拣配出库
         </button>
@@ -1008,25 +1197,9 @@ watch(() => form.productCode, () => {
           <RotateCcw :size="18" />
           反消耗/红冲
         </button>
-        <button v-if="type === 'pda'" class="btn btn-primary" type="button" @click="runAction('pda')">
-          <Smartphone :size="18" />
-          离线补传
-        </button>
         <button v-if="type === 'risk' && !isRecallPage" class="btn btn-primary" type="button" @click="runAction('cold')">
           <AlertTriangle :size="18" />
           冷链异常
-        </button>
-        <button v-if="type === 'risk' && isRecallPage" class="btn btn-primary" type="button" @click="runAction('recall')">
-          <RotateCcw :size="18" />
-          召回隔离
-        </button>
-        <button v-if="type === 'high-value'" class="btn" type="button" @click="runAction('bindPatient')">
-          <ClipboardCheck :size="18" />
-          绑定患者
-        </button>
-        <button v-if="type === 'high-value'" class="btn btn-primary" type="button" @click="runAction('billingCallback')">
-          <FileCheck2 :size="18" />
-          计费回传并扣减
         </button>
       </div>
 
@@ -1046,9 +1219,10 @@ watch(() => form.productCode, () => {
       </div>
 
       <div v-if="type === 'delivery'" class="picking-workbench">
-        <section class="picking-panel">
+        <section class="picking-panel picking-panel--requisition">
           <div class="section-title compact">
             <h3>待拣配申领单</h3>
+            <span class="muted-hint">共 {{ pickingRequisitionRows.length }} 条，请选择需要拣配的申领单</span>
           </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
@@ -1106,7 +1280,7 @@ watch(() => form.productCode, () => {
         <section v-if="selectedPickingItemType === 'unique_code'" class="picking-panel">
           <div class="section-title compact">
             <h3>可用唯一码 / UDI</h3>
-            <span class="muted-hint">已选 {{ selectedPickingUniqueCodes.length }} / 待拣配 {{ form.quantity }}</span>
+            <span class="muted-hint">已选 {{ selectedPickingUniqueCodes.length }} / 待拣配 {{ selectedPendingQty }}</span>
           </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
@@ -1196,7 +1370,7 @@ watch(() => form.productCode, () => {
         <section v-if="selectedPickingItemType === 'loose'" class="picking-panel picking-panel--loose">
           <div class="section-title compact">
             <h3>可用散货</h3>
-            <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ form.quantity }}（基础单位）</span>
+            <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ selectedPendingQty }}（基础单位）</span>
           </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
@@ -1248,7 +1422,7 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
-    <section class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption' }">
+    <section v-if="type !== 'high-value'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon is-history"><History :size="20" /></i>
@@ -1261,10 +1435,6 @@ watch(() => form.productCode, () => {
           <History :size="20" />
           <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
         </template>
-      </div>
-      <div v-if="type === 'settlement'" class="settlement-table-summary">
-        <span>共 {{ totalItems }} 条结算明细</span>
-        <span class="settlement-table-hint">长字段已分组展示，可横向滚动查看全部信息</span>
       </div>
       <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
         <table class="master-table settlement-detail-table">
@@ -1471,6 +1641,8 @@ watch(() => form.productCode, () => {
       />
     </section>
 
+    <HighValueOperationsPanel v-if="type === 'high-value'" />
+
     <div v-if="analysisDialogOpen" class="attachment-preview-mask" @click.self="analysisDialogOpen = false">
       <section class="supplier-dialog replenishment-analysis-dialog" role="dialog" aria-modal="true">
         <header>
@@ -1664,10 +1836,297 @@ watch(() => form.productCode, () => {
 </template>
 
 <style scoped>
-.delivery-acceptance-page .picking-workbench { grid-template-columns: minmax(0, 1fr); }
-.delivery-acceptance-page .picking-panel:first-child :is(th, td):first-child { position: sticky; left: 0; z-index: 1; background: white; }
-.delivery-acceptance-page :is(.picking-panel:first-child, .picking-panel--loose) :is(th, td):last-child { position: sticky; right: 0; z-index: 1; background: white; }
-.delivery-acceptance-page .picking-panel tr.selected :is(td:first-child, td:last-child) { background: #e8f7f5; }
+/* =====================================================================
+   拣配配送 delivery-acceptance-page
+   ---------------------------------------------------------------------
+   目标：对齐采购管理 / 收货验收 / 库存管理的 md-* 视觉语言。
+     1. 页头改用 MdPageHeader（渐变底 + 白色标题）
+     2. 操作卡片单卡片承载：查询区 + 拣配工作台，避免多层边框割裂
+     3. 表格 md 密度：表头 12px、表体 13px、sticky 表头
+     4. 首列 / 末列（操作列）sticky，横向滚动时保持可见
+
+   注意：.master-table 的 padding / font-size / color 由
+   spd-override.css 以 !important 统一设定；本页规则统一加
+   .delivery-acceptance-page 前缀提高特指度，确保覆盖生效。
+   ===================================================================== */
+
+.delivery-acceptance-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  gap: 14px !important;
+  padding: 16px 20px 24px;
+}
+
+.delivery-acceptance-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
+}
+
+/* ---------- 操作卡片：查询 + 拣配工作台合并为一块 ---------- */
+.delivery-acceptance-page > .delivery-workspace-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 18px 18px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.delivery-acceptance-page .delivery-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
+  color: var(--md-primary, var(--primary));
+}
+
+.delivery-acceptance-page .delivery-section-title h3 {
+  margin: 0;
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.delivery-acceptance-page .delivery-section-description {
+  margin: 2px 0 0;
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- 查询区 ---------- */
+.delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px 14px;
+}
+
+.delivery-acceptance-page .delivery-workspace-card .closure-form-grid label > span {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.delivery-acceptance-page .delivery-workspace-card .closure-form-grid :is(input, select) {
+  min-height: 32px;
+  height: 32px;
+  border-radius: var(--spd-radius-sm, 6px);
+  border-color: var(--md-border, var(--spd-border-subtle));
+  background: var(--md-bg-card, #fff);
+  color: var(--md-text, var(--spd-text-primary));
+  font-size: 13px;
+}
+
+.delivery-acceptance-page .delivery-workspace-card .closure-form-grid :is(input, select):focus {
+  border-color: var(--md-primary, var(--primary));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary, var(--primary)) 14%, transparent);
+}
+
+/* ---------- 动作行 ---------- */
+.delivery-acceptance-page .delivery-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+.delivery-acceptance-page .delivery-action-hint {
+  margin-right: auto;
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.delivery-acceptance-page .delivery-action-row .btn {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+/* ---------- 拣配工作台：单列三段式 ---------- */
+.delivery-acceptance-page .picking-workbench {
+  display: flex;
+  flex-direction: column;
+  grid-template-columns: none;
+  gap: 12px;
+}
+
+.delivery-acceptance-page .picking-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  min-width: 0;
+}
+
+.delivery-acceptance-page .picking-panel .section-title.compact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+.delivery-acceptance-page .picking-panel .section-title.compact h3 {
+  margin: 0;
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.delivery-acceptance-page .picking-panel .muted-hint {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 扫码条：定数包类型 */
+.delivery-acceptance-page .picking-package-scan {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.delivery-acceptance-page .picking-package-scan input {
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--spd-radius-sm, 6px);
+  font-size: 13px;
+}
+
+.delivery-acceptance-page .picking-package-scan .btn {
+  min-height: 32px;
+  padding: 0 14px;
+  font-size: 13px;
+  white-space: nowrap;
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+/* ---------- 表格：md 密度 + sticky ---------- */
+.delivery-acceptance-page .picking-panel .table-scroll {
+  max-height: max(280px, calc(100dvh - 460px));
+  overflow: auto;
+  border: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 920px;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  padding: 9px 12px !important;
+  background: var(--md-bg-subtle, #f6f8fb) !important;
+  color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table tbody td {
+  height: 40px;
+  padding: 9px 12px !important;
+  color: var(--md-text, var(--spd-text-primary)) !important;
+  font-size: 13px !important;
+  vertical-align: middle;
+  background: var(--md-bg-card, #fff) !important;
+  border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--md-bg-subtle, #f6f8fb) 46%, #ffffff) !important;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table tbody tr:hover td {
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, #ffffff) !important;
+}
+
+/* 首列（单号）与末列（操作）冻结，横向滚动时保持可见 */
+.delivery-acceptance-page .picking-panel--requisition :is(th, td):first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--md-bg-card, #fff) !important;
+  box-shadow: 1px 0 0 var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+.delivery-acceptance-page .picking-panel--requisition thead th:first-child {
+  z-index: 3;
+  background: var(--md-bg-subtle, #f6f8fb) !important;
+}
+
+.delivery-acceptance-page :is(.picking-panel--requisition, .picking-panel--loose) :is(th, td):last-child {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--md-bg-card, #fff) !important;
+  box-shadow: -1px 0 0 var(--md-border-subtle, var(--spd-border-subtle));
+}
+
+.delivery-acceptance-page :is(.picking-panel--requisition, .picking-panel--loose) thead th:last-child {
+  z-index: 3;
+  background: var(--md-bg-subtle, #f6f8fb) !important;
+}
+
+.delivery-acceptance-page .picking-panel--requisition tbody tr.selected td {
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 8%, #ffffff) !important;
+}
+
+.delivery-acceptance-page .picking-panel--requisition tbody tr.selected :is(td:first-child, td:last-child) {
+  box-shadow: inset 3px 0 0 var(--md-primary, var(--primary));
+}
+
+/* 数量列右对齐 + 等宽数字，便于纵向比对 */
+.delivery-acceptance-page .picking-panel .purchase-detail-table td:nth-child(n+5):nth-child(-n+7) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table .stocktaking-qty-input {
+  width: 92px;
+  height: 28px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.delivery-acceptance-page .picking-panel .purchase-detail-table .approval-empty {
+  height: 120px !important;
+  color: var(--md-text-muted, var(--spd-text-tertiary)) !important;
+  text-align: center !important;
+}
+
+.delivery-acceptance-page .picking-panel .muted-cell {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+}
+
+/* ---------- 定数包明细弹窗 ---------- */
 .package-detail-content { min-width: 0; max-height: 72vh; overflow: auto; }
 .package-detail-content header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .package-detail-content header h3 { overflow-wrap: anywhere; }
@@ -1686,11 +2145,15 @@ watch(() => form.productCode, () => {
   width: 100%;
   min-width: 0;
   max-width: none;
-  gap: 24px;
-  padding: 24px;
+  gap: 14px !important;
+  padding: 16px 20px 24px;
   color: var(--consumption-text);
-  background: #f5f7fa;
+  background: transparent;
   font-family: "Segoe UI Variable", "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.consumption-saas-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
 }
 
 .consumption-saas-page .breadcrumb-line {
@@ -1727,16 +2190,6 @@ watch(() => form.productCode, () => {
   color: var(--consumption-muted);
   font-size: 14px;
   line-height: 1.6;
-}
-
-.consumption-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--consumption-blue-deep);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
 }
 
 .consumption-saas-page .btn,
@@ -1779,20 +2232,20 @@ watch(() => form.productCode, () => {
 .consumption-saas-page .closure-stat-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 16px;
+  gap: 12px;
 }
 
 .consumption-saas-page .closure-stat-grid article {
   grid-column: span 3;
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
-  padding: 16px;
+  padding: 14px 16px;
   border: 1px solid var(--consumption-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 2px 8px rgb(31 50 79 / 3%);
+  box-shadow: 0 1px 2px rgb(31 50 79 / 4%);
 }
 
 .consumption-saas-page .closure-stat-grid article > div {
@@ -1811,6 +2264,7 @@ watch(() => form.productCode, () => {
   font-size: 24px;
   font-weight: 650;
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .consumption-stat-icon,
@@ -1842,18 +2296,20 @@ watch(() => form.productCode, () => {
   box-sizing: border-box;
   min-width: 0;
   margin: 0;
-  padding: 24px;
+  padding: 16px 18px 18px;
   border: 1px solid var(--consumption-border);
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 2px 8px rgb(31 50 79 / 4%);
+  box-shadow: 0 1px 2px rgb(31 50 79 / 4%);
 }
 
 .consumption-section-title {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--consumption-border);
 }
 
 .consumption-section-title > div {
@@ -1863,8 +2319,8 @@ watch(() => form.productCode, () => {
 .consumption-section-title h3 {
   margin: 0;
   color: #172033;
-  font-size: 17px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .consumption-section-description {
@@ -1983,8 +2439,8 @@ watch(() => form.productCode, () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 24px;
-  padding-top: 20px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid #eef1f5;
 }
 
@@ -1997,7 +2453,7 @@ watch(() => form.productCode, () => {
 .consumption-history-card .table-scroll {
   overflow: auto;
   border: 1px solid #e7ebf1;
-  border-radius: 10px;
+  border-radius: var(--spd-radius-sm, 6px);
 }
 
 .consumption-history-table {
@@ -2005,23 +2461,32 @@ watch(() => form.productCode, () => {
 }
 
 .consumption-history-table thead th {
-  height: 44px;
-  border-bottom-color: #dfe5ed;
-  color: #45536b;
-  background: #f7f9fc;
-  font-size: 13px;
-  font-weight: 600;
+  height: 36px;
+  padding: 9px 12px !important;
+  border-bottom-color: #dfe5ed !important;
+  color: #45536b !important;
+  background: #f7f9fc !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  white-space: nowrap;
 }
 
 .consumption-history-table tbody td {
-  height: 52px;
-  border-bottom-color: #edf0f4;
-  color: #34415a;
-  font-size: 13px;
+  height: 40px;
+  padding: 9px 12px !important;
+  border-bottom-color: #edf0f4 !important;
+  color: #34415a !important;
+  background: #fff;
+  font-size: 13px !important;
+  vertical-align: middle;
+}
+
+.consumption-history-table tbody tr:nth-child(even) td {
+  background: #fafbfc !important;
 }
 
 .consumption-history-table tbody tr:hover td {
-  background: #f7fbff;
+  background: #f7fbff !important;
 }
 
 .consumption-history-table .muted-cell {
@@ -2037,7 +2502,7 @@ watch(() => form.productCode, () => {
 }
 
 .consumption-saas-page :deep(.pagination-controls) {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 @media (max-width: 1200px) {
@@ -2066,17 +2531,12 @@ watch(() => form.productCode, () => {
 
 @media (max-width: 760px) {
   .consumption-saas-page {
-    gap: 16px;
-    padding: 16px;
+    gap: 12px;
+    padding: 12px 12px 20px;
   }
 
-  .consumption-saas-page .detail-heading,
   .consumption-saas-page .hospital-catalog-panel {
-    padding: 18px;
-  }
-
-  .consumption-saas-page .detail-heading {
-    align-items: flex-start;
+    padding: 14px;
   }
 
   .consumption-saas-page .closure-stat-grid article,
@@ -2097,6 +2557,702 @@ watch(() => form.productCode, () => {
   .consumption-action-row {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+/* =====================================================================
+   结算对账 / 红冲管理 finance-settlement-page
+   ---------------------------------------------------------------------
+   统一使用 md-header 渐变页头（与 UDI / 高值耗材页面一致）。
+   页面外壳 padding / gap 与 PDA / 召回 / 拣配配送对齐。
+   顶部关闭业务统计卡（运营 KPI 与结算/财务场景不相关），查询/动作行
+   也已隐藏——页面只剩 detail 列表。
+   ===================================================================== */
+.finance-settlement-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  gap: 14px !important;
+  padding: 16px 20px 24px;
+}
+
+.finance-settlement-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
+}
+
+/* ---------- 结算 KPI 摘要卡：参考 UDI udi-summary 卡片化 ---------- */
+.finance-settlement-page .settlement-kpi-card {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 4px 0;
+  border: 1px solid var(--md-border-soft, #e6ecef);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--md-bg-card, #fff);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  overflow: hidden;
+}
+
+.finance-settlement-page .settlement-kpi-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 18px;
+  border-right: 1px solid var(--md-border-soft, #e6ecef);
+}
+
+.finance-settlement-page .settlement-kpi-item:last-child {
+  border-right: 0;
+}
+
+.finance-settlement-page .settlement-kpi-item.is-amount {
+  background: linear-gradient(180deg, rgba(15, 83, 79, 0.04) 0%, rgba(15, 83, 79, 0) 100%);
+}
+
+.finance-settlement-page .settlement-kpi-item.is-amount .settlement-kpi-value {
+  color: var(--spd-primary, #0f534f);
+}
+
+.finance-settlement-page .settlement-kpi-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--md-bg-soft, #f4f8fa);
+  color: var(--spd-text-secondary, #607285);
+  flex-shrink: 0;
+}
+
+.finance-settlement-page .settlement-kpi-icon.is-doc {
+  background: #eef6ff;
+  color: #2a6df4;
+}
+
+.finance-settlement-page .settlement-kpi-icon.is-supplier {
+  background: #f5f0ff;
+  color: #6a42c2;
+}
+
+.finance-settlement-page .settlement-kpi-icon.is-qty {
+  background: #fff7e0;
+  color: #b07900;
+}
+
+.finance-settlement-page .settlement-kpi-icon.is-amount {
+  background: rgba(15, 83, 79, 0.10);
+  color: var(--spd-primary, #0f534f);
+}
+
+.finance-settlement-page .settlement-kpi-item > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.finance-settlement-page .settlement-kpi-label {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.finance-settlement-page .settlement-kpi-value {
+  color: var(--spd-text-heading, #14213a);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  font-variant-numeric: tabular-nums;
+}
+
+.finance-settlement-page .settlement-kpi-value small {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 2px;
+}
+
+.finance-settlement-page .settlement-kpi-hint {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* 表格卡片：与 KPI 卡一致的圆角/阴影 */
+.finance-settlement-page > .finance-detail-card,
+.finance-settlement-page > .hospital-catalog-panel {
+  border-radius: var(--spd-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+/* ---------- 表格密度重写：紧凑单元格 + 紧凑堆叠 ---------- */
+.finance-settlement-page .settlement-detail-table th,
+.finance-settlement-page .settlement-detail-table td {
+  padding: 7px 9px !important;
+  font-size: 12.5px !important;
+  line-height: 1.35 !important;
+  border-color: var(--md-border-soft, #e6ecef) !important;
+}
+
+.finance-settlement-page .settlement-detail-table thead th {
+  padding-block: 8px !important;
+  background: var(--md-bg-soft, #f4f8fa) !important;
+  box-shadow: inset 0 -1px 0 var(--md-border, #d4dde0) !important;
+  color: var(--spd-text-secondary, #607285) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.1px;
+  text-align: left !important;
+  white-space: nowrap;
+}
+
+.finance-settlement-page .settlement-detail-table thead .settlement-col-document {
+  background: var(--md-bg-soft, #f4f8fa) !important;
+}
+
+.finance-settlement-page .settlement-detail-table tbody tr:nth-child(even) {
+  background: #fbfdfd;
+}
+
+.finance-settlement-page .settlement-detail-table tbody tr:hover {
+  background: #f1f8f8;
+}
+
+.finance-settlement-page .settlement-detail-table tbody tr:hover .settlement-col-document {
+  background: #f1f8f8;
+}
+
+/* 单元格内堆叠：间距收敛 */
+.finance-settlement-page .settlement-cell-stack {
+  gap: 2px !important;
+  line-height: 1.35 !important;
+}
+
+.finance-settlement-page .settlement-cell-stack > strong {
+  font-weight: 600 !important;
+  color: var(--spd-text-primary, #14213a) !important;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.finance-settlement-page .settlement-cell-meta {
+  color: var(--md-text-muted, #7c8a92) !important;
+  font-size: 11.5px !important;
+  font-weight: 400;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.finance-settlement-page .settlement-policy-list > span,
+.finance-settlement-page .settlement-code-list > span {
+  font-size: 11.5px !important;
+  line-height: 1.4 !important;
+}
+
+.finance-settlement-page .settlement-policy-list b,
+.finance-settlement-page .settlement-code-list b {
+  color: var(--md-text-muted, #7c8a92) !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+}
+
+.finance-settlement-page .settlement-policy-list small {
+  color: var(--md-text-muted, #7c8a92) !important;
+  font-size: 10.5px !important;
+}
+
+.finance-settlement-page .settlement-code-list {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 11.5px !important;
+}
+
+/* 金额列突出 */
+.finance-settlement-page .amount-cell {
+  color: var(--spd-primary, #0f534f) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+}
+
+.finance-settlement-page .numeric-cell {
+  font-size: 12.5px !important;
+}
+
+/* 列宽微调：粘性首列更紧凑 */
+.finance-settlement-page .settlement-detail-table .settlement-col-document {
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-location {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-product {
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-spec {
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-manufacturer {
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-supplier {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-policy {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-trace {
+  width: 280px !important;
+  min-width: 280px !important;
+  max-width: 280px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-finance {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-time {
+  width: 220px !important;
+  min-width: 220px !important;
+  max-width: 220px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .settlement-col-status {
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .numeric-cell {
+  width: 96px !important;
+  min-width: 96px !important;
+  max-width: 96px !important;
+}
+
+/* 滚动容器上限，避免超长明细把整页拉得很高 */
+.finance-settlement-page .settlement-detail-scroll {
+  max-height: min(72vh, 820px);
+  overflow: auto;
+  border: 1px solid var(--md-border-soft, #e6ecef);
+  border-radius: var(--spd-radius-sm, 6px);
+}
+
+/* =====================================================================
+   高值耗材计费操作 high-value-operation-page
+   ---------------------------------------------------------------------
+   作为收费耗材明细查询（HighValueChargeDetailView）的子页面，
+   页头沿用 md-header 渐变设计语言（与父页面 HighValueChargeDetailView
+   完全一致），但页面外壳 padding / gap 收紧到与其他业务页面对齐。
+   通用运营 KPI 卡关闭（缺货任务 / 待签收 / 消耗 / 风险 与高值计费
+   操作场景不相关），右侧"绑定患者 / 计费回传"动作入口通过
+   hospital-action-row 保留。
+   ===================================================================== */
+.high-value-operation-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  gap: 14px !important;
+  padding: 16px 20px 24px;
+}
+
+.high-value-operation-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
+}
+
+.high-value-operation-page > .hospital-catalog-panel {
+  border-radius: var(--spd-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+/* =====================================================================
+   PDA 离线补传 pda-offline-page / 召回隔离 recall-isolation-page
+   ---------------------------------------------------------------------
+   这两页此前没有页面级 modifier class，导致外壳退回 .purchase-page 的
+   padding: 0，内容直接贴住内容区左上边框。补上与其他页面一致的
+   16px 20px 24px 页面边距 + 14px 间距。
+   ===================================================================== */
+.pda-offline-page,
+.recall-isolation-page {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  gap: 14px !important;
+  padding: 16px 20px 24px;
+}
+
+/* 与 shortage / delivery 一致：md 页头补圆角 */
+.pda-offline-page > .md-header,
+.recall-isolation-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
+}
+
+/* =====================================================================
+   补货任务 shortage-task-page
+   ---------------------------------------------------------------------
+   范围：仅 type === 'shortage'（补货任务 / 缺货提醒共用同一 type）。
+   拣配配送、科室请领、科室消耗、红冲、结算对账、召回等页面沿用原样。
+
+   与采购管理 / 收货验收 / 库存管理 / 库存流水 统一到 md 设计语言：
+   1. 页面级 gap / padding 收紧
+   2. 业务动作卡片与列表卡片统一 md 卡片外观
+   3. 查询区紧凑化（控件 30px、标签 12px）
+   4. 表格 md 密度：表头 12px / 9px 12px，表体 13px / 8px 12px
+   5. 列表滚动区加上限并 sticky 表头
+
+   优先级：.master-table 的 padding / font-size / color 由
+   spd-override.css 以 !important 统一设定，覆盖时加
+   .shortage-task-page 前缀提高特指度。
+   ===================================================================== */
+
+/* ---------- 页面外壳 ---------- */
+.shortage-task-page {
+  gap: 14px !important;
+  padding: 16px 20px 24px;
+}
+
+/* 面包屑在 md 体系里由 MdPageHeader 承担，这里隐藏（仅兜底） */
+.shortage-task-page > .breadcrumb-line {
+  display: none;
+}
+
+/* 顶部条直接用 MdPageHeader 组件渲染，与采购管理 / 收货验收 /
+   库存管理 / 库存交易流水完全一致：
+   渐变底 + 白色标题 + 白色副标题 + 主色描边，无需在此覆盖样式。
+   这里仅做圆角对齐，保证页面 rhythm 与其他页面相同。 */
+.shortage-task-page > .md-header {
+  border-radius: var(--spd-radius-md, 10px);
+}
+
+/* ---------- 统计卡：保留现状，仅对齐 md 圆角/边框 ---------- */
+.shortage-task-page > .closure-stat-grid {
+  gap: 12px !important;
+}
+
+.shortage-task-page > .closure-stat-grid article {
+  padding: 14px 16px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.shortage-task-page > .closure-stat-grid article span {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+}
+
+.shortage-task-page > .closure-stat-grid article strong {
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 卡片通用 ---------- */
+.shortage-task-page > .hospital-catalog-panel,
+.shortage-task-page > .hospital-action-row {
+  gap: 12px;
+  padding: 14px 16px 16px;
+  background: var(--md-bg-card, #fff);
+  border: 1px solid var(--md-border, var(--spd-border-subtle));
+  border-radius: var(--md-radius-md, 10px);
+  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+}
+
+.shortage-task-page .section-title h3 {
+  color: var(--md-text-heading, var(--spd-text-heading));
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.shortage-task-page .section-title svg {
+  color: var(--md-primary, var(--spd-primary));
+}
+
+/* ---------- 表单区 ---------- */
+.shortage-task-page .closure-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  align-items: end;
+  gap: 10px 14px;
+  padding: 12px;
+  background: var(--md-bg-muted, var(--spd-bg-page));
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
+  border-radius: var(--md-radius, 6px);
+}
+
+.shortage-task-page .closure-form-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.shortage-task-page .closure-form-grid label > span {
+  color: var(--md-text-secondary, var(--spd-text-secondary));
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.shortage-task-page .closure-form-grid input,
+.shortage-task-page .closure-form-grid select {
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid var(--md-border, var(--spd-border-default));
+  border-radius: var(--md-radius, 6px);
+  background: var(--md-bg-card, #fff);
+  color: var(--md-text, var(--spd-text-primary));
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.shortage-task-page .closure-form-grid input:focus,
+.shortage-task-page .closure-form-grid select:focus {
+  outline: none;
+  border-color: var(--md-primary, var(--spd-primary));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary, #0d6b63) 14%, transparent);
+}
+
+/* ---------- 动作按钮行 ----------
+   master-data-all.override.css 的 .hospital-action-row 带 !important
+   （min-height 48px + --spd-bg-page 背景），这里统一到 md 规格。 */
+.shortage-task-page .hospital-action-row {
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 0 !important;
+  background: var(--md-bg-muted, #fafbfc) !important;
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  border-radius: var(--md-radius, 6px) !important;
+  padding: 10px 12px !important;
+}
+
+.shortage-task-page .hospital-action-row .btn {
+  min-height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.shortage-task-page .hospital-action-row .btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+/* ---------- 列表表格 ---------- */
+/* 全局 `.table-scroll, ...` 设 border-radius:10px，需同特指度覆盖。 */
+.shortage-task-page > .hospital-catalog-panel .table-scroll,
+.shortage-task-page .table-scroll {
+  max-height: max(300px, calc(100dvh - 420px));
+  overflow: auto;
+  border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  border-radius: var(--md-radius, 6px) !important;
+  background: var(--md-bg-card, #fff);
+  scrollbar-width: thin;
+  scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
+}
+
+.shortage-task-page .table-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.shortage-task-page .table-scroll::-webkit-scrollbar-thumb {
+  background: var(--md-border, var(--spd-border-default));
+  border-radius: 4px;
+}
+
+.shortage-task-page .purchase-table,
+.shortage-task-page .purchase-detail-table {
+  min-width: 100%;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px !important;
+}
+
+.shortage-task-page .purchase-table thead th,
+.shortage-task-page .purchase-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 9px 12px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  color: var(--md-text-heading) !important;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
+}
+
+.shortage-task-page .purchase-table tbody td,
+.shortage-task-page .purchase-detail-table tbody td {
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  color: var(--md-text) !important;
+  border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
+  vertical-align: middle;
+}
+
+.shortage-task-page .purchase-table tbody tr:nth-child(even) td,
+.shortage-task-page .purchase-detail-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted, #fafbfc) !important;
+}
+
+.shortage-task-page .purchase-table tbody tr:hover td,
+.shortage-task-page .purchase-detail-table tbody tr:hover td {
+  background: var(--md-primary-soft, #f0f7f6) !important;
+}
+
+/* 单据号等宽、数量金额右对齐 */
+.shortage-task-page .purchase-table tbody td:first-child,
+.shortage-task-page .purchase-detail-table tbody td:first-child {
+  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-size: 12px !important;
+  color: var(--md-text-heading) !important;
+  white-space: nowrap;
+}
+
+/* ---------- 状态徽标 ----------
+   medical-saas.css 的 `.status-badge.pending` 带 !important（蓝），
+   main.css 的 `.status-badge.pending` 无 important（橙），
+   这里需同时压过两者，故用 !important + 提高特指度。 */
+.shortage-task-page .status-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shortage-task-page .status-badge.enabled {
+  background: var(--spd-success-bg, #e8f5ef) !important;
+  color: var(--spd-success-text, #137a52) !important;
+  border-color: var(--spd-success-border, #bfe3d3) !important;
+}
+
+.shortage-task-page .status-badge.pending {
+  background: var(--spd-warning-bg, #fff4e5) !important;
+  color: var(--spd-warning-text, #9a5b00) !important;
+  border-color: var(--spd-warning-border, #f5d9ae) !important;
+}
+
+.shortage-task-page .muted-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 11px;
+}
+
+/* ---------- 加载 / 空状态 ---------- */
+.shortage-task-page .approval-empty {
+  padding: 48px 16px !important;
+  text-align: center;
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: 13px;
+}
+
+/* ---------- 提示条 ---------- */
+.shortage-task-page .inline-message {
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--spd-primary-border);
+  border-radius: var(--md-radius, 6px);
+  color: var(--spd-primary-text);
+  background: var(--spd-primary-bg);
+  font-size: 13px;
+}
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 1100px) {
+  .shortage-task-page .closure-form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .shortage-task-page {
+    padding: 12px 12px 20px;
+  }
+
+  .shortage-task-page .closure-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shortage-task-page > .hospital-catalog-panel .table-scroll {
+    max-height: max(240px, calc(100dvh - 380px));
+  }
+}
+
+/* ---------- 拣配配送：响应式 ---------- */
+@media (max-width: 1100px) {
+  .delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .delivery-acceptance-page {
+    padding: 12px 12px 20px;
+  }
+
+  .delivery-acceptance-page .delivery-workspace-card {
+    padding: 14px;
+  }
+
+  .delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-acceptance-page .delivery-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .delivery-acceptance-page .delivery-action-hint {
+    margin-right: 0;
+  }
+
+  .delivery-acceptance-page .delivery-action-row .btn {
+    width: 100%;
+  }
+
+  .delivery-acceptance-page .picking-panel .table-scroll {
+    max-height: max(240px, calc(100dvh - 420px));
   }
 }
 </style>

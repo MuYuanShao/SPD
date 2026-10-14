@@ -2,7 +2,9 @@
 /**
  * DashboardView — 现代化工作台首页
  *
- * 仅保留业务模块快捷入口（按大模块分组，渐变色头 + 子功能网格）。
+ * - 顶部 hero header：欢迎语 + 副标题 + 关键数据指标
+ * - 中部业务模块区：标题区独立白底卡片 + 业务模块卡片网格（主色渐变 + 子菜单）
+ * - 整体 24px 边距，圆角阴影分明，引入新字体（display 字体）
  */
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -10,27 +12,20 @@ import {
   Database,
   FileText,
   Search,
-  LayoutDashboard
+  LayoutDashboard,
+  Sparkles,
+  Layers,
+  Activity
 } from '@lucide/vue'
 import { useLayoutNavigation } from '../layout/useLayoutNavigation'
+import { useAuthStore } from '../stores/auth'
 import { featureRouteTarget } from '../config/featureCatalog'
 
 const router = useRouter()
+const auth = useAuthStore()
 const { groups } = useLayoutNavigation()
 
 const quickSearch = ref('')
-
-// 颜色盘（业务模块快捷入口）
-const COLOR_PALETTE = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-  'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
-  'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)'
-]
 
 // 图标映射
 const ICON_MAP: Record<string, any> = {
@@ -40,52 +35,48 @@ const ICON_MAP: Record<string, any> = {
   LayoutDashboard
 }
 
-function colorClass(index: number): string {
-  return COLOR_PALETTE[index % COLOR_PALETTE.length]
+// 从 menuGroups 提取业务大模块与子功能
+interface QuickChild {
+  path: string
+  label: string
+  icon: any
 }
 
-// 从 menuGroups 提取业务大模块与子功能
 interface QuickGroupUI {
   key: string
   label: string
   desc: string
   icon: any
-  color: string
-  children: { path: string; label: string; icon: any; color: string }[]
+  children: QuickChild[]
+}
+
+const groupDescs: Record<string, string> = {
+  'master-data-quota': '主数据 · 定数包',
+  'supply-chain': '采购 · 库存 · 配送',
+  'special-compliance': 'UDI · 冷链 · 召回',
+  'settlement-finance': '对账 · 红冲 · 发票',
+  'operations-decision': '运营驾驶舱 · 报表',
+  'system-management': '用户 · 权限 · 配置'
 }
 
 const quickGroups = computed<QuickGroupUI[]>(() => {
-  const groupDescs: Record<string, string> = {
-    'master-data-quota': '主数据·定数包',
-    'supply-chain': '采购·库存·配送',
-    'special-compliance': 'UDI·冷链·召回',
-    'settlement-finance': '对账·红冲·发票',
-    'operations-decision': '运营驾驶舱·报表',
-    'system-management': '用户·权限·配置'
-  }
-
-  return groups.value.map((group, gi) => {
-    const children: { path: string; label: string; icon: any; color: string }[] = []
-    let childIndex = 0
+  return groups.value.map((group) => {
+    const children: QuickChild[] = []
     for (const child of group.children || []) {
       if (child.children?.length) {
         for (const sub of child.children) {
           children.push({
             path: featureRouteTarget(sub.code),
             label: sub.title,
-            icon: sub.icon || ICON_MAP[sub.code] || FileText,
-            color: colorClass(childIndex)
+            icon: sub.icon || ICON_MAP[sub.code] || FileText
           })
-          childIndex++
         }
       } else {
         children.push({
           path: featureRouteTarget(child.code),
           label: child.title,
-          icon: child.icon || ICON_MAP[child.code] || FileText,
-          color: colorClass(childIndex)
+          icon: child.icon || ICON_MAP[child.code] || FileText
         })
-        childIndex++
       }
     }
     return {
@@ -93,7 +84,6 @@ const quickGroups = computed<QuickGroupUI[]>(() => {
       label: group.title,
       desc: groupDescs[group.code] || '',
       icon: group.icon || ICON_MAP[group.code] || Database,
-      color: colorClass(gi),
       children
     }
   })
@@ -116,20 +106,72 @@ const filteredQuickGroups = computed<QuickGroupUI[]>(() => {
     .filter((g): g is QuickGroupUI => g !== null)
 })
 
+// 汇总指标
+const totalModules = computed(() => quickGroups.value.length)
+const totalFeatures = computed(() => quickGroups.value.reduce((sum, g) => sum + g.children.length, 0))
+
 function goTo(path: string) {
   router.push(path)
 }
+
+function greeting(): string {
+  const hour = new Date().getHours()
+  if (hour < 6) return '夜深了'
+  if (hour < 11) return '早上好'
+  if (hour < 13) return '中午好'
+  if (hour < 18) return '下午好'
+  return '晚上好'
+}
+
+const today = computed(() => {
+  const d = new Date()
+  const weekDays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六']
+  return `${d.getFullYear()} 年 ${String(d.getMonth() + 1).padStart(2, '0')} 月 ${String(
+    d.getDate()
+  ).padStart(2, '0')} 日 · ${weekDays[d.getDay()]}`
+})
 </script>
 
 <template>
   <div class="spd-dashboard">
-    <!-- 第一行：业务模块快捷入口 -->
+    <!-- Hero Header：欢迎区 -->
+    <header class="spd-dashboard-hero">
+      <div class="spd-hero-content">
+        <span class="spd-hero-eyebrow">
+          <Sparkles :size="13" />
+          SPD 医用耗材精益管理平台
+        </span>
+        <h1 class="spd-hero-title">
+          {{ greeting() }}，{{ auth.currentUser?.realName || auth.username || '同事' }}
+        </h1>
+        <p class="spd-hero-subtitle">
+          {{ today }} · 当前账号已开通
+          {{ totalModules }} 个业务模块、{{ totalFeatures }} 项功能
+        </p>
+      </div>
+      <div class="spd-hero-cta">
+        <div class="spd-hero-stat">
+          <span class="spd-hero-stat-label">业务模块</span>
+          <span class="spd-hero-stat-value">{{ totalModules }}</span>
+        </div>
+        <div class="spd-hero-stat">
+          <span class="spd-hero-stat-label">功能项</span>
+          <span class="spd-hero-stat-value">{{ totalFeatures }}</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- 业务模块区 -->
     <section class="spd-modules-section">
       <div class="spd-modules-header">
         <div class="spd-modules-title">
-          <LayoutDashboard :size="20" />
-          <h2 class="spd-modules-name">业务模块快捷入口</h2>
-          <span class="spd-modules-hint">点击直达各功能模块</span>
+          <span class="spd-modules-title-icon">
+            <LayoutDashboard :size="16" />
+          </span>
+          <div class="spd-modules-title-text">
+            <h2 class="spd-modules-name">业务模块快捷入口</h2>
+            <span class="spd-modules-hint">点击直达各功能模块</span>
+          </div>
         </div>
         <el-input
           v-model="quickSearch"
@@ -143,15 +185,16 @@ function goTo(path: string) {
           </template>
         </el-input>
       </div>
+
       <div class="spd-modules-grid">
         <div
           v-for="group in filteredQuickGroups"
           :key="group.key"
           class="spd-module-card"
         >
-          <div class="spd-module-header" :style="{ background: group.color }">
+          <div class="spd-module-header">
             <div class="spd-module-icon">
-              <component :is="group.icon" :size="22" />
+              <component :is="group.icon" :size="20" />
             </div>
             <div class="spd-module-title">
               <div class="spd-module-name">{{ group.label }}</div>
@@ -167,8 +210,8 @@ function goTo(path: string) {
               @click="goTo(child.path)"
               :title="child.label"
             >
-              <div class="spd-child-icon" :style="{ background: child.color }">
-                <component :is="child.icon" :size="14" />
+              <div class="spd-child-icon">
+                <component :is="child.icon" :size="13" />
               </div>
               <div class="spd-child-label">{{ child.label }}</div>
             </div>

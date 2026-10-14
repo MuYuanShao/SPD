@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PageHeader from '../../components/common/PageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import { createInvoice, fetchInvoiceOptions, fetchInvoices, verifyInvoice, type InvoiceRow } from '../../api/invoices'
@@ -57,9 +58,13 @@ onMounted(load)
 
 <template>
   <section class="invoice-page">
-    <PageHeader eyebrow="结算与财务" title="发票管理" description="供应商发票登记、核验及结算关联均实时写入 MySQL。">
-      <template #actions><button class="btn" type="button" :disabled="loading" @click="load">刷新</button></template>
-    </PageHeader>
+    <MdPageHeader
+      crumb="结算与财务"
+      title="发票管理"
+      description="供应商发票登记、核验及结算关联均实时写入 MySQL。"
+      :loading="loading"
+      @refresh="load"
+    />
     <p v-if="message" class="inline-message">{{ message }}</p>
 
     <section class="invoice-panel">
@@ -97,14 +102,15 @@ onMounted(load)
 </template>
 
 <style scoped>
-.invoice-page { display:grid; gap:16px; }
-.invoice-panel { border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:20px; }
+.invoice-page { display:grid; gap:14px; box-sizing: border-box; width: 100%; min-width: 0; max-width: none; padding: 16px 20px 24px; }
+.invoice-page > .md-header { border-radius: var(--spd-radius-md, 10px); }
+.invoice-panel { border:1px solid var(--line); border-radius:10px !important; background:var(--surface); padding:20px !important; box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04)); }
 .invoice-panel h3 { margin:0 0 16px; }
 .invoice-form { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:14px; align-items:end; }
-.invoice-form label { display:grid; gap:6px; color:var(--text-muted); }
-.invoice-form input,.invoice-form select,.invoice-toolbar input,.invoice-toolbar select { min-height:38px; border:1px solid var(--line); border-radius:6px; padding:0 10px; background:#fff; }
+.invoice-form label { display:grid; gap:6px; color:var(--text-muted); font-size:12px; font-weight:600; }
+.invoice-form input,.invoice-form select,.invoice-toolbar input,.invoice-toolbar select { min-height:32px; height:32px; border:1px solid var(--line); border-radius:6px; padding:0 11px; background:#fff; font-size:13px; }
 .invoice-form .wide { grid-column:span 2; }
-.invoice-toolbar { display:flex; gap:10px; margin-bottom:14px; }
+.invoice-toolbar { display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
 .invoice-toolbar input { min-width:320px; }
 .table-scroll { overflow:auto; }
 table { width:100%; min-width:1200px; border-collapse:collapse; }

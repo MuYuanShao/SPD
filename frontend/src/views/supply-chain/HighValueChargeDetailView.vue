@@ -1,13 +1,30 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { ChevronLeft, ChevronRight, RefreshCw, Search, X } from '@lucide/vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ChevronLeft, ChevronRight, ClipboardCheck, Search, X } from '@lucide/vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import TableStateRow from '../../components/common/TableStateRow.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import HighValueOperationsPanel from '../../components/supply-chain/HighValueOperationsPanel.vue'
 import { useChargeDetailQuery } from '../../composables/useChargeDetailQuery'
 import { useAuthStore } from '../../stores/auth'
 
 const auth = useAuthStore()
+const route = useRoute()
+const router = useRouter()
+/** Tab 切换：detail（计费明细查询）/ operations（高值耗材计费操作）
+ *  通过 ?tab=operations 在 URL 中保留状态，方便外部链接和回退 */
+type ChargeTab = 'detail' | 'operations'
+const isOperationsTab = computed<boolean>(() => String(route.query.tab || '') === 'operations')
+const activeTab = computed<ChargeTab>(() => (auth.canWrite('high-value-consumables') && isOperationsTab.value) ? 'operations' : 'detail')
+
+function switchTab(tab: ChargeTab) {
+  if (tab === activeTab.value) return
+  router.replace({ path: route.path, query: tab === 'operations' ? { tab: 'operations' } : {} })
+}
+/** 默认只展示常用条件，UDI/供应商/厂家/注册证折叠，避免首屏被筛选项占满 */
+const showAllFilters = ref(false)
 const { filters, rows, loading, message, validationMessage, currentPage, pageSize, totalItems,
   loadData, search, reset, changePage, changePageSize } = useChargeDetailQuery()
 const tableScrollRef = ref<HTMLElement | null>(null)
@@ -109,15 +126,44 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 <template>
   <section class="charge-detail-page" aria-label="收费耗材明细查询">
+    <MdPageHeader
+      crumb="供应链业务"
+      title="收费耗材明细查询"
+      description="按患者、商品、日期、唯一码、厂家供应商等条件查询高值耗材计费明细"
+      :loading="loading"
+      @refresh="loadData"
+    />
 
+    <div v-if="auth.canWrite('high-value-consumables')" class="charge-tab-strip" role="tablist" aria-label="高值耗材计费模块">
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === 'detail'"
+        :class="['charge-tab', { 'is-active': activeTab === 'detail' }]"
+        @click="switchTab('detail')"
+      >
+        <Search :size="16" />
+        计费明细查询
+      </button>
+      <button
+        type="button"
+        role="tab"
+        :aria-selected="activeTab === 'operations'"
+        :class="['charge-tab', { 'is-active': activeTab === 'operations' }]"
+        @click="switchTab('operations')"
+      >
+        <ClipboardCheck :size="16" />
+        高值耗材计费操作
+      </button>
+    </div>
+
+    <HighValueOperationsPanel v-if="activeTab === 'operations'" />
+
+    <template v-else>
     <StatusMessage :message="message" tone="error" role="alert" />
     <StatusMessage :message="validationMessage" tone="warning" role="alert" />
 
-    <form class="charge-panel" @submit.prevent="search">
-      <div class="charge-section-title">
-        <Search :size="20" />
-        <h3>查询条件</h3>
-      </div>
+    <form class="charge-panel charge-filters" :class="{ 'is-expanded': showAllFilters }" @submit.prevent="search">
       <div class="charge-query-grid">
         <label><span>患者号/住院号</span><input v-model.trim="filters.patientNo" placeholder="患者号、住院号" /></label>
         <label><span>患者姓名</span><input v-model.trim="filters.patientName" placeholder="支持脱敏姓名" /></label>
@@ -125,34 +171,35 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
         <label><span>商品名称</span><input v-model.trim="filters.productName" placeholder="耗材名称" /></label>
         <label><span>开始日期</span><input v-model="filters.dateFrom" type="date" /></label>
         <label><span>结束日期</span><input v-model="filters.dateTo" type="date" /></label>
-        <label><span>UID/唯一码</span><input v-model.trim="filters.uid" placeholder="唯一码" /></label>
-        <label><span>UDI</span><input v-model.trim="filters.udi" placeholder="UDI-DI / UDI" /></label>
-        <label><span>供应商</span><input v-model.trim="filters.supplierName" placeholder="供应商名称" /></label>
-        <label><span>厂家</span><input v-model.trim="filters.manufacturerName" placeholder="生产厂家" /></label>
-        <label><span>注册证</span><input v-model.trim="filters.registrationNo" placeholder="注册证号" /></label>
+        <label><span>唯一码</span><input v-model.trim="filters.uid" placeholder="唯一码" /></label>
+        <label class="charge-filter-extra"><span>UDI / DI</span><input v-model.trim="filters.udi" placeholder="UDI-DI / UDI" /></label>
+        <label class="charge-filter-extra"><span>供应商</span><input v-model.trim="filters.supplierName" placeholder="供应商名称" /></label>
+        <label class="charge-filter-extra"><span>生产厂家</span><input v-model.trim="filters.manufacturerName" placeholder="生产厂家" /></label>
+        <label class="charge-filter-extra"><span>注册证号</span><input v-model.trim="filters.registrationNo" placeholder="注册证号" /></label>
       </div>
-      <div class="hospital-action-row">
+      <div class="charge-filter-actions">
         <button class="btn btn-primary" type="submit">
-          <Search :size="18" />
+          <Search :size="16" />
           查询
         </button>
         <button class="btn" type="button" @click="reset">
-          <X :size="18" />
+          <X :size="16" />
           重置
         </button>
-        <button class="btn" type="button" @click="loadData"><RefreshCw :size="17" />刷新</button>
-        <RouterLink v-if="auth.canWrite('high-value-consumables')" class="btn" to="/features/high-value-consumables/operations">高值耗材计费操作</RouterLink>
+        <button class="btn charge-more-toggle" type="button" :aria-expanded="showAllFilters" @click="showAllFilters = !showAllFilters">
+          {{ showAllFilters ? '收起条件' : '更多条件' }}
+        </button>
       </div>
     </form>
 
     <section class="charge-panel" :aria-busy="loading">
-      <div class="charge-section-title charge-detail-title">
+      <div class="charge-section-title">
         <h3>收费明细</h3>
         <div class="charge-scroll-actions" aria-label="收费明细横向滚动控制">
-          <button class="btn-icon" type="button" aria-label="向左滚动" @click="scrollChargeTable('left')">
+          <button class="btn-icon" type="button" aria-label="向左滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('left')">
             <ChevronLeft :size="18" />
           </button>
-          <button class="btn-icon" type="button" aria-label="向右滚动" @click="scrollChargeTable('right')">
+          <button class="btn-icon" type="button" aria-label="向右滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('right')">
             <ChevronRight :size="18" />
           </button>
         </div>
@@ -212,7 +259,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
           </tbody>
         </table>
       </div>
-      <div class="charge-scroll-hint">
+      <div v-if="tableScrollState.max > 0" class="charge-scroll-hint">
         <span>左右滑动查看完整收费明细</span>
         <div
           ref="scrollTrackRef"
@@ -253,38 +300,180 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
         @change-size="changePageSize"
       />
     </section>
+    </template>
   </section>
 </template>
 
 <style scoped>
-.charge-detail-page { display: grid; gap: 16px; min-width: 0; }
-.charge-panel {
+/* =====================================================================
+   收费耗材明细查询
+   全部使用项目设计令牌（--spd-*），与科室申领、UDI 追溯等页面保持一致。
+   ===================================================================== */
+.charge-detail-page {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
   min-width: 0;
-  margin: 0;
-  padding: 16px;
-  border: 1px solid var(--fli-line, #e5eaf0);
-  border-radius: 8px;
-  background: white;
+  margin: 0 !important;
+  padding: 16px 20px 24px;
+  border: 0 !important;
+  background: transparent;
+  overflow: visible;
 }
-.charge-section-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.charge-section-title h3 { margin: 0; font-size: 15px; }
-.charge-section-title > svg { color: var(--primary); }
-.charge-query-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 12px 16px; }
-.charge-query-grid label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
-.charge-query-grid input {
-  width: 100%; min-width: 0; box-sizing: border-box; height: 36px; padding: 0 10px;
-  border: 1px solid var(--fli-line, #dbe5ec); border-radius: 6px;
-  background: white; color: inherit; font: inherit;
-}
-.charge-query-grid input:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-.charge-panel .hospital-action-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
-.charge-scroll-track:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
 
-.charge-detail-title {
+.charge-detail-page h3,
+.charge-detail-page p {
+  margin: 0;
+}
+
+/* =====================================================================
+   Tab 切换：计费明细查询 / 高值耗材计费操作
+   - 同一页面内即时切换，无独立路由，无"丢失"问题
+   - 与项目其他 Tab 控件一致，使用底部激活下划线 + 主题色描边
+   ===================================================================== */
+.charge-tab-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  margin: -2px 0 0;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+  background: transparent;
+}
+
+.charge-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--spd-text-secondary, #607285);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+
+.charge-tab:hover {
+  color: var(--spd-text-heading, #14213a);
+  background: rgba(15, 83, 79, 0.05);
+}
+
+.charge-tab.is-active {
+  color: var(--spd-primary, #0f534f);
+  border-bottom-color: var(--spd-primary, #0f534f);
+  background: rgba(15, 83, 79, 0.08);
+}
+
+.charge-tab:focus-visible {
+  outline: 2px solid rgba(15, 83, 79, 0.35);
+  outline-offset: 2px;
+}
+
+.charge-panel {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 10px);
+  background: var(--spd-bg-container);
+  box-shadow: var(--spd-shadow-1);
+}
+
+/* ---------- 查询条件 ---------- */
+.charge-query-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  gap: 10px 14px;
+}
+
+.charge-query-grid label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.charge-query-grid label > span {
+  color: var(--spd-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.charge-query-grid input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  outline: 0;
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  font: inherit;
+  font-size: 13px;
+}
+
+.charge-query-grid input::placeholder {
+  color: var(--spd-text-placeholder);
+}
+
+.charge-query-grid input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--spd-primary-bg);
+}
+
+/* 折叠态只保留常用条件，避免首屏被筛选项占满
+   选择器需高于 .charge-query-grid label 的 display:grid 规则 */
+.charge-filters .charge-filter-extra {
+  display: none;
+}
+
+.charge-filters.is-expanded .charge-filter-extra {
+  display: grid;
+}
+
+.charge-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--spd-border-subtle);
+}
+
+.charge-filter-actions .btn {
+  height: 34px;
+  white-space: nowrap;
+}
+
+.charge-more-toggle {
+  margin-left: auto;
+  color: var(--spd-text-secondary);
+}
+
+/* ---------- 面板标题 ---------- */
+.charge-section-title {
+  display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 
+.charge-section-title h3 {
+  color: var(--spd-text-heading);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* ---------- 横向滚动控制 ---------- */
 .charge-scroll-actions {
   display: flex;
   gap: 8px;
@@ -292,20 +481,34 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 }
 
 .charge-scroll-actions .btn-icon {
-  width: 36px;
-  height: 36px;
-  border: 1px solid #dbe5ec;
-  border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius-sm, 6px);
+  background: var(--spd-bg-container);
+  color: var(--spd-text-secondary);
   cursor: pointer;
 }
 
+.charge-scroll-actions .btn-icon:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+  color: var(--primary);
+}
+
 .charge-scroll-actions .btn-icon:disabled {
-  opacity: 0.38;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
+.charge-scroll-track:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+/* ---------- 表格 ---------- */
 .charge-detail-scroll {
   width: 100%;
   overflow-x: auto;
@@ -372,14 +575,15 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   white-space: nowrap;
 }
 
+/* ---------- 横向滚动条 ---------- */
 .charge-scroll-hint {
   display: grid;
   grid-template-columns: auto minmax(180px, 1fr);
   align-items: center;
   gap: 12px;
-  padding: 10px 2px 0;
-  color: #64748b;
-  font-size: 13px;
+  margin-top: 10px;
+  color: var(--spd-text-secondary);
+  font-size: 12px;
 }
 
 .charge-scroll-track {
@@ -387,7 +591,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e8eef3;
+  background: var(--spd-border-subtle);
   cursor: pointer;
   touch-action: none;
 }
@@ -397,17 +601,26 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   inset-block: 0;
   left: 0;
   border-radius: inherit;
-  background: #8298aa;
+  background: var(--spd-text-tertiary);
   transition: background-color 0.16s ease;
 }
 
-.charge-scroll-track.dragging .charge-scroll-thumb {
-  background: #62798e;
+.charge-scroll-track:hover .charge-scroll-thumb {
+  background: var(--primary);
 }
 
+.charge-scroll-track.dragging .charge-scroll-thumb {
+  background: var(--primary);
+}
+
+/* ---------- 响应式 ---------- */
 @media (max-width: 900px) {
   .charge-scroll-hint {
     grid-template-columns: 1fr;
+  }
+
+  .charge-more-toggle {
+    margin-left: 0;
   }
 }
 </style>

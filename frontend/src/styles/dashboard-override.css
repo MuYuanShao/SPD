@@ -1,0 +1,462 @@
+/* =====================================================================
+   SPD 工作台 / Dashboard — 商业级美化覆盖
+   ---------------------------------------------------------------------
+   设计目标：
+   1. 工作台外层增加左右 24px 边距，与侧栏/顶栏有呼吸感
+   2. 顶部 hero header（独立卡片）+ 下方业务模块区（独立卡片），
+      标题与菜单视觉分层清晰
+   3. 业务模块卡片采用主色淡化（轻渐变）+ 白底子菜单，风格统一
+   4. 引入新字体并优化颜色对比
+   ===================================================================== */
+
+/* 全局工作台容器 */
+.spd-dashboard {
+  padding: 24px !important;
+  background: var(--spd-bg-page) !important;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  box-sizing: border-box;
+  width: 100%;
+  position: relative;
+}
+
+/* 业务模块区 */
+.spd-modules-section {
+  margin-bottom: 0 !important;
+}
+
+/* ===== Hero Header（顶部欢迎区） ===== */
+.spd-dashboard-hero {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-strong) 100%);
+  border-radius: var(--spd-radius-lg, 12px);
+  padding: 28px 32px;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 20%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.spd-dashboard-hero::before {
+  content: '';
+  position: absolute;
+  top: -60px;
+  right: -60px;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.spd-dashboard-hero::after {
+  content: '';
+  position: absolute;
+  bottom: -40px;
+  left: 30%;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.10) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.spd-hero-content {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  min-width: 0;
+}
+
+.spd-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #ffffff;
+  margin-bottom: 12px;
+  letter-spacing: 0.4px;
+}
+
+.spd-hero-eyebrow .el-icon {
+  font-size: 13px;
+}
+
+.spd-hero-title {
+  font-family: var(--spd-font-family-display, var(--spd-font-family));
+  font-size: 26px;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 6px;
+  letter-spacing: -0.3px;
+  line-height: 1.3;
+}
+
+.spd-hero-subtitle {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+  line-height: 1.6;
+  font-weight: 400;
+  max-width: 640px;
+}
+
+.spd-hero-cta {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.spd-hero-stat {
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--spd-radius-md, 8px);
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 110px;
+}
+
+.spd-hero-stat-label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 400;
+}
+
+.spd-hero-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+}
+
+/* ===== 区块 Header（标题区，与下方卡片分离） ===== */
+.spd-modules-header {
+  background: var(--spd-bg-container, #ffffff);
+  border-radius: var(--spd-radius-md, 8px);
+  padding: 16px 20px;
+  margin-bottom: 12px !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  border: 1px solid var(--spd-border-subtle, #f0f0f0);
+  box-shadow: var(--spd-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.03));
+  gap: 16px;
+}
+
+.spd-modules-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.spd-modules-title-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--spd-primary-bg, color-mix(in srgb, var(--primary) 10%, transparent));
+  color: var(--primary);
+  border-radius: var(--spd-radius-sm, 4px);
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.spd-modules-title-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.spd-modules-name {
+  font-family: var(--spd-font-family-display, var(--spd-font-family));
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  color: var(--spd-text-heading, rgba(0, 0, 0, 0.88)) !important;
+  margin: 0 !important;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+}
+
+.spd-modules-hint {
+  font-size: 12px !important;
+  color: var(--spd-text-tertiary, rgba(0, 0, 0, 0.45)) !important;
+  font-weight: 400 !important;
+  line-height: 1.4;
+}
+
+/* 搜索框（Hero Header 右侧） */
+.spd-modules-search {
+  width: 280px !important;
+}
+
+.spd-modules-search .el-input__wrapper {
+  background: var(--spd-bg-container) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  box-shadow: 0 0 0 1px var(--spd-border-default) inset !important;
+}
+
+/* ===== 业务模块卡片网格 ===== */
+.spd-modules-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+}
+
+/* ===== 业务模块卡片（主色淡化 + 商业感） ===== */
+.spd-module-card {
+  display: flex !important;
+  flex-direction: column;
+  background: var(--spd-bg-container, #ffffff) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  border: 1px solid var(--spd-border-subtle, #f0f0f0) !important;
+  box-shadow: var(--spd-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.03)) !important;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.spd-module-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: var(--spd-shadow-2, 0 6px 16px rgba(0, 0, 0, 0.08)) !important;
+  border-color: var(--primary) !important;
+}
+
+/* 模块 header — 主色淡渐变（不再硬编码彩色） */
+.spd-module-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  color: #ffffff;
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--primary-strong) 100%
+  ) !important;
+  overflow: hidden;
+}
+
+.spd-module-header::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.spd-module-header::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle at top right, rgba(255, 255, 255, 0.15), transparent 70%);
+  pointer-events: none;
+}
+
+.spd-module-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--spd-radius-sm, 6px);
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #ffffff;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.spd-module-title {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.spd-module-name {
+  font-family: var(--spd-font-family-display, var(--spd-font-family));
+  font-size: 16px !important;
+  font-weight: 700;
+  color: #ffffff !important;
+  line-height: 1.3;
+  letter-spacing: 0.2px;
+  margin: 0;
+}
+
+.spd-module-desc {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spd-module-count {
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.22);
+  backdrop-filter: blur(8px);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== 模块 body / 子菜单（白底圆角紧凑） ===== */
+.spd-module-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 14px;
+}
+
+.spd-module-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+  border-radius: var(--spd-radius-sm, 6px) !important;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  border: 1px solid transparent;
+  position: relative;
+}
+
+.spd-module-child::after {
+  content: '';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-right: 2px solid var(--spd-border-default);
+  border-top: 2px solid var(--spd-border-default);
+  transform: translateY(-65%) rotate(45deg);
+  opacity: 0;
+  transition: all 0.2s;
+}
+
+.spd-module-child:hover {
+  background: var(--spd-primary-bg, color-mix(in srgb, var(--primary) 10%, transparent)) !important;
+  border-color: var(--primary) !important;
+  transform: translateX(2px);
+  padding-right: 24px;
+}
+
+.spd-module-child:hover::after {
+  opacity: 1;
+  border-color: var(--primary);
+}
+
+.spd-child-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--spd-radius-sm, 4px);
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #ffffff;
+  flex-shrink: 0;
+  background: linear-gradient(
+    135deg,
+    var(--primary) 0%,
+    var(--primary-strong) 100%
+  ) !important;
+  transition: transform 0.2s;
+}
+
+.spd-module-child:hover .spd-child-icon {
+  transform: scale(1.08) rotate(-3deg);
+}
+
+.spd-child-label {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px !important;
+  font-weight: 500;
+  color: var(--spd-text-primary, rgba(0, 0, 0, 0.88)) !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.spd-module-child:hover .spd-child-label {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
+
+/* ===== 空状态 ===== */
+.spd-modules-empty {
+  grid-column: 1 / -1 !important;
+  background: var(--spd-bg-container) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  padding: 48px 24px !important;
+  border: 1px dashed var(--spd-border-default) !important;
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 1600px) {
+  .spd-modules-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  .spd-modules-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  .spd-dashboard-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .spd-modules-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .spd-hero-title {
+    font-size: 22px;
+  }
+  .spd-dashboard {
+    padding: 16px !important;
+  }
+}

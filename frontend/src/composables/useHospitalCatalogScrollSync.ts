@@ -56,6 +56,10 @@ export function useHospitalCatalogScrollSync(options: {
   function startColumnNavDrag(event: PointerEvent) {
     const target = columnNavTrackRef.value
     if (!target) return
+    // Don't steal clicks on chips — let chip @click fire normally.
+    if ((event.target as HTMLElement | null)?.closest('.subnav-chip')) {
+      return
+    }
     columnNavDragging.value = true
     columnNavDragStartX = event.clientX
     columnNavDragStartLeft = target.scrollLeft

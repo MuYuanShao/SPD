@@ -1,0 +1,3133 @@
+/* =====================================================================
+   主数据全部页面统一覆盖 (master-data-all.override.css)
+   ---------------------------------------------------------------------
+   范围：医院目录 / 供应商厂家 / 院区 / 科室 / 科室库房 / 库房货位
+         6 个 MasterDataListView 类 + 对应 Dialog 组件
+   策略：使用 --spd-* 主题变量覆盖所有老旧硬编码颜色，保留布局结构
+   顺序：在所有原有 .css 之后挂载，靠 !important 胜出
+   ===================================================================== */
+
+/* ===== Master page 容器（所有子页面） ===== */
+.master-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 24px 32px 40px !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 18px;
+  box-sizing: border-box;
+  max-width: 100%;
+  position: relative;
+}
+
+@media (max-width: 1280px) {
+  .master-page { padding: 20px 24px 32px !important; }
+}
+
+@media (max-width: 900px) {
+  .master-page { padding: 16px !important; }
+}
+
+.master-page-title {
+  background: var(--md-bg-header) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
+              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  padding: 18px 24px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 0 !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.master-page-title::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+  pointer-events: none;
+}
+
+.master-page-title > * {
+  position: relative;
+}
+
+.master-page-title p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.78) !important;
+  font-size: 12px !important;
+  letter-spacing: 0.3px;
+}
+
+.master-page-title h2 {
+  margin: 4px 0 6px !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display) !important;
+  letter-spacing: -0.2px;
+}
+
+.master-page-title span {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.master-page-title small,
+.master-page-title .muted-hint {
+  color: rgba(255, 255, 255, 0.7) !important;
+  font-size: 12px;
+}
+
+.master-page-title .btn {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.32) !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(2px);
+}
+
+.master-page-title .btn:hover {
+  background: rgba(255, 255, 255, 0.28) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Catalog Panel（业务操作容器） ===== */
+.hospital-catalog-panel,
+.supplier-management-panel,
+.manufacturer-management-panel,
+.campus-management-panel,
+.department-management-panel,
+.department-warehouse-catalog-panel,
+.department-panel {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 18px 20px !important;
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 0 !important;
+}
+
+/* ===== 院区管理：与供应商/厂家保持一致的连贯列表布局 ===== */
+.master-page .md-partner-page > .md-table-card,
+.master-page .md-table-card-campus {
+  background: var(--md-bg-card) !important;
+}
+
+/* ===== Section Title ===== */
+.hospital-catalog-panel .section-title,
+.supplier-management-panel .section-title,
+.manufacturer-management-panel .section-title,
+.campus-management-panel .section-title,
+.department-management-panel .section-title,
+.department-warehouse-catalog-panel .section-title {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px;
+  margin-bottom: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-family: var(--spd-font-family-display) !important;
+}
+
+.hospital-catalog-panel .section-title h2,
+.hospital-catalog-panel .section-title h3,
+.supplier-management-panel .section-title h2,
+.supplier-management-panel .section-title h3,
+.manufacturer-management-panel .section-title h2,
+.manufacturer-management-panel .section-title h3,
+.campus-management-panel .section-title h2,
+.campus-management-panel .section-title h3,
+.department-management-panel .section-title h2,
+.department-management-panel .section-title h3,
+.department-warehouse-catalog-panel .section-title h2,
+.department-warehouse-catalog-panel .section-title h3 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 16px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.hospital-catalog-panel .section-title.compact h3,
+.supplier-management-panel .section-title.compact h3 {
+  font-size: 15px !important;
+}
+
+.hospital-catalog-panel .section-title .muted-hint,
+.supplier-management-panel .section-title .muted-hint,
+.manufacturer-management-panel .section-title .muted-hint,
+.campus-management-panel .section-title .muted-hint,
+.department-management-panel .section-title .muted-hint,
+.department-warehouse-catalog-panel .section-title .muted-hint {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-weight: 400;
+  margin-left: 8px;
+}
+
+/* ===== Action Row / Toolbar（所有 master-data 工具栏） ===== */
+.hospital-action-row,
+.supplier-toolbar,
+.manufacturer-toolbar,
+.campus-toolbar,
+.department-toolbar,
+.department-action-row {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 10px 14px !important;
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  margin-bottom: 0 !important;
+}
+
+.hospital-action-row .btn,
+.supplier-toolbar .btn,
+.manufacturer-toolbar .btn,
+.campus-toolbar .btn,
+.department-toolbar .btn,
+.department-action-row .btn {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.hospital-action-row .btn:hover:not(:disabled),
+.supplier-toolbar .btn:hover:not(:disabled),
+.manufacturer-toolbar .btn:hover:not(:disabled),
+.campus-toolbar .btn:hover:not(:disabled),
+.department-toolbar .btn:hover:not(:disabled),
+.department-action-row .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.hospital-action-row .btn:disabled,
+.supplier-toolbar .btn:disabled,
+.manufacturer-toolbar .btn:disabled,
+.campus-toolbar .btn:disabled,
+.department-toolbar .btn:disabled,
+.department-action-row .btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hospital-action-row .btn.btn-primary,
+.supplier-toolbar .btn.btn-primary,
+.manufacturer-toolbar .btn.btn-primary,
+.campus-toolbar .btn.btn-primary,
+.department-toolbar .btn.btn-primary,
+.department-action-row .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.hospital-action-row .btn.btn-primary:hover:not(:disabled),
+.supplier-toolbar .btn.btn-primary:hover:not(:disabled),
+.manufacturer-toolbar .btn.btn-primary:hover:not(:disabled),
+.campus-toolbar .btn.btn-primary:hover:not(:disabled),
+.department-toolbar .btn.btn-primary:hover:not(:disabled),
+.department-action-row .btn.btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+.hospital-action-row .btn.btn-danger,
+.supplier-toolbar .btn.btn-danger,
+.manufacturer-toolbar .btn.btn-danger,
+.campus-toolbar .btn.btn-danger,
+.department-toolbar .btn.btn-danger,
+.department-action-row .btn.btn-danger {
+  color: var(--spd-danger) !important;
+  border-color: var(--spd-danger-border) !important;
+}
+
+.hospital-action-row .btn.btn-danger:hover,
+.supplier-toolbar .btn.btn-danger:hover,
+.manufacturer-toolbar .btn.btn-danger:hover,
+.campus-toolbar .btn.btn-danger:hover,
+.department-toolbar .btn.btn-danger:hover,
+.department-action-row .btn.btn-danger:hover {
+  background: var(--spd-danger) !important;
+  border-color: var(--spd-danger) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Toolbar Primary/Secondary（左右对齐） ===== */
+.supplier-toolbar-primary,
+.manufacturer-toolbar-primary,
+.campus-toolbar-primary,
+.department-toolbar-primary,
+.supplier-toolbar-secondary,
+.manufacturer-toolbar-secondary,
+.campus-toolbar-secondary,
+.department-toolbar-secondary {
+  display: flex !important;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.supplier-toolbar-secondary,
+.manufacturer-toolbar-secondary,
+.campus-toolbar-secondary,
+.department-toolbar-secondary {
+  justify-content: flex-end;
+}
+
+/* ===== Filter Panel（筛选器） ===== */
+.supplier-filter-panel,
+.manufacturer-filter-panel,
+.campus-filter-panel,
+.department-filter-panel {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-page) !important;
+  padding: 14px 16px !important;
+  margin: 0 !important;
+}
+
+.supplier-filter-heading,
+.manufacturer-filter-heading,
+.campus-filter-heading,
+.department-filter-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.supplier-filter-title,
+.manufacturer-filter-title,
+.campus-filter-title,
+.department-filter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.supplier-filter-heading small,
+.manufacturer-filter-heading small,
+.campus-filter-heading small,
+.department-filter-heading small {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ===== Query Grid（查询表单） ===== */
+.hospital-query-grid,
+.supplier-query-grid,
+.manufacturer-query-grid,
+.campus-query-grid,
+.department-management-query-grid,
+.department-warehouse-catalog-query-grid,
+.department-query-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.hospital-query-grid label,
+.supplier-query-grid label,
+.manufacturer-query-grid label,
+.campus-query-grid label,
+.department-management-query-grid label,
+.department-warehouse-catalog-query-grid label,
+.department-query-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.hospital-query-grid label > span,
+.supplier-query-grid label > span,
+.manufacturer-query-grid label > span,
+.campus-query-grid label > span,
+.department-management-query-grid label > span,
+.department-warehouse-catalog-query-grid label > span,
+.department-query-grid label > span {
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+.hospital-query-grid input,
+.hospital-query-grid select,
+.supplier-query-grid input,
+.supplier-query-grid select,
+.manufacturer-query-grid input,
+.manufacturer-query-grid select,
+.campus-query-grid input,
+.campus-query-grid select,
+.department-management-query-grid input,
+.department-management-query-grid select,
+.department-warehouse-catalog-query-grid input,
+.department-warehouse-catalog-query-grid select,
+.department-query-grid input,
+.department-query-grid select {
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.hospital-query-grid input:focus,
+.hospital-query-grid select:focus,
+.supplier-query-grid input:focus,
+.supplier-query-grid select:focus,
+.manufacturer-query-grid input:focus,
+.manufacturer-query-grid select:focus,
+.campus-query-grid input:focus,
+.campus-query-grid select:focus,
+.department-management-query-grid input:focus,
+.department-management-query-grid select:focus,
+.department-warehouse-catalog-query-grid input:focus,
+.department-warehouse-catalog-query-grid select:focus,
+.department-query-grid input:focus,
+.department-query-grid select:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+  outline: none;
+}
+
+.hospital-query-actions,
+.supplier-query-actions,
+.manufacturer-query-actions,
+.campus-query-actions,
+.department-management-query-actions,
+.department-warehouse-catalog-query-actions,
+.department-query-actions {
+  grid-column: 1 / -1 !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.hospital-query-actions .btn,
+.supplier-query-actions .btn,
+.manufacturer-query-actions .btn,
+.campus-query-actions .btn,
+.department-management-query-actions .btn,
+.department-warehouse-catalog-query-actions .btn,
+.department-query-actions .btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.hospital-query-actions .btn:hover:not(:disabled),
+.supplier-query-actions .btn:hover:not(:disabled),
+.manufacturer-query-actions .btn:hover:not(:disabled),
+.campus-query-actions .btn:hover:not(:disabled),
+.department-management-query-actions .btn:hover:not(:disabled),
+.department-warehouse-catalog-query-actions .btn:hover:not(:disabled),
+.department-query-actions .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.hospital-query-actions .btn.btn-primary,
+.supplier-query-actions .btn.btn-primary,
+.manufacturer-query-actions .btn.btn-primary,
+.campus-query-actions .btn.btn-primary,
+.department-management-query-actions .btn.btn-primary,
+.department-warehouse-catalog-query-actions .btn.btn-primary,
+.department-query-actions .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.hospital-query-actions .btn.btn-primary:hover:not(:disabled),
+.supplier-query-actions .btn.btn-primary:hover:not(:disabled),
+.manufacturer-query-actions .btn.btn-primary:hover:not(:disabled),
+.campus-query-actions .btn.btn-primary:hover:not(:disabled),
+.department-management-query-actions .btn.btn-primary:hover:not(:disabled),
+.department-warehouse-catalog-query-actions .btn.btn-primary:hover:not(:disabled),
+.department-query-actions .btn.btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Master toolbar（fallback 模式） ===== */
+.master-toolbar {
+  display: flex !important;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 16px !important;
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+}
+
+.master-search {
+  flex: 1;
+  min-width: 240px;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  padding: 0 12px;
+  transition: all 0.18s ease;
+}
+
+.master-search:focus-within {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+}
+
+.master-search input {
+  flex: 1;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  color: var(--spd-text-primary);
+  padding: 0;
+  min-height: 0;
+}
+
+.master-search input::placeholder {
+  color: var(--spd-text-placeholder);
+}
+
+.master-toolbar .btn {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.master-toolbar .btn:hover:not(:disabled) {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.master-toolbar .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.master-toolbar .btn.btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Partner Page（供应商/厂家页统一容器） ===== */
+.md-partner-page {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ===== Partner Tab Bar（供应商/厂家切换） ===== */
+.partner-tab-bar,
+.sys-master-tabs,
+.md-tabs {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  padding: 6px !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  margin-bottom: 12px;
+  width: max-content;
+  max-width: 100%;
+}
+
+.partner-tab-bar button,
+.sys-master-tabs button,
+.md-tab {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  border: 1px solid transparent !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: transparent !important;
+  color: var(--spd-text-secondary) !important;
+  padding: 0 16px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.partner-tab-bar button:hover,
+.sys-master-tabs button:hover,
+.md-tab:hover {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-primary) !important;
+}
+
+.partner-tab-bar button.active,
+.sys-master-tabs button.active,
+.md-tab.active {
+  border-color: var(--spd-primary) !important;
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary-text) !important;
+  font-weight: 600;
+}
+
+/* ===== Master table card（表格卡片） ===== */
+.master-table-card {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  margin-bottom: 0 !important;
+  min-width: 0;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.department-warehouse-catalog-list-card {
+  /* 兼容 class */
+}
+
+/* ===== List Meta（表头 meta） ===== */
+.supplier-list-meta,
+.manufacturer-list-meta,
+.campus-list-meta,
+.department-list-meta,
+.catalog-list-meta {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px;
+  padding: 12px 16px !important;
+  background: var(--spd-bg-container) !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  font-size: 13px;
+  color: var(--spd-text-secondary) !important;
+  font-weight: 500;
+}
+
+.supplier-list-meta strong,
+.manufacturer-list-meta strong,
+.campus-list-meta strong,
+.department-list-meta strong,
+.catalog-list-meta strong {
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.supplier-list-meta .selected,
+.manufacturer-list-meta .selected,
+.campus-list-meta .selected,
+.department-list-meta .selected,
+.catalog-list-meta .selected {
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary-text) !important;
+  border: 1px solid var(--spd-primary-border) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ===== Supplier/Manufacturer/Campus/Department table 容器 ===== */
+.supplier-table-wrap,
+.manufacturer-table-wrap,
+.campus-table-wrap,
+.department-table-wrap,
+.department-warehouse-table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  background: var(--spd-bg-container) !important;
+  border-radius: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--spd-border-default) transparent;
+}
+
+.supplier-table-wrap::-webkit-scrollbar,
+.manufacturer-table-wrap::-webkit-scrollbar,
+.campus-table-wrap::-webkit-scrollbar,
+.department-table-wrap::-webkit-scrollbar,
+.department-warehouse-table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+
+.supplier-table-wrap::-webkit-scrollbar-thumb,
+.manufacturer-table-wrap::-webkit-scrollbar-thumb,
+.campus-table-wrap::-webkit-scrollbar-thumb,
+.department-table-wrap::-webkit-scrollbar-thumb,
+.department-warehouse-table-wrap::-webkit-scrollbar-thumb {
+  background: var(--spd-border-default);
+  border-radius: 3px;
+}
+
+/* ===== 主数据卡片内的表格（医院目录/供应商/厂家/院区/科室/库房）统一主题视觉 ===== */
+.md-table-card .supplier-table-wrap,
+.md-table-card .manufacturer-table-wrap,
+.md-table-card .campus-table-wrap,
+.md-table-card .department-table-wrap,
+.md-table-card .warehouse-table-wrap {
+  background: var(--md-bg-card) !important;
+  border: 1px solid var(--md-border) !important;
+  border-radius: 0 !important;
+  scrollbar-color: var(--md-border) transparent !important;
+}
+
+.md-table-card .supplier-table thead th,
+.md-table-card .manufacturer-table thead th,
+.md-table-card .campus-table thead th,
+.md-table-card .department-table thead th,
+.md-table-card .warehouse-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  color: var(--md-text-heading) !important;
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  padding: 10px 12px !important;
+  border-bottom: 2px solid var(--md-border-strong) !important;
+  border-right: 0 !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.md-table-card .supplier-table tbody td,
+.md-table-card .manufacturer-table tbody td,
+.md-table-card .campus-table tbody td,
+.md-table-card .department-table tbody td,
+.md-table-card .warehouse-table tbody td {
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--md-border-soft) !important;
+  color: var(--md-text) !important;
+  white-space: nowrap;
+  vertical-align: middle;
+  background: var(--md-bg-card) !important;
+}
+
+.md-table-card .supplier-table tbody tr:nth-child(even) td,
+.md-table-card .manufacturer-table tbody tr:nth-child(even) td,
+.md-table-card .campus-table tbody tr:nth-child(even) td,
+.md-table-card .department-table tbody tr:nth-child(even) td,
+.md-table-card .warehouse-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted) !important;
+}
+
+.md-table-card .supplier-table tbody tr:hover td,
+.md-table-card .manufacturer-table tbody tr:hover td,
+.md-table-card .campus-table tbody tr:hover td,
+.md-table-card .department-table tbody tr:hover td,
+.md-table-card .warehouse-table tbody tr:hover td {
+  background: var(--md-primary-soft) !important;
+}
+
+.md-table-card .supplier-table .selection-cell,
+.md-table-card .manufacturer-table .selection-cell,
+.md-table-card .campus-table .selection-cell,
+.md-table-card .department-table .selection-cell,
+.md-table-card .warehouse-table .selection-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+}
+
+.md-table-card .supplier-table thead .selection-cell,
+.md-table-card .manufacturer-table thead .selection-cell,
+.md-table-card .campus-table thead .selection-cell,
+.md-table-card .department-table thead .selection-cell,
+.md-table-card .warehouse-table thead .selection-cell {
+  z-index: 4;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+}
+
+.md-table-card .supplier-action-cell,
+.md-table-card .manufacturer-action-cell,
+.md-table-card .campus-action-cell,
+.md-table-card .department-action-cell,
+.md-table-card .warehouse-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  min-width: 126px;
+  background: var(--md-bg-card) !important;
+  box-shadow: -8px 0 12px -10px rgba(13, 93, 74, 0.2);
+}
+
+.md-table-card .supplier-table thead .supplier-action-cell,
+.md-table-card .manufacturer-table thead .manufacturer-action-cell,
+.md-table-card .campus-table thead .campus-action-cell,
+.md-table-card .department-table thead .department-action-cell,
+.md-table-card .warehouse-table thead .warehouse-action-cell {
+  z-index: 4;
+  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+}
+
+.md-table-card .supplier-table tbody tr:hover .supplier-action-cell,
+.md-table-card .manufacturer-table tbody tr:hover .manufacturer-action-cell,
+.md-table-card .campus-table tbody tr:hover .campus-action-cell,
+.md-table-card .department-table tbody tr:hover .department-action-cell,
+.md-table-card .warehouse-table tbody tr:hover .warehouse-action-cell {
+  background: var(--md-primary-soft) !important;
+}
+
+.supplier-table,
+.manufacturer-table,
+.campus-table,
+.department-table,
+.department-warehouse-table,
+.warehouse-table {
+  width: 100% !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  font-size: 13px;
+  color: var(--spd-text-primary) !important;
+}
+
+.supplier-table thead,
+.manufacturer-table thead,
+.campus-table thead,
+.department-table thead,
+.department-warehouse-table thead {
+  background: #fafafa !important;
+}
+
+.supplier-table th,
+.manufacturer-table th,
+.campus-table th,
+.department-table th,
+.department-warehouse-table th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-size: 13px;
+  font-family: var(--spd-font-family-display);
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  padding: 10px 12px !important;
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.supplier-table th:last-child,
+.supplier-table td:last-child,
+.manufacturer-table th:last-child,
+.manufacturer-table td:last-child,
+.campus-table th:last-child,
+.campus-table td:last-child,
+.department-table th:last-child,
+.department-table td:last-child,
+.department-warehouse-table th:last-child,
+.department-warehouse-table td:last-child {
+  border-right: 0;
+}
+
+.supplier-table td,
+.manufacturer-table td,
+.campus-table td,
+.department-table td,
+.department-warehouse-table td {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 10px 12px !important;
+  color: var(--spd-text-primary) !important;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.supplier-table tbody tr,
+.manufacturer-table tbody tr,
+.campus-table tbody tr,
+.department-table tbody tr,
+.department-warehouse-table tbody tr {
+  transition: background 0.15s ease;
+}
+
+.supplier-table tbody tr:hover td,
+.manufacturer-table tbody tr:hover td,
+.campus-table tbody tr:hover td,
+.department-table tbody tr:hover td,
+.department-warehouse-table tbody tr:hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+.supplier-table tbody tr:nth-child(even) td,
+.manufacturer-table tbody tr:nth-child(even) td,
+.campus-table tbody tr:nth-child(even) td,
+.department-table tbody tr:nth-child(even) td,
+.department-warehouse-table tbody tr:nth-child(even) td {
+  background: #fafcfd;
+}
+
+.supplier-table tbody tr:nth-child(even):hover td,
+.manufacturer-table tbody tr:nth-child(even):hover td,
+.campus-table tbody tr:nth-child(even):hover td,
+.department-table tbody tr:nth-child(even):hover td,
+.department-warehouse-table tbody tr:nth-child(even):hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+/* ===== 选中行高亮（checkbox 选中） ===== */
+.supplier-table tbody tr:has(input[type="checkbox"]:checked) td,
+.manufacturer-table tbody tr:has(input[type="checkbox"]:checked) td,
+.campus-table tbody tr:has(input[type="checkbox"]:checked) td,
+.department-table tbody tr:has(input[type="checkbox"]:checked) td {
+  background: var(--spd-primary-bg) !important;
+}
+
+/* ===== Sticky Selection Cell ===== */
+.supplier-table .selection-cell,
+.manufacturer-table .selection-cell,
+.campus-table .selection-cell,
+.department-table .selection-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 44px;
+  min-width: 44px;
+  text-align: center;
+  background: inherit;
+}
+
+.supplier-table thead .selection-cell,
+.manufacturer-table thead .selection-cell,
+.campus-table thead .selection-cell,
+.department-table thead .selection-cell {
+  z-index: 4;
+  background: #fafafa !important;
+}
+
+/* ===== Sticky Action Cell ===== */
+.supplier-action-cell,
+.manufacturer-action-cell,
+.campus-action-cell,
+.department-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  min-width: 130px;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: -10px 0 14px -16px rgba(20, 57, 66, 0.2);
+}
+
+.supplier-table thead .supplier-action-cell,
+.manufacturer-table thead .manufacturer-action-cell,
+.campus-table thead .campus-action-cell,
+.department-table thead .department-action-cell {
+  z-index: 4;
+  background: #fafafa !important;
+}
+
+.supplier-table tbody tr:hover .supplier-action-cell,
+.manufacturer-table tbody tr:hover .manufacturer-action-cell,
+.campus-table tbody tr:hover .campus-action-cell,
+.department-table tbody tr:hover .department-action-cell {
+  background: var(--spd-primary-bg) !important;
+}
+
+/* ===== Mono Cells（编码类） ===== */
+.supplier-code-cell,
+.manufacturer-code-cell,
+.campus-code-cell,
+.department-code-cell,
+.department-warehouse-code-cell {
+  color: var(--spd-text-secondary) !important;
+  font-family: var(--spd-font-family-mono) !important;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.supplier-name-cell strong,
+.manufacturer-name-cell strong,
+.campus-name-cell strong,
+.department-name-cell strong {
+  display: block;
+  max-width: 240px;
+  overflow: hidden;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.supplier-contact-cell,
+.manufacturer-contact-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.supplier-contact-cell strong,
+.manufacturer-contact-cell strong {
+  color: var(--spd-text-primary) !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.supplier-contact-cell span,
+.manufacturer-contact-cell span {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Chips / Status ===== */
+.supplier-type-chip,
+.manufacturer-license-chip,
+.campus-type-chip,
+.department-type-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-secondary) !important;
+  border: 1px solid var(--spd-border-default) !important;
+}
+
+.supplier-grade-chip {
+  min-width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary-text) !important;
+  border: 1px solid var(--spd-primary-border) !important;
+}
+
+.supplier-grade-chip.grade-empty {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  border-color: var(--spd-border-default) !important;
+}
+
+.manufacturer-license-chip.empty {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  border-color: var(--spd-border-default) !important;
+}
+
+.supplier-status-chip,
+.manufacturer-status-chip,
+.campus-status-chip,
+.department-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.supplier-status-chip::before,
+.manufacturer-status-chip::before,
+.campus-status-chip::before,
+.department-status-chip::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.supplier-status-chip.enabled,
+.manufacturer-status-chip.enabled,
+.campus-status-chip.enabled,
+.department-status-chip.enabled {
+  background: var(--spd-success-bg) !important;
+  color: var(--spd-success-text) !important;
+  border-color: var(--spd-success-border) !important;
+}
+
+.supplier-status-chip.disabled,
+.manufacturer-status-chip.disabled,
+.campus-status-chip.disabled,
+.department-status-chip.disabled,
+.warehouse-status-chip.disabled {
+  background: var(--spd-danger-bg) !important;
+  color: var(--spd-danger-text) !important;
+  border-color: var(--spd-danger-border) !important;
+}
+
+.warehouse-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  border-radius: 999px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.warehouse-status-chip::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.warehouse-status-chip.enabled {
+  background: var(--spd-success-bg) !important;
+  color: var(--spd-success-text) !important;
+  border-color: var(--spd-success-border) !important;
+}
+
+/* ===== Warehouse code/name/type/campus/dept/cells ===== */
+.warehouse-code-cell {
+  font-family: var(--spd-font-family-mono);
+  color: var(--spd-primary-text) !important;
+  font-weight: 600;
+}
+
+.warehouse-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 140px;
+}
+
+.warehouse-name-cell strong {
+  color: var(--md-text-heading) !important;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 240px;
+}
+
+.warehouse-fix-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 1px 8px;
+  background: var(--spd-warning-bg, #fff4e5);
+  color: var(--spd-warning-text, #b25e09);
+  border: 1px solid var(--spd-warning-border, #f5c98c);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.warehouse-type-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  background: var(--md-primary-soft);
+  color: var(--md-primary-strong);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.warehouse-campus-cell {
+  color: var(--md-text) !important;
+  font-weight: 500;
+}
+
+.warehouse-dept-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.warehouse-dept-cell strong {
+  color: var(--md-text-heading) !important;
+  font-weight: 600;
+}
+
+.warehouse-dept-cell code {
+  color: var(--spd-text-secondary);
+  font-family: var(--spd-font-family-mono);
+  font-size: 11px;
+}
+
+.warehouse-flag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.warehouse-flag-chip.enabled {
+  background: var(--spd-success-bg) !important;
+  color: var(--spd-success-text) !important;
+  border-color: var(--spd-success-border) !important;
+}
+
+.warehouse-flag-chip.muted {
+  background: var(--md-bg-muted) !important;
+  color: var(--spd-text-secondary) !important;
+  border-color: var(--md-border) !important;
+}
+
+.warehouse-stats-cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.warehouse-update-time,
+.warehouse-location-count-cell {
+  font-variant-numeric: tabular-nums;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+}
+
+.warehouse-location-count-cell {
+  text-align: right;
+  font-weight: 600;
+  color: var(--md-text-heading) !important;
+}
+
+.warehouse-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* ===== Address Cell（地址省略） ===== */
+.supplier-address-cell,
+.manufacturer-address-cell,
+.campus-address-cell,
+.department-address-cell {
+  max-width: 250px;
+  overflow: hidden;
+  color: var(--spd-text-secondary) !important;
+  text-overflow: ellipsis;
+}
+
+/* ===== Row actions（行内按钮组） ===== */
+.supplier-action-cell .btn-text,
+.manufacturer-action-cell .btn-text,
+.campus-action-cell .btn-text,
+.department-action-cell .btn-text,
+.hospital-action-cell .btn-text,
+.row-actions .btn-text,
+.license-actions .btn-text {
+  min-height: 28px;
+  padding: 0 8px;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.supplier-action-cell .btn-text:hover,
+.manufacturer-action-cell .btn-text:hover,
+.campus-action-cell .btn-text:hover,
+.department-action-cell .btn-text:hover,
+.hospital-action-cell .btn-text:hover,
+.row-actions .btn-text:hover,
+.license-actions .btn-text:hover {
+  color: var(--spd-primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.supplier-action-cell .btn-text-danger,
+.manufacturer-action-cell .btn-text-danger,
+.campus-action-cell .btn-text-danger,
+.department-action-cell .btn-text-danger,
+.hospital-action-cell .btn-text-danger,
+.row-actions .btn-text-danger,
+.license-actions .btn-text-danger {
+  color: var(--spd-text-tertiary) !important;
+}
+
+.supplier-action-cell .btn-text-danger:hover,
+.manufacturer-action-cell .btn-text-danger:hover,
+.campus-action-cell .btn-text-danger:hover,
+.department-action-cell .btn-text-danger:hover,
+.hospital-action-cell .btn-text-danger:hover,
+.row-actions .btn-text-danger:hover,
+.license-actions .btn-text-danger:hover {
+  color: var(--spd-danger) !important;
+  background: var(--spd-danger-bg) !important;
+}
+
+/* ===== Supplier Dialog ===== */
+.supplier-dialog {
+  width: min(820px, calc(100vw - 32px));
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--spd-shadow-3) !important;
+}
+
+.supplier-dialog-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 16px 20px !important;
+  background: var(--spd-bg-container) !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px;
+}
+
+.supplier-dialog-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--spd-primary) !important;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.supplier-dialog-title {
+  margin: 5px 0 0 !important;
+  font-size: 20px !important;
+  line-height: 1.25;
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.supplier-dialog-subtitle {
+  margin-top: 5px !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px;
+}
+
+.required-mark {
+  color: var(--spd-danger) !important;
+  font-weight: 600;
+}
+
+.supplier-dialog-close {
+  display: grid !important;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-secondary) !important;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.supplier-dialog-close:hover {
+  color: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+}
+
+.supplier-dialog-form {
+  padding: 18px 20px !important;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.supplier-form-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+}
+
+.supplier-form-section:first-of-type {
+  border-top: 0 !important;
+  padding-top: 0;
+}
+
+.supplier-form-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.supplier-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.supplier-form-grid.compact {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.supplier-form-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.supplier-form-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.supplier-form-grid label > span {
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+.supplier-form-grid input,
+.supplier-form-grid select,
+.supplier-form-grid textarea {
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.supplier-form-grid input:focus,
+.supplier-form-grid select:focus,
+.supplier-form-grid textarea:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+  outline: none;
+}
+
+.supplier-form-hint {
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 2px;
+}
+
+.supplier-dialog-actions {
+  display: flex !important;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  padding: 14px 20px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.supplier-dialog-actions .btn {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.supplier-dialog-actions .btn:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.supplier-dialog-actions .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.supplier-dialog-actions .btn.btn-primary:hover {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Product dialog（共用 .product-dialog） ===== */
+.product-dialog {
+  width: min(820px, calc(100vw - 32px));
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  overflow: hidden;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--spd-shadow-3) !important;
+}
+
+.product-dialog > header,
+.product-dialog header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 16px 20px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.product-dialog > header p,
+.product-dialog header p {
+  margin: 0;
+  color: var(--spd-primary) !important;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.product-dialog > header h3,
+.product-dialog header h3 {
+  margin: 5px 0 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 20px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.product-dialog form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.product-dialog fieldset,
+.product-dialog .product-form-grid,
+.product-dialog .form-grid {
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 18px 20px !important;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.product-dialog fieldset label,
+.product-dialog .form-grid label,
+.product-dialog .product-form-grid label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.product-dialog fieldset label.wide,
+.product-dialog .form-grid label.wide,
+.product-dialog .product-form-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.product-dialog fieldset label > span,
+.product-dialog .form-grid label > span,
+.product-dialog .product-form-grid label > span {
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+.product-dialog fieldset input,
+.product-dialog fieldset select,
+.product-dialog fieldset textarea,
+.product-dialog .form-grid input,
+.product-dialog .form-grid select,
+.product-dialog .product-form-grid input,
+.product-dialog .product-form-grid select {
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.product-dialog fieldset input:focus,
+.product-dialog fieldset select:focus,
+.product-dialog .form-grid input:focus,
+.product-dialog .form-grid select:focus,
+.product-dialog .product-form-grid input:focus,
+.product-dialog .product-form-grid select:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+  outline: none;
+}
+
+.product-dialog form > div:last-child:not(fieldset),
+.product-dialog form > .form-actions,
+.product-dialog form > .dialog-actions {
+  display: flex !important;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  padding: 14px 20px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.product-dialog form .btn {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.product-dialog form .btn:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.product-dialog form .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.product-dialog form .btn.btn-primary:hover {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Attachment preview mask（共用） ===== */
+.attachment-preview-mask {
+  position: fixed !important;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45) !important;
+  z-index: 50;
+  display: grid !important;
+  place-items: center;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+/* ===== Hidden file input ===== */
+.hidden-file-input {
+  display: none !important;
+}
+
+/* ===== Product dialog 内部 section ===== */
+.product-dialog-form {
+  display: flex !important;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.product-dialog-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 20px !important;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.product-dialog-section {
+  display: grid;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+}
+
+.product-dialog-section h4 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.dialog-toggle-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.dialog-toggle-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.product-dialog-actions {
+  display: flex !important;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  padding: 14px 20px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.product-dialog-actions .btn {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.product-dialog-actions .btn:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.product-dialog-actions .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.product-dialog-actions .btn.btn-primary:hover {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+/* ===== Column setting dialog / 其他 dialog 通用 ===== */
+.column-setting-item,
+.column-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  background: var(--spd-bg-container) !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px;
+}
+
+.column-setting-item:hover,
+.column-settings-item:hover {
+  border-color: var(--spd-primary-border) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.column-setting-item input,
+.column-settings-item input {
+  accent-color: var(--spd-primary) !important;
+}
+
+/* ===== Master table 卡内 special：医院目录行选中 ===== */
+.hospital-product-table tbody tr:hover td,
+.hospital-product-table tbody tr:nth-child(even) td {
+  background: transparent !important;
+}
+
+.hospital-product-table tbody tr:hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+.hospital-product-table thead th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-size: 13px;
+  font-family: var(--spd-font-family-display);
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  padding: 10px 12px !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.hospital-product-table td {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+  padding: 10px 12px !important;
+  color: var(--spd-text-primary) !important;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.hospital-product-table th:last-child,
+.hospital-product-table td:last-child {
+  border-right: 0;
+}
+
+.hospital-product-table .hospital-selection-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  width: 42px;
+  text-align: center;
+  background: #fafafa;
+}
+
+.hospital-product-table .hospital-action-cell {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  min-width: 200px;
+  background: #ffffff;
+  text-align: left;
+  box-shadow: -10px 0 14px -16px rgba(20, 57, 66, 0.2);
+}
+
+.hospital-product-table thead .hospital-selection-cell,
+.hospital-product-table thead .hospital-action-cell {
+  z-index: 4;
+  background: #fafafa !important;
+}
+
+.hospital-product-table tbody tr:hover .hospital-action-cell {
+  background: var(--spd-primary-bg) !important;
+}
+
+.hospital-product-table .hospital-action-cell .btn-text {
+  min-height: 28px;
+  padding: 0 8px;
+  background: transparent !important;
+  border: 0 !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500;
+  cursor: pointer;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.hospital-product-table .hospital-action-cell .btn-text:hover {
+  color: var(--spd-primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.hospital-product-table .hospital-action-cell .btn-text-danger {
+  color: var(--spd-text-tertiary) !important;
+}
+
+.hospital-product-table .hospital-action-cell .btn-text-danger:hover {
+  color: var(--spd-danger) !important;
+  background: var(--spd-danger-bg) !important;
+}
+
+/* ===== Product Detail / Form / Batch Edit View ===== */
+.product-detail-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 24px 32px 40px !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 18px;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+@media (max-width: 1280px) {
+  .product-detail-page { padding: 20px 24px 32px !important; }
+}
+
+@media (max-width: 900px) {
+  .product-detail-page { padding: 16px !important; }
+}
+
+.product-detail-back {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.product-detail-back:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.product-detail-error {
+  background: var(--spd-danger-bg) !important;
+  color: var(--spd-danger-text) !important;
+  border: 1px solid var(--spd-danger-border) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  padding: 16px 20px;
+  font-size: 14px;
+}
+
+.product-detail-error .btn {
+  margin-top: 8px;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.product-detail-status {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  border: 1px solid var(--spd-border-default) !important;
+}
+
+.product-detail-status.active {
+  background: var(--spd-success-bg) !important;
+  color: var(--spd-success-text) !important;
+  border-color: var(--spd-success-border) !important;
+}
+
+.product-detail-sections {
+  display: grid;
+  gap: 16px;
+}
+
+.product-detail-section {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 18px 20px !important;
+  display: grid;
+  gap: 14px;
+}
+
+.product-detail-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+}
+
+.product-detail-section-heading h2,
+.product-detail-section-heading h3 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 16px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.product-detail-grid {
+  margin: 0 !important;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+}
+
+.product-detail-field {
+  display: grid;
+  gap: 4px;
+  padding: 8px 12px !important;
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  min-width: 0;
+}
+
+.product-detail-field dt {
+  margin: 0;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.product-detail-field dd {
+  margin: 0;
+  color: var(--spd-text-primary) !important;
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.product-detail-field.emphasis dd {
+  color: var(--spd-primary-text) !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.product-attachment-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+}
+
+.product-attachment-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.product-attachment-table th,
+.product-attachment-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.product-attachment-table th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+  font-size: 12px;
+}
+
+.product-attachment-table tbody tr:hover td {
+  background: var(--spd-primary-bg) !important;
+}
+
+.product-attachment-name {
+  color: var(--spd-text-primary) !important;
+  font-weight: 500;
+}
+
+.product-detail-empty-state {
+  margin: 0 !important;
+  padding: 24px !important;
+  background: var(--spd-bg-page) !important;
+  border: 1px dashed var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  text-align: center;
+  color: var(--spd-text-tertiary) !important;
+  font-size: 13px;
+}
+
+.attachment-preview-dialog {
+  width: min(960px, calc(100vw - 32px));
+  max-height: 90vh;
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-3) !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.attachment-preview-dialog header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 14px 20px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+.attachment-preview-dialog header h3 {
+  margin: 0 !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 16px !important;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+}
+
+.attachment-preview-frame {
+  flex: 1;
+  width: 100%;
+  min-height: 60vh;
+  border: 0;
+  background: var(--spd-bg-page) !important;
+}
+
+.attachment-preview-body {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 14px;
+}
+
+/* ===== Product Form / Batch Edit 表单 ===== */
+.product-form-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 24px 32px 40px !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 18px;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+@media (max-width: 1280px) {
+  .product-form-page { padding: 20px 24px 32px !important; }
+}
+
+@media (max-width: 900px) {
+  .product-form-page { padding: 16px !important; }
+}
+
+.product-form-card {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 20px 24px !important;
+  display: grid;
+  gap: 16px;
+}
+
+.product-form-card .form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.product-form-card .form-grid label {
+  display: grid;
+  gap: 4px;
+}
+
+.product-form-card .form-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.product-form-card .form-grid label > span {
+  color: var(--spd-text-heading) !important;
+  font-size: 13px !important;
+  font-weight: 500;
+}
+
+.product-form-card .form-grid input,
+.product-form-card .form-grid select,
+.product-form-card .form-grid textarea {
+  min-height: 36px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.product-form-card .form-grid input:focus,
+.product-form-card .form-grid select:focus,
+.product-form-card .form-grid textarea:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: var(--spd-shadow-focus) !important;
+  outline: none;
+}
+
+.product-form-card .form-actions {
+  display: flex !important;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--spd-border-subtle);
+}
+
+.product-form-card .form-actions .btn {
+  min-height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: 14px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.product-form-card .form-actions .btn:hover {
+  color: var(--spd-primary);
+  border-color: var(--spd-primary) !important;
+}
+
+.product-form-card .form-actions .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+  color: #ffffff !important;
+}
+
+.product-form-card .form-actions .btn.btn-primary:hover {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #ffffff !important;
+}
+
+.product-form-card .form-actions .btn.btn-danger {
+  color: var(--spd-danger) !important;
+  border-color: var(--spd-danger-border) !important;
+}
+
+.product-form-card .form-actions .btn.btn-danger:hover {
+  background: var(--spd-danger) !important;
+  color: #ffffff !important;
+  border-color: var(--spd-danger) !important;
+}
+
+/* ===== 待审批目录（pending-product-catalog）的页面 ===== */
+.approval-detail-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 24px 32px 40px !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 18px;
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+@media (max-width: 1280px) {
+  .approval-detail-page { padding: 20px 24px 32px !important; }
+}
+
+@media (max-width: 900px) {
+  .approval-detail-page { padding: 16px !important; }
+}
+
+.approval-empty {
+  text-align: center !important;
+  color: var(--spd-text-tertiary) !important;
+  padding: 48px 16px !important;
+  font-size: 14px;
+  background: var(--spd-bg-page) !important;
+  border: 1px dashed var(--spd-border-default) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+}
+
+.approval-filter-row,
+.udi-filters,
+.dept-req-tags {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: end;
+}
+
+.approval-filter-actions,
+.hospital-query-actions,
+.udi-filter-actions {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* =====================================================================
+   医院目录 - 增/改/查 统一规格
+   - 工具栏按钮 32px
+   - 头部主色化
+   - 输入/开关 32px
+   - 详情字段 grid + 附件表格统一
+   ===================================================================== */
+.product-form-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: var(--spd-page-padding, 24px) !important;
+  min-height: 100%;
+  display: grid !important;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+/* 头部：返回按钮 32px 紧凑 */
+.product-form-page > .btn:first-child,
+.product-detail-page > .btn:first-child,
+.product-detail-back {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  width: fit-content !important;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.product-form-page > .btn:first-child:hover,
+.product-detail-page > .btn:first-child:hover,
+.product-detail-back:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+/* 头部主色化 */
+.product-form-page .approval-detail-header,
+.approval-detail-page.product-detail-page > .approval-detail-header {
+  background: var(--md-bg-header) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  padding: 18px 24px !important;
+  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
+              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.product-form-page .approval-detail-header::before,
+.approval-detail-page.product-detail-page > .approval-detail-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+  pointer-events: none;
+}
+
+.product-form-page .approval-detail-header p,
+.product-form-page .approval-detail-header > div > p,
+.approval-detail-page.product-detail-page .approval-detail-header p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  position: relative;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.product-form-page .approval-detail-header h2,
+.approval-detail-page.product-detail-page .approval-detail-header h2 {
+  margin: 4px 0 6px !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display) !important;
+  position: relative;
+}
+
+.product-form-page .approval-detail-header span,
+.approval-detail-page.product-detail-page .approval-detail-header span {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 13px !important;
+  position: relative;
+}
+
+/* 表单卡片主色化 */
+.product-form-card {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+}
+
+.product-form-card section {
+  border-bottom: 1px solid var(--spd-border-subtle);
+  padding: 18px 24px 16px;
+  gap: 12px;
+}
+
+.product-form-card section:last-of-type {
+  border-bottom: 0;
+}
+
+.product-form-card .section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--spd-border-subtle);
+}
+
+.product-form-card .section-title h3 {
+  margin: 0;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.product-form-card .section-title svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+/* 统一输入 32px */
+.product-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px 14px;
+  padding-top: 12px;
+}
+
+.product-form-grid label {
+  display: flex !important;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.product-form-grid span {
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+}
+
+.product-form-grid input,
+.product-form-grid select {
+  min-height: 32px !important;
+  height: 32px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  padding: 0 10px !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  transition: all 0.18s ease;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.product-form-grid input:focus,
+.product-form-grid select:focus {
+  border-color: var(--primary) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+.product-form-grid input[readonly] {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  cursor: not-allowed;
+}
+
+.product-form-grid select:disabled {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  cursor: not-allowed;
+}
+
+/* 开关 chip 统一 */
+.product-toggle-grid {
+  display: flex !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.product-toggle-grid label {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px !important;
+  padding: 0 10px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  box-sizing: border-box;
+  white-space: nowrap;
+}
+
+.product-toggle-grid label:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.product-toggle-grid input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+/* 错误提示 */
+.product-form-card .error-text {
+  margin: 0;
+  padding: 8px 24px 16px;
+  color: #cf1322;
+  font-size: 12px;
+}
+
+/* 底部操作条 */
+.product-form-actions {
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 10px;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+  padding: 12px 24px !important;
+  margin: 0 !important;
+}
+
+.product-form-actions .btn {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 16px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.product-form-actions .btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.product-form-actions .btn.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+}
+
+.product-form-actions .btn.btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+
+/* =====================================================================
+   医院目录 - 详情页
+   ===================================================================== */
+.approval-detail-page.product-detail-page {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-primary) !important;
+  padding: var(--spd-page-padding, 24px) !important;
+  min-height: 100%;
+  display: grid;
+  gap: 16px;
+  box-sizing: border-box;
+  max-width: none;
+}
+
+.approval-detail-page.product-detail-page .product-detail-status {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 999px;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.approval-detail-page.product-detail-page .product-detail-status.active {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent) !important;
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.approval-detail-page.product-detail-page .product-detail-status:not(.active) {
+  border-color: #ffa39e;
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+/* 编辑按钮 32px */
+.approval-detail-page.product-detail-page .btn-primary {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 14px !important;
+  border: 1px solid var(--primary) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  box-sizing: border-box;
+}
+
+.approval-detail-page.product-detail-page .btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+
+/* 详情 sections */
+.approval-detail-page.product-detail-page .product-detail-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 1280px) {
+  .approval-detail-page.product-detail-page .product-detail-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.approval-detail-page.product-detail-page .product-detail-section {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  background: var(--spd-bg-container) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+}
+
+.approval-detail-page.product-detail-page .product-detail-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-page, #f0f2f5) !important;
+  padding: 12px 18px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-section-heading h3 {
+  margin: 0;
+  color: var(--spd-text-heading) !important;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--spd-font-family-display);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-section-heading h3::before {
+  content: "";
+  width: 3px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--primary);
+}
+
+.approval-detail-page.product-detail-page .product-detail-section-heading p {
+  margin: 4px 0 0;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-section-heading > span {
+  flex: 0 0 auto;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg);
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  border-radius: 999px;
+  padding: 0 10px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* 字段网格 */
+.approval-detail-page.product-detail-page .product-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  margin: 0;
+  padding: 4px 0;
+}
+
+.approval-detail-page.product-detail-page .product-detail-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  border-right: 1px solid var(--spd-border-subtle) !important;
+}
+
+.approval-detail-page.product-detail-page .product-detail-field dt {
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.approval-detail-page.product-detail-page .product-detail-field dd {
+  margin: 0;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.approval-detail-page.product-detail-page .product-detail-field.emphasis dd {
+  color: var(--spd-text-heading) !important;
+  font-weight: 600;
+}
+
+/* 附件表 */
+.approval-detail-page.product-detail-page .product-attachment-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table th,
+.approval-detail-page.product-detail-page .product-attachment-table td {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+  padding: 10px 14px !important;
+  text-align: left;
+  vertical-align: middle;
+  font-size: 13px;
+  color: var(--spd-text-primary);
+  background: transparent;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table th {
+  background: #fafafa !important;
+  color: var(--spd-text-heading) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display);
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table tbody tr:last-child > * {
+  border-bottom: 0 !important;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table tbody tr:hover td {
+  background: var(--spd-primary-bg);
+}
+
+.approval-detail-page.product-detail-page .product-attachment-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-name svg {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table .btn-text {
+  min-height: 28px !important;
+  height: 28px !important;
+  padding: 0 10px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius-sm, 4px) !important;
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary) !important;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.approval-detail-page.product-detail-page .product-attachment-table .btn-text:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg);
+}
+
+/* 附件弹窗内无 URL 时的空态：仅图标 + 文件名 + 极简说明 */
+.attachment-preview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 320px;
+  padding: 32px;
+  color: var(--spd-text-secondary);
+  background: var(--spd-bg-page);
+}
+
+.attachment-preview-empty svg {
+  color: var(--spd-text-tertiary);
+}
+
+.attachment-preview-empty strong {
+  color: var(--spd-text-heading);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.attachment-preview-empty span {
+  color: var(--spd-text-tertiary);
+  font-size: 12px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-empty-state {
+  margin: 0;
+  color: var(--spd-text-tertiary);
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-error {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  border: 1px solid #ffa39e;
+  border-radius: var(--spd-radius-md, 8px);
+  background: #fff1f0;
+  color: #cf1322;
+  padding: 16px 18px;
+  font-size: 13px;
+}
+
+.approval-detail-page.product-detail-page .product-detail-error .btn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-container);
+  color: var(--spd-text-primary);
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.approval-detail-page.product-detail-page .product-detail-error .btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* PageHeader 在产品详情页内 → 主色化覆盖默认 hero 样式 */
+body .approval-detail-page.product-detail-page .standard-page-header.standard-page-header,
+.approval-detail-page.product-detail-page .standard-page-header {
+  background: var(--md-bg-header) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
+              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  padding: 18px 24px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.approval-detail-page.product-detail-page .standard-page-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+  pointer-events: none;
+}
+
+.approval-detail-page.product-detail-page .standard-page-heading > p {
+  margin: 0 !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  position: relative;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.approval-detail-page.product-detail-page .standard-page-heading > h2 {
+  margin: 4px 0 6px !important;
+  color: #ffffff !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  font-family: var(--spd-font-family-display) !important;
+  position: relative;
+  letter-spacing: -0.2px;
+}
+
+.approval-detail-page.product-detail-page .standard-page-heading > span {
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-size: 13px !important;
+  position: relative;
+}
+
+.approval-detail-page.product-detail-page .standard-page-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px;
+  position: relative;
+}
+
+/* loading 文案 */
+.approval-detail-page.product-detail-page .approval-empty {
+  color: var(--spd-text-tertiary) !important;
+  padding: 32px 16px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* 详情页操作条（不放在 hero 头部，而是独立白色 toolbar） */
+.product-detail-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 18px !important;
+  border: 1px solid var(--spd-border-subtle) !important;
+  background: var(--spd-bg-container) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  box-shadow: var(--spd-shadow-1) !important;
+  min-height: 48px;
+  box-sizing: border-box;
+}
+
+.product-detail-toolbar .product-detail-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 999px;
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-secondary) !important;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.product-detail-toolbar .product-detail-status.active {
+  border-color: color-mix(in srgb, var(--primary) 35%, transparent) !important;
+  background: var(--spd-primary-bg) !important;
+  color: var(--primary) !important;
+}
+
+.product-detail-toolbar .product-detail-status:not(.active) {
+  border-color: #ffa39e;
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.product-detail-toolbar-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px;
+}
+
+.product-detail-toolbar-actions .btn {
+  min-height: 32px !important;
+  height: 32px !important;
+  padding: 0 14px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+}
+
+.product-detail-toolbar-actions .btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.product-detail-toolbar-actions .btn.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+}
+
+.product-detail-toolbar-actions .btn.btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: #ffffff !important;
+}
+

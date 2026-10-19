@@ -283,7 +283,7 @@
 }
 
 .catalog-dialog {
-  width: min(760px, calc(100vw - 32px));
+  width: min(1040px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow: hidden;
   background: #fff;
@@ -615,7 +615,7 @@
   }
 
   .catalog-dialog {
-    width: min(100vw - 16px, 760px);
+    width: min(100vw - 16px, 1040px);
     max-height: calc(100dvh - 16px);
   }
 }

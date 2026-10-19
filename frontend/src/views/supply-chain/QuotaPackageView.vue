@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -41,6 +42,7 @@ import { useQuotaSafetyDialog } from '../../composables/useQuotaSafetyDialog'
 import { useQuotaSafetyImportExport } from '../../composables/useQuotaSafetyImportExport'
 import { useQuotaTemplateActions, type QuotaActionResult } from '../../composables/useQuotaTemplateActions'
 import { useQuotaTemplateSelector } from '../../composables/useQuotaTemplateSelector'
+import { useSpdConfirm } from '../../composables/useSpdConfirm'
 import {
   labelStatusText,
   taskStatusText
@@ -235,6 +237,7 @@ const {
   filteredPackingTemplates,
   openTemplateSelector,
   selectPackingTemplate,
+  clearPackingTemplate,
   fillPacking
 } = useQuotaTemplateSelector({ templates, warehouses, packingForm })
 const {
@@ -611,6 +614,8 @@ function safetyRangeStyle(row: { minQty: number; maxQty: number }) {
   return { width: `${(ratio * 100).toFixed(1)}%` }
 }
 
+const { ask, ConfirmHost: SpdConfirmHost } = useSpdConfirm()
+
 const {
   fillTemplate,
   resetTemplateForm,
@@ -635,7 +640,8 @@ const {
   templateError,
   importInput,
   message: actionResult,
-  reload: loadData
+  reload: loadData,
+  askConfirm: ask
 })
 
 const {
@@ -1016,19 +1022,62 @@ watch(
             <label class="pt-form-field">
               <span class="pt-form-label">打包模板 <em class="pt-form-required">*</em></span>
               <button
+                v-if="!selectedPackingTemplate"
                 type="button"
-                class="pt-template-picker"
-                :class="{ 'is-empty': !selectedPackingTemplate }"
+                class="pt-template-picker is-empty"
                 @click="openTemplateSelector"
               >
                 <Search :size="14" />
-                <span class="pt-template-picker-text">
-                  {{ selectedPackingTemplate ? selectedPackingTemplate.templateName : '点击选择打包模板' }}
-                </span>
-                <span class="pt-template-picker-code">
-                  {{ packingForm.templateCode || '未选择' }}
-                </span>
+                <span class="pt-template-picker-text">点击选择打包模板</span>
+                <span class="pt-template-picker-code">未选择</span>
               </button>
+              <div v-else class="pt-selected-template">
+                <div class="pt-selected-template-head">
+                  <div class="pt-selected-template-title">
+                    <Boxes :size="14" />
+                    <strong class="pt-selected-template-name">{{ selectedPackingTemplate.templateName }}</strong>
+                    <span class="pt-selected-template-code">{{ selectedPackingTemplate.templateCode }}</span>
+                  </div>
+                  <div class="pt-selected-template-actions">
+                    <button
+                      type="button"
+                      class="pt-btn-text"
+                      :title="'更换打包模板'"
+                      @click="openTemplateSelector"
+                    >
+                      <RefreshCw :size="13" />
+                      <span>更换</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="pt-btn-text pt-btn-text-danger"
+                      :title="'清除已选模板'"
+                      @click="clearPackingTemplate"
+                    >
+                      <X :size="13" />
+                      <span>清除</span>
+                    </button>
+                  </div>
+                </div>
+                <dl class="pt-selected-template-meta">
+                  <div class="pt-selected-template-meta-item">
+                    <dt>商品</dt>
+                    <dd>{{ selectedPackingTemplate.productName || '-' }}</dd>
+                  </div>
+                  <div class="pt-selected-template-meta-item">
+                    <dt>规格</dt>
+                    <dd>{{ selectedPackingTemplate.specModel || '-' }}</dd>
+                  </div>
+                  <div class="pt-selected-template-meta-item">
+                    <dt>厂家</dt>
+                    <dd>{{ selectedPackingTemplate.manufacturerName || '-' }}</dd>
+                  </div>
+                  <div class="pt-selected-template-meta-item">
+                    <dt>每包数量</dt>
+                    <dd>{{ selectedPackingTemplate.quantity }} {{ selectedPackingTemplate.unit }}/包</dd>
+                  </div>
+                </dl>
+              </div>
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">库房</span>
@@ -1094,21 +1143,6 @@ watch(
             <span>{{ packingFeedback }}</span>
           </div>
 
-          <!-- 已选模板单行信息 -->
-          <div v-if="selectedPackingTemplate" class="pt-template-row">
-            <Boxes :size="13" />
-            <span class="pt-template-row-label">已选模板</span>
-            <strong class="pt-template-row-name">{{ selectedPackingTemplate.templateName }}</strong>
-            <span class="pt-template-row-sep">·</span>
-            <span>{{ selectedPackingTemplate.productName }}</span>
-            <span class="pt-template-row-sep">·</span>
-            <span>{{ selectedPackingTemplate.specModel }}</span>
-            <span class="pt-template-row-sep">·</span>
-            <span>{{ selectedPackingTemplate.manufacturerName }}</span>
-            <span class="pt-template-row-sep">·</span>
-            <span>{{ selectedPackingTemplate.quantity }} {{ selectedPackingTemplate.unit }}/包</span>
-          </div>
-
           <!-- 列表标题条 -->
           <div class="pt-card-header pt-card-header-list">
             <div class="pt-card-header-left">
@@ -1126,6 +1160,19 @@ watch(
           <!-- 表格 -->
           <div class="pt-table-scroll">
             <table class="pt-table">
+              <colgroup>
+                <col style="width: 150px" />     <!-- 任务号 -->
+                <col style="width: 90px" />      <!-- 状态 -->
+                <col style="width: 150px" />     <!-- 模板 -->
+                <col style="width: 110px" />     <!-- 库房 -->
+                <col style="width: 150px" />     <!-- 商品 -->
+                <col style="width: 70px" />      <!-- 包数 -->
+                <col style="width: 80px" />      <!-- 每包数量 -->
+                <col style="width: 110px" />     <!-- 计划扣减散货 -->
+                <col style="width: 110px" />     <!-- 预占散货 -->
+                <col style="width: 150px" />     <!-- 创建时间 -->
+                <col style="width: 360px" />     <!-- 操作 -->
+              </colgroup>
               <thead>
                 <tr>
                   <th>任务号</th>
@@ -1180,7 +1227,7 @@ watch(
                   <td>{{ row.plannedLooseQty }}</td>
                   <td>{{ row.reservedLooseQty }}</td>
                   <td>{{ row.createTime }}</td>
-                  <td>
+                  <td class="pt-cell-actions">
                     <div class="pt-row-actions">
                       <button
                         v-if="row.status === 'pending_confirm' && authStore.hasPermission('quota-packing-task:confirm')"
@@ -2083,71 +2130,99 @@ watch(
       @change-size="changeSafetyCatalogPageSize"
     />
 
+    <Teleport to="body">
     <div v-if="templateDialogOpen" class="attachment-preview-mask" @click.self="templateDialogOpen = false">
-      <section class="supplier-dialog quota-template-dialog" role="dialog" aria-modal="true">
-        <header>
-          <div>
+      <section class="quota-template-dialog" role="dialog" aria-modal="true">
+        <header class="qtd-dialog-header">
+          <div class="qtd-dialog-title">
             <p>定数包模板维护</p>
             <h3>{{ templateDialogMode === 'create' ? '新增定数包模板' : '修改定数包模板' }}</h3>
+            <span v-if="templateDialogMode !== 'create'" class="qtd-dialog-tag">编辑模式</span>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="templateDialogOpen = false">
+          <button class="qtd-btn qtd-btn-ghost" type="button" aria-label="关闭" @click="templateDialogOpen = false">
             <X :size="18" />
           </button>
         </header>
-        <div class="supplier-form-grid">
-          <label>
-            <span>{{ templateDialogMode === 'create' ? '模板编码（自动生成）' : '模板编码' }}</span>
-            <input
-              v-model="templateForm.templateCode"
-              readonly
-              :placeholder="templateDialogMode === 'create' ? '商品编码 + 001 起自动生成' : ''"
-            />
-          </label>
-          <label class="wide">
-            <span>定数包名称（自动生成）</span>
-            <input
-              readonly
-              :value="templateForm.templateName || ((selectedProductInfo?.productName || '') + '定数包')"
-              placeholder="选择商品后自动生成：商品名称 + 定数包"
-            />
-          </label>
-          <label class="wide">
-            <span>商品编码</span>
-            <div class="input-with-icon">
-              <input v-model="templateForm.productCode" readonly placeholder="点击右侧按钮选择已启用定数管理的商品" />
-              <button class="btn-icon search-trigger" type="button" title="选择商品" @click="openProductSelector">
-                <Search :size="16" />
-              </button>
-            </div>
-          </label>
-          <template v-if="selectedProductInfo">
-            <label><span>商品名称</span><input :value="selectedProductInfo.productName" readonly /></label>
-            <label><span>规格型号</span><input :value="selectedProductInfo.specModel" readonly /></label>
-            <label><span>品牌</span><input :value="selectedProductInfo.brand || '-'" readonly /></label>
-            <label><span>生产厂家</span><input :value="selectedProductInfo.manufacturerName" readonly /></label>
-            <label><span>单价</span><input :value="selectedProductInfo.purchasePrice ? '¥ ' + selectedProductInfo.purchasePrice : '-'" readonly /></label>
-            <label><span>基本单位</span><input :value="selectedProductInfo.unit" readonly /></label>
-            <label><span>中包装数量</span><input :value="selectedProductInfo.middlePackageQty || '-'" readonly /></label>
-          </template>
-          <label>
-            <span>包内数量</span>
-            <input v-model.number="templateForm.quantity" type="number" min="1" />
-          </label>
-          <label>
-            <span>套包单位</span>
-            <input value="包" readonly />
-          </label>
-          <p v-if="templateError" class="inline-message wide">{{ templateError }}</p>
-          <div class="approval-action-row wide">
-            <button class="btn btn-primary" type="button" @click="submitTemplate">
-              <Save :size="18" />
+        <div class="qtd-dialog-body">
+          <div class="qtd-form-grid">
+            <label class="qtd-field">
+              <span>模板编码</span>
+              <input
+                v-model="templateForm.templateCode"
+                readonly
+                :placeholder="templateDialogMode === 'create' ? '商品编码 + 001 起自动生成' : ''"
+              />
+            </label>
+            <label class="qtd-field qtd-field-wide">
+              <span>定数包名称</span>
+              <input
+                readonly
+                :value="templateForm.templateName || ((selectedProductInfo?.productName || '') + '定数包')"
+                placeholder="选择商品后自动生成：商品名称 + 定数包"
+              />
+            </label>
+            <label class="qtd-field qtd-field-wide">
+              <span>商品编码</span>
+              <div class="qtd-input-with-btn">
+                <input v-model="templateForm.productCode" readonly placeholder="点击右侧按钮选择已启用定数管理的商品" />
+                <button class="qtd-btn qtd-btn-info qtd-btn-icon" type="button" title="选择商品" @click="openProductSelector">
+                  <Search :size="16" />
+                </button>
+              </div>
+            </label>
+
+            <template v-if="selectedProductInfo">
+              <label class="qtd-field">
+                <span>商品名称</span>
+                <input :value="selectedProductInfo.productName" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>规格型号</span>
+                <input :value="selectedProductInfo.specModel" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>品牌</span>
+                <input :value="selectedProductInfo.brand || '-'" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>生产厂家</span>
+                <input :value="selectedProductInfo.manufacturerName" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>单价</span>
+                <input :value="selectedProductInfo.purchasePrice ? '¥ ' + selectedProductInfo.purchasePrice : '-'" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>基本单位</span>
+                <input :value="selectedProductInfo.unit" readonly />
+              </label>
+              <label class="qtd-field">
+                <span>中包装数量</span>
+                <input :value="selectedProductInfo.middlePackageQty || '-'" readonly />
+              </label>
+            </template>
+
+            <label class="qtd-field">
+              <span>包内数量</span>
+              <input v-model.number="templateForm.quantity" type="number" min="1" />
+            </label>
+            <label class="qtd-field">
+              <span>套包单位</span>
+              <input value="包" readonly />
+            </label>
+          </div>
+          <p v-if="templateError" class="qtd-error">{{ templateError }}</p>
+          <div class="qtd-dialog-actions">
+            <button class="qtd-btn qtd-btn-secondary" type="button" @click="templateDialogOpen = false">取消</button>
+            <button class="qtd-btn qtd-btn-primary" type="button" @click="submitTemplate">
+              <Save :size="16" />
               保存
             </button>
-            <button class="btn" type="button" @click="templateDialogOpen = false">取消</button>
           </div>
         </div>
       </section>
     </div>
+    </Teleport>
 
     <QuotaTemplateSelectorDialog
       v-model:open="templateSelectorOpen"
@@ -2166,6 +2241,8 @@ watch(
       @search="searchQuotaProducts()"
       @select="selectProduct"
     />
+
+    <SpdConfirmHost />
   </section>
 </template>
 
@@ -2574,38 +2651,123 @@ watch(
   background: transparent;
 }
 
-/* ===== 已选模板单行信息 ===== */
+/* 已选模板单行信息（已废弃，样式保留为兼容占位） */
 .pt-template-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 10px 18px;
-  background: var(--pt-primary-soft);
-  border-bottom: 1px solid var(--pt-border-subtle);
-  font-size: 12px;
-  color: var(--pt-text-secondary);
-  line-height: 1.5;
+  display: none;
 }
 
 .pt-template-row > svg {
-  color: var(--pt-primary);
-  flex: 0 0 13px;
+  display: none;
 }
 
 .pt-template-row-label {
-  color: var(--pt-text-secondary);
-  font-weight: 500;
+  display: none;
 }
 
 .pt-template-row-name {
-  color: var(--pt-text);
-  font-weight: 600;
+  display: none;
 }
 
 .pt-template-row-sep {
-  color: var(--pt-border);
-  user-select: none;
+  display: none;
+}
+
+/* ===== 已选模板卡片（替代原散落的 .pt-template-row 单行） ===== */
+.pt-selected-template {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--pt-primary-glow);
+  background: var(--pt-primary-soft);
+  border-radius: var(--pt-radius-md);
+  box-sizing: border-box;
+}
+
+.pt-selected-template-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pt-selected-template-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pt-selected-template-title > svg {
+  color: var(--pt-primary);
+  flex-shrink: 0;
+}
+
+.pt-selected-template-name {
+  color: var(--pt-text);
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360px;
+}
+
+.pt-selected-template-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--pt-text-tertiary);
+  background: var(--pt-bg);
+  border: 1px solid var(--pt-border-subtle);
+  border-radius: var(--pt-radius-sm);
+  padding: 1px 6px;
+}
+
+.pt-selected-template-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pt-selected-template-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 18px;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--pt-bg);
+  border-radius: var(--pt-radius-sm);
+  border: 1px dashed var(--pt-border-subtle);
+}
+
+.pt-selected-template-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pt-selected-template-meta-item dt {
+  color: var(--pt-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.pt-selected-template-meta-item dd {
+  color: var(--pt-text);
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* ===== Chip ===== */
@@ -2643,7 +2805,7 @@ watch(
 }
 
 .pt-table {
-  min-width: 1080px;
+  min-width: 1530px;
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
@@ -2683,6 +2845,16 @@ watch(
   box-sizing: border-box;
   vertical-align: middle;
   white-space: nowrap;
+}
+
+/* 操作列：单元格内容允许换行，按钮组不换行 */
+.pt-table tbody td.pt-cell-actions {
+  white-space: normal;
+  vertical-align: middle;
+  height: auto;
+  min-height: 36px;
+  padding-top: 6px;
+  padding-bottom: 6px;
 }
 
 .pt-table tbody td:last-child {
@@ -2749,9 +2921,9 @@ watch(
 .pt-row-actions {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 4px;
-  min-width: 220px;
+  min-width: 340px;
 }
 
 .pt-btn-text {
@@ -2769,6 +2941,8 @@ watch(
   border-radius: var(--pt-radius-sm);
   transition: all 0.15s ease;
   font-family: inherit;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pt-btn-text:hover {
@@ -2787,8 +2961,10 @@ watch(
   color: var(--pt-text-tertiary);
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  margin-left: 4px;
+  margin-left: 0;
   white-space: nowrap;
+  flex-basis: 100%;
+  padding-top: 2px;
 }
 
 /* ===== Sub group ===== */
@@ -5495,4 +5671,214 @@ th.snp-col-num {
     margin-right: 0;
   }
 }
+
+/* ============================================================
+   定数包模板新增/编辑弹窗
+   ============================================================ */
+.quota-template-dialog {
+  width: min(1280px, calc(100vw - 32px)) !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column;
+  background: #ffffff;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  overflow: hidden;
+}
+
+.qtd-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+}
+
+.qtd-dialog-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.qtd-dialog-title p {
+  width: 100%;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  opacity: 0.85;
+}
+
+.qtd-dialog-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.qtd-dialog-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.3);
+  color: #dcfce7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.qtd-dialog-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.qtd-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+  padding: 20px 24px 12px;
+  background: #f5f8fa;
+  border-bottom: 1px solid #e1e9ee;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .qtd-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .qtd-form-grid { grid-template-columns: 1fr; }
+}
+
+.qtd-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #566b77;
+  font-weight: 500;
+}
+
+.qtd-field-wide {
+  grid-column: 1 / -1;
+}
+
+.qtd-field input,
+.qtd-field select {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #cfdfe7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172b3a;
+  font-size: 13px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.qtd-field input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.qtd-field input[readonly] {
+  background: #f0f3f5;
+  color: #6b7c8f;
+  cursor: not-allowed;
+}
+
+.qtd-input-with-btn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.qtd-input-with-btn input {
+  flex: 1;
+  min-width: 0;
+}
+
+.qtd-error {
+  margin: 10px 24px 0;
+  padding: 8px 12px;
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 6px;
+  color: #dc2626;
+  font-size: 13px;
+}
+
+.qtd-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  background: #f5f8fa;
+  border-top: 1px solid #e1e9ee;
+}
+
+/* ============================================================
+   Shared buttons
+   ============================================================ */
+.qtd-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
+  font-family: inherit;
+}
+
+.qtd-btn:hover { transform: translateY(-1px); }
+.qtd-btn:active { transform: translateY(0); }
+.qtd-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.qtd-btn-icon {
+  width: 32px; min-height: 32px; padding: 0; justify-content: center;
+}
+
+.qtd-btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+}
+.qtd-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+}
+
+.qtd-btn-secondary {
+  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(13, 148, 136, 0.1));
+  color: #0d9488; border-color: rgba(20, 184, 166, 0.2);
+}
+.qtd-btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #14b8a6, #0d9488);
+  color: #fff; box-shadow: 0 4px 10px -4px rgba(20, 184, 166, 0.5);
+}
+
+.qtd-btn-info {
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(14, 165, 233, 0.1));
+  color: #0891b2; border-color: rgba(6, 182, 212, 0.2);
+}
+.qtd-btn-info:hover:not(:disabled) {
+  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+  color: #fff; box-shadow: 0 4px 10px -4px rgba(6, 182, 212, 0.5);
+}
+
+.qtd-btn-ghost {
+  width: 32px; min-height: 32px; padding: 0; justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff; border-color: rgba(255, 255, 255, 0.3);
+}
+.qtd-btn-ghost:hover { background: rgba(255, 255, 255, 0.3); }
 </style>

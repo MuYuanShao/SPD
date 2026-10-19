@@ -26,6 +26,7 @@ import {
   type PurchaseSupplierOption,
   type PurchaseDepartmentOption
 } from '../api/purchaseOrders'
+import { useNotify } from './useNotify'
 import { formatStatusText } from '../utils/chineseDisplay'
 
 export type PurchaseTab = 'smart' | 'demands' | 'plans' | 'orders' | 'tracking'
@@ -44,6 +45,7 @@ interface DemandGroup {
 }
 
 export function usePurchaseManagement() {
+  const notify = useNotify()
   const activeTab = ref<PurchaseTab>('demands')
   const rows = ref<PurchaseOrderRow[]>([])
   const demands = ref<PurchaseDemandRow[]>([])
@@ -63,7 +65,6 @@ export function usePurchaseManagement() {
   const smartAnalysisError = ref('')
   const summary = ref<Record<string, number>>({})
   const loading = ref(false)
-  const message = ref('')
   const purchasePagination = reactive({
     demands: { page: 1, size: 20, total: 0 },
     plans: { page: 1, size: 20, total: 0 },
@@ -350,9 +351,8 @@ export function usePurchaseManagement() {
         plans.value = result.rows
         purchasePagination.plans.total = result.total
       }
-      message.value = ''
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     } finally {
       loading.value = false
     }
@@ -378,7 +378,6 @@ export function usePurchaseManagement() {
     } else {
       Object.assign(query, { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' })
     }
-    message.value = ''
     await loadData()
   }
 
@@ -390,17 +389,24 @@ export function usePurchaseManagement() {
     await loadData()
   }
 
+  function resetQuery() {
+    Object.assign(query, { orderNo: '', supplierName: '', status: '', keyword: '', demandNo: '', planNo: '', deptCode: '' })
+    if (activeTab.value === 'demands' || activeTab.value === 'plans' || activeTab.value === 'orders') {
+      Object.assign(tabQueries[activeTab.value], query)
+    }
+  }
+
   async function submitCreate() {
     if (orderSubmitting.value) return
     orderSubmitting.value = true
     try {
       const result = await createPurchaseOrder(form)
-      message.value = `采购订单已创建：${result.orderNo}`
+      notify.success(`采购订单已创建：${result.orderNo}`)
       showCreateModal.value = false
       activeTab.value = 'orders'
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     } finally {
       orderSubmitting.value = false
     }
@@ -411,20 +417,20 @@ export function usePurchaseManagement() {
     demandSubmitting.value = true
     try {
       if (!demandForm.deptCode) {
-        message.value = '请选择发起科室'
+        notify.warning('请选择发起科室')
         return
       }
       if (!demandForm.demandSource.trim()) {
-        message.value = '请填写采购来源'
+        notify.warning('请填写采购来源')
         return
       }
       const validItems = demandForm.items.filter((item) => item.productCode)
       if (validItems.length === 0) {
-        message.value = '请至少添加一条商品明细'
+        notify.warning('请至少添加一条商品明细')
         return
       }
       if (validItems.some((item) => Number(item.quantity) <= 0)) {
-        message.value = '商品采购数量必须大于 0'
+        notify.warning('商品采购数量必须大于 0')
         return
       }
       const mergedMap = new Map<string, number>()
@@ -440,7 +446,7 @@ export function usePurchaseManagement() {
         remark: demandForm.remark,
         items: mergedItems
       })
-      message.value = `采购申请已保存，需求编号：${result.demandNo}`
+      notify.success(`采购申请已保存，需求编号：${result.demandNo}`)
       if (continueAfterSave) {
         resetDemandForm()
       } else {
@@ -449,7 +455,7 @@ export function usePurchaseManagement() {
       activeTab.value = 'demands'
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     } finally {
       demandSubmitting.value = false
     }
@@ -476,7 +482,7 @@ export function usePurchaseManagement() {
   async function generatePlans() {
     try {
       if (selectedDemandNos.value.length === 0) {
-        message.value = '请选择需要转计划的已审核需求'
+        notify.warning('请选择需要转计划的已审核需求')
         return
       }
       const result = await createPurchasePlansFromDemands({
@@ -484,12 +490,12 @@ export function usePurchaseManagement() {
         supplierName: planForm.supplierName || undefined,
         remark: planForm.remark
       })
-      message.value = `已根据审核通过需求生成 ${result.createdPlans} 条采购计划`
+      notify.success(`已根据审核通过需求生成 ${result.createdPlans} 条采购计划`)
       selectedDemandNos.value = []
       activeTab.value = 'plans'
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -511,10 +517,10 @@ export function usePurchaseManagement() {
       smartAnalysisNo.value = result.analysisNo
       smartTotalFormulaQty.value = Number(result.totalFormulaQty || 0)
       smartTotalRecommendedQty.value = Number(result.totalRecommendedQty || 0)
-      message.value = `已完成近${result.selectedPeriodDays}天一级库智能补货分析，分析编号：${result.analysisNo}，建议补货 ${smartTotalRecommendedQty.value}`
+      notify.success(`已完成近${result.selectedPeriodDays}天一级库智能补货分析，分析编号：${result.analysisNo}，建议补货 ${smartTotalRecommendedQty.value}`)
     } catch (error) {
       smartAnalysisError.value = errorMessage(error)
-      message.value = smartAnalysisError.value
+      notify.error(smartAnalysisError.value)
     } finally {
       smartAnalysisLoading.value = false
     }
@@ -542,12 +548,12 @@ export function usePurchaseManagement() {
       quantity
     }))
     if (items.length === 0) {
-      message.value = '暂无可生成采购需求的补货建议'
+      notify.warning('暂无可生成采购需求的补货建议')
       return
     }
     try {
       if (smartAnalysisId.value == null) {
-        message.value = '智能补货分析编号缺失，请重新分析'
+        notify.error('智能补货分析编号缺失，请重新分析')
         return
       }
       const result = await createPurchaseDemand({
@@ -562,29 +568,29 @@ export function usePurchaseManagement() {
           quantity: Number(row.recommendedQty || 0)
         }))
       })
-      message.value = `已根据智能补货分析生成采购需求：${result.demandNo}`
+      notify.success(`已根据智能补货分析生成采购需求：${result.demandNo}`)
       showSmartAnalysisDialog.value = false
       activeTab.value = 'demands'
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   async function runOrderAction(row: PurchaseOrderRow, action: string) {
     try {
       const result = await updatePurchaseOrderAction(row.orderNo, action, `${statusLabel(row.orderStatus)} -> ${action}`)
-      message.value = `${row.orderNo} 已更新为 ${statusLabel(result.status)}`
+      notify.success(`${row.orderNo} 已更新为 ${statusLabel(result.status)}`)
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   function requestClose(row: PurchaseOrderRow) {
     if (!canCloseOrder(row)) {
       const remaining = remainingQty(row)
-      message.value = `${row.orderNo} 尚未完成数量履约，剩余 ${remaining} 未收货。请先在“收货验收”完成入库后再关闭。`
+      notify.warning(`${row.orderNo} 尚未完成数量履约，剩余 ${remaining} 未收货。请先在"收货验收"完成入库后再关闭。`)
       void openDetail(row)
       return
     }
@@ -596,34 +602,36 @@ export function usePurchaseManagement() {
     if (!closeTarget.value) return
     try {
       const result = await updatePurchaseOrderAction(closeTarget.value.orderNo, 'close', closeReason.value)
-      message.value = `${closeTarget.value.orderNo} 已更新为 ${statusLabel(result.status)}`
+      notify.success(`${closeTarget.value.orderNo} 已更新为 ${statusLabel(result.status)}`)
       closeTarget.value = null
       closeReason.value = ''
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   async function runDemandAction(row: { demandNo: string; demandStatus: string }, action: string) {
     try {
       const result = await updatePurchaseDemandAction(row.demandNo, action, `${statusLabel(row.demandStatus)} -> ${action}`)
-      message.value = `${row.demandNo} 已更新为 ${statusLabel(result.status)}`
+      notify.success(`${row.demandNo} 已更新为 ${statusLabel(result.status)}`)
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   async function runPlanAction(row: PurchasePlanRow, action: string) {
     try {
       const result = await updatePurchasePlanAction(row.planNo, action, `${statusLabel(row.planStatus)} -> ${action}`)
-      message.value = result.orderNo
-        ? `${row.planNo} 已转采购订单：${result.orderNo}`
-        : `${row.planNo} 已更新为 ${statusLabel(result.status)}`
+      notify.success(
+        result.orderNo
+          ? `${row.planNo} 已转采购订单：${result.orderNo}`
+          : `${row.planNo} 已更新为 ${statusLabel(result.status)}`
+      )
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -637,7 +645,7 @@ export function usePurchaseManagement() {
       detail.value = await fetchPurchaseOrderDetail(row.orderNo)
       showOrderDetailDialog.value = true
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -647,13 +655,13 @@ export function usePurchaseManagement() {
       detail.value = await fetchPurchaseOrderDetail(row.orderNo)
       activeTab.value = 'tracking'
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   async function runSelectedOrderAction(action: 'submit' | 'approve') {
     if (!selectedOrder.value) {
-      message.value = '请先选择一条采购订单'
+      notify.warning('请先选择一条采购订单')
       return
     }
     await runOrderAction(selectedOrder.value, action)
@@ -661,7 +669,7 @@ export function usePurchaseManagement() {
 
   function openOrderOperation(mode: 'void' | 'remark') {
     if (!selectedOrder.value) {
-      message.value = '请先选择一条采购订单'
+      notify.warning('请先选择一条采购订单')
       return
     }
     orderOperationMode.value = mode
@@ -671,28 +679,28 @@ export function usePurchaseManagement() {
   async function submitOrderOperation() {
     if (!selectedOrder.value || !orderOperationMode.value) return
     if (!orderOperationText.value.trim()) {
-      message.value = orderOperationMode.value === 'void' ? '请填写作废原因' : '请填写订单备注'
+      notify.warning(orderOperationMode.value === 'void' ? '请填写作废原因' : '请填写订单备注')
       return
     }
     try {
       if (orderOperationMode.value === 'void') {
         const result = await updatePurchaseOrderAction(selectedOrder.value.orderNo, 'void', orderOperationText.value.trim())
-        message.value = `${selectedOrder.value.orderNo} 已更新为 ${statusLabel(result.status)}`
+        notify.success(`${selectedOrder.value.orderNo} 已更新为 ${statusLabel(result.status)}`)
       } else {
         await addPurchaseOrderRemark(selectedOrder.value.orderNo, orderOperationText.value.trim())
-        message.value = `${selectedOrder.value.orderNo} 已添加备注`
+        notify.success(`${selectedOrder.value.orderNo} 已添加备注`)
       }
       orderOperationMode.value = null
       orderOperationText.value = ''
       await loadData()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
   async function copySelectedOrder() {
     if (!selectedOrder.value) {
-      message.value = '请先选择一条采购订单'
+      notify.warning('请先选择一条采购订单')
       return
     }
     try {
@@ -709,9 +717,9 @@ export function usePurchaseManagement() {
       }))
       if (form.items.length === 0) addItem()
       showCreateModal.value = true
-      message.value = `已复制 ${source.order.orderNo}，保存后生成新订单`
+      notify.success(`已复制 ${source.order.orderNo}，保存后生成新订单`)
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -721,7 +729,7 @@ export function usePurchaseManagement() {
     try {
       orderAttachments.value = await fetchPurchaseOrderAttachments(selectedOrder.value.orderNo)
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     } finally {
       orderAttachmentsLoading.value = false
     }
@@ -729,7 +737,7 @@ export function usePurchaseManagement() {
 
   async function openOrderAttachments() {
     if (!selectedOrder.value) {
-      message.value = '请先选择一条采购订单'
+      notify.warning('请先选择一条采购订单')
       return
     }
     closeOrderAttachmentPreview()
@@ -739,15 +747,15 @@ export function usePurchaseManagement() {
 
   async function uploadSelectedOrderAttachment(file: File) {
     if (!selectedOrder.value) {
-      message.value = '请先选择一条采购订单'
+      notify.warning('请先选择一条采购订单')
       return
     }
     try {
       await uploadPurchaseOrderAttachment(selectedOrder.value.orderNo, file)
-      message.value = `${selectedOrder.value.orderNo} 附件上传成功`
+      notify.success(`${selectedOrder.value.orderNo} 附件上传成功`)
       if (showOrderAttachmentDialog.value) await loadOrderAttachments()
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -759,7 +767,7 @@ export function usePurchaseManagement() {
       orderAttachmentPreviewType.value = contentType
       orderAttachmentPreviewName.value = attachment.fileName
     } catch (error) {
-      message.value = errorMessage(error)
+      notify.error(errorMessage(error))
     }
   }
 
@@ -810,7 +818,8 @@ export function usePurchaseManagement() {
     departments,
     summary,
     loading,
-    message,
+    /** 兼容性占位：消息已统一走 ElMessage 弹层。保留字段避免破坏外部解构。 */
+    message: ref(''),
     purchasePagination,
     showCreateModal,
     showDemandModal,
@@ -862,6 +871,7 @@ export function usePurchaseManagement() {
     selectTab,
     changePurchasePage,
     changePurchasePageSize,
+    resetQuery,
     submitCreate,
     submitDemand,
     addDemandItem,
@@ -885,7 +895,8 @@ export function usePurchaseManagement() {
     openOrderAttachments,
     uploadSelectedOrderAttachment,
     previewOrderAttachment,
-    closeOrderAttachmentDialog
+    closeOrderAttachmentDialog,
+    notify
   }
 }
 

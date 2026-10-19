@@ -1,210 +1,80 @@
 <script setup lang="ts">
-import {
-  AlertCircle,
-  BarChart3,
-  Bell,
-  Box,
-  ClipboardCheck,
-  ClipboardList,
-  Database,
-  FileCheck2,
-  Grid2X2,
-  PackageCheck,
-  QrCode,
-  ScanLine,
-  ShoppingCart,
-  Truck,
-  WalletCards
-} from '@lucide/vue'
-import { formatStatusText } from '../utils/chineseDisplay'
+import { computed, ref, watch } from 'vue'
+import { Banknote, Package, PackagePlus, Truck, HeartPulse, UserRound } from '@lucide/vue'
+import StatisticCard from '../components/business/StatisticCard.vue'
+import AlertCard from '../components/business/AlertCard.vue'
+import NoticeList, { type NoticeItem } from '../components/business/NoticeList.vue'
+import TodoList, { type TodoItem } from '../components/business/TodoList.vue'
+import TrendChart from '../components/business/TrendChart.vue'
+import { useHomeWorkbench } from '../composables/useHomeWorkbench'
+import { useLayoutNavigation } from '../layout/useLayoutNavigation'
+import { flattenMenu } from '../config/menu'
+import { featureRouteTarget } from '../config/featureCatalog'
 
-const metricCards = [
-  { label: '在库品种', value: '12,845', delta: '+2.5%', trend: 'up', icon: Box, tone: 'blue' },
-  { label: '今日订单', value: '342', delta: '+12.3%', trend: 'up', icon: ShoppingCart, tone: 'green' },
-  { label: '低库存预警', value: '28', delta: '-5.1%', trend: 'down', icon: AlertCircle, tone: 'orange' },
-  { label: '月采购总额', value: '¥ 1.2M', delta: '+4.8%', trend: 'up', icon: BarChart3, tone: 'violet' }
-]
-
-const processRows = [
-  {
-    label: '主数据与采购',
-    steps: [
-      { label: '商品准入', icon: Database, to: '/features/hospital-product-catalog' },
-      { label: '目录审核', icon: FileCheck2, to: '/features/pending-product-catalog', badge: 3 },
-      { label: '采购订单', icon: ShoppingCart, to: '/features/purchase-management' },
-      { label: '到货验收', icon: Truck, to: '/features/receiving-acceptance' },
-      { label: '批次生成', icon: QrCode, to: '/features/inventory-management' }
-    ]
-  },
-  {
-    label: '库存与定数',
-    steps: [
-      { label: '中心库入账', icon: Box, to: '/features/inventory-management' },
-      { label: '散货 / 成包模式', icon: Grid2X2, to: '/features/quota-package-template', mode: true },
-      { label: '打包任务', icon: ClipboardList, to: '/features/quota-package-template', badge: 12 },
-      { label: '生成定数包', icon: PackageCheck, to: '/features/quota-safety-stock' }
-    ]
-  },
-  {
-    label: '临床与结算',
-    steps: [
-      { label: '科室申领', icon: ClipboardCheck, to: '/features/department-requisition' },
-      { label: '配送及签收', icon: Truck, to: '/features/picking-delivery' },
-      { label: '扫码消耗', icon: ScanLine, to: '/features/department-consumption' },
-      { label: '消耗事实', icon: ClipboardList, to: '/features/department-consumption' },
-      { label: '财务结算', icon: WalletCards, to: '/features/settlement-reconciliation' }
-    ]
-  }
-]
-
-const trendPoints = '0,80 90,126 180,164 270,132 360,156 450,114 540,146 630,78'
-const areaPoints = `${trendPoints} 630,250 0,250`
-const departments = [
-  { name: '骨科', value: 45000 },
-  { name: '心内科', value: 38000 },
-  { name: '手术室', value: 32000 },
-  { name: '重症医学', value: 28000 },
-  { name: '急诊科', value: 21000 }
-]
-
-const exceptions = [
-  { node: '订单价格校验', no: 'PO-20260525-01', reason: '目录价(¥12)与订单价(¥15)不符', status: '待确认' },
-  { node: '打包装配', no: 'TSK-20260525-18', reason: '库存预占超时释放', status: '已取消' },
-  { node: '财务结算', no: 'SET-20260524-09', reason: '存在误消耗争议需红冲', status: '处理中' }
-]
-
-const notices = [
-  { title: '接口同步失败', detail: 'HIS 系统入库流水推送超时', time: '10分钟前', tone: 'red' },
-  { title: '库存预警触发', detail: '骨科高值耗材低于安全定数', time: '2小时前', tone: 'orange' },
-  { title: '规则引擎更新', detail: '新的自动计费防错规则已生效', time: '昨天', tone: 'blue' }
-]
+const { auth, groups } = useLayoutNavigation()
+const { error, refresh,
+  alerts, todos, todoTotal, notices, labels, movementSeries, usageSeries, status, statusDetail, metric } = useHomeWorkbench()
+const availablePages = computed(() => flattenMenu(groups.value).filter(item => !item.children?.length))
+const selectedCodes = ref<string[]>([])
+watch(availablePages, pages => {
+  const allowed = new Set(pages.map(item => item.code))
+  selectedCodes.value = selectedCodes.value.length
+    ? selectedCodes.value.filter(code => allowed.has(code))
+    : pages.slice(0, 4).map(item => item.code)
+}, { immediate: true })
+const shortcuts = computed(() => availablePages.value.filter(item => selectedCodes.value.includes(item.code)))
+const configuring = ref(false)
+const detail = ref<{ title: string; content: string }>()
+function showNotice(item: NoticeItem) { detail.value = { title: item.title, content: item.content } }
+function showTodo(item: TodoItem) { detail.value = { title: item.title, content: '单据编号：' + item.id + '；当前状态：' + item.status + '。请在对应业务模块处理，首页只展示授权范围内的真实待办。' } }
 </script>
-
 <template>
-  <section class="workbench-hero">
-    <div>
-      <h2>工作台首页</h2>
-      <p>欢迎回来，今日待办事项已更新，请关注系统流转状态。</p>
-    </div>
-  </section>
-
-  <section class="kpi-grid">
-    <article v-for="card in metricCards" :key="card.label" class="kpi-card">
-      <div>
-        <p>{{ card.label }}</p>
-        <strong>{{ card.value }}</strong>
-      </div>
-      <div class="kpi-side">
-        <span class="kpi-icon" :class="card.tone">
-          <component :is="card.icon" :size="24" />
-        </span>
-        <span class="kpi-delta" :class="card.trend">{{ card.delta }} ↗</span>
-      </div>
-    </article>
-  </section>
-
-  <section class="process-card">
-    <div class="section-title">
-      <Grid2X2 :size="22" />
-      <h2>SPD 核心业务全景图</h2>
-    </div>
-
-    <div class="process-map">
-      <div v-for="row in processRows" :key="row.label" class="process-row">
-        <div class="process-label">{{ row.label }}</div>
-        <div class="process-steps">
-          <template v-for="(step, index) in row.steps" :key="step.label">
-            <RouterLink class="process-node" :to="step.to" :class="{ wide: step.mode }">
-              <span v-if="step.badge" class="node-badge">{{ step.badge }}</span>
-              <component :is="step.icon" :size="25" />
-              <em v-if="step.mode">散货&nbsp;&nbsp; 成包模式</em>
-              <strong v-else>{{ step.label }}</strong>
-            </RouterLink>
-            <span v-if="index < row.steps.length - 1" class="process-arrow">→</span>
-          </template>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="analytics-grid">
-    <article class="analytics-card">
-      <div class="card-heading">
-        <div class="section-title">
-          <BarChart3 :size="20" />
-          <h2>近7日入库与消耗趋势</h2>
-        </div>
-        <button class="btn" type="button">金额（元）</button>
-      </div>
-      <svg class="trend-chart" viewBox="0 0 640 270" role="img" aria-label="近7日入库与消耗趋势">
-        <line v-for="y in [40, 90, 140, 190, 240]" :key="y" x1="0" :y1="y" x2="640" :y2="y" />
-        <polygon :points="areaPoints" />
-        <polyline :points="trendPoints" />
-      </svg>
-      <div class="chart-legend">
-        <span><i class="blue-dot"></i>入库金额</span>
-        <span><i class="green-dot"></i>消耗金额</span>
-      </div>
-    </article>
-
-    <article class="analytics-card">
-      <div class="card-heading">
-        <div class="section-title">
-          <BarChart3 :size="20" />
-          <h2>重点科室耗材成本 TOP 5</h2>
-        </div>
-        <span>本月累计</span>
-      </div>
-      <div class="bar-ranking">
-        <div v-for="dept in departments" :key="dept.name" class="bar-row">
-          <span>{{ dept.name }}</span>
-          <div><i :style="{ width: `${dept.value / 600}%` }"></i></div>
-        </div>
-      </div>
-    </article>
-  </section>
-
-  <section class="bottom-grid">
-    <article class="exception-card">
-      <div class="card-heading">
-        <h2>异常任务干预</h2>
-        <RouterLink to="/features/todo-tasks">查看全部</RouterLink>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>任务节点</th>
-            <th>业务编号</th>
-            <th>异常原因</th>
-            <th>状态</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in exceptions" :key="item.no">
-            <td>{{ item.node }}</td>
-            <td>{{ item.no }}</td>
-            <td class="danger-cell">{{ item.reason }}</td>
-            <td><span class="state-chip">{{ formatStatusText(item.status) }}</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </article>
-
-    <article class="notice-card">
-      <div class="section-title">
-        <Bell :size="20" />
-        <h2>系统监控与公告</h2>
-      </div>
-      <div class="notice-list">
-        <div v-for="item in notices" :key="item.title" class="notice-item">
-          <i :class="item.tone"></i>
-          <div>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.detail }}</p>
-            <span>{{ item.time }}</span>
-          </div>
-        </div>
-      </div>
-    </article>
+  <section class="fli-dashboard" aria-label="首页工作台">
+    <div class="fli-dashboard-heading"><h1>首页工作台</h1><el-tag size="small" :type="error ? 'danger' : 'info'" effect="plain" :title="statusDetail" role="button" tabindex="0" @click="refresh" @keyup.enter="refresh">{{ status }}</el-tag></div>
+    <el-row :gutter="16" class="fli-statistics">
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日销售额" :value="metric('salesAmount')" unit="元" tone="orange" :icon="Banknote" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日售出数量" :value="metric('salesQuantity')" unit="件" tone="teal" :icon="Package" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日入库" :value="metric('inboundQuantity')" unit="件" tone="purple" :icon="PackagePlus" /></el-col>
+      <el-col :xs="12" :sm="6"><StatisticCard title="今日出库" :value="metric('outboundQuantity')" unit="件" tone="blue" :icon="Truck" /></el-col>
+    </el-row>
+    <el-row :gutter="16" class="fli-columns">
+      <el-col :xs="24" :sm="12" :md="7">
+        <el-card shadow="never" class="fli-panel">
+          <template #header><div class="fli-panel-heading"><h2>待办事项</h2><el-tag size="small" effect="light">{{ todoTotal }} 项待处理</el-tag></div></template>
+          <TodoList :items="todos" @select="showTodo" />
+        </el-card>
+        <el-card shadow="never" class="fli-panel">
+          <template #header><div class="fli-panel-heading"><h2>近30天出入库金额</h2><span>万元</span></div></template>
+          <TrendChart :labels="labels" :series="movementSeries" title="近30天出入库金额趋势" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="12" :md="10">
+        <el-card shadow="never" class="fli-panel">
+          <template #header><div class="fli-panel-heading"><h2>预警信息</h2><span>请及时关注</span></div></template>
+          <div class="fli-alert-grid"><AlertCard v-for="alert in alerts" :key="alert.title" v-bind="alert" /></div>
+        </el-card>
+        <el-card shadow="never" class="fli-panel">
+          <template #header><div class="fli-panel-heading"><h2>耗用与采购趋势</h2><span>近30天</span></div></template>
+          <TrendChart :labels="labels" :series="usageSeries" title="近30天耗用与采购趋势" :height="225" />
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :sm="24" :md="7">
+        <el-card shadow="never" class="fli-panel fli-profile">
+          <div class="fli-profile-heading"><span class="fli-profile-avatar"><UserRound :size="26" /></span><div><h2>{{ auth.currentUser?.realName || auth.username }}，您好</h2><p>欢迎使用医用耗材精益管理平台</p></div></div>
+          <div class="fli-panel-heading"><h3>可用功能</h3><el-button link type="primary" @click="configuring = true">设置</el-button></div>
+          <div class="fli-shortcuts"><RouterLink v-for="item in shortcuts" :key="item.code" :to="featureRouteTarget(item.code)">{{ item.title }}</RouterLink><span v-if="!shortcuts.length">暂无已选功能</span></div>
+        </el-card>
+        <el-card shadow="never" class="fli-panel">
+          <template #header><div class="fli-panel-heading"><h2>系统公告</h2><span>{{ notices.length }} 条</span></div></template>
+          <NoticeList :items="notices" @select="showNotice" />
+        </el-card>
+        <aside class="fli-banner"><HeartPulse :size="38" :stroke-width="1.3" /><div><strong>精益管理 · 守护健康</strong><p>让每一份耗材，服务每一份安心</p></div></aside>
+      </el-col>
+    </el-row>
+    <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template></el-dialog>
+    <el-dialog v-model="configuring" title="选择常用功能" width="min(640px, 92vw)">
+      <el-checkbox-group v-model="selectedCodes" class="fli-feature-options"><el-checkbox v-for="item in availablePages" :key="item.code" :value="item.code">{{ item.title }}</el-checkbox></el-checkbox-group>
+      <template #footer><el-button type="primary" @click="configuring = false">完成</el-button></template>
+    </el-dialog>
   </section>
 </template>

@@ -26,6 +26,10 @@ import {
 } from '../../api/quotaPackages'
 import { formatStatusText } from '../../utils/chineseDisplay'
 import { useAuthStore } from '../../stores/auth'
+import { useNotify } from '../../composables/useNotify'
+
+const notify = useNotify()
+
 
 interface RequisitionCatalogItem extends DepartmentRequisitionCatalogRow {
   selected: boolean
@@ -208,7 +212,7 @@ async function loadCatalog() {
 
 async function startRequisition() {
   clearQuantityDrafts()
-  message.value = ''
+  notify.success('')
   error.value = ''
   if (!options.value.departments.length) {
     await loadOptions()
@@ -227,7 +231,7 @@ function leaveRequisition() {
   totalItems.value = 0
   currentPage.value = 1
   error.value = ''
-  message.value = ''
+  notify.success('')
   submittedCount.value = 0
   void loadRequisitionOrders()
 }
@@ -331,15 +335,15 @@ function normalizeQuantity(item: RequisitionCatalogItem) {
 async function submitSelectedRequisitions() {
   if (submitting.value || loading.value) return
   if (!filters.targetDeptCode) {
-    message.value = '请先选择科室'
+    notify.warning('请先选择科室')
     return
   }
   if (selectedItems.value.length === 0) {
-    message.value = '请先勾选需要申领的商品'
+    notify.warning('请先勾选需要申领的商品')
     return
   }
   submitting.value = true
-  message.value = ''
+  notify.success('')
   error.value = ''
   try {
     const submittedItems = [...selectedItems.value]
@@ -364,7 +368,10 @@ async function submitSelectedRequisitions() {
       items
     })
     submittedCount.value += submittedItems.length
-    message.value = `已提交 ${submittedItems.length} 条科室申领明细${result.requisitionNo ? `，申请单号：${result.requisitionNo}` : ''}`
+    const requisitionNo = (result as { requisitionNo?: string }).requisitionNo
+    notify.success(requisitionNo
+      ? `已提交 ${submittedItems.length} 条科室申领明细，申请单号：${requisitionNo}`
+      : `已提交 ${submittedItems.length} 条科室申领明细`)
     clearQuantityDrafts()
     await loadCatalog()
     await loadRequisitionOrders()
@@ -389,7 +396,7 @@ function removeFromSelection(item: RequisitionCatalogItem) {
 
 async function openSmartReplenishment() {
   if (!filters.targetDeptCode) {
-    message.value = '请先选择科室'
+    notify.warning('请先选择科室')
     return
   }
   const deptCode = selectedDepartment.value?.deptCode
@@ -432,7 +439,7 @@ async function generateSmartRequisitions() {
         selected: row.selected
       }))
     })
-    message.value = `智能补货已生成 ${result.createdCount} 张申领单：${result.requisitionNos.join('、')}`
+    notify.success(`智能补货已生成 ${result.createdCount} 张申领单：${result.requisitionNos.join('、')}`)
     smartOpen.value = false
     await loadRequisitionOrders()
   } catch (err) {
@@ -483,21 +490,12 @@ watch(() => filters.warehouseName, async () => {
       description="统一申请散货、定数包和高值耗材"
       :loading="loading"
       @refresh="refreshCurrentView"
-    >
-      <template #actions>
-        <div class="dept-req-actions">
-          <button v-if="requisitionStarted" class="btn md-btn" type="button" :disabled="loading || submitting" @click="leaveRequisition">
-            <ArrowLeft :size="16" />
-            返回申领列表
-          </button>
-        </div>
-      </template>
-    </MdPageHeader>
+    />
 
     <StatusMessage :message="error" tone="error" />
       <StatusMessage :message="message" tone="success" />
 
-      <section v-if="!requisitionStarted" class="dept-req-table-wrap dept-req-history-card">
+      <section class="dept-req-table-wrap dept-req-history-card">
         <div class="dept-req-section-title">
           <History :size="18" />
           <h3>历史申领单</h3>
@@ -560,24 +558,54 @@ watch(() => filters.warehouseName, async () => {
         />
       </section>
 
-      <section v-if="requisitionStarted" class="dept-req-filters">
-        <label><span>科室</span>
+    <ElDialog
+      v-model="requisitionStarted"
+      title="新增科室申领"
+      width="min(1320px, 97vw)"
+      :close-on-click-modal="false"
+      :close-on-press-escape="!submitting"
+      @closed="leaveRequisition"
+      class="dept-req-dialog dept-req-new-dialog"
+    >
+      <!-- 弹窗头部右侧主操作 -->
+      <template #header>
+        <div class="dept-req-dialog-title">
+          <span>新增科室申领</span>
+          <div class="dept-req-dialog-submit">
+            <span class="dept-req-selected-count">
+              <ShoppingCart :size="14" />
+              已选 <strong>{{ selectedItems.length }}</strong> 条
+            </span>
+            <button class="btn md-btn" type="button" :disabled="loading || submitting" @click="openSmartReplenishment">
+              <AlertTriangle :size="14" />
+              智能补货
+            </button>
+            <button class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="loading || submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
+              <ShoppingCart :size="14" />
+              提交申领
+            </button>
+          </div>
+        </div>
+      </template>
+
+      <!-- 筛选条：单行紧凑 -->
+      <div class="dept-req-filterbar">
+        <label class="dept-req-filterbar-item">
+          <span>科室</span>
           <select v-model="filters.targetDeptCode">
             <option value="">请选择科室</option>
-            <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptCode">
-              {{ dept.deptName }}
-            </option>
+            <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
           </select>
         </label>
-        <label><span>库房</span>
+        <label class="dept-req-filterbar-item">
+          <span>库房</span>
           <select v-model="filters.warehouseName">
             <option value="">全部关联库房</option>
-            <option v-for="warehouse in linkedWarehouses" :key="warehouse.code" :value="warehouse.name">
-              {{ warehouse.name }}
-            </option>
+            <option v-for="warehouse in linkedWarehouses" :key="warehouse.code" :value="warehouse.name">{{ warehouse.name }}</option>
           </select>
         </label>
-        <label><span>申领形式</span>
+        <label class="dept-req-filterbar-item">
+          <span>申领形式</span>
           <select v-model="filters.mode">
             <option value="">全部</option>
             <option value="quota_package">定数包优先</option>
@@ -585,29 +613,46 @@ watch(() => filters.warehouseName, async () => {
             <option value="loose">散货申领</option>
           </select>
         </label>
-        <label><span>商品编码</span><input v-model.trim="filters.productCode" placeholder="商品编码" /></label>
-        <label><span>商品名称</span><input v-model.trim="filters.productName" placeholder="名称 / ID / HRP" /></label>
-        <label><span>规格型号</span><input v-model.trim="filters.specModel" placeholder="规格型号" /></label>
-        <label><span>生产厂家</span><input v-model.trim="filters.manufacturerName" placeholder="生产厂家" /></label>
-        <div class="dept-req-filter-actions">
+        <label class="dept-req-filterbar-item">
+          <span>商品编码</span>
+          <input v-model.trim="filters.productCode" placeholder="商品编码" />
+        </label>
+        <label class="dept-req-filterbar-item">
+          <span>商品名称</span>
+          <input v-model.trim="filters.productName" placeholder="名称 / ID / HRP" />
+        </label>
+        <label class="dept-req-filterbar-item">
+          <span>规格型号</span>
+          <input v-model.trim="filters.specModel" placeholder="规格型号" />
+        </label>
+        <label class="dept-req-filterbar-item">
+          <span>生产厂家</span>
+          <input v-model.trim="filters.manufacturerName" placeholder="生产厂家" />
+        </label>
+        <div class="dept-req-filterbar-actions">
           <button class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="loading" @click="searchCatalog">
-            <Search :size="16" />
+            <Search :size="14" />
             查询
           </button>
           <button class="btn md-btn" type="button" :disabled="loading || submitting" @click="resetFilters">
-            <RotateCcw :size="16" />
+            <RotateCcw :size="14" />
             重置
           </button>
-          <button class="btn md-btn dept-req-submit-btn" type="button" :disabled="loading || submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
-            <ShoppingCart :size="16" />
-            提交申领{{ selectedItems.length ? `(${selectedItems.length})` : '' }}
-          </button>
         </div>
-      </section>
+      </div>
 
-      <p v-if="submittedCount" class="inline-message">本次已成功提交 {{ submittedCount }} 条申领记录</p>
+      <!-- 已选条：始终显示一行小标签，便于确认 -->
+      <div v-if="selectedItems.length || submittedCount" class="dept-req-summary">
+        <span v-if="submittedCount" class="dept-req-summary-ok">
+          <Info :size="14" />本次已成功提交 {{ submittedCount }} 条申领记录
+        </span>
+        <span v-else class="dept-req-summary-hint">
+          <Info :size="14" />当前库房：{{ selectedWarehouseLabel }} · 目录来自当前科室有效库房绑定 · 同一申领单支持高值耗材、定数包和散货
+        </span>
+      </div>
 
-      <section v-if="requisitionStarted && selectedItems.length" class="dept-req-selected">
+      <!-- 已选列表：淡色面板 -->
+      <div v-if="selectedItems.length" class="dept-req-selected">
         <div class="dept-req-selected-head">
           <strong>请购列表（{{ selectedItems.length }}）</strong>
           <span>可调整默认申领类型与数量，不需要的商品可直接移除</span>
@@ -637,116 +682,107 @@ watch(() => filters.warehouseName, async () => {
             </button>
           </li>
         </ul>
-      </section>
+      </div>
 
-      <section v-if="requisitionStarted" class="dept-req-tags">
-        <Info :size="15" />
-        <span class="blue">当前库房：{{ selectedWarehouseLabel }}</span>
-        <span class="yellow">目录来自当前科室有效库房绑定</span>
-        <span class="yellow">同一申领单支持高值耗材、定数包和散货</span>
-        <span class="orange">定数包缺货时可转散货申领</span>
-        <span class="blue">高值耗材在拣配时选择唯一码</span>
-      </section>
-
-      <section v-if="requisitionStarted" class="dept-req-table-wrap dept-req-catalog-card">
-        <div class="dept-req-section-title">
-          <ShoppingCart :size="18" />
-          <h3>科室申领目录</h3>
-          <button v-if="canSmartAnalyze" class="btn md-btn dept-req-smart-btn" type="button" :disabled="loading || submitting" @click="openSmartReplenishment">
-            <AlertTriangle :size="16" />
-            智能补货
-          </button>
+      <!-- 目录表：占大头 -->
+      <div class="dept-req-catalog">
+        <div class="dept-req-catalog-head">
+          <h3><ShoppingCart :size="16" />科室申领目录</h3>
+          <span class="dept-req-catalog-meta">共 {{ totalItems }} 条 · 第 {{ currentPage }} / {{ Math.max(1, Math.ceil(totalItems / pageSize)) }} 页</span>
         </div>
-        <table class="dept-req-table requisition-catalog-table">
-          <thead>
-            <tr>
-              <th><input type="checkbox" @change="toggleAllProducts" /></th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>规格型号</th>
-              <th>生产厂家</th>
-              <th>基本单位</th>
-              <th>散货可用</th>
-              <th>定数包可用</th>
-              <th>默认申领</th>
-              <th>申领数量</th>
-              <th>本次折算</th>
-              <th>模板</th>
-              <th>状态</th>
-              <th>单价</th>
-              <th>是否收费</th>
-              <th>是否集采</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading || optionsLoading">
-              <td colspan="16"><EmptyState message="正在加载科室申领目录..." /></td>
-            </tr>
-            <tr v-else-if="error">
-              <td colspan="16"><EmptyState message="科室申领目录加载失败" /></td>
-            </tr>
-            <template v-else>
-              <tr
-                v-for="item in filteredProducts"
-                :key="item.productCode"
-                :class="{ selected: item.selected, low: item.requisitionStatus.includes('缺货') }"
-              >
-                <td><input v-model="item.selected" :disabled="submitting" type="checkbox" /></td>
-                <td>{{ item.productCode }}</td>
-                <td>
-                  <strong>{{ item.productName }}</strong>
-                  <small>{{ item.supplierName }}</small>
-                </td>
-                <td>{{ item.specModel }}</td>
-                <td>{{ item.manufacturerName }}</td>
-                <td>{{ item.baseUnit }}</td>
-                <td>{{ item.looseAvailableQty }} {{ item.baseUnit }}</td>
-                <td>
-                  <strong>{{ item.packageAvailableQty }} 包</strong>
-                  <small v-if="item.packageQuantity">1 包 = {{ item.packageQuantity }} {{ item.packageUnit }}</small>
-                </td>
-                <td>
-                  <select v-model="item.mode" :disabled="submitting" @change="normalizeQuantity(item)">
-                    <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
-                    <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
-                    <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
-                  </select>
-                </td>
-                <td>
-                  <div class="qty-stepper">
-                    <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                    <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
-                    <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
-                  </div>
-                  <small>{{ unitByMode(item) }}</small>
-                    <small v-if="item.quantity > availableByMode(item)" class="shortage">超过当前可用库存，按实际需求申领</small>
-                </td>
-                <td>{{ baseQtyByMode(item) }} {{ item.baseUnit }}</td>
-                <td>
-                  <strong>{{ item.templateCode }}</strong>
-                  <small>{{ item.templateName }}</small>
-                </td>
-                <td>{{ formatStatusText(item.requisitionStatus) }}</td>
-                <td>{{ item.unitPrice }}</td>
-                <td>{{ Number(item.chargeable) === 1 ? '是' : '否' }}</td>
-                <td>{{ Number(item.centralized) === 1 ? '是' : '否' }}</td>
+        <div class="dept-req-catalog-body">
+          <table class="dept-req-table requisition-catalog-table">
+            <thead>
+              <tr>
+                <th><input type="checkbox" @change="toggleAllProducts" /></th>
+                <th>商品编码</th>
+                <th>商品名称</th>
+                <th>规格型号</th>
+                <th>生产厂家</th>
+                <th>基本单位</th>
+                <th>散货可用</th>
+                <th>定数包可用</th>
+                <th>默认申领</th>
+                <th>申领数量</th>
+                <th>本次折算</th>
+                <th>模板</th>
+                <th>状态</th>
+                <th>单价</th>
+                <th>是否收费</th>
+                <th>是否集采</th>
               </tr>
-            </template>
-            <tr v-if="!loading && !error && filteredProducts.length === 0">
-              <td colspan="16"><EmptyState message="当前科室暂无可申领目录" /></td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControls
-          v-if="requisitionStarted"
-          :page="currentPage"
-          :size="pageSize"
-          :total="totalItems"
-          :loading="loading"
-          @change-page="changePage"
-          @change-size="changePageSize"
-        />
-      </section>
+            </thead>
+            <tbody>
+              <tr v-if="loading || optionsLoading">
+                <td colspan="16"><EmptyState message="正在加载科室申领目录..." /></td>
+              </tr>
+              <tr v-else-if="error">
+                <td colspan="16"><EmptyState message="科室申领目录加载失败" /></td>
+              </tr>
+              <template v-else>
+                <tr
+                  v-for="item in filteredProducts"
+                  :key="item.productCode"
+                  :class="{ selected: item.selected, low: item.requisitionStatus.includes('缺货') }"
+                >
+                  <td><input v-model="item.selected" :disabled="submitting" type="checkbox" /></td>
+                  <td>{{ item.productCode }}</td>
+                  <td>
+                    <strong>{{ item.productName }}</strong>
+                    <small>{{ item.supplierName }}</small>
+                  </td>
+                  <td>{{ item.specModel }}</td>
+                  <td>{{ item.manufacturerName }}</td>
+                  <td>{{ item.baseUnit }}</td>
+                  <td>{{ item.looseAvailableQty }} {{ item.baseUnit }}</td>
+                  <td>
+                    <strong>{{ item.packageAvailableQty }} 包</strong>
+                    <small v-if="item.packageQuantity">1 包 = {{ item.packageQuantity }} {{ item.packageUnit }}</small>
+                  </td>
+                  <td>
+                    <select v-model="item.mode" :disabled="submitting" @change="normalizeQuantity(item)">
+                      <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
+                      <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
+                      <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
+                    </select>
+                  </td>
+                  <td>
+                    <div class="qty-stepper">
+                      <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
+                      <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
+                      <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+                    </div>
+                    <small>{{ unitByMode(item) }}</small>
+                    <small v-if="item.quantity > availableByMode(item)" class="shortage">超过当前可用库存，按实际需求申领</small>
+                  </td>
+                  <td>{{ baseQtyByMode(item) }} {{ item.baseUnit }}</td>
+                  <td>
+                    <strong>{{ item.templateCode }}</strong>
+                    <small>{{ item.templateName }}</small>
+                  </td>
+                  <td>{{ formatStatusText(item.requisitionStatus) }}</td>
+                  <td>{{ item.unitPrice }}</td>
+                  <td>{{ Number(item.chargeable) === 1 ? '是' : '否' }}</td>
+                  <td>{{ Number(item.centralized) === 1 ? '是' : '否' }}</td>
+                </tr>
+              </template>
+              <tr v-if="!loading && !error && filteredProducts.length === 0">
+                <td colspan="16"><EmptyState message="当前科室暂无可申领目录" /></td>
+              </tr>
+            </tbody>
+          </table>
+          <PaginationControls
+            v-if="requisitionStarted"
+            :page="currentPage"
+            :size="pageSize"
+            :total="totalItems"
+            :loading="loading"
+            @change-page="changePage"
+            @change-size="changePageSize"
+          />
+        </div>
+      </div>
+    </ElDialog>
 
     <div v-if="detailOpen" class="dept-req-modal-backdrop" @click.self="closeDetails">
       <section class="dept-req-modal">
@@ -809,7 +845,7 @@ watch(() => filters.warehouseName, async () => {
       </section>
     </div>
 
-    <ElDialog v-model="smartOpen" title="智能补货分析" width="min(1120px, 94vw)" :close-on-click-modal="false">
+    <ElDialog v-model="smartOpen" title="智能补货分析" width="min(1280px, 98vw)" :close-on-click-modal="false" class="dept-req-smart-dialog">
       <div class="smart-toolbar">
         <label>
           <span>统计周期</span>
@@ -847,10 +883,12 @@ watch(() => filters.warehouseName, async () => {
         </table>
       </div>
       <template #footer>
-        <button class="btn" type="button" :disabled="smartGenerating" @click="smartOpen = false">取消</button>
-        <button class="btn btn-primary" type="button" :disabled="smartLoading || smartGenerating" @click="generateSmartRequisitions">
-          {{ smartGenerating ? '正在生成...' : '确认并生成申领单' }}
-        </button>
+        <div class="dept-req-smart-footer">
+          <button class="btn" type="button" :disabled="smartGenerating" @click="smartOpen = false">取消</button>
+          <button class="btn btn-primary" type="button" :disabled="smartLoading || smartGenerating" @click="generateSmartRequisitions">
+            {{ smartGenerating ? '正在生成...' : '确认并生成申领单' }}
+          </button>
+        </div>
       </template>
     </ElDialog>
   </section>
@@ -1337,14 +1375,72 @@ watch(() => filters.warehouseName, async () => {
 }
 
 /* ---------- 智能补货弹窗 ---------- */
+/* 智能补货弹窗：放宽、按钮间距加大、表格撑满 */
+.dept-req-smart-dialog :deep(.el-dialog) {
+  margin: 12px auto !important;
+  width: min(1280px, 98vw) !important;
+  min-height: 560px;
+  max-height: calc(100vh - 24px);
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dept-req-smart-dialog :deep(.el-dialog__body) {
+  padding: 0 !important;
+  flex: 1 1 auto;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.dept-req-smart-dialog :deep(.el-dialog__header) {
+  padding: 14px 22px;
+  border-bottom: 1px solid #eef0f4;
+  flex: 0 0 auto;
+}
+
+.dept-req-smart-dialog :deep(.el-dialog__title) {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dept-req-smart-dialog :deep(.el-dialog__footer) {
+  padding: 12px 22px;
+  border-top: 1px solid #eef0f4;
+  flex: 0 0 auto;
+}
+
+.dept-req-smart-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 16px;
+}
+
+.dept-req-smart-footer .btn {
+  min-width: 96px;
+  height: 34px;
+  padding: 0 18px;
+  font-size: 13px;
+  border-radius: 6px;
+}
+
 .smart-toolbar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-bottom: 12px;
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 13px;
+  padding: 10px 22px;
+  margin: 0;
+  background: #f8fafc;
+  border-bottom: 1px solid #eef0f4;
+  color: #475569;
+  font-size: 12px;
 }
 
 .smart-toolbar label {
@@ -1354,17 +1450,28 @@ watch(() => filters.warehouseName, async () => {
 }
 
 .smart-toolbar select {
-  min-height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--md-border, var(--spd-border-subtle));
-  border-radius: var(--spd-radius-sm, 6px);
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  background: #fff;
+  color: #1f2937;
+}
+
+.smart-toolbar span {
+  color: #64748b;
 }
 
 .smart-table-wrap {
-  max-height: 56vh;
+  flex: 1 1 auto;
+  min-height: 420px;
   overflow: auto;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: #fff;
 }
 
 .smart-table {
@@ -1420,6 +1527,407 @@ watch(() => filters.warehouseName, async () => {
   .dept-req-submit-btn {
     margin-left: 0;
   }
+}
+
+/* ---------- 新增申领弹窗 ---------- */
+.dept-req-dialog :deep(.el-dialog) {
+  margin: 12px auto !important;
+  width: min(1320px, 98vw);
+  min-height: 620px;
+  max-height: calc(100vh - 24px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.dept-req-dialog :deep(.el-dialog__header) {
+  padding: 0;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.dept-req-dialog :deep(.el-dialog__title) {
+  display: none;
+}
+
+.dept-req-dialog :deep(.el-dialog__headerbtn) {
+  top: 14px;
+  right: 16px;
+  z-index: 2;
+}
+
+.dept-req-dialog :deep(.el-dialog__body) {
+  padding: 0 !important;
+  flex: 1 1 auto;
+  min-height: 540px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 自定义 header 区域 */
+.dept-req-dialog-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 56px 14px 22px;
+  gap: 16px;
+}
+
+.dept-req-dialog-title > span {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1f2937;
+  letter-spacing: 0.2px;
+}
+
+.dept-req-dialog-submit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dept-req-selected-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 28px;
+  font-size: 12px;
+  color: #1e3a8a;
+  background: #eef4ff;
+  border-radius: 14px;
+}
+
+.dept-req-selected-count strong {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.dept-req-dialog-submit .btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+
+/* 筛选条：单行（左侧 label/输入紧凑，右侧按钮） */
+.dept-req-filterbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  padding: 12px 22px;
+  background: #fff;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.dept-req-filterbar-item {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 110px;
+  flex: 1 1 110px;
+  max-width: 180px;
+}
+
+.dept-req-filterbar-item > span {
+  font-size: 11px;
+  color: #6b7280;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.dept-req-filterbar-item > input,
+.dept-req-filterbar-item > select {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: #1f2937;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 5px;
+  transition: border-color 0.15s, background 0.15s;
+  min-width: 0;
+}
+
+.dept-req-filterbar-item > input:focus,
+.dept-req-filterbar-item > select:focus {
+  border-color: #3b82f6;
+  background: #fff;
+  outline: none;
+}
+
+.dept-req-filterbar-actions {
+  margin-left: auto;
+  display: inline-flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.dept-req-filterbar-actions .btn {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 5px;
+}
+
+/* 摘要条：单行小字，浅色背景 */
+.dept-req-summary {
+  flex: 0 0 auto;
+  padding: 8px 22px;
+  background: #f8fafc;
+  font-size: 12px;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.dept-req-summary-ok {
+  color: #047857;
+  background: #ecfdf5;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.dept-req-summary-hint {
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 已选列表：浅色背景面板 */
+.dept-req-selected {
+  flex: 0 0 auto;
+  margin: 10px 22px 0 22px;
+  padding: 10px 14px;
+  background: #eef4ff;
+  border-radius: 8px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.dept-req-selected-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.dept-req-selected-head strong {
+  color: #1e3a8a;
+  font-size: 13px;
+}
+
+.dept-req-selected-head span {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.dept-req-selected-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dept-req-selected-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.dept-req-selected-list .selected-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #1e3a8a;
+  font-size: 11px;
+  background: #f1f5f9;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.dept-req-selected-list .selected-name {
+  color: #1f2937;
+  font-weight: 600;
+  font-size: 12px;
+  min-width: 140px;
+}
+
+.dept-req-selected-list .selected-spec {
+  color: #64748b;
+  font-size: 11px;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dept-req-selected-list label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #6b7280;
+}
+
+.dept-req-selected-list label select {
+  height: 26px;
+  font-size: 11px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  background: #fff;
+  padding: 0 6px;
+}
+
+.dept-req-selected-list .qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dept-req-selected-list .qty-stepper .btn-text {
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: none;
+  color: #475569;
+}
+
+.dept-req-selected-list .qty-stepper input {
+  width: 56px;
+  height: 22px;
+  border: none;
+  border-left: 1px solid #e5e7eb;
+  border-right: 1px solid #e5e7eb;
+  text-align: center;
+  font-size: 11px;
+}
+
+.dept-req-selected-list .selected-total {
+  color: #475569;
+  font-size: 11px;
+  min-width: 80px;
+}
+
+.dept-req-selected-list .btn-text-danger {
+  background: transparent;
+  border: none;
+  color: #dc2626;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  cursor: pointer;
+}
+
+/* 目录：占大头 */
+.dept-req-catalog {
+  flex: 1 1 auto;
+  min-height: 460px;
+  display: flex;
+  flex-direction: column;
+  margin: 10px 22px 14px 22px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  overflow: hidden;
+}
+
+.dept-req-catalog-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: #f8fafc;
+  border-bottom: 1px solid #eef0f4;
+}
+
+.dept-req-catalog-head h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.dept-req-catalog-head h3 svg {
+  color: #2563eb;
+}
+
+.dept-req-catalog-meta {
+  font-size: 11px;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.dept-req-catalog-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.dept-req-catalog-body table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.dept-req-catalog-body thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fff;
+  font-weight: 600;
+  color: #334155;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.dept-req-catalog-body tbody td {
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #1f2937;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.dept-req-catalog-body tbody tr:hover {
+  background: #f8fafc;
+}
+
+.dept-req-catalog-body tbody tr.selected {
+  background: #eff6ff;
+}
+
+.dept-req-catalog-body tbody tr.low {
+  background: #fef2f2;
 }
 </style>
 

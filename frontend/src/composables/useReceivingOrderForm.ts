@@ -79,7 +79,7 @@ export function useReceivingOrderForm(options: {
     form.isAgent = false
     form.remark = ''
     supplierSearchQuery.value = ''
-    form.items = [createEmptyReceivingItem()]
+    form.items = []
   }
 
   function openCreateModal() {

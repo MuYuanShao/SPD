@@ -7,6 +7,10 @@ import PaginationControls from '../../components/common/PaginationControls.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { fetchPickingRecords } from '../../api/operationalClosure'
 import { formatStatusText } from '../../utils/chineseDisplay'
+import { useNotify } from '../../composables/useNotify'
+
+const notify = useNotify()
+
 
 const loading = ref(false)
 const message = ref('')
@@ -37,11 +41,11 @@ function normalizedParams() {
 
 async function loadRecords() {
   if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
-    message.value = '开始日期不能晚于结束日期'
+    notify.warning('开始日期不能晚于结束日期')
     return
   }
   loading.value = true
-  message.value = ''
+  notify.success('')
   try {
     const result = await fetchPickingRecords({
       ...normalizedParams(),

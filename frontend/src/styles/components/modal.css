@@ -1,45 +1,1300 @@
-.modal-mask {
+/* ================================================================
+ * 全局弹窗样式
+ *
+ * 目标：
+ *   1. 统一所有自绘弹窗（.supplier-modal / .product-dialog / .approval-create-dialog 等）
+ *   2. 统一 Element Plus 的 el-dialog
+ *   3. 宽度从 760/960 提升到 1080/1280/1440 三档，可装下更多字段
+ *   4. body 区有 max-height + 内部滚动，避免溢出
+ *   5. 头部彩色色块 + 圆角，告别黑白
+ *   6. append-to-body 防止被其他元素遮挡
+ *   7. 兼容小屏自动收缩
+ * ================================================================ */
+
+:root {
+  --modal-radius: 14px;
+  --modal-shadow:
+    0 24px 64px -16px rgba(15, 23, 42, 0.32),
+    0 8px 20px -6px rgba(99, 102, 241, 0.18),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+  /* 弹窗内容区背景：极浅蓝紫渐变（不再纯白也不再灰） */
+  --modal-fg: #0f172a;
+  --modal-muted: #475569;
+  --modal-line: #e0e7ff;
+
+  /* 5 套主题色（按业务语义分配，避免一眼黑灰） */
+  --modal-color-primary: #6366f1;     /* 靛蓝 - 主色，商品/通用 */
+  --modal-color-primary-soft: #eef2ff;
+  --modal-color-primary-deep: #4338ca;
+
+  --modal-color-info: #06b6d4;        /* 青蓝 - 信息/查询 */
+  --modal-color-info-soft: #ecfeff;
+  --modal-color-info-deep: #0e7490;
+
+  --modal-color-success: #10b981;     /* 翠绿 - 通过/确认 */
+  --modal-color-success-soft: #ecfdf5;
+  --modal-color-success-deep: #047857;
+
+  --modal-color-warning: #f59e0b;     /* 琥珀 - 警示/退回 */
+  --modal-color-warning-soft: #fffbeb;
+  --modal-color-warning-deep: #b45309;
+
+  --modal-color-danger: #ef4444;      /* 玫红 - 驳回/删除 */
+  --modal-color-danger-soft: #fef2f2;
+  --modal-color-danger-deep: #b91c1c;
+
+  --modal-color-violet: #8b5cf6;      /* 紫罗兰 */
+  --modal-color-violet-soft: #f5f3ff;
+  --modal-color-violet-deep: #6d28d9;
+
+  --modal-color-pink: #ec4899;        /* 粉色 */
+  --modal-color-pink-soft: #fdf2f8;
+  --modal-color-pink-deep: #be185d;
+
+  --modal-color-teal: #14b8a6;        /* 蓝绿 */
+  --modal-color-teal-soft: #f0fdfa;
+  --modal-color-teal-deep: #0f766e;
+
+  --modal-accent: var(--modal-color-primary);
+  --modal-accent-soft: var(--modal-color-primary-soft);
+
+  /* 默认：靛蓝+紫+粉三色渐变 + 头部柔和彩色 */
+  --modal-head-bg: linear-gradient(135deg,
+    #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  --modal-body-bg: linear-gradient(180deg,
+    #fafbff 0%, #f5f3ff 100%);
+  --modal-foot-bg: linear-gradient(180deg,
+    #f5f3ff 0%, #ede9fe 100%);
+  --modal-stripe-bg: linear-gradient(90deg,
+    #6366f1 0%, #8b5cf6 25%, #ec4899 50%, #f59e0b 75%, #10b981 100%);
+}
+
+/* ================================================================
+ * Mask · 背景蒙层（统一所有自绘弹窗遮罩）
+ *   弹窗放在顶栏 + 菜单下方（top: 120px），保留主导航可见
+ *   z-index 99999 压过普通下拉/侧栏，但顶栏和菜单仍然可见
+ *   ⚠️ 重要：不能把 .el-overlay 写在这里！
+ *     el-overlay 同时被 el-select / el-dropdown / el-tooltip / el-date-picker
+ *     等所有下拉浮层复用。这些浮层不应该被遮罩规则污染。
+ *     el-dialog 自身走 .el-dialog__wrapper 加 padding-top 处理。
+ * ================================================================ */
+.modal-mask,
+.attachment-preview-mask {
   position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: grid;
-  place-items: center;
+  inset: 0;            /* 铺满全屏，modal 用 padding 避开顶部 */
+  z-index: 99999;
+  background: rgba(6, 21, 43, 0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   overflow: auto;
-  background: rgba(6, 21, 43, 0.42);
-  padding: 24px;
+  padding: 80px 24px 24px; /* 顶部留 80px 避开顶栏，余下全用于弹窗 */
+  isolation: isolate;
+  contain: layout style;
+  animation: modal-mask-in 0.18s ease-out;
 }
 
-.supplier-modal {
-  width: min(760px, calc(100vw - 48px));
-  max-height: min(86vh, 820px);
-  overflow: auto;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 16px 48px rgba(6, 21, 43, 0.24);
+@keyframes modal-mask-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
+/* ================================================================
+ * 自绘弹窗：基础尺寸
+ *   三档宽度：标准 / 宽 / 特大
+ * ================================================================ */
+.supplier-modal,
+.product-dialog,
+.approval-create-dialog,
+.warehouse-modal,
+.license-modal,
+.foundation-modal,
+.manufacturer-modal,
 .supplier-modal.purchase-modal,
-.supplier-modal.foundation-modal {
-  width: min(960px, calc(100vw - 48px));
+.purchase-modal,
+.campus-modal,
+.manufacturer-modal.large,
+.dept-wh-modal,
+.attachment-preview-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 弹窗主体用蓝紫渐变背景，不再是纯白 */
+  background: var(--modal-body-bg);
+  border-radius: var(--modal-radius);
+  box-shadow: var(--modal-shadow);
+  border: 1px solid var(--modal-line);
+  /* 高度上限：避开顶栏/菜单 120px，并限制在 75vh 让弹窗保持紧凑 */
+  max-height: min(calc(100vh - 120px - 48px), 75vh);
+  overflow: hidden;
+  /* 默认宽度提升到 1280px（原来 1080px） */
+  width: min(1280px, calc(100vw - 64px));
 }
 
-.modal-heading {
+/* 宽档：1280 → 1440 */
+.supplier-modal.large,
+.product-dialog.large,
+.approval-create-dialog.large,
+.license-modal.large,
+.foundation-modal.large,
+.warehouse-modal.large {
+  width: min(1440px, calc(100vw - 64px));
+}
+
+/* 特大档（资质详情、批量编辑、货位管理）：1440 → 1600 */
+.supplier-modal.xl,
+.product-dialog.xl,
+.approval-create-dialog.xl,
+.warehouse-modal.xl,
+.license-modal.xl,
+.foundation-modal.xl {
+  width: min(1600px, calc(100vw - 64px));
+}
+
+/* ================================================================
+ * 自绘弹窗：头部
+ *   顶部 4 色彩条 + 渐变背景 + 标题左侧渐变色块
+ * ================================================================ */
+.modal-heading,
+.approval-create-head,
+.license-modal-head,
+.foundation-modal-head,
+.warehouse-modal-head,
+.product-dialog-head,
+.manufacturer-modal-head,
+.supplier-modal-head,
+.campus-modal-head {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  border-bottom: 1px solid var(--line);
-  padding: 16px 18px;
+  padding: 18px 22px;
+  background: var(--modal-head-bg);
+  border-bottom: 1px solid var(--modal-line);
+  flex-shrink: 0;
+  border-top-left-radius: var(--modal-radius);
+  border-top-right-radius: var(--modal-radius);
 }
 
-.modal-heading h3 {
+/* 顶部 4 色彩条（紫 / 粉 / 橙 / 青） - 已按需求移除，保持头部干净 */
+.modal-heading::before,
+.approval-create-head::before,
+.license-modal-head::before,
+.foundation-modal-head::before,
+.warehouse-modal-head::before,
+.product-dialog-head::before,
+.manufacturer-modal-head::before,
+.supplier-modal-head::before,
+.campus-modal-head::before {
+  display: none;
+}
+
+/* 头部左侧"图标 + 标题" */
+.modal-heading h3,
+.approval-create-head h3,
+.license-modal-head h3,
+.foundation-modal-head h3,
+.warehouse-modal-head h3,
+.product-dialog-head h3,
+.manufacturer-modal-head h3,
+.supplier-modal-head h3,
+.campus-modal-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0;
-  color: #06152b;
+  color: var(--modal-fg);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
 }
 
-.modal-heading button {
+/* 标题前小色块（用 ::before，不依赖具体组件结构） */
+.modal-heading h3::before,
+.approval-create-head h3::before,
+.license-modal-head h3::before,
+.foundation-modal-head h3::before,
+.warehouse-modal-head h3::before,
+.product-dialog-head h3::before,
+.manufacturer-modal-head h3::before,
+.supplier-modal-head h3::before,
+.campus-modal-head h3::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--modal-accent), #8b5cf6);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* 副标题（"待审批目录"、"商品准入"等） */
+.modal-heading p,
+.approval-create-head p,
+.license-modal-head p,
+.foundation-modal-head p,
+.warehouse-modal-head p,
+.product-dialog-head p,
+.manufacturer-modal-head p,
+.supplier-modal-head p,
+.campus-modal-head p {
+  margin: 2px 0 0;
+  color: var(--modal-muted);
+  font-size: 12.5px;
+}
+
+/* 关闭按钮：圆形 + hover 红色 */
+.modal-heading button.btn-icon,
+.approval-create-head .btn-icon,
+.license-modal-head .btn-icon,
+.foundation-modal-head .btn-icon,
+.warehouse-modal-head .btn-icon,
+.product-dialog-head .btn-icon,
+.manufacturer-modal-head .btn-icon,
+.supplier-modal-head .btn-icon,
+.campus-modal-head .btn-icon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--modal-color-primary);
+  background: var(--modal-color-primary-soft);
+  border: 1px solid var(--modal-line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+.modal-heading button.btn-icon:hover,
+.approval-create-head .btn-icon:hover,
+.license-modal-head .btn-icon:hover,
+.foundation-modal-head .btn-icon:hover,
+.warehouse-modal-head .btn-icon:hover,
+.product-dialog-head .btn-icon:hover,
+.manufacturer-modal-head .btn-icon:hover,
+.supplier-modal-head .btn-icon:hover,
+.campus-modal-head .btn-icon:hover {
+  color: #fff;
+  background: #ef4444;
+  border-color: #ef4444;
+  transform: rotate(90deg);
 }
 
+/* ================================================================
+ * 自绘弹窗：body
+ * ================================================================ */
+.modal-body,
+.approval-create-scroll,
+.license-modal-body,
+.foundation-modal-body,
+.warehouse-modal-body,
+.product-dialog-body,
+.manufacturer-modal-body,
+.supplier-modal-body,
+.campus-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 22px;
+  color: var(--modal-fg);
+  /* 表格多列时禁止列被压扁 */
+  font-size: 13px;
+  /* body 用浅彩色背景（白灰不再出现） */
+  background: var(--modal-body-bg);
+}
+
+/* 表单网格：4 列布局（替代原来的 2 列） */
+.approval-create-form .el-form,
+.modal-form,
+.approval-create-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 20px;
+}
+
+/* 2 列布局（适用于说明性弹窗） */
+.modal-form.cols-2,
+.approval-create-form.cols-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* 3 列布局 */
+.modal-form.cols-3,
+.approval-create-form.cols-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+/* 全宽控件（跨越 4 列） */
+.modal-form .is-span-4,
+.approval-create-form .is-span-4 {
+  grid-column: span 4;
+}
+.modal-form .is-span-3,
+.approval-create-form .is-span-3 {
+  grid-column: span 3;
+}
+.modal-form .is-span-2,
+.approval-create-form .is-span-2 {
+  grid-column: span 2;
+}
+
+/* ================================================================
+ * 自绘弹窗：footer
+ * ================================================================ */
+.modal-footer,
+.approval-create-foot,
+.license-modal-foot,
+.foundation-modal-foot,
+.warehouse-modal-foot,
+.product-dialog-foot,
+.manufacturer-modal-foot,
+.supplier-modal-foot,
+.campus-modal-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px;
+  background: var(--modal-foot-bg);
+  border-top: 1px solid var(--modal-line);
+  flex-shrink: 0;
+}
+
+/* ================================================================
+ * Element Plus el-dialog · 终极层（唯一规则源）
+ * =================================================================
+ * Element Plus 2.14 真实居中：
+ *   .el-dialog { position: relative; margin: 15vh auto 50px; }
+ * 这里不要再写 position / margin，会覆盖 15vh 导致弹窗贴顶。
+ * ================================================================ */
+
+.el-dialog.large,
+.el-dialog.is-large,
+.el-dialog.el-dialog--large {
+  width: min(1440px, calc(100vw - 64px));
+}
+
+.el-dialog.xl,
+.el-dialog.is-xl {
+  width: min(1440px, calc(100vw - 48px));
+}
+
+.el-dialog.tight,
+.el-dialog.is-small,
+.el-dialog.el-dialog--small {
+  width: min(520px, calc(100vw - 48px));
+}
+
+.el-dialog__header {
+  position: relative;
+  padding: 18px 22px !important;
+  margin: 0;
+  background: var(--modal-head-bg);
+  border-bottom: 1px solid var(--modal-line);
+  flex-shrink: 0;
+  border-top-left-radius: var(--modal-radius);
+  border-top-right-radius: var(--modal-radius);
+}
+
+/* el-dialog 顶部彩条 - 已按需求移除 */
+.el-dialog__header::before {
+  display: none;
+}
+
+.el-dialog__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--modal-fg);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  line-height: 1.3;
+}
+
+/* 标题前小色块 */
+.el-dialog__title::before {
+  content: "";
+  display: inline-block;
+  width: 4px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--modal-accent), #8b5cf6);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.el-dialog__headerbtn {
+  position: absolute !important;
+  top: 50% !important;
+  right: 18px !important;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: var(--modal-color-primary-soft) !important;
+  border: 1px solid var(--modal-line);
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.el-dialog__headerbtn:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  transform: translateY(-50%) rotate(90deg);
+}
+.el-dialog__headerbtn .el-dialog__close {
+  color: var(--modal-color-primary);
+  font-size: 16px;
+  line-height: 1;
+}
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: #fff;
+}
+
+.el-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 20px 22px;
+  color: var(--modal-fg);
+  overflow: auto;
+  /* body 浅蓝紫渐变 */
+  background: var(--modal-body-bg);
+}
+
+.el-dialog__footer {
+  padding: 14px 22px;
+  background: var(--modal-foot-bg);
+  border-top: 1px solid var(--modal-line);
+  flex-shrink: 0;
+}
+
+/* 弹窗中嵌入的 Element Plus 表单自动启用 4 列 */
+.el-dialog .el-form,
+.el-dialog .el-form--inline {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 14px 20px;
+}
+.el-dialog .el-form.el-form--inline {
+  display: flex !important;
+  flex-wrap: wrap;
+}
+
+/* 弹窗中的 el-form-item 跨列 */
+.el-dialog .el-form-item.is-span-4 { grid-column: span 4; }
+.el-dialog .el-form-item.is-span-2 { grid-column: span 2; }
+.el-dialog .el-form-item.is-span-3 { grid-column: span 3; }
+
+/* 弹窗中表格：横向滚动 */
+.el-dialog .el-table {
+  font-size: 12.5px;
+}
+.el-dialog .el-table .cell {
+  word-break: break-word;
+}
+
+/* 弹窗中按钮主题色 */
+.el-dialog .el-button--primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 16px -4px rgba(139, 92, 246, 0.5);
+  transition: all 0.18s ease;
+}
+.el-dialog .el-button--primary:hover {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
+  border-color: transparent;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -6px rgba(139, 92, 246, 0.6);
+}
+.el-dialog .el-button--primary:active {
+  transform: translateY(0);
+}
+
+/* 弹窗中危险按钮（驳回/删除） */
+.el-dialog .el-button--danger {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 16px -4px rgba(239, 68, 68, 0.5);
+}
+.el-dialog .el-button--danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* 弹窗中成功按钮（通过/确认） */
+.el-dialog .el-button--success {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 16px -4px rgba(16, 185, 129, 0.5);
+}
+.el-dialog .el-dialog__footer .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--success) {
+  background: #fff;
+  border-color: var(--modal-line);
+  color: var(--modal-fg);
+}
+.el-dialog .el-dialog__footer .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--success):hover {
+  border-color: var(--modal-color-primary);
+  color: var(--modal-color-primary);
+}
+
+/* ================================================================
+ * 响应式：小屏自动收缩
+ * ================================================================ */
+@media (max-width: 1280px) {
+  .el-dialog.large,
+  .el-dialog.xl,
+  .el-dialog.is-large,
+  .el-dialog.is-xl,
+  .supplier-modal.large,
+  .supplier-modal.xl,
+  .product-dialog.large,
+  .product-dialog.xl,
+  .approval-create-dialog.large,
+  .approval-create-dialog.xl {
+    width: min(96vw, calc(100vw - 32px));
+  }
+}
+
+@media (max-width: 960px) {
+  .modal-mask,
+  .el-overlay,
+  .el-overlay-dialog {
+    padding: 12px;
+  }
+  .supplier-modal,
+  .product-dialog,
+  .approval-create-dialog,
+  .warehouse-modal,
+  .license-modal,
+  .foundation-modal,
+  .manufacturer-modal,
+  .campus-modal,
+  .el-dialog {
+    width: calc(100vw - 24px);
+  }
+  .el-dialog .el-form,
+  .modal-form,
+  .approval-create-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .el-dialog .el-form,
+  .modal-form,
+  .approval-create-form {
+    grid-template-columns: 1fr !important;
+  }
+  .modal-heading,
+  .approval-create-head,
+  .el-dialog__header {
+    padding: 14px 16px;
+  }
+  .modal-body,
+  .approval-create-scroll,
+  .el-dialog__body {
+    padding: 16px;
+  }
+}
+
+/* ================================================================
+ * 5 套主题 class - 弹窗配色按业务分配
+ *   使用方式：在弹窗 mask 上加 class="modal-info" 等即可换色
+ *   - modal-primary  商品/通用（靛蓝紫粉）
+ *   - modal-info     查询/详情（青蓝）
+ *   - modal-success  通过/确认（翠绿青）
+ *   - modal-warning  警示/退回（琥珀粉）
+ *   - modal-danger   驳回/删除（玫红橙）
+ * ================================================================ */
+.modal-mask.modal-primary,
+.attachment-preview-mask.modal-primary,
+.modal-mask.modal-info,
+.attachment-preview-mask.modal-info,
+.modal-mask.modal-success,
+.attachment-preview-mask.modal-success,
+.modal-mask.modal-warning,
+.attachment-preview-mask.modal-warning,
+.modal-mask.modal-danger,
+.attachment-preview-mask.modal-danger {
+  --modal-accent: var(--modal-color-primary);
+  --modal-accent-soft: var(--modal-color-primary-soft);
+}
+
+/* PRIMARY 默认（靛蓝紫粉） */
+.modal-mask.modal-primary .supplier-modal,
+.modal-mask.modal-primary .product-dialog,
+.modal-mask.modal-primary .approval-create-dialog,
+.modal-mask.modal-primary .warehouse-modal,
+.modal-mask.modal-primary .license-modal,
+.modal-mask.modal-primary .foundation-modal,
+.modal-mask.modal-primary .manufacturer-modal,
+.modal-mask.modal-primary .campus-modal,
+.attachment-preview-mask.modal-primary .supplier-modal,
+.attachment-preview-mask.modal-primary .product-dialog,
+.attachment-preview-mask.modal-primary .approval-create-dialog,
+.attachment-preview-mask.modal-primary .warehouse-modal,
+.attachment-preview-mask.modal-primary .license-modal,
+.attachment-preview-mask.modal-primary .foundation-modal,
+.attachment-preview-mask.modal-primary .manufacturer-modal,
+.attachment-preview-mask.modal-primary .campus-modal {
+  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%);
+  border: 1px solid #e0e7ff;
+}
+
+/* INFO（青蓝） */
+.modal-mask.modal-info .supplier-modal,
+.modal-mask.modal-info .product-dialog,
+.modal-mask.modal-info .approval-create-dialog,
+.modal-mask.modal-info .warehouse-modal,
+.modal-mask.modal-info .license-modal,
+.modal-mask.modal-info .foundation-modal,
+.modal-mask.modal-info .manufacturer-modal,
+.modal-mask.modal-info .campus-modal,
+.attachment-preview-mask.modal-info .supplier-modal,
+.attachment-preview-mask.modal-info .product-dialog,
+.attachment-preview-mask.modal-info .approval-create-dialog,
+.attachment-preview-mask.modal-info .warehouse-modal,
+.attachment-preview-mask.modal-info .license-modal,
+.attachment-preview-mask.modal-info .foundation-modal,
+.attachment-preview-mask.modal-info .manufacturer-modal,
+.attachment-preview-mask.modal-info .campus-modal {
+  background: linear-gradient(180deg, #f0fdff 0%, #e0f7ff 100%);
+  border: 1px solid #a5f3fc;
+}
+.modal-mask.modal-info .modal-heading,
+.modal-mask.modal-info .approval-create-head,
+.modal-mask.modal-info .license-modal-head,
+.modal-mask.modal-info .foundation-modal-head,
+.modal-mask.modal-info .warehouse-modal-head,
+.modal-mask.modal-info .product-dialog-head,
+.modal-mask.modal-info .manufacturer-modal-head,
+.modal-mask.modal-info .supplier-modal-head,
+.modal-mask.modal-info .campus-modal-head,
+.attachment-preview-mask.modal-info .modal-heading,
+.attachment-preview-mask.modal-info .approval-create-head,
+.attachment-preview-mask.modal-info .license-modal-head,
+.attachment-preview-mask.modal-info .foundation-modal-head,
+.attachment-preview-mask.modal-info .warehouse-modal-head,
+.attachment-preview-mask.modal-info .product-dialog-head,
+.attachment-preview-mask.modal-info .manufacturer-modal-head,
+.attachment-preview-mask.modal-info .supplier-modal-head,
+.attachment-preview-mask.modal-info .campus-modal-head {
+  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 50%, #a5f3fc 100%);
+}
+.modal-mask.modal-info .modal-heading::before,
+.modal-mask.modal-info .approval-create-head::before,
+.modal-mask.modal-info .license-modal-head::before,
+.modal-mask.modal-info .foundation-modal-head::before,
+.modal-mask.modal-info .warehouse-modal-head::before,
+.modal-mask.modal-info .product-dialog-head::before,
+.modal-mask.modal-info .manufacturer-modal-head::before,
+.modal-mask.modal-info .supplier-modal-head::before,
+.modal-mask.modal-info .campus-modal-head::before,
+.attachment-preview-mask.modal-info .modal-heading::before,
+.attachment-preview-mask.modal-info .approval-create-head::before,
+.attachment-preview-mask.modal-info .license-modal-head::before,
+.attachment-preview-mask.modal-info .foundation-modal-head::before,
+.attachment-preview-mask.modal-info .warehouse-modal-head::before,
+.attachment-preview-mask.modal-info .product-dialog-head::before,
+.attachment-preview-mask.modal-info .manufacturer-modal-head::before,
+.attachment-preview-mask.modal-info .supplier-modal-head::before,
+.attachment-preview-mask.modal-info .campus-modal-head::before {
+  background: linear-gradient(90deg, #06b6d4 0%, #0ea5e9 50%, #3b82f6 100%);
+}
+
+/* SUCCESS（翠绿青） */
+.modal-mask.modal-success .supplier-modal,
+.modal-mask.modal-success .product-dialog,
+.modal-mask.modal-success .approval-create-dialog,
+.modal-mask.modal-success .warehouse-modal,
+.modal-mask.modal-success .license-modal,
+.modal-mask.modal-success .foundation-modal,
+.modal-mask.modal-success .manufacturer-modal,
+.modal-mask.modal-success .campus-modal,
+.attachment-preview-mask.modal-success .supplier-modal,
+.attachment-preview-mask.modal-success .product-dialog,
+.attachment-preview-mask.modal-success .approval-create-dialog,
+.attachment-preview-mask.modal-success .warehouse-modal,
+.attachment-preview-mask.modal-success .license-modal,
+.attachment-preview-mask.modal-success .foundation-modal,
+.attachment-preview-mask.modal-success .manufacturer-modal,
+.attachment-preview-mask.modal-success .campus-modal {
+  background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #86efac;
+}
+.modal-mask.modal-success .modal-heading,
+.modal-mask.modal-success .approval-create-head,
+.modal-mask.modal-success .license-modal-head,
+.modal-mask.modal-success .foundation-modal-head,
+.modal-mask.modal-success .warehouse-modal-head,
+.modal-mask.modal-success .product-dialog-head,
+.modal-mask.modal-success .manufacturer-modal-head,
+.modal-mask.modal-success .supplier-modal-head,
+.modal-mask.modal-success .campus-modal-head,
+.attachment-preview-mask.modal-success .modal-heading,
+.attachment-preview-mask.modal-success .approval-create-head,
+.attachment-preview-mask.modal-success .license-modal-head,
+.attachment-preview-mask.modal-success .foundation-modal-head,
+.attachment-preview-mask.modal-success .warehouse-modal-head,
+.attachment-preview-mask.modal-success .product-dialog-head,
+.attachment-preview-mask.modal-success .manufacturer-modal-head,
+.attachment-preview-mask.modal-success .supplier-modal-head,
+.attachment-preview-mask.modal-success .campus-modal-head {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%);
+}
+.modal-mask.modal-success .modal-heading::before,
+.modal-mask.modal-success .approval-create-head::before,
+.modal-mask.modal-success .license-modal-head::before,
+.modal-mask.modal-success .foundation-modal-head::before,
+.modal-mask.modal-success .warehouse-modal-head::before,
+.modal-mask.modal-success .product-dialog-head::before,
+.modal-mask.modal-success .manufacturer-modal-head::before,
+.modal-mask.modal-success .supplier-modal-head::before,
+.modal-mask.modal-success .campus-modal-head::before,
+.attachment-preview-mask.modal-success .modal-heading::before,
+.attachment-preview-mask.modal-success .approval-create-head::before,
+.attachment-preview-mask.modal-success .license-modal-head::before,
+.attachment-preview-mask.modal-success .foundation-modal-head::before,
+.attachment-preview-mask.modal-success .warehouse-modal-head::before,
+.attachment-preview-mask.modal-success .product-dialog-head::before,
+.attachment-preview-mask.modal-success .manufacturer-modal-head::before,
+.attachment-preview-mask.modal-success .supplier-modal-head::before,
+.attachment-preview-mask.modal-success .campus-modal-head::before {
+  background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
+}
+
+/* WARNING（琥珀粉） */
+.modal-mask.modal-warning .supplier-modal,
+.modal-mask.modal-warning .product-dialog,
+.modal-mask.modal-warning .approval-create-dialog,
+.modal-mask.modal-warning .warehouse-modal,
+.modal-mask.modal-warning .license-modal,
+.modal-mask.modal-warning .foundation-modal,
+.modal-mask.modal-warning .manufacturer-modal,
+.modal-mask.modal-warning .campus-modal,
+.attachment-preview-mask.modal-warning .supplier-modal,
+.attachment-preview-mask.modal-warning .product-dialog,
+.attachment-preview-mask.modal-warning .approval-create-dialog,
+.attachment-preview-mask.modal-warning .warehouse-modal,
+.attachment-preview-mask.modal-warning .license-modal,
+.attachment-preview-mask.modal-warning .foundation-modal,
+.attachment-preview-mask.modal-warning .manufacturer-modal,
+.attachment-preview-mask.modal-warning .campus-modal {
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fcd34d;
+}
+.modal-mask.modal-warning .modal-heading,
+.modal-mask.modal-warning .approval-create-head,
+.modal-mask.modal-warning .license-modal-head,
+.modal-mask.modal-warning .foundation-modal-head,
+.modal-mask.modal-warning .warehouse-modal-head,
+.modal-mask.modal-warning .product-dialog-head,
+.modal-mask.modal-warning .manufacturer-modal-head,
+.modal-mask.modal-warning .supplier-modal-head,
+.modal-mask.modal-warning .campus-modal-head,
+.attachment-preview-mask.modal-warning .modal-heading,
+.attachment-preview-mask.modal-warning .approval-create-head,
+.attachment-preview-mask.modal-warning .license-modal-head,
+.attachment-preview-mask.modal-warning .foundation-modal-head,
+.attachment-preview-mask.modal-warning .warehouse-modal-head,
+.attachment-preview-mask.modal-warning .product-dialog-head,
+.attachment-preview-mask.modal-warning .manufacturer-modal-head,
+.attachment-preview-mask.modal-warning .supplier-modal-head,
+.attachment-preview-mask.modal-warning .campus-modal-head {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fed7aa 100%);
+}
+.modal-mask.modal-warning .modal-heading::before,
+.modal-mask.modal-warning .approval-create-head::before,
+.modal-mask.modal-warning .license-modal-head::before,
+.modal-mask.modal-warning .foundation-modal-head::before,
+.modal-mask.modal-warning .warehouse-modal-head::before,
+.modal-mask.modal-warning .product-dialog-head::before,
+.modal-mask.modal-warning .manufacturer-modal-head::before,
+.modal-mask.modal-warning .supplier-modal-head::before,
+.modal-mask.modal-warning .campus-modal-head::before,
+.attachment-preview-mask.modal-warning .modal-heading::before,
+.attachment-preview-mask.modal-warning .approval-create-head::before,
+.attachment-preview-mask.modal-warning .license-modal-head::before,
+.attachment-preview-mask.modal-warning .foundation-modal-head::before,
+.attachment-preview-mask.modal-warning .warehouse-modal-head::before,
+.attachment-preview-mask.modal-warning .product-dialog-head::before,
+.attachment-preview-mask.modal-warning .manufacturer-modal-head::before,
+.attachment-preview-mask.modal-warning .supplier-modal-head::before,
+.attachment-preview-mask.modal-warning .campus-modal-head::before {
+  background: linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ec4899 100%);
+}
+
+/* DANGER（玫红橙） */
+.modal-mask.modal-danger .supplier-modal,
+.modal-mask.modal-danger .product-dialog,
+.modal-mask.modal-danger .approval-create-dialog,
+.modal-mask.modal-danger .warehouse-modal,
+.modal-mask.modal-danger .license-modal,
+.modal-mask.modal-danger .foundation-modal,
+.modal-mask.modal-danger .manufacturer-modal,
+.modal-mask.modal-danger .campus-modal,
+.attachment-preview-mask.modal-danger .supplier-modal,
+.attachment-preview-mask.modal-danger .product-dialog,
+.attachment-preview-mask.modal-danger .approval-create-dialog,
+.attachment-preview-mask.modal-danger .warehouse-modal,
+.attachment-preview-mask.modal-danger .license-modal,
+.attachment-preview-mask.modal-danger .foundation-modal,
+.attachment-preview-mask.modal-danger .manufacturer-modal,
+.attachment-preview-mask.modal-danger .campus-modal {
+  background: linear-gradient(180deg, #fef2f2 0%, #ffe4e6 100%);
+  border: 1px solid #fca5a5;
+}
+.modal-mask.modal-danger .modal-heading,
+.modal-mask.modal-danger .approval-create-head,
+.modal-mask.modal-danger .license-modal-head,
+.modal-mask.modal-danger .foundation-modal-head,
+.modal-mask.modal-danger .warehouse-modal-head,
+.modal-mask.modal-danger .product-dialog-head,
+.modal-mask.modal-danger .manufacturer-modal-head,
+.modal-mask.modal-danger .supplier-modal-head,
+.modal-mask.modal-danger .campus-modal-head,
+.attachment-preview-mask.modal-danger .modal-heading,
+.attachment-preview-mask.modal-danger .approval-create-head,
+.attachment-preview-mask.modal-danger .license-modal-head,
+.attachment-preview-mask.modal-danger .foundation-modal-head,
+.attachment-preview-mask.modal-danger .warehouse-modal-head,
+.attachment-preview-mask.modal-danger .product-dialog-head,
+.attachment-preview-mask.modal-danger .manufacturer-modal-head,
+.attachment-preview-mask.modal-danger .supplier-modal-head,
+.attachment-preview-mask.modal-danger .campus-modal-head {
+  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 50%, #fda4af 100%);
+}
+.modal-mask.modal-danger .modal-heading::before,
+.modal-mask.modal-danger .approval-create-head::before,
+.modal-mask.modal-danger .license-modal-head::before,
+.modal-mask.modal-danger .foundation-modal-head::before,
+.modal-mask.modal-danger .warehouse-modal-head::before,
+.modal-mask.modal-danger .product-dialog-head::before,
+.modal-mask.modal-danger .manufacturer-modal-head::before,
+.modal-mask.modal-danger .supplier-modal-head::before,
+.modal-mask.modal-danger .campus-modal-head::before,
+.attachment-preview-mask.modal-danger .modal-heading::before,
+.attachment-preview-mask.modal-danger .approval-create-head::before,
+.attachment-preview-mask.modal-danger .license-modal-head::before,
+.attachment-preview-mask.modal-danger .foundation-modal-head::before,
+.attachment-preview-mask.modal-danger .warehouse-modal-head::before,
+.attachment-preview-mask.modal-danger .product-dialog-head::before,
+.attachment-preview-mask.modal-danger .manufacturer-modal-head::before,
+.attachment-preview-mask.modal-danger .supplier-modal-head::before,
+.attachment-preview-mask.modal-danger .campus-modal-head::before {
+  background: linear-gradient(90deg, #ef4444 0%, #f97316 50%, #ec4899 100%);
+}
+
+/* ================================================================
+ * 终极 !important 覆盖层
+ *   解决 medical-saas.css / spd-override.css 中 !important
+ *   把 .el-dialog 强制设成 #ffffff、el-overlay 居中的问题
+ *   这段必须在所有 SPD 业务样式之后加载
+ * ================================================================ */
+
+/* 1) 弹窗遮罩 - 从顶栏/菜单 120px 之下开始 + 黑色半透明 + 居中弹出
+ *   重要：不能用 .el-overlay，因为它同时被 el-select / el-dropdown / el-tooltip
+ *         / el-date-picker 等所有浮层复用！这些浮层不需要遮罩规则。
+ *         因此这里只对真正的弹窗 mask 类生效。
+ */
+.modal-mask,
+.attachment-preview-mask,
+.dialog-mask,
+.ai-chat-mask,
+.stocktaking-mask,
+.purchase-modal-mask,
+.receiving-modal-mask,
+.purchase-entry-mask,
+.replenishment-analysis-mask,
+.stocktaking-sheet-mask {
+  position: fixed !important;
+  inset: 0 !important;                /* 铺满全屏，弹窗自身用 padding 避开顶栏 */
+  z-index: 99999 !important;
+  background: rgba(6, 21, 43, 0.45) !important;
+  backdrop-filter: blur(3px) !important;
+  -webkit-backdrop-filter: blur(3px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  overflow: auto !important;
+  padding: 80px 24px 24px !important;
+  isolation: isolate !important;
+  contain: layout style !important;
+}
+
+/* 1b) Element Plus el-dialog 弹窗
+ *     el-overlay 是 popper/tooltip/select 共用，不能动。
+ *     弹窗由 Element Plus 默认 100vh 视口居中显示（用 transform translate）。
+ *     不要用 align-items / margin-top 等强行偏移，会破坏原生居中。
+ *     这里只限制最大高度，避免内容过多时弹窗过高。 */
+
+/* 2) el-dialog 主体（彩色，不强制白）
+ *     ⚠️ 不要改 position / margin / top，会破坏居中。
+ *     Element Plus 2.14 真实规则：
+ *       .el-dialog { position: relative; margin: 15vh auto 50px; ... }
+ *     弹窗靠 margin-top: 15vh 实现视觉下移 + auto 水平居中。
+ *     这里只控制宽 / 高度上限 / 视觉装饰。 */
+.el-dialog,
+.el-message-box,
+.el-message-box--center {
+  width: min(1280px, calc(100vw - 64px)) !important;
+  max-width: calc(100vw - 64px) !important;
+  max-height: min(calc(100vh - 15vh - 50px - 48px), 75vh) !important;
+  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
+  border: 1px solid #e0e7ff !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.32),
+              0 8px 20px -6px rgba(99, 102, 241, 0.18),
+              0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.el-dialog.large,
+.el-dialog.is-large,
+.el-dialog.el-dialog--large {
+  width: min(1440px, calc(100vw - 64px)) !important;
+}
+
+/* 3) el-dialog 头部（彩色，移除彩条） */
+.el-dialog__header {
+  padding: 18px 22px !important;
+  margin: 0 !important;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%) !important;
+  border-bottom: 1px solid #e0e7ff !important;
+  flex-shrink: 0 !important;
+  border-top-left-radius: 14px !important;
+  border-top-right-radius: 14px !important;
+}
+
+.el-dialog__header::before {
+  display: none !important;
+}
+
+.el-dialog__title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  letter-spacing: -0.2px !important;
+  line-height: 1.3 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+/* 标题前小色块（彩色，替代被去掉的彩条） */
+.el-dialog__title::before {
+  content: "" !important;
+  display: inline-block !important;
+  width: 4px !important;
+  height: 18px !important;
+  background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%) !important;
+  border-radius: 2px !important;
+  flex-shrink: 0 !important;
+}
+
+/* 4) el-dialog 主体（彩色，浅蓝紫渐变） */
+.el-dialog__body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  padding: 20px 22px !important;
+  color: #0f172a !important;
+  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
+  overflow: auto !important;
+  font-size: 13px !important;
+}
+
+/* 5) el-dialog footer（彩色，淡紫渐变） */
+.el-dialog__footer {
+  padding: 14px 22px !important;
+  background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  border-top: 1px solid #e0e7ff !important;
+  flex-shrink: 0 !important;
+}
+
+/* 6) el-dialog 关闭按钮（彩色） */
+.el-dialog__headerbtn {
+  position: absolute !important;
+  top: 50% !important;
+  right: 18px !important;
+  transform: translateY(-50%) !important;
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  background: #eef2ff !important;
+  border: 1px solid #e0e7ff !important;
+  border-radius: 8px !important;
+  transition: all 0.15s ease !important;
+}
+.el-dialog__headerbtn .el-dialog__close {
+  color: #6366f1 !important;
+  font-size: 16px !important;
+  line-height: 1 !important;
+}
+.el-dialog__headerbtn:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  border-color: transparent !important;
+  transform: translateY(-50%) rotate(90deg) !important;
+}
+.el-dialog__headerbtn:hover .el-dialog__close {
+  color: #fff !important;
+}
+
+/* 7) el-dialog 内部主按钮彩色渐变 */
+.el-dialog .el-button--primary,
+.el-message-box .el-button--primary {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px -4px rgba(139, 92, 246, 0.5) !important;
+  transition: all 0.18s ease !important;
+}
+.el-dialog .el-button--primary:hover,
+.el-dialog .el-button--primary:focus,
+.el-message-box .el-button--primary:hover,
+.el-message-box .el-button--primary:focus {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 10px 22px -6px rgba(139, 92, 246, 0.6) !important;
+}
+
+.el-dialog .el-button--danger,
+.el-message-box .el-button--danger {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px -4px rgba(239, 68, 68, 0.5) !important;
+}
+.el-dialog .el-button--danger:hover,
+.el-message-box .el-button--danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%) !important;
+  color: #fff !important;
+  transform: translateY(-1px) !important;
+}
+
+.el-dialog .el-button--success {
+  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+  box-shadow: 0 6px 16px -4px rgba(16, 185, 129, 0.5) !important;
+}
+
+/* 修正 el-message-box 在 SPD 主题下的可读性：
+ * 标题/正文/默认按钮文字/取消按钮背景等关键文本必须有足够对比度 */
+.el-message-box {
+  background: #ffffff !important;
+  color: #1f1f1f !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.18) !important;
+  padding: 4px 0 !important;
+}
+.el-message-box__header {
+  padding: 20px 24px 8px !important;
+}
+.el-message-box__title,
+.el-message-box__message,
+.el-message-box__message p,
+.el-message-box__container,
+.el-message-box__content {
+  color: #1f1f1f !important;
+}
+.el-message-box__title {
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #0f172a !important;
+  line-height: 1.5 !important;
+}
+.el-message-box__content {
+  padding: 12px 24px 20px !important;
+}
+.el-message-box__message {
+  font-size: 14px !important;
+  line-height: 1.7 !important;
+  color: #334155 !important;
+  padding: 0 !important;
+}
+.el-message-box__message p {
+  margin: 0 !important;
+  color: #334155 !important;
+}
+.el-message-box__btns {
+  padding: 8px 24px 20px !important;
+  gap: 10px !important;
+}
+.el-message-box__btns .el-button {
+  min-width: 96px !important;
+  height: 36px !important;
+  font-weight: 500 !important;
+  margin-left: 0 !important;
+  border-radius: 8px !important;
+}
+.el-message-box__btns .el-button.el-button--default {
+  background: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  color: #1f1f1f !important;
+  box-shadow: none !important;
+}
+.el-message-box__btns .el-button.el-button--default:hover {
+  border-color: #1890ff !important;
+  color: #1890ff !important;
+  background: #ffffff !important;
+}
+.el-message-box__btns .el-button.el-button--primary {
+  background: #1890ff !important;
+  border-color: #1890ff !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+.el-message-box__btns .el-button.el-button--primary:hover {
+  background: #096dd9 !important;
+  border-color: #096dd9 !important;
+  color: #ffffff !important;
+}
+.el-message-box__close {
+  color: #64748b !important;
+}
+.el-message-box__close:hover {
+  color: #1f1f1f !important;
+}
+
+/* 8) 自绘弹窗 - 强制彩色（覆盖 medical-saas.css 的 #ffffff !important） */
+.supplier-modal,
+.product-dialog,
+.approval-create-dialog,
+.license-modal,
+.foundation-modal,
+.warehouse-modal,
+.manufacturer-modal,
+.campus-modal,
+.purchase-modal,
+.dept-wh-modal,
+.attachment-preview-dialog,
+.stocktaking-sheet-dialog,
+.stocktaking-detail-dialog,
+.replenishment-analysis-dialog,
+.ai-chat-dialog,
+.supplier-dialog {
+  position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
+  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
+  border: 1px solid #e0e7ff !important;
+  border-radius: 14px !important;
+  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.32),
+              0 8px 20px -6px rgba(99, 102, 241, 0.18),
+              0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  /* 高度上限：60vh 紧凑模式 + 48px 留白，让弹窗明显位于视口中央 */
+  max-height: min(60vh, calc(100vh - 48px)) !important;
+  overflow: hidden !important;
+  width: min(1280px, calc(100vw - 64px)) !important;
+}
+.supplier-modal.large,
+.product-dialog.large,
+.approval-create-dialog.large,
+.license-modal.large,
+.foundation-modal.large,
+.warehouse-modal.large {
+  width: min(1440px, calc(100vw - 64px)) !important;
+}
+.supplier-modal.xl,
+.product-dialog.xl,
+.approval-create-dialog.xl,
+.warehouse-modal.xl,
+.license-modal.xl,
+.foundation-modal.xl {
+  width: min(1600px, calc(100vw - 64px)) !important;
+}
+
+/* 9) 自绘弹窗头部 - 彩条已移除，但保留彩色背景 */
+.modal-heading,
+.approval-create-head,
+.license-modal-head,
+.foundation-modal-head,
+.warehouse-modal-head,
+.product-dialog-head,
+.manufacturer-modal-head,
+.supplier-modal-head,
+.campus-modal-head {
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%) !important;
+  border-bottom: 1px solid #e0e7ff !important;
+}
+.modal-heading::before,
+.approval-create-head::before,
+.license-modal-head::before,
+.foundation-modal-head::before,
+.warehouse-modal-head::before,
+.product-dialog-head::before,
+.manufacturer-modal-head::before,
+.supplier-modal-head::before,
+.campus-modal-head::before {
+  display: none !important;
+}
+
+/* 10) 自绘弹窗 footer - 彩色 */
+.modal-footer,
+.approval-create-foot,
+.license-modal-foot,
+.foundation-modal-foot,
+.warehouse-modal-foot,
+.product-dialog-foot,
+.manufacturer-modal-foot,
+.supplier-modal-foot,
+.campus-modal-foot {
+  background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  border-top: 1px solid #e0e7ff !important;
+}
+
+/* 11) 自绘弹窗 body - 彩色 */
+.modal-body,
+.approval-create-scroll,
+.license-modal-body,
+.foundation-modal-body,
+.warehouse-modal-body,
+.product-dialog-body,
+.manufacturer-modal-body,
+.supplier-modal-body,
+.campus-modal-body {
+  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
+  color: #0f172a !important;
+}
+
+/* 12) 自绘弹窗关闭按钮 - 彩色 */
+.modal-heading button.btn-icon,
+.approval-create-head .btn-icon,
+.license-modal-head .btn-icon,
+.foundation-modal-head .btn-icon,
+.warehouse-modal-head .btn-icon,
+.product-dialog-head .btn-icon,
+.manufacturer-modal-head .btn-icon,
+.supplier-modal-head .btn-icon,
+.campus-modal-head .btn-icon {
+  background: #eef2ff !important;
+  border: 1px solid #e0e7ff !important;
+  color: #6366f1 !important;
+}
+.modal-heading button.btn-icon:hover,
+.approval-create-head .btn-icon:hover,
+.license-modal-head .btn-icon:hover,
+.foundation-modal-head .btn-icon:hover,
+.warehouse-modal-head .btn-icon:hover,
+.product-dialog-head .btn-icon:hover,
+.manufacturer-modal-head .btn-icon:hover,
+.supplier-modal-head .btn-icon:hover,
+.campus-modal-head .btn-icon:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}

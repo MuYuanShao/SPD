@@ -7,6 +7,7 @@ import {
   updateReceivingOrder,
   type ReceivingOrderRow
 } from '../api/receivingOrders'
+import { useNotify, type UseNotify } from './useNotify'
 
 type ReceivingForm = {
   sourceType: 'purchase_order' | 'temporary'
@@ -36,12 +37,13 @@ export function useReceivingOrderCreateActions(options: {
   supplierSearchQuery: Ref<string>
   showCreateModal: Ref<boolean>
   editingReceivingNo: Ref<string>
-  message: Ref<string>
   resetForm: () => void
   addItem: () => void
   reload: () => Promise<void>
+  notify?: UseNotify
 }) {
   const submitting = ref(false)
+  const notify: UseNotify = options.notify ?? useNotify()
 
   async function fillFromPurchaseOrder() {
     if (options.form.sourceType !== 'purchase_order' || !options.form.purchaseOrderNo) return
@@ -70,14 +72,16 @@ export function useReceivingOrderCreateActions(options: {
       const result = options.editingReceivingNo.value
         ? await updateReceivingOrder(options.editingReceivingNo.value, { ...options.form, isAgent: undefined })
         : await createReceivingOrder({ ...options.form, isAgent: undefined })
-      options.message.value = options.editingReceivingNo.value
-        ? `${options.editingReceivingNo.value} 已修改`
-        : `收货验收单已创建：${result.receivingNo}`
+      if (options.editingReceivingNo.value) {
+        notify.success(`${options.editingReceivingNo.value} 已修改`)
+      } else {
+        notify.success(`收货验收单已创建：${result.receivingNo}`)
+      }
       options.showCreateModal.value = false
       options.editingReceivingNo.value = ''
       await options.reload()
     } catch (error) {
-      options.message.value = error instanceof Error ? error.message : '收货单保存失败'
+      notify.error(error instanceof Error ? error.message : '收货单保存失败')
     } finally {
       submitting.value = false
     }
@@ -88,11 +92,11 @@ export function useReceivingOrderCreateActions(options: {
     submitting.value = true
     try {
       const result = await createReceivingOrder({ ...options.form, isAgent: undefined })
-      options.message.value = `收货验收单已创建：${result.receivingNo}`
+      notify.success(`收货验收单已创建：${result.receivingNo}`)
       options.resetForm()
       await options.reload()
     } catch (error) {
-      options.message.value = error instanceof Error ? error.message : '收货单保存失败'
+      notify.error(error instanceof Error ? error.message : '收货单保存失败')
     } finally {
       submitting.value = false
     }

@@ -253,7 +253,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 14px;
   min-width: 0;
-  padding: 16px 20px 24px;
+  padding: 0 20px;
 }
 
 /* ---------- 面板卡片 ---------- */

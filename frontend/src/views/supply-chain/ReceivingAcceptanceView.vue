@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, Teleport } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import {
   CheckCircle2,
@@ -33,8 +33,139 @@ import { useReceivingOrderDetail } from '../../composables/useReceivingOrderDeta
 import { useReceivingOrderForm } from '../../composables/useReceivingOrderForm'
 import { useReceivingOrderPagination } from '../../composables/useReceivingOrderPagination'
 import { formatStatusText } from '../../utils/chineseDisplay'
+import { useNotify } from '../../composables/useNotify'
+
+const notify = useNotify()
+
 
 type ReceivingTab = 'pending' | 'completed'
+
+interface ItemDraft {
+  productCode: string
+  purchaseOrderItemId?: number
+  productionBatchNo: string
+  udiCode: string
+  productionDate: string
+  expireDate: string
+  quantity: number
+  qualifiedQuantity: number
+  unqualifiedQuantity: number
+}
+
+function createEmptyItemDraft(): ItemDraft {
+  return {
+    productCode: '',
+    purchaseOrderItemId: undefined,
+    productionBatchNo: '',
+    udiCode: '',
+    productionDate: '',
+    expireDate: '',
+    quantity: 1,
+    qualifiedQuantity: 1,
+    unqualifiedQuantity: 0
+  }
+}
+
+const itemDialogVisible = ref(false)
+const itemDialogMode = ref<'create' | 'edit' | 'copy'>('create')
+const editingItemIndex = ref<number | null>(null)
+const itemDraft = reactive<ItemDraft>(createEmptyItemDraft())
+const itemDialogError = ref('')
+
+function getProductName(code: string) {
+  if (!code) return '-'
+  const product = products.value.find((item) => item.productCode === code)
+  return product?.productName || code
+}
+
+function openCreateItemDialog() {
+  itemDialogMode.value = 'create'
+  editingItemIndex.value = null
+  Object.assign(itemDraft, createEmptyItemDraft())
+  itemDialogError.value = ''
+  itemDialogVisible.value = true
+}
+
+function openEditItemDialog(index: number) {
+  const source = form.items[index]
+  if (!source) return
+  itemDialogMode.value = 'edit'
+  editingItemIndex.value = index
+  Object.assign(itemDraft, {
+    productCode: source.productCode || '',
+    purchaseOrderItemId: source.purchaseOrderItemId,
+    productionBatchNo: source.productionBatchNo || '',
+    udiCode: source.udiCode || '',
+    productionDate: source.productionDate || '',
+    expireDate: source.expireDate || '',
+    quantity: Number(source.quantity || 0),
+    qualifiedQuantity: Number(source.qualifiedQuantity || 0),
+    unqualifiedQuantity: Number(source.unqualifiedQuantity || 0)
+  })
+  itemDialogError.value = ''
+  itemDialogVisible.value = true
+}
+
+function openCopyItemDialog(index: number) {
+  const source = form.items[index]
+  if (!source) return
+  itemDialogMode.value = 'copy'
+  editingItemIndex.value = null
+  Object.assign(itemDraft, {
+    productCode: source.productCode || '',
+    purchaseOrderItemId: source.purchaseOrderItemId,
+    productionBatchNo: '',
+    udiCode: '',
+    productionDate: '',
+    expireDate: '',
+    quantity: Number(source.quantity || 0) || 1,
+    qualifiedQuantity: Number(source.qualifiedQuantity || 0) || 1,
+    unqualifiedQuantity: 0
+  })
+  itemDialogError.value = ''
+  itemDialogVisible.value = true
+}
+
+function closeItemDialog() {
+  itemDialogVisible.value = false
+  itemDialogError.value = ''
+  editingItemIndex.value = null
+}
+
+function saveItemDialog() {
+  if (!itemDraft.productCode) {
+    itemDialogError.value = '请选择商品'
+    return
+  }
+  const quantity = Number(itemDraft.quantity || 0)
+  const qualifiedQuantity = Number(itemDraft.qualifiedQuantity || 0)
+  const unqualifiedQuantity = Number(itemDraft.unqualifiedQuantity || 0)
+  if (quantity <= 0) {
+    itemDialogError.value = '收货数量必须大于 0'
+    return
+  }
+  if (qualifiedQuantity + unqualifiedQuantity !== quantity) {
+    itemDialogError.value = '合格数量 + 不合格数量 必须等于收货数量'
+    return
+  }
+  const next: ItemDraft = {
+    productCode: itemDraft.productCode,
+    purchaseOrderItemId: itemDraft.purchaseOrderItemId,
+    productionBatchNo: itemDraft.productionBatchNo.trim(),
+    udiCode: itemDraft.udiCode.trim(),
+    productionDate: itemDraft.productionDate,
+    expireDate: itemDraft.expireDate,
+    quantity,
+    qualifiedQuantity,
+    unqualifiedQuantity
+  }
+  if (itemDialogMode.value === 'edit' && editingItemIndex.value !== null) {
+    form.items.splice(editingItemIndex.value, 1, next)
+  } else {
+    form.items.push(next)
+  }
+  closeItemDialog()
+}
 
 const rows = ref<ReceivingOrderRow[]>([])
 const purchaseOrders = ref<ReceivingOptionRow[]>([])
@@ -124,10 +255,10 @@ const { submitting, fillFromPurchaseOrder, submitCreate, submitCreateAndContinue
     supplierSearchQuery,
     showCreateModal,
     editingReceivingNo,
-    message,
     resetForm,
     addItem,
-    reload: loadData
+    reload: loadData,
+    notify
   })
 const statusOptions = [
   { value: '', label: '全部已完成' },
@@ -200,22 +331,18 @@ async function openEditModal(row: ReceivingOrderRow) {
 function changeSourceType() {
   form.purchaseOrderNo = ''
   clearSupplier()
-  form.items = [{ productCode: '', purchaseOrderItemId: undefined, productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '', quantity: 1, qualifiedQuantity: 1, unqualifiedQuantity: 0 }]
 }
 
 function deleteSelectedItems() {
   const selected = new Set(selectedItemIndexes.value)
   form.items = form.items.filter((_, index) => !selected.has(index))
-  if (!form.items.length) addItem()
   selectedItemIndexes.value = []
 }
 
 function copySelectedItems() {
-  selectedItemIndexes.value.forEach((index) => {
-    const source = form.items[index]
-    if (!source) return
-    form.items.push({ ...source, productionBatchNo: '', udiCode: '', productionDate: '', expireDate: '' })
-  })
+  const firstIndex = selectedItemIndexes.value[0]
+  if (typeof firstIndex !== 'number') return
+  openCopyItemDialog(firstIndex)
   selectedItemIndexes.value = []
 }
 
@@ -224,36 +351,24 @@ function scanProduct() {
   if (!code) return
   const product = products.value.find((item) => item.productCode === code)
   if (!product) {
-    message.value = `未找到启用的商品编码：${code}`
+    notify.success(`未找到启用的商品编码：${code}`)
     return
   }
   const existing = form.items.findIndex((item) => item.productCode === code)
-  if (existing >= 0) selectedItemIndexes.value = [existing]
-  else {
-    const blankIndex = form.items.findIndex((item) => !item.productCode)
-    if (blankIndex >= 0) {
-      form.items[blankIndex]!.productCode = code
-      selectedItemIndexes.value = [blankIndex]
-    } else {
-      addItem()
-      form.items[form.items.length - 1]!.productCode = code
-      selectedItemIndexes.value = [form.items.length - 1]
-    }
+  if (existing >= 0) {
+    selectedItemIndexes.value = [existing]
+    scanCode.value = ''
+    return
   }
+  itemDialogMode.value = 'create'
+  editingItemIndex.value = null
+  Object.assign(itemDraft, createEmptyItemDraft(), { productCode: code })
+  itemDialogError.value = ''
+  itemDialogVisible.value = true
   scanCode.value = ''
 }
 
 async function confirmCloseCreateModal() {
-  const hasInput = form.items.some((item) => item.productCode || item.productionBatchNo || item.udiCode) || Boolean(form.remark)
-  if (hasInput) {
-    try {
-      await ElMessageBox.confirm('当前收货内容尚未保存，确认关闭吗？', '放弃未保存内容', {
-        confirmButtonText: '确认关闭', cancelButtonText: '继续编辑', type: 'warning'
-      })
-    } catch {
-      return
-    }
-  }
   closeCreateModal()
 }
 
@@ -269,7 +384,7 @@ async function switchTab(tab: ReceivingTab) {
 
 async function runAction(row: ReceivingOrderRow, action: string) {
   actionLoadingNo.value = `${row.receivingNo}:${action}`
-  message.value = ''
+  notify.success('')
   try {
     const opinion = action === 'reject'
       ? (await ElMessageBox.prompt('请填写拒收原因', `拒收 ${row.receivingNo}`, { inputPattern: /\S+/, inputErrorMessage: '拒收原因不能为空', confirmButtonText: '确认拒收', cancelButtonText: '取消' })).value
@@ -303,7 +418,7 @@ onMounted(() => {
       @refresh="loadData"
     />
 
-    <StatusMessage v-if="message" :message="message" :tone="message.includes('失败') || message.includes('未找到') ? 'error' : 'success'" />
+    <!-- 消息：操作反馈统一走顶部 ElMessage 弹层 -->
 
     <section class="receiving-workspace">
       <div class="subnav-tabs receiving-status-tabs" role="tablist" aria-label="收货验收状态">
@@ -435,6 +550,7 @@ onMounted(() => {
       />
     </section>
 
+    <Teleport to="body">
     <div v-if="showCreateModal" class="modal-mask receiving-modal-mask" @click.self="confirmCloseCreateModal">
       <section class="supplier-modal purchase-modal receiving-create-modal" role="dialog" aria-modal="true" aria-labelledby="receiving-create-title" @keydown.esc="confirmCloseCreateModal">
         <div class="receiving-create-titlebar">
@@ -499,7 +615,7 @@ onMounted(() => {
           </div>
 
           <div class="receiving-entry-toolbar">
-            <button type="button" class="teal-action" @click="addItem"><Plus :size="16" /> 新增</button>
+            <button type="button" class="teal-action" @click="openCreateItemDialog"><Plus :size="16" /> 新增明细</button>
             <button type="button" class="teal-action danger" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="deleteSelectedItems"><Trash2 :size="16" /> 删除勾选</button>
             <button type="button" class="teal-action" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="copySelectedItems"><CopyPlus :size="16" /> 复制细单</button>
             <label class="barcode-field">
@@ -509,65 +625,67 @@ onMounted(() => {
           </div>
 
           <section class="receiving-detail-sheet">
-            <table>
-              <thead>
-                <tr>
-                  <th class="check-col"></th>
-                  <th>验收明细标识</th>
-                  <th>批次</th>
-                  <th>商品名称</th>
-                  <th>商品编码</th>
-                  <th>生产批号</th>
-                  <th>UDI</th>
-                  <th>生产日期</th>
-                  <th>失效日期</th>
-                  <th>收货数量</th>
-                  <th>合格数量</th>
-                  <th>不合格数量</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(item, index) in form.items" :key="index">
-                  <td><input v-model="selectedItemIndexes" type="checkbox" :value="index" :aria-label="`选择明细 ${index + 1}`" /></td>
-                  <td>明细 {{ index + 1 }}</td>
-                  <td><input value="[自动生成]" disabled /></td>
-                  <td>
-                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
-                      <option value="">选择商品</option>
-                      <option v-for="product in products" :key="product.productCode" :value="product.productCode">
-                        {{ product.productName }}
-                      </option>
-                    </select>
-                  </td>
-                  <td>
-                    <select v-model="item.productCode" @change="item.purchaseOrderItemId = undefined">
-                      <option value="">商品编码</option>
-                      <option v-for="product in products" :key="product.productCode" :value="product.productCode">
-                        {{ product.productCode }}
-                      </option>
-                    </select>
-                  </td>
-                  <td><input v-model="item.productionBatchNo" placeholder="生产批号" /></td>
-                  <td><input v-model.trim="item.udiCode" placeholder="录入UDI（独立于唯一码）" /></td>
-                  <td><input v-model="item.productionDate" type="date" /></td>
-                  <td><input v-model="item.expireDate" type="date" /></td>
-                  <td><input v-model.number="item.quantity" type="number" min="1" @input="syncQualifiedQuantity(index)" /></td>
-                  <td><input v-model.number="item.qualifiedQuantity" type="number" min="0" @input="syncUnqualifiedQuantity(index)" /></td>
-                  <td><input v-model.number="item.unqualifiedQuantity" type="number" min="0" /></td>
-                  <td>
-                    <button type="button" class="sheet-delete" title="删除" @click="removeItem(index)">
-                      <Trash2 :size="15" />
-                    </button>
-                  </td>
-                </tr>
-                <tr v-if="!form.items.length">
-                  <td colspan="13"><EmptyState message="暂无收货明细" /></td>
-                </tr>
-              </tbody>
-            </table>
+            <div class="sheet-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th class="check-col"></th>
+                    <th>验收明细标识</th>
+                    <th>批次</th>
+                    <th>商品名称</th>
+                    <th>商品编码</th>
+                    <th>生产批号</th>
+                    <th>UDI</th>
+                    <th>生产日期</th>
+                    <th>失效日期</th>
+                    <th class="num-col">收货数量</th>
+                    <th class="num-col">合格数量</th>
+                    <th class="num-col">不合格数量</th>
+                    <th class="op-col">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(item, index) in form.items" :key="index">
+                    <td><input v-model="selectedItemIndexes" type="checkbox" :value="index" :aria-label="`选择明细 ${index + 1}`" /></td>
+                    <td>明细 {{ index + 1 }}</td>
+                    <td><span class="cell-muted">[自动生成]</span></td>
+                    <td :class="{ 'text-muted': !item.productCode }">{{ getProductName(item.productCode) }}</td>
+                    <td :class="{ 'text-muted': !item.productCode }">{{ item.productCode || '-' }}</td>
+                    <td :class="{ 'text-muted': !item.productionBatchNo }">{{ item.productionBatchNo || '-' }}</td>
+                    <td :class="{ 'text-muted': !item.udiCode }">{{ item.udiCode || '-' }}</td>
+                    <td :class="{ 'text-muted': !item.productionDate }">{{ item.productionDate || '-' }}</td>
+                    <td :class="{ 'text-muted': !item.expireDate }">{{ item.expireDate || '-' }}</td>
+                    <td class="num-cell">{{ Number(item.quantity || 0).toFixed(2) }}</td>
+                    <td class="num-cell">{{ Number(item.qualifiedQuantity || 0).toFixed(2) }}</td>
+                    <td class="num-cell">{{ Number(item.unqualifiedQuantity || 0).toFixed(2) }}</td>
+                    <td class="op-col">
+                      <div class="row-op-group">
+                        <button type="button" class="op-link" title="编辑明细" @click="openEditItemDialog(index)">
+                          <Pencil :size="14" />
+                          <span>编辑</span>
+                        </button>
+                        <button type="button" class="op-link danger" title="删除" @click="removeItem(index)">
+                          <Trash2 :size="14" />
+                          <span>删除</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!form.items.length">
+                    <td colspan="13">
+                      <div class="empty-detail">
+                        <EmptyState message="暂无收货明细，请点击「新增明细」按钮添加" />
+                        <button type="button" class="teal-action solid" @click="openCreateItemDialog">
+                          <Plus :size="16" /> 立即新增
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <StatusMessage v-if="quantityMismatch" message="每条明细的合格数量与不合格数量之和必须等于收货数量" tone="error" />
           </section>
-          <StatusMessage v-if="quantityMismatch" message="每条明细的合格数量与不合格数量之和必须等于收货数量" tone="error" />
         </div>
 
         <div class="receiving-create-footer">
@@ -593,7 +711,72 @@ onMounted(() => {
         </div>
       </section>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
+    <div v-if="showCreateModal && itemDialogVisible" class="modal-mask item-dialog-mask" @click.self="closeItemDialog">
+      <section class="supplier-modal purchase-modal item-dialog" role="dialog" aria-modal="true" aria-labelledby="item-dialog-title" @keydown.esc="closeItemDialog">
+        <div class="item-dialog-titlebar">
+          <strong id="item-dialog-title">
+            {{ itemDialogMode === 'edit' ? '编辑收货明细' : itemDialogMode === 'copy' ? '复制收货明细' : '新增收货明细' }}
+          </strong>
+          <button type="button" class="btn-icon" aria-label="关闭" @click="closeItemDialog"><X :size="18" /></button>
+        </div>
+        <div class="item-dialog-body">
+          <div class="item-form-grid">
+            <label class="required">
+              <span>商品</span>
+              <select v-model="itemDraft.productCode" @change="itemDraft.purchaseOrderItemId = undefined">
+                <option value="">请选择商品</option>
+                <option v-for="product in products" :key="product.productCode" :value="product.productCode">
+                  {{ product.productName }} ({{ product.productCode }})
+                </option>
+              </select>
+            </label>
+            <label>
+              <span>生产批号</span>
+              <input v-model="itemDraft.productionBatchNo" placeholder="填写生产批号" />
+            </label>
+            <label>
+              <span>UDI</span>
+              <input v-model.trim="itemDraft.udiCode" placeholder="录入 UDI（独立于唯一码）" />
+            </label>
+            <label>
+              <span>生产日期</span>
+              <input v-model="itemDraft.productionDate" type="date" />
+            </label>
+            <label>
+              <span>失效日期</span>
+              <input v-model="itemDraft.expireDate" type="date" />
+            </label>
+            <label class="required">
+              <span>收货数量</span>
+              <input v-model.number="itemDraft.quantity" type="number" min="1" />
+            </label>
+            <label class="required">
+              <span>合格数量</span>
+              <input v-model.number="itemDraft.qualifiedQuantity" type="number" min="0" />
+            </label>
+            <label>
+              <span>不合格数量</span>
+              <input v-model.number="itemDraft.unqualifiedQuantity" type="number" min="0" />
+            </label>
+          </div>
+          <StatusMessage v-if="itemDialogError" :message="itemDialogError" tone="error" />
+        </div>
+        <div class="item-dialog-footer">
+          <button class="teal-action dark" type="button" @click="closeItemDialog">
+            <X :size="16" /> 取消
+          </button>
+          <button class="teal-action solid" type="button" @click="saveItemDialog">
+            <Save :size="16" /> 保存明细
+          </button>
+        </div>
+      </section>
+    </div>
+    </Teleport>
+
+    <Teleport to="body">
     <div v-if="detail" class="modal-mask receiving-detail-mask">
       <section class="supplier-modal purchase-modal receiving-detail-modal" role="dialog" aria-modal="true" aria-labelledby="receiving-detail-title" @keydown.esc="detail = null">
         <header class="receiving-detail-header">
@@ -698,5 +881,6 @@ onMounted(() => {
         />
       </section>
     </div>
+    </Teleport>
   </section>
 </template>

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, Settings2, UserRound, X, XCircle } from '@lucide/vue'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, Settings2, Upload, UserRound, X, XCircle } from '@lucide/vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
@@ -34,6 +35,10 @@ import {
   type PendingProductTypeCount
 } from '../../api/pendingProductApplications'
 import type { PartnerOption } from '../../api/masterData'
+import { useNotify } from '../../composables/useNotify'
+
+const notify = useNotify()
+
 
 const route = useRoute()
 const router = useRouter()
@@ -224,8 +229,14 @@ async function loadPartnerOptions() {
   }
 }
 
+function triggerAttachmentPicker() {
+  const input = attachmentInput.value as HTMLInputElement | null
+  if (!input || input.disabled) return
+  input.click()
+}
+
 async function openCreateModal() {
-  message.value = ''
+  notify.success('')
   resetCreateForm()
   showCreateModal.value = true
   sourceSelected.value = true
@@ -248,9 +259,9 @@ function handleOutsideClick(e: MouseEvent) {
 }
 
 async function handleCreateSubmit() {
-  message.value = ''
+  notify.success('')
   if (!isNewApplication.value && !sourceSelected.value) {
-    message.value = '请先搜索并选择医院目录商品'
+    notify.warning('请先搜索并选择医院目录商品')
     return
   }
   try {
@@ -613,7 +624,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </button>
           </div>
         </div>
-        <p v-if="message" class="inline-message">{{ message }}</p>
+        <!-- 消息：操作反馈统一走顶部 ElMessage 弹层 -->
 
         <div class="approval-filter-row">
           <div class="approval-search">
@@ -853,8 +864,9 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
       <PendingProductQualificationAttachments v-if="qualificationModalOpen" :application-no="qualificationApplicationNo" />
     </el-dialog>
 
+    <Teleport to="body">
     <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="showBatchApproveModal = false">
-      <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
+      <section class="supplier-dialog product-dialog large" role="dialog" aria-modal="true">
         <header>
           <div>
             <p>批量审批</p>
@@ -886,9 +898,11 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         </form>
       </section>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
     <div v-if="showCreateModal" class="attachment-preview-mask" @click.self="showCreateModal = false">
-      <section class="supplier-dialog product-dialog approval-create-dialog" role="dialog" aria-modal="true" aria-labelledby="approval-create-title">
+      <section class="supplier-dialog product-dialog approval-create-dialog xl" role="dialog" aria-modal="true" aria-labelledby="approval-create-title">
         <header class="approval-create-head">
           <div>
             <p>待审批目录</p>
@@ -1003,7 +1017,26 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <label><span>经营许可证号</span><input v-model="createForm.businessLicenseNo" :readonly="!canEditQualification" /></label>
               <label>
                 <span>资质附件</span>
-                <input ref="attachmentInput" :disabled="!canEditQualification" type="file" multiple accept="image/*,.pdf" @change="handleCreateAttachments" />
+                <div class="approval-attach-field">
+                  <input
+                    ref="attachmentInput"
+                    class="approval-attach-native"
+                    :disabled="!canEditQualification"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    @change="handleCreateAttachments"
+                  />
+                  <button
+                    type="button"
+                    class="btn btn-primary approval-attach-btn"
+                    :disabled="!canEditQualification"
+                    @click="triggerAttachmentPicker"
+                  >
+                    <Upload :size="15" /> 选择文件
+                  </button>
+                  <span class="approval-attach-hint">支持图片与 PDF（可多选）</span>
+                </div>
               </label>
             </div>
             <div class="approval-attachment-summary">
@@ -1047,7 +1080,9 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         </form>
       </section>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
     <div v-if="columnSettingsVisible" class="attachment-preview-mask" @click.self="closeColumnSettings">
       <section class="approval-create-dialog column-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="col-settings-title">
         <header class="approval-create-head">
@@ -1082,7 +1117,9 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         </div>
       </section>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
     <div v-if="duplicateAlertVisible" class="attachment-preview-mask" @click.self="duplicateAlertVisible = false">
       <section class="duplicate-alert-dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-alert-title">
         <header>
@@ -1103,5 +1140,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         </div>
       </section>
     </div>
+    </Teleport>
   </section>
 </template>

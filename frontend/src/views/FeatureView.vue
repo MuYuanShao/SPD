@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute } from 'vue-router'
 import { ChevronRight, Database, KeyRound, LayoutList, Pencil, Plus, Save, ShieldCheck, Trash2, UserCheck, X } from '@lucide/vue'
 import { flatMenus } from '../config/menu'
@@ -101,6 +102,7 @@ watch(featureCode, loadFeature)
       </button>
     </div>
 
+    <Teleport to="body">
     <div v-if="actionModal" class="attachment-preview-mask" @click.self="actionModal = null">
       <section class="supplier-dialog" role="dialog" aria-modal="true">
         <header>
@@ -135,6 +137,7 @@ watch(featureCode, loadFeature)
         </form>
       </section>
     </div>
+    </Teleport>
 
     <div class="architecture-note">
       <LayoutList :size="20" />

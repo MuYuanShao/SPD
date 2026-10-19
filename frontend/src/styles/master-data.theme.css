@@ -314,7 +314,7 @@
   padding: 0;
 }
 
-/* ===== 按钮系统 ===== */
+/* ===== 按钮系统（彩色圆角 — 与全局 .btn 风格统一） ===== */
 .md-btn {
   display: inline-flex;
   align-items: center;
@@ -322,80 +322,115 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 14px;
-  border: 1px solid var(--md-border);
-  border-radius: var(--md-radius);
-  background: var(--md-bg-card);
-  color: var(--md-text);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
+  color: #ffffff;
   font: inherit;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.18s ease;
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
+  transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
   user-select: none;
   text-decoration: none;
 }
 
 .md-btn:hover:not(:disabled) {
-  color: var(--md-primary);
-  border-color: var(--md-primary);
-  background: var(--md-primary-soft);
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 50%, #7c3aed 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+  transform: translateY(-1px);
 }
 
 .md-btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(0);
+  box-shadow: 0 1px 3px -1px rgba(99, 102, 241, 0.4);
 }
 
 .md-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 .md-btn-primary {
-  background: var(--md-primary);
-  border-color: var(--md-primary);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset,
-              0 1px 2px color-mix(in srgb, var(--md-primary) 30%, transparent);
-  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45);
 }
 
 .md-btn-primary:hover:not(:disabled) {
-  background: var(--md-primary-strong);
-  border-color: var(--md-primary-strong);
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
   color: #ffffff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.18) inset,
-              0 2px 6px color-mix(in srgb, var(--md-primary) 36%, transparent);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55);
 }
 
 .md-btn-primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--md-primary-strong) 80%, #000000);
-  border-color: color-mix(in srgb, var(--md-primary-strong) 80%, #000000);
+  background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
 }
 
 .md-btn-ghost {
-  background: transparent;
-  border-color: transparent;
-  color: var(--md-primary);
-  padding: 0 8px;
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  box-shadow: none;
+  backdrop-filter: blur(2px);
 }
 
 .md-btn-ghost:hover:not(:disabled) {
-  background: var(--md-primary-soft);
-  color: var(--md-primary-strong);
-  border-color: transparent;
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.18);
+  transform: none;
 }
 
 .md-btn-danger {
-  color: var(--md-danger);
-  border-color: var(--md-danger-border);
-  background: var(--md-bg-card);
+  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.45);
 }
 
 .md-btn-danger:hover:not(:disabled) {
-  background: var(--md-danger);
+  background: linear-gradient(135deg, #b91c1c 0%, #be123c 100%);
   color: #ffffff;
-  border-color: var(--md-danger);
+  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.55);
+  transform: translateY(-1px);
+}
+
+.md-btn-danger:active:not(:disabled) {
+  background: linear-gradient(135deg, #991b1b 0%, #9f1239 100%);
+}
+
+.md-btn-warning {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.45);
+}
+
+.md-btn-warning:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(249, 115, 22, 0.55);
+}
+
+.md-btn-success {
+  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.45);
+}
+
+.md-btn-success:hover:not(:disabled) {
+  background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.55);
 }
 
 .md-btn-text {
@@ -403,20 +438,23 @@
   padding: 0 8px;
   border: 0;
   background: transparent;
-  color: var(--md-primary);
+  color: #2563eb;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  border-radius: var(--md-radius-sm);
-  transition: all 0.15s ease;
+  border-radius: 6px;
+  box-shadow: none;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
 .md-btn-text:hover:not(:disabled) {
-  background: var(--md-primary-soft);
-  color: var(--md-primary-strong);
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+  transform: none;
+  box-shadow: none;
 }
 
 .md-btn-text:disabled {
@@ -425,12 +463,21 @@
 }
 
 .md-btn-text-danger {
-  color: var(--md-danger);
+  color: #dc2626;
 }
 
 .md-btn-text-danger:hover:not(:disabled) {
-  background: var(--md-danger-soft);
-  color: var(--md-danger-text);
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+}
+
+.md-btn-text-success {
+  color: #059669;
+}
+
+.md-btn-text-success:hover:not(:disabled) {
+  background: rgba(5, 150, 105, 0.1);
+  color: #047857;
 }
 
 .md-btn-icon {
@@ -440,18 +487,20 @@
   height: 32px;
   min-height: 32px;
   padding: 0;
-  border: 1px solid var(--md-border);
-  border-radius: var(--md-radius);
-  background: var(--md-bg-card);
-  color: var(--md-text-secondary);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  box-shadow: none;
 }
 
 .md-btn-icon:hover:not(:disabled) {
-  color: var(--md-primary);
-  border-color: var(--md-primary);
-  background: var(--md-primary-soft);
+  background: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.18);
 }
 
 .md-btn-icon:disabled {
@@ -463,13 +512,14 @@
   min-height: 38px;
   padding: 0 20px;
   font-size: 14px;
+  border-radius: 12px;
 }
 
 .md-btn-sm {
   min-height: 26px;
   padding: 0 10px;
   font-size: 12px;
-  border-radius: var(--md-radius-sm);
+  border-radius: 8px;
 }
 
 /* ===== 标签页 / Tab Bar ===== */

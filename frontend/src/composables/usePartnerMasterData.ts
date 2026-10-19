@@ -28,6 +28,12 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
   const supplierForm = ref<SupplierPayload>(emptySupplierForm())
   const manufacturerForm = ref<ManufacturerPayload>(emptyManufacturerForm())
 
+  // 停用确认弹窗状态（供应商 / 厂家共用一份）
+  const disableConfirmOpen = ref(false)
+  const disableConfirmLoading = ref(false)
+  const disableConfirmKind = ref<'supplier' | 'manufacturer'>('supplier')
+  const disableConfirmCodes = ref<string[]>([])
+
   function openCreateSupplier() {
     deps.clearActionState()
     deps.supplierDialogMode.value = 'create'
@@ -81,17 +87,47 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
       deps.actionError.value = '请选择需要停用的供应商'
       return
     }
-    if (!window.confirm(`确认停用已选择的 ${supplierCodes.length} 条供应商吗？`)) {
+    disableConfirmKind.value = 'supplier'
+    disableConfirmCodes.value = [...supplierCodes]
+    disableConfirmOpen.value = true
+  }
+
+  async function disableManufacturers(manufacturerCodes = deps.selectedCodes.value) {
+    deps.clearActionState()
+    if (!manufacturerCodes.length) {
+      deps.actionError.value = '请选择需要停用的厂家'
       return
     }
+    disableConfirmKind.value = 'manufacturer'
+    disableConfirmCodes.value = [...manufacturerCodes]
+    disableConfirmOpen.value = true
+  }
 
+  async function confirmDisable() {
+    disableConfirmLoading.value = true
     try {
-      const result = await updateSupplierStatus({ supplierCodes, status: 0 })
-      deps.actionMessage.value = `已停用 ${result.updatedRows} 条供应商`
+      if (disableConfirmKind.value === 'supplier') {
+        const result = await updateSupplierStatus({ supplierCodes: disableConfirmCodes.value, status: 0 })
+        deps.actionMessage.value = `已停用 ${result.updatedRows} 条供应商`
+      } else {
+        const result = await updateManufacturerStatus({ manufacturerCodes: disableConfirmCodes.value, status: 0 })
+        deps.actionMessage.value = `已停用 ${result.updatedRows} 条厂家`
+      }
+      disableConfirmOpen.value = false
+      disableConfirmCodes.value = []
       await deps.loadPage()
     } catch (err) {
-      deps.actionError.value = err instanceof Error ? err.message : '供应商停用失败'
+      const kindLabel = disableConfirmKind.value === 'supplier' ? '供应商' : '厂家'
+      deps.actionError.value = err instanceof Error ? err.message : `${kindLabel}停用失败`
+    } finally {
+      disableConfirmLoading.value = false
     }
+  }
+
+  function cancelDisable() {
+    if (disableConfirmLoading.value) return
+    disableConfirmOpen.value = false
+    disableConfirmCodes.value = []
   }
 
   function openCreateManufacturer() {
@@ -144,17 +180,10 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
       deps.actionError.value = '请选择需要停用的厂家'
       return
     }
-    if (!window.confirm(`确认停用已选择的 ${manufacturerCodes.length} 条厂家吗？`)) {
-      return
-    }
-
-    try {
-      const result = await updateManufacturerStatus({ manufacturerCodes, status: 0 })
-      deps.actionMessage.value = `已停用 ${result.updatedRows} 条厂家`
-      await deps.loadPage()
-    } catch (err) {
-      deps.actionError.value = err instanceof Error ? err.message : '厂家停用失败'
-    }
+    // 改为确认弹窗（与 disableSuppliers 共享同一个 confirm 状态机）
+    disableConfirmKind.value = 'manufacturer'
+    disableConfirmCodes.value = [...manufacturerCodes]
+    disableConfirmOpen.value = true
   }
 
   return {
@@ -167,7 +196,13 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
     openCreateManufacturer,
     openEditManufacturer,
     saveManufacturer,
-    disableManufacturers
+    disableManufacturers,
+    confirmDisable,
+    cancelDisable,
+    disableConfirmOpen,
+    disableConfirmLoading,
+    disableConfirmKind,
+    disableConfirmCodes
   }
 }
 

@@ -3,6 +3,10 @@ import { computed, onMounted, ref } from 'vue'
 import { createSystemConfig, fetchSystemConfigs, updateSystemConfig } from '../../api/systemConfig'
 import SectionTitle from '../common/SectionTitle.vue'
 import StatusMessage from '../common/StatusMessage.vue'
+import { useNotify } from '../../composables/useNotify'
+
+const notify = useNotify()
+
 
 const emit = defineEmits<{ saved: [] }>()
 const configKey = 'integration.mcp-ui.connection'
@@ -42,7 +46,7 @@ async function load() {
 async function save() {
   saving.value = true
   error.value = ''
-  message.value = ''
+  notify.success('')
   try {
     const payload = { configType: 'integration', scopeType: 'global', scopeId: 'default', configKey,
       configValue: JSON.stringify({ protocol: protocol.value, host: host.value.trim(), port: Number(port.value), phase2Enabled: phase2Enabled.value }),
@@ -50,7 +54,7 @@ async function save() {
     if (configId.value === null) await createSystemConfig(payload)
     else await updateSystemConfig(configId.value, payload)
     await load()
-    message.value = 'MCP-UI对接地址已保存，下一次上传任务自动使用新地址'
+    notify.success('MCP-UI对接地址已保存，下一次上传任务自动使用新地址')
     emit('saved')
   } catch (e) { error.value = e instanceof Error ? e.message : '连接配置保存失败' }
   finally { saving.value = false }

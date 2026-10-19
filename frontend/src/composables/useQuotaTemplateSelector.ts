@@ -37,6 +37,10 @@ export function useQuotaTemplateSelector(options: {
     templateSelectorOpen.value = false
   }
 
+  function clearPackingTemplate() {
+    options.packingForm.templateCode = ''
+  }
+
   function fillPacking(row: QuotaTemplateRow) {
     options.packingForm.templateCode = row.templateCode
     if (!options.packingForm.warehouseName && options.warehouses.value.length) {
@@ -51,6 +55,7 @@ export function useQuotaTemplateSelector(options: {
     filteredPackingTemplates,
     openTemplateSelector,
     selectPackingTemplate,
+    clearPackingTemplate,
     fillPacking
   }
 }

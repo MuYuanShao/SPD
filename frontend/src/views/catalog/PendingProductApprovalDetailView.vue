@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, Save, ShieldCheck, X } from '@lucide/vue'
@@ -731,36 +732,17 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
         <p v-if="isPendingApprovalStatus(detail.approvalStatus) && !detail.canApprove" class="inline-message">
           当前账号无此节点审批权限，仅可查看审批明细。
         </p>
-        <div class="opinion-actions">
-          <button
-            v-if="detail.canApprove"
-            type="button"
-            class="btn btn-danger"
-            @click="submitAction('reject')"
-          >
-            驳回
-          </button>
-          <button
-            v-if="detail.canApprove"
-            type="button"
-            class="btn btn-warning"
-            @click="submitAction('return')"
-          >
-            退回修改
-          </button>
-          <button
-            v-if="detail.canApprove"
-            type="button"
-            class="btn btn-primary"
-            @click="submitAction('approve')"
-          >
-            <CheckCircle2 :size="17" />
-            {{ approveButtonText }}
-          </button>
-        </div>
+        <!--
+          驳回 / 退回修改 / 审批通过 三个按钮仅在 header 顶部出现一次。
+          意见卡片只承载 textarea，避免重复操作。
+        -->
+        <p v-if="detail.canApprove" class="opinion-tip">
+          退回修改、驳回需要填写意见，审批通过可留空。
+        </p>
       </section>
 
       <!-- ═══ Resubmit Modal ═══ -->
+      <Teleport to="body">
       <div v-if="resubmitModalOpen" class="attachment-preview-mask">
         <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
           <header>
@@ -832,6 +814,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
           </form>
         </section>
       </div>
+      </Teleport>
 
       <!-- ═══ Attachment Preview Modal ═══ -->
 
@@ -906,5 +889,12 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 .qual-item .edit-input {
   width: 100%;
   max-width: 200px;
+}
+
+.opinion-tip {
+  margin: 4px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
 }
 </style>

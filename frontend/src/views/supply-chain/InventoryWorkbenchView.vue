@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute } from 'vue-router'
 import { CheckCircle2, ClipboardCheck, Eye, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
@@ -23,7 +24,10 @@ import {
   type StocktakingSheetItem
 } from '../../api/inventory'
 import { fetchClosureOptions, type ClosureOptions } from '../../api/operationalClosure'
+import { useNotify } from '../../composables/useNotify'
 import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
+
+const notify = useNotify()
 
 const route = useRoute()
 const balances = ref<InventoryBalanceRow[]>([])
@@ -78,7 +82,7 @@ async function loadStocktakingPreview() {
     })
     stocktakingPreviewRows.value = result.rows
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '当前库存明细加载失败'
+    notify.error(err instanceof Error ? err.message : '当前库存明细加载失败')
   } finally {
     stocktakingPreviewLoading.value = false
   }
@@ -90,7 +94,6 @@ const selectedScopeLabels = computed(() =>
 )
 
 async function openStocktakingSheet() {
-  message.value = ''
   if (!stocktakingOptions.value.warehouses.length) {
     try {
       stocktakingOptions.value = await fetchClosureOptions()
@@ -107,11 +110,11 @@ async function openStocktakingSheet() {
 
 async function submitStocktakingSheet() {
   if (!stocktakingSheetForm.warehouseName) {
-    message.value = '请选择盘点库房'
+    notify.warning('请选择盘点库房')
     return
   }
   if (!stocktakingSheetForm.scopes.length) {
-    message.value = '请至少选择一个盘点商品范围'
+    notify.warning('请至少选择一个盘点商品范围')
     return
   }
   try {
@@ -121,11 +124,11 @@ async function submitStocktakingSheet() {
       scopes: stocktakingSheetForm.scopes
     })
     stocktakingSheetOpen.value = false
-    message.value = `盘点表已生成：${result.stocktakingNo}，共 ${result.rowCount} 条盘点明细`
+    notify.success(`盘点表已生成：${result.stocktakingNo}，共 ${result.rowCount} 条盘点明细`)
     await loadData()
     await openStocktakingDetail(result.stocktakingNo)
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '盘点表生成失败'
+    notify.error(err instanceof Error ? err.message : '盘点表生成失败')
   }
 }
 
@@ -138,7 +141,7 @@ async function openStocktakingDetail(stocktakingNo: string) {
     const result = await fetchStocktakingItems(stocktakingNo)
     stocktakingDetailRows.value = result.rows
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '盘点明细加载失败'
+    notify.error(err instanceof Error ? err.message : '盘点明细加载失败')
   } finally {
     stocktakingDetailLoading.value = false
   }
@@ -149,24 +152,23 @@ async function saveStocktakingDetail() {
     .filter((row) => row.actualQty != null)
     .map((row) => ({ itemId: row.itemId, actualQty: Number(row.actualQty) }))
   if (!items.length) {
-    message.value = '请至少填写一条盘点数量'
+    notify.warning('请至少填写一条盘点数量')
     return
   }
   stocktakingDetailSaving.value = true
   try {
     const result = await updateStocktakingItems(stocktakingDetailNo.value, items)
-    message.value = `盘点数量已保存：${result.stocktakingNo}，共 ${result.updatedRows} 条明细`
+    notify.success(`盘点数量已保存：${result.stocktakingNo}，共 ${result.updatedRows} 条明细`)
     await loadData()
     await openStocktakingDetail(stocktakingDetailNo.value)
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '盘点数量保存失败'
+    notify.error(err instanceof Error ? err.message : '盘点数量保存失败')
   } finally {
     stocktakingDetailSaving.value = false
   }
 }
 const priceRows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
-const message = ref('')
 const inventoryPagination = reactive({
   balances: { page: 1, size: 20, total: 0 },
   quotaStock: { page: 1, size: 20, total: 0 },
@@ -338,19 +340,19 @@ function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
 
 async function approveStocktakingRow(no: string) {
   const result = await approveStocktaking(no)
-  message.value = `${result.stocktakingNo} 已复核通过并生成库存事件`
+  notify.success(`${result.stocktakingNo} 已复核通过并生成库存事件`)
   await loadData()
 }
 
 async function submitPriceAdjustment() {
   const result = await createBatchPriceAdjustment(priceForm)
-  message.value = `批次调价单已创建：${result.adjustmentNo}，影响库存 ${result.affectedQty}`
+  notify.success(`批次调价单已创建：${result.adjustmentNo}，影响库存 ${result.affectedQty}`)
   await loadData()
 }
 
 async function approvePriceRow(no: string) {
   const result = await approveBatchPriceAdjustment(no)
-  message.value = `${result.adjustmentNo} 已审批通过`
+  notify.success(`${result.adjustmentNo} 已审批通过`)
   await loadData()
 }
 
@@ -386,8 +388,6 @@ watch(mode, () => {
       :loading="loading"
       @refresh="loadData"
     />
-
-    <p v-if="message && !isInventoryTransactionLedger" class="inline-message">{{ message }}</p>
 
     <section v-if="isInventoryManagement" class="inventory-workspace">
       <div class="subnav-tabs inventory-query-tabs" role="tablist" aria-label="库存查询类型">
@@ -704,6 +704,7 @@ watch(mode, () => {
       />
     </section>
 
+    <Teleport to="body">
     <div v-if="stocktakingSheetOpen" class="attachment-preview-mask" @click.self="stocktakingSheetOpen = false">
       <section class="supplier-dialog product-dialog stocktaking-sheet-dialog" role="dialog" aria-modal="true">
         <header>
@@ -771,8 +772,8 @@ watch(mode, () => {
                 </tr>
                 <tr v-else-if="!stocktakingSheetForm.scopes.length"><td colspan="6" class="approval-empty">选择商品范围后展示当前库存明细</td></tr>
                 <tr v-for="row in stocktakingPreviewRows" v-else :key="row.productCode">
-                  <td>{{ row.productCode }}</td><td>{{ row.productName }}</td><td>{{ row.specModel || '-' }}</td>
-                  <td>{{ row.manufacturerName || '-' }}</td><td>{{ row.unit || '-' }}</td><td>{{ row.systemQty }}</td>
+                  <td class="stocktaking-code-cell">{{ row.productCode }}</td><td>{{ row.productName }}</td><td>{{ row.specModel || '-' }}</td>
+                  <td>{{ row.manufacturerName || '-' }}</td><td>{{ row.unit || '-' }}</td><td class="stocktaking-qty-cell">{{ row.systemQty }}</td>
                 </tr>
               </tbody>
             </table>
@@ -787,7 +788,9 @@ watch(mode, () => {
         </form>
       </section>
     </div>
+    </Teleport>
 
+    <Teleport to="body">
     <div v-if="stocktakingDetailOpen" class="attachment-preview-mask" @click.self="stocktakingDetailOpen = false">
       <section class="supplier-dialog stocktaking-detail-dialog" role="dialog" aria-modal="true">
         <header>
@@ -851,6 +854,7 @@ watch(mode, () => {
         </div>
       </section>
     </div>
+    </Teleport>
   </section>
 </template>
 
@@ -873,12 +877,16 @@ watch(mode, () => {
    ===================================================================== */
 
 /* ---------- 工作区卡片 ---------- */
+.inventory-page {
+  padding: 20px 20px 24px;
+}
+
 .inventory-page .inventory-workspace {
   display: flex !important;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  padding: 14px 16px 16px;
+  padding: 14px 20px 16px;
   background: var(--md-bg-card, #fff);
   border: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
   border-radius: var(--md-radius-md, 10px) !important;
@@ -1232,5 +1240,320 @@ watch(mode, () => {
   background: var(--md-bg-card, #fff);
   color: var(--md-text, var(--spd-text-primary));
   font-size: 13px;
+}
+
+/* =====================================================================
+   新增盘点表弹窗
+   ---------------------------------------------------------------------
+   把 dialog 改成宽屏 + 高度撑满视口、内部 flex 列布局，
+   让「选择商品范围 + 库存明细表」能同时显示更多行。 */
+.stocktaking-sheet-dialog {
+  width: min(1380px, 98vw) !important;
+  max-width: 1380px;
+  max-height: min(94vh, 1080px);
+  display: flex !important;
+  flex-direction: column;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 24px 64px rgba(6, 21, 43, 0.28);
+  overflow: hidden;
+}
+
+.stocktaking-sheet-dialog > header {
+  flex: 0 0 auto;
+  padding: 14px 20px;
+  border-bottom: 1px solid #eef0f4;
+  background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 65%, #ffffff 100%);
+}
+
+.stocktaking-sheet-dialog > header p {
+  margin: 0 0 2px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: #1677ff;
+  text-transform: none;
+}
+
+.stocktaking-sheet-dialog > header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #172033;
+}
+
+.stocktaking-sheet-dialog form {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 20px 0;
+  overflow: hidden;
+}
+
+.stocktaking-sheet-dialog .supplier-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.stocktaking-sheet-dialog .supplier-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.stocktaking-sheet-dialog .supplier-form-grid label > span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #475569;
+}
+
+.stocktaking-sheet-dialog .supplier-form-grid select {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  font-size: 13px;
+  color: #1f2937;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stocktaking-sheet-dialog .supplier-form-grid select:focus {
+  outline: 0;
+  border-color: #1677ff;
+  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15);
+}
+
+.stocktaking-scope-picker {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #e0e7ff;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f5f8ff 0%, #ffffff 100%);
+}
+
+.stocktaking-scope-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stocktaking-scope-head strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1d4ed8;
+}
+
+.stocktaking-scope-head span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stocktaking-scope-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stocktaking-scope-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 12px;
+  color: #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stocktaking-scope-option:hover {
+  border-color: #1677ff;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.stocktaking-scope-option input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: #1677ff;
+  cursor: pointer;
+}
+
+.stocktaking-scope-selected {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 22px;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.stocktaking-scope-selected > span:first-child {
+  font-weight: 500;
+  color: #475569;
+}
+
+.stocktaking-scope-selected em {
+  font-style: normal;
+  color: #94a3b8;
+}
+
+.stocktaking-scope-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 999px;
+}
+
+.stocktaking-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 360px;
+  max-height: 100%;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.stocktaking-detail-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.stocktaking-detail-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.stocktaking-detail-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.stocktaking-detail-table {
+  width: 100%;
+  min-width: 1200px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px !important;
+}
+
+.stocktaking-detail-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #1e293b !important;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
+  border-bottom: 1px solid #c7d2fe !important;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.stocktaking-detail-table tbody td {
+  padding: 9px 14px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #334155 !important;
+  font-size: 13px !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.stocktaking-detail-table tbody tr:nth-child(even) td {
+  background: #fafbfc !important;
+}
+
+.stocktaking-detail-table tbody tr:hover td {
+  background: #f0f7ff !important;
+}
+
+.stocktaking-detail-table .stocktaking-qty-cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: #1d4ed8 !important;
+}
+
+.stocktaking-detail-table .stocktaking-code-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px !important;
+  color: #475569 !important;
+  white-space: nowrap;
+}
+
+.stocktaking-detail-table .approval-empty {
+  padding: 56px 16px !important;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.stocktaking-sheet-dialog .dialog-actions {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  margin: 0 -20px;
+  padding: 12px 20px;
+  border-top: 1px solid #eef0f4;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.stocktaking-sheet-dialog .dialog-actions .btn {
+  min-width: 100px;
+  height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+.stocktaking-sheet-dialog .dialog-actions .btn-primary {
+  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
+  border-color: #1677ff;
+  box-shadow: 0 3px 8px rgba(22, 119, 255, 0.25);
+}
+
+.stocktaking-sheet-dialog .dialog-actions .btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0958d9 0%, #1677ff 100%);
+  box-shadow: 0 5px 12px rgba(22, 119, 255, 0.3);
+}
+
+@media (max-width: 1280px) {
+  .stocktaking-sheet-dialog {
+    width: min(96vw, 1280px) !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .stocktaking-sheet-dialog {
+    width: 96vw !important;
+    max-height: 92vh;
+  }
+  .stocktaking-detail-scroll {
+    min-height: 260px;
+  }
 }
 </style>

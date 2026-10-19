@@ -1,4 +1,5 @@
 import { ref, type ComputedRef, type Ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import {
   createCampus,
   createDepartment,
@@ -55,9 +56,35 @@ interface OrganizationMasterDataDeps {
   actionMessage: Ref<string>
   clearActionState: () => void
   loadPage: () => Promise<void>
+  /** 确认弹窗句柄（由 useSpdConfirm 提供）。不传则回退到 window.confirm */
+  confirm?: (options: {
+    title?: string
+    description?: string | string[]
+    details?: string | string[]
+    tone?: 'danger' | 'warning' | 'success' | 'primary' | 'info'
+    confirmText?: string
+    cancelText?: string
+  }) => Promise<boolean>
 }
 
 export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
+  /**
+   * 优先使用外部传入的 SpdConfirm 弹窗；未提供时回退到 window.confirm。
+   */
+  async function askOrConfirm(opts: {
+    title?: string
+    description?: string | string[]
+    details?: string | string[]
+    tone?: 'danger' | 'warning' | 'success' | 'primary' | 'info'
+    confirmText?: string
+    cancelText?: string
+  }): Promise<boolean> {
+    if (deps.confirm) {
+      return deps.confirm(opts)
+    }
+    return window.confirm(opts.title ?? '请确认')
+  }
+
   const campusForm = ref<CampusPayload>(emptyCampusForm())
   const campusOptions = ref<CampusOption[]>([])
   const departmentForm = ref<DepartmentPayload>(emptyDepartmentForm())
@@ -114,8 +141,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     }
     deps.campusDialogMode.value = 'edit'
     campusForm.value = {
-      campusCode: String(row.code ?? ''),
-      campusName: String(row.name ?? ''),
+      campusCode: String(row.code ?? ''),      campusName: String(row.name ?? ''),
       address: String(row.address === '-' ? '' : row.address ?? ''),
       managerName: String(row.manager === '-' ? '' : row.manager ?? ''),
       phone: String(row.phone === '-' ? '' : row.phone ?? ''),
@@ -155,9 +181,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deps.actionError.value = '请选择需要删除的院区'
       return
     }
-    if (!window.confirm(`确认删除已选择的 ${campusCodes.length} 条院区吗？`)) {
-      return
-    }
+    const ok = await askOrConfirm({
+      title: '删除院区',
+      tone: 'danger',
+      confirmText: '确认删除',
+      description: [
+        '删除后该院区将不可恢复，所有关联的科室、库房关系会被清空。',
+        '历史订单、流水记录仍可查询，但需联系管理员手工归档。'
+      ],
+      details: [`本次操作将删除 ${campusCodes.length} 个院区`]
+    })
+    if (!ok) return
     try {
       const result = await deleteCampuses({ campusCodes })
       deps.actionMessage.value = `已删除 ${result.deletedRows} 条院区`
@@ -230,9 +264,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deps.actionError.value = '请选择需要删除的科室'
       return
     }
-    if (!window.confirm(`确认删除已选择的 ${deptCodes.length} 条科室吗？`)) {
-      return
-    }
+    const ok = await askOrConfirm({
+      title: '删除科室',
+      tone: 'danger',
+      confirmText: '确认删除',
+      description: [
+        '删除后该科室将不可恢复，关联的库房、目录关系会被清空。',
+        '历史订单、流水记录仍可查询，但需联系管理员手工归档。'
+      ],
+      details: [`本次操作将删除 ${deptCodes.length} 个科室`]
+    })
+    if (!ok) return
 
     try {
       const result = await deleteDepartments({ deptCodes })
@@ -572,9 +614,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deps.actionError.value = '请选择需要删除的科室库房目录'
       return
     }
-    if (!window.confirm(`确认删除已选择的 ${catalogIds.length} 条科室库房目录吗？`)) {
-      return
-    }
+    const ok = await askOrConfirm({
+      title: '删除科室库房目录',
+      tone: 'danger',
+      confirmText: '确认删除',
+      description: [
+        '删除后该科室/库房的商品申领关系将不可恢复。',
+        '历史领用与消耗记录仍可查询。'
+      ],
+      details: [`本次操作将删除 ${catalogIds.length} 条科室库房目录`]
+    })
+    if (!ok) return
     try {
       const result = await deleteDepartmentWarehouseCatalogs({ catalogIds })
       deps.actionMessage.value = `已删除 ${result.deletedRows} 条科室库房目录`
@@ -697,9 +747,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deps.actionError.value = '请选择需要删除的库房'
       return
     }
-    if (!window.confirm(`确认删除已选择的 ${warehouseCodes.length} 条库房吗？`)) {
-      return
-    }
+    const ok = await askOrConfirm({
+      title: '删除库房',
+      tone: 'danger',
+      confirmText: '确认删除',
+      description: [
+        '删除后该库房将不可恢复，关联的货位、库存、科室关系会被清空。',
+        '历史订单、流水记录仍可查询，但需联系管理员手工归档。'
+      ],
+      details: [`本次操作将删除 ${warehouseCodes.length} 个库房`]
+    })
+    if (!ok) return
 
     try {
       const result = await deleteWarehouses({ warehouseCodes })
@@ -710,10 +768,10 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
     }
   }
 
-  async function openWarehouseLocationDialog(row = deps.selectedWarehouse.value, requireSelected = true) {
+  async function openWarehouseLocationDialog(row = deps.selectedWarehouse.value, requireSelected = false) {
     deps.clearActionState()
     if (!row || (requireSelected && deps.selectedCodes.value.length !== 1)) {
-      deps.actionError.value = '请选择一条库房记录后维护货位'
+      ElMessage.warning('请先选择一条库房记录后再维护货位')
       return
     }
     activeWarehouseForLocations.value = row
@@ -793,9 +851,17 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
       deps.actionError.value = '请选择库房后维护货位'
       return
     }
-    if (!window.confirm(`确认删除货位 ${row.locationCode} 吗？`)) {
-      return
-    }
+    const ok = await askOrConfirm({
+      title: '删除货位',
+      tone: 'danger',
+      confirmText: '确认删除',
+      description: [
+        '删除后该货位将不可恢复，关联的商品库存与上架关系会被清空。',
+        '历史库存流水仍可查询。'
+      ],
+      details: [`货位编码：${row.locationCode}`]
+    })
+    if (!ok) return
     try {
       const result = await deleteWarehouseLocation(warehouseCode, Number(row.locationId))
       deps.actionMessage.value = `已删除 ${result.deletedRows} 条货位`

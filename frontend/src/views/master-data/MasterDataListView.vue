@@ -2,6 +2,8 @@
 import { ref } from 'vue'
 import {
   Ban,
+  Building2,
+  CheckSquare,
   Columns3,
   Database,
   Download,
@@ -9,12 +11,16 @@ import {
   Factory,
   FileDown,
   FileUp,
+  Flag,
+  Layers,
   Link2,
   ListPlus,
+  PackageCheck,
   Pencil,
   Plus,
   RefreshCw,
   Search,
+  ShieldCheck,
   Trash2,
   Truck,
   Upload,
@@ -24,6 +30,7 @@ import { useHospitalProductManagement } from '../../composables/useHospitalProdu
 import { useMasterDataExchange } from '../../composables/useMasterDataExchange'
 import { useMasterDataWorkbench } from '../../composables/useMasterDataWorkbench'
 import { useOrganizationMasterData } from '../../composables/useOrganizationMasterData'
+import { useSpdConfirm } from '../../composables/useSpdConfirm'
 import { usePartnerMasterData } from '../../composables/usePartnerMasterData'
 import BatchProductDialog from '../../components/master-data/BatchProductDialog.vue'
 import CampusDialog from '../../components/master-data/CampusDialog.vue'
@@ -41,6 +48,7 @@ import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import MdStatsRow from '../../components/master-data/MdStatsRow.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import SpdConfirmDialog from '../../components/common/ConfirmDialog.vue'
 import SupplierDialog from '../../components/master-data/SupplierDialog.vue'
 import WarehouseDialog from '../../components/master-data/WarehouseDialog.vue'
 import WarehouseLocationDialog from '../../components/master-data/WarehouseLocationDialog.vue'
@@ -54,6 +62,9 @@ import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay
 import PaginationControls from '../../components/common/PaginationControls.vue'
 
 const authStore = useAuthStore()
+
+// 通用确认弹窗（注入到下面的 useOrganizationMasterData）
+const { ask, ConfirmHost: SpdConfirmHost } = useSpdConfirm()
 
 const {
   page,
@@ -245,7 +256,13 @@ const {
   openCreateManufacturer,
   openEditManufacturer,
   saveManufacturer,
-  disableManufacturers
+  disableManufacturers,
+  confirmDisable: confirmDisablePartner,
+  cancelDisable: cancelDisablePartner,
+  disableConfirmOpen: partnerDisableConfirmOpen,
+  disableConfirmLoading: partnerDisableConfirmLoading,
+  disableConfirmKind: partnerDisableConfirmKind,
+  disableConfirmCodes: partnerDisableConfirmCodes
 } = usePartnerMasterData({
   selectedCodes,
   selectedSupplier,
@@ -341,7 +358,8 @@ const {
   actionError,
   actionMessage,
   clearActionState,
-  loadPage
+  loadPage,
+  confirm: ask
 })
 
 const {
@@ -355,6 +373,11 @@ const {
   batchEditSelectedProducts,
   saveBatchProductEdit,
   disableProducts,
+  confirmDisableProducts,
+  cancelDisableProducts,
+  disableConfirmOpen,
+  disableConfirmLoading,
+  disableConfirmCount,
   exportHospitalCatalog
 } = useHospitalProductManagement({
   selectedCodes,
@@ -425,10 +448,10 @@ const {
 
       <MdStatsRow
         :items="[
-          { label: '医院商品总数', value: Number(hospitalStats.scopeTotal ?? 0), tone: 'primary', hint: '条' },
-          { label: '集采商品', value: Number(hospitalStats.centralizedTotal ?? 0), tone: 'success', hint: '条' },
-          { label: '国产商品', value: Number(hospitalStats.domesticTotal ?? 0), tone: 'warning', hint: '条' },
-          { label: '已停用商品', value: Number(hospitalStats.disabledTotal ?? 0), tone: 'danger', hint: '条' }
+          { label: '医院商品总数', value: Number(hospitalStats.scopeTotal ?? 0), tone: 'primary', hint: '条', icon: PackageCheck },
+          { label: '集采商品', value: Number(hospitalStats.centralizedTotal ?? 0), tone: 'success', hint: '条', icon: Layers },
+          { label: '国产商品', value: Number(hospitalStats.domesticTotal ?? 0), tone: 'warning', hint: '条', icon: Flag },
+          { label: '已停用商品', value: Number(hospitalStats.disabledTotal ?? 0), tone: 'danger', hint: '条', icon: Ban }
         ]"
       />
 
@@ -556,10 +579,10 @@ const {
 
       <MdStatsRow
         :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条' },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条' },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条' },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条' }
+          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条', icon: ListPlus },
+          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条', icon: ShieldCheck },
+          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条', icon: Ban },
+          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条', icon: CheckSquare }
         ]"
       />
 
@@ -618,10 +641,10 @@ const {
 
       <MdStatsRow
         :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条' },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条' },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条' },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条' }
+          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条', icon: ListPlus },
+          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条', icon: ShieldCheck },
+          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条', icon: Ban },
+          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条', icon: CheckSquare }
         ]"
       />
 
@@ -679,10 +702,10 @@ const {
 
       <MdStatsRow
         :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个' },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个' },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个' },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个' }
+          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个', icon: Building2 },
+          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个', icon: ShieldCheck },
+          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个', icon: Ban },
+          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个', icon: CheckSquare }
         ]"
       />
 
@@ -740,10 +763,10 @@ const {
 
       <MdStatsRow
         :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个' },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个' },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个' },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个' }
+          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个', icon: Building2 },
+          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个', icon: ShieldCheck },
+          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个', icon: Ban },
+          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个', icon: CheckSquare }
         ]"
       />
 
@@ -2052,7 +2075,7 @@ const {
             type="button"
             class="md-btn"
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openWarehouseLocationDialog()"
+            @click="openWarehouseLocationDialog(undefined, true)"
           >
             <Link2 :size="16" />
             <span>维护货位</span>
@@ -2410,6 +2433,52 @@ const {
       @save="saveWarehouseLocation"
       @remove="removeWarehouseLocation"
     />
+
+    <!-- 医院商品目录：停用确认弹窗 -->
+    <SpdConfirmDialog
+      v-model:open="disableConfirmOpen"
+      title="停用医院目录商品"
+      tone="danger"
+      confirm-text="确认停用"
+      :loading="disableConfirmLoading"
+      :description="[
+        '停用后该商品将不可用于新订单、新建定数包、收费消耗与领用。',
+        '历史库存、流水、UDI 追溯记录不会被删除，仍可查询。'
+      ]"
+      :details="[
+        `本次操作将停用 ${disableConfirmCount} 个商品`,
+        '如需重新启用，请联系目录管理员'
+      ]"
+      @confirm="confirmDisableProducts"
+      @cancel="cancelDisableProducts"
+    />
+
+    <!-- 供应商 / 厂家：停用确认弹窗 -->
+    <SpdConfirmDialog
+      v-model:open="partnerDisableConfirmOpen"
+      :title="partnerDisableConfirmKind === 'supplier' ? '停用供应商' : '停用生产厂家'"
+      tone="danger"
+      :confirm-text="partnerDisableConfirmKind === 'supplier' ? '确认停用供应商' : '确认停用厂家'"
+      :loading="partnerDisableConfirmLoading"
+      :description="partnerDisableConfirmKind === 'supplier'
+        ? [
+            '停用后该供应商将不可用于新订单、定数包与采购收货。',
+            '历史交易、合同、付款记录仍可查询。'
+          ]
+        : [
+            '停用后该厂家将不可用于新商品注册、资质证照与采购。',
+            '历史商品关联、合同记录仍可查询。'
+          ]"
+      :details="[
+        `本次操作将停用 ${partnerDisableConfirmCodes.length} 个${partnerDisableConfirmKind === 'supplier' ? '供应商' : '厂家'}`,
+        '如需重新启用，请联系主数据管理员'
+      ]"
+      @confirm="confirmDisablePartner"
+      @cancel="cancelDisablePartner"
+    />
+
+    <!-- 函数式确认弹窗 host（院区/科室/库房/目录/货位 删除等共用） -->
+    <SpdConfirmHost />
   </section>
 </template>
 

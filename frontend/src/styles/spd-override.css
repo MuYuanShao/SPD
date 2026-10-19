@@ -1057,6 +1057,14 @@ a.el-link {
   border: none !important;
 }
 
+/* 业务 mask（z-index 99999）会盖住 ElMessage，强制把全局通知提到最顶层。
+   配合 useNotify 的 appendTo: 'body' + zIndex: 999999 一起生效。 */
+.spd-top-notify,
+.spd-top-notify.el-message {
+  z-index: 999999 !important;
+  position: fixed !important;
+}
+
 /* Steps */
 .el-steps .el-step__head.is-process .el-step__icon,
 .el-steps .el-step__head.is-finish .el-step__icon {

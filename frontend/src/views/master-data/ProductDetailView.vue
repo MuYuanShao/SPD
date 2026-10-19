@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Eye, FileText, Pencil, X } from '@lucide/vue'
 import { formatStatusText } from '../../utils/chineseDisplay'
@@ -262,6 +263,7 @@ onMounted(loadDetail)
         <p v-else class="product-detail-empty-state">暂无附件</p>
       </section>
 
+      <Teleport to="body">
       <div v-if="previewFile" class="attachment-preview-mask" @click.self="previewFile = null">
         <section class="attachment-preview-dialog" role="dialog" aria-modal="true" aria-label="附件预览">
           <header>
@@ -286,6 +288,7 @@ onMounted(loadDetail)
           </div>
         </section>
       </div>
+      </Teleport>
     </template>
   </main>
 </template>

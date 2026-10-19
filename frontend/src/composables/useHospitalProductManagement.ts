@@ -86,6 +86,10 @@ export function useHospitalProductManagement(options: {
   const batchProductForm = ref(emptyBatchProductForm())
   const manufacturerOptions = ref<PartnerOption[]>([])
   const supplierOptions = ref<PartnerOption[]>([])
+  const disableConfirmOpen = ref(false)
+  const disableConfirmLoading = ref(false)
+  const disableConfirmCodes = ref<string[]>([])
+  const disableConfirmCount = ref(0)
 
   async function loadPartnerOptions() {
     const partnerOptions = await fetchHospitalProductPartnerOptions()
@@ -231,16 +235,31 @@ export function useHospitalProductManagement(options: {
       options.actionError.value = '请选择需要停用的商品'
       return
     }
-    if (!window.confirm(`确认停用已选择的 ${productCodes.length} 条商品吗？`)) {
-      return
-    }
+    // 准备确认弹窗所需的数据，确认动作由 view 层调用 confirmDisableProducts 执行
+    disableConfirmOpen.value = true
+    disableConfirmCount.value = productCodes.length
+    disableConfirmCodes.value = [...productCodes]
+  }
 
+  async function confirmDisableProducts() {
+    const productCodes = disableConfirmCodes.value
+    disableConfirmLoading.value = true
     try {
       await updateHospitalProductStatus({ productCodes, status: 0 })
+      disableConfirmOpen.value = false
+      disableConfirmCodes.value = []
       await options.loadPage()
     } catch (err) {
       options.actionError.value = err instanceof Error ? err.message : '停用失败'
+    } finally {
+      disableConfirmLoading.value = false
     }
+  }
+
+  function cancelDisableProducts() {
+    if (disableConfirmLoading.value) return
+    disableConfirmOpen.value = false
+    disableConfirmCodes.value = []
   }
 
   async function submitSelectedProducts() {
@@ -280,6 +299,11 @@ export function useHospitalProductManagement(options: {
     batchEditSelectedProducts,
     saveBatchProductEdit,
     disableProducts,
+    confirmDisableProducts,
+    cancelDisableProducts,
+    disableConfirmOpen,
+    disableConfirmLoading,
+    disableConfirmCount,
     submitSelectedProducts,
     exportHospitalCatalog
   }

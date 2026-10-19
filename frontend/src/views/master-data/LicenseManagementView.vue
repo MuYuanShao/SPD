@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
+import { Teleport } from 'vue'
+import { Check, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import { useNotify } from '../../composables/useNotify'
 import {
   createLicense,
   fetchLicenseDetail,
@@ -32,13 +34,14 @@ const tabs: Array<{ type: LicenseType; label: string; ownerLabel: string }> = [
 const activeTab = ref<LicenseType>('product')
 const activeTabInfo = computed(() => tabs.find((tab) => tab.type === activeTab.value) ?? tabs[0])
 
+const notify = useNotify()
+
 const rows = ref<LicenseRow[]>([])
 const total = ref(0)
 const page = ref(1)
 const size = 20
 const keyword = ref('')
 const loading = ref(false)
-const message = ref('')
 const error = ref('')
 
 const showFormModal = ref(false)
@@ -65,14 +68,13 @@ const ownerSearched = ref(false)
 
 async function searchOwners(pageNumber = 1) {
   ownerLoading.value = true
-  message.value = ''
   try {
     const data = await fetchLicenseOwnerOptions(form.value.ownerType || activeTab.value, ownerKeyword.value, pageNumber)
     ownerSearched.value = true
     ownerOptions.value = data.rows
     ownerPage.value = pageNumber
     ownerTotal.value = data.total
-  } catch (err) { message.value = err instanceof Error ? err.message : '主体搜索失败' }
+  } catch (err) { notify.error(err instanceof Error ? err.message : '主体搜索失败') }
   finally { ownerLoading.value = false }
 }
 function selectOwner(owner: LicenseOwnerOption) {
@@ -93,7 +95,7 @@ async function openHistory(row: LicenseRow) {
   try {
     const data = await fetchLicenseHistory(row.id)
     revisions.value = data.history.map(item => ({ ...item, snapshot: JSON.parse(item.snapshotJson) }))
-  } catch (err) { message.value = err instanceof Error ? err.message : '历史记录加载失败' }
+  } catch (err) { notify.error(err instanceof Error ? err.message : '历史记录加载失败') }
   finally { historyLoading.value = false }
 }
 function operationText(value: string) {
@@ -163,7 +165,6 @@ function switchTab(type: LicenseType) {
   activeTab.value = type
   page.value = 1
   keyword.value = ''
-  message.value = ''
   loadList()
 }
 
@@ -199,7 +200,7 @@ function selectFormAttachments(event: Event) {
     }
   }
   input.value = ''
-  message.value = invalid.length ? `以下文件为空或格式不支持：${invalid.join('、')}。请选择 PDF 或图片文件。` : ''
+  if (invalid.length) notify.warning(`以下文件为空或格式不支持：${invalid.join('、')}。请选择 PDF 或图片文件。`)
 }
 
 function openCreateModal() {
@@ -209,13 +210,12 @@ function openCreateModal() {
   editId.value = null
   form.value = emptyForm()
   form.value.licenseType = activeTab.value
-  message.value = ''
   showFormModal.value = true
 }
 
 async function openEditModal(row: LicenseRow, renewal = false) {
   if (formLoading.value) return
-  formLoading.value = true; message.value = ''
+  formLoading.value = true
   try {
     const detail = await fetchLicenseDetail(row.id)
     resetFormAttachments()
@@ -228,19 +228,18 @@ async function openEditModal(row: LicenseRow, renewal = false) {
     ownerKeyword.value = detail.ownerName ? `${detail.ownerName}（${detail.ownerCode || ''}）` : ''
     ownerOptions.value = []; ownerSearched.value = false
     showFormModal.value = true
-  } catch (err) { message.value = err instanceof Error ? err.message : '证照详情加载失败' }
+  } catch (err) { notify.error(err instanceof Error ? err.message : '证照详情加载失败') }
   finally { formLoading.value = false }
 }
 
 async function submitForm() {
   if (saving.value) return
   if (!form.value.licenseName.trim()) {
-    message.value = '证照名称为必填项'
+    notify.warning('证照名称为必填项')
     return
   }
-  if (!form.value.ownerId) { message.value = '请搜索并选择证照所属主体'; return }
+  if (!form.value.ownerId) { notify.warning('请搜索并选择证照所属主体'); return }
   saving.value = true
-  message.value = ''
   try {
     if (editId.value === null) {
       if (createdFormLicenseId.value === null) {
@@ -259,13 +258,13 @@ async function submitForm() {
         uploadedFormAttachmentCount.value += 1
         form.value.revisionNo = (form.value.revisionNo ?? 1) + 1
       }
-      message.value = uploadedFormAttachmentCount.value ? '证照已新增，附件上传成功' : '证照已新增'
+      notify.success(uploadedFormAttachmentCount.value ? '证照已新增，附件上传成功' : '证照已新增')
     } else if (renewalMode.value) {
       await renewLicense(editId.value, form.value)
-      message.value = '续证已保存，到期联动按最新有效期自动恢复'
+      notify.success('续证已保存，到期联动按最新有效期自动恢复')
     } else {
       await updateLicense(editId.value, form.value)
-      message.value = '证照已保存'
+      notify.success('证照已保存')
     }
     showFormModal.value = false
     resetFormAttachments()
@@ -273,10 +272,10 @@ async function submitForm() {
   } catch (err) {
     const detail = err instanceof Error ? err.message : '证照保存失败'
     if (createdFormLicenseId.value !== null) {
-      message.value = `证照已保存，当前还有 ${formAttachmentFiles.value.length} 个附件未上传。本次保存未完成：${detail}。请重试保存。`
+      notify.warning(`证照已保存，当前还有 ${formAttachmentFiles.value.length} 个附件未上传。本次保存未完成：${detail}。请重试保存。`)
       await loadList()
     } else {
-      message.value = detail
+      notify.error(detail)
     }
   } finally {
     saving.value = false
@@ -287,10 +286,10 @@ async function confirmRemove(row: LicenseRow) {
   if (!window.confirm(`确认删除证照「${row.licenseName}」？删除后其附件一并失效。`)) return
   try {
     await removeLicense(row.id)
-    message.value = '证照已删除'
+    notify.success('证照已删除')
     await loadList()
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '证照删除失败'
+    notify.error(err instanceof Error ? err.message : '证照删除失败')
   }
 }
 
@@ -308,7 +307,7 @@ async function loadAttachments() {
   try {
     attachments.value = await fetchLicenseAttachments(attachmentLicense.value.id)
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '附件加载失败'
+    notify.error(err instanceof Error ? err.message : '附件加载失败')
   } finally {
     attachmentsLoading.value = false
   }
@@ -324,7 +323,7 @@ async function handleUpload(event: Event) {
     await loadAttachments()
     await loadList()
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '附件上传失败'
+    notify.error(err instanceof Error ? err.message : '附件上传失败')
   }
 }
 
@@ -337,7 +336,7 @@ async function previewAttachment(attachment: LicenseAttachment) {
     previewContentType.value = contentType
     previewName.value = attachment.fileName
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '附件预览失败'
+    notify.error(err instanceof Error ? err.message : '附件预览失败')
   } finally {
     previewing.value = false
   }
@@ -360,7 +359,7 @@ async function downloadAttachment(attachment: LicenseAttachment) {
     link.click()
     URL.revokeObjectURL(url)
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '附件下载失败'
+    notify.error(err instanceof Error ? err.message : '附件下载失败')
   }
 }
 
@@ -404,7 +403,6 @@ onUnmounted(closePreview)
       </button>
     </div>
 
-    <p v-if="message" class="license-message">{{ message }}</p>
     <p v-if="error" class="license-error">{{ error }}</p>
 
     <div class="license-table-wrap">
@@ -460,107 +458,279 @@ onUnmounted(closePreview)
     </div>
 
     <!-- 新增 / 编辑证照 -->
+    <Teleport to="body">
     <div v-if="showFormModal" class="attachment-preview-mask" @click.self="closeFormModal">
-      <section class="supplier-dialog product-dialog license-form-dialog" role="dialog" aria-modal="true">
-        <header>
-          <div>
+      <section class="license-form-dialog" role="dialog" aria-modal="true">
+        <header class="lf-dialog-header">
+          <div class="lf-dialog-title">
             <p>{{ activeTabInfo.label }}</p>
             <h3>{{ renewalMode ? '续证' : editId === null ? '新增' : '编辑' }}{{ activeTabInfo.label }}</h3>
+            <span v-if="renewalMode" class="lf-dialog-tag lf-dialog-tag-renew">续证模式</span>
+            <span v-else-if="editId !== null" class="lf-dialog-tag lf-dialog-tag-edit">编辑模式</span>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="closeFormModal"><X :size="18" /></button>
+          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" :disabled="saving" @click="closeFormModal">
+            <X :size="18" />
+          </button>
         </header>
-        <form @submit.prevent="submitForm">
-          <fieldset class="supplier-form-grid compact license-form-fields" :disabled="saving">
-            <label class="wide"><span>证照名称</span><input v-model.trim="form.licenseName" required /></label>
-            <label><span>{{ isContract ? '合同编号' : '证照编号' }}</span><input v-model.trim="form.licenseNo" /></label>
-            <label v-if="isContract"><span>所属主体类型</span><select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" @change="resetOwner"><option value="supplier">供应商</option><option value="manufacturer">厂家</option><option value="product">商品</option></select></label>
-            <div class="wide license-owner-picker">
-              <label><span>所属主体（搜索名称或编码后选择）</span><div class="license-owner-search"><input v-model="ownerKeyword" placeholder="名称或编码" @input="onOwnerInput" :disabled="renewalMode && Boolean(form.ownerId)" @keydown.enter.prevent="searchOwners()" /><button class="btn" type="button" :disabled="ownerLoading || (renewalMode && Boolean(form.ownerId))" @click="searchOwners()">搜索主体</button></div></label>
-              <div v-if="ownerOptions.length" class="license-owner-options">
-                <button v-for="owner in ownerOptions" :key="owner.id" type="button" class="btn-text" @click="selectOwner(owner)">{{ owner.name }}（{{ owner.code }}）</button>
-                <div><button class="btn" type="button" :disabled="ownerPage <= 1 || ownerLoading" @click="searchOwners(ownerPage - 1)">上一页</button><span> {{ ownerPage }} / {{ Math.ceil(ownerTotal / 10) }} </span><button class="btn" type="button" :disabled="ownerPage * 10 >= ownerTotal || ownerLoading" @click="searchOwners(ownerPage + 1)">下一页</button></div>
+        <form class="lf-dialog-form" @submit.prevent="submitForm">
+          <div class="lf-dialog-form-grid">
+            <label class="lf-field wide">
+              <span>证照名称</span>
+              <input v-model.trim="form.licenseName" required />
+            </label>
+            <label class="lf-field">
+              <span>{{ isContract ? '合同编号' : '证照编号' }}</span>
+              <input v-model.trim="form.licenseNo" />
+            </label>
+            <label v-if="isContract" class="lf-field">
+              <span>所属主体类型</span>
+              <select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" @change="resetOwner">
+                <option value="supplier">供应商</option>
+                <option value="manufacturer">厂家</option>
+                <option value="product">商品</option>
+              </select>
+            </label>
+
+            <div class="lf-field wide lf-owner-picker">
+              <span>所属主体（搜索名称或编码后选择）</span>
+              <div class="lf-owner-search">
+                <input v-model="ownerKeyword" placeholder="名称或编码" @input="onOwnerInput" :disabled="renewalMode && Boolean(form.ownerId)" @keydown.enter.prevent="searchOwners()" />
+                <button class="lf-btn lf-btn-info lf-btn-icon" type="button" :disabled="ownerLoading || (renewalMode && Boolean(form.ownerId))" @click="searchOwners()">
+                  <Search :size="16" />
+                </button>
               </div>
-              <p v-if="ownerSearched && !ownerLoading && ownerTotal === 0">没有匹配的有效主体</p>
-              <small v-if="form.ownerId">已关联：{{ form.ownerName }} / {{ form.ownerCode }}</small><small v-else>未关联有效主体，请选择后保存</small>
+              <div v-if="ownerOptions.length" class="lf-owner-options">
+                <button v-for="owner in ownerOptions" :key="owner.id" type="button" class="lf-owner-option-btn" @click="selectOwner(owner)">
+                  {{ owner.name }}（{{ owner.code }}）
+                </button>
+                <div class="lf-owner-pager">
+                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" :disabled="ownerPage <= 1 || ownerLoading" @click="searchOwners(ownerPage - 1)">上一页</button>
+                  <span>{{ ownerPage }} / {{ Math.ceil(ownerTotal / 10) || 1 }}</span>
+                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" :disabled="ownerPage * 10 >= ownerTotal || ownerLoading" @click="searchOwners(ownerPage + 1)">下一页</button>
+                </div>
+              </div>
+              <p v-if="ownerSearched && !ownerLoading && ownerTotal === 0" class="lf-owner-empty">没有匹配的有效主体</p>
+              <div class="lf-owner-selected">
+                <span v-if="form.ownerId" class="lf-owner-tag">
+                  <Check :size="12" />
+                  已关联：{{ form.ownerName }} / {{ form.ownerCode }}
+                </span>
+                <span v-else class="lf-owner-tag lf-owner-tag-warn">未关联有效主体，请选择后保存</span>
+              </div>
             </div>
-            <template v-if="!isContract"><label><span>主体编码</span><input :value="form.ownerCode" readonly /></label><label><span>签发日期</span><input v-model="form.issueDate" type="date" /></label></template>
-            <template v-else>
-              <label><span>甲方</span><input v-model.trim="form.partyA" placeholder="医院/甲方名称" /></label>
-              <label><span>乙方</span><input v-model.trim="form.partyB" placeholder="供应商/乙方名称" /></label>
-              <label><span>合同金额</span><input v-model.number="form.contractAmount" type="number" step="0.01" min="0" /></label>
-              <label><span>签订日期</span><input v-model="form.issueDate" type="date" /></label>
+
+            <template v-if="!isContract">
+              <label class="lf-field">
+                <span>主体编码</span>
+                <input :value="form.ownerCode" readonly />
+              </label>
+              <label class="lf-field">
+                <span>签发日期</span>
+                <input v-model="form.issueDate" type="date" />
+              </label>
             </template>
-            <label><span>有效期至</span><input v-model="form.expireDate" type="date" :required="renewalMode" /><small v-if="renewalMode">原有效期：{{ previousExpiry || '未维护' }}；续证须延长有效期</small></label>
-            <label>
+            <template v-else>
+              <label class="lf-field">
+                <span>甲方</span>
+                <input v-model.trim="form.partyA" placeholder="医院/甲方名称" />
+              </label>
+              <label class="lf-field">
+                <span>乙方</span>
+                <input v-model.trim="form.partyB" placeholder="供应商/乙方名称" />
+              </label>
+              <label class="lf-field">
+                <span>合同金额</span>
+                <input v-model.number="form.contractAmount" type="number" step="0.01" min="0" placeholder="可选" />
+              </label>
+              <label class="lf-field">
+                <span>签订日期</span>
+                <input v-model="form.issueDate" type="date" />
+              </label>
+            </template>
+
+            <label class="lf-field">
+              <span>有效期至</span>
+              <input v-model="form.expireDate" type="date" :required="renewalMode" />
+              <small v-if="renewalMode">原有效期：{{ previousExpiry || '未维护' }}；续证须填写新有效期</small>
+            </label>
+            <label class="lf-field">
               <span>状态</span>
               <select v-model.number="form.status">
                 <option :value="1">有效</option>
                 <option :value="0">失效</option>
               </select>
             </label>
-            <label class="wide"><span>备注</span><textarea v-model.trim="form.remark" rows="2" /></label>
-            <div v-if="editId === null" class="wide license-form-attachments">
-              <div class="license-form-upload-row">
-                <span>证照附件</span>
-                <label class="btn">
-                  <Upload :size="15" /> 选择附件
-                  <input type="file" hidden multiple aria-label="选择证照附件" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" @change="selectFormAttachments" />
-                </label>
-                <small>支持多选 PDF 与图片，点击保存后上传</small>
-              </div>
-              <p v-if="uploadedFormAttachmentCount" class="license-form-uploaded">已上传 {{ uploadedFormAttachmentCount }} 个附件</p>
-              <ul v-if="formAttachmentFiles.length" class="license-form-file-list">
-                <li v-for="(file, index) in formAttachmentFiles" :key="`${file.name}-${file.size}-${file.lastModified}`">
-                  <span :title="file.name">{{ file.name }}</span>
-                  <small>{{ (file.size / 1024).toFixed(1) }} KB</small>
-                  <button type="button" class="btn-text btn-text-danger" :aria-label="`移除附件 ${file.name}`" @click="formAttachmentFiles.splice(index, 1)"><X :size="14" /> 移除</button>
-                </li>
-              </ul>
-              <small v-else-if="!uploadedFormAttachmentCount">尚未选择附件</small>
+            <label class="lf-field wide lf-remark">
+              <span>备注</span>
+              <textarea v-model.trim="form.remark" rows="2" placeholder="可选" />
+            </label>
+          </div>
+
+          <div v-if="editId === null" class="lf-dialog-upload">
+            <div class="lf-upload-header">
+              <span>证照附件</span>
+              <label class="lf-btn lf-btn-secondary">
+                <Upload :size="15" /> 选择附件
+                <input type="file" hidden multiple aria-label="选择证照附件" accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" @change="selectFormAttachments" />
+              </label>
+              <small>支持多选 PDF 与图片，点击保存后上传</small>
             </div>
-          </fieldset>
-          <p v-if="message" class="license-message" role="alert">{{ message }}</p>
-          <div class="dialog-actions">
-            <button class="btn" type="button" :disabled="saving" @click="closeFormModal">取消</button>
-            <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
+            <p v-if="uploadedFormAttachmentCount" class="lf-upload-success">
+              <Check :size="14" /> 已上传 {{ uploadedFormAttachmentCount }} 个附件
+            </p>
+            <ul v-if="formAttachmentFiles.length" class="lf-file-list">
+              <li v-for="(file, index) in formAttachmentFiles" :key="`${file.name}-${file.size}-${file.lastModified}`">
+                <span class="lf-file-name" :title="file.name">{{ file.name }}</span>
+                <span class="lf-file-size">{{ (file.size / 1024).toFixed(1) }} KB</span>
+                <button type="button" class="lf-btn lf-btn-danger lf-btn-sm" @click="formAttachmentFiles.splice(index, 1)">
+                  <X :size="14" /> 移除
+                </button>
+              </li>
+            </ul>
+            <small v-else-if="!uploadedFormAttachmentCount" class="lf-upload-hint">尚未选择附件</small>
+          </div>
+
+          <div class="lf-dialog-actions">
+            <button class="lf-btn lf-btn-secondary" type="button" :disabled="saving" @click="closeFormModal">取消</button>
+            <button class="lf-btn lf-btn-primary" type="submit" :disabled="saving">
+              <Check :size="16" />
+              {{ saving ? '保存中...' : '保存' }}
+            </button>
           </div>
         </form>
       </section>
     </div>
+    </Teleport>
 
-    <el-dialog destroy-on-close v-model="historyOpen" :title="`证照历史：${historyTitle}`" width="min(1100px, 94vw)" append-to-body>
-      <p v-if="historyLoading">正在加载历史...</p>
-      <p v-else-if="!revisions.length">该历史证照尚未产生版本记录；首次编辑或续证时会保留原版本。</p>
-      <article v-for="revision in revisions" :key="revision.revisionNo" class="license-history-item">
-        <h4>版本 {{ revision.revisionNo }} · {{ operationText(revision.operationType) }} · {{ revision.operatorName }} · {{ revision.createTime }}</h4>
-        <p>{{ revision.snapshot.licenseName }} / {{ revision.snapshot.licenseNo || '-' }}</p>
-        <p>主体：{{ revision.snapshot.ownerName || '-' }}（{{ revision.snapshot.ownerCode || '-' }}） · 签发：{{ revision.snapshot.issueDate || '-' }} · 到期：{{ revision.snapshot.expireDate || '-' }} · {{ revision.snapshot.status === 1 ? '有效' : '失效' }}</p>
-        <p>备注：{{ revision.snapshot.remark || '-' }}</p>
-        <div><span>当时附件：</span><button v-for="file in revision.snapshot.attachments || []" :key="file.id" class="btn-text" @click="historyFileOpen = true; closePreview(); previewAttachment(file)">{{ file.fileName }}</button><span v-if="!revision.snapshot.attachments?.length">无</span></div>
-      </article>
-    </el-dialog>
+    <!-- 证照历史 -->
+    <Teleport to="body">
+    <div v-if="historyOpen" class="attachment-preview-mask" @click.self="historyOpen = false">
+      <section class="lh-dialog" role="dialog" aria-modal="true">
+        <header class="lh-dialog-header">
+          <div class="lh-dialog-title">
+            <p>历史记录</p>
+            <h3>证照历史：{{ historyTitle }}</h3>
+          </div>
+          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="historyOpen = false">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="lh-dialog-body">
+          <p v-if="historyLoading" class="approval-empty">正在加载历史...</p>
+          <p v-else-if="!revisions.length" class="approval-empty">该历史证照尚未产生版本记录；首次编辑或续证时会保留原版本。</p>
+          <article v-for="revision in revisions" :key="revision.revisionNo" class="lh-revision-item">
+            <div class="lh-revision-header">
+              <span class="lh-revision-badge">
+                <FileText :size="13" />
+                版本 {{ revision.revisionNo }}
+              </span>
+              <span class="lh-revision-type">{{ operationText(revision.operationType) }}</span>
+              <span class="lh-revision-op">操作人：{{ revision.operatorName }}</span>
+              <span class="lh-revision-time">{{ revision.createTime }}</span>
+            </div>
+            <div class="lh-revision-detail">
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">证照名称</span>
+                <span class="lh-rev-value">{{ revision.snapshot.licenseName }}</span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">证照编号</span>
+                <span class="lh-rev-value">{{ revision.snapshot.licenseNo || '-' }}</span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">主体</span>
+                <span class="lh-rev-value">{{ revision.snapshot.ownerName || '-' }}（{{ revision.snapshot.ownerCode || '-' }}）</span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">有效期</span>
+                <span class="lh-rev-value">
+                  {{ revision.snapshot.issueDate || '-' }} ~ {{ revision.snapshot.expireDate || '-' }}
+                </span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">状态</span>
+                <span class="lh-rev-value">
+                  <span class="status-badge" :class="{ warning: revision.snapshot.status !== 1 }">
+                    {{ revision.snapshot.status === 1 ? '有效' : '失效' }}
+                  </span>
+                </span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">备注</span>
+                <span class="lh-rev-value">{{ revision.snapshot.remark || '-' }}</span>
+              </div>
+              <div class="lh-rev-row">
+                <span class="lh-rev-label">当时附件</span>
+                <span class="lh-rev-value lh-rev-files">
+                  <template v-if="revision.snapshot.attachments?.length">
+                    <button
+                      v-for="file in revision.snapshot.attachments"
+                      :key="file.id"
+                      class="lf-btn lf-btn-info lf-btn-sm"
+                      type="button"
+                      @click="historyFileOpen = true; closePreview(); previewAttachment(file)"
+                    >
+                      <Eye :size="13" /> {{ file.fileName }}
+                    </button>
+                  </template>
+                  <span v-else class="lh-rev-no-files">无</span>
+                </span>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+    </Teleport>
 
-    <el-dialog destroy-on-close v-model="historyFileOpen" :title="previewName || '历史附件阅览'" width="min(1000px, 94vw)" append-to-body @closed="closePreview">
-      <p v-if="previewing">正在加载附件...</p>
-      <img v-else-if="previewBlobUrl && previewContentType.startsWith('image/')" :src="previewBlobUrl" :alt="previewName" style="max-width:100%;max-height:65vh;object-fit:contain" />
-      <iframe v-else-if="previewBlobUrl && previewContentType.includes('pdf')" :src="previewBlobUrl" :title="previewName" style="width:100%;height:65vh;border:0" />
-      <p v-else>{{ message || '该格式请从附件列表下载查看' }}</p>
-    </el-dialog>
+    <!-- 历史附件阅览 -->
+    <Teleport to="body">
+    <div v-if="historyFileOpen" class="attachment-preview-mask" @click.self="historyFileOpen = false; closePreview()">
+      <section class="license-attachment-dialog" role="dialog" aria-modal="true">
+        <header class="la-dialog-header">
+          <div class="la-dialog-title">
+            <p>历史附件</p>
+            <h3>{{ previewName || '历史附件阅览' }}</h3>
+          </div>
+          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="historyFileOpen = false; closePreview()">
+            <X :size="18" />
+          </button>
+        </header>
+        <div class="la-dialog-body">
+          <div class="la-attachment-preview la-full-preview">
+            <p v-if="previewing" class="approval-empty">正在加载附件...</p>
+            <img
+              v-else-if="previewBlobUrl && previewContentType.startsWith('image/')"
+              :src="previewBlobUrl" :alt="previewName"
+            />
+            <iframe
+              v-else-if="previewBlobUrl && previewContentType.includes('pdf')"
+              :src="previewBlobUrl" :title="previewName"
+            />
+            <p v-else class="approval-empty">该格式请从历史记录中下载查看</p>
+          </div>
+        </div>
+      </section>
+    </div>
+    </Teleport>
 
     <!-- 附件阅览 -->
+    <Teleport to="body">
     <div v-if="showAttachmentModal" class="attachment-preview-mask" @click.self="closePreview(); showAttachmentModal = false">
-      <section class="supplier-dialog product-dialog license-attachment-dialog" role="dialog" aria-modal="true">
-        <header>
-          <div>
+      <section class="license-attachment-dialog" role="dialog" aria-modal="true">
+        <header class="la-dialog-header">
+          <div class="la-dialog-title">
             <p>附件阅览</p>
             <h3>{{ attachmentLicense?.licenseName }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="closePreview(); showAttachmentModal = false"><X :size="18" /></button>
+          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="closePreview(); showAttachmentModal = false">
+            <X :size="18" />
+          </button>
         </header>
-        <div class="license-attachment-body">
-          <div class="license-attachment-list">
-            <div class="license-upload-row">
-              <label class="btn">
+        <div class="la-dialog-body">
+          <div class="la-attachment-list">
+            <div class="la-upload-row">
+              <label class="lf-btn lf-btn-secondary">
                 <Upload :size="15" /> 上传附件
                 <input type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" @change="handleUpload" />
               </label>
@@ -568,36 +738,119 @@ onUnmounted(closePreview)
             </div>
             <p v-if="attachmentsLoading" class="approval-empty">正在加载附件...</p>
             <p v-else-if="!attachments.length" class="approval-empty">暂无附件，请上传证照扫描件</p>
-            <ul v-else class="license-attachment-items">
-              <li v-for="item in attachments" :key="item.id">
-                <div class="license-attachment-info">
+            <ul v-else class="la-attachment-items">
+              <li v-for="item in attachments" :key="item.id" class="la-attachment-item">
+                <div class="la-attachment-info">
                   <strong>{{ item.fileName }}</strong>
                   <span>{{ item.createTime }} · {{ (item.size / 1024).toFixed(1) }} KB</span>
                 </div>
-                <div class="license-attachment-actions">
-                  <button class="btn-text" type="button" :disabled="previewing" @click="previewAttachment(item)">
+                <div class="la-attachment-actions">
+                  <button class="lf-btn lf-btn-info lf-btn-sm" type="button" :disabled="previewing" @click="previewAttachment(item)">
                     <Eye :size="14" /> 阅览
                   </button>
-                  <button class="btn-text" type="button" @click="downloadAttachment(item)"><Download :size="14" /> 下载</button>
+                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" @click="downloadAttachment(item)">
+                    <Download :size="14" /> 下载
+                  </button>
                 </div>
               </li>
             </ul>
           </div>
-          <div class="license-attachment-preview">
+          <div class="la-attachment-preview">
             <template v-if="previewBlobUrl">
               <img v-if="previewContentType.startsWith('image/')" :src="previewBlobUrl" :alt="previewName" />
               <iframe v-else-if="previewContentType.includes('pdf')" :src="previewBlobUrl" :title="previewName" />
               <p v-else class="approval-empty">该文件类型不支持在线预览，请下载后查看：{{ previewName }}</p>
             </template>
-            <p v-else class="approval-empty">点击左侧「阅览」查看证照附件</p>
+            <div v-else class="la-preview-placeholder">
+              <Eye :size="40" />
+              <p>点击左侧「阅览」查看证照附件</p>
+            </div>
           </div>
         </div>
       </section>
     </div>
+    </Teleport>
   </div>
 </template>
 
 <style scoped>
+/* ============================================================
+   Shared button system
+   ============================================================ */
+.lf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 5px 14px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
+  font-family: inherit;
+}
+
+.lf-btn:hover { transform: translateY(-1px); }
+.lf-btn:active { transform: translateY(0); }
+.lf-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+.lf-btn-icon {
+  width: 32px; min-height: 32px; padding: 0; justify-content: center;
+}
+
+.lf-btn-sm {
+  min-height: 26px; padding: 2px 10px; font-size: 12px; border-radius: 6px;
+}
+
+.lf-btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  box-shadow: 0 4px 10px -4px rgba(99,102,241,0.4);
+}
+.lf-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  box-shadow: 0 6px 14px -4px rgba(99,102,241,0.55);
+}
+
+.lf-btn-secondary {
+  background: linear-gradient(135deg, rgba(20,184,166,0.1), rgba(13,148,136,0.1));
+  color: #0d9488; border-color: rgba(20,184,166,0.2);
+}
+.lf-btn-secondary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #14b8a6, #0d9488);
+  color: #fff; box-shadow: 0 4px 10px -4px rgba(20,184,166,0.5);
+}
+
+.lf-btn-info {
+  background: linear-gradient(135deg, rgba(6,182,212,0.1), rgba(14,165,233,0.1));
+  color: #0891b2; border-color: rgba(6,182,212,0.2);
+}
+.lf-btn-info:hover:not(:disabled) {
+  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+  color: #fff; box-shadow: 0 4px 10px -4px rgba(6,182,212,0.5);
+}
+
+.lf-btn-danger {
+  background: linear-gradient(135deg, rgba(220,38,38,0.1), rgba(225,29,72,0.1));
+  color: #dc2626; border-color: rgba(220,38,38,0.2);
+}
+.lf-btn-danger:hover:not(:disabled) {
+  background: linear-gradient(135deg, #dc2626, #e11d48);
+  color: #fff; box-shadow: 0 4px 10px -4px rgba(220,38,38,0.5);
+}
+
+.lf-btn-ghost {
+  width: 32px; min-height: 32px; padding: 0; justify-content: center;
+  background: rgba(255,255,255,0.18);
+  color: #fff; border-color: rgba(255,255,255,0.3);
+}
+.lf-btn-ghost:hover { background: rgba(255,255,255,0.3); }
+
+/* ============================================================
+   Page layout
+   ============================================================ */
 .license-page {
   max-width: 100%;
   margin: 0;
@@ -621,8 +874,9 @@ onUnmounted(closePreview)
   padding: 6px;
   background: #ffffff;
   margin-bottom: 0;
-  box-shadow: 0 1px 2px rgba(15, 42, 58, 0.04);
+  box-shadow: 0 1px 2px rgba(15,42,58,0.04);
 }
+
 .license-tab {
   border: none;
   background: transparent;
@@ -635,15 +889,9 @@ onUnmounted(closePreview)
   font-weight: 500;
   transition: color 0.18s ease, background 0.18s ease;
 }
-.license-tab:hover {
-  color: var(--primary);
-  background: #edf7f5;
-}
-.license-tab.active {
-  color: #0f766e;
-  background: #edf7f5;
-  font-weight: 600;
-}
+.license-tab:hover { color: var(--primary); background: #edf7f5; }
+.license-tab.active { color: #0f766e; background: #edf7f5; font-weight: 600; }
+
 .license-toolbar {
   display: flex;
   justify-content: space-between;
@@ -656,6 +904,7 @@ onUnmounted(closePreview)
   align-items: center;
   flex-wrap: wrap;
 }
+
 .license-search {
   display: flex;
   gap: 8px;
@@ -669,60 +918,38 @@ onUnmounted(closePreview)
   border-radius: 6px;
   font-size: 14px;
 }
-.license-message {
-  color: #047857;
-  font-size: 13px;
-  margin: 0 0 8px;
-}
-.license-error {
-  color: #b91c1c;
-  font-size: 13px;
-  margin: 0 0 8px;
-}
+
+.license-message { color: #047857; font-size: 13px; margin: 0 0 8px; }
+.license-error { color: #b91c1c; font-size: 13px; margin: 0 0 8px; }
+
 .license-table-wrap {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   overflow: hidden;
 }
-.license-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-.license-table th,
-.license-table td {
+
+.license-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.license-table th, .license-table td {
   padding: 10px 12px;
   border-bottom: 1px solid #eef2f7;
   text-align: left;
   white-space: nowrap;
 }
-.license-table th {
-  background: #f8fafc;
-  color: #475569;
-  font-weight: 600;
-}
-.license-table tbody tr:hover {
-  background: #f8fafc;
-}
+.license-table th { background: #f8fafc; color: #475569; font-weight: 600; }
+.license-table tbody tr:hover { background: #f8fafc; }
+
 .license-status {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 10px;
   font-size: 12px;
 }
-.license-status.ok {
-  color: #047857;
-  background: #ecfdf5;
-}
-.license-status.warn {
-  color: #b45309;
-  background: #fffbeb;
-}
-.license-actions {
-  display: flex;
-  gap: 10px;
-}
+.license-status.ok { color: #047857; background: #ecfdf5; }
+.license-status.warn { color: #b45309; background: #fffbeb; }
+
+.license-actions { display: flex; gap: 10px; }
+
 .license-pagination {
   display: flex;
   justify-content: flex-end;
@@ -732,149 +959,617 @@ onUnmounted(closePreview)
   font-size: 13px;
   color: #64748b;
 }
-.supplier-form-grid.license-form-fields {
-  padding: 12px 16px;
-  gap: 10px;
-  border: 0;
-  margin: 0;
-  min-width: 0;
+
+/* ============================================================
+   新增/编辑证照弹窗
+   ============================================================ */
+.license-form-dialog {
+  width: min(1280px, calc(100vw - 32px)) !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column;
+  background: #ffffff;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  overflow: hidden;
 }
-.license-form-attachments {
-  border-top: 1px solid #e2e8f0;
-  padding-top: 10px;
+
+.lf-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
 }
-.license-form-upload-row {
+
+.lf-dialog-title {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
 }
-.license-form-upload-row label.btn {
-  display: inline-flex;
-  align-items: center;
+
+.lf-dialog-title p {
+  width: 100%;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  opacity: 0.85;
+}
+
+.lf-dialog-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.lf-dialog-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.lf-dialog-tag-renew {
+  background: rgba(245,158,11,0.3);
+  color: #fef3c7;
+}
+.lf-dialog-tag-edit {
+  background: rgba(34,197,94,0.3);
+  color: #dcfce7;
+}
+
+.lf-dialog-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lf-dialog-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px 18px;
+  padding: 18px 24px 12px;
+  background: #f5f8fa;
+  border-bottom: 1px solid #e1e9ee;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .lf-dialog-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 600px) {
+  .lf-dialog-form-grid { grid-template-columns: 1fr; }
+}
+
+.lf-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: #566b77;
+  font-weight: 500;
+}
+
+.lf-field.wide { grid-column: 1 / -1; }
+
+.lf-field input,
+.lf-field select,
+.lf-field textarea {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #cfdfe7;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #172b3a;
+  font-size: 13px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.lf-field input:focus,
+.lf-field select:focus,
+.lf-field textarea:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+}
+.lf-field input[readonly] { background: #f0f3f5; color: #6b7c8f; cursor: not-allowed; }
+.lf-field textarea { min-height: 60px; resize: vertical; }
+.lf-field small { color: #94a3b8; font-size: 11px; }
+
+.lf-remark { }
+
+/* Owner picker */
+.lf-owner-picker {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
-.license-form-attachments small {
-  color: #64748b;
-  font-size: 12px;
+
+.lf-owner-search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
-.license-form-upload-row > span {
-  color: #475569;
-  font-size: 13px;
-}
-.license-form-file-list {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0;
-  max-height: 120px;
+.lf-owner-search input { flex: 1; min-width: 0; }
+
+.lf-owner-options {
+  display: grid;
+  gap: 6px;
+  max-height: 200px;
   overflow: auto;
+  border: 1px solid #cfdfe7;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
 }
-.license-form-file-list li {
+
+.lf-owner-option-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: #172b3a;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.lf-owner-option-btn:hover { background: #eef7f8; }
+
+.lf-owner-pager {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 0;
+  padding-top: 6px;
+  border-top: 1px solid #eef2f5;
+  font-size: 12px;
+  color: #566b77;
 }
-.license-form-file-list li > span {
+
+.lf-owner-empty {
+  color: #6b7c8f;
+  font-size: 12.5px;
+  margin: 0;
+}
+
+.lf-owner-selected { }
+
+.lf-owner-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(34,197,94,0.12);
+  color: #15803d;
+}
+
+.lf-owner-tag-warn {
+  background: rgba(245,158,11,0.12);
+  color: #b45309;
+}
+
+/* Upload section */
+.lf-dialog-upload {
+  display: grid;
+  gap: 8px;
+  padding: 14px 24px;
+  background: #ffffff;
+  border-bottom: 1px solid #e1e9ee;
+}
+
+.lf-upload-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.lf-upload-header > span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 500;
+}
+.lf-upload-header > small { color: #94a3b8; font-size: 12px; }
+
+.lf-upload-success {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: #15803d;
+  margin: 0;
+}
+
+.lf-file-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.lf-file-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: #f5f8fa;
+  border-radius: 8px;
+  border: 1px solid #eef2f5;
+}
+
+.lf-file-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+  color: #172b3a;
 }
-.license-form-file-list li > button,
-.license-form-file-list li > small {
+
+.lf-file-size {
+  font-size: 12px;
+  color: #94a3b8;
+  white-space: nowrap;
   flex-shrink: 0;
 }
-.license-form-uploaded {
+
+.lf-upload-hint {
+  color: #94a3b8;
   font-size: 12px;
-  color: #047857;
-  margin: 6px 0;
 }
-.license-form-dialog {
-  width: min(680px, 92vw);
+
+.lf-dialog-message {
+  padding: 0 24px;
+  margin: 0;
 }
+
+.lf-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  background: #f5f8fa;
+  border-top: 1px solid #e1e9ee;
+}
+
+/* ============================================================
+   附件阅览弹窗
+   ============================================================ */
 .license-attachment-dialog {
-  width: min(960px, 94vw);
+  width: min(1100px, calc(100vw - 32px)) !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column;
+  background: #ffffff;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  overflow: hidden;
 }
-.license-attachment-body {
-  display: grid;
-  grid-template-columns: 320px 1fr;
+
+.la-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 16px;
-  padding: 16px;
-  min-height: 420px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  color: #ffffff;
 }
-.license-upload-row {
+
+.la-dialog-title {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
-  margin-bottom: 12px;
 }
-.license-upload-row span {
-  color: #64748b;
+.la-dialog-title p {
+  width: 100%;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  opacity: 0.85;
+}
+.la-dialog-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.la-dialog-body {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 800px) {
+  .la-dialog-body { grid-template-columns: 1fr; }
+}
+
+.la-attachment-list {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #e1e9ee;
+  overflow: hidden;
+  background: #f9fbfc;
+}
+
+.la-upload-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eef2f5;
+  background: #ffffff;
+}
+.la-upload-row span {
+  color: #94a3b8;
   font-size: 12px;
 }
-.license-attachment-items {
+
+.la-attachment-items {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 380px;
-  overflow: auto;
+  flex: 1;
+  overflow-y: auto;
 }
-.license-attachment-items li {
+
+.la-attachment-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 10px 8px;
-  border-bottom: 1px solid #eef2f7;
+  gap: 10px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #eef2f5;
+  background: #ffffff;
+  transition: background 0.15s;
 }
-.license-attachment-info {
+.la-attachment-item:hover { background: #f0f7f7; }
+
+.la-attachment-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
-.license-attachment-info strong {
+.la-attachment-info strong {
   font-size: 13px;
-  color: #0f172a;
+  color: #172b3a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.license-attachment-info span {
+.la-attachment-info span {
   font-size: 12px;
   color: #94a3b8;
 }
-.license-attachment-actions {
+
+.la-attachment-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
-.license-attachment-preview {
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+
+.la-attachment-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   background: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  min-height: 420px;
 }
-.license-attachment-preview img,
-.license-attachment-preview iframe {
+
+.la-full-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 500px;
+  border-radius: 0;
+}
+
+.la-attachment-preview img,
+.la-attachment-preview iframe {
   max-width: 100%;
-  max-height: 560px;
+  max-height: 100%;
   width: 100%;
   height: 100%;
   border: none;
   object-fit: contain;
 }
+
+.la-preview-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #cbd5e1;
+}
+.la-preview-placeholder p {
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+/* ============================================================
+   证照历史弹窗
+   ============================================================ */
+.lh-dialog {
+  width: min(1100px, calc(100vw - 32px)) !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column;
+  background: #ffffff;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  overflow: hidden;
+}
+
+.lh-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #475569, #334155);
+  color: #ffffff;
+}
+
+.lh-dialog-title {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.lh-dialog-title p {
+  width: 100%;
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  opacity: 0.85;
+}
+.lh-dialog-title h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.lh-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lh-revision-item {
+  border: 1px solid #e1e9ee;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 1px 4px rgba(15,42,58,0.06);
+}
+
+.lh-revision-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 16px;
+  background: linear-gradient(135deg, #f8fafc, #eef2f7);
+  border-bottom: 1px solid #e1e9ee;
+}
+
+.lh-revision-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15));
+  color: #4f46e5;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lh-revision-type {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(245,158,11,0.12);
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.lh-revision-op,
+.lh-revision-time {
+  font-size: 12px;
+  color: #6b7c8f;
+}
+
+.lh-revision-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 16px;
+  padding: 14px 16px;
+}
+
+.lh-rev-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lh-rev-label {
+  font-size: 11px;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lh-rev-value {
+  font-size: 13px;
+  color: #172b3a;
+  font-weight: 500;
+}
+
+.lh-rev-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.lh-rev-no-files {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(34,197,94,0.12);
+  color: #15803d;
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.status-badge.warning {
+  background: rgba(245,158,11,0.12);
+  color: #b45309;
+  border-color: rgba(245,158,11,0.3);
+}
+
+/* Legacy overrides */
 .license-owner-search { display: flex; gap: 8px; }
 .license-owner-search input { flex: 1; min-width: 0; }
 .license-owner-options { display: grid; gap: 6px; max-height: 230px; overflow: auto; border: 1px solid #dce4e8; padding: 10px; }
 .license-owner-options > button { text-align: left; }
-.license-history-item { padding: 12px 0; border-bottom: 1px solid #dce4e8; }
-.license-history-item h4 { margin: 0 0 8px; }
 </style>

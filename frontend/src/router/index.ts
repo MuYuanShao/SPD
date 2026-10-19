@@ -7,7 +7,7 @@ import {
 } from '../config/featureCatalog'
 import { useAuthStore } from '../stores/auth'
 
-const DashboardView = () => import('../views/DashboardMockView.vue')
+const DashboardView = () => import('../views/DashboardRealtimeView.vue')
 const FeatureView = () => import('../views/FeatureView.vue')
 const LoginView = () => import('../views/LoginView.vue')
 const AccessDeniedView = () => import('../views/AccessDeniedView.vue')
@@ -52,13 +52,7 @@ export const router = createRouter({
       path: '/',
       name: 'dashboard',
       component: DashboardView,
-      meta: { requiresAuth: true, title: '首页', featureCode: 'dashboard' }
-    },
-    {
-      path: '/dashboard/realtime',
-      name: 'dashboard-realtime',
-      component: () => import('../views/DashboardRealtimeView.vue'),
-      meta: { requiresAuth: true, title: '实时工作台', featureCode: 'dashboard' }
+      meta: { requiresAuth: true, title: '首页工作台', featureCode: 'dashboard' }
     },
     {
       path: '/login',

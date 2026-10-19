@@ -1,69 +1,167 @@
-/* ===== Button system ===== */
+/* ===== Button system =================================================
+ * 全局统一样式：所有按钮默认就是「圆角 + 有背景色 + 有色文字」。
+ * - .btn            蓝色实心（主操作）
+ * - .btn-primary    蓝色实心（与默认等价，主操作）
+ * - .btn-success    绿色实心（通过 / 保存）
+ * - .btn-danger     红色实心（驳回 / 删除）
+ * - .btn-warning    橙色实心（退回 / 提醒）
+ * - .btn-secondary  紫色实心（辅助操作）
+ * - .btn-ghost      透明 + 有色文字（次要操作）
+ * ==================================================================== */
+
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--btn-gap);
-  min-height: var(--btn-min-h);
-  border: 1px solid var(--line);
-  border-radius: var(--btn-radius);
-  background: #ffffff;
-  color: var(--btn-text-color);
-  padding: 0 var(--btn-padding-x);
+  gap: var(--btn-gap, 6px);
+  min-height: var(--btn-min-h, 34px);
+  border: 1px solid transparent;
+  border-radius: var(--btn-radius, 10px);
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+  padding: 0 var(--btn-padding-x, 16px);
   font: inherit;
-  font-weight: var(--btn-font-weight);
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+  box-shadow: 0 2px 6px -2px rgba(37, 99, 235, 0.35);
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s, opacity 0.18s;
 }
 
 .btn:hover {
-  opacity: 0.85;
+  background: #1d4ed8;
+  box-shadow: 0 6px 14px -4px rgba(37, 99, 235, 0.45);
+  transform: translateY(-1px);
 }
 
+.btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px -1px rgba(37, 99, 235, 0.4);
+}
+
+/* ── primary ── 主操作（蓝色实心，等同于默认） */
 .btn-primary {
-  border-color: var(--primary);
-  background: var(--primary);
-  color: var(--btn-primary-text);
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55);
+  color: #ffffff;
 }
 
+/* ── success ── 通过 / 保存（绿色实心） */
+.btn-success {
+  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.45);
+}
+.btn-success:hover {
+  background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
+  box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.55);
+  color: #ffffff;
+}
+
+/* ── danger ── 驳回 / 删除（红色实心） */
 .btn-danger {
-  color: var(--danger);
+  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.45);
+}
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #be123c 100%);
+  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.55);
+  color: #ffffff;
 }
 
+/* ── warning ── 退回 / 提醒（橙色实心） */
 .btn-warning {
-  border-color: #f97316;
-  background: #fff7ed;
-  color: #f97316;
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.45);
+}
+.btn-warning:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
+  box-shadow: 0 8px 20px -4px rgba(249, 115, 22, 0.55);
+  color: #ffffff;
 }
 
+/* ── secondary ── 辅助操作（紫色 / 青色实心） */
+.btn-secondary {
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45);
+}
+.btn-secondary:hover {
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 100%);
+  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.55);
+  color: #ffffff;
+}
+
+/* ── ghost ── 次要操作（透明 + 有色文字） */
+.btn-ghost {
+  background: transparent;
+  border: 1px solid var(--line, #e2e8f0);
+  color: #334652;
+  box-shadow: none;
+}
+.btn-ghost:hover {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: none;
+  transform: none;
+}
+
+/* ── text ── 纯文字按钮（无背景无边框） */
 .btn-text {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   border: 0;
   background: transparent;
-  color: #0f766e;
-  font-weight: var(--btn-font-weight);
+  color: #2563eb;
+  font-weight: 600;
   cursor: pointer;
   padding: 0;
   font: inherit;
   min-height: auto;
+  box-shadow: none;
+  border-radius: 0;
+  transition: opacity 0.18s, color 0.18s;
 }
-
 .btn-text:hover {
   opacity: 0.8;
+  color: #1d4ed8;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
 }
 
 .btn-text-danger {
-  color: var(--danger);
+  color: #dc2626;
+}
+.btn-text-danger:hover {
+  color: #b91c1c;
 }
 
 .btn-text-muted {
-  color: var(--text-muted);
+  color: #64748b;
+}
+.btn-text-muted:hover {
+  color: #334155;
 }
 
+/* ── link ── 链接样式 */
 .btn-link {
   display: inline;
   background: none;
@@ -76,12 +174,16 @@
   text-decoration: underline;
   text-underline-offset: 3px;
   min-height: auto;
+  box-shadow: none;
 }
-
 .btn-link:hover {
   color: #1d4ed8;
+  background: transparent;
+  transform: none;
+  box-shadow: none;
 }
 
+/* ── icon only ── 图标按钮（透明 + 圆形 hover） */
 .btn-icon {
   display: grid;
   place-items: center;
@@ -92,18 +194,191 @@
   color: inherit;
   cursor: pointer;
   padding: 0;
+  border-radius: 8px;
+  box-shadow: none;
+  transition: background 0.18s, color 0.18s;
+}
+.btn-icon:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  transform: none;
+  box-shadow: none;
 }
 
+/* ── small ── 紧凑按钮 */
 .btn-sm {
-  min-height: var(--btn-min-h-sm);
-  padding: 0 var(--btn-padding-x-sm);
-  gap: 6px;
+  min-height: var(--btn-min-h-sm, 28px);
+  padding: 0 var(--btn-padding-x-sm, 12px);
+  gap: 4px;
+  font-size: 12px;
+  border-radius: 8px;
 }
 
+/* ── disabled ── 禁用态 */
 .btn:disabled,
 .btn.disabled {
   cursor: not-allowed;
-  opacity: 0.55;
+  opacity: 0.5;
   pointer-events: none;
+  transform: none;
+  box-shadow: none;
 }
 
+/* ================================================================
+ * Element Plus el-button 同步统一
+ *   不希望未来新加的 el-button 是灰白色，全部用彩色圆角覆盖
+ * ================================================================ */
+.el-button {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s, opacity 0.18s, border-color 0.18s !important;
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+}
+.el-button:active {
+  transform: translateY(0);
+}
+
+/* default：蓝色实心 */
+.el-button,
+.el-button.el-button--default {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45) !important;
+}
+.el-button:hover,
+.el-button.el-button--default:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55) !important;
+}
+
+/* primary：与 default 相同 */
+.el-button.el-button--primary {
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45) !important;
+}
+.el-button.el-button--primary:hover {
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55) !important;
+}
+
+/* success：绿色实心 */
+.el-button.el-button--success {
+  background: linear-gradient(135deg, #059669 0%, #0d9488 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.45) !important;
+}
+.el-button.el-button--success:hover {
+  background: linear-gradient(135deg, #047857 0%, #0f766e 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.55) !important;
+}
+
+/* danger：红色实心 */
+.el-button.el-button--danger {
+  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.45) !important;
+}
+.el-button.el-button--danger:hover {
+  background: linear-gradient(135deg, #b91c1c 0%, #be123c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.55) !important;
+}
+
+/* warning：橙色实心 */
+.el-button.el-button--warning {
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.45) !important;
+}
+.el-button.el-button--warning:hover {
+  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(249, 115, 22, 0.55) !important;
+}
+
+/* info/info：紫色实心（SPD 风格） */
+.el-button.el-button--info {
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45) !important;
+}
+.el-button.el-button--info:hover {
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.55) !important;
+}
+
+/* plain / text：透明 + 有色 */
+.el-button.is-plain,
+.el-button.el-button--primary.is-plain {
+  background: transparent !important;
+  color: #2563eb !important;
+  border: 1px solid #93c5fd !important;
+  box-shadow: none !important;
+}
+.el-button.is-plain:hover {
+  background: #eff6ff !important;
+  color: #1d4ed8 !important;
+  border-color: #2563eb !important;
+  transform: none;
+}
+
+.el-button--success.is-plain { color: #059669 !important; border-color: #6ee7b7 !important; }
+.el-button--success.is-plain:hover { background: #ecfdf5 !important; color: #047857 !important; }
+.el-button--danger.is-plain { color: #dc2626 !important; border-color: #fca5a5 !important; }
+.el-button--danger.is-plain:hover { background: #fef2f2 !important; color: #b91c1c !important; }
+.el-button--warning.is-plain { color: #ea580c !important; border-color: #fdba74 !important; }
+.el-button--warning.is-plain:hover { background: #fff7ed !important; color: #c2410c !important; }
+.el-button--info.is-plain { color: #4f46e5 !important; border-color: #a5b4fc !important; }
+.el-button--info.is-plain:hover { background: #eef2ff !important; color: #4338ca !important; }
+
+/* text 形态按钮：纯文字 + 主色 */
+.el-button.is-text,
+.el-button--primary.is-text {
+  color: #2563eb !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+.el-button.is-text:hover { color: #1d4ed8 !important; transform: none; }
+.el-button--success.is-text { color: #059669 !important; }
+.el-button--success.is-text:hover { color: #047857 !important; }
+.el-button--danger.is-text { color: #dc2626 !important; }
+.el-button--danger.is-text:hover { color: #b91c1c !important; }
+.el-button--warning.is-text { color: #ea580c !important; }
+.el-button--warning.is-text:hover { color: #c2410c !important; }
+.el-button--info.is-text { color: #4f46e5 !important; }
+.el-button--info.is-text:hover { color: #4338ca !important; }
+
+/* disabled */
+.el-button.is-disabled,
+.el-button:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* small */
+.el-button--small {
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+.el-button--large {
+  border-radius: 12px !important;
+  font-size: 14px !important;
+}

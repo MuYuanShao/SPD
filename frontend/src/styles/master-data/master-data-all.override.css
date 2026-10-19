@@ -177,7 +177,76 @@
   margin-left: 8px;
 }
 
-/* ===== Action Row / Toolbar（所有 master-data 工具栏） ===== */
+/* =============================================================
+   master-data 表格行内「修改 / 停用 / 删除」等 row-actions 按钮样式
+   (在所有 master-data 表格 .*table 内 .btn-text 走这个彩色化样式)
+   ============================================================= */
+.master-page [class*="-table"] .btn-text,
+.supplier-table .btn-text,
+.manufacturer-table .btn-text,
+.campus-table .btn-text,
+.department-table .btn-text,
+.warehouse-table .btn-text,
+.department-warehouse-catalog-table .btn-text,
+.hospital-product-table .btn-text,
+.license-table .btn-text {
+  min-height: 30px !important;
+  padding: 4px 10px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%) !important;
+  color: #4f46e5 !important;
+  font-weight: 600 !important;
+  font-size: 12.5px !important;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s !important;
+}
+
+.master-page [class*="-table"] .btn-text:hover,
+.supplier-table .btn-text:hover,
+.manufacturer-table .btn-text:hover,
+.campus-table .btn-text:hover,
+.department-table .btn-text:hover,
+.warehouse-table .btn-text:hover,
+.department-warehouse-catalog-table .btn-text:hover,
+.hospital-product-table .btn-text:hover,
+.license-table .btn-text:hover {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.5) !important;
+}
+
+.master-page [class*="-table"] .btn-text.btn-text-danger,
+.supplier-table .btn-text.btn-text-danger,
+.manufacturer-table .btn-text.btn-text-danger,
+.campus-table .btn-text.btn-text-danger,
+.department-table .btn-text.btn-text-danger,
+.warehouse-table .btn-text.btn-text-danger,
+.department-warehouse-catalog-table .btn-text.btn-text-danger,
+.hospital-product-table .btn-text.btn-text-danger,
+.license-table .btn-text.btn-text-danger {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(225, 29, 72, 0.1) 100%) !important;
+  color: #dc2626 !important;
+}
+
+.master-page [class*="-table"] .btn-text.btn-text-danger:hover,
+.supplier-table .btn-text.btn-text-danger:hover,
+.manufacturer-table .btn-text.btn-text-danger:hover,
+.campus-table .btn-text.btn-text-danger:hover,
+.department-table .btn-text.btn-text-danger:hover,
+.warehouse-table .btn-text.btn-text-danger:hover,
+.department-warehouse-catalog-table .btn-text.btn-text-danger:hover,
+.hospital-product-table .btn-text.btn-text-danger:hover,
+.license-table .btn-text.btn-text-danger:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 10px -4px rgba(220, 38, 38, 0.5) !important;
+}
+
+/* ===== Action Row / Toolbar（所有 master-data 工具栏按钮） =====
+   注意：颜色/背景/边框由 components/buttons.css 统一彩色实心接管；
+   本处只补尺寸/对齐/间距，避免被旧 `!important` 强行变成黑白灰。
+   ===== */
 .hospital-action-row,
 .supplier-toolbar,
 .manufacturer-toolbar,
@@ -190,10 +259,11 @@
   gap: 8px;
   min-height: 48px;
   padding: 10px 14px !important;
-  background: var(--spd-bg-page) !important;
-  border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius, 6px) !important;
+  background: linear-gradient(135deg, #fafbff 0%, #f5f3ff 50%, #fdf4ff 100%) !important;
+  border: 1px solid #e0e7ff !important;
+  border-radius: 12px !important;
   margin-bottom: 0 !important;
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.12);
 }
 
 .hospital-action-row .btn,
@@ -202,82 +272,29 @@
 .campus-toolbar .btn,
 .department-toolbar .btn,
 .department-action-row .btn {
-  min-height: 32px;
-  padding: 0 14px;
-  border: 1px solid var(--spd-border-default) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  font-size: 13px !important;
-  font-weight: 500;
+  min-height: 34px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
   cursor: pointer;
   transition: all 0.18s ease;
+  /* 边框/背景/颜色由 .btn 主题接管；不写 !important 覆盖 */
 }
 
-.hospital-action-row .btn:hover:not(:disabled),
-.supplier-toolbar .btn:hover:not(:disabled),
-.manufacturer-toolbar .btn:hover:not(:disabled),
-.campus-toolbar .btn:hover:not(:disabled),
-.department-toolbar .btn:hover:not(:disabled),
-.department-action-row .btn:hover:not(:disabled) {
-  color: var(--spd-primary);
-  border-color: var(--spd-primary) !important;
-}
-
+/* disabled 状态保留淡灰即可 */
 .hospital-action-row .btn:disabled,
 .supplier-toolbar .btn:disabled,
 .manufacturer-toolbar .btn:disabled,
 .campus-toolbar .btn:disabled,
 .department-toolbar .btn:disabled,
 .department-action-row .btn:disabled {
-  opacity: 0.45;
+  opacity: 0.5;
   cursor: not-allowed;
-}
-
-.hospital-action-row .btn.btn-primary,
-.supplier-toolbar .btn.btn-primary,
-.manufacturer-toolbar .btn.btn-primary,
-.campus-toolbar .btn.btn-primary,
-.department-toolbar .btn.btn-primary,
-.department-action-row .btn.btn-primary {
-  background: var(--spd-primary) !important;
-  border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
-}
-
-.hospital-action-row .btn.btn-primary:hover:not(:disabled),
-.supplier-toolbar .btn.btn-primary:hover:not(:disabled),
-.manufacturer-toolbar .btn.btn-primary:hover:not(:disabled),
-.campus-toolbar .btn.btn-primary:hover:not(:disabled),
-.department-toolbar .btn.btn-primary:hover:not(:disabled),
-.department-action-row .btn.btn-primary:hover:not(:disabled) {
-  background: var(--spd-primary-dark) !important;
-  border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
-}
-
-.hospital-action-row .btn.btn-danger,
-.supplier-toolbar .btn.btn-danger,
-.manufacturer-toolbar .btn.btn-danger,
-.campus-toolbar .btn.btn-danger,
-.department-toolbar .btn.btn-danger,
-.department-action-row .btn.btn-danger {
-  color: var(--spd-danger) !important;
-  border-color: var(--spd-danger-border) !important;
-}
-
-.hospital-action-row .btn.btn-danger:hover,
-.supplier-toolbar .btn.btn-danger:hover,
-.manufacturer-toolbar .btn.btn-danger:hover,
-.campus-toolbar .btn.btn-danger:hover,
-.department-toolbar .btn.btn-danger:hover,
-.department-action-row .btn.btn-danger:hover {
-  background: var(--spd-danger) !important;
-  border-color: var(--spd-danger) !important;
-  color: #ffffff !important;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ===== Toolbar Primary/Secondary（左右对齐） ===== */
@@ -1299,260 +1316,61 @@
   text-overflow: ellipsis;
 }
 
-/* ===== Row actions（行内按钮组） ===== */
+/* 行内 .btn-text 按钮（修改 / 停用 / 删除）彩色样式由下方通用段接管。 */
+
+/* 行内操作按钮之间的间距：10px margin，保持默认 inline 流式布局 */
 .supplier-action-cell .btn-text,
 .manufacturer-action-cell .btn-text,
 .campus-action-cell .btn-text,
 .department-action-cell .btn-text,
+.warehouse-action-cell .btn-text,
 .hospital-action-cell .btn-text,
+.license-actions .btn-text,
 .row-actions .btn-text,
-.license-actions .btn-text {
-  min-height: 28px;
-  padding: 0 8px;
-  background: transparent !important;
-  border: 0 !important;
-  color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: var(--spd-radius-sm, 4px) !important;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
+.action-cell .btn-text {
+  margin-right: 10px !important;
 }
 
-.supplier-action-cell .btn-text:hover,
-.manufacturer-action-cell .btn-text:hover,
-.campus-action-cell .btn-text:hover,
-.department-action-cell .btn-text:hover,
-.hospital-action-cell .btn-text:hover,
-.row-actions .btn-text:hover,
-.license-actions .btn-text:hover {
-  color: var(--spd-primary) !important;
-  background: var(--spd-primary-bg) !important;
+.supplier-action-cell .btn-text:last-child,
+.manufacturer-action-cell .btn-text:last-child,
+.campus-action-cell .btn-text:last-child,
+.department-action-cell .btn-text:last-child,
+.warehouse-action-cell .btn-text:last-child,
+.hospital-action-cell .btn-text:last-child,
+.license-actions .btn-text:last-child,
+.row-actions .btn-text:last-child,
+.action-cell .btn-text:last-child {
+  margin-right: 0 !important;
 }
 
-.supplier-action-cell .btn-text-danger,
-.manufacturer-action-cell .btn-text-danger,
-.campus-action-cell .btn-text-danger,
-.department-action-cell .btn-text-danger,
-.hospital-action-cell .btn-text-danger,
-.row-actions .btn-text-danger,
-.license-actions .btn-text-danger {
-  color: var(--spd-text-tertiary) !important;
-}
-
-.supplier-action-cell .btn-text-danger:hover,
-.manufacturer-action-cell .btn-text-danger:hover,
-.campus-action-cell .btn-text-danger:hover,
-.department-action-cell .btn-text-danger:hover,
-.hospital-action-cell .btn-text-danger:hover,
-.row-actions .btn-text-danger:hover,
-.license-actions .btn-text-danger:hover {
-  color: var(--spd-danger) !important;
-  background: var(--spd-danger-bg) !important;
-}
-
-/* ===== Supplier Dialog ===== */
+/* ===== Supplier Dialog =====
+   颜色/渐变/背景由 supplier-management.css 接管；
+   本处只保留容器结构 / 防止横向溢出 / 滚动行为。
+   ===== */
 .supplier-dialog {
   width: min(820px, calc(100vw - 32px));
-  background: var(--spd-bg-container) !important;
-  border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
-  overflow: hidden;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--spd-shadow-3) !important;
+  overflow: hidden;
 }
 
-.supplier-dialog-header {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  padding: 16px 20px !important;
-  background: var(--spd-bg-container) !important;
-  border-bottom: 1px solid var(--spd-border-subtle) !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: space-between !important;
-  gap: 12px;
-}
-
-.supplier-dialog-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--spd-primary) !important;
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.supplier-dialog-title {
-  margin: 5px 0 0 !important;
-  font-size: 20px !important;
-  line-height: 1.25;
-  color: var(--spd-text-heading) !important;
-  font-weight: 600;
-  font-family: var(--spd-font-family-display);
-}
-
-.supplier-dialog-subtitle {
-  margin-top: 5px !important;
-  color: var(--spd-text-secondary) !important;
-  font-size: 13px;
-}
-
-.required-mark {
-  color: var(--spd-danger) !important;
-  font-weight: 600;
-}
-
-.supplier-dialog-close {
-  display: grid !important;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-sm, 4px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-secondary) !important;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.supplier-dialog-close:hover {
-  color: var(--spd-primary) !important;
-  border-color: var(--spd-primary) !important;
-}
-
+/* 防止 form 内部出现横向滚动条（输入框/select 永远在容器宽度内） */
 .supplier-dialog-form {
-  padding: 18px 20px !important;
   overflow-y: auto;
+  overflow-x: hidden;
   flex: 1;
-}
-
-.supplier-form-section {
-  display: grid;
-  gap: 12px;
-  padding: 14px 0;
-  border-top: 1px solid var(--spd-border-subtle) !important;
-}
-
-.supplier-form-section:first-of-type {
-  border-top: 0 !important;
-  padding-top: 0;
-}
-
-.supplier-form-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--spd-text-heading) !important;
-  font-size: 14px;
-  font-weight: 600;
-  font-family: var(--spd-font-family-display);
-}
-
-.supplier-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.supplier-form-grid.compact {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.supplier-form-grid label {
-  display: grid;
-  gap: 4px;
   min-width: 0;
 }
 
-.supplier-form-grid label.wide {
-  grid-column: 1 / -1;
-}
-
-.supplier-form-grid label > span {
-  color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
-  font-weight: 500;
-}
-
-.supplier-form-grid input,
-.supplier-form-grid select,
-.supplier-form-grid textarea {
-  min-height: 36px;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  padding: 0 12px;
-  font: inherit;
-  font-size: 14px;
-  width: 100%;
-  transition: all 0.18s ease;
-}
-
-.supplier-form-grid input:focus,
-.supplier-form-grid select:focus,
-.supplier-form-grid textarea:focus {
-  border-color: var(--spd-primary) !important;
-  box-shadow: var(--spd-shadow-focus) !important;
-  outline: none;
-}
-
-.supplier-form-hint {
-  color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
-  font-weight: 400;
-  margin-top: 2px;
-}
-
-.supplier-dialog-actions {
-  display: flex !important;
-  justify-content: flex-end;
-  gap: 8px;
-  border-top: 1px solid var(--spd-border-subtle) !important;
-  padding: 14px 20px !important;
-  background: var(--spd-bg-container) !important;
-}
-
-.supplier-dialog-actions .btn {
-  min-height: 36px;
-  padding: 0 18px;
-  border: 1px solid var(--spd-border-default) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  font-size: 14px;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.supplier-dialog-actions .btn:hover {
-  color: var(--spd-primary);
-  border-color: var(--spd-primary) !important;
-}
-
-.supplier-dialog-actions .btn.btn-primary {
-  background: var(--spd-primary) !important;
-  border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
-}
-
-.supplier-dialog-actions .btn.btn-primary:hover {
-  background: var(--spd-primary-dark) !important;
-  border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
+.supplier-dialog .supplier-form-section,
+.supplier-dialog .supplier-form-grid,
+.supplier-dialog .supplier-form-grid label,
+.supplier-dialog .supplier-form-grid input,
+.supplier-dialog .supplier-form-grid select,
+.supplier-dialog .supplier-form-grid textarea {
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* ===== Product dialog（共用 .product-dialog） ===== */
@@ -1918,35 +1736,7 @@
   background: var(--spd-primary-bg) !important;
 }
 
-.hospital-product-table .hospital-action-cell .btn-text {
-  min-height: 28px;
-  padding: 0 8px;
-  background: transparent !important;
-  border: 0 !important;
-  color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
-  font-weight: 500;
-  cursor: pointer;
-  border-radius: var(--spd-radius-sm, 4px) !important;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.15s ease;
-}
-
-.hospital-product-table .hospital-action-cell .btn-text:hover {
-  color: var(--spd-primary) !important;
-  background: var(--spd-primary-bg) !important;
-}
-
-.hospital-product-table .hospital-action-cell .btn-text-danger {
-  color: var(--spd-text-tertiary) !important;
-}
-
-.hospital-product-table .hospital-action-cell .btn-text-danger:hover {
-  color: var(--spd-danger) !important;
-  background: var(--spd-danger-bg) !important;
-}
+/* hospital-product-table 行内 .btn-text 改由通用彩色段接管 */
 
 /* ===== Product Detail / Form / Batch Edit View ===== */
 .product-detail-page {
@@ -2388,34 +2178,36 @@
   box-sizing: border-box;
 }
 
-/* 头部：返回按钮 32px 紧凑 */
+/* 头部：返回按钮 36px 紧凑、彩色圆角 */
 .product-form-page > .btn:first-child,
 .product-detail-page > .btn:first-child,
 .product-detail-back {
-  min-height: 32px !important;
-  height: 32px !important;
-  padding: 0 12px !important;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 16px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%) !important;
+  color: #ffffff !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   width: fit-content !important;
   cursor: pointer;
-  box-shadow: none !important;
+  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45) !important;
   box-sizing: border-box;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s !important;
 }
 
 .product-form-page > .btn:first-child:hover,
 .product-detail-page > .btn:first-child:hover,
 .product-detail-back:hover {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: var(--spd-primary-bg) !important;
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 50%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.55) !important;
+  transform: translateY(-1px);
 }
 
 /* 头部主色化 */
@@ -2703,29 +2495,32 @@
   color: #cf1322;
 }
 
-/* 编辑按钮 32px */
+/* 编辑按钮 36px 圆角彩色 */
 .approval-detail-page.product-detail-page .btn-primary {
-  min-height: 32px !important;
-  height: 32px !important;
-  padding: 0 14px !important;
-  border: 1px solid var(--primary) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--primary) !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 18px !important;
+  border: 1px solid transparent !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
   color: #ffffff !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
   cursor: pointer;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45) !important;
   box-sizing: border-box;
+  transition: background 0.18s, box-shadow 0.18s, transform 0.18s !important;
 }
 
 .approval-detail-page.product-detail-page .btn-primary:hover {
-  background: var(--primary-strong) !important;
-  border-color: var(--primary-strong) !important;
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  border-color: transparent !important;
   color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55) !important;
+  transform: translateY(-1px);
 }
 
 /* 详情 sections */
@@ -2745,9 +2540,14 @@
   min-width: 0;
   overflow: hidden;
   border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
+  border-radius: 12px !important;
   background: var(--spd-bg-container) !important;
-  box-shadow: var(--spd-shadow-1) !important;
+  box-shadow: 0 4px 14px -4px rgba(13, 93, 74, 0.12), 0 2px 4px rgba(13, 93, 74, 0.04) !important;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.approval-detail-page.product-detail-page .product-detail-section:hover {
+  box-shadow: 0 6px 18px -4px rgba(99, 102, 241, 0.18), 0 3px 6px rgba(13, 93, 74, 0.05) !important;
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading {
@@ -2756,15 +2556,15 @@
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
-  background: var(--spd-bg-page, #f0f2f5) !important;
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
   padding: 12px 18px;
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading h3 {
   margin: 0;
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   font-family: var(--spd-font-family-display);
   display: flex;
   align-items: center;
@@ -2773,10 +2573,11 @@
 
 .approval-detail-page.product-detail-page .product-detail-section-heading h3::before {
   content: "";
-  width: 3px;
-  height: 12px;
+  width: 4px;
+  height: 16px;
   border-radius: 2px;
-  background: var(--primary);
+  background: linear-gradient(180deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.5);
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading p {
@@ -2787,14 +2588,17 @@
 
 .approval-detail-page.product-detail-page .product-detail-section-heading > span {
   flex: 0 0 auto;
-  color: var(--primary) !important;
-  background: var(--spd-primary-bg);
-  border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%) !important;
+  border: 1px solid transparent;
   border-radius: 999px;
-  padding: 0 10px;
-  min-height: 24px;
+  padding: 0 12px;
+  min-height: 26px;
   display: inline-flex;
   align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
   font-size: 12px;
   font-weight: 500;
 }
@@ -2832,9 +2636,17 @@
   font-weight: 500;
 }
 
+.approval-detail-page.product-detail-page .product-detail-field.emphasis {
+  background: linear-gradient(135deg, rgba(238, 242, 255, 0.7) 0%, rgba(224, 231, 255, 0.7) 100%) !important;
+  border-radius: 8px;
+  border-right-color: transparent !important;
+  border-bottom-color: transparent !important;
+}
+
 .approval-detail-page.product-detail-page .product-detail-field.emphasis dd {
-  color: var(--spd-text-heading) !important;
-  font-weight: 600;
+  color: #4f46e5 !important;
+  font-weight: 700;
+  font-size: 14px;
 }
 
 /* 附件表 */
@@ -2864,11 +2676,12 @@
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table th {
-  background: #fafafa !important;
+  background: linear-gradient(180deg, #f0f9ff 0%, #e0e7ff 100%) !important;
   color: var(--spd-text-heading) !important;
   font-size: 12px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   font-family: var(--spd-font-family-display);
+  border-bottom: 2px solid color-mix(in srgb, var(--primary, #0d6b63) 30%, transparent) !important;
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table tbody tr:last-child > * {
@@ -2895,23 +2708,27 @@
 .approval-detail-page.product-detail-page .product-attachment-table .btn-text {
   min-height: 28px !important;
   height: 28px !important;
-  padding: 0 10px;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius-sm, 4px) !important;
-  background: var(--spd-bg-container);
-  color: var(--spd-text-primary) !important;
+  padding: 0 12px;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%) !important;
+  color: #ffffff !important;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
   font-size: 12px;
+  font-weight: 600;
+  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
   box-sizing: border-box;
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s !important;
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table .btn-text:hover {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: var(--spd-primary-bg);
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 100%) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.55);
 }
 
 /* 附件弹窗内无 URL 时的空态：仅图标 + 文件名 + 极简说明 */
@@ -3046,88 +2863,110 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   font-size: 13px;
 }
 
-/* 详情页操作条（不放在 hero 头部，而是独立白色 toolbar） */
+/* 详情页操作条（彩色渐变 hero bar） */
 .product-detail-toolbar {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 18px !important;
-  border: 1px solid var(--spd-border-subtle) !important;
-  background: var(--spd-bg-container) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
-  box-shadow: var(--spd-shadow-1) !important;
-  min-height: 48px;
+  padding: 14px 20px !important;
+  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  background: var(--md-bg-header, linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%)) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px -4px rgba(99, 102, 241, 0.4) !important;
+  min-height: 56px;
   box-sizing: border-box;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
 }
+
+.product-detail-toolbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, rgba(0, 0, 0, 0.18) 0%, transparent 32%);
+  pointer-events: none;
+}
+
+.product-detail-toolbar > * { position: relative; z-index: 1; }
 
 .product-detail-toolbar .product-detail-status {
   display: inline-flex;
   align-items: center;
-  min-height: 26px;
-  height: 26px;
-  padding: 0 12px;
-  border: 1px solid var(--spd-border-default) !important;
+  min-height: 30px;
+  height: 30px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
   border-radius: 999px;
-  background: var(--spd-bg-page) !important;
-  color: var(--spd-text-secondary) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
   white-space: nowrap;
+  backdrop-filter: blur(2px);
 }
 
 .product-detail-toolbar .product-detail-status.active {
-  border-color: color-mix(in srgb, var(--primary) 35%, transparent) !important;
-  background: var(--spd-primary-bg) !important;
-  color: var(--primary) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  background: rgba(255, 255, 255, 0.32) !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 
 .product-detail-toolbar .product-detail-status:not(.active) {
-  border-color: #ffa39e;
-  background: #fff1f0;
-  color: #cf1322;
+  border-color: rgba(255, 200, 200, 0.6);
+  background: rgba(255, 80, 80, 0.25);
+  color: #ffffff;
 }
 
 .product-detail-toolbar-actions {
   display: flex !important;
   align-items: center !important;
-  gap: 8px;
+  gap: 10px;
 }
 
 .product-detail-toolbar-actions .btn {
-  min-height: 32px !important;
-  height: 32px !important;
-  padding: 0 14px !important;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 16px !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
   font-size: 13px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
   cursor: pointer;
   box-shadow: none !important;
   box-sizing: border-box;
+  backdrop-filter: blur(2px);
+  transition: background 0.18s, transform 0.18s, box-shadow 0.18s !important;
 }
 
 .product-detail-toolbar-actions .btn:hover {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: var(--spd-primary-bg) !important;
+  background: rgba(255, 255, 255, 0.32) !important;
+  border-color: rgba(255, 255, 255, 0.6) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.18);
 }
 
 .product-detail-toolbar-actions .btn.btn-primary {
-  background: var(--primary) !important;
-  border-color: var(--primary) !important;
+  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
+  border-color: transparent !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.55) !important;
 }
 
 .product-detail-toolbar-actions .btn.btn-primary:hover {
-  background: var(--primary-strong) !important;
-  border-color: var(--primary-strong) !important;
+  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  border-color: transparent !important;
   color: #ffffff !important;
+  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.65) !important;
 }
 

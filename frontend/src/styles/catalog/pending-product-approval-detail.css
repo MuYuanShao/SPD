@@ -743,20 +743,29 @@
 }
 
 .attachment-preview-mask {
+  /* 通用遮罩样式由 components/modal.css 提供 */
   position: fixed;
   inset: 0;
-  z-index: 30;
+  z-index: 2000;
   display: grid;
   place-items: center;
-  background: rgba(6, 21, 43, 0.42);
+  background: rgba(6, 21, 43, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   padding: 24px;
+  overflow: auto;
+  isolation: isolate;
 }
 
 .attachment-preview-dialog {
-  width: min(720px, 100%);
-  border-radius: 8px;
+  width: min(1080px, calc(100vw - 48px));
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
   background: #ffffff;
-  box-shadow: 0 16px 48px rgba(6, 21, 43, 0.24);
+  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.28), 0 4px 12px rgba(15, 23, 42, 0.08);
+  border: 1px solid var(--slate-100);
   overflow: hidden;
 }
 
@@ -816,4 +825,68 @@
   height: min(68vh, 640px);
   border: 0;
   background: #f6f8fa;
+}
+
+/* ================================================================
+ * 资质附件 - 全新"按钮 + 隐藏 file input + 提示"组合
+ *   取代之前直接渲染 <input type="file"> 导致的丑陋原生控件
+ * ================================================================ */
+.approval-attach-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #fafbff 0%, #f5f3ff 100%);
+  transition: border-color 0.18s, background 0.18s;
+}
+.approval-attach-field:hover {
+  border-color: #6366f1;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+}
+
+.approval-attach-native {
+  /* 隐藏原生 input，但保留 click() 能力 */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.approval-attach-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  /* 彩色渐变按钮（青→蓝→紫） */
+  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45);
+}
+.approval-attach-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 50%, #7c3aed 100%);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px -4px rgba(99, 102, 241, 0.6);
+}
+.approval-attach-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.approval-attach-hint {
+  font-size: 12px;
+  color: #64748b;
+  line-height: 1.4;
 }

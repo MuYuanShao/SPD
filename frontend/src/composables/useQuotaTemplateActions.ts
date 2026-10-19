@@ -45,7 +45,35 @@ export function useQuotaTemplateActions(options: {
   importInput: Ref<HTMLInputElement | null>
   message: Ref<QuotaActionResult>
   reload: () => Promise<void>
+  /** 确认弹窗询问（注入后用主题化确认框；未注入则回退到 window.confirm） */
+  askConfirm?: (options: {
+    title?: string
+    description?: string | string[]
+    details?: string | string[]
+    tone?: 'danger' | 'warning' | 'primary' | 'success' | 'info'
+    confirmText?: string
+  }) => Promise<boolean>
 }) {
+  /** 统一确认弹窗：优先使用主题化确认框，回退到浏览器 confirm */
+  async function confirmAction(
+    question: string,
+    optionsConfirm: {
+      title?: string
+      description?: string | string[]
+      details?: string | string[]
+      tone?: 'danger' | 'warning' | 'primary' | 'success' | 'info'
+      confirmText?: string
+    } = {}
+  ): Promise<boolean> {
+    if (options.askConfirm) {
+      try {
+        return await options.askConfirm({ description: question, ...optionsConfirm })
+      } catch {
+        return false
+      }
+    }
+    return window.confirm(question)
+  }
   /** 写入操作结果，视图据此决定「就地提示」还是「弹出提示」 */
   function setResult(text: string, tone: QuotaActionResult['tone'] = 'success') {
     options.message.value = { text, tone }
@@ -125,15 +153,38 @@ export function useQuotaTemplateActions(options: {
       setResult('请先选择需要停用的定数包模板', 'warning')
       return
     }
-    if (!window.confirm(`确认停用 ${rows.length} 条定数包模板？`)) {
+    const sample = rows[0]
+    /** 字段有值才输出标签行；空值/null/undefined 直接跳过 */
+    const lineFor = (label: string, value: unknown) => {
+      const text = value == null ? '' : String(value).trim()
+      return text ? `${label}：${text}` : ''
+    }
+    const sampleDesc = rows.length === 1
+      ? `确认停用定数包模板「${(sample.templateName || sample.templateCode || '').trim()}（${sample.templateCode}）」？停用后该模板不可用于新建打包任务，已有任务不受影响。`
+      : `确认停用 ${rows.length} 条定数包模板？停用后这些模板不可用于新建打包任务，已有任务不受影响。`
+    const confirmed = await confirmAction(sampleDesc, {
+      title: '停用定数包模板',
+      details: [
+        ...(rows.length === 1
+          ? [lineFor('模板名称', sample.templateName), lineFor('模板编码', sample.templateCode), lineFor('商品', sample.productName)].filter(Boolean)
+          : [`共 ${rows.length} 条模板`])
+      ],
+      tone: 'warning',
+      confirmText: '确认停用'
+    })
+    if (!confirmed) {
       return
     }
-    for (const item of rows) {
-      await disableQuotaTemplate(item.templateCode)
+    try {
+      for (const item of rows) {
+        await disableQuotaTemplate(item.templateCode)
+      }
+      options.selectedTemplateCodes.value = []
+      setResult(`已停用 ${rows.length} 条定数包模板`)
+      await options.reload()
+    } catch (error: any) {
+      setResult(error?.response?.data?.message || error?.message || '停用失败，请重试', 'error')
     }
-    options.selectedTemplateCodes.value = []
-    setResult(`已停用 ${rows.length} 条定数包模板`)
-    await options.reload()
   }
 
   async function enableSelectedTemplates(row?: QuotaTemplateRow) {
@@ -142,7 +193,25 @@ export function useQuotaTemplateActions(options: {
       setResult('请先选择需要启用的定数包模板', 'warning')
       return
     }
-    if (!window.confirm(`确认启用 ${rows.length} 条定数包模板？`)) {
+    const sample = rows[0]
+    const lineFor = (label: string, value: unknown) => {
+      const text = value == null ? '' : String(value).trim()
+      return text ? `${label}：${text}` : ''
+    }
+    const sampleDesc = rows.length === 1
+      ? `确认启用定数包模板「${(sample.templateName || sample.templateCode || '').trim()}（${sample.templateCode}）」？`
+      : `确认启用 ${rows.length} 条定数包模板？`
+    const confirmed = await confirmAction(sampleDesc, {
+      title: '启用定数包模板',
+      details: [
+        ...(rows.length === 1
+          ? [lineFor('模板名称', sample.templateName), lineFor('模板编码', sample.templateCode), lineFor('商品', sample.productName)].filter(Boolean)
+          : [`共 ${rows.length} 条模板`])
+      ],
+      tone: 'primary',
+      confirmText: '确认启用'
+    })
+    if (!confirmed) {
       return
     }
     try {

@@ -109,6 +109,11 @@ const autoSmartAnalysisHandled = ref(false)
 const currentPage = ref(1)
 const pageSize = ref(20)
 const totalItems = ref(0)
+
+// 待拣配申领单前端分页
+const pickingPage = ref(1)
+const pickingSize = ref(20)
+const pickingTotal = ref(0)
 const options = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
 const packageDetail = ref<PackageLabelDetail | null>(null)
 const packageDetailOpen = ref(false)
@@ -120,6 +125,15 @@ const primaryWarehouses = computed(() =>
     /一级|中心/.test(String(item.warehouseType ?? ''))
   )
 )
+
+/** 待拣配申领单前端分页展示 */
+const paginatedPickingRequisitions = computed(() => {
+  const start = (pickingPage.value - 1) * pickingSize.value
+  return pickingRequisitionRows.value.slice(start, start + pickingSize.value)
+})
+
+/** 拣配配送底部表格：history type */
+const isDeliveryHistory = computed(() => type.value === 'delivery')
 
 const form = reactive({
   deptName: '',
@@ -347,6 +361,7 @@ async function loadData() {
 async function loadPickingRequisitions() {
   const result = await fetchPickingRequisitions()
   pickingRequisitionRows.value = result.rows || []
+  pickingTotal.value = pickingRequisitionRows.value.length
   const selectedStillPending = pickingRequisitionRows.value.some(row => String(row.itemId || '') === selectedPickingItemId.value)
   if ((!selectedPickingItemId.value || !selectedStillPending) && pickingRequisitionRows.value[0]) {
     await selectPickingRequisition(pickingRequisitionRows.value[0])
@@ -583,6 +598,16 @@ async function changePageSize(size: number) {
   pageSize.value = size
   currentPage.value = 1
   await loadData()
+}
+
+function changePickingPage(page: number) {
+  const totalPages = Math.max(Math.ceil(pickingTotal.value / Math.max(pickingSize.value, 1)), 1)
+  pickingPage.value = Math.min(Math.max(page, 1), totalPages)
+}
+
+function changePickingSize(size: number) {
+  pickingSize.value = size
+  pickingPage.value = 1
 }
 
 /** 科室消耗：按定数包码 / UDI / 唯一码定位商品后再登记消耗 */
@@ -1220,10 +1245,6 @@ watch(() => form.productCode, () => {
 
       <div v-if="type === 'delivery'" class="picking-workbench">
         <section class="picking-panel picking-panel--requisition">
-          <div class="section-title compact">
-            <h3>待拣配申领单</h3>
-            <span class="muted-hint">共 {{ pickingRequisitionRows.length }} 条，请选择需要拣配的申领单</span>
-          </div>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
               <thead>
@@ -1243,7 +1264,7 @@ watch(() => form.productCode, () => {
                   <td colspan="8" class="approval-empty">暂无待拣配申领单</td>
                 </tr>
                 <tr
-                  v-for="row in pickingRequisitionRows"
+                  v-for="row in paginatedPickingRequisitions"
                   :key="`${row.requisitionNo}-${row.itemId}`"
                   :class="{ selected: selectedPickingItemId === String(row.itemId) }"
                 >
@@ -1274,6 +1295,15 @@ watch(() => form.productCode, () => {
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            :page="pickingPage"
+            :size="pickingSize"
+            :total="pickingTotal"
+            :loading="loading"
+            :hide-summary="true"
+            @change-page="changePickingPage"
+            @change-size="changePickingSize"
+          />
         </section>
 
         <!-- 唯一码/UDI 类型：展示申请单绑定的唯一码 -->
@@ -1636,6 +1666,7 @@ watch(() => form.productCode, () => {
         :size="pageSize"
         :total="totalItems"
         :loading="loading"
+        :hide-summary="isDeliveryHistory"
         @change-page="changePage"
         @change-size="changePageSize"
       />
@@ -2068,17 +2099,9 @@ watch(() => form.productCode, () => {
 }
 
 /* 首列（单号）与末列（操作）冻结，横向滚动时保持可见 */
-.delivery-acceptance-page .picking-panel--requisition :is(th, td):first-child {
-  position: sticky;
-  left: 0;
-  z-index: 1;
-  background: var(--md-bg-card, #fff) !important;
-  box-shadow: 1px 0 0 var(--md-border-subtle, var(--spd-border-subtle));
-}
-
-.delivery-acceptance-page .picking-panel--requisition thead th:first-child {
-  z-index: 3;
-  background: var(--md-bg-subtle, #f6f8fb) !important;
+.delivery-acceptance-page .picking-panel--requisition .table-scroll {
+  border: none;
+  border-radius: 0;
 }
 
 .delivery-acceptance-page :is(.picking-panel--requisition, .picking-panel--loose) :is(th, td):last-child {

@@ -5,9 +5,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 
 /**
- * Forwards SPA history-mode routes to the bundled index.html in offline one-click deployments.
- * Only registered when spd.web.static-dir is configured; API routes live under the /api context
- * path and never reach these mappings.
+ * Redirects the offline deployment entry into the bundled application namespace.
+ * Resource handling and SPA history fallback belong to SpaWebConfig.
  */
 @Controller
 @ConditionalOnProperty(name = "spd.web.static-dir")
@@ -18,8 +17,13 @@ public class SpaFallbackController {
         return "redirect:/app/";
     }
 
-    @GetMapping(value = {"/app", "/app/", "/app/{*path}"})
-    public String forwardToIndex() {
+    @GetMapping("/app")
+    public String redirectToApplicationDirectory() {
+        return "redirect:/app/";
+    }
+
+    @GetMapping("/app/")
+    public String applicationIndex() {
         return "forward:/app/index.html";
     }
 }

@@ -49,14 +49,14 @@ public class AuditLogQueryService {
             """;
 
     private static final String OPERATION_TYPES_SQL = """
-            SELECT operation_type, COUNT(*) AS total
+            SELECT operation_type AS operationType, COUNT(*) AS total
               FROM audit_log
              GROUP BY operation_type
              ORDER BY total DESC
             """;
 
     private static final String BIZ_TYPES_SQL = """
-            SELECT biz_type, COUNT(*) AS total
+            SELECT biz_type AS bizType, COUNT(*) AS total
               FROM audit_log
              GROUP BY biz_type
              ORDER BY total DESC

@@ -1,0 +1,19 @@
+第三方组件及相应材料
+==================
+MySQL Community Server 8.4.11（Windows x64）
+  官方二进制：vendor/mysql-8.4.11-winx64.zip（原始发行包，未修改）
+  许可证：licenses/MySQL-LICENSE.txt，以及原始发行包内的许可证与第三方声明
+  相同版本的官方源码：licenses/mysql-8.4.11.tar.gz
+  官方下载：https://dev.mysql.com/downloads/mysql/8.4.html
+  安装器只解压并配置官方二进制，不修改 MySQL 程序。
+
+Microsoft Visual C++ x64 Redistributable 14.51.36247.0
+  安装文件：prerequisites/vc_redist.x64.exe（保留 Microsoft 数字签名）
+  适用许可包含在 Microsoft 官方安装程序中。
+  官方说明：https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist
+
+WinSW 2.12.0
+  许可证：licenses/WinSW-LICENSE.txt
+
+第三方组件版本、官方来源及 SHA-256 位于 installer/vendor.json。
+完整发布包必须包含上述材料，不能仅分发 MySQL 二进制文件。

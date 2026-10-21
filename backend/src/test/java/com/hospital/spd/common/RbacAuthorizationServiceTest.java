@@ -146,4 +146,20 @@ class RbacAuthorizationServiceTest {
     private void stubPermissions(Long userId, List<String> permissions) {
         when(jdbcTemplate.queryForList(anyString(), eq(String.class), eq(userId))).thenReturn(permissions);
     }
+    @Test
+    void purchaseCreationDoesNotRequireUnrelatedBroadWritePermission() {
+        stubPermissions(70L, List.of("purchase-management", "purchase-order:create"));
+        assertThat(service.isAllowed(70L, List.of(), "POST", "/api/purchase-orders")).isTrue();
+        assertThat(service.isAllowed(70L, List.of(), "PUT", "/api/purchase-orders/PO1/action")).isFalse();
+        assertThat(service.isAllowed(70L, List.of(), "POST", "/api/purchase-orders/PO1/attachments")).isFalse();
+    }
+
+    @Test
+    void purchaseActionGateAcceptsActionRightsAndKeepsDocumentFamiliesSeparate() {
+        stubPermissions(71L, List.of("purchase-order:approve"));
+        assertThat(service.isAllowed(71L, List.of(), "PUT", "/api/purchase-orders/PO1/action")).isTrue();
+        assertThat(service.isAllowed(71L, List.of(), "PUT", "/api/purchase-orders/demands/D1/action")).isFalse();
+        assertThat(service.isAllowed(71L, List.of(), "PUT", "/api/purchase-orders/plans/P1/action")).isFalse();
+    }
+
 }

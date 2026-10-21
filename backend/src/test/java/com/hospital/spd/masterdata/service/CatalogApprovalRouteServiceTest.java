@@ -130,4 +130,15 @@ class CatalogApprovalRouteServiceTest {
                 .filter(invocation -> invocation.getMethod().getName().equals("update"))
                 .count();
     }
+    @Test
+    void departmentTreeScopeAllowsGrandchildButRejectsUnrelatedDepartment() {
+        var step = new CatalogApprovalRouteService.RouteSnapshotStep(1, "pending-product-catalog", "initial-review", 1L, 11L,
+                "审批", "user", null, 9L, null, 1, false, 3);
+        org.mockito.Mockito.lenient().when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("parent_id"), eq(Long.class), eq(30L))).thenReturn(List.of(25L));
+        org.mockito.Mockito.lenient().when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("parent_id"), eq(Long.class), eq(25L))).thenReturn(List.of(20L));
+        org.assertj.core.api.Assertions.assertThatCode(() -> service.requireApprovalAccess(step, 30L, 99L)).doesNotThrowAnyException();
+        org.mockito.Mockito.lenient().when(jdbc.queryForList(org.mockito.ArgumentMatchers.contains("parent_id"), eq(Long.class), eq(40L))).thenReturn(List.of(0L));
+        assertThatThrownBy(() -> service.requireApprovalAccess(step, 40L, 99L)).hasMessageContaining("无权审批");
+    }
+
 }

@@ -42,7 +42,7 @@ type ReceivingTab = 'pending' | 'completed'
 
 interface ItemDraft {
   productCode: string
-  purchaseOrderItemId?: number
+  purchaseOrderItemId: number | undefined
   productionBatchNo: string
   udiCode: string
   productionDate: string

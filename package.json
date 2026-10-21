@@ -1,6 +1,6 @@
 {
   "name": "hospital-spd-platform",
-  "version": "20260826",
+  "version": "20261020",
   "private": true,
   "engines": {
     "node": ">=22 <25"
@@ -11,6 +11,7 @@
     "start:dev": "powershell -NoProfile -ExecutionPolicy Bypass -File start-dev.ps1",
     "package:offline": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/invoke-utf8-script.ps1 -ScriptPath scripts/package-offline-deployment.ps1",
     "verify:offline-package": "node scripts/verify-offline-package.mjs",
+    "verify:embedded-mysql": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/invoke-utf8-script.ps1 -ScriptPath scripts/verify-embedded-mysql.ps1",
     "backend:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 start",
     "backend:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 restart",
     "backend:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/backend-control.ps1 stop",

@@ -63,7 +63,7 @@ function Invoke-SpdDatabaseCommand {
     param(
         [Parameter(Mandatory)][string]$JavaExe,
         [Parameter(Mandatory)][string]$JarPath,
-        [Parameter(Mandatory)][ValidateSet('validate', 'migrate', 'legacy-repair')][string]$Command,
+        [Parameter(Mandatory)][ValidateSet('validate', 'migrate', 'legacy-repair', 'bootstrap-admin')][string]$Command,
         [Parameter(Mandatory)][hashtable]$Environment
     )
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -79,16 +79,53 @@ function Invoke-SpdDatabaseCommand {
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
     if (-not $process.Start()) { throw '无法启动数据库迁移进程。' }
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
     $process.WaitForExit()
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    $exitCode = $process.ExitCode
+    $process.Dispose()
     $combined = (($stdout, $stderr) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join [Environment]::NewLine
-    foreach ($secretName in @('SPD_FLYWAY_PASSWORD', 'SPD_DB_PASSWORD', 'SPD_JWT_SECRET')) {
+    foreach ($secretName in @('SPD_FLYWAY_PASSWORD', 'SPD_DB_PASSWORD', 'SPD_JWT_SECRET', 'SPD_INITIAL_ADMIN_PASSWORD')) {
         if ($Environment.ContainsKey($secretName) -and -not [string]::IsNullOrEmpty($Environment[$secretName])) {
             $combined = $combined.Replace([string]$Environment[$secretName], '<redacted>')
         }
     }
-    return [pscustomobject]@{ ExitCode = $process.ExitCode; Output = $combined.Trim() }
+    return [pscustomobject]@{ ExitCode = $exitCode; Output = $combined.Trim() }
+}
+
+function Assert-SpdVendorArtifact([string]$BundleRoot, [string]$RelativePath) {
+    $manifest = Get-Content -LiteralPath (Join-Path $BundleRoot 'installer/vendor.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $entries = @($manifest | Where-Object { $_.path -ceq $RelativePath })
+    if ($entries.Count -ne 1 -or $entries[0].sha256 -notmatch '^[a-fA-F0-9]{64}$') { throw '第三方组件清单无效。' }
+    $root = [IO.Path]::GetFullPath($BundleRoot).TrimEnd('\') + '\'
+    $path = [IO.Path]::GetFullPath((Join-Path $root $RelativePath))
+    if (-not $path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) { throw '第三方组件路径越界。' }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "第三方组件缺失：$RelativePath" }
+    $stream = [IO.File]::OpenRead($path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { $actual = ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-', '') }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+    if ($actual -ine $entries[0].sha256) {
+        throw "第三方组件缺失或 SHA-256 不匹配：$RelativePath"
+    }
+}
+
+function Assert-SpdInstallSource([string]$BundleRoot, [string]$InstallDir) {
+    $source = [IO.Path]::GetFullPath($BundleRoot).TrimEnd('\', '/') + '\'
+    $target = [IO.Path]::GetFullPath($InstallDir).TrimEnd('\', '/') + '\'
+    if ($source.StartsWith($target, [StringComparison]::OrdinalIgnoreCase) -or
+            $target.StartsWith($source, [StringComparison]::OrdinalIgnoreCase)) {
+        throw '离线包目录与安装目录不能相同或互相包含。请从新解压的完整离线包运行安装或升级。'
+    }
+    foreach ($relative in @('app/app.jar', 'app/web/index.html', 'runtime/jdk-17/bin/java.exe',
+            'service/HospitalSPD.exe', 'service/HospitalSPD.xml', 'installer/common.ps1',
+            'installer/install.ps1', 'installer/mysql.ps1', 'licenses/WinSW-LICENSE.txt', 'VERSION.txt')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $BundleRoot $relative) -PathType Leaf)) {
+            throw "离线包不完整，已中止安装：$relative"
+        }
+    }
 }
 
 function Wait-SpdHealth([int]$Port, [int]$TimeoutSeconds = 90) {
@@ -117,4 +154,7 @@ function Invoke-SpdService([ValidateSet('install', 'uninstall', 'start', 'stop',
     if (-not (Test-Path -LiteralPath $wrapper)) { throw "服务包装器不存在：$wrapper" }
     & $wrapper $Action
     if ($LASTEXITCODE -ne 0) { throw "HospitalSPD 服务操作失败：$Action" }
+    if ($Action -eq 'stop') {
+        (Get-Service -Name $script:SpdServiceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
+    }
 }

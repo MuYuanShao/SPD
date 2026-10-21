@@ -1,9 +1,16 @@
 院内 SPD Windows 零数据离线部署包
 ================================
-1. 目标系统：64 位 Windows 10/11 或 Windows Server 2019 及以上。
-2. 发布包包含应用、前端、JDK 17 和 Windows 服务包装器，不需要安装 Java、Node、Maven 或 Docker。
-3. 发布包不包含数据库导出、患者数据、业务数据或固定密码。院方须提前准备 MySQL 8、迁移账号和无 DDL 的运行账号。
-4. 解压后右键以管理员身份运行“安装SPD.bat”，按向导录入配置。迁移密码仅用于安装过程，不会保存。
-5. 安装成功后服务随 Windows 自动启动，入口为 http://服务器IP:1818/api/（端口可在向导中修改）。
-6. 升级前必须完成数据库备份。应用文件可自动回退，数据库迁移只能通过上线前备份恢复。
-7. “卸载SPD.bat”默认保留 C:\ProgramData\HospitalSPD 下的配置、日志和附件。
+1. 目标系统：64 位 Windows 10/11 或 Windows Server 2019 及以上；安装需要管理员权限。
+2. 发布包包含应用、前端、JDK 17、WinSW、MySQL Community Server 8.4.11、源码和许可证材料、VC++ x64 运行库，不需要联网或安装开发工具。
+3. 发布包不包含数据库导出、患者数据、业务数据或固定密码；首次安装由 Flyway 创建数据库结构及系统基础数据。
+4. 解压后右键以管理员身份运行“安装SPD.bat”。embedded 模式使用独立内置 MySQL（默认 127.0.0.1:13306），账号和密码自动生成；external 模式连接院方已准备的 MySQL 8，并填写独立迁移和无 DDL 运行账号。
+5. 内置数据库仅监听本机；服务名 HospitalSPDMySQL，数据位于所选数据目录的 mysql 子目录，不接管院方其他 MySQL 服务。端口占用、未知数据库目录或初始化未完成时中止，禁止自动清空数据重试。
+6. 内置模式的初始管理员为 admin，初始密码位于数据目录 mysql/credentials.json 的 AdminPassword 字段，仅管理员可读。默认演示账号禁用；管理员自行修改密码后，重装不会重置。
+7. root 和运行账号凭据保存在受 ACL 保护的 credentials.json；迁移密码每次安装重新生成，仅用于当前安装。运行服务禁用 Flyway，运行账号不授予 DDL 权限。
+8. 安装成功后应用和内置数据库随 Windows 自动启动，入口为 http://服务器IP:1818/api/（端口可在向导中修改）。启动/停止入口联动内置数据库，外部数据库不受管理。
+9. 升级前必须备份数据库和整个数据目录（包括 credentials.json），保持原数据库模式、目录、数据库名及端口。应用文件可自动回退，数据库迁移只能通过上线前备份恢复。
+10. “卸载SPD.bat”注销应用和本安装所属内置数据库服务，保留数据目录中的数据库、凭据、配置、日志及附件；重新安装须使用原数据目录。
+11. 无人值守安装：设置 SPD_DB_MODE=embedded 或 external，再运行 installer/install.ps1 -NonInteractive。可设置 SPD_DB_PORT、SPD_DB_NAME、SPD_SERVICE_PORT、SPD_INSTALL_DIR、SPD_DATA_DIR；external 模式还须配置 SPD_DB_HOST、SPD_FLYWAY_USERNAME、SPD_FLYWAY_PASSWORD、SPD_DB_USERNAME、SPD_DB_PASSWORD。
+12. 内置数据库生命周期验收在开发机上显式运行 npm run verify:embedded-mysql，使用独立临时目录和随机端口，不接触现有业务库，不安装 Windows 服务。
+
+13. 升级请从新解压的完整离线包运行“升级SPD.bat”；离线包目录与已安装程序目录必须分离，不能相同或互相包含。路径检查失败时不会停止服务或删除应用。

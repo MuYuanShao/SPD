@@ -5,6 +5,7 @@ import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.flywaydb.core.api.output.ValidateOutput;
 import org.flywaydb.core.api.output.ValidateResult;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.io.IOException;
 import java.io.PrintStream;
@@ -12,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -27,7 +29,8 @@ import java.util.regex.Pattern;
 /** Provides database validation and migration commands for the offline Windows deployment package. */
 public final class DeploymentDatabaseCommand {
 
-    private static final List<String> SUPPORTED_COMMANDS = List.of("validate", "migrate", "legacy-repair");
+    private static final List<String> SUPPORTED_COMMANDS = List.of("validate", "migrate", "legacy-repair", "bootstrap-admin");
+    private static final String SEED_PASSWORD_HASH = "$2a$10$uI1qPLHX19yBlWucKapwNOhj038aVPtbfw8hMPOx28KcCxr1kQK4S";
     private static final List<String> REQUIRED_ENVIRONMENT = List.of(
             "SPD_DB_URL", "SPD_FLYWAY_USERNAME", "SPD_FLYWAY_PASSWORD"
     );
@@ -45,6 +48,13 @@ public final class DeploymentDatabaseCommand {
         if (!missing.isEmpty()) {
             output.println("缺少数据库迁移配置：" + String.join(", ", missing));
             return 2;
+        }
+        if ("bootstrap-admin".equals(normalizedCommand)) {
+            String password = environment.get("SPD_INITIAL_ADMIN_PASSWORD");
+            if (isBlank(password) || password.length() < 16 || password.getBytes(StandardCharsets.UTF_8).length > 72) {
+                output.println("SPD_INITIAL_ADMIN_PASSWORD 必须为至少 16 个字符、最多 72 字节的初始密码。");
+                return 2;
+            }
         }
         if ("legacy-repair".equals(normalizedCommand)) {
             List<String> legacyMissing = missingEnvironment(environment,
@@ -64,6 +74,7 @@ public final class DeploymentDatabaseCommand {
                 case "validate" -> validate(environment, output);
                 case "migrate" -> migrate(environment, output);
                 case "legacy-repair" -> repairLegacyHistory(environment, output);
+                case "bootstrap-admin" -> bootstrapAdmin(environment, output);
                 default -> 2;
             };
         } catch (Exception exception) {
@@ -94,6 +105,34 @@ public final class DeploymentDatabaseCommand {
         MigrateResult result = flyway(environment, true, false).migrate();
         output.println("数据库迁移完成，本次执行迁移数量：" + result.migrationsExecuted);
         return result.success ? 0 : 4;
+    }
+
+    // Replace only immutable migration seed credentials; never overwrite operator-managed passwords.
+    private int bootstrapAdmin(Map<String, String> environment, PrintStream output) throws Exception {
+        try (Connection connection = DriverManager.getConnection(environment.get("SPD_DB_URL"),
+                environment.get("SPD_FLYWAY_USERNAME"), environment.get("SPD_FLYWAY_PASSWORD"))) {
+            connection.setAutoCommit(false);
+            try {
+                int updated;
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE sys_user SET password=? WHERE username='admin' AND password=? AND deleted=0")) {
+                    statement.setString(1, new BCryptPasswordEncoder().encode(environment.get("SPD_INITIAL_ADMIN_PASSWORD")));
+                    statement.setString(2, SEED_PASSWORD_HASH);
+                    updated = statement.executeUpdate();
+                }
+                try (PreparedStatement statement = connection.prepareStatement(
+                        "UPDATE sys_user SET status=0 WHERE username IN ('operator01','nurse01') AND password=? AND deleted=0")) {
+                    statement.setString(1, SEED_PASSWORD_HASH);
+                    statement.executeUpdate();
+                }
+                connection.commit();
+                output.println(updated == 1 ? "初始管理员密码已安全设置，默认演示账号已禁用。" : "管理员密码已由用户管理，保持不变。");
+                return 0;
+            } catch (Exception exception) {
+                connection.rollback();
+                throw exception;
+            }
+        }
     }
 
     private int repairLegacyHistory(Map<String, String> environment, PrintStream output) throws IOException {
@@ -137,13 +176,26 @@ public final class DeploymentDatabaseCommand {
     }
 
     private List<String> currentUserGrants(Map<String, String> environment) throws Exception {
-        List<String> grants = new ArrayList<>();
         try (Connection connection = DriverManager.getConnection(
                 environment.get("SPD_DB_URL"), environment.get("SPD_FLYWAY_USERNAME"),
-                environment.get("SPD_FLYWAY_PASSWORD"));
-             Statement statement = connection.createStatement()) {
+                environment.get("SPD_FLYWAY_PASSWORD"))) {
+            return currentUserGrants(connection);
+        }
+    }
+
+    static List<String> currentUserGrants(Connection connection) throws Exception {
+        List<String> grants = new ArrayList<>();
+        try (Statement statement = connection.createStatement()) {
             statement.execute("SET ROLE ALL");
-            try (ResultSet resultSet = statement.executeQuery("SHOW GRANTS")) {
+            List<String> roles = new ArrayList<>();
+            try (ResultSet resultSet = statement.executeQuery("SELECT ROLE_NAME, ROLE_HOST FROM information_schema.ENABLED_ROLES")) {
+                while (resultSet.next()) {
+                    roles.add(quoteRolePart(resultSet.getString("ROLE_NAME")) + "@"
+                            + quoteRolePart(resultSet.getString("ROLE_HOST")));
+                }
+            }
+            String query = roles.isEmpty() ? "SHOW GRANTS" : "SHOW GRANTS FOR CURRENT_USER USING " + String.join(", ", roles);
+            try (ResultSet resultSet = statement.executeQuery(query)) {
                 while (resultSet.next()) {
                     grants.add(resultSet.getString(1));
                 }
@@ -152,8 +204,17 @@ public final class DeploymentDatabaseCommand {
         return grants;
     }
 
+    private static String quoteRolePart(String value) {
+        if (value == null) throw new IllegalArgumentException("数据库角色信息不完整，无法验证运行权限");
+        return "`" + value.replace("`", "``") + "`";
+    }
+
     static boolean containsDdlPrivilege(List<String> grants) {
-        return grants.stream().filter(value -> value != null).anyMatch(value -> DDL_PRIVILEGE.matcher(value).find());
+        Pattern privileges = Pattern.compile("^GRANT\\s+(.+?)\\s+ON\\s+", Pattern.CASE_INSENSITIVE);
+        return grants.stream().filter(value -> value != null).anyMatch(value -> {
+            var match = privileges.matcher(value);
+            return match.find() && DDL_PRIVILEGE.matcher(match.group(1)).find();
+        });
     }
 
     private int validateLegacyConfirmation(Map<String, String> environment, PrintStream output) {
@@ -256,7 +317,7 @@ public final class DeploymentDatabaseCommand {
         if (message == null || message.isBlank()) {
             message = exception.getClass().getSimpleName();
         }
-        for (String secretName : List.of("SPD_FLYWAY_PASSWORD", "SPD_DB_PASSWORD", "SPD_JWT_SECRET")) {
+        for (String secretName : List.of("SPD_FLYWAY_PASSWORD", "SPD_DB_PASSWORD", "SPD_JWT_SECRET", "SPD_INITIAL_ADMIN_PASSWORD")) {
             String secret = environment.get(secretName);
             if (!isBlank(secret)) {
                 message = message.replace(secret, "<redacted>");

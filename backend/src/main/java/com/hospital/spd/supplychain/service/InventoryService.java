@@ -487,6 +487,11 @@ public class InventoryService {
                   FROM inventory_stocktaking_item
                  WHERE stocktaking_id = ?
                 """, doc.get("stocktakingId"));
+        if (items.isEmpty() || items.stream().anyMatch(item ->
+                !(item.get("actualQty") instanceof BigDecimal actualQty) || actualQty.signum() < 0
+                        || item.get("diffQty") == null)) {
+            throw new IllegalArgumentException("请先填写全部明细的合法实盘数量，再复核盘点单");
+        }
         for (Map<String, Object> item : items) {
             BigDecimal diffQty = (BigDecimal) item.get("diffQty");
             if (diffQty == null || diffQty.compareTo(BigDecimal.ZERO) == 0) {

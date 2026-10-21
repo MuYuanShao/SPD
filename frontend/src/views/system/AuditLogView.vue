@@ -41,6 +41,7 @@ import {
   fetchAuditLogOperationTypes,
   fetchAuditLogs,
   type AuditLogFacet,
+  type AuditLogBizTypeFacet,
   type AuditLogRow,
   type AuditLogSummary
 } from '../../api/auditLogs'
@@ -54,7 +55,7 @@ const error = ref('')
 
 const summary = ref<AuditLogSummary>({ total: 0, today: 0, distinctOperators: 0, distinctBizTypes: 0 })
 const operationTypeFacets = ref<AuditLogFacet[]>([])
-const bizTypeFacets = ref<AuditLogFacet[]>([])
+const bizTypeFacets = ref<AuditLogBizTypeFacet[]>([])
 
 const query = ref({
   operatorName: '',
@@ -127,7 +128,12 @@ async function loadList() {
     })
     rows.value = data.rows
     total.value = data.total
-    if (data.summary) summary.value = data.summary
+    if (data.summary) summary.value = {
+      total: data.summary.total ?? 0,
+      today: data.summary.today ?? 0,
+      distinctOperators: data.summary.distinctOperators ?? 0,
+      distinctBizTypes: data.summary.distinctBizTypes ?? 0
+    }
   } catch (err: any) {
     error.value = err?.message || '审计日志加载失败'
     rows.value = []
@@ -291,7 +297,7 @@ watch(() => query.value.bizType, (v) => {
         <label><span>业务类型</span>
           <select v-model="query.bizType" class="sys-select">
             <option value="">全部</option>
-            <option v-for="f in bizTypeFacets" :key="f.operationType" :value="f.operationType">{{ f.bizTypeLabel || f.operationType }} ({{ f.total }})</option>
+            <option v-for="f in bizTypeFacets" :key="f.bizType" :value="f.bizType">{{ f.bizType }} ({{ f.total }})</option>
           </select>
         </label>
         <label><span>业务单据号</span><input v-model.trim="query.bizNo" class="sys-input" placeholder="模糊查询业务单据号" @keyup.enter="onSearch" /></label>

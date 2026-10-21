@@ -43,6 +43,12 @@ public class RbacAuthorizationService {
             return userId != null && "GET".equalsIgnoreCase(method);
         }
 
+        if (path.equals("/purchase-orders") || path.startsWith("/purchase-orders/")) {
+            if (userId == null) return false;
+            List<String> permissions = permissionCodes(userId);
+            return purchasePermissions(method, path).stream().anyMatch(permissions::contains);
+        }
+
         String requiredPermission = requiredPermission(method, path);
         if (requiredPermission == null || userId == null) {
             return false;
@@ -100,6 +106,35 @@ public class RbacAuthorizationService {
             return null;
         }
         return isRead(verb) ? featureCode : featureCode + ":write";
+    }
+
+    // Action endpoints share a URL; the service still checks the exact action from the request body.
+    private static List<String> purchasePermissions(String method, String path) {
+        String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
+        if (isRead(verb)) {
+            return path.equals("/purchase-orders/smart-replenishment-analysis")
+                    ? List.of("purchase-demand:create") : List.of("purchase-management");
+        }
+        if ("POST".equals(verb)) {
+            if (path.equals("/purchase-orders")) return List.of("purchase-order:create");
+            if (path.equals("/purchase-orders/demands")) return List.of("purchase-demand:create");
+            if (path.equals("/purchase-orders/plans/from-demands")) return List.of("purchase-demand:convert-plan");
+            if (path.matches("/purchase-orders/[^/]+/remarks")) return List.of("purchase-order:remark");
+            if (path.matches("/purchase-orders/[^/]+/attachments")) return List.of("purchase-order:attachment");
+        }
+        if ("PUT".equals(verb)) {
+            if (path.matches("/purchase-orders/demands/[^/]+/action")) {
+                return List.of("purchase-demand:submit", "purchase-demand:review", "purchase-demand:reject");
+            }
+            if (path.matches("/purchase-orders/plans/[^/]+/action")) {
+                return List.of("purchase-plan:approve", "purchase-plan:reject", "purchase-plan:execute");
+            }
+            if (path.matches("/purchase-orders/[^/]+/action")) {
+                return List.of("purchase-order:submit", "purchase-order:approve", "purchase-order:reject",
+                        "purchase-order:send", "purchase-order:close", "purchase-order:void");
+            }
+        }
+        return List.of();
     }
 
     private static String operationalClosurePermission(String verb, String path) {

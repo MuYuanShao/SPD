@@ -333,4 +333,17 @@ class InventoryServiceTest {
                     .isInstanceOf(EmptyResultDataAccessException.class);
         }
     }
+    @Test
+    void rejectsPartiallyCountedSheetBeforeAnyInventoryAdjustment() {
+        when(jdbcTemplate.queryForMap(anyString(), anyString()))
+                .thenReturn(Map.of("stocktakingId", 200L, "warehouseId", 10L, "status", "draft"));
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                .thenReturn(List.of(Map.of("itemId", 1L, "balanceId", 1L, "productId", 20L,
+                        "batchId", 30L, "actualQty", BigDecimal.TEN, "diffQty", BigDecimal.ONE),
+                        new java.util.HashMap<>(Map.of("itemId", 2L))));
+        assertThatThrownBy(() -> service.approveStocktaking("PD-INCOMPLETE"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("全部明细");
+        org.mockito.Mockito.verifyNoInteractions(support);
+    }
+
 }

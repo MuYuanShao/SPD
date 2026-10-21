@@ -24,12 +24,19 @@ and per-file SHA-256 validation. It creates:
 - the matching `.zip.sha256`
 
 The ZIP contains the executable JAR, the frontend mounted at `/api/app/`, JDK 17, pinned WinSW,
+MySQL 8.4.11, its source and license materials, the Visual C++ runtime,
 and Chinese install/manage entries. It contains no database dump, production configuration,
 fixed credential, source tree, Maven cache, or Node cache. On the target server, extract the ZIP
 and run `安装SPD.bat` as Administrator. The public entry remains `/api/`, which redirects to the
 bundled application; business APIs continue to use `/api/**` and require JWT authentication.
 
-The installer requires separate MySQL 8 migration and runtime accounts. Migration credentials are
+The installer defaults to an embedded private MySQL instance on loopback port 13306.
+It generates credentials, registers HospitalSPDMySQL, and makes the application service depend on it.
+The external mode still accepts existing MySQL 8 migration and runtime accounts.
+Embedded credentials live under the protected data directory; reinstall preserves data and
+operator-managed admin passwords, and uninstall removes services while retaining all database files.
+Run `npm run verify:embedded-mysql` explicitly after packaging for an isolated real-MySQL acceptance
+test (fresh migration, production login, least privileges, reinstall and failure guards; no Windows service installation). Migration credentials are
 passed only through a child-process environment. The runtime account is rejected if validation finds
 `CREATE`, `ALTER`, `DROP`, or `ALL PRIVILEGES`. The installed service runs with Flyway disabled.
 
@@ -165,3 +172,22 @@ generation and exercises document number generation plus transactional writes:
 $env:MUTATING_FLOWS="1"
 k6 run perf/k6-spd-concurrency.js
 ```
+
+## Review regression verification
+
+Run upgrades from a newly extracted complete bundle in a separate directory. The installer
+rejects identical or overlapping source/target directories before stopping the service.
+Runtime-account validation expands active MySQL roles, including inherited privileges.
+
+After building the bundle, explicitly enable the isolated review regressions:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-installer-path-safety.ps1
+$env:SPD_REVIEW_REGRESSION = '1'
+npm run verify:embedded-mysql
+Remove-Item Env:SPD_REVIEW_REGRESSION
+```
+
+The optional review run creates disposable schemas on its own random-port MySQL process,
+checks settlement locking and package-code identity, and exercises audit filters in Chrome.
+It does not enable the existing business-database concurrency suite or register Windows services.

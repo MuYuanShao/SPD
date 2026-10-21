@@ -86,8 +86,14 @@ $distPath = Join-Path $repoRoot 'frontend\dist'
 if (-not (Test-Path -LiteralPath $jarPath)) { throw "未找到后端产物：$jarPath" }
 if (-not (Test-Path -LiteralPath (Join-Path $distPath 'index.html'))) { throw "未找到前端产物：$distPath" }
 $jarEntries = & (Join-Path $jdkHome 'bin\jar.exe') tf $jarPath
+$latestMigration = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'backend/src/main/resources/db/migration') -Filter 'V*__*.sql' |
+    Sort-Object { [int]([regex]::Match($_.Name, '^V(\d+)__').Groups[1].Value) } | Select-Object -Last 1
+$migrationVersion = [regex]::Match($latestMigration.Name, '^V\d+').Value
+$expectedMigrations = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot 'backend/src/main/resources/db/migration') -Filter 'V*__*.sql' | ForEach-Object { $_.Name })
+$packagedMigrations = @($jarEntries | Where-Object { $_ -match '/db/migration/(V[^/]+\.sql)$' } | ForEach-Object { [regex]::Match($_, '/db/migration/(V[^/]+\.sql)$').Groups[1].Value })
+if (Compare-Object $expectedMigrations $packagedMigrations) { throw 'JAR 迁移与当前源码不一致，请执行 clean package 后重新打包。' }
 if (($LASTEXITCODE -ne 0) -or
-        (-not ($jarEntries -match 'db/migration/V70__core_inventory_integrity_constraints.sql')) -or
+        (-not ($jarEntries -match [regex]::Escape('db/migration/' + $latestMigration.Name))) -or
         (-not ($jarEntries -match 'com/hospital/spd/deployment/DeploymentDatabaseCommand.class'))) {
     throw 'JAR 内容检查失败：缺少最新 Flyway 迁移或部署数据库命令。'
 }
@@ -95,6 +101,11 @@ if (($LASTEXITCODE -ne 0) -or
 $vendorCache = if ($WinSwCachePath) { [IO.Path]::GetFullPath($WinSwCachePath) } else { Join-Path $repoRoot "output\vendor-cache\winsw-$winSwVersion" }
 $winSwExe = Get-VerifiedVendorFile -Path (Join-Path $vendorCache 'WinSW-x64.exe') -Url $winSwUrl -ExpectedHash $winSwSha256
 $winSwLicense = Get-VerifiedVendorFile -Path (Join-Path $vendorCache 'LICENSE.txt') -Url $winSwLicenseUrl -ExpectedHash $winSwLicenseSha256
+$artifacts = Get-Content -LiteralPath (Join-Path $repoRoot 'deploy/windows-offline/installer/vendor.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+$artifactFiles = @{}
+foreach ($artifact in $artifacts) {
+    $artifactFiles[$artifact.path] = Get-VerifiedVendorFile -Path (Join-Path $repoRoot ('output/vendor-cache/' + $artifact.cache)) -Url $artifact.url -ExpectedHash $artifact.sha256
+}
 
 Write-Host '[5/6] 组装 Windows 零数据服务包' -ForegroundColor Cyan
 $bundleRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'output\offline-bundle'))
@@ -111,8 +122,20 @@ Get-ChildItem -LiteralPath $jdkHome -Force | Where-Object Name -ne 'jmods' | For
 Copy-Item (Join-Path $repoRoot 'deploy\windows-offline\*') $bundleDir -Recurse -Force
 Copy-Item -LiteralPath $winSwExe -Destination (Join-Path $bundleDir 'service\HospitalSPD.exe') -Force
 Copy-Item -LiteralPath $winSwLicense -Destination (Join-Path $bundleDir 'licenses\WinSW-LICENSE.txt') -Force
+foreach ($artifact in $artifacts) {
+    $destination = Join-Path $bundleDir $artifact.path
+    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $destination) | Out-Null
+    Copy-Item -LiteralPath $artifactFiles[$artifact.path] -Destination $destination
+}
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$mysqlArchive = [IO.Compression.ZipFile]::OpenRead($artifactFiles['vendor/mysql-8.4.11-winx64.zip'])
+try {
+    $license = $mysqlArchive.GetEntry('mysql-8.4.11-winx64/LICENSE')
+    if (-not $license) { throw 'MySQL 原始发行包缺少许可证。' }
+    [IO.Compression.ZipFileExtensions]::ExtractToFile($license, (Join-Path $bundleDir 'licenses/MySQL-LICENSE.txt'), $true)
+} finally { $mysqlArchive.Dispose() }
 $releaseVersion | Set-Content -LiteralPath (Join-Path $bundleDir 'VERSION.txt') -Encoding ASCII
-'V70' | Set-Content -LiteralPath (Join-Path $bundleDir 'MIGRATION_VERSION.txt') -Encoding ASCII
+$migrationVersion | Set-Content -LiteralPath (Join-Path $bundleDir 'MIGRATION_VERSION.txt') -Encoding ASCII
 
 $forbidden = @(Get-ChildItem -LiteralPath $bundleDir -Recurse -File | Where-Object Extension -in @('.sql', '.java', '.class'))
 if ($forbidden.Count -gt 0) { throw "安全检查失败：发布包发现禁止文件：$($forbidden[0].FullName)" }

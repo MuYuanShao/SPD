@@ -1,0 +1,20 @@
+[
+  {
+    "path": "vendor/mysql-8.4.11-winx64.zip",
+    "cache": "mysql-8.4.11/mysql-8.4.11-winx64.zip",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.11-winx64.zip",
+    "sha256": "a492371d687d2bab088b0062581144a0044b8964baefdf4faa579292b423d25c"
+  },
+  {
+    "path": "licenses/mysql-8.4.11.tar.gz",
+    "cache": "mysql-8.4.11/mysql-8.4.11.tar.gz",
+    "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.11.tar.gz",
+    "sha256": "eb3051164d625dd346a8203f76e0d5d5d9aec51dbe9d51788e39ec6b3f1394c2"
+  },
+  {
+    "path": "prerequisites/vc_redist.x64.exe",
+    "cache": "vcredist/vc_redist.x64.exe",
+    "url": "https://aka.ms/vc14/vc_redist.x64.exe",
+    "sha256": "843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c"
+  }
+]

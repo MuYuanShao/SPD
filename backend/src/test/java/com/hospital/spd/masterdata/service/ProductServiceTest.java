@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -38,6 +39,8 @@ class ProductServiceTest {
     @BeforeEach
     void setUp() {
         service = new ProductService(jdbcTemplate);
+        when(jdbcTemplate.queryForObject(anyString(), org.mockito.ArgumentMatchers.<RowMapper<Map<String, Long>>>any()))
+                .thenReturn(Map.of("scopeTotal", 50L, "centralizedTotal", 10L, "domesticTotal", 20L, "disabledTotal", 0L));
     }
 
     @Nested

@@ -109,7 +109,7 @@ class OperationalConsumptionModuleTest {
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
-        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
+        when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
                 .thenReturn(List.of());
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
                 .thenReturn(1);
@@ -136,8 +136,8 @@ class OperationalConsumptionModuleTest {
     void rejectsReversalWhenConsumptionHasConfirmedSettlement() {
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
-        when(jdbcTemplate.queryForObject(contains("settlement_bill_item"), eq(Integer.class), eq(1L)))
-                .thenReturn(1);
+        when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
+                .thenReturn(List.of(Map.of("settlementId", 77L, "status", "confirmed")));
 
         assertThatThrownBy(() -> module.reverseConsumption("XH001"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -151,8 +151,8 @@ class OperationalConsumptionModuleTest {
     void removesConsumptionItemsFromPendingSettlementBeforeRestoringInventory() {
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
-        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
-                .thenReturn(List.of(Map.of("settlementId", 77L)));
+        when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
+                .thenReturn(List.of(Map.of("settlementId", 77L, "status", "pending_confirm")));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
@@ -174,7 +174,7 @@ class OperationalConsumptionModuleTest {
 
     @Test
     void resolvesQuotaPackageWithItsFullBaseQuantity() {
-        when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"), eq("PKG001")))
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"), eq("PKG001"), eq("PKG001"), eq("PKG001")))
                 .thenReturn(List.of(new java.util.HashMap<>(Map.of(
                         "labelNo", "PKG001", "labelStatus", "signed",
                         "productCode", "PC001", "productName", "Syringe",
@@ -184,7 +184,7 @@ class OperationalConsumptionModuleTest {
 
         assertThat(result).containsEntry("sourceType", "package")
                 .containsEntry("packageQuantity", BigDecimal.TEN);
-        verify(jdbcTemplate).queryForList(contains("qpl.package_quantity AS packageQuantity"), eq("PKG001"));
+        verify(jdbcTemplate).queryForList(contains("qpl.package_quantity AS packageQuantity"), eq("PKG001"), eq("PKG001"), eq("PKG001"));
     }
 
     @Test
@@ -192,7 +192,7 @@ class OperationalConsumptionModuleTest {
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed",
                         "relatedBizType", "quota_package_label", "relatedBizId", 55L));
-        when(jdbcTemplate.queryForList(contains("SELECT DISTINCT sb.settlement_id"), eq(1L)))
+        when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
                 .thenReturn(List.of());
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
@@ -230,4 +230,15 @@ class OperationalConsumptionModuleTest {
             return 1;
         }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
+    @Test
+    void resolvesPackageUdiThroughTheSameLabelIdentity() {
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"),
+                eq("QP-PKG001"), eq("QP-PKG001"), eq("QP-PKG001")))
+                .thenReturn(List.of(new java.util.HashMap<>(Map.of("labelNo", "PKG001",
+                        "traceCodeId", 55L, "packageQuantity", BigDecimal.TEN))));
+        assertThat(module.resolveConsumptionProduct("QP-PKG001"))
+                .containsEntry("sourceType", "package").containsEntry("traceCodeId", 55L)
+                .containsEntry("packageQuantity", BigDecimal.TEN);
+    }
+
 }

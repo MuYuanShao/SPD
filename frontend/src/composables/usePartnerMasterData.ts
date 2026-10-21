@@ -174,17 +174,6 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
     }
   }
 
-  async function disableManufacturers(manufacturerCodes = deps.selectedCodes.value) {
-    deps.clearActionState()
-    if (!manufacturerCodes.length) {
-      deps.actionError.value = '请选择需要停用的厂家'
-      return
-    }
-    // 改为确认弹窗（与 disableSuppliers 共享同一个 confirm 状态机）
-    disableConfirmKind.value = 'manufacturer'
-    disableConfirmCodes.value = [...manufacturerCodes]
-    disableConfirmOpen.value = true
-  }
 
   return {
     supplierForm,

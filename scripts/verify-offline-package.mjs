@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
@@ -11,6 +12,8 @@ const required = [
   'service/HospitalSPD.xml',
   'installer/install.ps1',
   'installer/common.ps1',
+  'installer/mysql.ps1',
+  'installer/vendor.json',
   'installer/manage.ps1',
   'installer/legacy-repair.ps1',
   'installer/invoke-utf8-script.ps1',
@@ -24,6 +27,12 @@ const required = [
   '卸载SPD.bat',
   '数据库兼容升级.bat',
   'licenses/WinSW-LICENSE.txt',
+  'licenses/MySQL-LICENSE.txt',
+  'licenses/第三方组件说明.txt',
+  'licenses/mysql-8.4.11.tar.gz',
+  'vendor/mysql-8.4.11-winx64.zip',
+  'prerequisites/vc_redist.x64.exe',
+  'MIGRATION_VERSION.txt',
   'VERSION.txt',
   'SHA256SUMS.txt',
   '部署说明.txt',
@@ -45,6 +54,18 @@ for (const path of required) {
 }
 
 const files = await walk(bundleRoot).catch(() => []);
+try {
+  const artifacts = JSON.parse(await readFile(join(bundleRoot, 'installer/vendor.json'), 'utf8'));
+  for (const artifact of artifacts) {
+    if (isAbsolute(artifact.path) || artifact.path.split(/[\\/]/).includes('..') || !/^[a-f0-9]{64}$/i.test(artifact.sha256)) {
+      findings.push('unsafe-vendor-manifest');
+      continue;
+    }
+    if (await hashFileContent(join(bundleRoot, artifact.path)) !== artifact.sha256.toLowerCase()) findings.push(`vendor-hash-mismatch:${artifact.path}`);
+  }
+} catch {
+  findings.push('invalid-or-missing-vendor-artifact');
+}
 for (const file of files) {
   const relativePath = relative(bundleRoot, file).replaceAll('\\', '/');
   if (/\.(sql|java|class)$/i.test(relativePath)) findings.push(`forbidden:${relativePath}`);
@@ -82,8 +103,8 @@ if (!findings.some((item) => item === 'missing:SHA256SUMS.txt')) {
     }
     covered.add(manifestPath);
     const target = join(bundleRoot, manifestPath);
-    const content = await readFile(target).catch(() => null);
-    if (!content || createHash('sha256').update(content).digest('hex') !== match[1].toLowerCase()) {
+    const digest = await hashFileContent(target).catch(() => null);
+    if (!digest || digest !== match[1].toLowerCase()) {
       findings.push(`hash-mismatch:${match[2]}`);
     }
   }
@@ -104,4 +125,10 @@ async function walk(dir) {
     return entry.isDirectory() ? walk(path) : [path];
   }));
   return nested.flat();
+}
+
+async function hashFileContent(path) {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest('hex');
 }

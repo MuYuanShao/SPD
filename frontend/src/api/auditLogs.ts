@@ -42,6 +42,11 @@ export interface AuditLogFacet {
   total: number
 }
 
+export interface AuditLogBizTypeFacet {
+  bizType: string
+  total: number
+}
+
 export function fetchAuditLogs(params: Record<string, string | number | undefined>) {
   const filtered: Record<string, string> = {}
   for (const [k, v] of Object.entries(params)) {
@@ -60,5 +65,5 @@ export function fetchAuditLogOperationTypes() {
 }
 
 export function fetchAuditLogBizTypes() {
-  return getData<{ bizTypes: AuditLogFacet[] }>('/audit-logs/biz-types')
+  return getData<{ bizTypes: AuditLogBizTypeFacet[] }>('/audit-logs/biz-types')
 }

@@ -183,10 +183,22 @@ public class CatalogApprovalRouteService {
         return values.stream().findFirst().map(CatalogApprovalRouteService::normalizeRole);
     }
 
-    private static boolean dataScopeAllows(int scope, Long documentDeptId, Long documentOwnerId, OperatorContext operator) {
+    private boolean dataScopeAllows(int scope, Long documentDeptId, Long documentOwnerId, OperatorContext operator) {
         if (scope <= OperatorContext.DATA_SCOPE_ALL) return true;
         if (scope == OperatorContext.DATA_SCOPE_SELF) return Objects.equals(documentOwnerId, operator.userId());
-        return documentDeptId != null && Objects.equals(documentDeptId, operator.deptId());
+        if (documentDeptId == null || operator.deptId() == null) return false;
+        if (scope == OperatorContext.DATA_SCOPE_DEPT) return Objects.equals(documentDeptId, operator.deptId());
+        if (scope != OperatorContext.DATA_SCOPE_DEPT_AND_CHILDREN) return false;
+        // Follow ancestors rather than assuming a single department level; cycles fail closed.
+        java.util.Set<Long> visited = new java.util.HashSet<>();
+        Long current = documentDeptId;
+        while (current != null && current > 0 && visited.add(current)) {
+            if (Objects.equals(current, operator.deptId())) return true;
+            List<Long> parents = jdbcTemplate.queryForList(
+                    "SELECT parent_id FROM sys_dept WHERE dept_id = ? AND deleted = 0", Long.class, current);
+            current = parents.isEmpty() ? null : parents.get(0);
+        }
+        return false;
     }
 
     private static Long nullableLong(java.sql.ResultSet rs, String column) throws java.sql.SQLException {

@@ -38,6 +38,7 @@ export type FeatureViewFamily =
   | 'udi-traceability'
   | 'license-management'
   | 'system-config'
+  | 'system-audit-log'
   | 'system-field-option-management'
   | 'system-config-hit-explanation'
   | 'system-approval-flow-settings'

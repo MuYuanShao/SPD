@@ -1,6 +1,6 @@
 {
   "name": "spd-frontend",
-  "version": "20260826",
+  "version": "20261020",
   "private": true,
   "type": "module",
   "scripts": {

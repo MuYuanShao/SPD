@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
@@ -27,9 +26,9 @@ class SpaFallbackControllerTest {
     }
 
     @Test
-    void nestedHistoryRouteForwardsToBundledIndex() throws Exception {
-        mockMvc.perform(get("/app/supply-chain/requisitions/42"))
-                .andExpect(status().isOk())
-                .andExpect(forwardedUrl("/app/index.html"));
+    void applicationEntryRedirectsWithoutForwardingToItself() throws Exception {
+        mockMvc.perform(get("/app"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/app/"));
     }
 }

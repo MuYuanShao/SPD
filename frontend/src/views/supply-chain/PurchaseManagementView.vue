@@ -23,6 +23,7 @@ import {
   Upload,
   X
 } from '@lucide/vue'
+import { useNotify } from '../../composables/useNotify'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
 import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
@@ -123,6 +124,7 @@ const {
   closeOrderAttachmentDialog
 } = usePurchaseManagement()
 const authStore = useAuthStore()
+const notify = useNotify()
 
 const showProductPicker = ref(false)
 const pickerScope = ref<'hospital' | 'department'>('hospital')

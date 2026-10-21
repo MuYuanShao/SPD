@@ -108,6 +108,7 @@ export function usePurchaseManagement() {
     orderSource: 'manual',
     purchaseType: 'regular',
     expectedArrivalDate: '',
+    remark: '',
     items: [{ productCode: '', quantity: 1, unit: '', estimatedUnitPrice: 0 }]
   })
 
@@ -279,6 +280,7 @@ export function usePurchaseManagement() {
     form.orderSource = 'manual'
     form.purchaseType = 'regular'
     form.expectedArrivalDate = ''
+    form.remark = ''
     form.items = [{ productCode: '', quantity: 1, unit: '', estimatedUnitPrice: 0 }]
     productSearchQuery.value = ''
   }

@@ -10,6 +10,7 @@
   <env name="SPRING_CONFIG_ADDITIONAL_LOCATION" value="file:{{CONFIG_DIR}}" />
   <serviceaccount><username>NT AUTHORITY\LocalService</username></serviceaccount>
   <startmode>Automatic</startmode>
+  {{MYSQL_DEPENDENCY}}
   <delayedAutoStart>true</delayedAutoStart>
   <onfailure action="restart" delay="10 sec" />
   <onfailure action="restart" delay="30 sec" />

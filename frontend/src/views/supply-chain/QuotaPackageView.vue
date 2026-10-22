@@ -755,7 +755,7 @@ watch(
 <template>
   <section class="md-partner-page quota-package-page">
     <MdPageHeader
-      crumb="院内 SPD · 定数包"
+      crumb="定数包管理"
       :title="title"
       :description="subtitle"
       :loading="loading"

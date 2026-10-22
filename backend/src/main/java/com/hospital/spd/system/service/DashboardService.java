@@ -78,7 +78,7 @@ public class DashboardService {
                 "trend", loadTrend(),
                 "departments", loadDepartmentCosts(),
                 "exceptions", loadExceptions(),
-                "notices", loadNotices()
+                "notices", List.of()
         );
     }
 
@@ -160,18 +160,6 @@ public class DashboardService {
                       ON recallWarehouse.warehouse_name = re.warehouse_name AND recallWarehouse.deleted = 0
                 """ + recallScope.where()
                 + ") risks ORDER BY eventTime DESC LIMIT 8", args);
-    }
-
-    private List<Map<String, Object>> loadNotices() {
-        Scope scope = scope(" WHERE 1 = 1", "operatorUser.dept_id", "al.operator_id");
-        return queryForList("""
-                SELECT al.operation_type AS title,
-                       CONCAT(al.biz_type, ' / ', COALESCE(al.remark, '-')) AS detail,
-                       al.operator_name AS operatorName,
-                       DATE_FORMAT(al.operation_time, '%Y-%m-%d %H:%i') AS operationTime
-                  FROM audit_log al
-                  LEFT JOIN sys_user operatorUser ON operatorUser.user_id = al.operator_id
-                """ + scope.where() + " ORDER BY al.operation_time DESC LIMIT 8", scope.args());
     }
 
     private Scope scope(String initialWhere, String deptColumn, String ownerColumn) {

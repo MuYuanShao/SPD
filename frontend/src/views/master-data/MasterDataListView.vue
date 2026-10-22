@@ -363,6 +363,11 @@ const {
 })
 
 const {
+  productSaving,
+  batchProductSaving,
+  submittedApplicationNo,
+  closeProductDialog,
+  closeBatchProductDialog,
   productForm,
   manufacturerOptions,
   supplierOptions,
@@ -399,7 +404,7 @@ const {
       <div class="md-header-inner">
         <div class="md-header-text">
           <div class="md-header-crumbs">
-            <strong>主数据与定数</strong>
+            <strong>基础数据管理</strong>
           </div>
           <h2 class="md-header-title">供应商厂家管理</h2>
           <p class="md-header-sub">统一维护供应商与生产厂家档案，切换页签可分别查看供应商、厂家信息。</p>
@@ -1034,6 +1039,8 @@ const {
         </div>
       </div>
 
+      <StatusMessage v-if="isHospitalCatalog" :message="actionError" tone="error" />
+      <StatusMessage v-if="isHospitalCatalog" :message="actionMessage" tone="info" />
       <MdDataTableCard
         v-if="isHospitalCatalog"
         :meta-count="`共 ${hospitalTotal} 条`"
@@ -2316,20 +2323,28 @@ const {
       </table>
     </section>
 
+    <div v-if="isHospitalCatalog && submittedApplicationNo" class="standard-status-message is-info">
+      已提交审批，最终通过后生效。
+      <RouterLink :to="{ name: 'pending-product-approval-detail', params: { applicationNo: submittedApplicationNo } }">查看审批单 {{ submittedApplicationNo }}</RouterLink>
+    </div>
     <ProductDialog
       :open="productDialogOpen"
+      :saving="productSaving"
+      :error="actionError"
       :mode="productDialogMode"
       :form="productForm"
       :manufacturer-options="manufacturerOptions"
       :supplier-options="supplierOptions"
-      @close="productDialogOpen = false"
+      @close="closeProductDialog"
       @save="saveProduct"
     />
 
     <BatchProductDialog
       :open="batchProductDialogOpen"
+      :saving="batchProductSaving"
+      :error="actionError"
       :form="batchProductForm"
-      @close="batchProductDialogOpen = false"
+      @close="closeBatchProductDialog"
       @save="saveBatchProductEdit"
     />
 

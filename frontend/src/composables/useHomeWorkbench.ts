@@ -1,9 +1,13 @@
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { fetchHomeWorkbench, type HomeWorkbench } from '../api/dashboard'
+import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
 import type { TrendSeries } from '../components/business/TrendChart.vue'
 
 /** Data adapter only: retains the existing home components and presentation. */
 export function useHomeWorkbench() {
+  const refreshStore = useCatalogApprovalRefreshStore()
+  const active = ref(true)
+  let needsReload = true
   const data = ref<HomeWorkbench>()
   const loading = ref(false)
   const error = ref('')
@@ -17,7 +21,7 @@ export function useHomeWorkbench() {
     loading.value = true; error.value = ''
     try {
       const result = await fetchHomeWorkbench(request.signal)
-      if (!disposed && sequence === homeSequence) data.value = result
+      if (!disposed && active.value && sequence === homeSequence) { data.value = result; needsReload = false }
     } catch (cause) {
       if (!disposed && sequence === homeSequence && !request.signal.aborted) {
         data.value = undefined
@@ -28,7 +32,22 @@ export function useHomeWorkbench() {
   function refresh() { void loadHome() }
   onMounted(() => {
     refresh()
-    interval = setInterval(() => { if (!document.hidden) refresh() }, 60_000)
+    interval = setInterval(() => { if (active.value && !document.hidden) refresh() }, 60_000)
+  })
+  onActivated(() => {
+    active.value = true
+    if (needsReload && !loading.value) refresh()
+  })
+  onDeactivated(() => {
+    active.value = false
+    if (loading.value) needsReload = true
+    homeSequence++
+    homeRequest?.abort()
+    loading.value = false
+  })
+  watch(() => refreshStore.workbenchVersion, () => {
+    needsReload = true
+    if (active.value) refresh()
   })
   onBeforeUnmount(() => {
     disposed = true; homeRequest?.abort()

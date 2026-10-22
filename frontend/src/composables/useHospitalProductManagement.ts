@@ -1,4 +1,7 @@
-import { ref, type Ref } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
+import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
+import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
+import { useAuthStore } from '../stores/auth'
 import {
   batchUpdateHospitalProducts,
   createHospitalProduct,
@@ -82,6 +85,79 @@ export function useHospitalProductManagement(options: {
   clearActionState: () => void
   loadPage: () => Promise<void>
 }) {
+  const route = useRoute()
+  const router = useRouter()
+  const auth = useAuthStore()
+  const refreshStore = useCatalogApprovalRefreshStore()
+  const productSaving = ref(false)
+  const batchProductSaving = ref(false)
+  const productOpening = ref(false)
+  const submittedApplicationNo = ref('')
+  let active = true
+  let openRequest = 0
+  let productSnapshot = ''
+  let batchSnapshot = ''
+  let batchCodes: string[] = []
+  let originalQuotaManaged = false
+  const busy = computed(() => productSaving.value || batchProductSaving.value)
+  const dirty = computed(() =>
+    (options.productDialogOpen.value && productSnapshot !== JSON.stringify(productForm.value)) ||
+    (options.batchProductDialogOpen.value && batchSnapshot !== JSON.stringify(batchProductForm.value)))
+
+  function canLeave() {
+    if (busy.value) return false
+    return !dirty.value || window.confirm('有未保存的修改，确定要离开吗？')
+  }
+  async function clearEditorQuery() {
+    if (route.name !== 'master-data-list' || route.params.code !== 'hospital-product-catalog') return
+    const { editProduct, productAction, codes, ...query } = route.query
+    if (editProduct || productAction) await router.replace({ query })
+  }
+  function closeProductDialog() {
+    if (!canLeave()) return
+    options.productDialogOpen.value = false
+    void clearEditorQuery()
+  }
+  function closeBatchProductDialog() {
+    if (!canLeave()) return
+    options.batchProductDialogOpen.value = false
+    void clearEditorQuery()
+  }
+  onBeforeRouteLeave(canLeave)
+  onBeforeRouteUpdate((to, from) => {
+    if (to.params.code !== from.params.code) {
+      if (!canLeave()) return false
+      openRequest++
+      productOpening.value = false
+      options.productDialogOpen.value = false
+      options.batchProductDialogOpen.value = false
+    }
+  })
+  function beforeUnload(event: BeforeUnloadEvent) {
+    if (active && (dirty.value || busy.value)) event.preventDefault()
+  }
+  onMounted(() => window.addEventListener('beforeunload', beforeUnload))
+  onUnmounted(() => window.removeEventListener('beforeunload', beforeUnload))
+  onDeactivated(() => {
+    active = false
+    openRequest++
+    productOpening.value = false
+    options.productDialogOpen.value = false
+    options.batchProductDialogOpen.value = false
+  })
+  async function openFromRoute() {
+    if (!active || route.name !== 'master-data-list' || route.params.code !== 'hospital-product-catalog') return
+    if (!auth.canWrite('hospital-product-catalog')) return
+    if (typeof route.query.editProduct === 'string') await openEditProduct(route.query.editProduct, false)
+    else if (route.query.productAction === 'new') await openCreateProduct()
+    else if (route.query.productAction === 'batch') {
+      options.selectedCodes.value = String(route.query.codes ?? '').split(',').map(code => code.trim()).filter(Boolean)
+      batchEditSelectedProducts()
+    }
+  }
+  onActivated(() => { active = true; void openFromRoute() })
+  watch(() => [route.query.editProduct, route.query.productAction, route.query.codes], () => { void openFromRoute() })
+
   const productForm = ref<ProductCreatePayload>(emptyProductForm())
   const batchProductForm = ref(emptyBatchProductForm())
   const manufacturerOptions = ref<PartnerOption[]>([])
@@ -135,35 +211,51 @@ export function useHospitalProductManagement(options: {
   }
 
   async function openCreateProduct() {
+    if (busy.value || productOpening.value || !canLeave()) return
+    const request = ++openRequest
+    productOpening.value = true
     options.clearActionState()
     try {
       await loadPartnerOptions()
+      if (!active || request !== openRequest) return
       options.productDialogMode.value = 'create'
       productForm.value = emptyProductForm()
+      originalQuotaManaged = false
+      productSnapshot = JSON.stringify(productForm.value)
       options.productDialogOpen.value = true
     } catch (err) {
-      options.actionError.value = err instanceof Error ? err.message : '厂家和供应商选项加载失败'
+      if (active && request === openRequest) options.actionError.value = err instanceof Error ? err.message : '厂家和供应商选项加载失败'
+    } finally {
+      if (request === openRequest) productOpening.value = false
     }
   }
 
   async function openEditProduct(rowCode = options.selectedCodes.value[0], requireSelected = true) {
+    if (busy.value || !canLeave()) return
     options.clearActionState()
     if (!rowCode || (requireSelected && options.selectedCodes.value.length !== 1)) {
       options.actionError.value = '请选择一条商品记录后再修改'
       return
     }
-
+    const request = ++openRequest
+    productOpening.value = true
     try {
-      options.productDialogMode.value = 'edit'
       const [detail] = await Promise.all([fetchHospitalProductDetail(rowCode), loadPartnerOptions()])
+      if (!active || request !== openRequest) return
+      options.productDialogMode.value = 'edit'
       fillProductForm(detail)
+      originalQuotaManaged = detail.quotaManaged
+      productSnapshot = JSON.stringify(productForm.value)
       options.productDialogOpen.value = true
     } catch (err) {
-      options.actionError.value = err instanceof Error ? err.message : '商品信息加载失败'
+      if (active && request === openRequest) options.actionError.value = err instanceof Error ? err.message : '商品信息加载失败'
+    } finally {
+      if (request === openRequest) productOpening.value = false
     }
   }
 
   async function saveProduct() {
+    if (busy.value || !options.productDialogOpen.value) return
     options.clearActionState()
     const form = productForm.value
     if (!form.productName.trim() || !form.specModel.trim() || !form.unit.trim()) {
@@ -175,6 +267,9 @@ export function useHospitalProductManagement(options: {
       return
     }
 
+    if (options.productDialogMode.value === 'edit' && originalQuotaManaged && !form.quotaManaged &&
+        !window.confirm('是否定数管理改为“否”后，将禁止后续新增定数包业务，历史已打包库存继续流转。确认提交审批吗？')) return
+    productSaving.value = true
     const payload = {
       ...form,
       purchasePrice: normalizeProductNumber(form.purchasePrice) ?? 0,
@@ -189,43 +284,56 @@ export function useHospitalProductManagement(options: {
         options.productDialogMode.value === 'edit'
           ? await updateHospitalProduct(form.productCode, payload)
           : await createHospitalProduct(payload)
-      options.actionMessage.value = `已生成审批单 ${result.applicationNo}`
+      submittedApplicationNo.value = result.applicationNo
+      refreshStore.changed()
+      options.actionMessage.value = `已生成审批单 ${result.applicationNo}，最终审批通过后生效`
       options.productDialogOpen.value = false
-      await options.loadPage()
+      await clearEditorQuery()
     } catch (err) {
       options.actionError.value = err instanceof Error ? err.message : '保存商品失败'
+    } finally {
+      productSaving.value = false
     }
   }
 
   function batchEditSelectedProducts() {
+    if (busy.value || !canLeave()) return
     options.clearActionState()
     if (!options.selectedCodes.value.length) {
       options.actionError.value = '请选择需要批量修改的商品'
       return
     }
 
+    batchCodes = [...options.selectedCodes.value]
     batchProductForm.value = emptyBatchProductForm()
+    batchSnapshot = JSON.stringify(batchProductForm.value)
     options.batchProductDialogOpen.value = true
   }
 
   async function saveBatchProductEdit() {
+    if (busy.value || !options.batchProductDialogOpen.value) return
     options.clearActionState()
     const hasValue = Object.values(batchProductForm.value).some((value) => String(value).trim() !== '')
     if (!hasValue) {
       options.actionError.value = '请至少填写一个批量修改字段'
       return
     }
+    batchProductSaving.value = true
     try {
       const result = await batchUpdateHospitalProducts({
-        productCodes: options.selectedCodes.value,
+        productCodes: batchCodes,
         ...batchProductForm.value,
         purchasePrice: batchProductForm.value.purchasePrice === '' ? null : Number(batchProductForm.value.purchasePrice)
       })
-      options.actionMessage.value = `已生成 ${result.updatedRows} 条批量修改审批单`
+      if (result.updatedRows > 0) refreshStore.changed()
+      options.actionMessage.value = `已生成 ${result.updatedRows} 条批量修改审批单，最终审批通过后生效`
       options.batchProductDialogOpen.value = false
       options.selectedCodes.value = []
+      await clearEditorQuery()
     } catch (err) {
       options.actionError.value = err instanceof Error ? err.message : '批量修改失败'
+    } finally {
+      batchProductSaving.value = false
     }
   }
 
@@ -289,6 +397,11 @@ export function useHospitalProductManagement(options: {
   }
 
   return {
+    productSaving,
+    batchProductSaving,
+    submittedApplicationNo,
+    closeProductDialog,
+    closeBatchProductDialog,
     productForm,
     batchProductForm,
     manufacturerOptions,

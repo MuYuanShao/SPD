@@ -153,7 +153,7 @@ onMounted(loadList)
 <template>
   <section class="md-page md-print-template-page">
     <MdPageHeader
-      crumb="系统管理"
+      crumb="定数包管理"
       title="打印模板调整"
       description="调整定数包标签打印模板的字段、顺序与纸张设置，保存后打印时生效。"
       :loading="loading"

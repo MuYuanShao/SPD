@@ -9,7 +9,7 @@ import {
 } from '@lucide/vue'
 import { fetchDashboard, type DashboardData } from '../api/dashboard'
 import { useAuthStore } from '../stores/auth'
-import { formatBusinessText, formatRemarkText, formatStatusText } from '../utils/chineseDisplay'
+import { formatBusinessText, formatStatusText } from '../utils/chineseDisplay'
 import NoticeList, { type NoticeItem } from '../components/business/NoticeList.vue'
 import TodoList, { type TodoItem } from '../components/business/TodoList.vue'
 import TrendChart from '../components/business/TrendChart.vue'
@@ -30,6 +30,20 @@ const data = ref<DashboardData>({
   metrics: { productCount: 0, todayOrders: 0, lowStockCount: 0, monthlyPurchaseAmount: 0 },
   trend: [], departments: [], exceptions: [], notices: []
 })
+
+function exceptionReasonText(item: DashboardData['exceptions'][number]) {
+  const reason = String(item.reason ?? '').trim()
+  if (!reason) return '暂无异常说明'
+  if (item.riskEvents === 'cold_chain') {
+    const temperature = reason.match(/^temperature\s+([-+]?\d+(?:\.\d+)?)\s*\/\s*(.+)$/i)
+    if (temperature) {
+      const severity: Record<string, string> = { high: '高', medium: '中', low: '低' }
+      const level = severity[temperature[2].trim().toLowerCase()] ?? '未知等级'
+      return `温度：${temperature[1]}℃；风险等级：${level}`
+    }
+  }
+  return reason
+}
 
 const heroMetrics = computed(() => {
   const m = data.value.metrics
@@ -382,10 +396,10 @@ onMounted(loadDashboard)
           <ul v-if="data.exceptions.length" class="wb-alert-list">
             <li v-for="item in data.exceptions" :key="item.bizNo">
               <div class="wb-alert-head">
-                <span class="wb-alert-type">{{ item.riskEvents }}</span>
+                <span class="wb-alert-type">{{ formatBusinessText(item.riskEvents) }}</span>
                 <el-tag size="small" type="danger" effect="plain">{{ formatStatusText(item.status) }}</el-tag>
               </div>
-              <p>{{ item.reason }}</p>
+              <p>{{ exceptionReasonText(item) }}</p>
               <span class="wb-alert-no">业务编号：{{ item.bizNo }}</span>
             </li>
           </ul>
@@ -433,35 +447,6 @@ onMounted(loadDashboard)
         </div>
       </article>
     </section>
-
-    <!-- =================================================
-         R5 · 最近系统操作（横幅式）
-         ================================================= -->
-    <article class="wb-card wb-card--feed">
-      <header class="wb-card-head">
-        <div class="wb-card-title">
-          <span class="wb-card-pill" data-theme="violet"><Activity :size="14" /> 动态</span>
-          <h2>最近系统操作</h2>
-          <p>共 {{ data.notices.length }} 条</p>
-        </div>
-      </header>
-      <div class="wb-card-body">
-        <ul v-if="data.notices.length" class="wb-feed">
-          <li v-for="item in data.notices" :key="`${item.operationTime}-${item.title}`">
-            <span class="wb-feed-dot" aria-hidden="true"></span>
-            <div class="wb-feed-body">
-              <div class="wb-feed-head">
-                <strong>{{ formatBusinessText(item.title) }}</strong>
-                <em>{{ item.operatorName }}</em>
-              </div>
-              <p>{{ formatRemarkText(item.detail) }}</p>
-              <span class="wb-feed-time">{{ item.operationTime }}</span>
-            </div>
-          </li>
-        </ul>
-        <p v-else class="wb-empty">暂无操作记录</p>
-      </div>
-    </article>
 
     <!-- 弹窗：公告 / 待办详情 -->
     <el-dialog :model-value="Boolean(detail)" :title="detail?.title" class="tight" width="min(560px, 92vw)" @close="detail = undefined">

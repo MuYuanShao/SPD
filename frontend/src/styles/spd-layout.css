@@ -381,7 +381,7 @@
 
 /* ============== 迷你侧边栏 ============== */
 .spd-mini-sidebar {
-  width: 200px;
+  width: 160px;
   flex-shrink: 0;
   background: var(--spd-bg-surface);
   border-right: 1px solid var(--spd-border-subtle);
@@ -393,8 +393,8 @@
 .spd-mini-sidebar-title {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 14px 16px 12px;
+  gap: 6px;
+  padding: 10px 10px 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--spd-text-tertiary);
@@ -410,7 +410,7 @@
 }
 
 .spd-mini-nav {
-  padding: 8px;
+  padding: 6px 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -419,8 +419,8 @@
 .spd-mini-nav-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 6px;
+  padding: 7px 6px;
   border-radius: 6px;
   text-decoration: none;
   color: var(--spd-text-secondary);
@@ -469,7 +469,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 7px 6px;
   border-radius: 6px;
   cursor: pointer;
   user-select: none;
@@ -518,8 +518,8 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 2px 0 6px 22px;
-  margin-left: 10px;
+  padding: 2px 0 4px 12px;
+  margin-left: 6px;
   border-left: 1px dashed var(--spd-border-subtle);
   overflow: hidden;
 }
@@ -527,8 +527,8 @@
 .spd-mini-nav-sub {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
+  gap: 6px;
+  padding: 6px;
   border-radius: 6px;
   text-decoration: none;
   color: var(--spd-text-secondary);

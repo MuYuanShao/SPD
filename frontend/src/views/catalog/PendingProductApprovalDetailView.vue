@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import { ArrowLeft, CheckCircle2, FileText, PackageCheck, Save, ShieldCheck, X } from '@lucide/vue'
 import {
   approvePendingProductApplication,
@@ -12,11 +12,16 @@ import {
   updatePendingProductApplication,
   type PendingProductApplicationDetail
 } from '../../api/pendingProductApplications'
+import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import type { PartnerOption } from '../../api/masterData'
 
 const route = useRoute()
 const router = useRouter()
+const refreshStore = useCatalogApprovalRefreshStore()
+const active = ref(true)
+const submitting = ref(false)
+let detailRequestVersion = 0
 const detail = ref<PendingProductApplicationDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
@@ -174,12 +179,13 @@ function buildPayload() {
 }
 
 async function saveChanges() {
-  if (!detail.value || !isDirty.value) return
+  if (!detail.value || !isDirty.value || saving.value || submitting.value) return
   saveError.value = ''
   saveMessage.value = ''
   saving.value = true
   try {
     await updatePendingProductApplication(detail.value.applicationNo, buildPayload())
+    refreshStore.changed()
     saveMessage.value = '修改已保存'
     captureCleanSnapshot()
     await loadDetail()
@@ -316,23 +322,41 @@ async function loadPartnerOptions() {
 }
 
 async function loadDetail() {
+  if (!active.value || route.name !== 'pending-product-approval-detail' || !applicationNo.value) return
+  const request = ++detailRequestVersion
+  const expectedNo = applicationNo.value
+  if (detail.value?.applicationNo !== expectedNo) {
+    opinion.value = ''
+    actionMessage.value = ''
+    actionError.value = ''
+    resubmitModalOpen.value = false
+  }
   loading.value = true
+  detail.value = null
   error.value = ''
   saveError.value = ''
   saveMessage.value = ''
 
   try {
-    detail.value = await fetchPendingProductApplicationDetail(applicationNo.value)
+    const response = await fetchPendingProductApplicationDetail(expectedNo)
+    if (request !== detailRequestVersion || !active.value || expectedNo !== applicationNo.value) return
+    detail.value = response
     initEditForm()
     // Re-apply form values after DOM render to override Chrome autofill
     await nextTick()
+    if (request !== detailRequestVersion || !active.value) return
     captureCleanSnapshot()
     openReturnedEditFromRoute()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '审批明细加载失败'
+    if (request === detailRequestVersion && active.value) error.value = err instanceof Error ? err.message : '审批明细加载失败'
   } finally {
-    loading.value = false
+    if (request === detailRequestVersion) loading.value = false
   }
+}
+
+function returnToCatalog() {
+  const { edit, ...query } = route.query
+  void router.push({ name: 'pending-product-catalog', query })
 }
 
 function openReturnedEditFromRoute() {
@@ -342,7 +366,7 @@ function openReturnedEditFromRoute() {
 }
 
 async function submitAction(action: 'approve' | 'return' | 'reject') {
-  if (!detail.value) return
+  if (!detail.value || submitting.value || saving.value || loading.value) return
   actionError.value = ''
   actionMessage.value = ''
   if (!detail.value.canApprove) {
@@ -353,13 +377,16 @@ async function submitAction(action: 'approve' | 'return' | 'reject') {
     actionError.value = action === 'return' ? '退回修改必须填写退回原因' : '驳回必须填写审批意见'
     return
   }
+  submitting.value = true
   try {
     // Save form data first if dirty
     if (isEditing.value && isDirty.value) {
       await updatePendingProductApplication(detail.value.applicationNo, buildPayload())
+      refreshStore.changed()
       captureCleanSnapshot()
     }
     const result = await approvePendingProductApplication(detail.value.applicationNo, action, opinion.value)
+    refreshStore.changed({ catalogChanged: result.status === 'approved' })
     actionMessage.value =
       action === 'approve'
         ? result.status === 'approved'
@@ -372,6 +399,8 @@ async function submitAction(action: 'approve' | 'return' | 'reject') {
     await loadDetail()
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : '审批操作失败'
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -435,6 +464,7 @@ const isResubmitDirty = computed(() =>
 )
 
 function closeResubmitModal() {
+  if (submitting.value || saving.value) return
   if (isResubmitDirty.value && !window.confirm('当前修改尚未重新提交，确定关闭吗？')) {
     return
   }
@@ -442,29 +472,57 @@ function closeResubmitModal() {
 }
 
 async function submitResubmitForm() {
-  if (!detail.value) return
+  if (!detail.value || submitting.value || saving.value) return
   actionError.value = ''
   if (resubmitForm.quotaManaged && (resubmitForm.highValue || resubmitForm.coldChain)) {
     actionError.value = '高值耗材或冷链耗材不能设置为定数管理'
     return
   }
+  submitting.value = true
   try {
     await resubmitPendingProductApplication(detail.value.applicationNo, resubmitForm)
+    refreshStore.changed()
     actionMessage.value = '已重新提交，按最新审批流从第一步开始审批'
     resubmitModalOpen.value = false
     captureResubmitSnapshot()
     await loadDetail()
   } catch (err) {
     actionError.value = err instanceof Error ? err.message : '重新提交失败'
+  } finally {
+    submitting.value = false
   }
 }
 
-onBeforeRouteLeave((to, from, next) => {
-  if (isDirty.value) {
-    const answer = window.confirm('有未保存的修改，确定要离开吗？')
-    if (!answer) return next(false)
+function canLeaveDetail() {
+  if (submitting.value || saving.value) {
+    actionError.value = '正在提交操作，请稍候再离开'
+    return false
   }
-  next()
+  if ((isDirty.value || isResubmitDirty.value) && !window.confirm('有未保存的修改，确定要离开吗？')) return false
+  return true
+}
+onBeforeRouteLeave(canLeaveDetail)
+onBeforeRouteUpdate((to, from) => {
+  if (to.params.applicationNo !== from.params.applicationNo) return canLeaveDetail()
+})
+watch(applicationNo, no => {
+  if (active.value && route.name === 'pending-product-approval-detail' && no && no !== detail.value?.applicationNo) {
+    opinion.value = ''
+    actionMessage.value = ''
+    actionError.value = ''
+    resubmitModalOpen.value = false
+    void loadDetail()
+  }
+})
+onActivated(() => {
+  active.value = true
+  if (!loading.value) void loadDetail()
+})
+onDeactivated(() => {
+  active.value = false
+  detailRequestVersion++
+  loading.value = false
+  resubmitModalOpen.value = false
 })
 
 onMounted(() => {
@@ -477,7 +535,7 @@ onUnmounted(() => {
 })
 
 function handleBeforeUnload(e: BeforeUnloadEvent) {
-  if (isDirty.value) {
+  if (active.value && (isDirty.value || isResubmitDirty.value || submitting.value || saving.value)) {
     e.preventDefault()
   }
 }
@@ -485,7 +543,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 
 <template>
   <section class="approval-detail-page">
-    <button class="back-button" type="button" @click="router.back()">
+    <button class="back-button" type="button" :disabled="submitting || saving" @click="returnToCatalog">
       <ArrowLeft :size="17" />
       返回待审批目录
     </button>
@@ -510,6 +568,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               type="button"
               class="btn btn-danger"
               @click="submitAction('reject')"
+              :disabled="submitting || saving || !detail.canApprove"
             >
               驳回
             </button>
@@ -518,6 +577,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               type="button"
               class="btn btn-warning"
               @click="submitAction('return')"
+              :disabled="submitting || saving || !detail.canApprove"
             >
               退回修改
             </button>
@@ -526,7 +586,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               type="button"
               class="btn btn-primary save-btn"
               @click="saveChanges"
-              :disabled="saving"
+              :disabled="saving || submitting"
             >
               <Save :size="17" />
               {{ saving ? '保存中...' : '保存修改' }}
@@ -536,6 +596,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               type="button"
               class="btn btn-primary"
               @click="submitAction('approve')"
+              :disabled="submitting || saving || !detail.canApprove"
             >
               <CheckCircle2 :size="17" />
               {{ approveButtonText }}
@@ -599,7 +660,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
                 <span v-if="!isEditing || !f.key" class="fvalue">{{ f.value }}</span>
                 <select
                   v-else-if="f.key === 'manufacturerName' || f.key === 'supplierName'"
-                  v-model="(editForm as any)[f.key]"
+                  :disabled="submitting || saving" v-model="(editForm as any)[f.key]"
                   class="edit-input"
                   @change="handlePartnerSelectChange('edit', f.key)"
                 >
@@ -618,7 +679,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
                 </select>
                 <input
                   v-else
-                  v-model="(editForm as any)[f.key]"
+                  :disabled="submitting || saving" v-model="(editForm as any)[f.key]"
                   class="edit-input"
                   autocomplete="off"
                   :type="f.inputType || 'text'"
@@ -644,12 +705,12 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               </template>
               <template v-else>
                 <label v-for="b in group.booleans" :key="b.label" class="edit-checkbox-label">
-                  <input type="checkbox" v-model="(editForm as any)[b.field]" />
+                  <input type="checkbox" :disabled="submitting || saving" v-model="(editForm as any)[b.field]" />
                   {{ b.label }}
                 </label>
                 <label class="edit-checkbox-label storage-label">
                   <span>储存条件</span>
-                  <input v-model="editForm.storageCondition" class="edit-input" />
+                  <input :disabled="submitting || saving" v-model="editForm.storageCondition" class="edit-input" />
                 </label>
               </template>
             </div>
@@ -657,9 +718,9 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <div class="clabel">目录分类</div>
               <div v-if="!isEditing" class="cvalue">{{ group.categories }}</div>
               <div v-else class="category-edit-row">
-                <input v-model="editForm.firstCategory" placeholder="一级分类" class="edit-input" />
-                <input v-model="editForm.secondCategory" placeholder="二级分类" class="edit-input" />
-                <input v-model="editForm.thirdCategory" placeholder="三级分类" class="edit-input" />
+                <input :disabled="submitting || saving" v-model="editForm.firstCategory" placeholder="一级分类" class="edit-input" />
+                <input :disabled="submitting || saving" v-model="editForm.secondCategory" placeholder="二级分类" class="edit-input" />
+                <input :disabled="submitting || saving" v-model="editForm.thirdCategory" placeholder="三级分类" class="edit-input" />
               </div>
             </div>
           </template>
@@ -680,7 +741,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <span v-if="!isEditing || !q.key" class="qvalue">{{ q.value }}</span>
               <input
                 v-else
-                v-model="(editForm as any)[q.key]"
+                :disabled="submitting || saving" v-model="(editForm as any)[q.key]"
                 class="edit-input"
                 :type="q.key === 'registrationExpireDate' ? 'date' : 'text'"
               />
@@ -726,7 +787,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
         </div>
         <textarea
           v-model="opinion"
-          :disabled="!detail.canApprove"
+          :disabled="submitting || saving || !detail.canApprove"
           placeholder="退回修改/驳回必须填写原因。审批通过可填写意见（选填）。"
         ></textarea>
         <p v-if="isPendingApprovalStatus(detail.approvalStatus) && !detail.canApprove" class="inline-message">
@@ -750,18 +811,18 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <p>{{ detail.applicationNo }}</p>
               <h3>修改后重新提交</h3>
             </div>
-            <button class="btn-icon" type="button" aria-label="关闭" @click="closeResubmitModal">
+            <button class="btn-icon" type="button" aria-label="关闭" :disabled="submitting || saving" @click="closeResubmitModal">
               <X :size="18" />
             </button>
           </header>
           <form class="supplier-form-grid" @submit.prevent="submitResubmitForm">
-            <label><span>申请类型</span><input v-model="resubmitForm.applicationType" readonly /></label>
-            <label><span>商品编码</span><input v-model.trim="resubmitForm.productCode" required /></label>
-            <label><span>商品名称</span><input v-model.trim="resubmitForm.productName" required /></label>
-            <label><span>规格型号</span><input v-model.trim="resubmitForm.specModel" required /></label>
+            <label><span>申请类型</span><input :disabled="submitting || saving" v-model="resubmitForm.applicationType" readonly /></label>
+            <label><span>商品编码</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productCode" required /></label>
+            <label><span>商品名称</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productName" required /></label>
+            <label><span>规格型号</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.specModel" required /></label>
             <label>
               <span>生产厂家</span>
-              <select v-model="resubmitForm.manufacturerName" @change="handlePartnerSelectChange('resubmit', 'manufacturerName')">
+              <select :disabled="submitting || saving" v-model="resubmitForm.manufacturerName" @change="handlePartnerSelectChange('resubmit', 'manufacturerName')">
                 <option value="">请选择生产厂家</option>
                 <option
                   v-for="item in withRetainedOption(manufacturerOptions, resubmitForm.manufacturerName)"
@@ -775,7 +836,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </label>
             <label>
               <span>供应商</span>
-              <select v-model="resubmitForm.supplierName" @change="handlePartnerSelectChange('resubmit', 'supplierName')">
+              <select :disabled="submitting || saving" v-model="resubmitForm.supplierName" @change="handlePartnerSelectChange('resubmit', 'supplierName')">
                 <option value="">请选择供应商</option>
                 <option
                   v-for="item in withRetainedOption(supplierOptions, resubmitForm.supplierName)"
@@ -787,29 +848,29 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
                 </option>
               </select>
             </label>
-            <label><span>单位</span><input v-model.trim="resubmitForm.unit" required /></label>
-            <label><span>采购价</span><input v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
-            <label><span>中包装数量</span><input v-model.number="resubmitForm.conversionRate" type="number" min="0" step="0.000001" /></label>
-            <label><span>采购包装数量</span><input v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
-            <label><span>注册证号</span><input v-model.trim="resubmitForm.registrationNo" /></label>
-            <label><span>注册证有效期</span><input v-model="resubmitForm.registrationExpireDate" type="date" /></label>
-            <label><span>一级分类</span><input v-model.trim="resubmitForm.firstCategory" /></label>
-            <label><span>二级分类</span><input v-model.trim="resubmitForm.secondCategory" /></label>
-            <label><span>三级分类</span><input v-model.trim="resubmitForm.thirdCategory" /></label>
-            <label><span>附件数量</span><input v-model.number="resubmitForm.qualificationAttachmentCount" type="number" min="0" /></label>
-            <label class="wide"><span>修改说明</span><textarea v-model="resubmitForm.changeReason" placeholder="选填，可填写本次修改说明" /></label>
+            <label><span>单位</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.unit" required /></label>
+            <label><span>采购价</span><input :disabled="submitting || saving" v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
+            <label><span>中包装数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.conversionRate" type="number" min="0" step="0.000001" /></label>
+            <label><span>采购包装数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
+            <label><span>注册证号</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.registrationNo" /></label>
+            <label><span>注册证有效期</span><input :disabled="submitting || saving" v-model="resubmitForm.registrationExpireDate" type="date" /></label>
+            <label><span>一级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.firstCategory" /></label>
+            <label><span>二级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.secondCategory" /></label>
+            <label><span>三级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.thirdCategory" /></label>
+            <label><span>附件数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.qualificationAttachmentCount" type="number" min="0" /></label>
+            <label class="wide"><span>修改说明</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填，可填写本次修改说明" /></label>
             <div class="dialog-toggle-row">
-              <label><input v-model="resubmitForm.volumeBased" type="checkbox" /> 是否带量</label>
-              <label><input v-model="resubmitForm.domestic" type="checkbox" /> 是否国产</label>
-              <label><input v-model="resubmitForm.chargeable" type="checkbox" /> 是否收费</label>
-              <label><input v-model="resubmitForm.highValue" type="checkbox" /> 高值耗材</label>
-              <label><input v-model="resubmitForm.coldChain" type="checkbox" /> 冷链</label>
-              <label><input v-model="resubmitForm.quotaManaged" type="checkbox" /> 定数管理</label>
-              <label><input v-model="resubmitForm.keyMonitored" type="checkbox" /> 重点监控</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.volumeBased" type="checkbox" /> 是否带量</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.domestic" type="checkbox" /> 是否国产</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.chargeable" type="checkbox" /> 是否收费</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.highValue" type="checkbox" /> 高值耗材</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.coldChain" type="checkbox" /> 冷链</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.quotaManaged" type="checkbox" /> 定数管理</label>
+              <label><input :disabled="submitting || saving" v-model="resubmitForm.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
             <div class="dialog-actions">
-              <button class="btn" type="button" @click="closeResubmitModal">取消</button>
-              <button class="btn btn-primary" type="submit">重新提交</button>
+              <button class="btn" type="button" :disabled="submitting || saving" @click="closeResubmitModal">取消</button>
+              <button class="btn btn-primary" type="submit" :disabled="submitting || saving">重新提交</button>
             </div>
           </form>
         </section>

@@ -4,6 +4,8 @@ import type { PartnerOption } from '../../api/masterData'
 
 const props = defineProps<{
   open: boolean
+  saving?: boolean
+  error?: string
   mode: 'create' | 'edit'
   form: Record<string, unknown>
   manufacturerOptions: PartnerOption[]
@@ -39,17 +41,18 @@ function handleSupplierChange() {
 </script>
 
 <template>
-  <div v-if="open" class="attachment-preview-mask" @click.self="$emit('close')">
+  <div v-if="open" class="attachment-preview-mask" @click.self="!saving && $emit('close')">
     <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
       <header>
         <div>
           <p>医院目录</p>
           <h3>{{ mode === 'create' ? '新增商品' : '修改商品' }}</h3>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" @click="$emit('close')">
+        <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="$emit('close')">
           <X :size="18" />
         </button>
       </header>
+      <p v-if="error" class="standard-status-message is-error" role="alert">{{ error }}</p>
       <form class="product-dialog-form" @submit.prevent="$emit('save')">
         <div class="product-dialog-scroll">
           <section class="product-dialog-section">
@@ -57,20 +60,20 @@ function handleSupplierChange() {
             <div class="supplier-form-grid compact">
               <label>
                 <span>商品编码</span>
-                <input v-model.trim="form.productCode" :readonly="mode === 'edit'" placeholder="留空时使用招采子编码或系统自动编码" />
+                <input :disabled="saving" v-model.trim="form.productCode" :readonly="mode === 'edit'" placeholder="留空时使用招采子编码或系统自动编码" />
               </label>
               <label>
                 <span>商品名称</span>
-                <input v-model.trim="form.productName" required />
+                <input :disabled="saving" v-model.trim="form.productName" required />
               </label>
               <label>
                 <span>规格型号</span>
-                <input v-model.trim="form.specModel" required />
+                <input :disabled="saving" v-model.trim="form.specModel" required />
               </label>
-              <label><span>品牌</span><input v-model.trim="form.brand" /></label>
+              <label><span>品牌</span><input :disabled="saving" v-model.trim="form.brand" /></label>
               <label>
                 <span>生产厂家</span>
-                <select v-model="form.manufacturerName" @change="handleManufacturerChange">
+                <select :disabled="saving" v-model="form.manufacturerName" @change="handleManufacturerChange">
                   <option value="">请选择生产厂家</option>
                   <option
                     v-for="item in manufacturerOptions"
@@ -84,7 +87,7 @@ function handleSupplierChange() {
               </label>
               <label>
                 <span>供应商</span>
-                <select v-model="form.supplierName" @change="handleSupplierChange">
+                <select :disabled="saving" v-model="form.supplierName" @change="handleSupplierChange">
                   <option value="">请选择供应商</option>
                   <option
                     v-for="item in supplierOptions"
@@ -98,58 +101,58 @@ function handleSupplierChange() {
               </label>
               <label>
                 <span>单位</span>
-                <input v-model.trim="form.unit" required />
+                <input :disabled="saving" v-model.trim="form.unit" required />
               </label>
-              <label><span>储存条件</span><input v-model.trim="form.storageCondition" /></label>
+              <label><span>储存条件</span><input :disabled="saving" v-model.trim="form.storageCondition" /></label>
             </div>
           </section>
 
           <section class="product-dialog-section">
             <h4>价格采购与分类</h4>
             <div class="supplier-form-grid compact">
-              <label><span>单价</span><input v-model="form.purchasePrice" type="number" min="0" step="0.0001" /></label>
-              <label><span>零售价</span><input v-model="form.retailPrice" type="number" min="0" step="0.0001" /></label>
-              <label><span>最小采购量</span><input v-model="form.minPurchaseQty" type="number" min="0" step="0.0001" /></label>
-              <label><span>采购单位</span><input v-model.trim="form.purchaseUnit" /></label>
-              <label><span>中包装数量</span><input v-model="form.conversionRate" type="number" min="0" step="0.000001" /></label>
-              <label><span>采购包装数量</span><input v-model="form.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
-              <label><span>合同编码</span><input v-model.trim="form.contractCode" /></label>
-              <label><span>一级分类</span><input v-model.trim="form.firstCategory" /></label>
-              <label><span>二级分类</span><input v-model.trim="form.secondCategory" /></label>
-              <label><span>三级分类</span><input v-model.trim="form.thirdCategory" /></label>
-              <label><span>招采子编码</span><input v-model.trim="form.tenderSubCode" /></label>
+              <label><span>单价</span><input :disabled="saving" v-model="form.purchasePrice" type="number" min="0" step="0.0001" /></label>
+              <label><span>零售价</span><input :disabled="saving" v-model="form.retailPrice" type="number" min="0" step="0.0001" /></label>
+              <label><span>最小采购量</span><input :disabled="saving" v-model="form.minPurchaseQty" type="number" min="0" step="0.0001" /></label>
+              <label><span>采购单位</span><input :disabled="saving" v-model.trim="form.purchaseUnit" /></label>
+              <label><span>中包装数量</span><input :disabled="saving" v-model="form.conversionRate" type="number" min="0" step="0.000001" /></label>
+              <label><span>采购包装数量</span><input :disabled="saving" v-model="form.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
+              <label><span>合同编码</span><input :disabled="saving" v-model.trim="form.contractCode" /></label>
+              <label><span>一级分类</span><input :disabled="saving" v-model.trim="form.firstCategory" /></label>
+              <label><span>二级分类</span><input :disabled="saving" v-model.trim="form.secondCategory" /></label>
+              <label><span>三级分类</span><input :disabled="saving" v-model.trim="form.thirdCategory" /></label>
+              <label><span>招采子编码</span><input :disabled="saving" v-model.trim="form.tenderSubCode" /></label>
             </div>
           </section>
 
           <section class="product-dialog-section">
             <h4>资质信息</h4>
             <div class="supplier-form-grid compact">
-              <label><span>UDI编码</span><input v-model.trim="form.udiCode" /></label>
-              <label><span>注册证号</span><input v-model.trim="form.registrationNo" /></label>
-              <label><span>注册证有效期</span><input v-model="form.registrationExpireDate" type="date" /></label>
-              <label><span>生产许可证号</span><input v-model.trim="form.productionLicenseNo" /></label>
-              <label><span>经营许可证号</span><input v-model.trim="form.businessLicenseNo" /></label>
+              <label><span>UDI编码</span><input :disabled="saving" v-model.trim="form.udiCode" /></label>
+              <label><span>注册证号</span><input :disabled="saving" v-model.trim="form.registrationNo" /></label>
+              <label><span>注册证有效期</span><input :disabled="saving" v-model="form.registrationExpireDate" type="date" /></label>
+              <label><span>生产许可证号</span><input :disabled="saving" v-model.trim="form.productionLicenseNo" /></label>
+              <label><span>经营许可证号</span><input :disabled="saving" v-model.trim="form.businessLicenseNo" /></label>
             </div>
           </section>
 
           <section class="product-dialog-section">
             <h4>业务属性</h4>
             <div class="dialog-toggle-row">
-              <label><input v-model="form.volumeBased" type="checkbox" /> 是否带量</label>
-              <label><input v-model="form.centralizedProcurement" type="checkbox" /> 是否集采</label>
-              <label><input v-model="form.domestic" type="checkbox" /> 是否国产</label>
-              <label><input v-model="form.chargeable" type="checkbox" /> 是否收费</label>
-              <label><input v-model="form.highValue" type="checkbox" /> 是否高值</label>
-              <label><input v-model="form.coldChain" type="checkbox" /> 是否冷链</label>
-              <label><input v-model="form.quotaManaged" type="checkbox" /> 是否定数管理</label>
-              <label><input v-model="form.keyMonitored" type="checkbox" /> 重点监控</label>
+              <label><input :disabled="saving" v-model="form.volumeBased" type="checkbox" /> 是否带量</label>
+              <label><input :disabled="saving" v-model="form.centralizedProcurement" type="checkbox" /> 是否集采</label>
+              <label><input :disabled="saving" v-model="form.domestic" type="checkbox" /> 是否国产</label>
+              <label><input :disabled="saving" v-model="form.chargeable" type="checkbox" /> 是否收费</label>
+              <label><input :disabled="saving" v-model="form.highValue" type="checkbox" /> 是否高值</label>
+              <label><input :disabled="saving" v-model="form.coldChain" type="checkbox" /> 是否冷链</label>
+              <label><input :disabled="saving" v-model="form.quotaManaged" type="checkbox" /> 是否定数管理</label>
+              <label><input :disabled="saving" v-model="form.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
           </section>
         </div>
 
         <div class="product-dialog-actions">
-          <button class="btn" type="button" @click="$emit('close')">取消</button>
-          <button class="btn btn-primary" type="submit">保存</button>
+          <button class="btn" type="button" :disabled="saving" @click="$emit('close')">取消</button>
+          <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '提交中...' : '保存' }}</button>
         </div>
       </form>
     </section>

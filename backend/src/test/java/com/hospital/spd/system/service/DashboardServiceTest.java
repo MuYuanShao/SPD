@@ -46,11 +46,12 @@ class DashboardServiceTest {
                 .thenReturn(List.of());
         when(jdbcTemplate.queryForList(contains("JOIN sys_dept sd"))).thenReturn(List.of());
         when(jdbcTemplate.queryForList(contains("riskEvents"))).thenReturn(List.of());
-        when(jdbcTemplate.queryForList(contains("FROM audit_log"))).thenReturn(List.of());
 
         Map<String, Object> result = service.dashboard();
 
         assertThat(result).containsKeys("metrics", "trend", "departments", "exceptions", "notices");
+        assertThat((List<?>) result.get("notices")).isEmpty();
+        verify(jdbcTemplate, org.mockito.Mockito.never()).queryForList(contains("FROM audit_log"));
         @SuppressWarnings("unchecked") Map<String, Object> metrics = (Map<String, Object>) result.get("metrics");
         assertThat(metrics)
                 .containsEntry("productCount", 28L)

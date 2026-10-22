@@ -2,7 +2,7 @@
 import { RefreshCw } from '@lucide/vue'
 
 defineProps<{
-  /** 面包屑上级菜单，如 "主数据与定数" */
+  /** 面包屑上级菜单，如 "基础数据管理" */
   crumb?: string
   /** 主标题，如 "医院目录" */
   title: string

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onActivated, onDeactivated, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Eye, FileText, Pencil, X } from '@lucide/vue'
@@ -9,6 +9,7 @@ import {
   type ProductAttachment,
   type ProductDetail
 } from '../../api/masterData'
+import { useAuthStore } from '../../stores/auth'
 import PageHeader from '../../components/common/PageHeader.vue'
 
 interface DetailField {
@@ -25,11 +26,19 @@ interface DetailSection {
 }
 
 const route = useRoute()
+const auth = useAuthStore()
 const router = useRouter()
 const detail = ref<ProductDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
 const previewFile = ref<ProductAttachment | null>(null)
+
+let requestVersion = 0
+let active = false
+
+function returnToCatalog() {
+  void router.push({ name: 'master-data-list', params: { code: 'hospital-product-catalog' }, query: { ...route.query } })
+}
 
 const productCode = computed(() => String(route.params.productCode ?? ''))
 
@@ -123,24 +132,32 @@ const detailSections = computed<DetailSection[]>(() => {
 })
 
 async function loadDetail() {
+  if (!active || route.name !== 'hospital-product-detail') return
+  const request = ++requestVersion
+  const expectedCode = productCode.value
+  previewFile.value = null
+  detail.value = null
   loading.value = true
   error.value = ''
 
   try {
-    detail.value = await fetchHospitalProductDetail(productCode.value)
+    const result = await fetchHospitalProductDetail(expectedCode)
+    if (active && request === requestVersion && productCode.value === expectedCode) detail.value = result
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '商品详情加载失败'
+    if (active && request === requestVersion) error.value = err instanceof Error ? err.message : '商品详情加载失败'
   } finally {
-    loading.value = false
+    if (request === requestVersion) loading.value = false
   }
 }
 
-onMounted(loadDetail)
+onActivated(() => { active = true; void loadDetail() })
+onDeactivated(() => { active = false; requestVersion++; loading.value = false; previewFile.value = null })
+watch(productCode, () => { if (active) void loadDetail() })
 </script>
 
 <template>
   <main class="approval-detail-page product-detail-page">
-    <button class="btn product-detail-back" type="button" @click="router.back()">
+    <button class="btn product-detail-back" type="button" @click="returnToCatalog">
       <ArrowLeft :size="16" aria-hidden="true" />
       返回医院目录
     </button>
@@ -171,15 +188,16 @@ onMounted(loadDetail)
           <button
             class="btn"
             type="button"
-            @click="router.back()"
+            @click="returnToCatalog"
           >
             <ArrowLeft :size="15" aria-hidden="true" />
             返回列表
           </button>
           <button
+            v-if="auth.canWrite('hospital-product-catalog')"
             class="btn btn-primary"
             type="button"
-            @click="router.push({ name: 'hospital-product-edit', params: { productCode } })"
+            @click="router.push({ name: 'master-data-list', params: { code: 'hospital-product-catalog' }, query: { ...route.query, editProduct: productCode } })"
           >
             <Pencil :size="15" aria-hidden="true" />
             编辑商品

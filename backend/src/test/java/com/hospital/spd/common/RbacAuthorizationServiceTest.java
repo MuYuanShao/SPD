@@ -162,4 +162,15 @@ class RbacAuthorizationServiceTest {
         assertThat(service.isAllowed(71L, List.of(), "PUT", "/api/purchase-orders/plans/P1/action")).isFalse();
     }
 
+    @Test
+    void systemOperationRecordsRequireAuditPermissionAndRemainReadOnly() {
+        stubPermissions(80L, List.of("audit-log"));
+        stubPermissions(81L, List.of("dashboard"));
+        for (String path : List.of("/api/audit-logs", "/api/audit-logs/operation-types", "/api/audit-logs/biz-types", "/api/audit-logs/1")) {
+            assertThat(service.isAllowed(80L, List.of(), "GET", path)).isTrue();
+            assertThat(service.isAllowed(81L, List.of(), "GET", path)).isFalse();
+            assertThat(service.isAllowed(80L, List.of(), "DELETE", path)).isFalse();
+        }
+    }
+
 }

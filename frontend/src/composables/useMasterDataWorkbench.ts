@@ -1,6 +1,7 @@
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import Sortable from 'sortablejs'
+import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
 import {
   fetchMasterDataPage,
   type ColumnConfig,
@@ -13,6 +14,13 @@ const PARTNER_COMBINED_CODE = 'supplier-manufacturer-management'
 export function useMasterDataWorkbench() {
   const route = useRoute()
   const router = useRouter()
+  const refreshStore = useCatalogApprovalRefreshStore()
+  const active = ref(true)
+  let pageRequestVersion = 0
+  let needsReload = true
+  let loadedHospitalVersion = -1
+  let hospitalScrollTop = 0
+  let hospitalScrollLeft = 0
   const page = ref<MasterDataPage | null>(null)
   const loading = ref(false)
   const error = ref('')
@@ -109,7 +117,10 @@ export function useMasterDataWorkbench() {
     status: ''
   })
 
-  const routeCode = computed(() => String(route.params.code ?? ''))
+  const routeCode = ref(String(route.params.code ?? ''))
+  watch(() => route.fullPath, () => {
+    if (route.name === 'master-data-list') routeCode.value = String(route.params.code ?? '')
+  })
   const partnerTab = ref<'supplier' | 'manufacturer'>(route.query.tab === 'manufacturer' ? 'manufacturer' : 'supplier')
   const isPartnerCombined = computed(() => routeCode.value === PARTNER_COMBINED_CODE)
   const code = computed(() => {
@@ -265,6 +276,10 @@ export function useMasterDataWorkbench() {
   }
 
   async function loadPage() {
+    if (!active.value || route.name !== 'master-data-list') { needsReload = true; return }
+    const request = ++pageRequestVersion
+    const expectedCode = code.value
+    const hospitalVersion = refreshStore.hospitalCatalogVersion
     if (isHospitalCatalog.value) {
       hospitalCurrentPage.value = clampHospitalPage(hospitalCurrentPage.value)
       hospitalPageJumpInput.value = String(hospitalCurrentPage.value)
@@ -278,7 +293,11 @@ export function useMasterDataWorkbench() {
     page.value = null
 
     try {
-      page.value = await fetchMasterDataPage(code.value, queryParams.value)
+      const response = await fetchMasterDataPage(expectedCode, queryParams.value)
+      if (request !== pageRequestVersion || !active.value || expectedCode !== code.value) return
+      page.value = response
+      needsReload = false
+      if (isHospitalCatalog.value) loadedHospitalVersion = hospitalVersion
       selectedCodes.value = []
       if (isHospitalCatalog.value) {
         hospitalCurrentPage.value = Number(page.value.page || hospitalCurrentPage.value)
@@ -291,23 +310,27 @@ export function useMasterDataWorkbench() {
         catalogPageJumpInput.value = String(catalogCurrentPage.value)
       }
     } catch (err) {
+      if (request !== pageRequestVersion || !active.value) return
+      needsReload = true
       error.value = err instanceof Error ? err.message : '数据加载失败'
     } finally {
-      loading.value = false
+      if (request === pageRequestVersion) loading.value = false
     }
   }
 
   function buildColumnConfigs() {
     if (!page.value?.rows.length) return
     const keys = Object.keys(page.value.rows[0])
+    const previous = new Map(hospitalColumnConfigs.value.map(column => [column.prop, column]))
     hospitalColumnConfigs.value = page.value.columns.map((label, index) => ({
       prop: hospitalColumnPropMap[label] || keys[index] || `col_${index}`,
       label,
       visible: true,
       order: index,
-      width: Math.max(132, label.length * 28)
+      width: Math.max(132, label.length * 28),
+      ...previous.get(hospitalColumnPropMap[label] || keys[index] || `col_${index}`)
     }))
-    applyColumnGroup(activeColumnGroup.value)
+    if (!previous.size) applyColumnGroup(activeColumnGroup.value)
   }
 
   function applyColumnGroup(groupKey: string) {
@@ -511,6 +534,32 @@ export function useMasterDataWorkbench() {
   }
 
   onMounted(loadPage)
+  onBeforeRouteLeave(() => {
+    if (!isHospitalCatalog.value) return
+    hospitalScrollTop = document.querySelector('.spd-content')?.scrollTop ?? 0
+    hospitalScrollLeft = document.querySelector('.md-hospital-table-wrap')?.scrollLeft ?? 0
+  })
+  onActivated(async () => {
+    active.value = true
+    if (!loading.value && (needsReload || (isHospitalCatalog.value && loadedHospitalVersion < refreshStore.hospitalCatalogVersion))) await loadPage()
+    await nextTick()
+    if (!active.value || route.name !== 'master-data-list' || !isHospitalCatalog.value) return
+    const content = document.querySelector('.spd-content')
+    const table = document.querySelector('.md-hospital-table-wrap')
+    if (content) content.scrollTop = hospitalScrollTop
+    if (table) table.scrollLeft = hospitalScrollLeft
+  })
+  onDeactivated(() => {
+    active.value = false
+    pageRequestVersion++
+    if (loading.value) needsReload = true
+    loading.value = false
+  })
+  watch(() => refreshStore.hospitalCatalogVersion, () => {
+    if (!isHospitalCatalog.value) return
+    needsReload = true
+    if (active.value && route.name === 'master-data-list') void loadPage()
+  })
   watch(code, () => {
     hospitalCurrentPage.value = 1
     hospitalPageJumpInput.value = '1'
@@ -522,6 +571,7 @@ export function useMasterDataWorkbench() {
   watch(
     () => route.query.tab,
     (tab) => {
+      if (route.name !== 'master-data-list') return
       const next = tab === 'manufacturer' ? 'manufacturer' : 'supplier'
       if (next !== partnerTab.value) {
         partnerTab.value = next

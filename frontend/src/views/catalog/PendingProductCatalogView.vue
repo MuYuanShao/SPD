@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, Settings2, Upload, UserRound, X, XCircle } from '@lucide/vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
@@ -36,12 +36,22 @@ import {
 } from '../../api/pendingProductApplications'
 import type { PartnerOption } from '../../api/masterData'
 import { useNotify } from '../../composables/useNotify'
+import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
 
 const notify = useNotify()
 
 
 const route = useRoute()
 const router = useRouter()
+const refreshStore = useCatalogApprovalRefreshStore()
+const catalogQuery = ref({ ...route.query })
+const active = ref(true)
+let needsReload = true
+let requestVersion = 0
+let scrollPosition = 0
+watch(() => route.fullPath, () => {
+  if (route.name === 'pending-product-catalog') catalogQuery.value = { ...route.query }
+})
 const importMenuRef = ref<HTMLDetailsElement | null>(null)
 const qualificationApplicationNo = ref('')
 const qualificationModalOpen = ref(false)
@@ -84,11 +94,11 @@ const approvalTypes = [
 ]
 
 const activeTypeKey = computed(() => {
-  const value = typeof route.query.type === 'string' ? route.query.type : 'new'
+  const value = typeof catalogQuery.value.type === 'string' ? catalogQuery.value.type : 'new'
   return approvalTypes.some((item) => item.key === value) ? value : 'new'
 })
 const activeScope = computed(() => {
-  const value = typeof route.query.scope === 'string' ? route.query.scope : 'todo'
+  const value = typeof catalogQuery.value.scope === 'string' ? catalogQuery.value.scope : 'todo'
   return value === 'mine' || value === 'handled' ? value : 'todo'
 })
 const mineStatusOptions = [
@@ -109,7 +119,7 @@ const mineStatusOptions = [
   }
 ]
 const activeMineStatus = computed(() => {
-  const value = typeof route.query.mineStatus === 'string' ? route.query.mineStatus : 'pending'
+  const value = typeof catalogQuery.value.mineStatus === 'string' ? catalogQuery.value.mineStatus : 'pending'
   return mineStatusOptions.some((item) => item.key === value) ? value : 'pending'
 })
 const activeMineOption = computed(
@@ -448,6 +458,8 @@ function toggleColumn(key: string) {
 }
 
 async function loadApplications() {
+  if (!active.value || route.name !== 'pending-product-catalog') { needsReload = true; return }
+  const request = ++requestVersion
   loading.value = true
   error.value = ''
 
@@ -460,17 +472,27 @@ async function loadApplications() {
       currentPage.value,
       pageSize.value
     )
+    if (request !== requestVersion || !active.value) return
+    const lastPage = Math.max(1, Math.ceil(data.total / pageSize.value))
+    if (currentPage.value > lastPage) {
+      currentPage.value = lastPage
+      await loadApplications()
+      return
+    }
+    needsReload = false
     rows.value = data.rows
     typeCounts.value = data.summary?.typeCounts ?? data.typeCounts
     totalItems.value = data.total
     selectedNos.value = []
   } catch (err) {
+    if (request !== requestVersion || !active.value) return
+    needsReload = true
     rows.value = []
     typeCounts.value = []
     totalItems.value = 0
     error.value = err instanceof Error ? err.message : '待审批目录加载失败'
   } finally {
-    loading.value = false
+    if (request === requestVersion) loading.value = false
   }
 }
 
@@ -483,7 +505,8 @@ function rowPrimaryActionLabel() {
 function rowDetailRoute(row: PendingProductApplicationRow) {
   return {
     name: 'pending-product-approval-detail',
-    params: { applicationNo: row.no }
+    params: { applicationNo: row.no },
+    query: { ...catalogQuery.value }
   }
 }
 
@@ -491,7 +514,7 @@ function rowEditRoute(row: PendingProductApplicationRow) {
   return {
     name: 'pending-product-approval-detail',
     params: { applicationNo: row.no },
-    query: isReturnedMineDirectory.value ? { edit: '1' } : undefined
+    query: { ...catalogQuery.value, ...(isReturnedMineDirectory.value ? { edit: '1' } : {}) }
   }
 }
 
@@ -505,6 +528,29 @@ watch([activeTypeKey, activeScope, activeMineStatus], () => {
   resetPage()
   void loadApplications()
 })
+watch(() => refreshStore.applicationsVersion, () => {
+  needsReload = true
+  if (active.value && route.name === 'pending-product-catalog' && !batchApproveLoading.value) void loadApplications()
+})
+onBeforeRouteLeave(() => {
+  if (batchApproveLoading.value) return false
+  scrollPosition = document.querySelector('.spd-content')?.scrollTop ?? 0
+})
+onActivated(async () => {
+  active.value = true
+  if (needsReload && !loading.value) await loadApplications()
+  await nextTick()
+  if (!active.value || route.name !== 'pending-product-catalog') return
+  const container = document.querySelector('.spd-content')
+  if (container) container.scrollTop = scrollPosition
+})
+onDeactivated(() => {
+  active.value = false
+  requestVersion++
+  if (loading.value) needsReload = true
+  loading.value = false
+})
+onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 </script>
 
@@ -578,6 +624,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
       </aside>
 
       <main class="approval-list-card">
+        <StatusMessage :message="message" tone="info" />
         <div class="approval-context">
           <div>
             <h3>{{ activeScope === 'mine' ? activeMineOption.label : activeScope === 'handled' ? '已处理/抄送' : `${activeType.label} · 多字段列表` }}</h3>
@@ -865,14 +912,14 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
     </el-dialog>
 
     <Teleport to="body">
-    <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="showBatchApproveModal = false">
+    <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="!batchApproveLoading && (showBatchApproveModal = false)">
       <section class="supplier-dialog product-dialog large" role="dialog" aria-modal="true">
         <header>
           <div>
             <p>批量审批</p>
             <h3>{{ { approve: '批量通过', return: '批量退回修改', reject: '批量驳回' }[batchApproveAction] }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="showBatchApproveModal = false">
+          <button class="btn-icon" type="button" aria-label="关闭" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">
             <X :size="18" />
           </button>
         </header>
@@ -883,6 +930,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <span>审批意见</span>
               <textarea
                 v-model="batchApproveOpinion"
+                :disabled="batchApproveLoading"
                 :placeholder="batchApproveAction === 'return' ? '请填写退回修改原因（必填）' : batchApproveAction === 'reject' ? '请填写驳回理由（必填）' : '填写审批意见（选填）'"
                 rows="4"
                 :required="batchApproveAction !== 'approve'"

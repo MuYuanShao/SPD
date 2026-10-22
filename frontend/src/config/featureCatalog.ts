@@ -118,7 +118,7 @@ export const featureCatalog = [
   },
   {
     code: 'master-data-quota',
-    title: '主数据与定数',
+    title: '基础数据管理',
     icon: 'database',
     routeTarget: '/features/master-data-quota',
     viewFamily: 'feature',
@@ -130,9 +130,7 @@ export const featureCatalog = [
       'department-management',
       'department-warehouse-catalog',
       'warehouse-location-management',
-      'license-management',
-      'quota-package-template',
-      'quota-safety-stock'
+      'license-management'
     ]
   },
   {
@@ -227,13 +225,15 @@ export const featureCatalog = [
   },
   {
     code: 'quota-package-template',
-    title: '定数包模板',
+    title: '定数包管理',
     icon: 'boxes',
     routeTarget: '/features/quota-template-maintenance',
     viewFamily: 'quota-package',
     chunkFamily: 'quota-package',
+    nodeKind: 'navigation',
     children: [
       'quota-template-maintenance',
+      'quota-safety-stock',
       'packing-task-confirmation',
       'quota-label-unpack',
       'quota-package-events',
@@ -405,7 +405,7 @@ export const featureCatalog = [
     routeTarget: '/features/special-compliance',
     viewFamily: 'feature',
     nodeKind: 'navigation',
-    children: ['udi-traceability', 'high-value-consumables', 'cold-chain-monitoring', 'recall-isolation', 'pda-offline-record']
+    children: ['udi-traceability', 'high-value-consumables', 'cold-chain-monitoring', 'recall-isolation', 'pda-offline-record', 'audit-log']
   },
   {
     code: 'udi-traceability',
@@ -558,7 +558,7 @@ export const featureCatalog = [
     routeTarget: '/features/system-management',
     viewFamily: 'feature',
     nodeKind: 'navigation',
-    children: ['user-management', 'role-permission', 'approval-flow-settings', 'system-config', 'field-option-management', 'config-hit-explanation', 'audit-log']
+    children: ['user-management', 'role-permission', 'approval-flow-settings', 'system-config', 'field-option-management', 'config-hit-explanation']
   },
   {
     code: 'user-management',
@@ -612,7 +612,7 @@ export const featureCatalog = [
   },
   {
     code: 'audit-log',
-    title: '审计日志',
+    title: '系统操作记录',
     icon: 'clipboard-list',
     routeTarget: '/features/audit-log',
     viewFamily: 'system-audit-log',
@@ -680,6 +680,7 @@ export const primaryFeatureCodes = ['login', 'dashboard'] as const
 
 export const menuGroupFeatureCodes = [
   'master-data-quota',
+  'quota-package-template',
   'supply-chain',
   'special-compliance',
   'settlement-finance',
@@ -700,6 +701,7 @@ export const featureCatalogRedirects = [
 export const featureViewNodeGroups = {
   navigation: [
     'master-data-quota',
+    'quota-package-template',
     'product-catalog',
     'supply-chain',
     'special-compliance',
@@ -711,8 +713,7 @@ export const featureViewNodeGroups = {
     'todo-tasks',
     'stock-warning',
     'settlement-exception',
-    'quick-entry',
-    'audit-log'
+    'quick-entry'
   ],
   business: [
     { from: 'shortage-alert', to: 'shortage-reminder' },

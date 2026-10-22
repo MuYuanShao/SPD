@@ -1,15 +1,5 @@
 <script setup lang="ts">
-/**
- * 审计日志（系统管理 / 审计日志）
- * ---------------------------------------------------------------------
- * 造型与证照管理 / 系统管理其他页面完全一致：
- *   - MdPageHeader 渐变页头（系统管理面包屑 + 标题 + 副标题 + 刷新）
- *   - md-form-section 多条件查询区（操作人 / 操作类型 / 业务类型 / 业务单据号 / 关键字 / 时间范围）
- *   - sys-stat-grid 4 张汇总卡（总记录 / 今日 / 涉及人员 / 业务类型）
- *   - md-table-card 表格（按时间倒序，操作人 / 业务类型 / 操作类型 / 业务单据 / 业务 ID / IP / 时间 / 备注 / 操作）
- *   - md-dialog 详情弹窗（基本信息 + 前后变更 JSON 对比）
- * 设计语言与系统管理其他页面（字段管理、配置命中说明）保持完全一致。
- */
+/** 专项与合规下的系统操作记录，提供日志筛选、分页和变更详情。 */
 import { computed, onMounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import {
@@ -35,6 +25,7 @@ import {
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import { formatBusinessText } from '../../utils/chineseDisplay'
 import {
   fetchAuditLogBizTypes,
   fetchAuditLogDetail,
@@ -42,18 +33,16 @@ import {
   fetchAuditLogs,
   type AuditLogFacet,
   type AuditLogBizTypeFacet,
-  type AuditLogRow,
-  type AuditLogSummary
+  type AuditLogRow
 } from '../../api/auditLogs'
 
 const rows = ref<AuditLogRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const size = 20
+const size = ref(20)
 const loading = ref(false)
 const error = ref('')
 
-const summary = ref<AuditLogSummary>({ total: 0, today: 0, distinctOperators: 0, distinctBizTypes: 0 })
 const operationTypeFacets = ref<AuditLogFacet[]>([])
 const bizTypeFacets = ref<AuditLogBizTypeFacet[]>([])
 
@@ -67,7 +56,6 @@ const query = ref({
   toDate: ''
 })
 
-const pagination = { page: computed(() => page.value), size: computed(() => size) }
 
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -96,12 +84,6 @@ const beforeAfterEntries = computed(() => {
     })
 })
 
-const summaryStats = computed(() => [
-  { icon: 'list',  theme: 'blue',   label: '总记录',     value: summary.value.total,            hint: '已记录日志' },
-  { icon: 'today', theme: 'green',  label: '今日操作',   value: summary.value.today,            hint: '今天产生' },
-  { icon: 'user',  theme: 'orange', label: '涉及人员',   value: summary.value.distinctOperators,hint: '操作人' },
-  { icon: 'biz',   theme: 'purple', label: '业务类型',   value: summary.value.distinctBizTypes, hint: '业务模块' }
-])
 
 function operationChipType(op?: string): 'create' | 'update' | 'delete' | 'export' | 'import' | 'login' | 'logout' | 'query' | 'approve' | 'default' {
   const o = (op ?? '').toUpperCase()
@@ -124,18 +106,13 @@ async function loadList() {
     const data = await fetchAuditLogs({
       ...query.value,
       page: page.value,
-      size
+      size: size.value
     })
     rows.value = data.rows
     total.value = data.total
-    if (data.summary) summary.value = {
-      total: data.summary.total ?? 0,
-      today: data.summary.today ?? 0,
-      distinctOperators: data.summary.distinctOperators ?? 0,
-      distinctBizTypes: data.summary.distinctBizTypes ?? 0
-    }
+
   } catch (err: any) {
-    error.value = err?.message || '审计日志加载失败'
+    error.value = err?.message || '系统操作记录加载失败'
     rows.value = []
     total.value = 0
   } finally {
@@ -169,17 +146,13 @@ function onReset() {
   loadList()
 }
 
-function changePage(p: number, s?: number) {
-  if (s !== undefined) {
-    page.value = Math.floor((page.value * size) / s) || 1
-    // size is constant; we still update local size via pagination ref
-  }
+function changePage(p: number) {
   page.value = p
   loadList()
 }
 
 function changePageSize(s: number) {
-  // Size is constant here; the page resets to 1.
+  size.value = Math.min(200, Math.max(1, Math.floor(s)))
   page.value = 1
   loadList()
 }
@@ -194,7 +167,7 @@ async function openDetail(row: AuditLogRow) {
     const data = await fetchAuditLogDetail(row.auditId)
     if (data.audit) detailRow.value = data.audit
   } catch (err: any) {
-    detailError.value = err?.message || '审计日志详情加载失败'
+    detailError.value = err?.message || '系统操作记录详情加载失败'
   } finally {
     detailLoading.value = false
   }
@@ -252,30 +225,13 @@ watch(() => query.value.bizType, (v) => {
   <div class="sys-page">
 
     <MdPageHeader
-      title="审计日志"
-      description="查看系统关键业务的操作留痕、变更前后数据与操作上下文，支持多条件查询与导出。"
+      crumb="专项与合规"
+      title="系统操作记录"
+      description="按操作人、业务类型和时间查询系统操作记录，查看业务单据和变更详情。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadList"
     />
-
-    <!-- 顶部 4 张主题色 KPI 卡 -->
-    <section class="sys-kpi-card" aria-label="审计日志统计">
-      <div v-for="item in summaryStats" :key="item.label" class="sys-kpi-item" :class="`is-${item.theme}`">
-        <i class="sys-kpi-icon" :class="`is-${item.icon}`">
-          <ClipboardList v-if="item.icon === 'list'" :size="18" />
-          <Clock v-else-if="item.icon === 'today'" :size="18" />
-          <User v-else-if="item.icon === 'user'" :size="18" />
-          <Database v-else-if="item.icon === 'biz'" :size="18" />
-          <Activity v-else :size="18" />
-        </i>
-        <div>
-          <span class="sys-kpi-label">{{ item.label }}</span>
-          <strong class="sys-kpi-value">{{ item.value }}</strong>
-          <span class="sys-kpi-hint">{{ item.hint }}</span>
-        </div>
-      </div>
-    </section>
 
     <!-- 查询条件卡片 -->
     <div class="sys-form-section">
@@ -291,13 +247,13 @@ watch(() => query.value.bizType, (v) => {
         <label><span>操作类型</span>
           <select v-model="query.operationType" class="sys-select">
             <option value="">全部</option>
-            <option v-for="f in operationTypeFacets" :key="f.operationType" :value="f.operationType">{{ f.operationType }} ({{ f.total }})</option>
+            <option v-for="f in operationTypeFacets" :key="f.operationType" :value="f.operationType">{{ formatBusinessText(f.operationType) }} ({{ f.total }})</option>
           </select>
         </label>
         <label><span>业务类型</span>
           <select v-model="query.bizType" class="sys-select">
             <option value="">全部</option>
-            <option v-for="f in bizTypeFacets" :key="f.bizType" :value="f.bizType">{{ f.bizType }} ({{ f.total }})</option>
+            <option v-for="f in bizTypeFacets" :key="f.bizType" :value="f.bizType">{{ formatBusinessText(f.bizType) }} ({{ f.total }})</option>
           </select>
         </label>
         <label><span>业务单据号</span><input v-model.trim="query.bizNo" class="sys-input" placeholder="模糊查询业务单据号" @keyup.enter="onSearch" /></label>
@@ -317,7 +273,7 @@ watch(() => query.value.bizType, (v) => {
     <!-- 审计日志表 -->
     <div class="sys-table-card">
       <div class="sys-table-card-header">
-        <h4>审计日志列表</h4>
+        <h4>系统操作记录列表</h4>
         <span class="sys-table-card-meta">共 <strong>{{ total }}</strong> 条记录</span>
       </div>
       <div class="sys-table-scroll">
@@ -336,19 +292,19 @@ watch(() => query.value.bizType, (v) => {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="9" class="text-center muted">正在加载审计日志...</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="9" class="text-center muted">未找到匹配的审计日志</td></tr>
+            <tr v-if="loading"><td colspan="9" class="text-center muted">正在加载系统操作记录...</td></tr>
+            <tr v-else-if="!rows.length"><td colspan="9" class="text-center muted">未找到匹配的系统操作记录</td></tr>
             <tr v-else v-for="row in rows" :key="row.auditId">
               <td>
                 <i class="sys-cell-icon"><User :size="13" /></i>
                 <span>{{ row.operatorName || '系统' }}</span>
               </td>
               <td>
-                <span :class="['sys-chip', `is-op-${operationChipType(row.operationType)}`]">
-                  {{ row.operationType }}
+                <span :class="['sys-chip', `is-op-${operationChipType(row.operationType)}`]" :title="row.operationType">
+                  {{ formatBusinessText(row.operationType) }}
                 </span>
               </td>
-              <td>{{ row.bizType }}</td>
+              <td :title="row.bizType">{{ formatBusinessText(row.bizType) }}</td>
               <td>{{ row.bizNo || '-' }}</td>
               <td><span class="sys-tag is-code">{{ row.bizId ?? '-' }}</span></td>
               <td><span class="sys-tag is-code">{{ row.ipAddress || '-' }}</span></td>
@@ -369,7 +325,7 @@ watch(() => query.value.bizType, (v) => {
       <div v-if="total > 0" class="sys-pagination">
         <span>共 <strong>{{ total }}</strong> 条 · 第 <strong>{{ page }}</strong> / {{ Math.max(1, Math.ceil(total / size)) }} 页</span>
         <PaginationControls
-          :page="pagination.page.value"
+          :page="page"
           :size="size"
           :total="total"
           :loading="loading"
@@ -384,7 +340,7 @@ watch(() => query.value.bizType, (v) => {
     <div v-if="detailOpen" class="sys-dialog-mask" @click.self="closeDetail">
       <div class="sys-dialog sys-dialog-xl" role="dialog" aria-modal="true">
         <div class="sys-dialog-header">
-          <h3>审计日志详情 · #{{ detailRow?.auditId }}</h3>
+          <h3>系统操作记录详情 · #{{ detailRow?.auditId }}</h3>
           <button class="btn-icon" type="button" @click="closeDetail"><X :size="16" /></button>
         </div>
         <div class="sys-dialog-body">
@@ -400,7 +356,7 @@ watch(() => query.value.bizType, (v) => {
                 <i class="sys-detail-icon"><Tag :size="14" /></i>
                 <div><span>操作类型</span>
                   <span :class="['sys-chip', `is-op-${operationChipType(detailRow.operationType)}`]">
-                    {{ detailRow.operationType }}
+                    {{ formatBusinessText(detailRow.operationType) }}
                   </span>
                 </div>
               </article>

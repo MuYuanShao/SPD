@@ -1,4 +1,5 @@
 import { ref, type Ref } from 'vue'
+import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
 
 export type PendingProductBatchAction = 'approve' | 'return' | 'reject'
 
@@ -15,20 +16,21 @@ export function usePendingProductBatchApproval(options: {
   batchApprove: BatchApproveApi
   reload: () => Promise<void>
 }) {
+  const refreshStore = useCatalogApprovalRefreshStore()
   const batchApproveLoading = ref(false)
   const showBatchApproveModal = ref(false)
   const batchApproveAction = ref<PendingProductBatchAction>('approve')
   const batchApproveOpinion = ref('')
 
   function openBatchApprove(action: PendingProductBatchAction) {
-    if (!options.selectedNos.value.length) return
+    if (batchApproveLoading.value || !options.selectedNos.value.length) return
     batchApproveAction.value = action
     batchApproveOpinion.value = ''
     showBatchApproveModal.value = true
   }
 
   async function confirmBatchApprove() {
-    if (!options.selectedNos.value.length) return
+    if (batchApproveLoading.value || !options.selectedNos.value.length) return
     if (
       (batchApproveAction.value === 'return' || batchApproveAction.value === 'reject') &&
       !batchApproveOpinion.value.trim()
@@ -46,6 +48,8 @@ export function usePendingProductBatchApproval(options: {
         batchApproveAction.value,
         batchApproveOpinion.value.trim()
       )
+      // The batch API only returns counts, so conservatively invalidate catalog readers after any success.
+      if (result.successCount > 0) refreshStore.changed({ catalogChanged: true })
       const actionLabel =
         batchApproveAction.value === 'approve' ? '审批通过' : batchApproveAction.value === 'return' ? '退回修改' : '驳回'
       options.message.value = `已${actionLabel} ${result.successCount} 条${

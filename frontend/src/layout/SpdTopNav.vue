@@ -66,6 +66,7 @@ import { menuGroups } from '../config/menu'
 interface TabItem {
   key: string
   label: string
+  fullPath: string
 }
 
 interface MenuLeaf {
@@ -93,7 +94,7 @@ const auth = useAuthStore()
 const refreshing = ref(false)
 const activeModule = ref('dashboard')
 const hoverSubmenu = ref(false)
-const HOME_TAB: TabItem = { key: '/', label: '工作台' }
+const HOME_TAB: TabItem = { key: '/', label: '工作台', fullPath: '/' }
 const tabs = ref<TabItem[]>([HOME_TAB])
 const activeTab = ref('/')
 const expandedGroups = reactive(new Set<string>())
@@ -109,6 +110,7 @@ const PATH_NAME: Record<string, string> = {
 const MODULE_ICONS: Record<string, any> = {
   dashboard: Home,
   'master-data-quota': Database,
+  'quota-package-template': Package2,
   'supply-chain': ShoppingCart,
   'special-compliance': ShieldCheck,
   'settlement-finance': Landmark,
@@ -288,27 +290,28 @@ function handleRefresh() {
 }
 
 function handleTabClick(key: string) {
-  router.push(key)
+  router.push(tabs.value.find(tab => tab.key === key)?.fullPath ?? key)
 }
 
-function closeTab(key: string) {
+async function closeTab(key: string) {
   if (tabs.value.length <= 1) return
   const idx = tabs.value.findIndex((t) => t.key === key)
-  tabs.value = tabs.value.filter((t) => t.key !== key)
+  const remaining = tabs.value.filter((t) => t.key !== key)
   if (key === activeTab.value) {
-    const next = tabs.value[Math.min(idx, tabs.value.length - 1)]
-    router.push(next.key)
+    const next = remaining[Math.min(idx, remaining.length - 1)]
+    if (await router.push(next.fullPath)) return
   }
+  tabs.value = tabs.value.filter((t) => t.key !== key)
 }
 
-function handleTabAction(command: string) {
+async function handleTabAction(command: string) {
   const current = activeTab.value
   if (command === 'close-current') closeTab(current)
   else if (command === 'close-others')
     tabs.value = tabs.value.filter((t) => t.key === current)
   else if (command === 'close-all') {
+    if (await router.push('/')) return
     tabs.value = [HOME_TAB]
-    router.push('/')
   }
 }
 
@@ -333,11 +336,15 @@ function titleForRoute(path: string): string {
 }
 
 watch(
-  () => route.path,
-  (p) => {
+  () => route.fullPath,
+  () => {
+    const p = typeof route.meta.tabPath === 'string' ? route.meta.tabPath : route.path
     activeTab.value = p
-    if (!tabs.value.some((t) => t.key === p)) {
-      tabs.value.push({ key: p, label: titleForRoute(p) })
+    const existing = tabs.value.find(tab => tab.key === p)
+    if (existing) {
+      existing.fullPath = route.fullPath
+    } else {
+      tabs.value.push({ key: p, label: titleForRoute(p), fullPath: route.fullPath })
     }
 
     // 自动激活模块

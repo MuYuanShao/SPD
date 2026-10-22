@@ -117,6 +117,13 @@ public class AuditLogQueryService {
         appendLike(where, args, "a.ip_address", params.get("ipAddress"));
         appendLike(where, args, "a.remark", params.get("remark"));
 
+        String keyword = params.get("keyword");
+        if (keyword != null && !keyword.isBlank()) {
+            where.append(" AND (a.remark LIKE ? OR a.ip_address LIKE ?)");
+            args.add("%" + keyword.trim() + "%");
+            args.add("%" + keyword.trim() + "%");
+        }
+
         String bizNo = params.get("bizNo");
         if (bizNo != null && !bizNo.isBlank()) {
             where.append(" AND JSON_UNQUOTE(JSON_EXTRACT(a.after_data, '$.bizNo')) LIKE ?");

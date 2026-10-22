@@ -15,8 +15,6 @@ const PendingProductCatalogView = () => import('../views/catalog/PendingProductC
 const PendingProductApprovalDetailView = () => import('../views/catalog/PendingProductApprovalDetailView.vue')
 const MasterDataListView = () => import('../views/master-data/MasterDataListView.vue')
 const ProductDetailView = () => import('../views/master-data/ProductDetailView.vue')
-const ProductBatchEditView = () => import('../views/master-data/ProductBatchEditView.vue')
-const ProductFormView = () => import('../views/master-data/ProductFormView.vue')
 const DepartmentRequisitionView = () => import('../views/supply-chain/DepartmentRequisitionView.vue')
 const PurchaseManagementView = () => import('../views/supply-chain/PurchaseManagementView.vue')
 const ReceivingAcceptanceView = () => import('../views/supply-chain/ReceivingAcceptanceView.vue')
@@ -69,37 +67,34 @@ export const router = createRouter({
       path: featureRouteTarget('pending-product-catalog'),
       name: 'pending-product-catalog',
       component: PendingProductCatalogView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, tabPath: '/features/pending-product-catalog' }
     },
     {
       path: '/features/pending-product-catalog/:applicationNo',
       name: 'pending-product-approval-detail',
       component: PendingProductApprovalDetailView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, tabPath: '/features/pending-product-catalog' }
     },
     {
       path: '/features/hospital-product-catalog/new',
       name: 'hospital-product-new',
-      component: ProductFormView,
-      meta: { requiresAuth: true }
+      redirect: to => ({ path: '/features/hospital-product-catalog', query: { ...to.query, productAction: 'new' } })
     },
     {
       path: '/features/hospital-product-catalog/:productCode/edit',
       name: 'hospital-product-edit',
-      component: ProductFormView,
-      meta: { requiresAuth: true }
+      redirect: to => ({ path: '/features/hospital-product-catalog', query: { ...to.query, editProduct: String(to.params.productCode) } })
     },
     {
       path: '/features/hospital-product-catalog/batch-edit',
       name: 'hospital-product-batch-edit',
-      component: ProductBatchEditView,
-      meta: { requiresAuth: true }
+      redirect: to => ({ path: '/features/hospital-product-catalog', query: { ...to.query, productAction: 'batch' } })
     },
     {
       path: '/features/hospital-product-catalog/:productCode',
       name: 'hospital-product-detail',
       component: ProductDetailView,
-      meta: { requiresAuth: true }
+      meta: { requiresAuth: true, tabPath: '/features/hospital-product-catalog' }
     },
     ...featureCatalogRedirects.map(({ from, to }) => ({
       path: `/features/${from}`,

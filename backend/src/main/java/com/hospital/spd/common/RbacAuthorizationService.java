@@ -271,6 +271,7 @@ public class RbacAuthorizationService {
         prefixes.put("/invoices", "invoice-management");
         prefixes.put("/licenses", "license-management");
         prefixes.put("/print-templates", "print-template-settings");
+        prefixes.put("/audit-logs", "audit-log");
         prefixes.put("/operational-closure", "operational-closure");
         prefixes.put("/approval-flows", "approval-flow-settings");
         prefixes.put("/system/field-options", "field-option-management");

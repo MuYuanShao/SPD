@@ -372,7 +372,7 @@ onUnmounted(closePreview)
 <template>
   <div class="license-page">
     <MdPageHeader
-      crumb="主数据"
+      crumb="基础数据管理"
       title="证照管理"
       description="集中管理商品、供应商、厂家的证照与合同，支持附件上传与阅览。"
     />

@@ -9,7 +9,7 @@ if (!username || !password) {
 async function login(page: import('@playwright/test').Page) {
   await page.getByRole('textbox', { name: '用户名' }).fill(username)
   await page.getByRole('textbox', { name: '密码' }).fill(password)
-  await page.getByRole('button', { name: '登录' }).click()
+  await page.getByRole('button', { name: /^登\s*录$/ }).click()
 }
 
 test('收费耗材明细支持筛选、分页、空状态和横向表格操作', async ({ page }) => {

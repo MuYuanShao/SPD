@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.PreparedStatementCreator;
 import org.springframework.jdbc.support.KeyHolder;
@@ -38,6 +37,25 @@ class OperationalHighValueModuleTest {
     @BeforeEach
     void setUp() {
         module = new OperationalHighValueModule(jdbcTemplate, support);
+    }
+
+    @Test
+    void rejectsDifferentChargeNumberWhenTraceWasConsumedWhileWaitingForProductLock() {
+        when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-SECOND")))
+                .thenReturn(List.of());
+        Map<String, Object> signed = Map.of("traceCodeId", 2L, "productCode", "PC002", "lifecycleStatus", "signed");
+        Map<String, Object> consumed = Map.of("traceCodeId", 2L, "productCode", "PC002", "lifecycleStatus", "consumed");
+        when(jdbcTemplate.queryForList(contains("unique_code = ?"), eq("UID-002")))
+                .thenReturn(List.of(signed), List.of(consumed));
+        mockProduct("PC002", "Stent", BigDecimal.TEN);
+
+        assertThatThrownBy(() -> module.receiveBillingCallback(Map.of(
+                "externalChargeNo", "EXT-SECOND", "uniqueCode", "UID-002", "quantity", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("不能重复计费");
+        org.mockito.Mockito.verifyNoInteractions(support);
+        verify(jdbcTemplate, org.mockito.Mockito.never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+        verify(jdbcTemplate).queryForList(org.mockito.ArgumentMatchers.argThat(sql ->
+                sql.contains("unique_code = ?") && sql.contains("FOR UPDATE")), eq("UID-002"));
     }
 
     @Test
@@ -85,7 +103,7 @@ class OperationalHighValueModuleTest {
     }
 
     @Test
-    void returnsExistingChargeWhenConcurrentCallbackWinsTheUniqueKeyRace() {
+    void returnsExistingChargeAfterWaitingForProductLock() {
         when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-002")))
                 .thenReturn(List.of())
                 .thenReturn(List.of(Map.of("chargeNo", "GZ-EXISTING", "status", "charged")));
@@ -100,12 +118,6 @@ class OperationalHighValueModuleTest {
                         "patientNo", "ZY-002"
                 )));
         mockProduct("PC002", "Stent", BigDecimal.TEN);
-        when(jdbcTemplate.queryForList(contains("SELECT warehouse_id FROM warehouse"), eq(Long.class), eq("Surgery Warehouse")))
-                .thenReturn(List.of(20L));
-        when(support.nextNo(DocumentKind.HIGH_VALUE_CHARGE)).thenReturn("GZ-NEW");
-        when(jdbcTemplate.update(any(PreparedStatementCreator.class), any(KeyHolder.class)))
-                .thenThrow(new DuplicateKeyException("duplicate external charge"));
-
         Map<String, Object> result = module.receiveBillingCallback(Map.of(
                 "externalChargeNo", "EXT-002",
                 "uniqueCode", "UID-002",

@@ -57,8 +57,24 @@ public class InventoryMovementService {
                                                          String eventType, String sourceType, Long sourceId,
                                                          String remark) {
         requirePositive(requiredQty);
+        // Lock complete packages before balances, matching package sign/consume lock order.
+        // These base quantities are present in available_qty but are not loose stock.
+        List<Map<String, Object>> packageSources = jdbcTemplate.queryForList("""
+                SELECT src.batch_id AS batchId, src.source_qty AS reservedQty
+                  FROM quota_package_label label
+                  JOIN quota_package_label_source src ON src.label_id = label.label_id
+                 WHERE label.warehouse_id = ? AND label.product_id = ? AND label.status = 'signed'
+                 ORDER BY label.label_id, src.source_id
+                 FOR UPDATE
+                """, warehouseId, productId);
+        Map<Long, BigDecimal> packagedByBatch = new java.util.HashMap<>();
+        for (Map<String, Object> source : packageSources) {
+            packagedByBatch.merge(((Number) source.get("batchId")).longValue(),
+                    (BigDecimal) source.get("reservedQty"), BigDecimal::add);
+        }
         List<Map<String, Object>> balances = jdbcTemplate.queryForList("""
                 SELECT bal.balance_id AS balanceId, bal.batch_id AS batchId, bal.available_qty AS availableQty,
+                       bal.location_id AS locationId,
                        ib.batch_unit_price AS unitPrice
                   FROM inventory_balance bal
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
@@ -66,6 +82,16 @@ public class InventoryMovementService {
                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
                  FOR UPDATE
                 """, warehouseId, productId);
+        balances = balances.stream().map(balance -> {
+            Map<String, Object> loose = new java.util.HashMap<>(balance);
+            if (balance.get("locationId") == null) {
+                BigDecimal reserved = packagedByBatch.getOrDefault(
+                        ((Number) balance.get("batchId")).longValue(), BigDecimal.ZERO);
+                loose.put("availableQty", ((BigDecimal) balance.get("availableQty"))
+                        .subtract(reserved).max(BigDecimal.ZERO));
+            }
+            return loose;
+        }).filter(balance -> ((BigDecimal) balance.get("availableQty")).signum() > 0).toList();
         BigDecimal totalAvailable = balances.stream()
                 .map(balance -> (BigDecimal) balance.get("availableQty"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

@@ -64,41 +64,7 @@ public class OperationalDeliveryModule {
 
     @Transactional
     public Map<String, Object> createDelivery(Map<String, Object> body) {
-        String requisitionNo = text(body, "requisitionNo", "");
-        String deptName = requireText(body, "deptName");
-        String warehouseName = requireText(body, "warehouseName");
-        Map<String, Object> product = findProduct(requireText(body, "productCode"));
-        BigDecimal quantity = decimal(body, "quantity", null);
-        if (quantity == null || quantity.signum() <= 0) {
-            throw new IllegalArgumentException("quantity must be greater than zero");
-        }
-        List<HighValueTraceFlowService.TraceUnit> traceUnits = List.of();
-        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
-            Object rawCodes = body.get("uniqueCodes") == null ? body.get("uniqueCode") : body.get("uniqueCodes");
-            traceUnits = traceFlowService.requireUnits(rawCodes, quantity,
-                    ((Number) product.get("productId")).longValue(), findWarehouseId(warehouseName),
-                    List.of("in_stock", "requisitioned"));
-        }
-        String deliveryNo = support.nextNo(DELIVERY_ORDER);
-        jdbcTemplate.update("""
-                INSERT INTO spd_delivery_order (
-                  delivery_no, requisition_no, dept_name, warehouse_name, product_code, product_name,
-                  quantity, status, delivery_type
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'picked', 'unique_code')
-                """, deliveryNo, nullIfBlank(requisitionNo), deptName, warehouseName, product.get("productCode"),
-                product.get("productName"), quantity);
-        if (!traceUnits.isEmpty()) {
-            Long deliveryId = jdbcTemplate.queryForObject(
-                    "SELECT delivery_id FROM spd_delivery_order WHERE delivery_no = ?", Long.class, deliveryNo);
-            traceFlowService.bindDelivery(deliveryId, traceUnits, deliveryNo, deptName);
-            if (!requisitionNo.isBlank()) {
-                Long requisitionId = jdbcTemplate.queryForObject(
-                        "SELECT requisition_id FROM department_requisition WHERE requisition_no = ?",
-                        Long.class, requisitionNo);
-                updateRequisitionPickStatus(requisitionId);
-            }
-        }
-        return Map.of("deliveryNo", deliveryNo, "status", "picked");
+        throw new IllegalArgumentException("旧配送创建入口已停用，请从已审批申领明细选择定数包、散货或高值唯一码进行拣配");
     }
 
     /**

@@ -99,13 +99,17 @@ public class OperationalHighValueModule {
                     "idempotent", true);
         }
 
-        Map<String, Object> trace = findTrace(body);
-        String productCode = text(body, "productCode", text(trace, "productCode", ""));
+        Map<String, Object> initialTrace = findTrace(body);
+        String productCode = text(body, "productCode", text(initialTrace, "productCode", ""));
         if (productCode.isBlank()) throw new IllegalArgumentException("productCode is required");
-        if (!trace.isEmpty() && !productCode.equals(String.valueOf(trace.get("productCode")))) {
+        if (!initialTrace.isEmpty() && !productCode.equals(String.valueOf(initialTrace.get("productCode")))) {
             throw new IllegalArgumentException("商品编码与高值耗材追溯记录不一致");
         }
         Map<String, Object> product = findProduct(productCode);
+        // Product -> trace is the shared lock order. Re-read after waiting; the discovery read can be stale.
+        List<Map<String, Object>> concurrentCharge = findExistingCharge(externalChargeNo);
+        if (!concurrentCharge.isEmpty()) return idempotentResult(concurrentCharge.get(0));
+        Map<String, Object> trace = findTrace(body, true);
         BigDecimal quantity = requiredPositive(body, "quantity");
         if (trace.isEmpty() || quantity.compareTo(BigDecimal.ONE) != 0) {
             throw new IllegalArgumentException("高值耗材计费回传必须提供一个唯一码，且数量必须为 1");
@@ -198,8 +202,12 @@ public class OperationalHighValueModule {
                  WHERE trace_code_id = ?
                 """, nullIfBlank(roomName), deptName, patientNo, nullIfBlank(patientNameMasked),
                 BILLING_EVENT_NAME, traceCodeId);
-        jdbcTemplate.update("UPDATE inventory_batch_trace_code SET lifecycle_status = 'consumed' WHERE trace_code_id = ?",
-                traceCodeId);
+        int consumed = jdbcTemplate.update("""
+                UPDATE inventory_batch_trace_code SET lifecycle_status = 'consumed'
+                 WHERE trace_code_id = ?
+                   AND lifecycle_status IN ('signed', 'patient_bound', 'in_stock', 'requisitioned')
+                """, traceCodeId);
+        if (consumed != 1) throw new IllegalArgumentException("该高值唯一码已消耗或状态已变化，不能重复计费");
     }
 
     private Map<String, Object> findProduct(String productCode) {
@@ -211,6 +219,10 @@ public class OperationalHighValueModule {
     }
 
     private Map<String, Object> findTrace(Map<String, Object> body) {
+        return findTrace(body, false);
+    }
+
+    private Map<String, Object> findTrace(Map<String, Object> body, boolean forUpdate) {
         String uniqueCode = text(body, "uniqueCode", "");
         String udiCode = text(body, "udiCode", "");
         if (uniqueCode.isBlank() && udiCode.isBlank()) {
@@ -220,19 +232,23 @@ public class OperationalHighValueModule {
         List<Map<String, Object>> rows;
         if (!uniqueCode.isBlank() && !udiCode.isBlank()) {
             predicate = "unique_code = ? AND udi_code = ?";
-            rows = jdbcTemplate.queryForList(traceSql(predicate), uniqueCode, udiCode);
+            rows = jdbcTemplate.queryForList(traceSql(predicate) + (forUpdate ? " FOR UPDATE" : ""), uniqueCode, udiCode);
             if (rows.isEmpty()) {
                 throw new IllegalArgumentException("UDI 与唯一码未指向同一高值耗材");
             }
         } else if (!uniqueCode.isBlank()) {
             predicate = "unique_code = ?";
-            rows = jdbcTemplate.queryForList(traceSql(predicate), uniqueCode);
+            rows = jdbcTemplate.queryForList(traceSql(predicate) + (forUpdate ? " FOR UPDATE" : ""), uniqueCode);
         } else {
             predicate = "udi_code = ?";
-            rows = jdbcTemplate.queryForList(traceSql(predicate), udiCode);
+            rows = jdbcTemplate.queryForList(traceSql(predicate) + (forUpdate ? " FOR UPDATE" : ""), udiCode);
         }
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("高值耗材追溯码不存在");
+        }
+        if (forUpdate && !List.of("signed", "patient_bound", "in_stock", "requisitioned")
+                .contains(String.valueOf(rows.get(0).get("lifecycleStatus")))) {
+            throw new IllegalArgumentException("该高值唯一码已消耗或状态已变化，不能重复计费");
         }
         return rows.get(0);
     }
@@ -247,7 +263,6 @@ public class OperationalHighValueModule {
                   FROM udi_trace_code tc
                   JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = tc.trace_code_id
                  WHERE tc.%s AND tc.trace_scope = 'high_value'
-                   AND ibtc.lifecycle_status IN ('signed', 'patient_bound', 'in_stock', 'requisitioned')
                  LIMIT 1
                 """.formatted(predicate);
     }

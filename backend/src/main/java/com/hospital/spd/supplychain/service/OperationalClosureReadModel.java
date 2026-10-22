@@ -158,7 +158,7 @@ public class OperationalClosureReadModel {
                       FROM consumption_red_flush
                      ORDER BY create_time DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countLong("consumption_red_flush", "1 = 1"), pageReq);
-            case "settlement" -> settlementDetails(pageReq);
+            case "settlement" -> settlementDetails(params, pageReq);
             case "pda" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT record_no AS bizNo, device_no AS deviceNo, operation_type AS operationType,
                            payload, status, DATE_FORMAT(upload_time, '%Y-%m-%d %H:%i') AS createTime
@@ -324,8 +324,12 @@ public class OperationalClosureReadModel {
         return PageResponse.of(rows, total == null ? 0L : total, pageReq);
     }
 
-    private Map<String, Object> settlementDetails(PageRequest pageReq) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+    private Map<String, Object> settlementDetails(Map<String, String> params, PageRequest pageReq) {
+        String goodsType = params.getOrDefault("goodsType", "");
+        if (!List.of("", "high_value", "quota_package", "loose").contains(goodsType)) {
+            throw new IllegalArgumentException("不支持的结算货型");
+        }
+        String sql = """
                 SELECT sbi.item_id AS settlementItemId,
                        sb.settlement_id AS settlementId,
                        sb.settlement_no AS settlementNo,
@@ -342,10 +346,36 @@ public class OperationalClosureReadModel {
                        sbi.unit_price AS unitPrice,
                        sbi.quantity AS settlementQuantity,
                        sbi.amount AS settlementAmount,
+                       CASE WHEN sbi.source_biz_type = 'high_value_charge' THEN 'high_value'
+                            WHEN qpl.label_id IS NOT NULL THEN 'quota_package'
+                            WHEN p.is_high_value = 1 THEN 'high_value' ELSE 'loose' END AS goodsType,
+                       qpl.label_id AS packageLabelId,
+                       qpl.package_quantity AS packageQuantity,
+                       CASE WHEN qpl.label_id IS NOT NULL AND sbi.item_id = (
+                           SELECT MIN(other.item_id) FROM settlement_bill_item other
+                           LEFT JOIN department_consumption_item oi
+                             ON other.source_biz_type = 'department_consumption_item' AND oi.item_id = other.source_biz_id
+                           LEFT JOIN department_consumption oc ON oc.consumption_id = oi.consumption_id
+                           WHERE other.product_id = qpl.product_id
+                             AND (other.trace_code_id = qpl.trace_code_id
+                               OR (other.trace_code_id IS NULL AND oc.related_biz_type = 'quota_package_label'
+                                   AND oc.related_biz_id = qpl.label_id))
+                       ) THEN 1 ELSE 0 END AS packageCount,
+                       CASE WHEN qpl.label_id IS NOT NULL THEN sbi.quantity / NULLIF(qpl.package_quantity, 0)
+                            ELSE 0 END AS packageEquivalentCount,
+                       CASE WHEN qpl.label_id IS NOT NULL THEN sbi.quantity ELSE 0 END AS packageBaseQuantity,
+                       CASE WHEN sbi.source_biz_type = 'high_value_charge'
+                                  OR (qpl.label_id IS NULL AND p.is_high_value = 1)
+                            THEN sbi.quantity ELSE 0 END AS highValueQuantity,
+                       CASE WHEN sbi.source_biz_type <> 'high_value_charge' AND qpl.label_id IS NULL AND p.is_high_value = 0
+                            THEN sbi.quantity ELSE 0 END AS looseQuantity,
+                       ROUND(COALESCE(qpl.settlement_unit_price * qpl.package_quantity,
+                           (SELECT SUM(src.source_qty * src.unit_price)
+                              FROM quota_package_label_source src WHERE src.label_id = qpl.label_id)), 4) AS packageAmount,
                        CASE WHEN p.is_volume_based = 1 THEN '是' ELSE '否' END AS volumeBased,
                        COALESCE(tc.udi_code, '-') AS uid,
                        COALESCE(tc.unique_code, '-') AS uniqueCode,
-                       COALESCE(tc.package_label_no, '-') AS quotaPackageCode,
+                       COALESCE(tc.package_label_no, qpl.label_no, '-') AS quotaPackageCode,
                        CASE WHEN p.is_medical_insurance_payment = 1 THEN '是' ELSE '否' END AS medicalInsurancePayment,
                        COALESCE(p.volume_based_type, '-') AS volumeBasedType,
                        COALESCE(p.medical_insurance_payment_type, '-') AS medicalInsurancePaymentType,
@@ -358,6 +388,7 @@ public class OperationalClosureReadModel {
                                 JSON_UNQUOTE(JSON_EXTRACT(dc.patient_info, '$.patientName')),
                                 '-') AS patientName,
                        sb.status,
+                       sb.generate_time AS generatedAt,
                        sb.settlement_period AS period
                   FROM settlement_bill_item sbi
                   JOIN settlement_bill sb ON sb.settlement_id = sbi.settlement_id
@@ -368,6 +399,11 @@ public class OperationalClosureReadModel {
                     ON sbi.source_biz_type = 'department_consumption_item'
                    AND dci.item_id = sbi.source_biz_id
                   LEFT JOIN department_consumption dc ON dc.consumption_id = dci.consumption_id
+                  LEFT JOIN quota_package_label qpl ON qpl.product_id = sbi.product_id
+                    AND sbi.source_biz_type = 'department_consumption_item'
+                    AND (qpl.trace_code_id = sbi.trace_code_id
+                      OR (sbi.trace_code_id IS NULL AND dc.related_biz_type = 'quota_package_label'
+                          AND dc.related_biz_id = qpl.label_id))
                   LEFT JOIN sys_dept sd ON sd.dept_id = dc.dept_id
                   LEFT JOIN warehouse w ON w.warehouse_id = dc.warehouse_id
                   LEFT JOIN high_value_charge hvc
@@ -382,14 +418,17 @@ public class OperationalClosureReadModel {
                          AND confirm_audit.operation_type = 'confirm_settlement'
                          AND confirm_audit.biz_id = sb.settlement_id
                     )
-                 ORDER BY sb.generate_time DESC, sbi.item_id
-                 LIMIT ? OFFSET ?
-                """, pageReq.size(), pageReq.offset());
-        return PageResponse.of(rows, countJoinedRows("""
-                SELECT COUNT(*)
-                  FROM settlement_bill_item sbi
-                  JOIN settlement_bill sb ON sb.settlement_id = sbi.settlement_id
-                """), pageReq);
+                """;
+        String where = goodsType.isEmpty() ? "" : " WHERE detail.goodsType = ?";
+        List<Object> args = new ArrayList<>();
+        if (!goodsType.isEmpty()) args.add(goodsType);
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM (" + sql + ") detail" + where,
+                Long.class, args.toArray());
+        args.add(pageReq.size());
+        args.add(pageReq.offset());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM (" + sql + ") detail" + where
+                + " ORDER BY detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
     }
 
     private Map<String, Object> highValueChargeDetails(Map<String, String> params, PageRequest pageReq) {

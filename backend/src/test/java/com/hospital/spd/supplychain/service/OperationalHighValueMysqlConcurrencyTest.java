@@ -41,8 +41,137 @@ class OperationalHighValueMysqlConcurrencyTest {
     @Autowired OperationalHighValueModule module;
     @Autowired InventoryMovementService inventoryMovementService;
     @Autowired JdbcTemplate jdbcTemplate;
+    @Autowired OperationalClosureReadModel readModel;
 
     private Long fixtureBalanceId;
+
+    @Test
+    void fifoProtectsSignedPackagesButConsumesLooseRemainder() {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap(
+                "SELECT warehouse_id, product_id, batch_id FROM inventory_balance WHERE balance_id = ?", fixtureBalanceId);
+        Long warehouse = ((Number) fixture.get("warehouse_id")).longValue();
+        Long product = ((Number) fixture.get("product_id")).longValue();
+        Long batch = ((Number) fixture.get("batch_id")).longValue();
+        long label = createPackageFixture(fixture, "signed", "10");
+        jdbcTemplate.update("""
+                INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id)
+                VALUES(?,?,10,10,?)
+                """, label, batch, warehouse);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> inventoryMovementService.consumeAvailableFifo(
+                warehouse, product, BigDecimal.ONE, "department_consumption_out", "department_consumption", 1L, "test"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?",
+                BigDecimal.class, fixtureBalanceId)).isEqualByComparingTo("10");
+        inventoryMovementService.receiveAvailable(warehouse, product, batch, new BigDecimal("2"),
+                "purchase_receive_in", "receiving_order", 1L, "fixture loose receipt");
+        var deductions = inventoryMovementService.consumeAvailableFifo(warehouse, product, new BigDecimal("2"),
+                "department_consumption_out", "department_consumption", 1L, "test");
+        assertThat(deductions).hasSize(1);
+        assertThat(deductions.get(0).quantity()).isEqualByComparingTo("2");
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?",
+                BigDecimal.class, fixtureBalanceId)).isEqualByComparingTo("10");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?",
+                String.class, label)).isEqualTo("signed");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void settlementProjectionClassifiesQuantitiesAndCountsCrossSupplierPackageOnceBeforePagination() {
+        Map<String, Object> fixture = jdbcTemplate.queryForMap(
+                "SELECT warehouse_id, product_id, batch_id FROM inventory_balance WHERE balance_id = ?", fixtureBalanceId);
+        long label = createPackageFixture(fixture, "consumed", "10");
+        jdbcTemplate.update("UPDATE quota_package_label SET settlement_unit_price=3 WHERE label_id=?", label);
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("""
+                INSERT INTO department_consumption(consumption_no,dept_id,warehouse_id,consumption_type,related_biz_type,related_biz_id,status)
+                VALUES(?,1,?,'quota_package_scan','quota_package_label',?,'confirmed')
+                """, "DC-" + suffix, fixture.get("warehouse_id"), label);
+        Long consumption = jdbcTemplate.queryForObject("SELECT consumption_id FROM department_consumption WHERE consumption_no=?", Long.class, "DC-" + suffix);
+        for (int i = 0; i < 2; i++) {
+            String code = suffix + i;
+            jdbcTemplate.update("""
+                    INSERT INTO supplier(supplier_code,supplier_name,credit_code,supplier_type,contact_name,contact_phone)
+                    VALUES(?,?,?,'distributor','测试联系人','13800000000')
+                    """, code, code, suffix.substring(0, 17) + i);
+            Long supplier = jdbcTemplate.queryForObject("SELECT supplier_id FROM supplier WHERE supplier_code=?", Long.class, code);
+            jdbcTemplate.update("""
+                    INSERT INTO settlement_bill(settlement_no,supplier_id,settlement_period,settlement_mode,total_amount,status)
+                    VALUES(?,?,'2026-10','department_consumption',15,'draft')
+                    """, "JS-" + code, supplier);
+            Long bill = jdbcTemplate.queryForObject("SELECT settlement_id FROM settlement_bill WHERE settlement_no=?", Long.class, "JS-" + code);
+            jdbcTemplate.update("""
+                    INSERT INTO department_consumption_item(consumption_id,product_id,batch_id,quantity,unit_price,amount)
+                    VALUES(?,?,?,5,2,10)
+                    """, consumption, fixture.get("product_id"), fixture.get("batch_id"));
+            Long item = jdbcTemplate.queryForObject("SELECT MAX(item_id) FROM department_consumption_item WHERE consumption_id=?", Long.class, consumption);
+            jdbcTemplate.update("""
+                    INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount)
+                    VALUES(?,'department_consumption_item',?,?,?,5,3,15)
+                    """, bill, item, fixture.get("product_id"), fixture.get("batch_id"));
+        }
+        var page = readModel.list("settlement", Map.of("goodsType", "quota_package", "size", "200"));
+        var packages = ((List<Map<String, Object>>) page.get("rows")).stream()
+                .filter(row -> ((Number) row.get("packageLabelId")).longValue() == label).toList();
+        assertThat(packages).hasSize(2);
+        assertThat(packages.stream().mapToInt(row -> ((Number) row.get("packageCount")).intValue()).sum()).isEqualTo(1);
+        assertThat(packages).allSatisfy(row -> {
+            assertThat((BigDecimal) row.get("packageEquivalentCount")).isEqualByComparingTo("0.5");
+            assertThat((BigDecimal) row.get("packageBaseQuantity")).isEqualByComparingTo("5");
+            assertThat((BigDecimal) row.get("packageAmount")).isEqualByComparingTo("30");
+            assertThat((BigDecimal) row.get("looseQuantity")).isZero();
+            assertThat((BigDecimal) row.get("highValueQuantity")).isZero();
+        });
+        var first = readModel.list("settlement", Map.of("goodsType", "quota_package", "size", "1", "page", "1"));
+        var second = readModel.list("settlement", Map.of("goodsType", "quota_package", "size", "1", "page", "2"));
+        assertThat(first.get("total")).isEqualTo(page.get("total"));
+        long firstId = ((Number) ((List<Map<String,Object>>) first.get("rows")).get(0).get("settlementItemId")).longValue();
+        long secondId = ((Number) ((List<Map<String,Object>>) second.get("rows")).get(0).get("settlementItemId")).longValue();
+        assertThat(firstId).isNotEqualTo(secondId);
+
+        Long bill = jdbcTemplate.queryForObject("SELECT settlement_id FROM settlement_bill WHERE settlement_no=?",
+                Long.class, "JS-" + suffix + "1");
+        // Receipt-triggered high-value settlement has no billing callback or trace link yet.
+        jdbcTemplate.update("""
+                INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount)
+                VALUES(?,'receiving_order_item',?,?,?,1,10,10)
+                """, bill, 100000000L + label, fixture.get("product_id"), fixture.get("batch_id"));
+        Long highValueItem = jdbcTemplate.queryForObject("SELECT MAX(item_id) FROM settlement_bill_item WHERE settlement_id=?", Long.class, bill);
+        var highValuePage = readModel.list("settlement", Map.of("goodsType", "high_value", "size", "200"));
+        var highValueRows = (List<Map<String, Object>>) highValuePage.get("rows");
+        assertThat(highValueRows).filteredOn(row -> ((Number) row.get("settlementItemId")).longValue() == highValueItem)
+                .singleElement().satisfies(row -> {
+                    assertThat((BigDecimal) row.get("highValueQuantity")).isEqualByComparingTo("1");
+                    assertThat((BigDecimal) row.get("looseQuantity")).isZero();
+                });
+
+        String looseCode = "LOOSE-" + suffix;
+        jdbcTemplate.update("""
+                INSERT INTO product(product_code,product_name,spec_model,category_id,unit,is_high_value)
+                SELECT ?,'散货测试','测试规格',category_id,'支',0 FROM product WHERE product_id=?
+                """, looseCode, fixture.get("product_id"));
+        Long looseProduct = jdbcTemplate.queryForObject("SELECT product_id FROM product WHERE product_code=?", Long.class, looseCode);
+        jdbcTemplate.update("""
+                INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,quantity,unit_price,amount)
+                VALUES(?,'receiving_order_item',?,?,2,10,20)
+                """, bill, 200000000L + label, looseProduct);
+        Long looseItem = jdbcTemplate.queryForObject("SELECT MAX(item_id) FROM settlement_bill_item WHERE settlement_id=?", Long.class, bill);
+        var loosePage = readModel.list("settlement", Map.of("goodsType", "loose", "size", "200"));
+        assertThat((List<Map<String, Object>>) loosePage.get("rows"))
+                .filteredOn(row -> ((Number) row.get("settlementItemId")).longValue() == looseItem)
+                .singleElement().satisfies(row -> {
+                    assertThat((BigDecimal) row.get("looseQuantity")).isEqualByComparingTo("2");
+                    assertThat((BigDecimal) row.get("highValueQuantity")).isZero();
+                });
+    }
+
+    private long createPackageFixture(Map<String, Object> fixture, String status, String quantity) {
+        String labelNo = "QP-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("""
+                INSERT INTO quota_package_label(label_no,template_id,warehouse_id,product_id,package_quantity,status)
+                VALUES(?,0,?,?,?,?)
+                """, labelNo, fixture.get("warehouse_id"), fixture.get("product_id"), new BigDecimal(quantity), status);
+        return jdbcTemplate.queryForObject("SELECT label_id FROM quota_package_label WHERE label_no=?", Long.class, labelNo);
+    }
 
     @org.junit.jupiter.api.BeforeEach
     void createIndependentInventoryFixture() {
@@ -167,8 +296,9 @@ class OperationalHighValueMysqlConcurrencyTest {
         }
     }
 
-    @Test
-    void concurrentBillingCallbacksDeductInventoryExactlyOnce() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {true, false})
+    void concurrentBillingCallbacksDeductInventoryExactlyOnce(boolean sameExternalNo) throws Exception {
         Map<String, Object> fixture = jdbcTemplate.queryForMap("""
                 SELECT bal.balance_id AS balanceId, bal.available_qty AS availableQty,
                        bal.last_event_id AS lastEventId, bal.warehouse_id AS warehouseId,
@@ -208,40 +338,52 @@ class OperationalHighValueMysqlConcurrencyTest {
 
             CountDownLatch ready = new CountDownLatch(2);
             CountDownLatch start = new CountDownLatch(1);
-            Callable<Map<String, Object>> callback = () -> {
+            var sequence = new java.util.concurrent.atomic.AtomicInteger();
+            Callable<Object> callback = () -> {
                 ready.countDown();
                 start.await();
-                return module.receiveBillingCallback(Map.of(
-                        "externalChargeNo", externalNo,
+                try {
+                    return module.receiveBillingCallback(Map.of(
+                        "externalChargeNo", externalNo + (sameExternalNo ? "" : sequence.incrementAndGet()),
                         "uniqueCode", uniqueCode,
                         "productCode", fixture.get("productCode"),
                         "warehouseName", fixture.get("warehouseName"),
                         "deptName", "并发测试科室",
                         "patientNo", "IT-PATIENT",
                         "quantity", BigDecimal.ONE));
+                } catch (IllegalArgumentException ex) {
+                    return ex;
+                }
             };
             ExecutorService executor = Executors.newFixedThreadPool(2);
             try {
-                Future<Map<String, Object>> first = executor.submit(callback);
-                Future<Map<String, Object>> second = executor.submit(callback);
+                Future<Object> first = executor.submit(callback);
+                Future<Object> second = executor.submit(callback);
                 ready.await();
                 start.countDown();
-                List<Map<String, Object>> results = List.of(first.get(), second.get());
-                assertThat(results).extracting(result -> result.get("idempotent"))
-                        .containsExactlyInAnyOrder(false, true);
+                List<Object> results = List.of(first.get(20, java.util.concurrent.TimeUnit.SECONDS),
+                        second.get(20, java.util.concurrent.TimeUnit.SECONDS));
+                if (sameExternalNo) {
+                    assertThat(results).allMatch(result -> result instanceof Map);
+                    assertThat(results).extracting(result -> (Boolean) ((Map<?, ?>) result).get("idempotent"))
+                            .containsExactlyInAnyOrder(false, true);
+                } else {
+                    assertThat(results.stream().filter(result -> result instanceof Map).count()).isEqualTo(1);
+                    assertThat(results.stream().filter(result -> result instanceof IllegalArgumentException).count()).isEqualTo(1);
+                }
             } finally {
                 executor.shutdownNow();
             }
 
             assertThat(jdbcTemplate.queryForObject(
-                    "SELECT COUNT(*) FROM high_value_charge WHERE external_charge_no = ?", Integer.class, externalNo))
+                    "SELECT COUNT(*) FROM high_value_charge WHERE external_charge_no LIKE ?", Integer.class, externalNo + "%"))
                     .isEqualTo(1);
             BigDecimal after = jdbcTemplate.queryForObject(
                     "SELECT SUM(available_qty) FROM inventory_balance WHERE warehouse_id = ? AND product_id = ?",
                     BigDecimal.class, fixture.get("warehouseId"), fixture.get("productId"));
             assertThat(after).isEqualByComparingTo(totalBefore.subtract(BigDecimal.ONE));
             assertThat(jdbcTemplate.queryForObject(
-                    "SELECT trace_code_id FROM high_value_charge WHERE external_charge_no = ?", Long.class, externalNo))
+                    "SELECT trace_code_id FROM high_value_charge WHERE external_charge_no LIKE ?", Long.class, externalNo + "%"))
                     .isEqualTo(traceId);
         } finally {
             // The entire isolated database is removed after this test class, including immutable events.

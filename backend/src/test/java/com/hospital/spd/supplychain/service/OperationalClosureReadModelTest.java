@@ -182,7 +182,7 @@ class OperationalClosureReadModelTest {
                         "productCode", "P001",
                         "settlementAmount", BigDecimal.TEN
                 )));
-        when(jdbcTemplate.queryForObject(contains("FROM settlement_bill_item sbi"), eq(Long.class)))
+        when(jdbcTemplate.queryForObject(contains("FROM settlement_bill_item sbi"), eq(Long.class), org.mockito.ArgumentMatchers.any(Object[].class)))
                 .thenReturn(1L);
 
         Map<String, Object> page = readModel.list("settlement", Map.of("page", "1", "size", "20"));

@@ -451,8 +451,11 @@ class QuotaTemplateServiceTest {
 
         assertThat(result).isNotEmpty();
         assertThat(result.get(0)).containsEntry("productCode", "PC001");
+        var catalogArguments = org.mockito.ArgumentCaptor.forClass(Object[].class);
         verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("FROM department_warehouse_catalog dwc")
-                && !sql.contains("FROM department_consumption dc")), any(Object[].class));
+                && sql.contains("AND dwc.warehouse_id = ?")
+                && !sql.contains("FROM department_consumption dc")), catalogArguments.capture());
+        assertThat(catalogArguments.getValue()).contains(20L);
     }
 
     @Test

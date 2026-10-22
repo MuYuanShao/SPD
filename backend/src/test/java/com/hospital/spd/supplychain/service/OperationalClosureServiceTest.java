@@ -390,57 +390,13 @@ class OperationalClosureServiceTest {
                 .hasMessageContaining("warehouseName is required");
     }
 
-    // ==================== createDelivery() ====================
-
     @Test
-    @DisplayName("创建配送出库单——成功创建")
-    void shouldCreateDeliverySuccessfully() {
-        Map<String, Object> body = Map.of(
-                "requisitionNo", "SL001",
-                "deptName", "外科",
-                "warehouseName", "主仓库",
-                "productCode", "PC001",
-                "quantity", BigDecimal.valueOf(20)
-        );
-
-        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
-                .thenReturn(Map.of("productId", 100L, "productCode", "PC001",
-                        "productName", "注射器"));
-
-        when(support.nextNo(eq("PS"), eq("spd_delivery_order"), eq("delivery_no")))
-                .thenReturn("PS20260601001");
-
-        Map<String, Object> result = service.createDelivery(body);
-
-        assertThat(result)
-                .containsEntry("deliveryNo", "PS20260601001")
-                .containsEntry("status", "picked");
-    }
-
-    @Test
-    @DisplayName("创建配送出库单——无申领单号时传入空字符串")
-    void shouldCreateDeliveryWithoutRequisitionNo() {
-        Map<String, Object> body = Map.of(
-                "deptName", "外科",
-                "warehouseName", "主仓库",
-                "productCode", "PC001",
-                "quantity", BigDecimal.ONE
-        );
-
-        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
-                .thenReturn(Map.of("productId", 100L, "productCode", "PC001",
-                        "productName", "注射器"));
-
-        when(support.nextNo(eq("PS"), eq("spd_delivery_order"), eq("delivery_no")))
-                .thenReturn("PS20260601002");
-
-        Map<String, Object> result = service.createDelivery(body);
-
-        assertThat(result).containsEntry("deliveryNo", "PS20260601001");
-        // requisitionNo was null/blank → nullIfBlank returns null → SQL receives null
-        verify(jdbcTemplate).update(contains("INSERT INTO spd_delivery_order"),
-                eq("PS20260601001"), isNull(), anyString(), anyString(),
-                anyString(), anyString(), any());
+    void rejectsLegacyDeliveryThroughCompatibilityFacade() {
+        assertThatThrownBy(() -> service.createDelivery(Map.of(
+                "requisitionNo", "SL001", "deptName", "外科", "warehouseName", "主仓库",
+                "productCode", "PC001", "quantity", BigDecimal.ONE)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("旧配送创建入口已停用");
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 
     // ==================== signDelivery() ====================

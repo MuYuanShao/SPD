@@ -53,6 +53,27 @@ class OperationalRequisitionModuleTest {
     }
 
     @Test
+    void rejectsFractionalPackagesAndNonDivisibleBasicQuantityBeforeWriting() {
+        mockProduct("PC001", 100L, BigDecimal.TEN, 0);
+        allowCatalog(100L);
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_template qpt"),
+                eq("TP001"), eq(100L), eq(10L))).thenReturn(List.of(Map.of(
+                "templateId", 50L, "versionNo", 3,
+                "packageQuantity", BigDecimal.TEN, "packageUnit", "piece")));
+        for (Map<String, Object> quantities : List.<Map<String, Object>>of(
+                Map.of("quantity", BigDecimal.ONE, "packageCount", new BigDecimal("1.5")),
+                Map.of("quantity", new BigDecimal("15")))) {
+            Map<String, Object> body = new java.util.HashMap<>(Map.of(
+                    "deptCode", "SURG", "destinationWarehouseId", 20L, "sourceWarehouseId", 30L,
+                    "productCode", "PC001", "requisitionMode", "quota_package", "templateCode", "TP001"));
+            body.putAll(quantities);
+            assertThatThrownBy(() -> module.createRequisition(body))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("定数包申领");
+        }
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+    }
+
+    @Test
     void createsHighValueRequisitionByQuantityWithoutBindingTraceCode() throws Exception {
         mockProduct("HV001", 100L, BigDecimal.TEN, 1);
         allowCatalog(100L);

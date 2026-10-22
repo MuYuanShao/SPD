@@ -28,11 +28,77 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class InventoryMovementServiceTest {
 
+    @org.junit.jupiter.api.BeforeEach
+    void noCompletePackagesUnlessExplicitlySeeded() {
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(
+                contains("FROM quota_package_label"), org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(List.of());
+    }
+
     @Mock
     private JdbcTemplate jdbcTemplate;
 
     @Mock
     private InventoryEventService inventoryEventService;
+
+    @Test
+    void cannotConsumeSignedPackageAsLooseStockAndLeavesBalancesUntouched() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_label"), eq(1L), eq(2L)))
+                .thenReturn(List.of(Map.of("batchId", 20L, "reservedQty", BigDecimal.TEN)));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L)))
+                .thenReturn(List.of(balance()));
+
+        assertThatThrownBy(() -> service.consumeAvailableFifo(1L, 2L, BigDecimal.ONE,
+                "department_consumption_out", "department_consumption", 99L, "test"))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
+        verifyNoInteractions(inventoryEventService);
+    }
+
+    @Test
+    void skipsFullyPackagedBatchAndConsumesLaterLooseBatchWithoutZeroEvents() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_label"), eq(1L), eq(2L)))
+                .thenReturn(List.of(Map.of("batchId", 20L, "reservedQty", BigDecimal.TEN)));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L)))
+                .thenReturn(List.of(balance(), balance(11L, 21L, "5", "6")));
+        when(jdbcTemplate.update(contains("available_qty = available_qty -"), eq(new BigDecimal("3")), eq(11L), eq(new BigDecimal("3"))))
+                .thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(11L)))
+                .thenReturn(new BigDecimal("2"));
+        when(inventoryEventService.record(any())).thenReturn(77L);
+
+        var deductions = service.consumeAvailableFifo(1L, 2L, new BigDecimal("3"),
+                "department_consumption_out", "department_consumption", 99L, "test");
+        assertThat(deductions).containsExactly(new InventoryMovementService.InventoryDeduction(
+                21L, new BigDecimal("3"), new BigDecimal("6")));
+        verify(jdbcTemplate, never()).update(contains("available_qty = available_qty -"), any(), eq(10L), any());
+        verify(inventoryEventService).record(any());
+    }
+
+    @Test
+    void consumesOnlyLooseRemainderAcrossBatchesWhilePreservingCompletePackage() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(contains("FROM quota_package_label"), eq(1L), eq(2L)))
+                .thenReturn(List.of(Map.of("batchId", 20L, "reservedQty", BigDecimal.TEN)));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L)))
+                .thenReturn(List.of(balance(10L, 20L, "12", "5"), balance(11L, 21L, "3", "6")));
+        when(jdbcTemplate.update(contains("available_qty = available_qty -"), any(), any(), any())).thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
+                .thenReturn(BigDecimal.TEN);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(11L)))
+                .thenReturn(BigDecimal.ONE);
+        when(inventoryEventService.record(any())).thenReturn(77L, 78L);
+
+        var deductions = service.consumeAvailableFifo(1L, 2L, new BigDecimal("4"),
+                "department_consumption_out", "department_consumption", 99L, "test");
+
+        assertThat(deductions).extracting(InventoryMovementService.InventoryDeduction::quantity)
+                .containsExactly(new BigDecimal("2"), new BigDecimal("2"));
+        verify(jdbcTemplate).update(contains("available_qty >= ?"), eq(new BigDecimal("2")), eq(10L), eq(new BigDecimal("2")));
+    }
 
     @Test
     void shouldReceiveIntoNullLocationBalanceAndRecordEvent() {
@@ -63,7 +129,7 @@ class InventoryMovementServiceTest {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal requestedQty = new BigDecimal("3.0000");
         BigDecimal qtyAfter = new BigDecimal("7.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("available_qty = available_qty -"), eq(requestedQty), eq(10L), eq(requestedQty)))
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
@@ -76,8 +142,8 @@ class InventoryMovementServiceTest {
         assertThat(deductions).containsExactly(new InventoryMovementService.InventoryDeduction(
                 20L, requestedQty, new BigDecimal("5.0000")));
         ArgumentCaptor<String> fifoSql = ArgumentCaptor.forClass(String.class);
-        verify(jdbcTemplate).queryForList(fifoSql.capture(), eq(1L), eq(2L));
-        assertThat(fifoSql.getValue()).contains("FOR UPDATE");
+        verify(jdbcTemplate, org.mockito.Mockito.times(2)).queryForList(fifoSql.capture(), eq(1L), eq(2L));
+        assertThat(fifoSql.getAllValues()).allSatisfy(sql -> assertThat(sql).contains("FOR UPDATE"));
         verify(jdbcTemplate).update(contains("available_qty >= ?"), eq(requestedQty), eq(10L), eq(requestedQty));
         verify(jdbcTemplate).update("UPDATE inventory_balance SET last_event_id = ? WHERE balance_id = ?", 77L, 10L);
     }
@@ -86,7 +152,7 @@ class InventoryMovementServiceTest {
     void shouldDeleteBalanceAfterFullAvailableStockConsumption() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal quantity = new BigDecimal("10.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("available_qty = available_qty -"), eq(quantity), eq(10L), eq(quantity)))
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
@@ -104,7 +170,7 @@ class InventoryMovementServiceTest {
     void shouldRejectConcurrentDeductionThatWouldOverdrawBalance() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal requestedQty = new BigDecimal("3.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("available_qty = available_qty -"), eq(requestedQty), eq(10L), eq(requestedQty)))
                 .thenReturn(0);
 
@@ -124,7 +190,7 @@ class InventoryMovementServiceTest {
         BigDecimal requestedQty = new BigDecimal("4.0000");
         BigDecimal firstQty = new BigDecimal("2.0000");
         BigDecimal secondQty = new BigDecimal("2.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(first, second));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(first, second));
         when(jdbcTemplate.update(contains("available_qty = available_qty -"), any(), any(), any()))
                 .thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))
@@ -149,7 +215,7 @@ class InventoryMovementServiceTest {
     @Test
     void shouldRejectAggregateShortageBeforeBalanceOrEventWrites() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L)))
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L)))
                 .thenReturn(List.of(balance(10L, 20L, "2.0000", "5.0000")));
 
         assertThatThrownBy(() -> service.consumeAvailableFifo(
@@ -194,7 +260,7 @@ class InventoryMovementServiceTest {
     void shouldReserveAvailableStockWithNonNegativeGuard() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal quantity = new BigDecimal("3.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("locked_qty = locked_qty +"), eq(quantity), eq(quantity), eq(10L), eq(quantity)))
                 .thenReturn(1);
 
@@ -211,7 +277,7 @@ class InventoryMovementServiceTest {
     void shouldRejectConcurrentReservationThatWouldOverdrawAvailableStock() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal quantity = new BigDecimal("3.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("locked_qty = locked_qty +"), eq(quantity), eq(quantity), eq(10L), eq(quantity)))
                 .thenReturn(0);
 
@@ -227,7 +293,7 @@ class InventoryMovementServiceTest {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         BigDecimal quantity = new BigDecimal("3.0000");
         BigDecimal qtyAfter = new BigDecimal("7.0000");
-        when(jdbcTemplate.queryForList(anyString(), eq(1L), eq(2L))).thenReturn(List.of(balance()));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenReturn(List.of(balance()));
         when(jdbcTemplate.update(contains("isolated_qty = isolated_qty +"),
                 eq(quantity), eq(quantity), eq(10L), eq(quantity))).thenReturn(1);
         when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L)))

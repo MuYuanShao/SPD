@@ -326,6 +326,8 @@ public class QuotaTemplateService {
         args.add(deptName.trim());
         args.add(warehouseName.trim());
         args.add(warehouseName.trim());
+        sql.append(" AND dwc.warehouse_id = ?");
+        args.add(destinationWarehouseId);
         appendLike(sql, args, "p.product_code", params.get("productCode"));
         appendLike(sql, args, "p.product_name", params.get("productName"));
         appendLike(sql, args, "p.spec_model", params.get("specModel"));

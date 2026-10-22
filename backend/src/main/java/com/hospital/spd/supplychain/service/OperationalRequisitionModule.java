@@ -92,6 +92,10 @@ public class OperationalRequisitionModule {
             TemplateSnapshot snapshot = mode == RequisitionItemMode.QUOTA_PACKAGE
                     ? resolveTemplateSnapshot(itemBody, product, deptId) : null;
             BigDecimal packageCount = optionalPositive(itemBody.get("packageCount"), "packageCount");
+            if (mode == RequisitionItemMode.QUOTA_PACKAGE && packageCount != null
+                    && packageCount.stripTrailingZeros().scale() > 0) {
+                throw new IllegalArgumentException("定数包申领包数必须为正整数");
+            }
             BigDecimal quantity = requirePositive(itemBody, "quantity");
             if (mode == RequisitionItemMode.QUOTA_PACKAGE && packageCount != null) {
                 quantity = packageCount.multiply(snapshot.packageQuantity());
@@ -229,6 +233,11 @@ public class OperationalRequisitionModule {
             throw new IllegalArgumentException("散货申领不得携带定数包模板");
         } else if (mode == RequisitionItemMode.QUOTA_PACKAGE && snapshot == null) {
             throw new IllegalArgumentException("定数包申领必须选择有效模板");
+        }
+        if (mode == RequisitionItemMode.QUOTA_PACKAGE
+                && (snapshot.packageQuantity().signum() <= 0
+                    || quantity.remainder(snapshot.packageQuantity()).signum() != 0)) {
+            throw new IllegalArgumentException("定数包申领数量必须为模板包内数量的整数倍");
         }
     }
 

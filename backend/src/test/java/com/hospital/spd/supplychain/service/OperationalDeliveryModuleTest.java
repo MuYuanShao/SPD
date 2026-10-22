@@ -113,42 +113,15 @@ class OperationalDeliveryModuleTest {
     }
 
     @Test
-    void createsDeliveryFromExplicitValues() {
-        mockProduct("PC001", "Syringe", 100L);
-        when(support.nextNo(DocumentKind.DELIVERY_ORDER)).thenReturn("PS20260601001");
-
-        Map<String, Object> result = module.createDelivery(Map.of(
-                "requisitionNo", "SL001",
-                "deptName", "Surgery",
-                "warehouseName", "Main Warehouse",
-                "productCode", "PC001",
-                "quantity", BigDecimal.valueOf(20)
-        ));
-
-        assertThat(result)
-                .containsEntry("deliveryNo", "PS20260601001")
-                .containsEntry("status", "picked");
-        verify(jdbcTemplate).update(contains("INSERT INTO spd_delivery_order"),
-                eq("PS20260601001"), eq("SL001"), eq("Surgery"), eq("Main Warehouse"),
-                eq("PC001"), eq("Syringe"), eq(BigDecimal.valueOf(20)));
-    }
-
-    @Test
-    void createsDeliveryWithNullRequisitionNumber() {
-        mockProduct("PC001", "Syringe", 100L);
-        when(support.nextNo(DocumentKind.DELIVERY_ORDER)).thenReturn("PS20260601002");
-
-        Map<String, Object> result = module.createDelivery(Map.of(
-                "deptName", "Surgery",
-                "warehouseName", "Main Warehouse",
-                "productCode", "PC001",
-                "quantity", BigDecimal.ONE
-        ));
-
-        assertThat(result).containsEntry("deliveryNo", "PS20260601002");
-        verify(jdbcTemplate).update(contains("INSERT INTO spd_delivery_order"),
-                eq("PS20260601002"), isNull(), eq("Surgery"), eq("Main Warehouse"),
-                eq("PC001"), eq("Syringe"), eq(BigDecimal.ONE));
+    void rejectsLegacyDeliveryCreationWithoutWritingOrBindingAnyStock() {
+        for (String requisition : List.of("PENDING", "REJECTED", "")) {
+            assertThatThrownBy(() -> module.createDelivery(Map.of(
+                    "requisitionNo", requisition, "deptName", "Surgery",
+                    "warehouseName", "Central", "productCode", "HV001",
+                    "uniqueCode", "UID001", "quantity", BigDecimal.ONE)))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("旧配送创建入口已停用");
+        }
+        verifyNoInteractions(jdbcTemplate, support, highValueTraceFlowService);
     }
 
     @Test

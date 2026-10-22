@@ -37,7 +37,6 @@ import {
   confirmPicking,
   createColdChainException,
   createConsumption,
-  createDelivery,
   createRecall,
   createRequisition,
   fetchClosureList,
@@ -251,6 +250,19 @@ const settlementTotalQuantity = computed(() => {
   if (type.value !== 'settlement') return 0
   return rows.value.reduce((sum, row) => sum + Number(row.settlementQuantity || 0), 0)
 })
+const settlementGoodsType = ref('')
+const settlementPackageCount = computed(() => rows.value.reduce((sum, row) => sum + Number(row.packageCount || 0), 0))
+const settlementLooseQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.looseQuantity || 0), 0))
+const settlementHighValueQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.highValueQuantity || 0), 0))
+
+function settlementGoodsLabel(value: unknown) {
+  return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货' } as Record<string, string>)[String(value)] || '-'
+}
+
+function changeSettlementGoodsType() {
+  currentPage.value = 1
+  loadData()
+}
 /** 结算 KPI：供应商数 = 结算供应商去重，结算单数 = 当前页内 settlementNo 去重 */
 const settlementSupplierCount = computed(() => {
   if (type.value !== 'settlement') return 0
@@ -331,7 +343,8 @@ async function loadData() {
     const [overview, optionData, listData] = await Promise.all([
       fetchClosureOverview(),
       fetchClosureOptions(),
-      fetchClosureList(type.value, { page: String(currentPage.value), size: String(pageSize.value) })
+      fetchClosureList(type.value, { page: String(currentPage.value), size: String(pageSize.value),
+        ...(type.value === 'settlement' ? { goodsType: settlementGoodsType.value } : {}) })
     ])
     summary.value = overview.summary
     options.value = optionData
@@ -789,14 +802,8 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     notifySuccess(action === 'approveRequisition' ? `申领已审批：${result.requisitionNo}` : `申领已驳回：${result.requisitionNo}`)
   }
   if (action === 'delivery') {
-    if (form.uniqueCodes.trim()) {
-      result = await createDelivery(form)
-      form.deliveryNo = String(result.deliveryNo || '')
-      notifySuccess(`高值耗材已按唯一码拣配：${result.deliveryNo}`)
-    } else {
-      await confirmSelectedPicking()
-      return
-    }
+    await confirmSelectedPicking()
+    return
   }
   if (action === 'sign') {
     result = await signDelivery(String(row?.bizNo || form.deliveryNo))
@@ -1040,7 +1047,7 @@ watch(() => form.productCode, () => {
         <div>
           <span class="settlement-kpi-label">数量合计</span>
           <strong class="settlement-kpi-value">{{ settlementTotalQuantity }}</strong>
-          <span class="settlement-kpi-hint">本屏结算数量累加</span>
+          <span class="settlement-kpi-hint">本屏去重包数 {{ settlementPackageCount }}；散货 {{ settlementLooseQuantity }}；高值 {{ settlementHighValueQuantity }}</span>
         </div>
       </div>
       <div class="settlement-kpi-item is-amount">
@@ -1183,7 +1190,7 @@ watch(() => form.productCode, () => {
             <input v-model.trim="form.reason" placeholder="填写召回原因" />
           </label>
         </template>
-        <label v-if="['requisition', 'delivery', 'consumption'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
+        <label v-if="['requisition', 'consumption'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
           <span>高值唯一码</span>
           <input v-model.trim="form.uniqueCodes" placeholder="扫描或输入唯一码；多码用逗号分隔" />
         </label>
@@ -1466,6 +1473,16 @@ watch(() => form.productCode, () => {
           <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
         </template>
       </div>
+      <div v-if="type === 'settlement'" class="settlement-type-filter">
+        <label for="settlement-goods-type">结算货型</label>
+        <select id="settlement-goods-type" v-model="settlementGoodsType" @change="changeSettlementGoodsType">
+          <option value="">全部货型</option>
+          <option value="high_value">高值耗材</option>
+          <option value="quota_package">定数包</option>
+          <option value="loose">散货</option>
+        </select>
+        <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行折合包数按基本数量分摊。</span>
+      </div>
       <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
         <table class="master-table settlement-detail-table">
           <thead>
@@ -1476,8 +1493,12 @@ watch(() => form.productCode, () => {
               <th class="settlement-col-spec">规格 / 单位</th>
               <th class="settlement-col-manufacturer">厂家 / 注册证</th>
               <th class="settlement-col-supplier">结算供应商</th>
-              <th class="numeric-cell">单价</th>
-              <th class="numeric-cell">数量</th>
+              <th>货型</th>
+              <th class="numeric-cell">基本单价</th>
+              <th class="numeric-cell">基本数量</th>
+              <th class="numeric-cell settlement-col-package">包数（去重）</th>
+              <th class="numeric-cell">散货数量</th>
+              <th class="numeric-cell">高值数量</th>
               <th class="numeric-cell">金额</th>
               <th class="settlement-col-policy">带量 / 医保</th>
               <th class="settlement-col-trace">追溯码</th>
@@ -1488,10 +1509,10 @@ watch(() => form.productCode, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="14" class="approval-empty">正在加载结算明细...</td>
+              <td colspan="18" class="approval-empty">正在加载结算明细...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="14" class="approval-empty">暂无结算明细</td>
+              <td colspan="18" class="approval-empty">暂无结算明细</td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.settlementItemId)">
               <td class="settlement-col-document">
@@ -1526,9 +1547,25 @@ watch(() => form.productCode, () => {
                 </div>
               </td>
               <td class="settlement-col-supplier" :title="String(row.settlementSupplier || '-')">{{ row.settlementSupplier || '-' }}</td>
+              <td>{{ settlementGoodsLabel(row.goodsType) }}</td>
               <td class="numeric-cell">{{ row.unitPrice ?? '-' }}</td>
               <td class="numeric-cell">{{ row.settlementQuantity ?? '-' }}</td>
-              <td class="numeric-cell amount-cell">{{ row.settlementAmount ?? '-' }}</td>
+              <td class="numeric-cell settlement-col-package">
+                <div v-if="row.goodsType === 'quota_package'" class="settlement-cell-stack">
+                  <strong>{{ row.packageCount ?? 0 }} 包</strong>
+                  <span class="settlement-cell-meta" :title="`本行折合 ${row.packageEquivalentCount ?? 0} 包`">本行折合 {{ row.packageEquivalentCount ?? 0 }} 包</span>
+                  <span class="settlement-cell-meta" :title="`本行包内基本数量 ${row.packageBaseQuantity}，每包 ${row.packageQuantity} ${row.unit}`">{{ row.packageBaseQuantity }} / {{ row.packageQuantity }} {{ row.unit }}</span>
+                </div>
+                <span v-else>0</span>
+              </td>
+              <td class="numeric-cell">{{ row.looseQuantity ?? 0 }}</td>
+              <td class="numeric-cell">{{ row.highValueQuantity ?? 0 }}</td>
+              <td class="numeric-cell amount-cell">
+                <div class="settlement-cell-stack">
+                  <strong :title="String(row.settlementAmount ?? '-')">{{ row.settlementAmount ?? '-' }}</strong>
+                  <span v-if="row.goodsType === 'quota_package'" class="settlement-cell-meta" :title="`整包金额：${row.packageAmount ?? '-'}`">整包金额：{{ row.packageAmount ?? '-' }}</span>
+                </div>
+              </td>
               <td class="settlement-col-policy">
                 <div class="settlement-cell-stack settlement-policy-list">
                   <span><b>带量</b>{{ row.volumeBased || '-' }}<small>{{ row.volumeBasedType || '-' }}</small></span>
@@ -1867,6 +1904,15 @@ watch(() => form.productCode, () => {
 </template>
 
 <style scoped>
+.settlement-type-filter {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.settlement-type-filter select { padding: 6px 12px; }
+.settlement-type-filter span { color: var(--md-text-secondary, #667085); font-size: 12px; }
 /* =====================================================================
    拣配配送 delivery-acceptance-page
    ---------------------------------------------------------------------
@@ -2876,6 +2922,12 @@ watch(() => form.productCode, () => {
   width: 96px !important;
   min-width: 96px !important;
   max-width: 96px !important;
+}
+
+.finance-settlement-page .settlement-detail-table .numeric-cell.settlement-col-package {
+  width: 170px !important;
+  min-width: 170px !important;
+  max-width: 170px !important;
 }
 
 /* 滚动容器上限，避免超长明细把整页拉得很高 */

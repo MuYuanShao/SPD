@@ -32,15 +32,17 @@ public class SettlementPointService {
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
+    private final QuotaPackagePricingService quotaPricing;
 
     public SettlementPointService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
+        this.quotaPricing = new QuotaPackagePricingService(jdbcTemplate);
     }
 
     @Transactional
     public List<String> generateForReceivingOrder(Long receivingOrderId) {
-        return createBills(PURCHASE_IN, jdbcTemplate.queryForList("""
+        return createBills(PURCHASE_IN, lockedSourceRows("""
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(ro.receive_time, '%Y-%m') AS settlementPeriod,
                        'receiving_order_item' AS sourceBizType, roi.item_id AS sourceBizId,
                        roi.product_id AS productId, ib.batch_id AS batchId, NULL AS traceCodeId,
@@ -57,13 +59,12 @@ public class SettlementPointService {
                       WHERE sbi.source_biz_type = 'receiving_order_item' AND sbi.source_biz_id = roi.item_id
                    )
                  ORDER BY ib.supplier_id, roi.item_id
-                 FOR UPDATE
-                """, receivingOrderId));
+                """, "roi.product_id", receivingOrderId));
     }
 
     @Transactional
     public List<String> generateForConsumption(Long consumptionId) {
-        return createBills(DEPARTMENT_CONSUMPTION, jdbcTemplate.queryForList("""
+        return createBills(DEPARTMENT_CONSUMPTION, lockedSourceRows("""
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(dc.consume_time, '%Y-%m') AS settlementPeriod,
                        'department_consumption_item' AS sourceBizType, dci.item_id AS sourceBizId,
                        dci.product_id AS productId, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId,
@@ -79,13 +80,12 @@ public class SettlementPointService {
                         AND sbi.source_biz_id = dci.item_id
                    )
                  ORDER BY ib.supplier_id, dci.item_id
-                 FOR UPDATE
-                """, consumptionId));
+                """, "dci.product_id", consumptionId));
     }
 
     @Transactional
     public List<String> generateForHighValueCharge(Long chargeId) {
-        return createBills(ACTUAL_SALE, jdbcTemplate.queryForList("""
+        return createBills(ACTUAL_SALE, lockedSourceRows("""
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(hvc.charge_time, '%Y-%m') AS settlementPeriod,
                        'high_value_charge' AS sourceBizType, hvc.charge_id AS sourceBizId,
                        ib.product_id AS productId, ib.batch_id AS batchId, hvc.trace_code_id AS traceCodeId,
@@ -101,8 +101,7 @@ public class SettlementPointService {
                      SELECT 1 FROM settlement_bill_item sbi
                       WHERE sbi.source_biz_type = 'high_value_charge' AND sbi.source_biz_id = hvc.charge_id
                    )
-                 FOR UPDATE
-                """, chargeId));
+                """, "ib.product_id", chargeId));
     }
 
     /**
@@ -120,8 +119,10 @@ public class SettlementPointService {
             sql += " AND ib.supplier_id = ?";
             args.add(request.supplierId());
         }
-        sql += " ORDER BY ib.supplier_id, sourceBizId FOR UPDATE";
-        List<Map<String, Object>> candidates = jdbcTemplate.queryForList(sql, args.toArray());
+        sql += " ORDER BY ib.supplier_id, sourceBizId";
+        String productColumn = request.settlementMode() == SettlementMode.PURCHASE_IN ? "roi.product_id"
+                : request.settlementMode() == SettlementMode.DEPARTMENT_CONSUMPTION ? "dci.product_id" : "ib.product_id";
+        List<Map<String, Object>> candidates = lockedSourceRows(sql, productColumn, args.toArray());
         List<Map<String, Object>> missing = candidates.stream()
                 .filter(row -> !truthy(row.get("alreadySettled")))
                 .toList();
@@ -132,6 +133,33 @@ public class SettlementPointService {
                 "detailCount", missing.size(),
                 "skippedExistingCount", candidates.size() - missing.size()
         );
+    }
+
+    /** Discover without source locks, lock sorted products, then current-read only those products' sources. */
+    private List<Map<String, Object>> lockedSourceRows(String sql, String productColumn, Object... args) {
+        List<Map<String, Object>> discovered = jdbcTemplate.queryForList(sql, args);
+        List<Long> products = discovered.stream().map(row -> row.get("productId"))
+                .filter(Number.class::isInstance).map(value -> ((Number) value).longValue()).distinct().sorted().toList();
+        if (products.isEmpty()) return List.of();
+        quotaPricing.lockProducts(products);
+        // These literals are database-owned Long IDs, never request text. Keep concurrent new products for the next run.
+        String ids = products.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+        int order = sql.lastIndexOf("ORDER BY");
+        String where = order < 0 ? sql : sql.substring(0, order);
+        String ordering = order < 0 ? "" : sql.substring(order);
+        List<Map<String, Object>> locked = jdbcTemplate.queryForList(
+                where + " AND " + productColumn + " IN (" + ids + ") " + ordering + " FOR UPDATE", args);
+        List<Map<String, Object>> current = new ArrayList<>();
+        for (Map<String, Object> row : locked) {
+            Map<String, Object> copy = new LinkedHashMap<>(row);
+            List<Long> billed = jdbcTemplate.queryForList("""
+                    SELECT item_id FROM settlement_bill_item
+                     WHERE source_biz_type = ? AND source_biz_id = ? FOR SHARE
+                    """, Long.class, row.get("sourceBizType"), row.get("sourceBizId"));
+            copy.put("alreadySettled", !billed.isEmpty());
+            current.add(copy);
+        }
+        return current;
     }
 
     private static void validateManualRequest(ManualSettlementGenerationRequest request) {
@@ -201,11 +229,12 @@ public class SettlementPointService {
         eligible = eligible.stream()
                 .filter(row -> row.get("supplierId") instanceof Number
                         && row.get("sourceBizType") != null && row.get("sourceBizId") instanceof Number
-                        && row.get("settlementPeriod") != null)
+                        && row.get("settlementPeriod") != null && !truthy(row.get("alreadySettled")))
                 .toList();
         if (eligible.isEmpty()) {
             return List.of();
         }
+        eligible = quotaPricing.settlementRows(settlementPoint, eligible);
         Map<GroupKey, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (Map<String, Object> row : eligible) {
             GroupKey key = new GroupKey(number(row.get("supplierId")), String.valueOf(row.get("settlementPeriod")));

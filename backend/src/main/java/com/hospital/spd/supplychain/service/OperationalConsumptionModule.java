@@ -105,6 +105,12 @@ public class OperationalConsumptionModule {
 
     @Transactional
     public Map<String, Object> reverseConsumption(String consumptionNo) {
+        List<Long> products = jdbcTemplate.queryForList("""
+                SELECT DISTINCT item.product_id FROM department_consumption_item item
+                  JOIN department_consumption consumption ON consumption.consumption_id = item.consumption_id
+                 WHERE consumption.consumption_no = ?
+                """, Long.class, consumptionNo);
+        new QuotaPackagePricingService(jdbcTemplate).lockProducts(products);
         Map<String, Object> consumption = jdbcTemplate.queryForMap("""
                 SELECT consumption_id AS consumptionId, warehouse_id AS warehouseId, status,
                        related_biz_type AS relatedBizType, related_biz_id AS relatedBizId
@@ -255,7 +261,7 @@ public class OperationalConsumptionModule {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,
                        unit, purchase_price AS purchasePrice, is_high_value AS highValue
-                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1
+                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1 FOR UPDATE
                 """, productCode);
     }
 

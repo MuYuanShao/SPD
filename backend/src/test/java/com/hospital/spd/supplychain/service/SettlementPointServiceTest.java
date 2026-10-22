@@ -49,6 +49,21 @@ class SettlementPointServiceTest {
     }
 
     @Test
+    void locksProductBeforeTakingReceivingSourceLocks() throws Exception {
+        when(jdbcTemplate.queryForList(contains("ib.settlement_mode = 'purchase_in'"), eq(31L)))
+                .thenReturn(List.of(source("receiving_order_item", 41L, null)));
+        when(support.nextNo(DocumentKind.SETTLEMENT_BILL)).thenReturn("JS-LOCK-ORDER");
+        mockGeneratedKey(51L);
+        service.generateForReceivingOrder(31L);
+        var ordered = org.mockito.Mockito.inOrder(jdbcTemplate);
+        ordered.verify(jdbcTemplate).queryForList(org.mockito.ArgumentMatchers.argThat(
+                sql -> sql.contains("ib.settlement_mode = 'purchase_in'") && !sql.contains("FOR UPDATE")), eq(31L));
+        ordered.verify(jdbcTemplate).queryForMap(contains("FROM product WHERE product_id"), eq(101L));
+        ordered.verify(jdbcTemplate).queryForList(org.mockito.ArgumentMatchers.argThat(
+                sql -> sql.contains("roi.product_id IN (101)") && sql.contains("FOR UPDATE")), eq(31L));
+    }
+
+    @Test
     void generatesPurchaseInSettlementWhenReceivingPointIsReached() throws Exception {
         when(jdbcTemplate.queryForList(contains("ib.settlement_mode = 'purchase_in'"), eq(31L)))
                 .thenReturn(List.of(source("receiving_order_item", 41L, null)));
@@ -99,6 +114,10 @@ class SettlementPointServiceTest {
         existing.put("alreadySettled", 1);
         when(jdbcTemplate.queryForList(contains("dc.consume_time >= ?"), any(Object[].class)))
                 .thenReturn(List.of(missing, existing));
+        when(jdbcTemplate.queryForList(contains("WHERE source_biz_type = ?"), eq(Long.class),
+                eq("department_consumption_item"), eq(72L))).thenReturn(List.of(99L));
+        when(jdbcTemplate.queryForList(contains("WHERE source_biz_type = ?"), eq(Long.class),
+                eq("department_consumption_item"), eq(71L))).thenReturn(List.of());
         when(support.nextNo(DocumentKind.SETTLEMENT_BILL)).thenReturn("JS2026072400012");
         mockGeneratedKey(53L);
 

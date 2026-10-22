@@ -60,7 +60,7 @@ export function useQuotaProductSelector(templateForm: TemplateProductForm) {
       brand: String(row.brand || ''),
       manufacturerName: String(row.manufacturer || ''),
       unit: String(row.unit || ''),
-      purchasePrice: String(row.price || ''),
+      purchasePrice: row.price == null ? '' : String(row.price),
       middlePackageQty: String(row.conversionRate ?? '')
     }
     // 包内数量取医院目录中的中包装数量回填，支持编辑

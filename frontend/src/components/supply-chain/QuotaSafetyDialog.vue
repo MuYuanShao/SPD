@@ -40,6 +40,13 @@ const emit = defineEmits<{
   (event: 'change-size', size: number): void
 }>()
 
+function isSelectedTemplate(row: QuotaTemplateRow) {
+  const sameTemplate = props.safetyForm.templateId != null
+    ? row.templateId === props.safetyForm.templateId
+    : row.templateCode === props.safetyForm.templateCode
+  return sameTemplate && row.productCode === props.safetyForm.productCode
+}
+
 const warehouseKeyword = ref('')
 const warehouseDropdownOpen = ref(false)
 
@@ -167,14 +174,14 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
           <div class="qs-catalog-table-wrap">
             <table class="qs-catalog-table">
               <colgroup>
-                <col style="min-width: 110px" />
-                <col style="min-width: 150px" />
-                <col style="min-width: 110px" />
-                <col style="min-width: 160px" />
-                <col style="min-width: 100px" />
-                <col style="min-width: 100px" />
-                <col style="min-width: 80px" />
-                <col style="min-width: 110px" />
+                <col style="width: 170px" />
+                <col style="width: 170px" />
+                <col style="width: 190px" />
+                <col style="width: 220px" />
+                <col style="width: 120px" />
+                <col style="width: 100px" />
+                <col style="width: 90px" />
+                <col style="width: 120px" />
               </colgroup>
               <thead>
                 <tr>
@@ -191,16 +198,16 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
               <tbody>
                 <tr
                   v-for="row in templates"
-                  :key="row.templateId"
+                  :key="`${row.templateId}:${row.productCode}`"
                   class="qs-catalog-row"
-                  :class="{ selected: row.templateCode === safetyForm.templateCode }"
+                  :class="{ selected: isSelectedTemplate(row) }"
                   @dblclick="$emit('select-template', row)"
                 >
-                  <td><span class="cell-code">{{ row.templateCode }}</span></td>
-                  <td><strong>{{ row.templateName }}</strong></td>
-                  <td>{{ row.productCode }}</td>
-                  <td>{{ row.productName }}</td>
-                  <td>{{ row.specModel || '-' }}</td>
+                  <td :title="row.templateCode"><span class="cell-code">{{ row.templateCode }}</span></td>
+                  <td :title="row.templateName"><strong>{{ row.templateName }}</strong></td>
+                  <td :title="row.productCode">{{ row.productCode }}</td>
+                  <td :title="row.productName">{{ row.productName }}</td>
+                  <td :title="row.specModel">{{ row.specModel || '-' }}</td>
                   <td><span class="cell-qty">{{ row.quantity }} {{ row.unit }}</span></td>
                   <td>
                     <span class="status-badge" :class="row.status === '禁用' || row.status === 'disabled' ? 'disabled' : 'enabled'">
@@ -518,6 +525,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 .qs-catalog-table {
   width: 100%;
+  min-width: 1180px;
   border-collapse: collapse;
   table-layout: fixed;
   font-size: 13px;
@@ -547,6 +555,9 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   padding: 8px 12px;
   border-bottom: 1px solid #eef2f5;
   vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: hidden;
 }
 
 .qs-catalog-table tbody tr:nth-child(even) td {

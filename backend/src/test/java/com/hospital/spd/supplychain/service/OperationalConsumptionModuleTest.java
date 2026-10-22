@@ -105,6 +105,7 @@ class OperationalConsumptionModuleTest {
 
     @Test
     void reversesConsumptionAndAuditsAfterDurableWrites() {
+        mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
@@ -121,6 +122,7 @@ class OperationalConsumptionModuleTest {
                 .containsEntry("flushNo", "FXH20260601001")
                 .containsEntry("status", "approved");
         InOrder ordered = inOrder(jdbcTemplate, support);
+        ordered.verify(jdbcTemplate).queryForMap(contains("FROM product WHERE product_id"), eq(100L));
         ordered.verify(jdbcTemplate).queryForMap(contains("FROM department_consumption"), eq("XH001"));
         ordered.verify(support).receiveAvailable(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
                 eq("department_consumption_reverse_in"), eq("department_consumption"), eq(1L), anyString());
@@ -134,6 +136,7 @@ class OperationalConsumptionModuleTest {
 
     @Test
     void rejectsReversalWhenConsumptionHasConfirmedSettlement() {
+        mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
@@ -149,6 +152,7 @@ class OperationalConsumptionModuleTest {
 
     @Test
     void removesConsumptionItemsFromPendingSettlementBeforeRestoringInventory() {
+        mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
@@ -189,6 +193,7 @@ class OperationalConsumptionModuleTest {
 
     @Test
     void restoresQuotaPackageTraceWhenItsConsumptionIsReversed() {
+        mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed",
                         "relatedBizType", "quota_package_label", "relatedBizId", 55L));
@@ -239,6 +244,13 @@ class OperationalConsumptionModuleTest {
         assertThat(module.resolveConsumptionProduct("QP-PKG001"))
                 .containsEntry("sourceType", "package").containsEntry("traceCodeId", 55L)
                 .containsEntry("packageQuantity", BigDecimal.TEN);
+    }
+
+    private void mockReversalProductLock() {
+        when(jdbcTemplate.queryForList(contains("WHERE consumption.consumption_no = ?"), eq(Long.class), eq("XH001")))
+                .thenReturn(List.of(100L));
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_id"), eq(100L)))
+                .thenReturn(Map.of("productId", 100L));
     }
 
 }

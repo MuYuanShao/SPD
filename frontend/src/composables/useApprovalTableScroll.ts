@@ -1,16 +1,10 @@
 import { computed, ref } from 'vue'
 
-export function useApprovalTableScroll(options: {
-  fieldColumnIndex: Record<string, number>
-  fieldGroupTargets: Record<string, string>
-  fieldToGroup: Record<string, string>
-}) {
+export function useApprovalTableScroll() {
   const approvalTableShellRef = ref<HTMLElement | null>(null)
   const approvalScrollTrackRef = ref<HTMLElement | null>(null)
   const approvalScrollDragging = ref(false)
   const approvalScrollState = ref({ scrollLeft: 0, clientWidth: 1, scrollWidth: 1 })
-  const activeApprovalField = ref('')
-  const activeApprovalGroup = ref('all')
   let approvalScrollStartX = 0
   let approvalScrollStartLeft = 0
 
@@ -27,38 +21,6 @@ export function useApprovalTableScroll(options: {
     const thumbLeft = Math.round((scrollLeft / maxScrollLeft) * maxThumbLeft)
     return { width: `${thumbWidth}px`, transform: `translateX(${thumbLeft}px)` }
   })
-
-  function scrollApprovalTableToField(fieldName: string) {
-    activeApprovalField.value = fieldName
-    activeApprovalGroup.value = options.fieldToGroup[fieldName] || 'all'
-    const shell = approvalTableShellRef.value
-    if (!shell) return
-    const tr = shell.querySelector('thead tr')
-    if (!tr) return
-    const index = options.fieldColumnIndex[fieldName]
-    if (index === undefined) return
-    const th = tr.children[index] as HTMLElement | null
-    if (!th) return
-
-    const shellRect = shell.getBoundingClientRect()
-    const thRect = th.getBoundingClientRect()
-    const thLeft = thRect.left - shellRect.left + shell.scrollLeft
-    const thWidth = thRect.width
-    const viewportWidth = shell.clientWidth
-    const scrollTarget = Math.max(0, thLeft - Math.max(24, (viewportWidth - thWidth) / 2))
-    setApprovalTableScrollLeft(scrollTarget)
-  }
-
-  function scrollApprovalToGroup(groupKey: string) {
-    activeApprovalGroup.value = groupKey
-    if (groupKey === 'all') {
-      activeApprovalField.value = ''
-      setApprovalTableScrollLeft(0)
-      return
-    }
-    const field = options.fieldGroupTargets[groupKey]
-    if (field) scrollApprovalTableToField(field)
-  }
 
   function updateApprovalScrollState() {
     const shell = approvalTableShellRef.value
@@ -119,11 +81,7 @@ export function useApprovalTableScroll(options: {
     approvalScrollTrackRef,
     approvalScrollDragging,
     approvalScrollState,
-    activeApprovalField,
-    activeApprovalGroup,
     approvalScrollThumbStyle,
-    scrollApprovalTableToField,
-    scrollApprovalToGroup,
     updateApprovalScrollState,
     jumpApprovalTableScroll,
     startApprovalScrollDrag,

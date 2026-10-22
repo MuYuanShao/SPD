@@ -258,6 +258,8 @@ public class ReceivingOrderService {
     public Map<String, Object> create(ReceivingOrderRequest request) {
         permissionGuard.require("receiving-order:create");
         validateRequest(request);
+        new QuotaPackagePricingService(jdbcTemplate).lockReceivingProducts(null,
+                request.items().stream().map(item -> item.productCode()).toList());
         ReceivingType receivingType = ReceivingType.resolve(request.receivingType(), request.isAgent());
         ReceivingSourceType sourceType = ReceivingSourceType.resolve(request.sourceType(), request.purchaseOrderNo());
         validateSource(sourceType, request.purchaseOrderNo());
@@ -301,6 +303,8 @@ public class ReceivingOrderService {
     public Map<String, Object> update(String receivingNo, ReceivingOrderRequest request) {
         permissionGuard.require("receiving-order:update");
         validateRequest(request);
+        new QuotaPackagePricingService(jdbcTemplate).lockReceivingProducts(receivingNo,
+                request.items().stream().map(item -> item.productCode()).toList());
         ReceivingType receivingType = ReceivingType.resolve(request.receivingType(), request.isAgent());
         ReceivingSourceType sourceType = ReceivingSourceType.resolve(request.sourceType(), request.purchaseOrderNo());
         validateSource(sourceType, request.purchaseOrderNo());
@@ -336,6 +340,9 @@ public class ReceivingOrderService {
 
     @Transactional
     public Map<String, Object> action(String receivingNo, ReceivingActionRequest request) {
+        ReceivingAction action = ReceivingAction.from(request.action());
+        List<Long> lockedProducts = action == ReceivingAction.REJECT ? List.of()
+                : new QuotaPackagePricingService(jdbcTemplate).lockReceivingProducts(receivingNo, List.of());
         Map<String, Object> order = jdbcTemplate.queryForMap("""
                 SELECT ro.receiving_order_id AS receivingOrderId, ro.purchase_order_id AS purchaseOrderId,
                        ro.warehouse_id AS warehouseId, ro.supplier_id AS supplierId, ro.receiver_id AS receiverId,
@@ -350,7 +357,6 @@ public class ReceivingOrderService {
                  WHERE receiving_no = ?
                  FOR UPDATE
                 """, receivingNo);
-        ReceivingAction action = ReceivingAction.from(request.action());
         String status = String.valueOf(order.get("receivingStatus"));
         Long receivingOrderId = ((Number) order.get("receivingOrderId")).longValue();
         Long warehouseId = ((Number) order.get("warehouseId")).longValue();
@@ -391,6 +397,12 @@ public class ReceivingOrderService {
         }
         approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval",
                 number(order.get("warehouseDeptId")), number(order.get("receiverId")));
+        List<Long> currentProducts = jdbcTemplate.queryForList(
+                "SELECT DISTINCT product_id FROM receiving_order_item WHERE receiving_order_id = ? FOR SHARE",
+                Long.class, receivingOrderId);
+        if (!lockedProducts.containsAll(currentProducts)) {
+            throw new IllegalArgumentException("收货单商品已变化，请刷新后重新审核");
+        }
         boolean hasQualifiedInventory = approveReceiving(
                 receivingOrderId, receivingNo, warehouseId, supplierId, order.get("purchaseOrderId"));
         if (!hasQualifiedInventory) {
@@ -557,7 +569,7 @@ public class ReceivingOrderService {
                   JOIN product p ON p.product_id = roi.product_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = ?
-                 WHERE roi.receiving_order_id = ?
+                 WHERE roi.receiving_order_id = ? FOR UPDATE
                 """, supplierId, receivingOrderId);
 
         boolean hasQualifiedInventory = items.stream()

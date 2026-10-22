@@ -36,6 +36,7 @@ public class PackingTaskService {
     private final SupplyChainSupport support;
     private final QuotaPackageTraceFlowService traceFlowService;
     private final QuotaPermissionGuard permissionGuard;
+    private final QuotaPackagePricingService quotaPricing;
 
     public PackingTaskService(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support,
@@ -51,6 +52,7 @@ public class PackingTaskService {
         this.support = support;
         this.traceFlowService = traceFlowService;
         this.permissionGuard = permissionGuard;
+        this.quotaPricing = new QuotaPackagePricingService(jdbcTemplate);
     }
 
     public Map<String, Object> packingOptions() {
@@ -215,6 +217,7 @@ public class PackingTaskService {
     @Transactional
     public Map<String, Object> confirmTask(String taskNo) {
         permissionGuard.require("quota-packing-task:confirm");
+        quotaPricing.lockPackingProduct(taskNo);
 
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
@@ -236,6 +239,7 @@ public class PackingTaskService {
             traceFlowService.ensureTrace(labelId);
             sourceIndex = insertLabelSources(labelId, consumed, sourceRemaining, sourceIndex,
                     (BigDecimal) task.get("packageQuantity"), warehouseId);
+            quotaPricing.initializePackage(labelId, ((Number) task.get("productId")).longValue());
             writePackageEvent(labelId, "pack_confirm", null, "pending_print", (BigDecimal) task.get("packageQuantity"), "pack confirmed and label waits for print");
             labels.add(labelNo);
         }
@@ -398,6 +402,9 @@ public class PackingTaskService {
                        t.template_name AS templateName, w.warehouse_name AS warehouseName,
                        p.product_code AS productCode, p.product_name AS productName,
                        qpl.package_quantity AS packageQuantity, qpl.print_count AS printCount,
+                       qpl.settlement_unit_price AS settlementUnitPrice,
+                       ROUND(qpl.package_quantity * qpl.settlement_unit_price, 4) AS settlementPackagePrice,
+                       qpl.catalog_price_version AS catalogPriceVersion,
                        DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        GROUP_CONCAT(CONCAT(ib.system_batch_no, ':',
                             TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM qpls.source_qty + 0)))

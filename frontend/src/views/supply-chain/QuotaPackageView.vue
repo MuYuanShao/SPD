@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch } from 'vue'
 import { Teleport } from 'vue'
+import { packageReferencePrice } from '../../utils/quotaPackagePricing'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -262,7 +263,6 @@ const {
 } = useQuotaSafetyDialog({
   safetyForm,
   message: actionResult,
-  safetyCatalogQuery,
   resetSafetyCatalogQuery,
   reload: loadData
 })
@@ -299,7 +299,7 @@ const {
   resetQuotaPages
 } = useQuotaPackagePagination(loadData)
 
-const { loadData: loadQuotaPackageData, templateQuery } = useQuotaPackageDataLoader({
+const { loadData: loadQuotaPackageData, invalidateLoad, templateQuery } = useQuotaPackageDataLoader({
   mode,
   packageSection,
   loading,
@@ -730,8 +730,25 @@ watch(() => packingForm.templateCode, (code) => {
   }
 })
 
+const templateReferencePrice = computed(() => {
+  const price = packageReferencePrice(selectedProductInfo.value?.purchasePrice, templateForm.quantity)
+  return price == null ? '-' : `¥ ${price}`
+})
+watch(templates, rows => {
+  const current = rows.find(row => row.productCode === templateForm.productCode)
+  if (current && selectedProductInfo.value) {
+    selectedProductInfo.value.purchasePrice = current.baseUnitPrice == null ? '' : String(current.baseUnitPrice)
+  }
+})
+let activatedOnce = false
+onActivated(() => {
+  if (activatedOnce) void loadData()
+  activatedOnce = true
+})
 onMounted(loadData)
+onDeactivated(invalidateLoad)
 watch(() => route.params.code, () => {
+  if (route.name !== 'quota-package') return
   // 切换子菜单时清空反馈，避免上一菜单的提示显示在当前菜单
   packingFeedback.value = ''
   actionResult.value = { text: '', tone: 'success' }
@@ -900,13 +917,14 @@ watch(
                 <th>供应商</th>
                 <th class="tpl-col-version">版本</th>
                 <th class="tpl-col-qty">包装数量</th>
+                <th>套包参考单价</th>
                 <th class="tpl-col-status">状态</th>
                 <th class="tpl-col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载定数包模板..." />
-              <TableStateRow v-else-if="templates.length === 0" :colspan="12" message="暂无符合条件的定数包模板" />
+              <TableStateRow v-if="loading" :colspan="13" state="loading" message="正在加载定数包模板..." />
+              <TableStateRow v-else-if="templates.length === 0" :colspan="13" message="暂无符合条件的定数包模板" />
               <tr
                 v-for="row in templates"
                 v-else
@@ -940,6 +958,7 @@ watch(
                   <span class="tpl-qty">{{ formatTemplateQty(row.quantity) }}</span>
                   <span v-if="row.unit" class="tpl-qty-unit">{{ row.unit }}</span>
                 </td>
+                <td>{{ row.packageUnitPrice == null ? '-' : `¥ ${Number(row.packageUnitPrice).toFixed(4)}` }}</td>
                 <td class="tpl-col-status">
                   <span class="tpl-status" :class="row.status === '禁用' ? 'is-disabled' : 'is-enabled'">
                     <i class="tpl-status-dot" />
@@ -2189,8 +2208,9 @@ watch(
                 <input :value="selectedProductInfo.manufacturerName" readonly />
               </label>
               <label class="qtd-field">
-                <span>单价</span>
-                <input :value="selectedProductInfo.purchasePrice ? '¥ ' + selectedProductInfo.purchasePrice : '-'" readonly />
+                <span>套包参考单价</span>
+                <input :value="templateReferencePrice" readonly />
+                <small>目录基本单位价 × 包内数量</small>
               </label>
               <label class="qtd-field">
                 <span>基本单位</span>

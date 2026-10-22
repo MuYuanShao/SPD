@@ -90,6 +90,7 @@ public class ProductApprovalService {
     private final AuditLogService auditLogService;
     private final CatalogApprovalTransactionExecutor transactionExecutor;
     private final CatalogApplicationSnapshotService snapshotService;
+    private final com.hospital.spd.supplychain.service.QuotaPackagePricingService quotaPricing;
 
     public ProductApprovalService(JdbcTemplate jdbcTemplate) {
         this(jdbcTemplate, OperatorContext::system, new ApprovalFlowGuard(jdbcTemplate),
@@ -125,6 +126,7 @@ public class ProductApprovalService {
         this.auditLogService = auditLogService;
         this.transactionExecutor = transactionExecutor;
         this.snapshotService = snapshotService;
+        this.quotaPricing = new com.hospital.spd.supplychain.service.QuotaPackagePricingService(jdbcTemplate);
     }
 
     // ======================== Public API ========================
@@ -641,11 +643,13 @@ public class ProductApprovalService {
                                final_review_opinion = ?, approve_by = ?, approve_time = NOW(), approve_opinion = ?
                           WHERE application_no = ?
                         """, nextStatus, operator.userId(), opinion, operator.userId(), opinion, applicationNo);
+                Map<String, Object> oldCatalogPrice = quotaPricing.lockCatalogProduct(detail.productCode());
                 assertCatalogSnapshotUnchanged(applicationNo);
                 if ("停用申请".equals(detail.applicationType())) {
                     disableHospitalCatalogProduct(applicationNo);
                 } else {
                     syncToHospitalCatalog(applicationNo);
+                    quotaPricing.afterCatalogApproval(applicationNo, oldCatalogPrice, operator.userId());
                 }
             }
         } else {
@@ -1476,6 +1480,7 @@ public class ProductApprovalService {
                      AND p.category_id <=> CAST(JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.categoryId')) AS UNSIGNED)
                      AND p.status <=> CAST(JSON_UNQUOTE(JSON_EXTRACT(a.product_snapshot, '$.status')) AS UNSIGNED)
                    )
+                 FOR UPDATE
                 """, Integer.class, applicationNo);
         if (conflicting != null && conflicting > 0) {
             throw new IllegalArgumentException("医院目录已发生变化，请重新提交申请");

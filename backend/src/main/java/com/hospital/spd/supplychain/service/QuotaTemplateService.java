@@ -92,7 +92,10 @@ public class QuotaTemplateService {
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName,
-                       qpti.quantity, qpti.unit,
+                       qpti.quantity, qpti.unit, p.unit AS baseUnit, p.brand,
+                       p.conversion_rate AS middlePackageQty, p.purchase_price AS baseUnitPrice,
+                       ROUND(p.purchase_price * qpti.quantity, 4) AS packageUnitPrice,
+                       p.catalog_price_version AS catalogPriceVersion,
                        CASE qpt.status WHEN 1 THEN '启用' ELSE '禁用' END AS status,
                        DATE_FORMAT(qpt.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM quota_package_template qpt

@@ -12,11 +12,6 @@ import { usePendingProductBatchApproval } from '../../composables/usePendingProd
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
 import { usePendingProductImportExport } from '../../composables/usePendingProductImportExport'
 import {
-  approvalFieldChips,
-  approvalFieldColumnIndex,
-  approvalFieldGroups,
-  approvalFieldGroupTargets,
-  approvalFieldToGroup,
   approvalRiskLabels,
   approvalRiskTone,
   approvalTypeClass,
@@ -348,7 +343,7 @@ const approvalMetricCards = computed(() => {
     { label: '待我审批', value: totalTodo, hint: '按风险与时效排序', tone: 'primary' },
     { label: '新品准入', value: typeCountMap.value.get('new') ?? 0, hint: '重点核验准入资料' },
     { label: '信息变更', value: typeCountMap.value.get('change') ?? 0, hint: '关注价格与供应商' },
-    { label: '已展示字段', value: 18, hint: '可按分组快速定位' },
+    { label: '已展示字段', value: 18, hint: '可通过列设置调整' },
     { label: '风险提醒', value: rows.value.filter((row) => row.warning).length, hint: '含临期 / 冷链 / 高值', tone: 'alert' }
   ]
 })
@@ -358,21 +353,13 @@ const {
   approvalScrollTrackRef,
   approvalScrollDragging,
   approvalScrollState,
-  activeApprovalField,
-  activeApprovalGroup,
   approvalScrollThumbStyle,
-  scrollApprovalTableToField,
-  scrollApprovalToGroup,
   updateApprovalScrollState,
   jumpApprovalTableScroll,
   startApprovalScrollDrag,
   moveApprovalScrollDrag,
   endApprovalScrollDrag
-} = useApprovalTableScroll({
-  fieldColumnIndex: approvalFieldColumnIndex,
-  fieldGroupTargets: approvalFieldGroupTargets,
-  fieldToGroup: approvalFieldToGroup
-})
+} = useApprovalTableScroll()
 
 const { currentPage, pageSize, totalPages, visiblePages, changePage, changePageSize, resetPage } =
   usePendingProductCatalogPagination({
@@ -689,36 +676,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           </select>
           <button class="filter-button" type="button" @click="currentPage = 1; loadApplications()">查询</button>
         </div>
-
-        <section class="approval-field-nav">
-          <div class="approval-field-nav-head">
-            <strong>字段导航</strong>
-            <span>可导航 {{ approvalFieldChips.length }} 个横向字段</span>
-          </div>
-          <div class="subnav-tabs">
-            <button
-              v-for="group in approvalFieldGroups"
-              :key="group.key"
-              type="button"
-              :class="{ active: activeApprovalGroup === group.key }"
-              @click="scrollApprovalToGroup(group.key)"
-            >
-              {{ group.label }}
-            </button>
-          </div>
-          <div class="subnav-chips">
-            <button
-              v-for="field in approvalFieldChips"
-              :key="field"
-              type="button"
-              class="subnav-chip"
-              :class="{ active: activeApprovalField === field }"
-              @click="scrollApprovalTableToField(field)"
-            >
-              {{ field }}
-            </button>
-          </div>
-        </section>
 
         <div ref="approvalTableShellRef" class="approval-wide-table-shell" @scroll="updateApprovalScrollState">
           <table class="approval-wide-table">

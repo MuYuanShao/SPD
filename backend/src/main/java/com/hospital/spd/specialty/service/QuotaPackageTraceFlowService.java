@@ -156,6 +156,8 @@ public class QuotaPackageTraceFlowService {
         String code = required(body, "code");
         Map<String, Object> initial = findByCode(code, false);
         Long labelId = ((Number) initial.get("labelId")).longValue();
+        new com.hospital.spd.supplychain.service.QuotaPackagePricingService(jdbcTemplate)
+                .lockProduct(((Number) initial.get("productId")).longValue());
         Long traceCodeId = ensureTrace(labelId);
         Map<String, Object> quotaPackage = label(labelId, true);
         assertDepartmentScope(quotaPackage);
@@ -294,7 +296,7 @@ public class QuotaPackageTraceFlowService {
     private Map<String, Object> findByCode(String code, boolean forUpdate) {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpl.label_id AS labelId, qpl.label_no AS labelNo, qpl.status,
-                       qpl.trace_code_id AS traceCodeId
+                       qpl.product_id AS productId, qpl.trace_code_id AS traceCodeId
                   FROM quota_package_label qpl
                   LEFT JOIN udi_trace_code tc ON tc.trace_code_id = qpl.trace_code_id
                  WHERE qpl.label_no = ? OR tc.unique_code = ? OR tc.udi_code = ?

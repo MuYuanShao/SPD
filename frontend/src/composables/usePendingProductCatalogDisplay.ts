@@ -1,54 +1,5 @@
 import type { PendingProductApplicationRow } from '../api/pendingProductApplications'
 
-export const approvalFieldGroups = [
-  { key: 'all', label: '全部字段' },
-  { key: 'basic', label: '基础信息' },
-  { key: 'qualification', label: '资质证照' },
-  { key: 'category', label: '分类目录' },
-  { key: 'purchase', label: '采购监管' },
-  { key: 'workflow', label: '审批进度' }
-]
-
-const approvalNavigableFields = [
-  { label: '申请类型', columnIndex: 3, group: 'basic' },
-  { label: '申请人', columnIndex: 4, group: 'basic' },
-  { label: '供应商', columnIndex: 5, group: 'qualification' },
-  { label: '厂家', columnIndex: 6, group: 'qualification' },
-  { label: '注册证号', columnIndex: 7, group: 'qualification' },
-  { label: '合同编码', columnIndex: 8, group: 'purchase' },
-  { label: '一级分类', columnIndex: 9, group: 'category' },
-  { label: '二级分类', columnIndex: 10, group: 'category' },
-  { label: '三级分类', columnIndex: 11, group: 'category' },
-  { label: '是否带量', columnIndex: 12, group: 'purchase' },
-  { label: '是否集采', columnIndex: 13, group: 'purchase' },
-  { label: '是否国产', columnIndex: 14, group: 'purchase' },
-  { label: '是否收费', columnIndex: 15, group: 'purchase' },
-  { label: '重点监控', columnIndex: 16, group: 'purchase' },
-  { label: '采购价', columnIndex: 17, group: 'purchase' },
-  { label: 'UDI 编码', columnIndex: 18, group: 'qualification' },
-  { label: '风险标签', columnIndex: 19, group: 'workflow' },
-  { label: '节点 / 等待', columnIndex: 20, group: 'workflow' },
-  { label: '变更记录', columnIndex: 21, group: 'workflow' }
-]
-
-export const approvalFieldChips = approvalNavigableFields.map(field => field.label)
-
-export const approvalFieldColumnIndex: Record<string, number> = Object.fromEntries(
-  approvalNavigableFields.map(field => [field.label, field.columnIndex])
-)
-
-export const approvalFieldGroupTargets: Record<string, string> = {
-  basic: '申请类型',
-  qualification: '供应商',
-  category: '一级分类',
-  purchase: '合同编码',
-  workflow: '风险标签'
-}
-
-export const approvalFieldToGroup: Record<string, string> = Object.fromEntries(
-  approvalNavigableFields.map(field => [field.label, field.group])
-)
-
 export function approvalRiskLabels(row: PendingProductApplicationRow) {
   if (row.warning) return ['资质临期', row.type === '新品准入' ? '价格复核' : '影响采购价']
   if (row.keyMonitored) return ['重点监控']

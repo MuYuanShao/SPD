@@ -2,11 +2,6 @@ import { ref, type Ref } from 'vue'
 import { saveQuotaSafety, type QuotaSafetyRow } from '../api/quotaPackages'
 import type { QuotaActionResult } from './useQuotaTemplateActions'
 
-type SafetyCatalogQuery = {
-  templateCode: string
-  productName: string
-}
-
 type SafetyForm = {
   deptCode: string
   deptName: string
@@ -21,7 +16,6 @@ type SafetyForm = {
 export function useQuotaSafetyDialog(options: {
   safetyForm: SafetyForm
   message: Ref<QuotaActionResult>
-  safetyCatalogQuery: SafetyCatalogQuery
   resetSafetyCatalogQuery: () => void
   reload: () => Promise<void>
 }) {
@@ -58,8 +52,6 @@ export function useQuotaSafetyDialog(options: {
     if (row) {
       safetyDialogMode.value = 'edit'
       fillSafety(row)
-      options.safetyCatalogQuery.templateCode = row.templateCode === '-' ? '' : row.templateCode
-      options.safetyCatalogQuery.productName = row.productName === '-' ? '' : row.productName
     } else {
       safetyDialogMode.value = 'create'
       resetSafetyForm()

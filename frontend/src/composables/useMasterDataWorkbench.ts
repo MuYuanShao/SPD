@@ -28,8 +28,6 @@ export function useMasterDataWorkbench() {
   const actionMessage = ref('')
   const selectedCodes = ref<string[]>([])
   const hospitalColumnConfigs = ref<ColumnConfig[]>([])
-  const activeColumnGroup = ref('all')
-  const activeHospitalColumn = ref('')
   const hospitalCurrentPage = ref(1)
   const hospitalPageSize = ref(20)
   const hospitalPageJumpInput = ref('1')
@@ -241,14 +239,6 @@ export function useMasterDataWorkbench() {
     }
   })
 
-  const hospitalColumnGroups = [
-    { key: 'all', label: '全部字段', fields: [] },
-    { key: 'basic', label: '基础信息', fields: ['商品编码', '商品名称', '规格型号', '厂家', '供应商', '单位', '单价'] },
-    { key: 'qualification', label: '资质证照', fields: ['注册证号', '生产许可证号', '经营许可证号', 'UDI编码', '注册证效期'] },
-    { key: 'category', label: '分类目录', fields: ['合同编码', '一级分类', '二级分类', '三级分类', '招采子编码'] },
-    { key: 'purchase', label: '采购监管', fields: ['是否带量', '是否集采', '是否国产', '是否收费', '重点监控', '是否高值', '是否冷链', '是否定数'] }
-  ]
-
   const hospitalColumnPropMap: Record<string, string> = {
     商品编码: 'code',
     商品名称: 'name',
@@ -330,53 +320,6 @@ export function useMasterDataWorkbench() {
       width: Math.max(132, label.length * 28),
       ...previous.get(hospitalColumnPropMap[label] || keys[index] || `col_${index}`)
     }))
-    if (!previous.size) applyColumnGroup(activeColumnGroup.value)
-  }
-
-  function applyColumnGroup(groupKey: string) {
-    activeColumnGroup.value = groupKey
-    const group = hospitalColumnGroups.find((item) => item.key === groupKey)
-    hospitalColumnConfigs.value = hospitalColumnConfigs.value.map((column) => ({ ...column, visible: true }))
-    if (!group || group.key === 'all') {
-      activeHospitalColumn.value = ''
-      scrollHospitalTableTo(0)
-      return
-    }
-    const target = hospitalColumnConfigs.value.find((column) => group.fields.includes(column.label))
-    if (target) scrollToHospitalColumn(target.prop)
-  }
-
-  function scrollToHospitalColumn(prop: string) {
-    const orderedColumns = sortedColumns.value
-    const targetIndex = orderedColumns.findIndex((column) => column.prop === prop)
-    if (targetIndex < 0) return
-
-    activeHospitalColumn.value = prop
-    const selectionWidth = 42
-    const stickyActionWidth = 210
-    const leadingWidth = orderedColumns
-      .slice(0, targetIndex)
-      .reduce((sum, column) => sum + Number(column.width || 120), selectionWidth)
-    const targetWidth = Number(orderedColumns[targetIndex]?.width || 120)
-    const tableWidth = (tableRef.value?.$el as HTMLElement | undefined)?.clientWidth ?? 0
-    const scrollLeft = Math.max(0, leadingWidth - Math.max(24, (tableWidth - stickyActionWidth - targetWidth) / 2))
-    scrollHospitalTableTo(scrollLeft)
-  }
-
-  function scrollHospitalTableTo(left: number) {
-    nextTick(() => {
-      if (typeof tableRef.value?.setScrollLeft === 'function') {
-        tableRef.value.setScrollLeft(left)
-        return
-      }
-
-      const el = tableRef.value?.$el as HTMLElement | undefined
-      const scrollWrap = el?.querySelector('.el-scrollbar__wrap') as HTMLElement | null
-      if (scrollWrap) {
-        scrollWrap.scrollLeft = left
-        scrollWrap.dispatchEvent(new Event('scroll'))
-      }
-    })
   }
 
   function initColumnDrag() {
@@ -625,8 +568,6 @@ export function useMasterDataWorkbench() {
     actionMessage,
     selectedCodes,
     hospitalColumnConfigs,
-    activeColumnGroup,
-    activeHospitalColumn,
     hospitalCurrentPage,
     hospitalPageSize,
     hospitalPageJumpInput,
@@ -641,7 +582,6 @@ export function useMasterDataWorkbench() {
     catalogPageTotal,
     catalogPageSizeOptions,
     partnerTotal,
-    hospitalColumnGroups,
     tableRef,
     columnSettingsOpen,
     importInput,
@@ -712,8 +652,6 @@ export function useMasterDataWorkbench() {
     loadDepartmentWarehouseCatalogPage,
     changeDepartmentWarehouseCatalogPageSize,
     submitDepartmentWarehouseCatalogPageJump,
-    applyColumnGroup,
-    scrollToHospitalColumn,
     loadPage,
     resetHospitalQuery,
     resetSupplierQuery,

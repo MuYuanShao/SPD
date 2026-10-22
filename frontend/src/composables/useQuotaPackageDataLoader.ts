@@ -64,7 +64,14 @@ export function useQuotaPackageDataLoader(options: {
     }
   }
 
+  let requestVersion = 0
+  function invalidateLoad() {
+    requestVersion++
+    options.loading.value = false
+  }
+
   async function loadData() {
+    const request = ++requestVersion
     options.loading.value = true
     options.loadError.value = ''
     try {
@@ -86,8 +93,10 @@ export function useQuotaPackageDataLoader(options: {
             productName: ''
           })
         ])
+        if (request !== requestVersion) return
         options.safetyRows.value = safetyData.rows
         options.quotaPagination.safety.total = safetyData.total
+        if (request !== requestVersion) return
         options.templates.value = templateData.rows
         return
       }
@@ -105,6 +114,7 @@ export function useQuotaPackageDataLoader(options: {
           }),
           fetchPackingOptions()
         ])
+        if (request !== requestVersion) return
         options.templates.value = templateData.rows
         options.quotaPagination.templates.total = templateData.total
         options.tasks.value = taskData.rows
@@ -127,6 +137,7 @@ export function useQuotaPackageDataLoader(options: {
           deptName: options.query.deptName,
           productName: options.query.productName
         })
+        if (request !== requestVersion) return
         options.labels.value = labelData.rows
         options.quotaPagination.labels.total = labelData.total
         return
@@ -140,6 +151,7 @@ export function useQuotaPackageDataLoader(options: {
           eventNo: options.query.eventNo,
           eventType: options.query.eventType
         })
+        if (request !== requestVersion) return
         options.events.value = eventData.rows
         options.quotaPagination.events.total = eventData.total
         return
@@ -150,23 +162,26 @@ export function useQuotaPackageDataLoader(options: {
           page: String(options.quotaPagination.candidates.page), size: String(options.quotaPagination.candidates.size),
           productCode: options.query.productCode, productName: options.query.productName, warehouseName: options.query.warehouseName
         })
+        if (request !== requestVersion) return
         options.candidates.value = data.rows
         options.quotaPagination.candidates.total = data.total
         return
       }
 
       const templateData = await fetchQuotaTemplates(templateQuery())
+      if (request !== requestVersion) return
       options.templates.value = templateData.rows
       options.quotaPagination.templates.total = templateData.total
     } catch (error) {
-      options.loadError.value = error instanceof Error ? error.message : '加载失败，请稍后重试'
+      if (request === requestVersion) options.loadError.value = error instanceof Error ? error.message : '加载失败，请稍后重试'
     } finally {
-      options.loading.value = false
+      if (request === requestVersion) options.loading.value = false
     }
   }
 
   return {
     loadData,
+    invalidateLoad,
     templateQuery
   }
 }

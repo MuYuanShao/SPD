@@ -1,11 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import {
   Ban,
   Building2,
   CheckSquare,
   Columns3,
-  Database,
   Download,
   Edit3,
   Factory,
@@ -74,8 +72,6 @@ const {
   actionMessage,
   selectedCodes,
   hospitalColumnConfigs,
-  activeColumnGroup,
-  activeHospitalColumn,
   hospitalCurrentPage,
   hospitalPageSize,
   catalogCurrentPage,
@@ -86,7 +82,6 @@ const {
   catalogTotal,
   catalogPageTotal,
   catalogPageSizeOptions,
-  hospitalColumnGroups,
   columnSettingsOpen,
   importInput,
   manufacturerImportInput,
@@ -168,54 +163,6 @@ const {
   hospitalStats,
   partnerStats
 } = useMasterDataWorkbench()
-
-/** 字段导航水平拖动滚动：仅维护一个原生滚动容器，不再绑定表格滚动 */
-const columnNavTrackRef = ref<HTMLElement | null>(null)
-const columnNavDragging = ref(false)
-let columnNavDragStartX = 0
-let columnNavDragStartLeft = 0
-
-function startColumnNavDrag(event: PointerEvent) {
-  const target = columnNavTrackRef.value
-  if (!target) return
-  if ((event.target as HTMLElement | null)?.closest('.subnav-chip')) {
-    return
-  }
-  columnNavDragging.value = true
-  columnNavDragStartX = event.clientX
-  columnNavDragStartLeft = target.scrollLeft
-  target.setPointerCapture?.(event.pointerId)
-}
-
-function moveColumnNavDrag(event: PointerEvent) {
-  const target = columnNavTrackRef.value
-  if (!target || !columnNavDragging.value) return
-  target.scrollLeft = columnNavDragStartLeft - (event.clientX - columnNavDragStartX)
-}
-
-function endColumnNavDrag(event: PointerEvent) {
-  columnNavDragging.value = false
-  columnNavTrackRef.value?.releasePointerCapture?.(event.pointerId)
-}
-
-function scrollHospitalColumnTo(prop: string) {
-  activeHospitalColumn.value = prop
-  // 不再联动表格滚动定位（避免再出现双滚动条 / 高度溢出），点击仅作为字段高亮。
-}
-
-function applyColumnGroupLocal(groupKey: string) {
-  activeColumnGroup.value = groupKey
-  const group = hospitalColumnGroups.find((item) => item.key === groupKey)
-  hospitalColumnConfigs.value = hospitalColumnConfigs.value.map((column) => ({ ...column, visible: true }))
-  if (!group || group.key === 'all') {
-    activeHospitalColumn.value = ''
-    return
-  }
-  const firstMatch = hospitalColumnConfigs.value.find((column) => group.fields.includes(column.label))
-  if (firstMatch) {
-    activeHospitalColumn.value = firstMatch.prop
-  }
-}
 
 const {
   downloadSupplierTemplate,
@@ -399,7 +346,13 @@ const {
 </script>
 
 <template>
-  <section class="master-page">
+  <section
+    class="master-page"
+    :class="{
+      'master-page--hospital': isHospitalCatalog,
+      'master-page--aligned': isHospitalCatalog || isSupplierManagement || isManufacturerManagement || isCampusManagement || isDepartmentManagement || isDepartmentWarehouseCatalog || isWarehouseManagement
+    }"
+  >
     <header v-if="isPartnerCombined" class="md-header md-header--partner">
       <div class="md-header-inner">
         <div class="md-header-text">
@@ -988,56 +941,16 @@ const {
         'department-warehouse-catalog-list-card': isDepartmentWarehouseCatalog,
         'master-table-card-flat':
           isHospitalCatalog ||
+          isDepartmentWarehouseCatalog ||
           isSupplierManagement ||
           isManufacturerManagement ||
           isCampusManagement ||
-          isDepartmentManagement
+          isDepartmentManagement ||
+          isWarehouseManagement
       }"
     >
       <StatusMessage v-if="loading" message="正在加载..." tone="info" />
       <StatusMessage v-else-if="error" :message="error" tone="error" />
-
-      <div v-if="isHospitalCatalog && !loading && !error" class="column-nav-panel">
-        <div class="column-nav-head">
-          <strong>
-            <Database :size="16" aria-hidden="true" />
-            字段导航
-          </strong>
-          <span>已展示 {{ sortedColumns.length }} / {{ hospitalColumnConfigs.length }} 个字段</span>
-        </div>
-        <div class="subnav-tabs column-nav-groups">
-          <button
-            v-for="group in hospitalColumnGroups"
-            :key="group.key"
-            type="button"
-            :class="{ active: activeColumnGroup === group.key }"
-            @click="applyColumnGroupLocal(group.key)"
-          >
-            {{ group.label }}
-          </button>
-        </div>
-        <div
-          ref="columnNavTrackRef"
-          class="subnav-chips column-nav-chips"
-          :class="{ dragging: columnNavDragging }"
-          @pointerdown="startColumnNavDrag"
-          @pointermove="moveColumnNavDrag"
-          @pointerup="endColumnNavDrag"
-          @pointercancel="endColumnNavDrag"
-          @pointerleave="endColumnNavDrag"
-        >
-          <button
-            v-for="col in hospitalColumnConfigs"
-            :key="col.prop"
-            type="button"
-            class="subnav-chip"
-            :class="{ active: activeHospitalColumn === col.prop }"
-            @click="scrollHospitalColumnTo(col.prop)"
-          >
-            {{ col.label }}
-          </button>
-        </div>
-      </div>
 
       <StatusMessage v-if="isHospitalCatalog" :message="actionError" tone="error" />
       <StatusMessage v-if="isHospitalCatalog" :message="actionMessage" tone="info" />
@@ -1166,7 +1079,6 @@ const {
                 <th
                   v-for="col in sortedColumns"
                   :key="col.prop"
-                  :class="{ 'md-hospital-col-active': activeHospitalColumn === col.prop }"
                 >{{ col.label }}</th>
                 <th class="md-hospital-sticky-right">操作</th>
               </tr>
@@ -1184,7 +1096,6 @@ const {
                 <td
                   v-for="col in sortedColumns"
                   :key="col.prop"
-                  :class="{ 'md-hospital-col-active': activeHospitalColumn === col.prop }"
                   :title="String(row[col.prop] ?? '-')"
                 >
                   {{ row[col.prop] ?? '-' }}
@@ -2578,10 +2489,21 @@ const {
    2. 解决截图 bug：双滚动条 / 高度溢出 / 拖拽背景
    3. 表格 sticky 列的 z-index 与阴影统一
    ============================================================ */
+.master-page--aligned {
+  padding: 16px !important;
+  gap: 16px !important;
+  align-content: start;
+}
+
+.master-page--aligned > .sys-master-tabs {
+  width: 100%;
+  margin: 0 !important;
+}
+
 .md-hospital-page {
   display: grid;
   gap: 16px;
-  padding: 0 24px 32px;
+  padding: 0;
   min-width: 0;
   max-width: 100%;
   background: var(--md-bg-page);
@@ -2853,7 +2775,7 @@ const {
 .md-partner-page {
   display: grid;
   gap: 16px;
-  padding: 0 24px 32px;
+  padding: 0;
   min-width: 0;
   max-width: 100%;
   background: var(--md-bg-page);

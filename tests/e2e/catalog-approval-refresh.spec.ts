@@ -77,6 +77,8 @@ async function openApprovalMenu(page: Page) {
 test('列表和审批详情始终只占一个待审批目录标签', async ({ page }) => {
   await setupApproval(page)
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
+  await expect(page.locator('.approval-field-nav')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '列设置', exact: true })).toBeVisible()
   await openFirstApproval(page)
   await expect(page.locator('.spd-tabbar-tab-label').filter({ hasText: /^待审批目录$/ })).toHaveCount(1)
   await page.getByRole('button', { name: '返回待审批目录' }).click()
@@ -112,6 +114,8 @@ test('最终通过后切回已缓存医院目录会自动读取新商品', async
   const state = await setupApproval(page)
   await page.goto('/features/hospital-product-catalog')
   await expect(page.getByText('原有目录商品', { exact: true })).toBeVisible()
+  await expect(page.locator('.column-nav-panel')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '列设置', exact: true })).toBeVisible()
   await openApprovalMenu(page)
   await openFirstApproval(page)
   await page.getByRole('button', { name: '初审通过', exact: true }).click()

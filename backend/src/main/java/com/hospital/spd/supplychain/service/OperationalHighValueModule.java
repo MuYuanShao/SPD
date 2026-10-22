@@ -206,7 +206,7 @@ public class OperationalHighValueModule {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,
                        unit, purchase_price AS purchasePrice
-                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1
+                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1 FOR UPDATE
                 """, productCode);
     }
 

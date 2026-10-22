@@ -46,9 +46,11 @@ class QuotaPackageTraceFlowServiceTest {
 
     @Test
     void consumesSignedPackageByStableTraceIdentityAndCreatesSettlementEligibleItems() throws Exception {
+        when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_id"), eq(100L)))
+                .thenReturn(Map.of("productId", 100L));
         when(jdbcTemplate.queryForList(contains("qpl.label_no = ?"), eq("QP001"), eq("QP001"), eq("QP001")))
                 .thenReturn(List.of(Map.of(
-                        "labelId", 8L, "labelNo", "QP001", "status", "signed", "traceCodeId", 88L)));
+                        "labelId", 8L, "labelNo", "QP001", "status", "signed", "traceCodeId", 88L, "productId", 100L)));
         Map<String, Object> label = Map.ofEntries(
                 Map.entry("labelId", 8L),
                 Map.entry("labelNo", "QP001"),

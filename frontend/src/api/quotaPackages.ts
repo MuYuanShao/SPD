@@ -1,6 +1,12 @@
 import { getData, getPage, postData, putData } from './http'
 
 export interface QuotaTemplateRow {
+  baseUnitPrice?: number
+  packageUnitPrice?: number
+  catalogPriceVersion?: number
+  baseUnit?: string
+  brand?: string
+  middlePackageQty?: number
   templateId: number
   templateCode: string
   templateName: string
@@ -53,6 +59,9 @@ export interface PackingTaskRow {
 }
 
 export interface PackageLabelRow {
+  settlementUnitPrice?: number | null
+  settlementPackagePrice?: number | null
+  catalogPriceVersion?: number | null
   labelNo: string
   status: string
   templateCode: string

@@ -30,6 +30,7 @@ type ProductInfo = {
   manufacturerName: string
   unit: string
   purchasePrice: string
+  middlePackageQty?: string
 }
 
 export function useQuotaTemplateActions(options: {
@@ -87,10 +88,11 @@ export function useQuotaTemplateActions(options: {
     options.selectedProductInfo.value = {
       productName: row.productName,
       specModel: row.specModel,
-      brand: '',
+      brand: row.brand || '',
       manufacturerName: row.manufacturerName === '-' ? '' : row.manufacturerName,
-      unit: row.unit,
-      purchasePrice: ''
+      unit: row.baseUnit || row.unit,
+      purchasePrice: row.baseUnitPrice == null ? '' : String(row.baseUnitPrice),
+      middlePackageQty: row.middlePackageQty == null ? '' : String(row.middlePackageQty)
     }
     options.packingForm.templateCode = row.templateCode
   }

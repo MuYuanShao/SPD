@@ -46,18 +46,18 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
   await expect(page.getByText('暂无收费耗材明细')).toBeVisible()
 })
 
-test('待审批新品准入字段导航与表头及分组保持一致', async ({ page }) => {
+test('待审批目录取消字段导航后仍可设置列和横向滚动', async ({ page }) => {
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
   await login(page)
   await expect(page.getByRole('heading', { name: '新品准入 · 多字段列表' })).toBeVisible()
-
-  const navigationFields = await page.locator('.subnav-chips .subnav-chip').allTextContents()
-  const tableFields = (await page.locator('.approval-wide-table thead th').allTextContents())
-    .slice(3, 3 + navigationFields.length)
-  expect(navigationFields.map(text => text.trim())).toEqual(tableFields.map(text => text.trim()))
-
-  await page.getByRole('button', { name: '变更记录' }).click()
-  await expect(page.locator('.subnav-tabs button.active')).toHaveText('审批进度')
+  await expect(page.locator('.approval-field-nav')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '列设置', exact: true })).toBeVisible()
+  await expect(page.locator('.approval-wide-table thead')).toContainText('变更记录')
+  const table = page.locator('.approval-wide-table-shell')
+  await expect.poll(() => table.evaluate(el => {
+    el.scrollLeft = el.scrollWidth
+    return el.scrollLeft
+  })).toBeGreaterThan(0)
 })
 
 test('AI医护助手的自定义补货问题返回补货建议入口', async ({ page }) => {

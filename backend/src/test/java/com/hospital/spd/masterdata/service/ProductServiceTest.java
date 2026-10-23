@@ -28,6 +28,15 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ProductServiceTest {
 
+    @Test
+    void missingHospitalProductReturnsReadableBusinessError() {
+        when(jdbcTemplate.queryForObject(contains("WHERE p.product_code = ?"),
+                org.mockito.ArgumentMatchers.<RowMapper<ProductDetail>>any(), eq("NO-SUCH-PRODUCT")))
+                .thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
+        assertThatThrownBy(() -> service.hospitalProductDetail("NO-SUCH-PRODUCT"))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("商品不存在或尚未通过准入审批");
+    }
+
     @Mock
     private JdbcTemplate jdbcTemplate;
 

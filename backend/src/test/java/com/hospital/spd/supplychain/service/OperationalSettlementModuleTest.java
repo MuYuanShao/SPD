@@ -64,6 +64,6 @@ class OperationalSettlementModuleTest {
 
         assertThatThrownBy(() -> module.confirmSettlement("JS20260601004"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("pending settlement");
+                .hasMessageContaining("待确认的结算单");
     }
 }

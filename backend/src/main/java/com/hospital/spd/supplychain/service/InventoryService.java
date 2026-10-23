@@ -74,18 +74,36 @@ public class InventoryService {
         String fromClause = """
                    FROM product p
                    JOIN (
+                     SELECT warehouse_id, product_id FROM inventory_balance WHERE location_id IS NULL
+                     UNION
+                     SELECT warehouse_id, product_id FROM quota_package_label
+                      WHERE status IN ('pending_print', 'available')
+                   ) stock ON stock.product_id = p.product_id
+                   LEFT JOIN (
                      SELECT warehouse_id, product_id, SUM(available_qty) AS loose_qty
+                            , SUM(locked_qty) AS locked_qty, SUM(isolated_qty) AS isolated_qty
                        FROM inventory_balance
                       WHERE location_id IS NULL
                       GROUP BY warehouse_id, product_id
-                   ) lo ON lo.product_id = p.product_id
+                   ) lo ON lo.product_id = stock.product_id AND lo.warehouse_id = stock.warehouse_id
                    LEFT JOIN (
                      SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty
                        FROM quota_package_label
                       WHERE status IN ('pending_print', 'available')
                       GROUP BY warehouse_id, product_id
-                   ) qp ON qp.warehouse_id = lo.warehouse_id AND qp.product_id = lo.product_id
-                   JOIN warehouse w ON w.warehouse_id = lo.warehouse_id
+                   ) qp ON qp.warehouse_id = stock.warehouse_id AND qp.product_id = stock.product_id
+                   LEFT JOIN (
+                     SELECT warehouse_id, product_id, COUNT(DISTINCT batch_id) AS batch_count
+                       FROM (
+                         SELECT warehouse_id, product_id, batch_id FROM inventory_balance WHERE location_id IS NULL
+                         UNION ALL
+                         SELECT label.warehouse_id, label.product_id, src.batch_id
+                           FROM quota_package_label label
+                           JOIN quota_package_label_source src ON src.label_id = label.label_id
+                          WHERE label.status IN ('pending_print', 'available')
+                       ) stock_batches GROUP BY warehouse_id, product_id
+                   ) bc ON bc.warehouse_id = stock.warehouse_id AND bc.product_id = stock.product_id
+                   JOIN warehouse w ON w.warehouse_id = stock.warehouse_id
                    LEFT JOIN sys_dept d ON d.dept_id = w.dept_id AND d.deleted = 0
                    LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
                    LEFT JOIN supplier s ON s.supplier_id = p.supplier_id AND s.deleted = 0
@@ -101,24 +119,21 @@ public class InventoryService {
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(p.registration_no, '-') AS registrationNo,
                        COALESCE(p.purchase_price, 0) AS unitPrice, p.unit AS unit,
-                       ROUND(lo.loose_qty + COALESCE(qp.packaged_qty, 0), 4) AS qty,
-                       ROUND((lo.loose_qty + COALESCE(qp.packaged_qty, 0)) * COALESCE(p.purchase_price, 0), 2) AS amount,
+                       ROUND(COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0), 4) AS qty,
+                       ROUND((COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0)) * COALESCE(p.purchase_price, 0), 2) AS amount,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        COALESCE(s.supplier_name, '-') AS supplierName
                 """ + fromClause + where + " ORDER BY w.warehouse_name, p.product_code LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
-        Map<String, Object> summary = jdbcTemplate.queryForMap("""
-                SELECT COUNT(*) AS batchCount,
-                       COALESCE(SUM(available_qty), 0) AS availableQty,
-                       COALESCE(SUM(locked_qty), 0) AS lockedQty,
-                       COALESCE(SUM(isolated_qty), 0) AS isolatedQty
-                  FROM inventory_balance
-                 WHERE available_qty <> 0
-                    OR locked_qty <> 0
-                    OR in_transit_qty <> 0
-                    OR isolated_qty <> 0
-                """);
+        String summarySql = """
+                SELECT COALESCE(SUM(bc.batch_count), 0) AS batchCount,
+                       COALESCE(SUM(COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0)), 0) AS availableQty,
+                       COALESCE(SUM(lo.locked_qty), 0) AS lockedQty,
+                       COALESCE(SUM(lo.isolated_qty), 0) AS isolatedQty
+                """ + fromClause + where;
+        Map<String, Object> summary = args.isEmpty() ? jdbcTemplate.queryForMap(summarySql)
+                : jdbcTemplate.queryForMap(summarySql, args.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq, summary);
     }
 

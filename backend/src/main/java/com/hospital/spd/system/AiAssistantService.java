@@ -6,6 +6,7 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +15,7 @@ import java.util.Map;
 /** Calls the configured hospital model for conversation and image recognition without business writes. */
 @Service
 public class AiAssistantService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AiAssistantService.class);
     private final RestClient client;
     private final String model;
 
@@ -35,7 +37,7 @@ public class AiAssistantService {
         try {
             return client.get().uri("/api/tags").retrieve().body(JsonNode.class);
         } catch (RestClientException ex) {
-            throw new IllegalArgumentException("无法连接AI模型服务，请检查服务地址与网络");
+            throw modelFailure("模型列表", ex);
         }
     }
 
@@ -75,7 +77,25 @@ public class AiAssistantService {
             if (text.isBlank()) throw new IllegalArgumentException("AI模型未返回有效回答，请重试");
             return new ChatReply(model, text);
         } catch (RestClientException ex) {
-            throw new IllegalArgumentException("AI模型调用失败或超时，请稍后重试");
+            throw modelFailure("对话", ex);
         }
+    }
+
+    private static IllegalArgumentException modelFailure(String operation, RestClientException ex) {
+        Throwable cause = ex;
+        while (cause.getCause() != null && cause.getCause() != cause) cause = cause.getCause();
+        log.warn("AI {} failed: {}", operation, cause.getClass().getSimpleName());
+        if (ex instanceof RestClientResponseException response) {
+            int status = response.getStatusCode().value();
+            if (status == 404) return new IllegalArgumentException("AI模型或接口不存在，请检查模型名称和服务地址");
+            return new IllegalArgumentException("AI模型服务返回异常状态（HTTP " + status + "），请检查模型服务日志");
+        }
+        if (cause instanceof java.net.SocketTimeoutException || cause instanceof java.net.http.HttpTimeoutException) {
+            return new IllegalArgumentException("AI模型服务连接或响应超时，请检查模型服务与网络");
+        }
+        if (cause instanceof java.net.ConnectException) {
+            return new IllegalArgumentException("无法连接AI模型服务，请确认模型服务已启动且地址正确");
+        }
+        return new IllegalArgumentException("无法访问AI模型服务，请检查服务地址与网络");
     }
 }

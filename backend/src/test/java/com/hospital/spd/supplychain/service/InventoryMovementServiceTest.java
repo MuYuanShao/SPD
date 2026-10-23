@@ -177,7 +177,7 @@ class InventoryMovementServiceTest {
         assertThatThrownBy(() -> service.consumeAvailableFifo(
                 1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verifyNoInteractions(inventoryEventService);
     }
@@ -221,7 +221,7 @@ class InventoryMovementServiceTest {
         assertThatThrownBy(() -> service.consumeAvailableFifo(
                 1L, 2L, new BigDecimal("3.0000"), "delivery_out", "delivery_order", 99L, "sign delivery"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
         verifyNoInteractions(inventoryEventService);
@@ -239,7 +239,7 @@ class InventoryMovementServiceTest {
         assertThatThrownBy(() -> service.consumeSpecificBatch(
                 1L, 2L, 20L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verifyNoInteractions(inventoryEventService);
     }
@@ -283,7 +283,7 @@ class InventoryMovementServiceTest {
 
         assertThatThrownBy(() -> service.reserveAvailableFifo(1L, 2L, quantity))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verifyNoInteractions(inventoryEventService);
     }
@@ -337,7 +337,7 @@ class InventoryMovementServiceTest {
         assertThatThrownBy(() -> service.consumeLocked(10L, 1L, 2L, 20L, quantity,
                 "quota_pack_out", "quota_packing_task", 99L, "confirm packing"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verifyNoInteractions(inventoryEventService);
     }
@@ -364,7 +364,7 @@ class InventoryMovementServiceTest {
 
         assertThatThrownBy(() -> service.releaseLockedToAvailable(10L, quantity))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("negative stock is not allowed");
+                .hasMessageContaining("不能扣减为负数");
 
         verifyNoInteractions(inventoryEventService);
     }

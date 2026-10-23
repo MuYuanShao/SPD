@@ -275,11 +275,11 @@ class OperationalDeliveryModuleTest {
         mockLooseBatches();
         when(support.receiveAvailable(anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
                 anyString(), anyString(), anyLong(), anyString()))
-                .thenThrow(new IllegalArgumentException("inventory is insufficient"));
+                .thenThrow(new IllegalArgumentException("可用库存不足"));
 
         assertThatThrownBy(() -> module.signDelivery("PS001"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("inventory is insufficient");
+                .hasMessageContaining("可用库存不足");
         verify(jdbcTemplate, never()).update(contains("UPDATE spd_delivery_order SET status = 'signed'"), anyLong(), anyString());
     }
 

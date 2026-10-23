@@ -24,10 +24,10 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
   await page.getByRole('button', { name: '向右滚动' }).click()
   await expect.poll(() => table.evaluate(element => element.scrollLeft)).toBeGreaterThan(before)
 
-  const firstUniqueCell = page.locator('tbody tr').first().locator('td').nth(5).locator('strong')
+  const firstUniqueCell = table.locator('tbody tr').first().getByTestId('charge-unique-code')
   const uniqueCode = (await firstUniqueCell.textContent())?.trim()
   expect(uniqueCode).toBeTruthy()
-  await page.getByRole('textbox', { name: 'UID/唯一码' }).fill(uniqueCode!)
+  await page.getByRole('textbox', { name: '唯一码', exact: true }).fill(uniqueCode!)
   await page.getByRole('button', { name: '查询' }).click()
   await expect(page.locator('tbody tr')).toHaveCount(1)
   await expect(page.locator('tbody')).toContainText(uniqueCode!)

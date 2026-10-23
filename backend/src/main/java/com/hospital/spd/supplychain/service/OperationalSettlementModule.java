@@ -54,7 +54,7 @@ public class OperationalSettlementModule {
                  FOR UPDATE
                 """, settlementNo);
         if (!"pending_confirm".equals(String.valueOf(settlement.get("status")))) {
-            throw new IllegalArgumentException("only pending settlement can be confirmed");
+            throw new IllegalArgumentException("只有待确认的结算单才能确认");
         }
         approvalFlowGuard.requireApprovalAccess("settlement-reconciliation", "settlement-confirm", null, null);
         int updated = jdbcTemplate.update("""
@@ -62,7 +62,7 @@ public class OperationalSettlementModule {
                    SET status = 'confirmed', confirm_time = NOW()
                  WHERE settlement_no = ? AND status = 'pending_confirm'
                 """, settlementNo);
-        if (updated != 1) throw new IllegalArgumentException("settlement has already been processed");
+        if (updated != 1) throw new IllegalArgumentException("结算单已被处理，请刷新后重试");
         List<Long> traceCodeIds = jdbcTemplate.queryForList(
                 "SELECT DISTINCT trace_code_id FROM settlement_bill_item WHERE settlement_id = ? AND trace_code_id IS NOT NULL",
                 Long.class, settlement.get("settlementId"));

@@ -1465,7 +1465,7 @@ watch(() => form.productCode, () => {
           <i class="consumption-section-icon is-history"><History :size="20" /></i>
           <div>
             <h3>消耗记录</h3>
-            <p class="consumption-section-description">按时间倒序展示登记、反消耗及红冲结果</p>
+            <p class="consumption-section-description">按时间倒序展示登记、反消耗及红冲结果。成本金额保留原批次口径，供应商结算金额请查看结算对账。</p>
           </div>
         </template>
         <template v-else>
@@ -1607,7 +1607,7 @@ watch(() => form.productCode, () => {
               <th>{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</th>
               <th>商品编码</th>
               <th>商品名称</th>
-              <th>{{ type === 'consumption' ? '数量' : '数量/金额' }}</th>
+              <th>{{ type === 'consumption' ? '数量 / 成本金额' : '数量/金额' }}</th>
               <th>状态</th>
               <th>时间</th>
               <th>操作</th>
@@ -1659,6 +1659,10 @@ watch(() => form.productCode, () => {
                   <strong>{{ row.quantity || '-' }}</strong>
                   <span class="muted-cell">周期 {{ row.periodDays || '-' }} 天 / 建议 {{ row.formulaReplenishQty ?? '-' }}</span>
                   <span v-if="Number(row.manualAdjusted || 0) === 1" class="muted-cell">人工调整</span>
+                </template>
+                <template v-else-if="type === 'consumption'">
+                  <strong>{{ row.quantity ?? '-' }}</strong>
+                  <span class="muted-cell">成本金额：{{ row.amount ?? '-' }}</span>
                 </template>
                 <template v-else>{{ row.quantity || row.amount || '-' }}</template>
               </td>

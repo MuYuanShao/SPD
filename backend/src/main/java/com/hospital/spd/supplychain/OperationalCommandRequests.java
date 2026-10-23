@@ -56,8 +56,10 @@ public final class OperationalCommandRequests {
         public Map<String, Object> toCompatibilityMap() { return map("requisitionNo", requisitionNo, "itemId", itemId, "warehouseName", warehouseName, "labelNos", labelNos); }
     }
 
-    public record ConsumptionRequest(@NotBlank String deptName, @NotBlank String warehouseName,
-                                     @NotBlank String productCode, @NotNull @Positive BigDecimal quantity)
+    public record ConsumptionRequest(@NotBlank(message = "科室名称不能为空") String deptName,
+                                     @NotBlank(message = "库房名称不能为空") String warehouseName,
+                                     @NotBlank(message = "商品编码不能为空") String productCode,
+                                     @NotNull(message = "消耗数量不能为空") @Positive(message = "消耗数量必须大于零") BigDecimal quantity)
             implements CompatibleRequest {
         public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity); }
     }
@@ -92,17 +94,18 @@ public final class OperationalCommandRequests {
 
     public record HighValueBillingCallbackRequest(String externalChargeNo, String eventId, String sourceSystem,
                                                   String operationNo, String udiCode, String uniqueCode,
-                                                  String productCode, @NotNull @Positive BigDecimal quantity,
-                                                  @PositiveOrZero BigDecimal amount, String deptName,
+                                                  String productCode, @NotNull(message = "计费数量不能为空")
+                                                  @Positive(message = "计费数量必须大于零") BigDecimal quantity,
+                                                  @PositiveOrZero(message = "计费金额不能为负数") BigDecimal amount, String deptName,
                                                   String patientNo, String patientNameMasked,
                                                   String roomName, String warehouseName, String operatorName)
             implements CompatibleRequest {
-        @AssertTrue(message = "externalChargeNo or eventId is required")
+        @AssertTrue(message = "外部计费流水号或事件号不能为空")
         public boolean isSourceEventPresent() {
             return notBlank(externalChargeNo) || notBlank(eventId);
         }
 
-        @AssertTrue(message = "uniqueCode or udiCode is required")
+        @AssertTrue(message = "唯一码或UDI不能为空")
         public boolean isTraceCodePresent() {
             return notBlank(uniqueCode) || notBlank(udiCode);
         }

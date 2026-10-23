@@ -150,6 +150,41 @@ public class QuotaPackagePricingService {
         }
     }
 
+    /** Releasing the last pending bill makes a returned package eligible for today's approved price. */
+    public java.util.Optional<PackagePriceRefresh> refreshAfterConsumptionReversal(long labelId) {
+        Long productId = jdbc.queryForObject("SELECT product_id FROM quota_package_label WHERE label_id = ?",
+                Long.class, labelId);
+        if (productId == null) throw new IllegalArgumentException("定数包不存在");
+        Map<String, Object> product = lockProduct(productId);
+        Map<String, Object> label = jdbc.queryForMap("""
+                SELECT status, package_quantity AS quantity, settlement_unit_price AS unitPrice,
+                       catalog_price_version AS priceVersion
+                  FROM quota_package_label WHERE label_id = ? FOR UPDATE
+                """, labelId);
+        if (!"signed".equals(label.get("status"))) throw new IllegalArgumentException("只能刷新反消耗回库包的计价");
+        if (isSettlementLocked(labelId)) return java.util.Optional.empty();
+        BigDecimal newPrice = decimal(product.get("unitPrice"));
+        long version = ((Number) product.get("priceVersion")).longValue();
+        if (label.get("unitPrice") != null && decimal(label.get("unitPrice")).compareTo(newPrice) == 0
+                && label.get("priceVersion") instanceof Number oldVersion && oldVersion.longValue() == version) {
+            return java.util.Optional.empty();
+        }
+        BigDecimal quantity = decimal(label.get("quantity"));
+        if (quantity.signum() <= 0) throw new IllegalArgumentException("定数包包内数量必须大于零");
+        BigDecimal oldAmount = label.get("unitPrice") == null
+                ? jdbc.queryForObject("SELECT SUM(source_qty * unit_price) FROM quota_package_label_source WHERE label_id = ? FOR SHARE",
+                    BigDecimal.class, labelId)
+                : decimal(label.get("unitPrice")).multiply(quantity);
+        if (oldAmount == null) throw new IllegalArgumentException("定数包缺少来源成本，不能刷新计价");
+        jdbc.update("UPDATE quota_package_label SET settlement_unit_price = ?, catalog_price_version = ? WHERE label_id = ?",
+                newPrice, version, labelId);
+        return java.util.Optional.of(new PackagePriceRefresh(money(oldAmount), money(newPrice.multiply(quantity)), version));
+    }
+
+    public record PackagePriceRefresh(BigDecimal oldAmount, BigDecimal newAmount, long priceVersion) {
+        public BigDecimal differenceAmount() { return newAmount.subtract(oldAmount); }
+    }
+
     /** Any generated settlement detail locks the entire package, including partial/mixed-batch settlements. */
     boolean isSettlementLocked(long labelId) {
         List<Long> sources = jdbc.queryForList(

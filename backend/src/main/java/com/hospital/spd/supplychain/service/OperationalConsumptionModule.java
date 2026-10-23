@@ -119,7 +119,7 @@ public class OperationalConsumptionModule {
                  FOR UPDATE
                 """, consumptionNo);
         if (!"confirmed".equals(String.valueOf(consumption.get("status")))) {
-            throw new IllegalArgumentException("only confirmed consumption can be reversed");
+            throw new IllegalArgumentException("只有已确认且尚未反消耗的记录才能反消耗");
         }
         Long consumptionId = ((Number) consumption.get("consumptionId")).longValue();
         Long warehouseId = ((Number) consumption.get("warehouseId")).longValue();
@@ -145,6 +145,14 @@ public class OperationalConsumptionModule {
             quotaPackageTraceFlowService.reverseConsumption(labelId.longValue(), consumptionNo);
         }
         removePendingSettlementItems(consumptionId, settlements);
+        if ("quota_package_label".equals(String.valueOf(consumption.get("relatedBizType")))
+                && consumption.get("relatedBizId") instanceof Number labelId) {
+            new QuotaPackagePricingService(jdbcTemplate).refreshAfterConsumptionReversal(labelId.longValue())
+                    .ifPresent(refresh -> support.writeAudit("quota_package", "refresh_reversed_package_price",
+                            labelId.longValue(), consumptionNo, "反消耗撤销待结算后刷新包价：目录版本 " + refresh.priceVersion()
+                                    + "，原包金额 " + refresh.oldAmount() + "，新包金额 " + refresh.newAmount()
+                                    + "，差额 " + refresh.differenceAmount()));
+        }
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT product_id AS productId, batch_id AS batchId, quantity
                   FROM department_consumption_item
@@ -158,7 +166,7 @@ public class OperationalConsumptionModule {
         }
         int updated = jdbcTemplate.update("UPDATE department_consumption SET status = 'reversed' WHERE consumption_no = ? AND status = 'confirmed'", consumptionNo);
         if (updated != 1) {
-            throw new IllegalArgumentException("consumption has already been processed");
+            throw new IllegalArgumentException("消耗记录已被处理，请刷新后重试");
         }
         String reverseNo = support.nextNo(CONSUMPTION_RED_FLUSH);
         jdbcTemplate.update("""
@@ -268,7 +276,7 @@ public class OperationalConsumptionModule {
     private Long findDept(String deptName) {
         List<Long> ids = jdbcTemplate.queryForList("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1",
                 Long.class, deptName);
-        if (ids.isEmpty()) throw new IllegalArgumentException("department does not exist or is disabled");
+        if (ids.isEmpty()) throw new IllegalArgumentException("科室不存在或已停用");
         return ids.get(0);
     }
 

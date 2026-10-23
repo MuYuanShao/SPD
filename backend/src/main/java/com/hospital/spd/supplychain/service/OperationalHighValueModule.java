@@ -86,17 +86,9 @@ public class OperationalHighValueModule {
             throw new IllegalArgumentException("externalChargeNo or eventId is required");
         }
 
-        List<Map<String, Object>> existing = jdbcTemplate.queryForList("""
-                SELECT charge_no AS chargeNo, status
-                  FROM high_value_charge
-                 WHERE external_charge_no = ?
-                 LIMIT 1
-                """, externalChargeNo);
+        List<Map<String, Object>> existing = findExistingCharge(externalChargeNo);
         if (!existing.isEmpty()) {
-            return Map.of(
-                    "chargeNo", existing.get(0).get("chargeNo"),
-                    "status", existing.get(0).get("status"),
-                    "idempotent", true);
+            return idempotentResult(existing.get(0), body);
         }
 
         Map<String, Object> initialTrace = findTrace(body);
@@ -108,13 +100,15 @@ public class OperationalHighValueModule {
         Map<String, Object> product = findProduct(productCode);
         // Product -> trace is the shared lock order. Re-read after waiting; the discovery read can be stale.
         List<Map<String, Object>> concurrentCharge = findExistingCharge(externalChargeNo);
-        if (!concurrentCharge.isEmpty()) return idempotentResult(concurrentCharge.get(0));
+        if (!concurrentCharge.isEmpty()) return idempotentResult(concurrentCharge.get(0), body);
         Map<String, Object> trace = findTrace(body, true);
         BigDecimal quantity = requiredPositive(body, "quantity");
         if (trace.isEmpty() || quantity.compareTo(BigDecimal.ONE) != 0) {
             throw new IllegalArgumentException("高值耗材计费回传必须提供一个唯一码，且数量必须为 1");
         }
-        BigDecimal amount = decimal(body, "amount", quantity.multiply((BigDecimal) product.get("purchasePrice")));
+        BigDecimal requestedAmount = decimal(body, "amount", quantity.multiply((BigDecimal) product.get("purchasePrice")));
+        if (requestedAmount.signum() < 0) throw new IllegalArgumentException("计费金额不能为负数");
+        BigDecimal amount = billingMoney(requestedAmount);
         String deptName = text(body, "deptName", text(trace, "currentDepartment", ""));
         String patientNo = text(body, "patientNo", text(trace, "patientNo", ""));
         if (deptName.isBlank()) throw new IllegalArgumentException("deptName is required");
@@ -156,7 +150,7 @@ public class OperationalHighValueModule {
         } catch (DuplicateKeyException ex) {
             List<Map<String, Object>> concurrent = findExistingCharge(externalChargeNo);
             if (!concurrent.isEmpty()) {
-                return idempotentResult(concurrent.get(0));
+                return idempotentResult(concurrent.get(0), body);
             }
             throw ex;
         }
@@ -269,18 +263,39 @@ public class OperationalHighValueModule {
 
     private List<Map<String, Object>> findExistingCharge(String externalChargeNo) {
         return jdbcTemplate.queryForList("""
-                SELECT charge_no AS chargeNo, status
+                SELECT charge_no AS chargeNo, status, source_system AS sourceSystem,
+                       unique_code AS uniqueCode, udi_code AS udiCode, product_code AS productCode,
+                       patient_no AS patientNo, dept_name AS deptName, operation_no AS operationNo,
+                       quantity, amount
                   FROM high_value_charge
                  WHERE external_charge_no = ?
                  LIMIT 1
                 """, externalChargeNo);
     }
 
-    private static Map<String, Object> idempotentResult(Map<String, Object> existing) {
+    private static Map<String, Object> idempotentResult(Map<String, Object> existing, Map<String, Object> body) {
+        boolean matches = text(body, "sourceSystem", "AIMS").equals(text(existing, "sourceSystem", "AIMS"));
+        for (String field : List.of("uniqueCode", "udiCode", "productCode", "patientNo", "deptName", "operationNo")) {
+            String provided = text(body, field, "");
+            if (!provided.isBlank() && !provided.equals(text(existing, field, ""))) matches = false;
+        }
+        BigDecimal quantity = decimal(body, "quantity", null);
+        if (quantity == null || quantity.compareTo(decimal(existing, "quantity", BigDecimal.ZERO)) != 0) matches = false;
+        // An omitted amount must keep the original event price, even after catalog repricing.
+        BigDecimal amount = decimal(body, "amount", null);
+        if (amount != null && (amount.signum() < 0
+                || billingMoney(amount).compareTo(decimal(existing, "amount", BigDecimal.ZERO)) != 0)) matches = false;
+        if (!matches) {
+            throw new IllegalArgumentException("外部计费流水已存在，但来源系统、唯一码、患者或计费内容不一致，请核对后重试");
+        }
         return Map.of(
                 "chargeNo", existing.get("chargeNo"),
                 "status", existing.get("status"),
                 "idempotent", true);
+    }
+
+    private static BigDecimal billingMoney(BigDecimal amount) {
+        return amount.setScale(4, java.math.RoundingMode.HALF_UP);
     }
 
     private Long resolveWarehouseId(Map<String, Object> body, Map<String, Object> trace, Long productId, BigDecimal quantity) {

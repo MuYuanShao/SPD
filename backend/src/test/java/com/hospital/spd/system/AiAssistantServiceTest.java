@@ -59,6 +59,6 @@ class AiAssistantServiceTest {
                 .hasMessageContaining("图片");
         assertThatThrownBy(() -> service.chat(new AiAssistantService.ChatRequest(List.of(
                 new AiAssistantService.Message("user", "你好", null)))))
-                .hasMessageContaining("调用失败");
+                .hasMessageContaining("模型服务");
     }
 }

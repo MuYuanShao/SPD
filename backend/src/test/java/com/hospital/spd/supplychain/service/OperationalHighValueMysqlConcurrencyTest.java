@@ -42,8 +42,50 @@ class OperationalHighValueMysqlConcurrencyTest {
     @Autowired InventoryMovementService inventoryMovementService;
     @Autowired JdbcTemplate jdbcTemplate;
     @Autowired OperationalClosureReadModel readModel;
+    @Autowired OperationalConsumptionModule consumption;
+    @Autowired com.hospital.spd.specialty.service.QuotaPackageTraceFlowService quotaTrace;
+    @Autowired QuotaPackagePricingService pricing;
+    @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
 
     private Long fixtureBalanceId;
+
+    @Test
+    void consumeRepriceReverseAndConsumeAgainUsesLatestPriceWithoutChangingSourceCost() {
+        Map<String, Object> f = jdbcTemplate.queryForMap("SELECT warehouse_id,product_id,batch_id FROM inventory_balance WHERE balance_id=?", fixtureBalanceId);
+        String code = "RV-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("INSERT INTO sys_dept(dept_code,dept_name) VALUES(?,?)", code, code);
+        Long dept = jdbcTemplate.queryForObject("SELECT dept_id FROM sys_dept WHERE dept_code=?", Long.class, code);
+        jdbcTemplate.update("UPDATE warehouse SET dept_id=?,warehouse_type='二级库' WHERE warehouse_id=?", dept, f.get("warehouse_id"));
+        jdbcTemplate.update("""
+                INSERT INTO supplier(supplier_code,supplier_name,credit_code,supplier_type,contact_name,contact_phone)
+                VALUES(?,?,?,'配送商','测试联系人','13800000000')
+                """, code, code, "91" + code.substring(3, 19).toUpperCase());
+        Long supplier = jdbcTemplate.queryForObject("SELECT supplier_id FROM supplier WHERE supplier_code=?", Long.class, code);
+        jdbcTemplate.update("UPDATE product SET is_high_value=0,is_quota_managed=1,purchase_price=2.5,supplier_id=? WHERE product_id=?", supplier, f.get("product_id"));
+        jdbcTemplate.update("UPDATE inventory_batch SET supplier_id=?,settlement_mode='department_consumption',batch_unit_price=2.5 WHERE batch_id=?", supplier, f.get("batch_id"));
+        jdbcTemplate.update("INSERT INTO quota_package_template(template_code,template_name,dept_id,status) VALUES(?,?,?,1)", code, code, dept);
+        Long template = jdbcTemplate.queryForObject("SELECT template_id FROM quota_package_template WHERE template_code=?", Long.class, code);
+        jdbcTemplate.update("INSERT INTO quota_package_template_item(template_id,product_id,quantity,unit) VALUES(?,?,10,'个')", template, f.get("product_id"));
+        long label = createPackageFixture(f, "signed", "10");
+        jdbcTemplate.update("UPDATE quota_package_label SET template_id=?,settlement_unit_price=2.5,catalog_price_version=0 WHERE label_id=?", template, label);
+        jdbcTemplate.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES(?,?,10,2.5,?)", label, f.get("batch_id"), f.get("warehouse_id"));
+        String labelNo = jdbcTemplate.queryForObject("SELECT label_no FROM quota_package_label WHERE label_id=?", String.class, label);
+        var first = quotaTrace.consumeByCode(Map.of("code", labelNo));
+        Long traceId = jdbcTemplate.queryForObject("SELECT trace_code_id FROM quota_package_label WHERE label_id=?", Long.class, label);
+        assertThat(jdbcTemplate.queryForObject("SELECT amount FROM settlement_bill_item WHERE trace_code_id=?", BigDecimal.class, traceId)).isEqualByComparingTo("25");
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status -> {
+            var before = pricing.lockProduct(((Number) f.get("product_id")).longValue());
+            jdbcTemplate.update("UPDATE product SET purchase_price=3.75 WHERE product_id=?", f.get("product_id"));
+            pricing.afterCatalogApproval(code, before, 1L);
+        });
+        consumption.reverseConsumption(String.valueOf(first.get("consumptionNo")));
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id=?", Integer.class, traceId)).isZero();
+        assertThat(jdbcTemplate.queryForObject("SELECT settlement_unit_price FROM quota_package_label WHERE label_id=?", BigDecimal.class, label)).isEqualByComparingTo("3.75");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM audit_log WHERE operation_type='refresh_reversed_package_price' AND JSON_UNQUOTE(JSON_EXTRACT(after_data,'$.bizNo'))=?", Integer.class, first.get("consumptionNo"))).isEqualTo(1);
+        quotaTrace.consumeByCode(Map.of("code", labelNo));
+        assertThat(jdbcTemplate.queryForObject("SELECT amount FROM settlement_bill_item WHERE trace_code_id=?", BigDecimal.class, traceId)).isEqualByComparingTo("37.5");
+        assertThat(jdbcTemplate.queryForObject("SELECT SUM(source_qty*unit_price) FROM quota_package_label_source WHERE label_id=?", BigDecimal.class, label)).isEqualByComparingTo("25");
+    }
 
     @Test
     void fifoProtectsSignedPackagesButConsumesLooseRemainder() {
@@ -350,6 +392,7 @@ class OperationalHighValueMysqlConcurrencyTest {
                         "warehouseName", fixture.get("warehouseName"),
                         "deptName", "并发测试科室",
                         "patientNo", "IT-PATIENT",
+                        "amount", new BigDecimal("120.12345"),
                         "quantity", BigDecimal.ONE));
                 } catch (IllegalArgumentException ex) {
                     return ex;
@@ -385,6 +428,9 @@ class OperationalHighValueMysqlConcurrencyTest {
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT trace_code_id FROM high_value_charge WHERE external_charge_no LIKE ?", Long.class, externalNo + "%"))
                     .isEqualTo(traceId);
+            assertThat(jdbcTemplate.queryForObject(
+                    "SELECT amount FROM high_value_charge WHERE external_charge_no LIKE ?", BigDecimal.class, externalNo + "%"))
+                    .isEqualByComparingTo("120.1235");
         } finally {
             // The entire isolated database is removed after this test class, including immutable events.
         }

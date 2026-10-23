@@ -99,13 +99,13 @@ class InventoryServiceTest {
                             && sql.contains("SUM(available_qty)")
                             && sql.contains("quota_package_label")
                             && sql.contains("package_quantity")
-                            && sql.contains("lo.loose_qty + COALESCE(qp.packaged_qty, 0)")),
+                            && sql.contains("COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0)")),
                     eq(20), eq(0));
             verify(jdbcTemplate).queryForMap(
-                    argThat((String sql) -> sql.contains("available_qty <> 0")
-                            && sql.contains("locked_qty <> 0")
-                            && sql.contains("in_transit_qty <> 0")
-                            && sql.contains("isolated_qty <> 0")));
+                    argThat((String sql) -> sql.contains("SUM(bc.batch_count)")
+                            && sql.contains("SUM(lo.locked_qty)")
+                            && sql.contains("SUM(lo.isolated_qty)")
+                            && sql.contains("UNION")));
         }
 
         @Test
@@ -116,7 +116,7 @@ class InventoryServiceTest {
             when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
                     Map.of("balanceId", 2L, "productCode", "P002", "availableQty", BigDecimal.valueOf(500))
             ));
-            when(jdbcTemplate.queryForMap(anyString())).thenReturn(
+            when(jdbcTemplate.queryForMap(anyString(), any(Object[].class))).thenReturn(
                     Map.of("batchCount", 10L, "availableQty", BigDecimal.valueOf(500),
                             "lockedQty", BigDecimal.ZERO, "isolatedQty", BigDecimal.ZERO));
 

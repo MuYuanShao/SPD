@@ -30,6 +30,38 @@ class QuotaPackagePricingServiceTest {
     }
 
     @Test
+    void returnedPackageWithReleasedBillRefreshesNonNullOldPriceAndRecordsDifference() {
+        mockReturnedPackage();
+        var refresh = service.refreshAfterConsumptionReversal(55L).orElseThrow();
+        assertThat(refresh.oldAmount()).isEqualByComparingTo("25");
+        assertThat(refresh.newAmount()).isEqualByComparingTo("37.5");
+        assertThat(refresh.differenceAmount()).isEqualByComparingTo("12.5");
+        verify(jdbc).update(contains("SET settlement_unit_price = ?"), eq(new BigDecimal("3.75")), eq(1L), eq(55L));
+        verify(jdbc, never()).update(contains("quota_package_label_source"), any(Object[].class));
+    }
+
+    @Test
+    void returnedPackageKeepsPriceWhenAnotherSourceStillHasSettlement() {
+        mockReturnedPackage();
+        when(jdbc.queryForList(contains("JOIN quota_package_label label ON label.trace_code_id"), eq(Long.class), eq(55L)))
+                .thenReturn(List.of(99L));
+        assertThat(service.refreshAfterConsumptionReversal(55L)).isEmpty();
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+    }
+
+    private void mockReturnedPackage() {
+        when(jdbc.queryForObject(contains("SELECT product_id FROM quota_package_label"), eq(Long.class), eq(55L)))
+                .thenReturn(1L);
+        when(jdbc.queryForMap(contains("FROM product WHERE product_id"), eq(1L)))
+                .thenReturn(Map.of("unitPrice", new BigDecimal("3.75"), "priceVersion", 1L));
+        when(jdbc.queryForMap(contains("FROM quota_package_label WHERE label_id"), eq(55L)))
+                .thenReturn(Map.of("status", "signed", "quantity", BigDecimal.TEN,
+                        "unitPrice", new BigDecimal("2.5"), "priceVersion", 0L));
+        when(jdbc.queryForList(contains("SELECT source_id FROM quota_package_label_source"), eq(Long.class), eq(55L)))
+                .thenReturn(List.of(77L));
+    }
+
+    @Test
     void unchangedPriceDoesNotCreateAdjustment() {
         when(jdbc.queryForMap(contains("FROM product WHERE product_id"), eq(1L)))
                 .thenReturn(Map.of("unitPrice", new BigDecimal("2.0000"), "unit", "支"));

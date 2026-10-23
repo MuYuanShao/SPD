@@ -214,7 +214,7 @@ public class OperationalDeliveryModule {
         BigDecimal quantity = decimal(body, "quantity", null);
         if (requisitionNo.isBlank() || itemId == null || warehouseName.isBlank()
                 || quantity == null || quantity.signum() <= 0) {
-            throw new IllegalArgumentException("requisitionNo, itemId, warehouseName and quantity are required");
+            throw new IllegalArgumentException("申领单号、申领明细、来源库房和正数拣配数量不能为空");
         }
         Map<String, Object> requisition = findRequisitionItemForPicking(requisitionNo, itemId);
         Map<String, Object> savedRoute = requireDeliveryRoute(requisitionNo);
@@ -231,7 +231,7 @@ public class OperationalDeliveryModule {
         Long warehouseId = findWarehouseId(warehouseName);
         BigDecimal picked = pickedQuantity(itemId);
         if (picked.add(quantity).compareTo(requested) > 0) {
-            throw new IllegalArgumentException("picked quantity exceeds requisition item quantity");
+            throw new IllegalArgumentException("拣配数量超过申领明细剩余数量");
         }
         Map<String, Object> product = findProductByProductId(productId);
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
@@ -462,7 +462,7 @@ public class OperationalDeliveryModule {
         String warehouseName = text(body, "warehouseName", "");
         List<String> labelNos = stringList(body.get("labelNos"));
         if (requisitionNo.isBlank() || itemId == null || warehouseName.isBlank() || labelNos.isEmpty()) {
-            throw new IllegalArgumentException("requisitionNo, itemId, warehouseName and labelNos are required");
+            throw new IllegalArgumentException("申领单号、申领明细、来源库房和定数包标签不能为空");
         }
         Map<String, Object> requisition = findRequisitionItemForPicking(requisitionNo, itemId);
         Long requisitionId = ((Number) requisition.get("requisitionId")).longValue();
@@ -493,12 +493,12 @@ public class OperationalDeliveryModule {
                 throw new IllegalArgumentException("标签模板版本或包装规格与申领快照不一致");
             }
             if (!labelProductId.equals(productId)) {
-                throw new IllegalArgumentException("selected package label product does not match requisition item");
+                throw new IllegalArgumentException("所选定数包商品与申领明细不一致");
             }
         }
         BigDecimal picked = pickedQuantity(itemId);
         if (picked.add(selectedPackageQuantity).compareTo(requested) > 0) {
-            throw new IllegalArgumentException("picked package quantity exceeds requisition item quantity");
+            throw new IllegalArgumentException("定数包拣配数量超过申领明细剩余数量");
         }
 
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
@@ -550,7 +550,7 @@ public class OperationalDeliveryModule {
             return Map.of("deliveryNo", deliveryNo, "status", "signed");
         }
         if (!"picked".equals(deliveryStatus)) {
-            throw new IllegalArgumentException("only picked delivery can be signed");
+            throw new IllegalArgumentException("只有已拣配的配送单才能签收");
         }
         Map<String, Object> route = requireDeliveryRoute(String.valueOf(delivery.get("requisitionNo")));
         Long sourceWarehouseId = ((Number) route.get("sourceWarehouseId")).longValue();
@@ -576,7 +576,7 @@ public class OperationalDeliveryModule {
         int updated = jdbcTemplate.update("UPDATE spd_delivery_order SET status = 'signed', sign_time = NOW(), destination_warehouse_id = ? WHERE delivery_no = ? AND status = 'picked'",
                 destinationWarehouseId, deliveryNo);
         if (updated != 1) {
-            throw new IllegalArgumentException("delivery has already been processed");
+            throw new IllegalArgumentException("配送单已被处理，请刷新后重试");
         }
         return Map.of("deliveryNo", deliveryNo, "status", "signed");
     }
@@ -657,7 +657,7 @@ public class OperationalDeliveryModule {
                  FOR UPDATE
                 """, deliveryId);
         if (sources.isEmpty()) {
-            throw new IllegalArgumentException("delivery package label has no source batch");
+            throw new IllegalArgumentException("配送定数包缺少来源批次，请核对原单");
         }
         List<Long> signedLabelIds = new ArrayList<>();
         for (Map<String, Object> source : sources) {
@@ -705,7 +705,7 @@ public class OperationalDeliveryModule {
                  FOR UPDATE
                 """, requisitionNo, itemId);
         if (rows.isEmpty()) {
-            throw new IllegalArgumentException("requisition item is not approved or has been fully picked");
+            throw new IllegalArgumentException("申领明细尚未审批或已全部拣配");
         }
         if (!accessService.isUnrestricted()) {
             accessService.requireDepartment(((Number) rows.get(0).get("deptId")).longValue());
@@ -764,14 +764,14 @@ public class OperationalDeliveryModule {
 
     private void validateLabelSet(List<Map<String, Object>> labels, List<String> labelNos, Long warehouseId) {
         if (labels.size() != labelNos.size()) {
-            throw new IllegalArgumentException("one or more package labels do not exist");
+            throw new IllegalArgumentException("部分定数包标签不存在，请重新选择");
         }
         for (Map<String, Object> label : labels) {
             if (!"available".equals(String.valueOf(label.get("status")))) {
-                throw new IllegalArgumentException("only available package labels can be picked");
+                throw new IllegalArgumentException("只有可用的定数包标签才能拣配");
             }
             if (((Number) label.get("warehouseId")).longValue() != warehouseId) {
-                throw new IllegalArgumentException("selected package labels must belong to the selected warehouse");
+                throw new IllegalArgumentException("所选定数包必须属于本次来源库房");
             }
         }
     }

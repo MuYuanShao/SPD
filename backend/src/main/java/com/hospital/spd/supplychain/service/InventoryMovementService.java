@@ -19,7 +19,7 @@ import java.util.Map;
 public class InventoryMovementService {
 
     private static final String INSUFFICIENT_INVENTORY_MESSAGE =
-            "inventory is insufficient, negative stock is not allowed";
+            "可用库存不足，不能扣减为负数";
 
     private final JdbcTemplate jdbcTemplate;
     private final InventoryEventService inventoryEventService;

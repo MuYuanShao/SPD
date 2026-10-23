@@ -273,7 +273,8 @@ public class ProductService {
 
     /** 查询商品详情 */
     public ProductDetail hospitalProductDetail(String productCode) {
-        return jdbcTemplate.queryForObject("""
+        try {
+            return jdbcTemplate.queryForObject("""
                 SELECT p.product_id AS product_id, p.product_code, p.product_name, p.spec_model,
                        p.brand, COALESCE(c.category_name, '-') AS category_name,
                        COALESCE(m.manufacturer_name, '-') AS manufacturer_name,
@@ -334,7 +335,10 @@ public class ProductService {
                     rs.getInt("status") == 1 ? "启用" : "停用",
                     attachments
             );
-        }, productCode);
+            }, productCode);
+        } catch (org.springframework.dao.EmptyResultDataAccessException ex) {
+            throw new IllegalArgumentException("商品不存在或尚未通过准入审批");
+        }
     }
 
     // ==================== 私有辅助方法 ====================

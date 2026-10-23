@@ -194,6 +194,12 @@ class OperationalConsumptionModuleTest {
     @Test
     void restoresQuotaPackageTraceWhenItsConsumptionIsReversed() {
         mockReversalProductLock();
+        when(jdbcTemplate.queryForObject(contains("SELECT product_id FROM quota_package_label"), eq(Long.class), eq(55L)))
+                .thenReturn(100L);
+        when(jdbcTemplate.queryForMap(contains("FROM quota_package_label WHERE label_id"), eq(55L)))
+                .thenReturn(Map.of("status", "signed"));
+        when(jdbcTemplate.queryForList(contains("SELECT source_id FROM quota_package_label_source"), eq(Long.class), eq(55L)))
+                .thenReturn(List.of());
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed",
                         "relatedBizType", "quota_package_label", "relatedBizId", 55L));

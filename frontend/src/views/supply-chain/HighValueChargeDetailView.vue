@@ -450,7 +450,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
                     </td>
                     <td>
                       <div class="charge-cell-stack">
-                        <span class="charge-mono">
+                        <span class="charge-mono" data-testid="charge-unique-code">
                           <Tag :size="11" />
                           {{ row.uniqueCode || '-' }}
                         </span>

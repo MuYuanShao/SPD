@@ -40,6 +40,55 @@ class OperationalHighValueModuleTest {
     }
 
     @Test
+    void rejectsReusedExternalNumberWithDifferentTracePatientSourceQuantityOrAmount() {
+        Map<String, Object> stored = Map.ofEntries(
+                Map.entry("chargeNo", "GZ-ORIGINAL"), Map.entry("status", "charged"),
+                Map.entry("sourceSystem", "AIMS"), Map.entry("uniqueCode", "UID-1"),
+                Map.entry("udiCode", "UDI-1"), Map.entry("productCode", "PC001"),
+                Map.entry("patientNo", "PATIENT-1"), Map.entry("deptName", "Surgery"),
+                Map.entry("quantity", BigDecimal.ONE), Map.entry("amount", BigDecimal.TEN));
+        when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-REUSED")))
+                .thenReturn(List.of(stored));
+        Map<String, Object> original = Map.of("externalChargeNo", "EXT-REUSED", "sourceSystem", "AIMS",
+                "uniqueCode", "UID-1", "productCode", "PC001", "patientNo", "PATIENT-1",
+                "deptName", "Surgery", "quantity", BigDecimal.ONE, "amount", BigDecimal.TEN);
+        for (Map<String, Object> change : List.<Map<String, Object>>of(
+                Map.of("uniqueCode", "UID-2"), Map.of("patientNo", "PATIENT-2"),
+                Map.of("sourceSystem", "HIS"), Map.of("quantity", new BigDecimal("2")),
+                Map.of("amount", new BigDecimal("11")), Map.of("productCode", "PC002"))) {
+            var body = new java.util.HashMap<>(original);
+            body.putAll(change);
+            assertThatThrownBy(() -> module.receiveBillingCallback(body))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("计费内容不一致");
+        }
+        org.mockito.Mockito.verifyNoInteractions(support);
+    }
+
+    @Test
+    void identicalHighPrecisionAmountRetryUsesTheSameFourPlaceMoneyAsPersistence() {
+        when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-PRECISE")))
+                .thenReturn(List.of(Map.of("chargeNo", "GZ-ORIGINAL", "status", "charged",
+                        "sourceSystem", "AIMS", "uniqueCode", "UID-1", "quantity", BigDecimal.ONE,
+                        "amount", new BigDecimal("120.1235"))));
+        assertThat(module.receiveBillingCallback(Map.of("externalChargeNo", "EXT-PRECISE",
+                "uniqueCode", "UID-1", "quantity", BigDecimal.ONE, "amount", new BigDecimal("120.12345"))))
+                .containsEntry("idempotent", true);
+    }
+
+    @Test
+    void identicalRetryUsesOriginalAmountWithoutLookingUpTodaysCatalogPrice() {
+        when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-RETRY")))
+                .thenReturn(List.of(Map.of("chargeNo", "GZ-ORIGINAL", "status", "charged",
+                        "sourceSystem", "AIMS", "uniqueCode", "UID-1", "quantity", BigDecimal.ONE,
+                        "amount", new BigDecimal("120.0000"))));
+        var retry = module.receiveBillingCallback(Map.of("externalChargeNo", "EXT-RETRY",
+                "uniqueCode", " UID-1 ", "quantity", new BigDecimal("1.0000")));
+        assertThat(retry).containsEntry("idempotent", true).containsEntry("chargeNo", "GZ-ORIGINAL");
+        verify(jdbcTemplate, org.mockito.Mockito.never()).queryForMap(anyString(), anyString());
+        org.mockito.Mockito.verifyNoInteractions(support);
+    }
+
+    @Test
     void rejectsDifferentChargeNumberWhenTraceWasConsumedWhileWaitingForProductLock() {
         when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-SECOND")))
                 .thenReturn(List.of());
@@ -106,7 +155,7 @@ class OperationalHighValueModuleTest {
     void returnsExistingChargeAfterWaitingForProductLock() {
         when(jdbcTemplate.queryForList(contains("FROM high_value_charge"), eq("EXT-002")))
                 .thenReturn(List.of())
-                .thenReturn(List.of(Map.of("chargeNo", "GZ-EXISTING", "status", "charged")));
+                .thenReturn(List.of(Map.of("chargeNo", "GZ-EXISTING", "status", "charged", "sourceSystem", "AIMS", "uniqueCode", "UID-002", "quantity", BigDecimal.ONE, "amount", BigDecimal.TEN)));
         when(jdbcTemplate.queryForList(contains("unique_code = ?"), eq("UID-002")))
                 .thenReturn(List.of(Map.of(
                         "traceCodeId", 2L,

@@ -76,7 +76,7 @@ class SettlementPointServiceTest {
         verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(51L),
                 eq("receiving_order_item"), eq(41L), eq(101L), eq(201L),
                 org.mockito.ArgumentMatchers.isNull(), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)),
-                eq(BigDecimal.valueOf(20)));
+                eq(new BigDecimal("20.0000")));
         verify(support).writeAudit("settlement_bill", "auto_generate", 51L,
                 "JS2026072400010", "settlement generated automatically at purchase_in");
     }
@@ -93,7 +93,7 @@ class SettlementPointServiceTest {
         assertThat(settlementNos).containsExactly("JS2026072400011");
         verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(52L),
                 eq("department_consumption_item"), eq(71L), eq(101L), eq(201L),
-                eq(301L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)), eq(BigDecimal.valueOf(20)));
+                eq(301L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)), eq(new BigDecimal("20.0000")));
     }
 
     @Test
@@ -168,8 +168,8 @@ class SettlementPointServiceTest {
         List<String> settlementNos = service.generateForReceivingOrder(31L);
 
         assertThat(settlementNos).containsExactly("JS2026072400020", "JS2026072400021");
-        verify(statement).setBigDecimal(5, BigDecimal.valueOf(30));
-        verify(statement).setBigDecimal(5, BigDecimal.valueOf(20));
+        verify(statement).setBigDecimal(5, new BigDecimal("30.0000"));
+        verify(statement).setBigDecimal(5, new BigDecimal("20.0000"));
     }
 
     @Test

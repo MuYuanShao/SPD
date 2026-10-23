@@ -7,7 +7,7 @@ public record QuotaTemplateRequest(
         String templateName,
         String deptName,
         String productCode,
-        BigDecimal quantity,
+        @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
         String unit
 ) {
 }

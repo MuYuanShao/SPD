@@ -47,6 +47,12 @@ public class OperationalSettlementModule {
 
     @Transactional
     public Map<String, Object> confirmSettlement(String settlementNo) {
+        List<Long> products = jdbcTemplate.queryForList("""
+                SELECT DISTINCT item.product_id FROM settlement_bill_item item
+                  JOIN settlement_bill bill ON bill.settlement_id = item.settlement_id
+                 WHERE bill.settlement_no = ? ORDER BY item.product_id
+                """, Long.class, settlementNo);
+        new QuotaPackagePricingService(jdbcTemplate).lockProducts(products);
         Map<String, Object> settlement = jdbcTemplate.queryForMap("""
                 SELECT settlement_id AS settlementId, status
                   FROM settlement_bill
@@ -72,6 +78,20 @@ public class OperationalSettlementModule {
             } else {
                 traceFlowService.markSettled(traceCodeId, settlementNo);
             }
+        }
+        // Receiving settlements have no trace identity: revisit consumed packs sourced from those receipts.
+        List<Long> receivingPackageTraces = jdbcTemplate.queryForList("""
+                SELECT DISTINCT label.trace_code_id
+                  FROM settlement_bill_item item
+                  JOIN inventory_batch batch ON item.source_biz_type='receiving_order_item'
+                    AND batch.receiving_item_id=item.source_biz_id
+                  JOIN quota_package_label_source source ON source.batch_id=batch.batch_id
+                  JOIN quota_package_label label ON label.label_id=source.label_id
+                 WHERE item.settlement_id=? AND label.status='consumed' AND label.trace_code_id IS NOT NULL
+                 ORDER BY label.trace_code_id FOR SHARE
+                """, Long.class, settlement.get("settlementId"));
+        for (Long traceCodeId : receivingPackageTraces) {
+            quotaPackageTraceFlowService.markSettled(traceCodeId, settlementNo);
         }
         support.writeAudit("settlement_bill", "confirm_settlement", number(settlement.get("settlementId")),
                 settlementNo, "confirm settlement bill");

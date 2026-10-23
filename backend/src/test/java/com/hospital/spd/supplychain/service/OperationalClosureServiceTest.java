@@ -44,6 +44,8 @@ class OperationalClosureServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(jdbcTemplate.queryForList(contains("SELECT w.warehouse_id AS warehouseId"), any(Object[].class)))
+                .thenReturn(List.of(Map.of("deptId", 10L, "warehouseId", 20L)));
         service = new OperationalClosureService(new OperationalClosureReadModel(jdbcTemplate),
                 new OperationalShortageModule(jdbcTemplate, support),
                 new OperationalSettlementModule(jdbcTemplate, support),
@@ -451,7 +453,7 @@ class OperationalClosureServiceTest {
     @DisplayName("冲销消耗记录——成功冲销并生成红冲单")
     void shouldReverseConsumptionSuccessfully() {
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), anyString()))
-                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 200L, "quantity", BigDecimal.TEN)));
         when(jdbcTemplate.update(contains("UPDATE department_consumption"), anyString())).thenReturn(1);

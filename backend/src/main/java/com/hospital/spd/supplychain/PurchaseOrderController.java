@@ -40,13 +40,13 @@ public class PurchaseOrderController {
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody PurchaseOrderRequest request) {
+    public ApiResponse<Map<String, Object>> create(@jakarta.validation.Valid @RequestBody PurchaseOrderRequest request) {
         return ApiResponse.ok(service.createOrder(request));
     }
 
     @PutMapping("/{orderNo}/action")
     public ApiResponse<Map<String, Object>> action(@PathVariable String orderNo,
-                                                   @RequestBody PurchaseOrderActionRequest request) {
+                                                   @jakarta.validation.Valid @RequestBody PurchaseOrderActionRequest request) {
         return ApiResponse.ok(service.performAction(orderNo, request));
     }
 
@@ -87,7 +87,7 @@ public class PurchaseOrderController {
 
     @PutMapping("/demands/{demandNo}/action")
     public ApiResponse<Map<String, Object>> demandAction(@PathVariable String demandNo,
-                                                         @RequestBody PurchaseOrderActionRequest request) {
+                                                         @jakarta.validation.Valid @RequestBody PurchaseOrderActionRequest request) {
         return ApiResponse.ok(service.performDemandAction(demandNo, request));
     }
 
@@ -105,7 +105,7 @@ public class PurchaseOrderController {
 
     @PutMapping("/plans/{planNo}/action")
     public ApiResponse<Map<String, Object>> planAction(@PathVariable String planNo,
-                                                       @RequestBody PurchaseOrderActionRequest request) {
+                                                       @jakarta.validation.Valid @RequestBody PurchaseOrderActionRequest request) {
         return ApiResponse.ok(service.performPlanAction(planNo, request));
     }
 

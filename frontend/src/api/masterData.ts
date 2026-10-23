@@ -236,6 +236,7 @@ export interface WarehouseCodesPayload {
 }
 
 export interface DepartmentWarehouseRelation {
+  warehouseId?: number
   code: string
   name: string
   type: string

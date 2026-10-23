@@ -304,40 +304,40 @@ class QuotaPackagePricingMysqlTest {
         } finally { executor.shutdownNow(); }
     }
 
-    private void fractionalMixedPackage() {
-        jdbc.update("UPDATE quota_package_label SET package_quantity=1 WHERE label_id=1");
-        jdbc.update("UPDATE quota_package_label_source SET source_qty=0.5 WHERE label_id=1");
+    private void wholeMixedPackage() {
+        jdbc.update("UPDATE quota_package_label SET package_quantity=2 WHERE label_id=1");
+        jdbc.update("UPDATE quota_package_label_source SET source_qty=1 WHERE label_id=1");
         jdbc.update("INSERT INTO inventory_batch(batch_id,receiving_item_id,supplier_id) VALUES(102,202,2)");
-        jdbc.update("INSERT INTO quota_package_label_source VALUES(2,1,102,0.5,2)");
-        jdbc.update("UPDATE department_consumption_item SET quantity=0.5,amount=1 WHERE item_id=3001");
-        jdbc.update("INSERT INTO department_consumption_item VALUES(3002,4001,1,102,1001,0.5,2,1)");
-        change("FRACTIONAL", "2.0101");
+        jdbc.update("INSERT INTO quota_package_label_source VALUES(2,1,102,1,2)");
+        jdbc.update("UPDATE department_consumption_item SET quantity=1,amount=2 WHERE item_id=3001");
+        jdbc.update("INSERT INTO department_consumption_item VALUES(3002,4001,1,102,1001,1,2,2)");
+        change("WHOLE", "2.0101");
     }
 
     @Test
     void realConsumptionSettlementConservesPackageAmountAcrossSuppliers() {
-        fractionalMixedPackage();
+        wholeMixedPackage();
         var bills = tx.execute(status -> settlement.generateForConsumption(4001L));
         assertThat(bills).hasSize(2);
         BigDecimal target = jdbc.queryForObject("SELECT new_amount FROM quota_package_price_change_item", BigDecimal.class);
-        assertThat(target).isEqualByComparingTo("2.0101");
+        assertThat(target).isEqualByComparingTo("4.0202");
         assertThat(jdbc.queryForObject("SELECT SUM(total_amount) FROM settlement_bill", BigDecimal.class)).isEqualByComparingTo(target);
         assertThat(jdbc.queryForList("SELECT amount FROM settlement_bill_item ORDER BY source_biz_id", BigDecimal.class))
-                .containsExactly(new BigDecimal("1.0051"), new BigDecimal("1.0050"));
-        assertThat(jdbc.queryForObject("SELECT SUM(amount) FROM department_consumption_item", BigDecimal.class)).isEqualByComparingTo("2");
+                .containsExactly(new BigDecimal("2.0101"), new BigDecimal("2.0101"));
+        assertThat(jdbc.queryForObject("SELECT SUM(amount) FROM department_consumption_item", BigDecimal.class)).isEqualByComparingTo("4");
     }
 
     @Test
     void supplierFilteredCatchupKeepsPreviouslyBilledPartAndConservesWholePackage() {
-        fractionalMixedPackage();
+        wholeMixedPackage();
         var day = java.time.LocalDate.now();
         tx.executeWithoutResult(status -> settlement.generateMissing(new ManualSettlementGenerationRequest(
                 SettlementMode.DEPARTMENT_CONSUMPTION, day, day, 2L)));
         BigDecimal first = jdbc.queryForObject("SELECT amount FROM settlement_bill_item WHERE source_biz_id=3002", BigDecimal.class);
-        assertThat(first).isEqualByComparingTo("1.0050");
+        assertThat(first).isEqualByComparingTo("2.0101");
         tx.executeWithoutResult(status -> settlement.generateMissing(new ManualSettlementGenerationRequest(
                 SettlementMode.DEPARTMENT_CONSUMPTION, day, day, 1L)));
-        assertThat(jdbc.queryForObject("SELECT SUM(total_amount) FROM settlement_bill", BigDecimal.class)).isEqualByComparingTo("2.0101");
+        assertThat(jdbc.queryForObject("SELECT SUM(total_amount) FROM settlement_bill", BigDecimal.class)).isEqualByComparingTo("4.0202");
         assertThat(jdbc.queryForObject("SELECT amount FROM settlement_bill_item WHERE source_biz_id=3002", BigDecimal.class)).isEqualByComparingTo(first);
     }
 

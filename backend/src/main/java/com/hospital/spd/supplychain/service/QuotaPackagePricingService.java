@@ -217,6 +217,7 @@ public class QuotaPackagePricingService {
 
     /** Freeze a package's current valuation into new settlement rows; never modify existing bills or source costs. */
     public List<Map<String, Object>> settlementRows(String mode, List<Map<String, Object>> rows) {
+        rows.forEach(row -> com.hospital.spd.common.QuantityRules.positive((BigDecimal) row.get("quantity"), "结算数量"));
         rows.stream().map(row -> row.get("productId")).filter(Number.class::isInstance)
                 .map(value -> ((Number) value).longValue()).distinct().sorted().forEach(this::lockProduct);
         if (!SettlementPointService.DEPARTMENT_CONSUMPTION.equals(mode)) return rows;
@@ -290,6 +291,10 @@ public class QuotaPackagePricingService {
                  ORDER BY item.item_id FOR UPDATE
                 """, labelId);
         if (sources.isEmpty()) throw new IllegalArgumentException("套包缺少有效消耗来源，不能生成结算");
+        sources.forEach(row -> {
+            com.hospital.spd.common.QuantityRules.positive(decimal(row.get("quantity")), "来源数量");
+            com.hospital.spd.common.QuantityRules.positive(decimal(row.get("packageQuantity")), "包内数量");
+        });
         BigDecimal quantity = sources.stream().map(row -> decimal(row.get("quantity"))).reduce(BigDecimal.ZERO, BigDecimal::add);
         if (quantity.compareTo(decimal(sources.get(0).get("packageQuantity"))) != 0) {
             throw new IllegalArgumentException("套包消耗来源数量与包内数量不一致，不能自动分摊结算金额");

@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 public record StocktakingRequest(
         String warehouseName,
         String systemBatchNo,
-        BigDecimal actualQty,
+        @com.hospital.spd.common.WholeQuantity BigDecimal actualQty,
         String reason
 ) {
 }

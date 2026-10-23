@@ -708,7 +708,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td>{{ item.specModel }}</td>
               <td>{{ item.quantity }}</td>
               <td>¥ {{ Number(item.unitPrice || 0).toFixed(2) }}</td>
-              <td>¥ {{ (Number(item.unitPrice || 0) * Number(item.quantity)).toFixed(2) }}</td>
+              <td>¥ {{ (Number(item.unitPrice || 0) * Number(item.quantity)).toString() }}</td>
               <td>{{ item.registrationNo || '-' }}</td>
               <td>{{ item.manufacturerName || '-' }}</td>
             </tr>
@@ -968,11 +968,11 @@ async function handleOrderAttachmentUpload(event: Event) {
                     <td>{{ productByCode(item.productCode)?.specModel || '-' }}</td>
                     <td>{{ productByCode(item.productCode)?.unit || '-' }}</td>
                     <td class="purchase-quantity-cell">
-                      <input v-model.number="item.quantity" type="number" min="1" step="1" :aria-label="`第 ${index + 1} 行采购数量`" />
+                      <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" :aria-label="`第 ${index + 1} 行采购数量`" />
                     </td>
                     <td>¥ {{ Number(productByCode(item.productCode)?.purchasePrice || 0).toFixed(2) }}</td>
                     <td class="purchase-amount-cell">
-                      ¥ {{ (Number(item.quantity || 0) * Number(productByCode(item.productCode)?.purchasePrice || 0)).toFixed(2) }}
+                      ¥ {{ (Number(item.quantity || 0) * Number(productByCode(item.productCode)?.purchasePrice || 0)).toString() }}
                     </td>
                     <td>
                       <button class="purchase-row-delete" type="button" @click="removeDemandItem(index)">
@@ -1201,7 +1201,7 @@ async function handleOrderAttachmentUpload(event: Event) {
                   </div>
                   <div class="purchase-create-item-cell">
                     <span class="purchase-create-item-label">采购数量</span>
-                    <input v-model.number="item.quantity" type="number" min="1" step="1" />
+                    <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" />
                   </div>
                   <div class="purchase-create-item-cell">
                     <span class="purchase-create-item-label">单位</span>
@@ -1213,7 +1213,7 @@ async function handleOrderAttachmentUpload(event: Event) {
                   </div>
                   <div class="purchase-create-item-cell purchase-create-item-amount">
                     <span class="purchase-create-item-label">金额</span>
-                    <strong>¥ {{ ((Number(item.quantity) || 0) * (Number(item.estimatedUnitPrice) || 0)).toFixed(2) }}</strong>
+                    <strong>¥ {{ ((Number(item.quantity) || 0) * (Number(item.estimatedUnitPrice) || 0)).toString() }}</strong>
                   </div>
                   <div class="purchase-create-item-actions">
                     <button class="btn-text btn-text-danger" type="button" :disabled="form.items.length === 1" @click="removeItem(index)">
@@ -1236,7 +1236,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </div>
               <div class="purchase-create-summary-row is-total">
                 <span>合计金额</span>
-                <strong>¥ {{ form.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.estimatedUnitPrice) || 0), 0).toFixed(2) }}</strong>
+                <strong>¥ {{ form.items.reduce((s, i) => s + (Number(i.quantity) || 0) * (Number(i.estimatedUnitPrice) || 0), 0).toString() }}</strong>
               </div>
             </div>
           </section>

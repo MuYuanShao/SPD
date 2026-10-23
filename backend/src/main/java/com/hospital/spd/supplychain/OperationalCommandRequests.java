@@ -22,14 +22,14 @@ public final class OperationalCommandRequests {
     }
 
     public record LoosePickingRequest(@NotBlank String requisitionNo, @NotNull @Positive Long itemId,
-                                      @NotBlank String warehouseName, @NotNull @Positive BigDecimal quantity)
+                                      @NotBlank String warehouseName, @NotNull @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity)
             implements CompatibleRequest {
         public Map<String, Object> toCompatibilityMap() { return map("requisitionNo", requisitionNo, "itemId", itemId, "warehouseName", warehouseName, "quantity", quantity); }
     }
 
     public record ShortageRequest(@NotBlank String deptName, @NotBlank String productCode,
-                                  @NotNull @Positive BigDecimal minQty, @PositiveOrZero BigDecimal currentQty,
-                                  @PositiveOrZero BigDecimal replenishQty, @Positive Integer replenishmentDays)
+                                  @NotNull @Positive @com.hospital.spd.common.WholeQuantity BigDecimal minQty, @PositiveOrZero @com.hospital.spd.common.WholeQuantity BigDecimal currentQty,
+                                  @PositiveOrZero @com.hospital.spd.common.WholeQuantity BigDecimal replenishQty, @Positive Integer replenishmentDays)
             implements CompatibleRequest {
         public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "productCode", productCode, "minQty", minQty, "currentQty", currentQty, "replenishQty", replenishQty, "replenishmentDays", replenishmentDays); }
     }
@@ -45,7 +45,7 @@ public final class OperationalCommandRequests {
     }
 
     public record DeliveryRequest(String requisitionNo, @NotBlank String deptName, @NotBlank String warehouseName,
-                                  @NotBlank String productCode, @NotNull @Positive BigDecimal quantity,
+                                  @NotBlank String productCode, @NotNull @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
                                   List<String> uniqueCodes, String uniqueCode) implements CompatibleRequest {
         public Map<String, Object> toCompatibilityMap() { return map("requisitionNo", requisitionNo, "deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity, "uniqueCodes", uniqueCodes, "uniqueCode", uniqueCode); }
     }
@@ -59,9 +59,13 @@ public final class OperationalCommandRequests {
     public record ConsumptionRequest(@NotBlank(message = "科室名称不能为空") String deptName,
                                      @NotBlank(message = "库房名称不能为空") String warehouseName,
                                      @NotBlank(message = "商品编码不能为空") String productCode,
-                                     @NotNull(message = "消耗数量不能为空") @Positive(message = "消耗数量必须大于零") BigDecimal quantity)
+                                     @NotNull(message = "消耗数量不能为空") @Positive(message = "消耗数量必须大于零") @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
+                                     String deptCode, Long warehouseId)
             implements CompatibleRequest {
-        public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity); }
+        public ConsumptionRequest(String deptName, String warehouseName, String productCode, @com.hospital.spd.common.WholeQuantity BigDecimal quantity) {
+            this(deptName, warehouseName, productCode, quantity, null, null);
+        }
+        public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity, "deptCode", deptCode, "warehouseId", warehouseId); }
     }
 
     public record PdaUploadRequest(String deviceNo, String operationType) implements CompatibleRequest {
@@ -81,7 +85,7 @@ public final class OperationalCommandRequests {
     }
 
     public record HighValueChargeRequest(@NotBlank String deptName, @NotBlank String patientNo,
-                                         @NotBlank String productCode, @NotNull @Positive BigDecimal quantity)
+                                         @NotBlank String productCode, @NotNull @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity)
             implements CompatibleRequest {
         public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "patientNo", patientNo, "productCode", productCode, "quantity", quantity); }
     }
@@ -95,7 +99,7 @@ public final class OperationalCommandRequests {
     public record HighValueBillingCallbackRequest(String externalChargeNo, String eventId, String sourceSystem,
                                                   String operationNo, String udiCode, String uniqueCode,
                                                   String productCode, @NotNull(message = "计费数量不能为空")
-                                                  @Positive(message = "计费数量必须大于零") BigDecimal quantity,
+                                                  @Positive(message = "计费数量必须大于零") @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
                                                   @PositiveOrZero(message = "计费金额不能为负数") BigDecimal amount, String deptName,
                                                   String patientNo, String patientNameMasked,
                                                   String roomName, String warehouseName, String operatorName)

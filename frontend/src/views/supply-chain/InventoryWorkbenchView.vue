@@ -829,12 +829,11 @@ watch(mode, () => {
                 <td>{{ row.unit || '-' }}</td>
                 <td class="number-cell">{{ row.systemQty }}</td>
                 <td>
-                  <input
+                  <input v-integer-quantity
                     v-model.number="row.actualQty"
                     class="stocktaking-qty-input"
                     type="number"
-                    min="0"
-                    step="0.0001"
+                    min="0" step="1"
                     placeholder="待盘点"
                   />
                 </td>

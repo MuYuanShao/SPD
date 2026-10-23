@@ -679,11 +679,12 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
                 </select>
                 <input
                   v-else
+                  v-integer-quantity="['minPurchaseQty', 'conversionRate', 'purchasePackageQty'].includes(f.key)"
                   :disabled="submitting || saving" v-model="(editForm as any)[f.key]"
                   class="edit-input"
                   autocomplete="off"
                   :type="f.inputType || 'text'"
-                  :step="f.inputType === 'number' ? '0.0001' : undefined"
+                  :step="f.inputType === 'number' ? (['minPurchaseQty', 'conversionRate', 'purchasePackageQty'].includes(f.key) ? '1' : '0.0001') : undefined"
                 />
               </div>
             </div>
@@ -850,8 +851,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </label>
             <label><span>单位</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.unit" required /></label>
             <label><span>采购价</span><input :disabled="submitting || saving" v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
-            <label><span>中包装数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.conversionRate" type="number" min="0" step="0.000001" /></label>
-            <label><span>采购包装数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="0.0001" /></label>
+            <label><span>中包装数量</span><input v-integer-quantity :disabled="submitting || saving" v-model.number="resubmitForm.conversionRate" type="number" min="0" step="1" /></label>
+            <label><span>采购包装数量</span><input v-integer-quantity :disabled="submitting || saving" v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="1" /></label>
             <label><span>注册证号</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.registrationNo" /></label>
             <label><span>注册证有效期</span><input :disabled="submitting || saving" v-model="resubmitForm.registrationExpireDate" type="date" /></label>
             <label><span>一级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.firstCategory" /></label>

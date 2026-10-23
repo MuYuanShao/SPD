@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 
 public record PurchaseOrderItemRequest(
         String productCode,
-        BigDecimal quantity,
+        @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
         String unit,
         BigDecimal estimatedUnitPrice
 ) {

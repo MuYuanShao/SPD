@@ -157,8 +157,10 @@ public class PackingTaskService {
         BigDecimal packageCount = positiveWholeNumber(request.packageCount(), "packing package count must be a whole number greater than zero");
         Map<String, Object> template = findTemplate(request.templateCode());
         Long warehouseId = findWarehouseId(request.warehouseName());
-        BigDecimal packageQuantity = (BigDecimal) template.get("quantity");
+        BigDecimal packageQuantity = com.hospital.spd.common.QuantityRules.positive((BigDecimal) template.get("quantity"), "包内数量");
         Long productId = ((Number) template.get("productId")).longValue();
+        quotaPricing.lockProduct(productId);
+        new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate).requirePackageProduct(productId);
         BigDecimal availableQty = availableLoose(warehouseId, productId);
         BigDecimal packableCount = availableQty
                 .divideToIntegralValue(packageQuantity)
@@ -223,6 +225,8 @@ public class PackingTaskService {
         if (!"pending_confirm".equals(String.valueOf(task.get("status")))) {
             throw new IllegalArgumentException("只有待确认的打包任务可以确认");
         }
+        new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate)
+                .requirePackageProduct(((Number) task.get("productId")).longValue());
         Long warehouseId = ((Number) task.get("warehouseId")).longValue();
         validateLockedReservations(((Number) task.get("taskId")).longValue(), (BigDecimal) task.get("plannedLooseQty"));
         List<Map<String, Object>> consumed = consumeReservedLoose(((Number) task.get("taskId")).longValue());
@@ -570,6 +574,7 @@ public class PackingTaskService {
     @Transactional
     public Map<String, Object> allocateFromReceiving(String taskNo, String receivingNo, BigDecimal quantity) {
         permissionGuard.require("quota-packing-task:create");
+        com.hospital.spd.common.QuantityRules.optionalPositive(quantity, "分配数量");
         Map<String, Object> task = findPackingTaskForUpdate(taskNo);
         String status = String.valueOf(task.get("status"));
         if (!"pending_confirm".equals(status) && !"need_recalculate".equals(status)) {
@@ -677,6 +682,8 @@ public class PackingTaskService {
                        ti.product_id AS productId, ti.quantity, ti.unit
                   FROM quota_package_template t
                   JOIN quota_package_template_item ti ON ti.template_id = t.template_id
+                  JOIN product p ON p.product_id = ti.product_id AND p.deleted = 0 AND p.status = 1
+                    AND p.is_high_value = 0 AND p.is_cold_chain = 0
                  WHERE t.template_code = ? AND t.status = 1 AND t.deleted = 0
                    AND t.is_current = 1 AND ti.deleted = 0
                 """, templateCode.trim());

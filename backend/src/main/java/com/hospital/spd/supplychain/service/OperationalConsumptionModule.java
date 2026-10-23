@@ -63,8 +63,10 @@ public class OperationalConsumptionModule {
         String warehouseName = requireText(body, "warehouseName");
         String productCode = requireText(body, "productCode");
         BigDecimal quantity = requirePositive(body, "quantity");
-        Long deptId = findDept(deptName);
-        Long warehouseId = findDepartmentWarehouse(deptName, warehouseName);
+        Map<String, Object> destination = resolveDestination(body, deptName, warehouseName);
+        Long deptId = ((Number) destination.get("deptId")).longValue();
+        Long warehouseId = ((Number) destination.get("warehouseId")).longValue();
+        new DepartmentRequisitionAccessService(jdbcTemplate, operatorContextProvider).requireDepartment(deptId);
         Map<String, Object> product = findProduct(productCode);
         if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
             throw new IllegalArgumentException("高值耗材只能在收到 HIS/手麻/手术系统计费回传后扣减库存");
@@ -112,12 +114,27 @@ public class OperationalConsumptionModule {
                 """, Long.class, consumptionNo);
         new QuotaPackagePricingService(jdbcTemplate).lockProducts(products);
         Map<String, Object> consumption = jdbcTemplate.queryForMap("""
-                SELECT consumption_id AS consumptionId, warehouse_id AS warehouseId, status,
+                SELECT consumption_id AS consumptionId, dept_id AS deptId, consume_by AS consumeBy,
+                       (SELECT w.dept_id FROM warehouse w WHERE w.warehouse_id = department_consumption.warehouse_id
+                          AND w.deleted = 0 AND w.status = 1 FOR SHARE) AS warehouseDeptId,
+                       warehouse_id AS warehouseId, status,
                        related_biz_type AS relatedBizType, related_biz_id AS relatedBizId
                   FROM department_consumption
                  WHERE consumption_no = ?
                  FOR UPDATE
                 """, consumptionNo);
+        Long documentDeptId = consumption.get("deptId") instanceof Number n ? n.longValue() : null;
+        Long warehouseDeptId = consumption.get("warehouseDeptId") instanceof Number n ? n.longValue() : null;
+        if (documentDeptId == null || !Objects.equals(documentDeptId, warehouseDeptId)) {
+            throw new IllegalArgumentException("消耗单科室与当前库房归属不一致，请先核对原单和库房，不能直接反消耗");
+        }
+        new DepartmentRequisitionAccessService(jdbcTemplate, operatorContextProvider).requireDepartment(documentDeptId);
+        if (operatorContextProvider.current().dataScope() != null
+                && operatorContextProvider.current().dataScope() == OperatorContext.DATA_SCOPE_SELF
+                && (!(consumption.get("consumeBy") instanceof Number owner)
+                    || !Objects.equals(owner.longValue(), operatorContextProvider.current().userId()))) {
+            throw new org.springframework.security.access.AccessDeniedException("只能反消耗本人登记的记录");
+        }
         if (!"confirmed".equals(String.valueOf(consumption.get("status")))) {
             throw new IllegalArgumentException("只有已确认且尚未反消耗的记录才能反消耗");
         }
@@ -273,21 +290,21 @@ public class OperationalConsumptionModule {
                 """, productCode);
     }
 
-    private Long findDept(String deptName) {
-        List<Long> ids = jdbcTemplate.queryForList("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1",
-                Long.class, deptName);
-        if (ids.isEmpty()) throw new IllegalArgumentException("科室不存在或已停用");
-        return ids.get(0);
-    }
-
-    private Long findDepartmentWarehouse(String deptName, String warehouseName) {
-        return jdbcTemplate.queryForObject("""
-                SELECT w.warehouse_id
+    private Map<String, Object> resolveDestination(Map<String, Object> body, String deptName, String warehouseName) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT w.warehouse_id AS warehouseId, d.dept_id AS deptId
                   FROM warehouse w
                   JOIN sys_dept d ON d.dept_id = w.dept_id
-                 WHERE d.dept_name = ? AND w.warehouse_name = ?
-                   AND d.deleted = 0 AND d.status = 1 AND w.deleted = 0 AND w.status = 1
-                """, Long.class, deptName, warehouseName);
+                 WHERE d.deleted = 0 AND d.status = 1 AND w.deleted = 0 AND w.status = 1
+                """);
+        List<Object> args = new java.util.ArrayList<>();
+        sql.append(" AND d.dept_name = ? AND w.warehouse_name = ?");
+        args.add(deptName); args.add(warehouseName);
+        if (body.get("warehouseId") instanceof Number id) { sql.append(" AND w.warehouse_id = ?"); args.add(id.longValue()); }
+        if (body.get("deptCode") instanceof String code && !code.isBlank()) { sql.append(" AND d.dept_code = ?"); args.add(code.trim()); }
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql + " FOR SHARE", args.toArray());
+        if (rows.size() != 1) throw new IllegalArgumentException("科室库房不存在、已停用或名称不唯一，请使用科室编码和库房ID选择");
+        return rows.get(0);
     }
 
     private static String requireText(Map<String, Object> body, String key) {
@@ -307,6 +324,6 @@ public class OperationalConsumptionModule {
         if (quantity.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException(key + " must be greater than zero");
         }
-        return quantity;
+        return com.hospital.spd.common.QuantityRules.positive(quantity, "数量");
     }
 }

@@ -1112,7 +1112,7 @@ watch(
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">打包数量</span>
-              <input
+              <input v-integer-quantity
                 v-model.number="packingForm.packageCount"
                 type="number"
                 min="1"
@@ -1350,7 +1350,7 @@ watch(
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">分配数量</span>
-              <input
+              <input v-integer-quantity
                 v-model.number="allocateQty"
                 type="number"
                 min="0"
@@ -2224,7 +2224,7 @@ watch(
 
             <label class="qtd-field">
               <span>包内数量</span>
-              <input v-model.number="templateForm.quantity" type="number" min="1" />
+              <input v-integer-quantity v-model.number="templateForm.quantity" type="number" min="1" />
             </label>
             <label class="qtd-field">
               <span>套包单位</span>

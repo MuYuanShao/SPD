@@ -40,6 +40,9 @@ class QuotaPackageTraceFlowServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForObject(
+                contains("AND is_high_value = 0 AND is_cold_chain = 0 FOR SHARE"), eq(Long.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn(1L);
+
         service = new QuotaPackageTraceFlowService(
                 jdbcTemplate, support, () -> new OperatorContext(9L, "nurse01", "127.0.0.1", List.of("ROLE_DEPT_USER"), 10L, 2));
     }

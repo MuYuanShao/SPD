@@ -288,7 +288,7 @@ public class OperationalRiskModule {
     private static BigDecimal requirePositive(Map<String, Object> body, String key) {
         BigDecimal value = new BigDecimal(requireText(body, key));
         if (value.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
-        return value;
+        return com.hospital.spd.common.QuantityRules.positive(value, "数量");
     }
 
     private static Long longValue(Object value) {

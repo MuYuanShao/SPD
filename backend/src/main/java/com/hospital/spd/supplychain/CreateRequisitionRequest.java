@@ -20,17 +20,17 @@ public record CreateRequisitionRequest(
         Long sourceWarehouseId,
         List<@Valid RequisitionItemRequest> items,
         String productCode,
-        @Positive BigDecimal quantity,
+        @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
         String requisitionMode,
         String templateCode,
-        @Positive BigDecimal packageCount,
+        @Positive @com.hospital.spd.common.WholeQuantity BigDecimal packageCount,
         List<String> uniqueCodes,
         String uniqueCode
 ) {
     public CreateRequisitionRequest(String deptName, String destinationWarehouseName,
                                     Long destinationWarehouseId, Long sourceWarehouseId,
                                     List<RequisitionItemRequest> items, String productCode,
-                                    BigDecimal quantity, String requisitionMode,
+                                    @com.hospital.spd.common.WholeQuantity BigDecimal quantity, String requisitionMode,
                                     List<String> uniqueCodes, String uniqueCode) {
         this(null, deptName, destinationWarehouseName, destinationWarehouseId, sourceWarehouseId,
                 items, productCode, quantity, requisitionMode, null, null, uniqueCodes, uniqueCode);
@@ -70,10 +70,10 @@ public record CreateRequisitionRequest(
 
     public record RequisitionItemRequest(
             @NotBlank String productCode,
-            @Positive BigDecimal quantity,
+            @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
             String requisitionMode,
             String templateCode,
-            @Positive BigDecimal packageCount,
+            @Positive @com.hospital.spd.common.WholeQuantity BigDecimal packageCount,
             List<String> uniqueCodes,
             String uniqueCode
     ) {

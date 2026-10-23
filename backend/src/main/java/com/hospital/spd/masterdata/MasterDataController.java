@@ -63,28 +63,28 @@ public class MasterDataController {
 
 
     @PostMapping("/hospital-products")
-    public ApiResponse<Map<String, Object>> createHospitalProduct(@RequestBody ProductCreateRequest request) {
+    public ApiResponse<Map<String, Object>> createHospitalProduct(@jakarta.validation.Valid @RequestBody ProductCreateRequest request) {
         return ApiResponse.ok(productService.createHospitalProduct(request));
     }
 
     @PutMapping("/hospital-products/{productCode}")
     public ApiResponse<Map<String, Object>> updateHospitalProduct(@PathVariable String productCode,
-                                                                  @RequestBody ProductCreateRequest request) {
+                                                                  @jakarta.validation.Valid @RequestBody ProductCreateRequest request) {
         return ApiResponse.ok(productService.updateHospitalProduct(productCode, request));
     }
 
     @PutMapping("/hospital-products/batch-edit")
-    public ApiResponse<Map<String, Object>> batchUpdateHospitalProducts(@RequestBody ProductBatchUpdateRequest request) {
+    public ApiResponse<Map<String, Object>> batchUpdateHospitalProducts(@jakarta.validation.Valid @RequestBody ProductBatchUpdateRequest request) {
         return ApiResponse.ok(productService.batchUpdateHospitalProducts(request));
     }
 
     @PutMapping("/hospital-products/status")
-    public ApiResponse<Map<String, Object>> updateHospitalProductStatus(@RequestBody ProductStatusUpdateRequest request) {
+    public ApiResponse<Map<String, Object>> updateHospitalProductStatus(@jakarta.validation.Valid @RequestBody ProductStatusUpdateRequest request) {
         return ApiResponse.ok(productService.updateHospitalProductStatus(request));
     }
 
     @PostMapping("/hospital-products/submit")
-    public ApiResponse<Map<String, Object>> submitHospitalProducts(@RequestBody ProductSubmitRequest request) {
+    public ApiResponse<Map<String, Object>> submitHospitalProducts(@jakarta.validation.Valid @RequestBody ProductSubmitRequest request) {
         return ApiResponse.ok(productService.submitHospitalProducts(request));
     }
 
@@ -106,18 +106,18 @@ public class MasterDataController {
     }
 
     @PostMapping("/suppliers")
-    public ApiResponse<Map<String, Object>> createSupplier(@RequestBody SupplierUpsertRequest request) {
+    public ApiResponse<Map<String, Object>> createSupplier(@jakarta.validation.Valid @RequestBody SupplierUpsertRequest request) {
         return ApiResponse.ok(supplierService.createSupplier(request));
     }
 
     @PutMapping("/suppliers/{supplierCode}")
     public ApiResponse<Map<String, Object>> updateSupplier(@PathVariable String supplierCode,
-                                                           @RequestBody SupplierUpsertRequest request) {
+                                                           @jakarta.validation.Valid @RequestBody SupplierUpsertRequest request) {
         return ApiResponse.ok(supplierService.updateSupplier(supplierCode, request));
     }
 
     @PutMapping("/suppliers/status")
-    public ApiResponse<Map<String, Object>> updateSupplierStatus(@RequestBody SupplierStatusUpdateRequest request) {
+    public ApiResponse<Map<String, Object>> updateSupplierStatus(@jakarta.validation.Valid @RequestBody SupplierStatusUpdateRequest request) {
         return ApiResponse.ok(supplierService.updateSupplierStatus(request));
     }
 
@@ -144,18 +144,18 @@ public class MasterDataController {
     }
 
     @PostMapping("/manufacturers")
-    public ApiResponse<Map<String, Object>> createManufacturer(@RequestBody ManufacturerUpsertRequest request) {
+    public ApiResponse<Map<String, Object>> createManufacturer(@jakarta.validation.Valid @RequestBody ManufacturerUpsertRequest request) {
         return ApiResponse.ok(manufacturerService.createManufacturer(request));
     }
 
     @PutMapping("/manufacturers/{manufacturerCode}")
     public ApiResponse<Map<String, Object>> updateManufacturer(@PathVariable String manufacturerCode,
-                                                               @RequestBody ManufacturerUpsertRequest request) {
+                                                               @jakarta.validation.Valid @RequestBody ManufacturerUpsertRequest request) {
         return ApiResponse.ok(manufacturerService.updateManufacturer(manufacturerCode, request));
     }
 
     @PutMapping("/manufacturers/status")
-    public ApiResponse<Map<String, Object>> updateManufacturerStatus(@RequestBody ManufacturerStatusUpdateRequest request) {
+    public ApiResponse<Map<String, Object>> updateManufacturerStatus(@jakarta.validation.Valid @RequestBody ManufacturerStatusUpdateRequest request) {
         return ApiResponse.ok(manufacturerService.updateManufacturerStatus(request));
     }
 
@@ -187,18 +187,18 @@ public class MasterDataController {
     }
 
     @PostMapping("/campuses")
-    public ApiResponse<Map<String, Object>> createCampus(@RequestBody CampusUpsertRequest request) {
+    public ApiResponse<Map<String, Object>> createCampus(@jakarta.validation.Valid @RequestBody CampusUpsertRequest request) {
         return ApiResponse.ok(campusService.createCampus(request));
     }
 
     @PutMapping("/campuses/{campusCode}")
     public ApiResponse<Map<String, Object>> updateCampus(@PathVariable String campusCode,
-                                                         @RequestBody CampusUpsertRequest request) {
+                                                         @jakarta.validation.Valid @RequestBody CampusUpsertRequest request) {
         return ApiResponse.ok(campusService.updateCampus(campusCode, request));
     }
 
     @PutMapping("/campuses/delete")
-    public ApiResponse<Map<String, Object>> deleteCampuses(@RequestBody CampusCodesRequest request) {
+    public ApiResponse<Map<String, Object>> deleteCampuses(@jakarta.validation.Valid @RequestBody CampusCodesRequest request) {
         return ApiResponse.ok(campusService.deleteCampuses(request));
     }
 
@@ -210,18 +210,18 @@ public class MasterDataController {
     }
 
     @PostMapping("/departments")
-    public ApiResponse<Map<String, Object>> createDepartment(@RequestBody DepartmentUpsertRequest request) {
+    public ApiResponse<Map<String, Object>> createDepartment(@jakarta.validation.Valid @RequestBody DepartmentUpsertRequest request) {
         return ApiResponse.ok(departmentService.createDepartment(request));
     }
 
     @PutMapping("/departments/{deptCode}")
     public ApiResponse<Map<String, Object>> updateDepartment(@PathVariable String deptCode,
-                                                             @RequestBody DepartmentUpsertRequest request) {
+                                                             @jakarta.validation.Valid @RequestBody DepartmentUpsertRequest request) {
         return ApiResponse.ok(departmentService.updateDepartment(deptCode, request));
     }
 
     @PutMapping("/departments/delete")
-    public ApiResponse<Map<String, Object>> deleteDepartments(@RequestBody DepartmentCodesRequest request) {
+    public ApiResponse<Map<String, Object>> deleteDepartments(@jakarta.validation.Valid @RequestBody DepartmentCodesRequest request) {
         return ApiResponse.ok(departmentService.deleteDepartments(request));
     }
 
@@ -238,7 +238,7 @@ public class MasterDataController {
     @PutMapping("/departments/{deptCode}/warehouses")
     public ApiResponse<Map<String, Object>> updateDepartmentWarehouses(
             @PathVariable String deptCode,
-            @RequestBody DepartmentWarehouseRelationRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseRelationRequest request) {
         return ApiResponse.ok(departmentService.updateDepartmentWarehouses(deptCode, request));
     }
 
@@ -269,32 +269,32 @@ public class MasterDataController {
 
     @PostMapping("/department-warehouse-catalogs")
     public ApiResponse<Map<String, Object>> createDepartmentWarehouseCatalog(
-            @RequestBody DepartmentWarehouseCatalogUpsertRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseCatalogUpsertRequest request) {
         return ApiResponse.ok(departmentWarehouseCatalogService.createCatalog(request));
     }
 
     @PostMapping("/department-warehouse-catalogs/batch")
     public ApiResponse<Map<String, Object>> batchMaintainDepartmentWarehouseCatalogs(
-            @RequestBody DepartmentWarehouseCatalogBatchRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseCatalogBatchRequest request) {
         return ApiResponse.ok(departmentWarehouseCatalogService.batchMaintainCatalogs(request));
     }
 
     @PutMapping("/department-warehouse-catalogs/{catalogId}")
     public ApiResponse<Map<String, Object>> updateDepartmentWarehouseCatalog(
             @PathVariable Long catalogId,
-            @RequestBody DepartmentWarehouseCatalogUpsertRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseCatalogUpsertRequest request) {
         return ApiResponse.ok(departmentWarehouseCatalogService.updateCatalog(catalogId, request));
     }
 
     @PutMapping("/department-warehouse-catalogs/delete")
     public ApiResponse<Map<String, Object>> deleteDepartmentWarehouseCatalogs(
-            @RequestBody DepartmentWarehouseCatalogIdsRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseCatalogIdsRequest request) {
         return ApiResponse.ok(departmentWarehouseCatalogService.deleteCatalogs(request));
     }
 
     @PutMapping("/department-warehouse-catalogs/status")
     public ApiResponse<Map<String, Object>> updateDepartmentWarehouseCatalogStatus(
-            @RequestBody DepartmentWarehouseCatalogStatusRequest request) {
+            @jakarta.validation.Valid @RequestBody DepartmentWarehouseCatalogStatusRequest request) {
         return ApiResponse.ok(departmentWarehouseCatalogService.updateCatalogStatus(request));
     }
 
@@ -316,18 +316,18 @@ public class MasterDataController {
     }
 
     @PostMapping("/warehouses")
-    public ApiResponse<Map<String, Object>> createWarehouse(@RequestBody WarehouseUpsertRequest request) {
+    public ApiResponse<Map<String, Object>> createWarehouse(@jakarta.validation.Valid @RequestBody WarehouseUpsertRequest request) {
         return ApiResponse.ok(warehouseService.createWarehouse(request));
     }
 
     @PutMapping("/warehouses/{warehouseCode}")
     public ApiResponse<Map<String, Object>> updateWarehouse(@PathVariable String warehouseCode,
-                                                            @RequestBody WarehouseUpsertRequest request) {
+                                                            @jakarta.validation.Valid @RequestBody WarehouseUpsertRequest request) {
         return ApiResponse.ok(warehouseService.updateWarehouse(warehouseCode, request));
     }
 
     @PutMapping("/warehouses/delete")
-    public ApiResponse<Map<String, Object>> deleteWarehouses(@RequestBody WarehouseCodesRequest request) {
+    public ApiResponse<Map<String, Object>> deleteWarehouses(@jakarta.validation.Valid @RequestBody WarehouseCodesRequest request) {
         return ApiResponse.ok(warehouseService.deleteWarehouses(request));
     }
 
@@ -343,14 +343,14 @@ public class MasterDataController {
 
     @PostMapping("/warehouses/{warehouseCode}/locations")
     public ApiResponse<Map<String, Object>> createWarehouseLocation(@PathVariable String warehouseCode,
-                                                                    @RequestBody WarehouseLocationUpsertRequest request) {
+                                                                    @jakarta.validation.Valid @RequestBody WarehouseLocationUpsertRequest request) {
         return ApiResponse.ok(warehouseService.createWarehouseLocation(warehouseCode, request));
     }
 
     @PutMapping("/warehouses/{warehouseCode}/locations/{locationId}")
     public ApiResponse<Map<String, Object>> updateWarehouseLocation(@PathVariable String warehouseCode,
                                                                     @PathVariable Long locationId,
-                                                                    @RequestBody WarehouseLocationUpsertRequest request) {
+                                                                    @jakarta.validation.Valid @RequestBody WarehouseLocationUpsertRequest request) {
         return ApiResponse.ok(warehouseService.updateWarehouseLocation(warehouseCode, locationId, request));
     }
 

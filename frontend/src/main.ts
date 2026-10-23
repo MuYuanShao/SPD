@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
+import { integerQuantity } from './directives/integerQuantity'
 import { browserSessionAdapter, setSessionAdapter } from './api/session'
 import { useAuthStore } from './stores/auth'
 import { router } from './router'
@@ -65,6 +66,7 @@ import './styles/tokens.scss'
 import './styles/components/fli-layout.scss'
 
 const app = createApp(App)
+  .directive('integer-quantity', integerQuantity)
   .use(createPinia())
   .use(router)
   .use(ElCheckbox)

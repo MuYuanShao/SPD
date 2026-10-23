@@ -363,6 +363,6 @@ public class OperationalHighValueModule {
         BigDecimal value = decimal(body, key, null);
         if (value == null) throw new IllegalArgumentException(key + " is required");
         if (value.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
-        return value;
+        return com.hospital.spd.common.QuantityRules.positive(value, "数量");
     }
 }

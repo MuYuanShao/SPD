@@ -33,7 +33,7 @@ public class QuotaPackageController {
     }
 
     @PostMapping("/templates")
-    public ApiResponse<Map<String, Object>> createTemplate(@RequestBody QuotaTemplateRequest request) {
+    public ApiResponse<Map<String, Object>> createTemplate(@jakarta.validation.Valid @RequestBody QuotaTemplateRequest request) {
         return ApiResponse.ok(templateService.createTemplate(request));
     }
 
@@ -53,7 +53,7 @@ public class QuotaPackageController {
     }
 
     @PostMapping("/safety")
-    public ApiResponse<Map<String, Object>> saveSafety(@RequestBody QuotaSafetyRequest request) {
+    public ApiResponse<Map<String, Object>> saveSafety(@jakarta.validation.Valid @RequestBody QuotaSafetyRequest request) {
         return ApiResponse.ok(safetyService.saveSafety(request));
     }
 
@@ -78,7 +78,7 @@ public class QuotaPackageController {
     }
 
     @PostMapping("/packing-tasks")
-    public ApiResponse<Map<String, Object>> createTask(@RequestBody PackingTaskRequest request) {
+    public ApiResponse<Map<String, Object>> createTask(@jakarta.validation.Valid @RequestBody PackingTaskRequest request) {
         return ApiResponse.ok(packingTaskService.createTask(request));
     }
 
@@ -122,7 +122,7 @@ public class QuotaPackageController {
     @PostMapping("/packing-tasks/{taskNo}/allocate-from-receiving")
     public ApiResponse<Map<String, Object>> allocateFromReceiving(
             @PathVariable String taskNo,
-            @RequestBody ReceivingAllocationRequest request) {
+            @jakarta.validation.Valid @RequestBody ReceivingAllocationRequest request) {
         return ApiResponse.ok(packingTaskService.allocateFromReceiving(
                 taskNo,
                 request.receivingNo(), request.quantity()));

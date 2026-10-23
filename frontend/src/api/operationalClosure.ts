@@ -2,7 +2,7 @@ import { getData, postData, putData, type PageResult } from './http'
 
 export interface ClosureOptions {
   departments: Array<{ deptCode: string; deptName: string }>
-  warehouses: Array<{ warehouseName: string; warehouseType?: string }>
+  warehouses: Array<{ warehouseId?: number; warehouseName: string; warehouseType?: string }>
   products: Array<{ selectable?: number; productCode: string; productName: string; specModel: string; unit: string; purchasePrice: number }>
   balances: Array<Record<string, unknown>>
 }

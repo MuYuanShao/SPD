@@ -312,14 +312,26 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await looseRow.locator('input[type="checkbox"]').check()
   const selectedLoose = page.locator('.dept-req-selected-list li').filter({ hasText: 'LOW-001' })
   await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).fill('12.5')
+  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).not.toHaveValue('12.5')
+  // Also exercise submission validation when a script bypasses native input prevention.
+  await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).evaluate(element => {
+    const input = element as HTMLInputElement
+    input.value = '12.5'
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).blur()
+  await page.getByRole('button', { name: /提交申领/ }).click()
+  await expect(page.getByText(/申领数量必须为.*整数，不支持小数/).first()).toBeVisible()
+  expect(requisitionPostCount).toBe(0)
+  await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).fill('12')
   await selectedLoose.getByRole('spinbutton', { name: '申领数量' }).blur()
   await selectedLoose.getByRole('button', { name: '增加申领数量' }).click()
-  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('13.5')
+  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('13')
   await selectedLoose.getByRole('button', { name: '减少申领数量' }).click()
-  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
+  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
   await page.getByRole('button', { name: '查询', exact: true }).click()
-  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
-  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12.5')
+  await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
+  await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
   await packageRow.locator('input[type="checkbox"]').check()
   await packageRow.locator('input[type="number"]').fill('2')
   await highValueRow.locator('input[type="checkbox"]').check()
@@ -345,7 +357,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
         quantity: 2,
         requisitionMode: 'high_value'
       },
-      { productCode: 'LOW-001', quantity: 12.5, requisitionMode: 'loose' }
+      { productCode: 'LOW-001', quantity: 12, requisitionMode: 'loose' }
     ]
   })
   await expect(page.locator('.dept-req-selected')).toHaveCount(0)

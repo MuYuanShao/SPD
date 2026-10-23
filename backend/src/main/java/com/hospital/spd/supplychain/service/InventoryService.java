@@ -312,7 +312,7 @@ public class InventoryService {
     public Map<String, Object> createStocktaking(StocktakingRequest request) {
         Map<String, Object> row = findBalance(request.warehouseName(), request.systemBatchNo());
         BigDecimal systemQty = (BigDecimal) row.get("availableQty");
-        BigDecimal actualQty = request.actualQty() == null ? BigDecimal.ZERO : request.actualQty();
+        BigDecimal actualQty = com.hospital.spd.common.QuantityRules.nonNegative(request.actualQty() == null ? BigDecimal.ZERO : request.actualQty(), "实盘数量");
         BigDecimal diffQty = actualQty.subtract(systemQty);
         String stocktakingNo = support.nextNo(INVENTORY_STOCKTAKING);
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -464,7 +464,7 @@ public class InventoryService {
             if (item == null || item.itemId() == null) {
                 continue;
             }
-            BigDecimal actualQty = item.actualQty() == null ? BigDecimal.ZERO : item.actualQty();
+            BigDecimal actualQty = com.hospital.spd.common.QuantityRules.nonNegative(item.actualQty() == null ? BigDecimal.ZERO : item.actualQty(), "实盘数量");
             int changed = jdbcTemplate.update("""
                     UPDATE inventory_stocktaking_item si
                     JOIN inventory_stocktaking st ON st.stocktaking_id = si.stocktaking_id

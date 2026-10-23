@@ -20,7 +20,7 @@ public final class DepartmentRequisitionSmartRequests {
                                   @NotEmpty List<@Valid GenerateItem> items) {}
 
     public record GenerateItem(@NotNull @Positive Long analysisItemId,
-                               @NotNull BigDecimal quantity,
+                               @NotNull @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
                                boolean selected) {}
 
     public record HighValuePickingRequest(@NotNull @Positive Long itemId,

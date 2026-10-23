@@ -8,11 +8,11 @@ public record QuotaSafetyRequest(
         Long templateId,
         String templateCode,
         String productCode,
-        BigDecimal minQty,
-        BigDecimal maxQty
+        @com.hospital.spd.common.WholeQuantity BigDecimal minQty,
+        @com.hospital.spd.common.WholeQuantity BigDecimal maxQty
 ) {
     public QuotaSafetyRequest(String deptName, String templateCode, String productCode,
-                              BigDecimal minQty, BigDecimal maxQty) {
+                              @com.hospital.spd.common.WholeQuantity BigDecimal minQty, @com.hospital.spd.common.WholeQuantity BigDecimal maxQty) {
         this(null, deptName, null, templateCode, productCode, minQty, maxQty);
     }
 }

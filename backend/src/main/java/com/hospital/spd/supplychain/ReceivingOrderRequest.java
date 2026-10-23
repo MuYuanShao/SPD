@@ -12,11 +12,11 @@ public record ReceivingOrderRequest(
         String receivingType,
         Boolean isAgent,
         String remark,
-        List<ReceivingItemRequest> items
+        @jakarta.validation.Valid List<ReceivingItemRequest> items
 ) {
     public ReceivingOrderRequest(String purchaseOrderNo, String supplierName, String warehouseName,
                                  String receivingType, Boolean isAgent, String remark,
-                                 List<ReceivingItemRequest> items) {
+                                 @jakarta.validation.Valid List<ReceivingItemRequest> items) {
         this(null, purchaseOrderNo, null, supplierName, null, warehouseName,
                 receivingType, isAgent, remark, items);
     }

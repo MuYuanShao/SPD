@@ -88,8 +88,8 @@ public class SafetyStockService {
         if ((isBlank(request.deptCode()) && isBlank(request.deptName())) || isBlank(request.productCode())) {
             throw new IllegalArgumentException("department name and product code are required; deptCode is preferred");
         }
-        BigDecimal minQty = nonNegative(request.minQty());
-        BigDecimal maxQty = nonNegative(request.maxQty());
+        BigDecimal minQty = com.hospital.spd.common.QuantityRules.nonNegative(nonNegative(request.minQty()), "安全下限");
+        BigDecimal maxQty = com.hospital.spd.common.QuantityRules.nonNegative(nonNegative(request.maxQty()), "安全上限");
         if (maxQty.compareTo(minQty) < 0) {
             throw new IllegalArgumentException("max quantity must be greater than or equal to min quantity");
         }

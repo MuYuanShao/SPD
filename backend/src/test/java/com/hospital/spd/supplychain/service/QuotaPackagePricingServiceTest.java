@@ -128,14 +128,14 @@ class QuotaPackagePricingServiceTest {
     @Test
     void mixedSourcesAllocateRoundingOnceForTheWholePackage() {
         when(jdbc.queryForList(contains("WHERE trace_code_id = ?"), eq(10L)))
-                .thenReturn(List.of(Map.of("labelId", 1L, "unitPrice", new BigDecimal("2.0101"))));
+                .thenReturn(List.of(Map.of("labelId", 1L, "unitPrice", new BigDecimal("1.00505"))));
         when(jdbc.queryForList(contains("bill.amount AS billedAmount"), eq(1L)))
                 .thenReturn(List.of(
-                        Map.of("itemId", 41L, "quantity", new BigDecimal("0.5"), "packageQuantity", BigDecimal.ONE),
-                        Map.of("itemId", 42L, "quantity", new BigDecimal("0.5"), "packageQuantity", BigDecimal.ONE)));
+                        Map.of("itemId", 41L, "quantity", BigDecimal.ONE, "packageQuantity", new BigDecimal("2")),
+                        Map.of("itemId", 42L, "quantity", BigDecimal.ONE, "packageQuantity", new BigDecimal("2"))));
         var priced = service.settlementRows(SettlementPointService.DEPARTMENT_CONSUMPTION, List.of(
-                Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 42L, "quantity", new BigDecimal("0.5")),
-                Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 41L, "quantity", new BigDecimal("0.5"))));
+                Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 42L, "quantity", BigDecimal.ONE),
+                Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 41L, "quantity", BigDecimal.ONE)));
         assertThat((BigDecimal) priced.get(0).get("amount")).isEqualByComparingTo("1.0050");
         assertThat((BigDecimal) priced.get(1).get("amount")).isEqualByComparingTo("1.0051");
         assertThat(priced.stream().map(row -> (BigDecimal) row.get("amount")).reduce(BigDecimal.ZERO, BigDecimal::add))
@@ -145,14 +145,14 @@ class QuotaPackagePricingServiceTest {
     @Test
     void partialSettlementKeepsBilledAmountAndAssignsOnlyRemainingBudget() {
         when(jdbc.queryForList(contains("WHERE trace_code_id = ?"), eq(10L)))
-                .thenReturn(List.of(Map.of("labelId", 1L, "unitPrice", new BigDecimal("2.0101"))));
+                .thenReturn(List.of(Map.of("labelId", 1L, "unitPrice", new BigDecimal("1.00505"))));
         when(jdbc.queryForList(contains("bill.amount AS billedAmount"), eq(1L)))
                 .thenReturn(List.of(
-                        Map.of("itemId", 41L, "quantity", new BigDecimal("0.5"), "packageQuantity", BigDecimal.ONE),
-                        Map.of("itemId", 42L, "quantity", new BigDecimal("0.5"), "packageQuantity", BigDecimal.ONE,
+                        Map.of("itemId", 41L, "quantity", BigDecimal.ONE, "packageQuantity", new BigDecimal("2")),
+                        Map.of("itemId", 42L, "quantity", BigDecimal.ONE, "packageQuantity", new BigDecimal("2"),
                                 "billedAmount", new BigDecimal("1.0051"))));
         var priced = service.settlementRows(SettlementPointService.DEPARTMENT_CONSUMPTION,
-                List.of(Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 41L, "quantity", new BigDecimal("0.5"))));
+                List.of(Map.of("productId", 1L, "traceCodeId", 10L, "sourceBizId", 41L, "quantity", BigDecimal.ONE)));
         assertThat((BigDecimal) priced.get(0).get("amount")).isEqualByComparingTo("1.0050");
         verify(jdbc, never()).update(anyString(), any(Object[].class));
     }

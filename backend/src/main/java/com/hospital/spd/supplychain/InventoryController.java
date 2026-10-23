@@ -43,17 +43,17 @@ public class InventoryController {
     }
 
     @PostMapping("/stocktaking")
-    public ApiResponse<Map<String, Object>> createStocktaking(@RequestBody StocktakingRequest request) {
+    public ApiResponse<Map<String, Object>> createStocktaking(@jakarta.validation.Valid @RequestBody StocktakingRequest request) {
         return ApiResponse.ok(service.createStocktaking(request));
     }
 
     @PostMapping("/stocktaking/sheets")
-    public ApiResponse<Map<String, Object>> createStocktakingSheet(@RequestBody StocktakingSheetRequest request) {
+    public ApiResponse<Map<String, Object>> createStocktakingSheet(@jakarta.validation.Valid @RequestBody StocktakingSheetRequest request) {
         return ApiResponse.ok(service.createStocktakingSheet(request));
     }
 
     @PostMapping("/stocktaking/sheets/preview")
-    public ApiResponse<Map<String, Object>> previewStocktakingSheet(@RequestBody StocktakingSheetRequest request) {
+    public ApiResponse<Map<String, Object>> previewStocktakingSheet(@jakarta.validation.Valid @RequestBody StocktakingSheetRequest request) {
         return ApiResponse.ok(service.previewStocktakingSheet(request));
     }
 
@@ -64,7 +64,7 @@ public class InventoryController {
 
     @PutMapping("/stocktaking/{stocktakingNo}/items")
     public ApiResponse<Map<String, Object>> updateStocktakingItems(@PathVariable String stocktakingNo,
-                                                                   @RequestBody StocktakingItemsUpdateRequest request) {
+                                                                   @jakarta.validation.Valid @RequestBody StocktakingItemsUpdateRequest request) {
         return ApiResponse.ok(service.updateStocktakingItems(stocktakingNo, request));
     }
 
@@ -74,7 +74,7 @@ public class InventoryController {
     }
 
     @PostMapping("/batch-price-adjustments")
-    public ApiResponse<Map<String, Object>> createPriceAdjustment(@RequestBody BatchPriceAdjustmentRequest request) {
+    public ApiResponse<Map<String, Object>> createPriceAdjustment(@jakarta.validation.Valid @RequestBody BatchPriceAdjustmentRequest request) {
         return ApiResponse.ok(priceAdjustments.create(request));
     }
 

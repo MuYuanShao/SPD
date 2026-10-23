@@ -655,9 +655,9 @@ onMounted(() => {
                     <td :class="{ 'text-muted': !item.udiCode }">{{ item.udiCode || '-' }}</td>
                     <td :class="{ 'text-muted': !item.productionDate }">{{ item.productionDate || '-' }}</td>
                     <td :class="{ 'text-muted': !item.expireDate }">{{ item.expireDate || '-' }}</td>
-                    <td class="num-cell">{{ Number(item.quantity || 0).toFixed(2) }}</td>
-                    <td class="num-cell">{{ Number(item.qualifiedQuantity || 0).toFixed(2) }}</td>
-                    <td class="num-cell">{{ Number(item.unqualifiedQuantity || 0).toFixed(2) }}</td>
+                    <td class="num-cell">{{ Number(item.quantity || 0).toString() }}</td>
+                    <td class="num-cell">{{ Number(item.qualifiedQuantity || 0).toString() }}</td>
+                    <td class="num-cell">{{ Number(item.unqualifiedQuantity || 0).toString() }}</td>
                     <td class="op-col">
                       <div class="row-op-group">
                         <button type="button" class="op-link" title="编辑明细" @click="openEditItemDialog(index)">
@@ -690,9 +690,9 @@ onMounted(() => {
 
         <div class="receiving-create-footer">
           <div class="receiving-total">
-            <span>总数量:{{ createTotals.quantity.toFixed(2) }}</span>
-            <span>合格:{{ createTotals.qualifiedQuantity.toFixed(2) }}</span>
-            <span>不合格:{{ createTotals.unqualifiedQuantity.toFixed(2) }}</span>
+            <span>总数量:{{ createTotals.quantity.toString() }}</span>
+            <span>合格:{{ createTotals.qualifiedQuantity.toString() }}</span>
+            <span>不合格:{{ createTotals.unqualifiedQuantity.toString() }}</span>
           </div>
           <div class="receiving-footer-actions">
             <button class="teal-action solid" type="button" :disabled="submitting || quantityMismatch" @click="submitCreate">
@@ -751,15 +751,15 @@ onMounted(() => {
             </label>
             <label class="required">
               <span>收货数量</span>
-              <input v-model.number="itemDraft.quantity" type="number" min="1" />
+              <input v-integer-quantity v-model.number="itemDraft.quantity" type="number" min="1" />
             </label>
             <label class="required">
               <span>合格数量</span>
-              <input v-model.number="itemDraft.qualifiedQuantity" type="number" min="0" />
+              <input v-integer-quantity v-model.number="itemDraft.qualifiedQuantity" type="number" min="0" />
             </label>
             <label>
               <span>不合格数量</span>
-              <input v-model.number="itemDraft.unqualifiedQuantity" type="number" min="0" />
+              <input v-integer-quantity v-model.number="itemDraft.unqualifiedQuantity" type="number" min="0" />
             </label>
           </div>
           <StatusMessage v-if="itemDialogError" :message="itemDialogError" tone="error" />

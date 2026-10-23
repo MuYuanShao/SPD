@@ -171,7 +171,7 @@ public class DepartmentService {
     public List<Map<String, Object>> departmentWarehouses(String deptCode) {
         Long deptId = findDepartmentId(deptCode);
         return jdbcTemplate.queryForList("""
-                SELECT w.warehouse_code AS code,
+                SELECT w.warehouse_id AS warehouseId, w.warehouse_code AS code,
                        w.warehouse_name AS name,
                        w.warehouse_type AS type,
                        w.campus_name AS campus,

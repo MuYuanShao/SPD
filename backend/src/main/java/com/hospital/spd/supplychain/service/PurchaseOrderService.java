@@ -996,6 +996,7 @@ public class PurchaseOrderService {
             if (isBlank(item.productCode()) || item.quantity() == null || item.quantity().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("商品编码和采购数量为必填项");
             }
+            com.hospital.spd.common.QuantityRules.positive(item.quantity(), "采购数量");
         }
     }
 

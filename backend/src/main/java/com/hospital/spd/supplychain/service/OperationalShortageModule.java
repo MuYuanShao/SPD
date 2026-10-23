@@ -62,6 +62,9 @@ public class OperationalShortageModule {
         if (replenishQty.signum() < 0) {
             throw new IllegalArgumentException("replenishQty must not be negative");
         }
+        com.hospital.spd.common.QuantityRules.positive(minQty, "安全下限");
+        com.hospital.spd.common.QuantityRules.nonNegative(currentQty, "当前库存");
+        com.hospital.spd.common.QuantityRules.nonNegative(replenishQty, "补货数量");
         String formulaText = "近" + periodDays + "天出库量(" + periodIssueQty.stripTrailingZeros().toPlainString()
                 + ") - 当前库存(" + currentQty.stripTrailingZeros().toPlainString() + ")";
         String taskNo = support.nextNo(SHORTAGE_REPLENISHMENT_TASK);

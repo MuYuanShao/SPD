@@ -361,8 +361,6 @@ public class OperationalClosureReadModel {
                                OR (other.trace_code_id IS NULL AND oc.related_biz_type = 'quota_package_label'
                                    AND oc.related_biz_id = qpl.label_id))
                        ) THEN 1 ELSE 0 END AS packageCount,
-                       CASE WHEN qpl.label_id IS NOT NULL THEN sbi.quantity / NULLIF(qpl.package_quantity, 0)
-                            ELSE 0 END AS packageEquivalentCount,
                        CASE WHEN qpl.label_id IS NOT NULL THEN sbi.quantity ELSE 0 END AS packageBaseQuantity,
                        CASE WHEN sbi.source_biz_type = 'high_value_charge'
                                   OR (qpl.label_id IS NULL AND p.is_high_value = 1)

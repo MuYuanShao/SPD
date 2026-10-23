@@ -321,7 +321,7 @@ function baseQtyByMode(item: RequisitionCatalogItem) {
 }
 
 function stepQuantity(item: RequisitionCatalogItem, delta: number) {
-  const minimum = item.mode === 'loose' ? 0.0001 : 1
+  const minimum = 1
   item.quantity = Math.max(minimum, Number(item.quantity || minimum) + delta)
   normalizeQuantity(item)
 }
@@ -329,7 +329,8 @@ function stepQuantity(item: RequisitionCatalogItem, delta: number) {
 function normalizeQuantity(item: RequisitionCatalogItem) {
   const quantity = Number(item.quantity)
   item.quantity = Number.isFinite(quantity) && quantity > 0 ? quantity : 1
-  if (item.mode !== 'loose') item.quantity = Math.max(1, Math.floor(item.quantity))
+  if (!Number.isInteger(quantity)) error.value = "申领数量必须为整数，不支持小数"
+  else if (error.value === "申领数量必须为整数，不支持小数") error.value = ''
 }
 
 async function submitSelectedRequisitions() {
@@ -340,6 +341,10 @@ async function submitSelectedRequisitions() {
   }
   if (selectedItems.value.length === 0) {
     notify.warning('请先勾选需要申领的商品')
+    return
+  }
+  if (selectedItems.value.some(item => !Number.isInteger(Number(item.quantity)) || Number(item.quantity) <= 0)) {
+    notify.warning("申领数量必须为正整数，不支持小数")
     return
   }
   submitting.value = true
@@ -672,7 +677,7 @@ watch(() => filters.warehouseName, async () => {
             </label>
             <div class="qty-stepper">
               <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-              <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
+              <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
               <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
@@ -749,7 +754,7 @@ watch(() => filters.warehouseName, async () => {
                   <td>
                     <div class="qty-stepper">
                       <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                      <input v-model.number="item.quantity" type="number" :min="item.mode === 'loose' ? 0.0001 : 1" :step="item.mode === 'loose' ? 0.0001 : 1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
+                      <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
                       <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
                     </div>
                     <small>{{ unitByMode(item) }}</small>
@@ -874,7 +879,7 @@ watch(() => filters.warehouseName, async () => {
               <td>{{ row.currentQty }} {{ row.baseUnit }}</td>
               <td :class="{ shortage: Number(row.sourceAvailableQty) < Number(row.shortageQty) }">{{ row.sourceAvailableQty }} {{ row.baseUnit }}</td>
               <td>
-                <input v-model.number="row.recommendedQty" type="number" min="0" step="1" :disabled="!row.selected" />
+                <input v-integer-quantity v-model.number="row.recommendedQty" type="number" min="0" step="1" :disabled="!row.selected" />
                 <small>{{ row.itemMode === 'quota_package' ? '包' : row.baseUnit }}</small>
               </td>
             </tr>

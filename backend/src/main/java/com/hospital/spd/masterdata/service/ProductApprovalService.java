@@ -425,6 +425,9 @@ public class ProductApprovalService {
     public Map<String, Object> createApplication(PendingProductApplicationRequest request) {
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.purchasePackageQty(), "采购包装数量");
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, null);
         if ("新品准入".equals(applicationType)) {
@@ -648,6 +651,7 @@ public class ProductApprovalService {
                 if ("停用申请".equals(detail.applicationType())) {
                     disableHospitalCatalogProduct(applicationNo);
                 } else {
+                    new ProductTraceabilityPolicy(jdbcTemplate).requireSafeTransition(detail.productCode(), detail.highValue());
                     syncToHospitalCatalog(applicationNo);
                     quotaPricing.afterCatalogApproval(applicationNo, oldCatalogPrice, operator.userId());
                 }
@@ -676,6 +680,9 @@ public class ProductApprovalService {
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.purchasePackageQty(), "采购包装数量");
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, applicationNo);
         if ("新品准入".equals(applicationType)) {
@@ -815,6 +822,9 @@ public class ProductApprovalService {
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.purchasePackageQty(), "采购包装数量");
         String applicationType = normalizeApplicationType(request.applicationType());
         String productCode = resolveProductCode(request, applicationType, applicationNo);
         if("新品准入".equals(applicationType)) validateNoExistingCatalogMatch(request, applicationNo);

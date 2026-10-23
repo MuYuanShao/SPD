@@ -319,6 +319,7 @@ public class InventoryMovementService {
         if (quantityChange == null || quantityChange.compareTo(BigDecimal.ZERO) == 0) {
             throw new IllegalArgumentException("inventory adjustment quantity must not be zero");
         }
+        com.hospital.spd.common.QuantityRules.whole(quantityChange, "库存调整数量");
         Map<String, Object> balance = jdbcTemplate.queryForMap("""
                 SELECT available_qty AS availableQty
                   FROM inventory_balance
@@ -406,6 +407,7 @@ public class InventoryMovementService {
     }
 
     private static void requirePositive(BigDecimal quantity) {
+        com.hospital.spd.common.QuantityRules.positive(quantity, "库存数量");
         if (quantity == null || quantity.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("inventory quantity must be greater than zero");
         }

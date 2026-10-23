@@ -235,6 +235,12 @@ public class SettlementPointService {
             return List.of();
         }
         eligible = quotaPricing.settlementRows(settlementPoint, eligible);
+        eligible = eligible.stream().map(row -> {
+            Map<String, Object> normalized = new LinkedHashMap<>(row);
+            normalized.put("quantity", com.hospital.spd.common.QuantityRules.positive((BigDecimal) row.get("quantity"), "结算数量"));
+            normalized.put("amount", ((BigDecimal) row.get("amount")).setScale(4, java.math.RoundingMode.HALF_UP));
+            return normalized;
+        }).toList();
         Map<GroupKey, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (Map<String, Object> row : eligible) {
             GroupKey key = new GroupKey(number(row.get("supplierId")), String.valueOf(row.get("settlementPeriod")));

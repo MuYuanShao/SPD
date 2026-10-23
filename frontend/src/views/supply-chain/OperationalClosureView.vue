@@ -136,6 +136,8 @@ const isDeliveryHistory = computed(() => type.value === 'delivery')
 
 const form = reactive({
   deptName: '',
+  deptCode: '',
+  warehouseId: '' as number | '',
   warehouseName: '',
   productCode: '',
   quantity: 1,
@@ -223,7 +225,8 @@ const displayStats = computed(() => type.value === 'consumption'
   : stats.value.map(item => ({ ...item, icon: '' })))
 
 const replenishmentDayOptions = [5, 7, 15, 30]
-const selectedDepartment = computed(() => options.value.departments.find(item => item.deptName === form.deptName))
+const selectedDepartment = computed(() => options.value.departments.find(item =>
+  type.value === 'consumption' && form.deptCode ? item.deptCode === form.deptCode : item.deptName === form.deptName))
 const warehouseChoices = computed(() => {
   if (type.value === 'delivery') return primaryWarehouses.value
   if (isRecallPage.value) {
@@ -231,7 +234,7 @@ const warehouseChoices = computed(() => {
     return options.value.warehouses.filter(item => pattern.test(String(item.warehouseType || '')))
   }
   if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
-    return linkedWarehouses.value.map(item => ({ warehouseName: item.name }))
+    return linkedWarehouses.value.map(item => ({ warehouseName: item.name, warehouseId: item.warehouseId }))
   }
   return options.value.warehouses
 })
@@ -300,9 +303,16 @@ async function loadLinkedWarehouses() {
   }
   try {
     const warehouses = await fetchDepartmentWarehouses(deptCode)
+    if (selectedDepartment.value?.deptCode !== deptCode) return
     linkedWarehouses.value = warehouses.filter(item => Number(item.selected ?? 0) === 1)
     // 选择科室时默认带出科室所关联的库房
     const preferred = linkedWarehouses.value[0]?.name || ''
+    if (type.value === 'consumption') {
+      const selected = linkedWarehouses.value.find(item => item.warehouseId === form.warehouseId) || linkedWarehouses.value[0]
+      form.warehouseId = selected?.warehouseId ?? ''
+      form.warehouseName = selected?.name || ''
+      return
+    }
     if (type.value === 'delivery') {
       // 拣配配送只允许一级库：科室关联库房为一级库时直接带出，否则保持当前一级库
       if (preferred && primaryWarehouses.value.some(item => item.warehouseName === preferred)) {
@@ -351,6 +361,11 @@ async function loadData() {
     rows.value = listData.rows
     totalItems.value = listData.total
     if (!form.deptName && optionData.departments[0]) form.deptName = optionData.departments[0].deptName
+    if (type.value === 'consumption' && !form.deptCode) {
+      const department = optionData.departments.find(item => item.deptName === form.deptName) || optionData.departments[0]
+      form.deptCode = department?.deptCode || ''
+      form.deptName = department?.deptName || ''
+    }
     applyRouteSmartDefaults()
     if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
       await loadLinkedWarehouses()
@@ -810,6 +825,7 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     notifySuccess(`配送已签收：${result.deliveryNo}`)
   }
   if (action === 'consumption') {
+    if (!Number.isInteger(Number(form.quantity)) || Number(form.quantity) <= 0) throw new Error('消耗数量必须为正整数，不支持小数')
     if (consumptionResolved.value?.sourceType === 'package') {
       result = await consumeQuotaPackageByCode({
         code: consumptionQueryCode.value.trim(),
@@ -927,6 +943,14 @@ watch(() => form.deptName, () => {
     if (isRecallPage.value) void applyRecallScope()
     else loadRecallBatches()
   }
+})
+watch(() => form.deptCode, () => {
+  if (type.value !== 'consumption') return
+  form.deptName = options.value.departments.find(item => item.deptCode === form.deptCode)?.deptName || ''
+  loadLinkedWarehouses()
+})
+watch(() => form.warehouseId, () => {
+  if (type.value === 'consumption') form.warehouseName = linkedWarehouses.value.find(item => item.warehouseId === form.warehouseId)?.name || ''
 })
 watch(() => form.warehouseName, () => {
   if (type.value === 'delivery') {
@@ -1126,14 +1150,20 @@ watch(() => form.productCode, () => {
         </label>
         <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
           <span>科室</span>
-          <select v-model="form.deptName">
+          <select v-if="type === 'consumption'" v-model="form.deptCode">
+            <option v-for="item in options.departments" :key="item.deptCode" :value="item.deptCode">{{ item.deptName }}（{{ item.deptCode }}）</option>
+          </select>
+          <select v-else v-model="form.deptName">
             <option v-if="type === 'shortage'" value="">全院</option>
             <option v-for="item in options.departments" :key="item.deptName" :value="item.deptName">{{ item.deptName }}</option>
           </select>
         </label>
         <label v-if="!isRecallPage || recallScope !== 'all'" :class="{ 'consumption-grid-warehouse': type === 'consumption' }">
           <span>库房</span>
-          <select v-model="form.warehouseName">
+          <select v-if="type === 'consumption'" v-model="form.warehouseId">
+            <option v-for="item in warehouseChoices" :key="item.warehouseId" :value="item.warehouseId">{{ item.warehouseName }}</option>
+          </select>
+          <select v-else v-model="form.warehouseName">
             <option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option>
           </select>
         </label>
@@ -1168,7 +1198,7 @@ watch(() => form.productCode, () => {
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && consumptionResolved?.sourceType === 'package'" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && consumptionResolved?.sourceType === 'package'" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
           <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
@@ -1440,13 +1470,12 @@ watch(() => form.productCode, () => {
                   <td>{{ row.expireDate || '-' }}</td>
                   <td>{{ row.availableQty }}</td>
                   <td>
-                    <input
+                    <input v-integer-quantity
                       v-model.number="row.pickQty"
                       class="stocktaking-qty-input"
                       type="number"
                       min="0"
-                      :max="Number(row.availableQty)"
-                      step="0.0001"
+                      :max="Number(row.availableQty)" step="1"
                       placeholder="0"
                     />
                   </td>
@@ -1481,7 +1510,7 @@ watch(() => form.productCode, () => {
           <option value="quota_package">定数包</option>
           <option value="loose">散货</option>
         </select>
-        <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行折合包数按基本数量分摊。</span>
+        <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行显示包内基本数量。</span>
       </div>
       <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
         <table class="master-table settlement-detail-table">
@@ -1553,7 +1582,6 @@ watch(() => form.productCode, () => {
               <td class="numeric-cell settlement-col-package">
                 <div v-if="row.goodsType === 'quota_package'" class="settlement-cell-stack">
                   <strong>{{ row.packageCount ?? 0 }} 包</strong>
-                  <span class="settlement-cell-meta" :title="`本行折合 ${row.packageEquivalentCount ?? 0} 包`">本行折合 {{ row.packageEquivalentCount ?? 0 }} 包</span>
                   <span class="settlement-cell-meta" :title="`本行包内基本数量 ${row.packageBaseQuantity}，每包 ${row.packageQuantity} ${row.unit}`">{{ row.packageBaseQuantity }} / {{ row.packageQuantity }} {{ row.unit }}</span>
                 </div>
                 <span v-else>0</span>

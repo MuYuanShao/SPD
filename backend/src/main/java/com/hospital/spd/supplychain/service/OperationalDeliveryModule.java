@@ -212,6 +212,7 @@ public class OperationalDeliveryModule {
         Long itemId = longValue(body.get("itemId"));
         String warehouseName = text(body, "warehouseName", "");
         BigDecimal quantity = decimal(body, "quantity", null);
+        com.hospital.spd.common.QuantityRules.positive(quantity, "拣配数量");
         if (requisitionNo.isBlank() || itemId == null || warehouseName.isBlank()
                 || quantity == null || quantity.signum() <= 0) {
             throw new IllegalArgumentException("申领单号、申领明细、来源库房和正数拣配数量不能为空");

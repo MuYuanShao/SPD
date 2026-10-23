@@ -361,7 +361,7 @@ public class OperationalRequisitionModule {
         if (value == null || String.valueOf(value).isBlank()) throw new IllegalArgumentException(key + " is required");
         BigDecimal result = new BigDecimal(String.valueOf(value));
         if (result.compareTo(BigDecimal.ZERO) <= 0) throw new IllegalArgumentException(key + " must be greater than zero");
-        return result;
+        return com.hospital.spd.common.QuantityRules.positive(result, "数量");
     }
 
     private static BigDecimal optionalPositive(Object value, String key) {

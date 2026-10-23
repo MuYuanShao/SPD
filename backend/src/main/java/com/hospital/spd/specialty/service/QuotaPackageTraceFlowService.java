@@ -158,6 +158,8 @@ public class QuotaPackageTraceFlowService {
         Long labelId = ((Number) initial.get("labelId")).longValue();
         new com.hospital.spd.supplychain.service.QuotaPackagePricingService(jdbcTemplate)
                 .lockProduct(((Number) initial.get("productId")).longValue());
+        new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate)
+                .requirePackageProduct(((Number) initial.get("productId")).longValue());
         Long traceCodeId = ensureTrace(labelId);
         Map<String, Object> quotaPackage = label(labelId, true);
         assertDepartmentScope(quotaPackage);
@@ -229,7 +231,17 @@ public class QuotaPackageTraceFlowService {
         transitionLabel(labelId, "consumed", "department_consumption", "定数包扫码消耗",
                 consumptionNo, String.valueOf(quotaPackage.get("warehouseName")), departmentName,
                 "按定数包唯一码整包消耗，已进入结算待办", 70);
-        return Map.of("code", code, "consumptionNo", consumptionNo, "status", "consumed",
+        String completedStatus = "consumed";
+        Integer receiptSources = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM quota_package_label_source src JOIN inventory_batch b ON b.batch_id=src.batch_id
+                 WHERE src.label_id=? AND b.settlement_mode='purchase_in'
+                """, Integer.class, labelId);
+        if (receiptSources != null && receiptSources > 0) {
+            // Receipts may already be confirmed before the physical pack is consumed.
+            markSettled(traceCodeId, consumptionNo);
+            completedStatus = jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, labelId);
+        }
+        return Map.of("code", code, "consumptionNo", consumptionNo, "status", completedStatus,
                 "quantity", quotaPackage.get("packageQuantity"), "amount", amount, "settlementEligible", true);
     }
 
@@ -276,7 +288,8 @@ public class QuotaPackageTraceFlowService {
     @Transactional
     public void markSettled(Long traceCodeId, String settlementNo) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""
-                SELECT qpl.label_id AS labelId, qpl.status
+                SELECT qpl.label_id AS labelId, qpl.status, qpl.product_id AS productId,
+                       qpl.package_quantity AS packageQuantity
                   FROM quota_package_label qpl
                   JOIN udi_trace_code tc ON tc.trace_code_id = qpl.trace_code_id
                  WHERE tc.trace_code_id = ? AND tc.trace_scope = 'low_value_quota_pack'
@@ -287,10 +300,60 @@ public class QuotaPackageTraceFlowService {
             throw new IllegalArgumentException("只有已消耗的定数包才能结算");
         }
         Long labelId = ((Number) row.get("labelId")).longValue();
+        if (!allPackageSourcesConfirmed(labelId, traceCodeId, row)) return;
         jdbcTemplate.update("UPDATE quota_package_label SET status = 'settled', version = version + 1 WHERE label_id = ?",
                 labelId);
         transitionLabel(labelId, "settled", "settlement_confirm", "定数包结算确认",
                 settlementNo, null, null, "低值定数包完成供应商结算", 90);
+    }
+
+    /** A supplier confirmation is partial until every source's snapshotted settlement point is confirmed. */
+    private boolean allPackageSourcesConfirmed(long labelId, long traceId, Map<String, Object> label) {
+        List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
+                SELECT src.batch_id AS batchId, src.source_qty AS quantity, b.settlement_mode AS mode,
+                       b.receiving_item_id AS receivingItemId
+                  FROM quota_package_label_source src JOIN inventory_batch b ON b.batch_id = src.batch_id
+                 WHERE src.label_id = ? ORDER BY src.source_id FOR SHARE
+                """, labelId);
+        if (sources.isEmpty()) return false;
+        List<Map<String, Object>> items = jdbcTemplate.queryForList("""
+                SELECT i.batch_id AS batchId, i.quantity, sb.status AS settlementStatus
+                  FROM department_consumption_item i
+                  JOIN department_consumption c ON c.consumption_id = i.consumption_id
+                  LEFT JOIN settlement_bill_item bi ON bi.source_biz_type = 'department_consumption_item' AND bi.source_biz_id = i.item_id
+                  LEFT JOIN settlement_bill sb ON sb.settlement_id = bi.settlement_id
+                 WHERE c.status = 'confirmed' AND i.product_id = ?
+                   AND (i.trace_code_id = ? OR (c.related_biz_type = 'quota_package_label' AND c.related_biz_id = ?))
+                 ORDER BY i.item_id FOR SHARE
+                """, label.get("productId"), traceId, labelId);
+        Map<Long, BigDecimal> expected = new java.util.HashMap<>();
+        Map<Long, String> modes = new java.util.HashMap<>();
+        for (Map<String, Object> source : sources) {
+            long batch = ((Number) source.get("batchId")).longValue();
+            expected.merge(batch, com.hospital.spd.common.QuantityRules.positive((BigDecimal) source.get("quantity"), "来源数量"), BigDecimal::add);
+            String mode = String.valueOf(source.get("mode"));
+            modes.put(batch, mode);
+            if ("purchase_in".equals(mode)) {
+                List<String> status = jdbcTemplate.queryForList("""
+                        SELECT sb.status FROM settlement_bill_item bi JOIN settlement_bill sb ON sb.settlement_id=bi.settlement_id
+                         WHERE bi.source_biz_type='receiving_order_item' AND bi.source_biz_id=? FOR SHARE
+                        """, String.class, source.get("receivingItemId"));
+                if (status.size() != 1 || !"confirmed".equals(status.get(0))) return false;
+            } else if (!"department_consumption".equals(mode)) return false;
+        }
+        Map<Long, BigDecimal> consumed = new java.util.HashMap<>();
+        for (Map<String, Object> item : items) {
+            long batch = ((Number) item.get("batchId")).longValue();
+            if (!expected.containsKey(batch)) return false;
+            if ("department_consumption".equals(modes.get(batch)) && !"confirmed".equals(item.get("settlementStatus"))) return false;
+            consumed.merge(batch, com.hospital.spd.common.QuantityRules.positive((BigDecimal) item.get("quantity"), "消耗数量"), BigDecimal::add);
+        }
+        if (expected.size() != consumed.size()) return false;
+        for (var entry : expected.entrySet()) {
+            if (entry.getValue().compareTo(consumed.getOrDefault(entry.getKey(), BigDecimal.ZERO)) != 0) return false;
+        }
+        return expected.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)
+                .compareTo((BigDecimal) label.get("packageQuantity")) == 0;
     }
 
     private Map<String, Object> findByCode(String code, boolean forUpdate) {

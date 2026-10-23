@@ -45,6 +45,8 @@ public class InventoryEventService {
 
     /** Persists a fully materialized quantity event so later master-data changes cannot rewrite history. */
     public Long record(InventoryEventCommand command) {
+        com.hospital.spd.common.QuantityRules.whole(command.quantityChange(), "库存变动数量");
+        com.hospital.spd.common.QuantityRules.nonNegative(command.quantityAfter(), "变动后库存数量");
         OperatorContext operator = operatorContextProvider.current();
         Map<String, Object> snapshot = loadSnapshot(command.warehouseId(), command.productId(), command.batchId());
         InventoryTransactionType transactionType = InventoryTransactionType.fromEvent(

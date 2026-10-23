@@ -114,6 +114,7 @@ public class DepartmentRequisitionSmartService {
         Map<String, List<Map<String, Object>>> groups = new LinkedHashMap<>();
         for (Map<String, Object> row : rows) {
             GenerateItem selected = submitted.get(number(row, "analysisItemId"));
+            com.hospital.spd.common.QuantityRules.nonNegative(selected.quantity(), "智能申领数量");
             if (selected.quantity().signum() < 0 || selected.selected() && selected.quantity().signum() <= 0) {
                 throw new IllegalArgumentException("已选择建议的申领数量必须大于零，未选择建议不得为负数");
             }

@@ -307,7 +307,7 @@ onMounted(() => {
           </label>
           <label>
             <span>最小采购量</span>
-            <input v-model="form.minPurchaseQty" type="number" min="0" step="0.0001" />
+            <input v-integer-quantity v-model="form.minPurchaseQty" type="number" min="0" step="1" />
           </label>
           <label>
             <span>采购单位</span>
@@ -315,11 +315,11 @@ onMounted(() => {
           </label>
           <label>
             <span>中包装数量</span>
-            <input v-model="form.conversionRate" type="number" min="0" step="0.000001" />
+            <input v-integer-quantity v-model="form.conversionRate" type="number" min="0" step="1" />
           </label>
           <label>
             <span>采购包装数量</span>
-            <input v-model="form.purchasePackageQty" type="number" min="0" step="0.0001" />
+            <input v-integer-quantity v-model="form.purchasePackageQty" type="number" min="0" step="1" />
           </label>
           <label>
             <span>合同编码</span>

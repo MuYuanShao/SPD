@@ -39,6 +39,9 @@ class PackingTaskServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForObject(
+                contains("AND is_high_value = 0 AND is_cold_chain = 0 FOR SHARE"), eq(Long.class), org.mockito.ArgumentMatchers.anyLong())).thenReturn(1L);
+
         service = new PackingTaskService(jdbcTemplate, support);
         lenient().when(support.nextNo(any(DocumentKind.class)))
                 .thenAnswer(invocation -> ((DocumentKind) invocation.getArgument(0)).prefix() + "20260601001");

@@ -50,10 +50,34 @@ class OperationalConsumptionModuleTest {
     }
 
     @Test
+    void rejectsFractionalConsumptionBeforeLookingUpInventory() {
+        assertThatThrownBy(() -> module.createConsumption(Map.of("deptName", "A", "warehouseName", "W",
+                "productCode", "P", "quantity", new BigDecimal("1.5"))))
+                .hasMessageContaining("必须为整数");
+        org.mockito.Mockito.verifyNoInteractions(jdbcTemplate, support);
+    }
+
+    @Test
+    void restrictedDepartmentCannotConsumeOrReverseAnotherDepartmentsStock() {
+        var operator = new com.hospital.spd.common.OperatorContext(11L, "nurse", "127.0.0.1", List.of("ROLE_DEPT_USER"), 10L, 2);
+        module = new OperationalConsumptionModule(jdbcTemplate, support, () -> operator,
+                org.mockito.Mockito.mock(SettlementPointService.class), quotaPackageTraceFlowService);
+        when(jdbcTemplate.queryForList(contains("SELECT w.warehouse_id AS warehouseId"), any(Object[].class)))
+                .thenReturn(List.of(Map.of("deptId", 20L, "warehouseId", 30L)));
+        assertThatThrownBy(() -> module.createConsumption(Map.of("deptName", "同名科室", "warehouseName", "B库",
+                "productCode", "P", "quantity", BigDecimal.ONE)))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("OTHER")))
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 30L, "deptId", 20L, "warehouseDeptId", 20L, "status", "confirmed"));
+        when(jdbcTemplate.queryForList(contains("WHERE consumption.consumption_no = ?"), eq(Long.class), eq("OTHER"))).thenReturn(List.of());
+        assertThatThrownBy(() -> module.reverseConsumption("OTHER"))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        org.mockito.Mockito.verifyNoInteractions(support);
+    }
+
+    @Test
     void createsConsumptionFromExplicitValues() throws Exception {
-        mockExistingDepartment(10L);
-        when(jdbcTemplate.queryForObject(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq("Department Warehouse")))
-                .thenReturn(20L);
+        mockExistingDepartment(20L);
         mockProduct(BigDecimal.valueOf(15));
         when(support.consumeAvailableFifo(eq(20L), eq(100L), eq(BigDecimal.TEN), anyString(), anyString(), anyLong(), anyString()))
                 .thenReturn(List.of(new SupplyChainSupport.InventoryDeduction(300L, BigDecimal.TEN, BigDecimal.valueOf(15))));
@@ -74,6 +98,13 @@ class OperationalConsumptionModuleTest {
                 eq("department_consumption_out"), eq("department_consumption"), eq(88L), anyString());
         verify(jdbcTemplate).update(contains("INSERT INTO department_consumption_item"),
                 eq(88L), eq(100L), eq(300L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(150)));
+        var creator = org.mockito.ArgumentCaptor.forClass(PreparedStatementCreator.class);
+        verify(jdbcTemplate).update(creator.capture(), any(KeyHolder.class));
+        var connection = org.mockito.Mockito.mock(java.sql.Connection.class);
+        var statement = org.mockito.Mockito.mock(java.sql.PreparedStatement.class);
+        when(connection.prepareStatement(anyString(), eq(java.sql.Statement.RETURN_GENERATED_KEYS))).thenReturn(statement);
+        creator.getValue().createPreparedStatement(connection);
+        verify(statement).setLong(2, 20L);
     }
 
     @Test
@@ -87,8 +118,6 @@ class OperationalConsumptionModuleTest {
     @Test
     void rejectsHighValueConsumptionOutsideBillingCallback() {
         mockExistingDepartment(10L);
-        when(jdbcTemplate.queryForObject(contains("JOIN sys_dept"), eq(Long.class), eq("Surgery"), eq("Department Warehouse")))
-                .thenReturn(20L);
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("HV001")))
                 .thenReturn(Map.of("productId", 101L, "productCode", "HV001", "productName", "High Value Implant",
                         "unit", "piece", "purchasePrice", BigDecimal.valueOf(5000), "highValue", 1));
@@ -107,7 +136,7 @@ class OperationalConsumptionModuleTest {
     void reversesConsumptionAndAuditsAfterDurableWrites() {
         mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
-                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
@@ -138,7 +167,7 @@ class OperationalConsumptionModuleTest {
     void rejectsReversalWhenConsumptionHasConfirmedSettlement() {
         mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
-                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
                 .thenReturn(List.of(Map.of("settlementId", 77L, "status", "confirmed")));
 
@@ -154,7 +183,7 @@ class OperationalConsumptionModuleTest {
     void removesConsumptionItemsFromPendingSettlementBeforeRestoringInventory() {
         mockReversalProductLock();
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
-                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed"));
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
                 .thenReturn(List.of(Map.of("settlementId", 77L, "status", "pending_confirm")));
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
@@ -201,7 +230,7 @@ class OperationalConsumptionModuleTest {
         when(jdbcTemplate.queryForList(contains("SELECT source_id FROM quota_package_label_source"), eq(Long.class), eq(55L)))
                 .thenReturn(List.of());
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
-                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "status", "confirmed",
+                .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed",
                         "relatedBizType", "quota_package_label", "relatedBizId", 55L));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
                 .thenReturn(List.of());
@@ -217,8 +246,8 @@ class OperationalConsumptionModuleTest {
     }
 
     private void mockExistingDepartment(Long deptId) {
-        when(jdbcTemplate.queryForList(eq("SELECT dept_id FROM sys_dept WHERE dept_name = ? AND deleted = 0 LIMIT 1"),
-                eq(Long.class), anyString())).thenReturn(List.of(deptId));
+        when(jdbcTemplate.queryForList(contains("SELECT w.warehouse_id AS warehouseId"), any(Object[].class)))
+                .thenReturn(List.of(Map.of("deptId", deptId, "warehouseId", 20L)));
     }
 
     private void mockProduct(BigDecimal purchasePrice) {

@@ -121,9 +121,9 @@ public class QuotaTemplateService {
         if (isBlank(request.productCode())) {
             throw new IllegalArgumentException("商品编码不能为空");
         }
-        BigDecimal quantity = positive(request.quantity(), "定数包模板数量必须大于零");
+        BigDecimal quantity = com.hospital.spd.common.QuantityRules.positive(request.quantity(), "定数包模板数量");
         Map<String, Object> product = findEligibleProduct(request.productCode());
-        BigDecimal normalizedQuantity = normalizeTemplateQuantity(request.quantity(), request.unit(), product);
+        BigDecimal normalizedQuantity = com.hospital.spd.common.QuantityRules.positive(normalizeTemplateQuantity(request.quantity(), request.unit(), product), "包内基本数量");
         String baseUnit = String.valueOf(product.get("unit"));
         // 定数包名称由系统自动生成：商品名称 + 定数包；不再维护适用科室
         String templateName = String.valueOf(product.get("productName")).trim() + "定数包";

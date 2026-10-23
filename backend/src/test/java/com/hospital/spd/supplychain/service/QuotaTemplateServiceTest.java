@@ -308,7 +308,7 @@ class QuotaTemplateServiceTest {
 
         assertThatThrownBy(() -> service.createTemplate(request))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("数量必须大于零");
+                .hasMessageContaining("必须为正整数");
     }
 
     @Test

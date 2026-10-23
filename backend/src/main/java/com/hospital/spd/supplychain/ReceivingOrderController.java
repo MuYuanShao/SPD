@@ -31,19 +31,19 @@ public class ReceivingOrderController {
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody ReceivingOrderRequest request) {
+    public ApiResponse<Map<String, Object>> create(@jakarta.validation.Valid @RequestBody ReceivingOrderRequest request) {
         return ApiResponse.ok(service.create(request));
     }
 
     @PutMapping("/{receivingNo}")
     public ApiResponse<Map<String, Object>> update(@PathVariable String receivingNo,
-                                                   @RequestBody ReceivingOrderRequest request) {
+                                                   @jakarta.validation.Valid @RequestBody ReceivingOrderRequest request) {
         return ApiResponse.ok(service.update(receivingNo, request));
     }
 
     @PutMapping("/{receivingNo}/action")
     public ApiResponse<Map<String, Object>> action(@PathVariable String receivingNo,
-                                                   @RequestBody ReceivingActionRequest request) {
+                                                   @jakarta.validation.Valid @RequestBody ReceivingActionRequest request) {
         return ApiResponse.ok(service.action(receivingNo, request));
     }
 
@@ -56,7 +56,7 @@ public class ReceivingOrderController {
 
     @PutMapping("/{receivingNo}/reject")
     public ApiResponse<Map<String, Object>> reject(@PathVariable String receivingNo,
-                                                   @RequestBody ReceivingActionRequest request) {
+                                                   @jakarta.validation.Valid @RequestBody ReceivingActionRequest request) {
         return ApiResponse.ok(service.action(receivingNo, new ReceivingActionRequest("reject", request.opinion())));
     }
 

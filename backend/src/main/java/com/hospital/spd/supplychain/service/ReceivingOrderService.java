@@ -580,6 +580,10 @@ public class ReceivingOrderService {
             return false;
         }
 
+        for (var item : items) {
+            com.hospital.spd.common.QuantityRules.positive((BigDecimal) item.get("quantity"), "收货数量");
+            com.hospital.spd.common.QuantityRules.nonNegative((BigDecimal) item.get("qualifiedQuantity"), "合格数量");
+        }
         validateHighValueUdisBeforeInventoryMutation(items);
         validatePurchaseRemainingBeforeInventoryMutation(purchaseOrderIdObject, items);
 
@@ -802,6 +806,7 @@ public class ReceivingOrderService {
                 if(matches==null || matches!=1) throw new IllegalArgumentException("指定采购明细与收货订单或商品不一致");
             }
             BigDecimal quantity = defaultDecimal(item.quantity(), BigDecimal.ZERO);
+            com.hospital.spd.common.QuantityRules.positive(item.quantity(), "收货数量");
             BigDecimal qualified = item.qualifiedQuantity() == null ? quantity : item.qualifiedQuantity();
             BigDecimal unqualified = item.unqualifiedQuantity() == null ? BigDecimal.ZERO : item.unqualifiedQuantity();
             BigDecimal latestPrice = (BigDecimal) product.get("purchasePrice");
@@ -854,6 +859,7 @@ public class ReceivingOrderService {
             if (!"approved".equals(status) && !"sent".equals(status)) {
                 throw new IllegalArgumentException("采购订单当前状态不允许收货");
             }
+            com.hospital.spd.common.QuantityRules.positive(item.quantity(), "收货数量");
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
             BigDecimal remaining = (BigDecimal) row.get("remainingQuantity");
             if (remaining == null || qualified.compareTo(remaining) > 0) {
@@ -969,8 +975,11 @@ public class ReceivingOrderService {
             if (isBlank(item.productCode()) || item.quantity() == null || item.quantity().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("商品编码和收货数量不能为空");
             }
+            com.hospital.spd.common.QuantityRules.positive(item.quantity(), "收货数量");
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
             BigDecimal unqualified = item.unqualifiedQuantity() == null ? BigDecimal.ZERO : item.unqualifiedQuantity();
+            com.hospital.spd.common.QuantityRules.nonNegative(qualified, "合格数量");
+            com.hospital.spd.common.QuantityRules.nonNegative(unqualified, "不合格数量");
             if (qualified.compareTo(BigDecimal.ZERO) < 0 || unqualified.compareTo(BigDecimal.ZERO) < 0
                     || qualified.add(unqualified).compareTo(item.quantity()) != 0) {
                 throw new IllegalArgumentException("合格数量与不合格数量之和必须等于收货数量");

@@ -70,18 +70,18 @@ public class PendingProductApplicationController {
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Object>> create(@RequestBody PendingProductApplicationRequest request) {
+    public ApiResponse<Map<String, Object>> create(@jakarta.validation.Valid @RequestBody PendingProductApplicationRequest request) {
         return ApiResponse.ok(productApprovalService.createApplication(request));
     }
 
     @PutMapping("/{applicationNo}/action")
     public ApiResponse<Map<String, Object>> action(@PathVariable String applicationNo,
-                                                   @RequestBody PendingProductApprovalActionRequest request) {
+                                                   @jakarta.validation.Valid @RequestBody PendingProductApprovalActionRequest request) {
         return ApiResponse.ok(productApprovalService.processAction(applicationNo, request));
     }
 
     @PutMapping("/batch-action")
-    public ApiResponse<Map<String, Object>> batchAction(@RequestBody PendingProductBatchApprovalRequest request) {
+    public ApiResponse<Map<String, Object>> batchAction(@jakarta.validation.Valid @RequestBody PendingProductBatchApprovalRequest request) {
         if (request.applicationNos() == null || request.applicationNos().isEmpty()) {
             return ApiResponse.error(400, "请选择至少一条审批单");
         }
@@ -91,13 +91,13 @@ public class PendingProductApplicationController {
 
     @PutMapping("/{applicationNo}/update")
     public ApiResponse<Map<String, Object>> updateApplication(@PathVariable String applicationNo,
-                                                              @RequestBody PendingProductApplicationRequest request) {
+                                                              @jakarta.validation.Valid @RequestBody PendingProductApplicationRequest request) {
         return ApiResponse.ok(productApprovalService.updateApplicationData(applicationNo, request));
     }
 
     @PutMapping("/{applicationNo}/resubmit")
     public ApiResponse<Map<String, Object>> resubmit(@PathVariable String applicationNo,
-                                                     @RequestBody PendingProductApplicationRequest request) {
+                                                     @jakarta.validation.Valid @RequestBody PendingProductApplicationRequest request) {
         return ApiResponse.ok(productApprovalService.resubmitApplication(applicationNo, request));
     }
 

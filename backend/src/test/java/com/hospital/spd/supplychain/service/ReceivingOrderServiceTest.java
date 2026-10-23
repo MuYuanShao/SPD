@@ -539,7 +539,7 @@ class ReceivingOrderServiceTest {
             when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
                     .thenReturn(List.of(Map.of(
                                     "itemId", 1L, "productId", 20L,
-                                    "qualifiedQuantity", BigDecimal.TEN, "highValue", 0)),
+                                    "quantity", BigDecimal.TEN, "qualifiedQuantity", BigDecimal.TEN, "highValue", 0)),
                             List.of(Map.of("productId", 20L, "remainingQuantity", BigDecimal.valueOf(5))));
 
             assertThatThrownBy(() -> service.action("RK001", new ReceivingActionRequest("approve", "验收合格")))
@@ -618,12 +618,12 @@ class ReceivingOrderServiceTest {
             when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
                     .thenReturn(List.of(Map.of(
                             "itemId", 1L, "productId", 20L,
-                            "qualifiedQuantity", BigDecimal.valueOf(1.5), "highValue", 1)));
+                            "quantity", BigDecimal.valueOf(1.5), "qualifiedQuantity", BigDecimal.valueOf(1.5), "highValue", 1)));
 
             assertThatThrownBy(() -> service.action("RK001",
                     new ReceivingActionRequest("approve", "验收合格")))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("高值耗材验收合格数量必须为整数");
+                    .hasMessageContaining("收货数量必须为整数");
             verify(support, never()).nextNo(DocumentKind.INVENTORY_BATCH);
         }
 
@@ -638,7 +638,7 @@ class ReceivingOrderServiceTest {
                             Map.entry("itemId", 1L), Map.entry("productId", 20L),
                             Map.entry("productCode", "HV001"), Map.entry("productName", "高值测试耗材"),
                             Map.entry("specModel", "1根/支"), Map.entry("highValue", 1),
-                            Map.entry("udiCode", "UDI-ONE"),
+                            Map.entry("udiCode", "UDI-ONE"), Map.entry("quantity", BigDecimal.valueOf(2)),
                             Map.entry("qualifiedQuantity", BigDecimal.valueOf(2)),
                             Map.entry("latestCatalogPrice", BigDecimal.valueOf(200)),
                             Map.entry("previewUnitPrice", BigDecimal.valueOf(200)))));

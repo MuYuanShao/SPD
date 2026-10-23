@@ -171,6 +171,9 @@ public class ProductService {
             throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.purchasePackageQty(), "采购包装数量");
 
         String productCode = productCodeService.resolveNewProductCode(request.productCode(), request.tenderSubCode());
         productCodeService.requireAvailable(productCode, null);
@@ -186,6 +189,9 @@ public class ProductService {
             throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
+        com.hospital.spd.common.QuantityRules.optionalPositive(request.purchasePackageQty(), "采购包装数量");
         ProductDetail current = hospitalProductDetail(productCode.trim());
 
         String applicationType = classifyApplication(current, request);

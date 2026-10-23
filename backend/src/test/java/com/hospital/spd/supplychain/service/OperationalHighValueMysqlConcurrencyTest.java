@@ -46,8 +46,176 @@ class OperationalHighValueMysqlConcurrencyTest {
     @Autowired com.hospital.spd.specialty.service.QuotaPackageTraceFlowService quotaTrace;
     @Autowired QuotaPackagePricingService pricing;
     @Autowired org.springframework.transaction.PlatformTransactionManager transactions;
+    @Autowired OperationalSettlementModule settlementModule;
+    @Autowired SettlementPointService settlementPoint;
+    @Autowired com.hospital.spd.supplychain.SupplyChainSupport support;
 
     private Long fixtureBalanceId;
+
+    @Test
+    void databaseRejectsFractionalStockWithoutChangingBalance() {
+        var before = jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbcTemplate.update(
+                "UPDATE inventory_balance SET available_qty=1.5 WHERE balance_id=?", fixtureBalanceId))
+                .hasMessageContaining("ck_inventory_balance_whole");
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId))
+                .isEqualByComparingTo(before);
+    }
+
+    @Test
+    void sameNamedDepartmentsUseWarehouseOwnershipAndRejectCrossDepartmentWrites() {
+        var f = lowValueDepartmentFixture();
+        var body = Map.<String,Object>of("deptName", f.get("deptName"), "warehouseName", f.get("warehouseName"),
+                "productCode", f.get("productCode"), "quantity", BigDecimal.ONE);
+        var created = consumption.createConsumption(body);
+        assertThat(jdbcTemplate.queryForObject("SELECT dept_id FROM department_consumption WHERE consumption_no=?", Long.class, created.get("consumptionNo")))
+                .isEqualTo(((Number) f.get("deptId")).longValue());
+        var operator = new com.hospital.spd.common.OperatorContext(11L, "restricted", "127.0.0.1", List.of("ROLE_DEPT_USER"),
+                ((Number) f.get("otherDeptId")).longValue(), 2);
+        var restricted = new OperationalConsumptionModule(jdbcTemplate, support, () -> operator, settlementPoint, quotaTrace);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> restricted.createConsumption(body))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> restricted.reverseConsumption(String.valueOf(created.get("consumptionNo"))))
+                .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId))
+                .isEqualByComparingTo("9");
+    }
+
+    @Test
+    void mixedSupplierPackageIsSettledOnlyAfterBothBillsAreConfirmed() {
+        var f = lowValueDepartmentFixture();
+        long label = signedPackage(f, "10");
+        long supplierB = supplier(String.valueOf(f.get("code")) + "B");
+        String batchNo = f.get("code") + "B";
+        jdbcTemplate.update("INSERT INTO inventory_batch(system_batch_no,product_id,supplier_id,batch_unit_price,settlement_mode) VALUES(?,?,?,2.5,'department_consumption')",
+                batchNo, f.get("productId"), supplierB);
+        Long batchB = jdbcTemplate.queryForObject("SELECT batch_id FROM inventory_batch WHERE system_batch_no=?", Long.class, batchNo);
+        inventoryMovementService.receiveAvailable(((Number) f.get("warehouseId")).longValue(), ((Number) f.get("productId")).longValue(), batchB,
+                new BigDecimal("6"), "purchase_receive_in", "receiving_order", 1L, "fixture");
+        jdbcTemplate.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES(?,?,4,2.5,?),(?,?,6,2.5,?)",
+                label, f.get("batchId"), f.get("warehouseId"), label, batchB, f.get("warehouseId"));
+        String labelNo = jdbcTemplate.queryForObject("SELECT label_no FROM quota_package_label WHERE label_id=?", String.class, label);
+        quotaTrace.consumeByCode(Map.of("code", labelNo));
+        Long traceId = jdbcTemplate.queryForObject("SELECT trace_code_id FROM quota_package_label WHERE label_id=?", Long.class, label);
+        var bills = jdbcTemplate.queryForList("SELECT sb.settlement_no FROM settlement_bill sb JOIN settlement_bill_item i ON i.settlement_id=sb.settlement_id WHERE i.trace_code_id=? ORDER BY sb.settlement_id", String.class, traceId);
+        assertThat(bills).hasSize(2);
+        settlementModule.confirmSettlement(bills.get(0));
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("consumed");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM udi_trace_event WHERE trace_code_id=? AND event_type='settlement_confirm'", Integer.class, traceId)).isZero();
+        settlementModule.confirmSettlement(bills.get(1));
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("settled");
+        assertThat(jdbcTemplate.queryForObject("SELECT SUM(amount) FROM settlement_bill_item WHERE trace_code_id=?", BigDecimal.class, traceId)).isEqualByComparingTo("25");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void mixedSettlementPointsCompleteInEitherConfirmationOrder(boolean receivingFirst) {
+        var f = lowValueDepartmentFixture();
+        long label = signedPackage(f, "10");
+        long supplierB = supplier(String.valueOf(f.get("code")) + "B");
+        String batchNo = f.get("code") + "B";
+        jdbcTemplate.update("INSERT INTO inventory_batch(system_batch_no,product_id,supplier_id,batch_unit_price,settlement_mode,receiving_item_id) VALUES(?,?,?,2.5,'purchase_in',?)",
+                batchNo, f.get("productId"), supplierB, label);
+        Long batchB = jdbcTemplate.queryForObject("SELECT batch_id FROM inventory_batch WHERE system_batch_no=?", Long.class, batchNo);
+        inventoryMovementService.receiveAvailable(((Number) f.get("warehouseId")).longValue(), ((Number) f.get("productId")).longValue(), batchB,
+                new BigDecimal("6"), "purchase_receive_in", "receiving_order", 1L, "fixture");
+        jdbcTemplate.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES(?,?,4,2.5,?),(?,?,6,2.5,?)",
+                label, f.get("batchId"), f.get("warehouseId"), label, batchB, f.get("warehouseId"));
+        String receiptBill = "RI-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("INSERT INTO settlement_bill(settlement_no,supplier_id,settlement_period,settlement_mode,total_amount,status) VALUES(?,?,'2026-10','purchase_in',15,'pending_confirm')", receiptBill, supplierB);
+        Long billId = jdbcTemplate.queryForObject("SELECT settlement_id FROM settlement_bill WHERE settlement_no=?", Long.class, receiptBill);
+        jdbcTemplate.update("INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount) VALUES(?,'receiving_order_item',?,?,?,6,2.5,15)", billId, label, f.get("productId"), batchB);
+        String labelNo = jdbcTemplate.queryForObject("SELECT label_no FROM quota_package_label WHERE label_id=?", String.class, label);
+        quotaTrace.consumeByCode(Map.of("code", labelNo));
+        Long trace = jdbcTemplate.queryForObject("SELECT trace_code_id FROM quota_package_label WHERE label_id=?", Long.class, label);
+        String consumptionBill = jdbcTemplate.queryForObject("SELECT b.settlement_no FROM settlement_bill b JOIN settlement_bill_item i ON i.settlement_id=b.settlement_id WHERE i.trace_code_id=?", String.class, trace);
+        settlementModule.confirmSettlement(receivingFirst ? receiptBill : consumptionBill);
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("consumed");
+        settlementModule.confirmSettlement(receivingFirst ? consumptionBill : receiptBill);
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("settled");
+    }
+
+    @Test
+    void packFromAlreadyConfirmedReceiptCompletesWhenConsumed() {
+        var f = lowValueDepartmentFixture();
+        long label = signedPackage(f, "10");
+        jdbcTemplate.update("UPDATE inventory_batch SET settlement_mode='purchase_in',receiving_item_id=? WHERE batch_id=?", label, f.get("batchId"));
+        jdbcTemplate.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES(?,?,10,2.5,?)", label, f.get("batchId"), f.get("warehouseId"));
+        String bill = "RI-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("INSERT INTO settlement_bill(settlement_no,supplier_id,settlement_period,settlement_mode,total_amount,status) SELECT ?,supplier_id,'2026-10','purchase_in',25,'confirmed' FROM inventory_batch WHERE batch_id=?", bill, f.get("batchId"));
+        Long billId = jdbcTemplate.queryForObject("SELECT settlement_id FROM settlement_bill WHERE settlement_no=?", Long.class, bill);
+        jdbcTemplate.update("INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount) VALUES(?,'receiving_order_item',?,?,?,10,2.5,25)", billId, label, f.get("productId"), f.get("batchId"));
+        String labelNo = jdbcTemplate.queryForObject("SELECT label_no FROM quota_package_label WHERE label_id=?", String.class, label);
+        assertThat(quotaTrace.consumeByCode(Map.of("code", labelNo)).get("status")).isEqualTo("settled");
+        assertThat(jdbcTemplate.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("settled");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM settlement_bill_item WHERE product_id=?", Integer.class, f.get("productId"))).isEqualTo(1);
+    }
+
+    @Test
+    void classificationCheckReadsStockCommittedAfterApprovalSnapshot() {
+        var f = lowValueDepartmentFixture();
+        jdbcTemplate.update("UPDATE inventory_balance SET available_qty=0 WHERE balance_id=?", fixtureBalanceId);
+        new org.springframework.transaction.support.TransactionTemplate(transactions).executeWithoutResult(status -> {
+            assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId)).isZero();
+            var executor = Executors.newSingleThreadExecutor();
+            try {
+                executor.submit(() -> jdbcTemplate.update("UPDATE inventory_balance SET available_qty=10 WHERE balance_id=?", fixtureBalanceId)).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            } catch (Exception e) { throw new IllegalStateException(e); }
+            finally { executor.shutdownNow(); }
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate)
+                    .requireSafeTransition(String.valueOf(f.get("productCode")), true)).hasMessageContaining("不能切换高值属性");
+        });
+    }
+
+    @Test
+    void activeStockPreventsHighValueSwitchAndLegacyInvalidPackageCannotConsume() {
+        var f = lowValueDepartmentFixture();
+        long label = signedPackage(f, "10");
+        jdbcTemplate.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES(?,?,10,2.5,?)", label, f.get("batchId"), f.get("warehouseId"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate)
+                .requireSafeTransition(String.valueOf(f.get("productCode")), true)).hasMessageContaining("不能切换高值属性");
+        // A fixture bypass models legacy inconsistent data; the real approval path is blocked above.
+        jdbcTemplate.update("UPDATE product SET is_high_value=1,is_quota_managed=0 WHERE product_id=?", f.get("productId"));
+        String labelNo = jdbcTemplate.queryForObject("SELECT label_no FROM quota_package_label WHERE label_id=?", String.class, label);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> quotaTrace.consumeByCode(Map.of("code", labelNo))).hasMessageContaining("高值");
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId)).isEqualByComparingTo("10");
+    }
+
+    private Map<String,Object> lowValueDepartmentFixture() {
+        var f = new java.util.HashMap<>(jdbcTemplate.queryForMap("""
+                SELECT b.warehouse_id AS warehouseId,b.product_id AS productId,b.batch_id AS batchId,
+                       w.warehouse_name AS warehouseName,p.product_code AS productCode
+                  FROM inventory_balance b JOIN warehouse w ON w.warehouse_id=b.warehouse_id
+                  JOIN product p ON p.product_id=b.product_id WHERE b.balance_id=?
+                """, fixtureBalanceId));
+        String code = "SC-" + UUID.randomUUID().toString().replace("-", "");
+        String deptName = "同名科室" + code;
+        jdbcTemplate.update("INSERT INTO sys_dept(dept_code,dept_name) VALUES(?,?),(?,?)", code+"A", deptName, code+"B", deptName);
+        f.put("otherDeptId", jdbcTemplate.queryForObject("SELECT dept_id FROM sys_dept WHERE dept_code=?", Long.class, code+"A"));
+        f.put("deptId", jdbcTemplate.queryForObject("SELECT dept_id FROM sys_dept WHERE dept_code=?", Long.class, code+"B"));
+        f.put("deptName", deptName); f.put("code", code);
+        jdbcTemplate.update("UPDATE warehouse SET dept_id=?,warehouse_type='二级库' WHERE warehouse_id=?", f.get("deptId"), f.get("warehouseId"));
+        long supplier = supplier(code);
+        jdbcTemplate.update("UPDATE product SET is_high_value=0,is_quota_managed=1,purchase_price=2.5,supplier_id=? WHERE product_id=?", supplier, f.get("productId"));
+        jdbcTemplate.update("UPDATE inventory_batch SET supplier_id=?,settlement_mode='department_consumption',batch_unit_price=2.5 WHERE batch_id=?", supplier, f.get("batchId"));
+        return f;
+    }
+
+    private long supplier(String code) {
+        String credit = UUID.randomUUID().toString().replace("-", "").substring(0,18).toUpperCase();
+        jdbcTemplate.update("INSERT INTO supplier(supplier_code,supplier_name,credit_code,supplier_type,contact_name,contact_phone) VALUES(?,?,?,'配送商','测试','13800000000')", code, code, credit);
+        return jdbcTemplate.queryForObject("SELECT supplier_id FROM supplier WHERE supplier_code=?", Long.class, code);
+    }
+
+    private long signedPackage(Map<String,Object> f, String quantity) {
+        jdbcTemplate.update("INSERT INTO quota_package_template(template_code,template_name,dept_id,status) VALUES(?,?,?,1)", f.get("code"), f.get("code"), f.get("deptId"));
+        Long template = jdbcTemplate.queryForObject("SELECT template_id FROM quota_package_template WHERE template_code=?", Long.class, f.get("code"));
+        jdbcTemplate.update("INSERT INTO quota_package_template_item(template_id,product_id,quantity,unit) VALUES(?,?,?,'个')", template, f.get("productId"), new BigDecimal(quantity));
+        Map<String,Object> legacyKeys = Map.of("warehouse_id", f.get("warehouseId"), "product_id", f.get("productId"));
+        long label = createPackageFixture(legacyKeys, "signed", quantity);
+        jdbcTemplate.update("UPDATE quota_package_label SET template_id=?,settlement_unit_price=2.5,catalog_price_version=0 WHERE label_id=?", template, label);
+        return label;
+    }
 
     @Test
     void consumeRepriceReverseAndConsumeAgainUsesLatestPriceWithoutChangingSourceCost() {
@@ -157,7 +325,6 @@ class OperationalHighValueMysqlConcurrencyTest {
         assertThat(packages).hasSize(2);
         assertThat(packages.stream().mapToInt(row -> ((Number) row.get("packageCount")).intValue()).sum()).isEqualTo(1);
         assertThat(packages).allSatisfy(row -> {
-            assertThat((BigDecimal) row.get("packageEquivalentCount")).isEqualByComparingTo("0.5");
             assertThat((BigDecimal) row.get("packageBaseQuantity")).isEqualByComparingTo("5");
             assertThat((BigDecimal) row.get("packageAmount")).isEqualByComparingTo("30");
             assertThat((BigDecimal) row.get("looseQuantity")).isZero();

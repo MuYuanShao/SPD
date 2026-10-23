@@ -5,6 +5,7 @@ import com.hospital.spd.system.service.SystemConfigService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
+import java.util.List;
 
 /**
  * Exposes configuration hit explanation endpoints for UI troubleshooting.
@@ -21,5 +22,10 @@ public class ConfigHitExplanationController {
     @GetMapping
     public ApiResponse<ConfigHitExplanation> explain(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(systemConfigService.explain(params));
+    }
+
+    @GetMapping("/options")
+    public ApiResponse<List<ConfigKeyOption>> options(@RequestParam String configType) {
+        return ApiResponse.ok(systemConfigService.keyOptions(configType));
     }
 }

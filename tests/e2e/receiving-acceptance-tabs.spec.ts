@@ -6,7 +6,7 @@ async function login(page: import('@playwright/test').Page) {
   if (await username.isVisible()) {
     await username.fill(process.env.SPD_E2E_USERNAME || 'admin')
     await page.getByRole('textbox', { name: '密码' }).fill(process.env.SPD_E2E_PASSWORD || 'admin123')
-    await page.getByRole('button', { name: '登录' }).click()
+    await page.getByRole('button', { name: /^登\s*录$/ }).click()
     await expect(username).toBeHidden()
   }
 }

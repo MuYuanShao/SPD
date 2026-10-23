@@ -9,7 +9,7 @@
  *   - 命中结果：左右双面板（最终配置 / 优先级规则）+ 候选链路表
  *   - 命中行：浅绿底；被覆盖行：灰底
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   Activity,
   AlertCircle,
@@ -38,9 +38,8 @@ import {
   Tag,
   X
 } from '@lucide/vue'
-import { fetchConfigHitExplanation, type ConfigHitExplanation } from '../../api/systemConfig'
+import { fetchConfigHitExplanation, fetchConfigKeyOptions, type ConfigHitExplanation, type ConfigKeyOption } from '../../api/systemConfig'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import { formatStatusText } from '../../utils/chineseDisplay'
 
 // ── 查询上下文字段 ──────────────────────────────────────────────────────────
 interface ConfigType {
@@ -59,13 +58,14 @@ const configTypes: ConfigType[] = [
 ]
 
 const query = ref({
-  businessPage: '科室申领',
+  businessPage: '采购订单',
   configType: 'workflow',
-  userId: 'admin',
+  configKey: 'approval.purchase.order',
+  userId: '',
   moduleId: 'purchase_order',
-  warehouseId: 'WH-CENTER',
-  departmentId: 'DEPT-ORTH',
-  campusId: '主院区',
+  warehouseId: '',
+  departmentId: '',
+  campusId: '',
   hospitalId: 'default',
   tenantId: ''
 })
@@ -73,6 +73,10 @@ const query = ref({
 // ── 数据 ─────────────────────────────────────────────────────────────────────
 const explanation = ref<ConfigHitExplanation | null>(null)
 const loading = ref(false)
+const keysLoading = ref(false)
+const keyOptions = ref<ConfigKeyOption[]>([])
+let explanationRequest = 0
+let keyRequest = 0
 const error = ref('')
 
 // ── KPI 摘要（4 张）───────────────────────────────────────────────────────────
@@ -84,7 +88,7 @@ const kpiStats = computed(() => {
   const riskHigh = exp?.candidates?.filter(c => c.riskLevel === 'high').length ?? 0
   return [
     { icon: 'list',     theme: 'blue',   label: '候选配置数',   value: total,      hint: '当前上下文链路总数' },
-    { icon: 'check',   theme: 'green',  label: '命中配置',     value: hit,        hint: '最终生效配置'       },
+    { icon: 'check',   theme: 'green',  label: '命中配置',     value: hit,        hint: '当前配置键的匹配结果'       },
     { icon: 'shield',  theme: 'orange', label: '被覆盖配置',   value: overridden,  hint: '被更细粒度覆盖'    },
     { icon: 'risk',    theme: 'rose',   label: '高风险配置',   value: riskHigh,   hint: '需重点关注'        }
   ]
@@ -104,33 +108,69 @@ function riskChipType(level?: string): 'high' | 'medium' | 'low' | 'default' {
 
 // ── 动作 ─────────────────────────────────────────────────────────────────────
 async function loadExplanation() {
+  if (!query.value.configKey || keysLoading.value) return
+  const request = ++explanationRequest
+  const snapshot = { ...query.value }
   loading.value = true
   error.value = ''
+  explanation.value = null
   try {
-    explanation.value = await fetchConfigHitExplanation(query.value)
+    const result = await fetchConfigHitExplanation(snapshot)
+    if (request === explanationRequest) explanation.value = result
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '配置命中说明加载失败'
+    if (request === explanationRequest) error.value = err instanceof Error ? err.message : '配置命中说明加载失败'
   } finally {
-    loading.value = false
+    if (request === explanationRequest) loading.value = false
   }
+}
+
+async function loadKeys() {
+  const request = ++keyRequest
+  const configType = query.value.configType
+  let loaded = false
+  keysLoading.value = true
+  keyOptions.value = []
+  error.value = ''
+  explanation.value = null
+  ++explanationRequest
+  loading.value = false
+  try {
+    const options = await fetchConfigKeyOptions(configType)
+    if (request !== keyRequest) return
+    keyOptions.value = options
+    loaded = true
+    if (!options.some(option => option.configKey === query.value.configKey)) {
+      query.value.configKey = options[0]?.configKey || ''
+    }
+  } catch (err) {
+    if (request === keyRequest) {
+      query.value.configKey = ''
+      error.value = err instanceof Error ? err.message : '配置项加载失败'
+    }
+  } finally {
+    if (request === keyRequest) keysLoading.value = false
+  }
+  if (request === keyRequest && loaded && query.value.configKey) await loadExplanation()
 }
 
 function resetQuery() {
+  const sameType = query.value.configType === 'workflow'
   query.value = {
-    businessPage: '科室申领',
-    configType: 'workflow',
-    userId: 'admin',
-    moduleId: 'purchase_order',
-    warehouseId: 'WH-CENTER',
-    departmentId: 'DEPT-ORTH',
-    campusId: '主院区',
-    hospitalId: 'default',
-    tenantId: ''
+    businessPage: '采购订单', configType: 'workflow', configKey: 'approval.purchase.order',
+    userId: '', moduleId: 'purchase_order', warehouseId: '', departmentId: '', campusId: '',
+    hospitalId: 'default', tenantId: ''
   }
-  loadExplanation()
+  // Changing type is handled by the watcher; otherwise reload this type's options.
+  if (sameType) loadKeys()
 }
 
-onMounted(loadExplanation)
+watch(() => query.value.configType, loadKeys)
+watch(() => query.value.configKey, () => {
+  ++explanationRequest
+  explanation.value = null
+  loading.value = false
+}, { flush: 'sync' })
+onMounted(loadKeys)
 </script>
 
 <template>
@@ -138,7 +178,7 @@ onMounted(loadExplanation)
 
     <MdPageHeader
       title="配置命中说明"
-      description="展示业务页面最终生效配置及来源层级，说明上级配置如何被更细粒度配置覆盖。"
+      description="按配置项分别核对范围匹配、继承来源和冲突；匹配结果不代表业务执行状态。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadExplanation"
@@ -168,7 +208,7 @@ onMounted(loadExplanation)
         <i class="sys-form-section-icon is-green"><Filter :size="15" /></i>
         <div>
           <h4>查询上下文</h4>
-          <p>输入业务页面与配置类型，系统将展示命中配置及覆盖链路</p>
+          <p>选择配置类型与配置项，再填写上下文；不同配置键互不覆盖</p>
         </div>
       </div>
       <div class="sys-form-grid">
@@ -176,6 +216,12 @@ onMounted(loadExplanation)
         <label><span>配置类型</span>
           <select v-model="query.configType" class="sys-select">
             <option v-for="t in configTypes" :key="t.code" :value="t.code">{{ t.label }}</option>
+          </select>
+        </label>
+        <label><span>配置项</span>
+          <select v-model="query.configKey" class="sys-select" :disabled="keysLoading || !keyOptions.length">
+            <option value="">{{ keysLoading ? '正在加载配置项' : '请选择配置项' }}</option>
+            <option v-for="option in keyOptions" :key="option.configKey" :value="option.configKey">{{ option.configName }}（{{ option.configKey }}）</option>
           </select>
         </label>
         <label><span>用户</span><input v-model.trim="query.userId" class="sys-input" /></label>
@@ -186,11 +232,12 @@ onMounted(loadExplanation)
         <label><span>医院</span><input v-model.trim="query.hospitalId" class="sys-input" /></label>
         <div class="sys-form-actions">
           <button class="btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
-          <button class="btn btn-primary" type="button" @click="loadExplanation"><Search :size="15" /> 查看命中</button>
+          <button class="btn btn-primary" type="button" :disabled="loading || keysLoading || !query.configKey" @click="loadExplanation"><Search :size="15" /> 查看命中</button>
         </div>
       </div>
     </div>
 
+    <p v-if="!keysLoading && !keyOptions.length && !error" class="sys-error">当前配置类型没有可查询的配置项</p>
     <!-- 加载 / 错误 -->
     <div v-if="loading" class="sys-loading-card" role="status">
       <i class="sys-loading-icon"><Search :size="20" /></i>
@@ -200,6 +247,10 @@ onMounted(loadExplanation)
 
     <!-- 命中结果 -->
     <template v-else-if="explanation">
+      <div :class="explanation.conflict ? 'sys-error' : 'sys-form-section'" role="status">
+        <strong>{{ explanation.matchReason }}</strong>
+        <p>{{ explanation.executionNote }}</p>
+      </div>
 
       <!-- 命中结果 KPI（第 2 行，4 张） -->
       <section class="sys-kpi-card" aria-label="命中结果详情">
@@ -218,25 +269,25 @@ onMounted(loadExplanation)
             <strong class="sys-kpi-value" style="font-size:15px">
               {{ explanation.sourceConfigId ? `CFG-${explanation.sourceConfigId}` : '-' }}
             </strong>
-            <span class="sys-kpi-hint">最终生效配置编号</span>
+            <span class="sys-kpi-hint">当前键的匹配配置编号</span>
           </div>
         </div>
         <div class="sys-kpi-item is-orange">
           <i class="sys-kpi-icon is-branch"><GitBranch :size="18" /></i>
           <div>
             <span class="sys-kpi-label">覆盖上级配置</span>
-            <strong class="sys-kpi-value">{{ explanation.overridesParent ? '是' : '否' }}</strong>
+            <strong class="sys-kpi-value">{{ explanation.conflict ? '待核对冲突' : explanation.overridesParent ? '是' : '无继承配置' }}</strong>
             <span class="sys-kpi-hint">是否覆盖了上级通用配置</span>
           </div>
         </div>
         <div class="sys-kpi-item is-purple">
           <i class="sys-kpi-icon is-award"><Award :size="18" /></i>
           <div>
-            <span class="sys-kpi-label">审批状态</span>
+            <span class="sys-kpi-label">匹配状态</span>
             <strong class="sys-kpi-value" style="font-size:14px">
-              {{ formatStatusText(explanation.approvalStatus) }}
+              {{ explanation.approvalStatus }}
             </strong>
-            <span class="sys-kpi-hint">配置变更审批状态</span>
+            <span class="sys-kpi-hint">记录匹配结果，非审批进度</span>
           </div>
         </div>
       </section>
@@ -250,7 +301,7 @@ onMounted(loadExplanation)
             <i class="sys-detail-card-icon"><SlidersHorizontal :size="15" /></i>
             <div>
               <h4>最终命中配置</h4>
-              <p>业务页面 <code>{{ explanation.businessPage || '-' }}</code> 的最终生效值</p>
+              <p>业务页面 <code>{{ explanation.businessPage || '-' }}</code> 的匹配值</p>
             </div>
           </div>
           <div class="sys-detail-body">
@@ -265,8 +316,14 @@ onMounted(loadExplanation)
                   <span class="sys-tag is-type">{{ labelFor(explanation.configType) }}</span>
                 </dd>
               </div>
+              <div class="sys-detail-row">
+                <dt>配置键</dt><dd>{{ explanation.configKey }}</dd>
+              </div>
+              <div class="sys-detail-row">
+                <dt>匹配原因</dt><dd>{{ explanation.matchReason }}</dd>
+              </div>
               <div class="sys-detail-row is-wide">
-                <dt>最终生效值</dt>
+                <dt>匹配值</dt>
                 <dd class="sys-json-inline">{{ explanation.finalValue }}</dd>
               </div>
               <div class="sys-detail-row">
@@ -290,6 +347,10 @@ onMounted(loadExplanation)
               <div class="sys-detail-row">
                 <dt>失效时间</dt>
                 <dd>{{ explanation.expireTime || '-' }}</dd>
+              </div>
+              <div class="sys-detail-row is-wide">
+                <dt>继承来源</dt>
+                <dd>{{ explanation.parentConfigId ? `CFG-${explanation.parentConfigId} / ${explanation.parentSourceLevel}` : '无继承配置' }}</dd>
               </div>
               <div class="sys-detail-row is-wide">
                 <dt>上级配置值</dt>
@@ -329,7 +390,7 @@ onMounted(loadExplanation)
         <div class="sys-table-card-header">
           <div>
             <h4>候选配置链路</h4>
-            <p>从最粗粒度到最细粒度的全部候选配置，按优先级排序</p>
+            <p>仅展示当前配置键的有效候选，按由细到粗的范围优先级排序</p>
           </div>
           <span class="sys-table-card-meta">共 <strong>{{ explanation.candidates.length }}</strong> 条</span>
         </div>
@@ -347,7 +408,8 @@ onMounted(loadExplanation)
                 <th>生效时间</th>
                 <th>失效时间</th>
                 <th style="width:70px">风险</th>
-                <th style="width:90px">审批状态</th>
+                <th style="width:90px">匹配状态</th>
+                <th>匹配原因</th>
               </tr>
             </thead>
             <tbody>
@@ -360,7 +422,8 @@ onMounted(loadExplanation)
                 }"
               >
                 <td>
-                  <span v-if="row.hit" class="sys-badge is-hit">
+                  <span v-if="row.conflict" class="sys-badge is-pending">配置冲突</span>
+                  <span v-else-if="row.hit" class="sys-badge is-hit">
                     <CheckCircle2 :size="11" /> 最终命中
                   </span>
                   <span v-else-if="row.overridden" class="sys-badge is-overridden">
@@ -377,7 +440,7 @@ onMounted(loadExplanation)
                 <td>
                   <span class="sys-tag is-code">CFG-{{ row.configId }}</span>
                 </td>
-                <td>{{ row.configName || '-' }}</td>
+                <td>{{ row.configName || '-' }}<br /><small>{{ row.configKey }}</small></td>
                 <td>
                   <span class="sys-tag is-scope">{{ row.scopeType }}</span>
                   <span class="sys-tag is-code">{{ row.scopeId }}</span>
@@ -391,13 +454,14 @@ onMounted(loadExplanation)
                   </span>
                 </td>
                 <td>
-                  <span :class="['sys-badge', row.approvalStatus === '已批准' ? 'is-approved' : 'is-pending']">
-                    {{ formatStatusText(row.approvalStatus) }}
+                  <span :class="['sys-badge', row.conflict ? 'is-pending' : 'is-approved']">
+                    {{ row.approvalStatus }}
                   </span>
                 </td>
+                <td>{{ row.matchReason }}</td>
               </tr>
               <tr v-if="!explanation.candidates.length">
-                <td colspan="11" class="text-center muted">当前上下文未命中已生效配置</td>
+                <td colspan="12" class="text-center muted">当前上下文未命中已生效配置</td>
               </tr>
             </tbody>
           </table>

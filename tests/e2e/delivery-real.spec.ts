@@ -36,7 +36,7 @@ for (const scenario of scenarios) {
   test(scenario.mode + ' 拣配→签收 ' + scenario.width, async ({ page }) => {
     await page.setViewportSize({ width: scenario.width, height: scenario.height })
     await page.goto('/features/picking-delivery')
-    const pending = page.locator('section').filter({ has: page.getByRole('heading', { name: '待拣配申领单', exact: true }) }).last()
+    const pending = page.locator('.picking-panel--requisition')
     const row = pending.getByRole('row').filter({ hasText: scenario.requisitionNo })
     await row.getByRole('button', { name: '选择', exact: true }).click()
     await page.getByRole('combobox', { name: /^库房/ }).selectOption(scenario.sourceName)

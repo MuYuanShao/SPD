@@ -53,6 +53,42 @@ class OperationalHighValueMysqlConcurrencyTest {
     private Long fixtureBalanceId;
 
     @Test
+    void independentConfigurationKeysLeaveConsumptionSettlementAndReversalFactsUnchanged() {
+        var f = lowValueDepartmentFixture();
+        String purchaseKey = String.valueOf(f.get("code")) + ".purchase";
+        String admissionKey = String.valueOf(f.get("code")) + ".admission";
+        var configs = new com.hospital.spd.system.service.SystemConfigService(jdbcTemplate);
+        var tx = new org.springframework.transaction.support.TransactionTemplate(transactions);
+        for (String key : List.of(purchaseKey, admissionKey)) {
+            tx.executeWithoutResult(status -> configs.create(new com.hospital.spd.system.SystemConfigRequest(
+                    "workflow", "global", "default", key, "value-" + key, "realtime", null, "low", 1)));
+        }
+        for (String key : List.of(purchaseKey, admissionKey)) {
+            var explanation = configs.explain(Map.of("configType", "workflow", "configKey", key));
+            assertThat(explanation.candidates()).hasSize(1);
+            assertThat(explanation.configKey()).isEqualTo(key);
+            assertThat(explanation.overridesParent()).isFalse();
+            assertThat(explanation.finalValue()).isEqualTo("value-" + key);
+        }
+        var consumed = consumption.createConsumption(Map.of("deptName", f.get("deptName"), "warehouseName", f.get("warehouseName"),
+                "productCode", f.get("productCode"), "quantity", new BigDecimal("2")));
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId))
+                .isEqualByComparingTo("8");
+        assertThat(jdbcTemplate.queryForObject("SELECT settlement_mode FROM inventory_batch WHERE batch_id=?", String.class, f.get("batchId")))
+                .isEqualTo("department_consumption");
+        assertThat(jdbcTemplate.queryForObject("SELECT SUM(amount) FROM settlement_bill_item WHERE product_id=?", BigDecimal.class, f.get("productId")))
+                .isEqualByComparingTo("5");
+        Long config = jdbcTemplate.queryForObject("SELECT config_id FROM system_config WHERE config_key=?", Long.class, purchaseKey);
+        tx.executeWithoutResult(status -> configs.updateStatus(config, 0));
+        assertThat(configs.explain(Map.of("configType", "workflow", "configKey", purchaseKey)).approvalStatus()).isEqualTo("未命中");
+        assertThat(configs.explain(Map.of("configType", "workflow", "configKey", admissionKey)).candidates()).hasSize(1);
+        consumption.reverseConsumption(String.valueOf(consumed.get("consumptionNo")));
+        assertThat(jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId))
+                .isEqualByComparingTo("10");
+        assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM settlement_bill_item WHERE product_id=?", Integer.class, f.get("productId"))).isZero();
+    }
+
+    @Test
     void databaseRejectsFractionalStockWithoutChangingBalance() {
         var before = jdbcTemplate.queryForObject("SELECT available_qty FROM inventory_balance WHERE balance_id=?", BigDecimal.class, fixtureBalanceId);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> jdbcTemplate.update(

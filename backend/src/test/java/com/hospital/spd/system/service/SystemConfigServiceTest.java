@@ -240,6 +240,7 @@ class SystemConfigServiceTest {
 
         Map<String, String> params = Map.of(
                 "configType", "workflow",
+                "configKey", "test.key",
                 "userId", "100",
                 "businessPage", "采购订单"
         );
@@ -250,7 +251,7 @@ class SystemConfigServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.configType()).isEqualTo("workflow");
-        assertThat(result.approvalStatus()).isEqualTo("已生效");
+        assertThat(result.approvalStatus()).isEqualTo("已匹配");
         assertThat(result.candidates()).hasSize(2);
     }
 
@@ -261,7 +262,7 @@ class SystemConfigServiceTest {
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of());
 
-        Map<String, String> params = Map.of("configType", "unknown_type");
+        Map<String, String> params = Map.of("configType", "unknown_type", "configKey", "test.key");
 
         // Act
         ConfigHitExplanation result = systemConfigService.explain(params);
@@ -296,6 +297,7 @@ class SystemConfigServiceTest {
 
         Map<String, String> params = Map.of(
                 "configType", "workflow",
+                "configKey", "test.key",
                 "departmentId", "dept_1",
                 "warehouseId", "wh_1"
         );
@@ -306,7 +308,7 @@ class SystemConfigServiceTest {
         // Assert
         // The candidates get sorted by priority ascending; first becomes the hit
         // warehouse priority(3) < department priority(4) < global priority(8)
-        assertThat(result.approvalStatus()).isEqualTo("已生效");
+        assertThat(result.approvalStatus()).isEqualTo("已匹配");
     }
 
     @Test
@@ -316,7 +318,7 @@ class SystemConfigServiceTest {
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of());
 
-        Map<String, String> params = Map.of(); // no configType
+        Map<String, String> params = Map.of("configKey", "test.key"); // no configType
 
         // Act
         ConfigHitExplanation result = systemConfigService.explain(params);
@@ -333,11 +335,11 @@ class SystemConfigServiceTest {
                 .thenReturn(List.of());
 
         // Act
-        ConfigHitExplanation result = systemConfigService.explain(Map.of());
+        ConfigHitExplanation result = systemConfigService.explain(Map.of("configKey", "test.key"));
 
         // Assert
         assertThat(result.priorityRules()).isNotEmpty();
-        assertThat(result.priorityRules().get(0)).contains("用户级");
+        assertThat(result.priorityRules()).anySatisfy(rule -> assertThat(rule).contains("用户级"));
     }
 
     @Test
@@ -354,6 +356,7 @@ class SystemConfigServiceTest {
 
         Map<String, String> params = Map.of(
                 "configType", "parameter",
+                "configKey", "test.key",
                 "hospitalId", "hosp_1"
         );
 

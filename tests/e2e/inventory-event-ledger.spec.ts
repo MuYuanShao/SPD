@@ -58,7 +58,7 @@ test('库存流水一事件一行并在详情展示稳定追溯关系', async ({
   await expect(page.getByRole('heading', { name: '追溯对象' })).toBeVisible()
   await expect(page.getByText('UDI-001')).toBeVisible()
   await expect(page.getByText('UDI-002')).toBeVisible()
-  await page.getByRole('dialog').getByRole('button', { name: /close/i }).focus()
+  await page.getByRole('dialog').getByRole('button', { name: /关闭|close/i }).focus()
   await page.keyboard.press('Escape')
   await expect(page.getByText('UDI-001')).toBeHidden()
 })

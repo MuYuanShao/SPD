@@ -2,6 +2,7 @@ package com.hospital.spd.system;
 
 public record ConfigHitRequest(
         String configType,
+        String configKey,
         String businessPage,
         String userId,
         String moduleId,

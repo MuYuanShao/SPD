@@ -17,6 +17,12 @@ public record ConfigHitExplanation(
         String lastChangedBy,
         String approvalStatus,
         List<ConfigHitCandidate> candidates,
-        List<String> priorityRules
+        List<String> priorityRules,
+        String configKey,
+        Long parentConfigId,
+        String parentSourceLevel,
+        Boolean conflict,
+        String matchReason,
+        String executionNote
 ) {
 }

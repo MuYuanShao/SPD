@@ -52,6 +52,8 @@ export interface ConfigHitCandidate {
   approvalStatus: string
   hit: boolean
   overridden: boolean
+  conflict: boolean
+  matchReason: string
 }
 
 export interface ConfigHitExplanation {
@@ -70,9 +72,16 @@ export interface ConfigHitExplanation {
   approvalStatus: string
   candidates: ConfigHitCandidate[]
   priorityRules: string[]
+  configKey: string
+  parentConfigId: number | null
+  parentSourceLevel: string
+  conflict: boolean
+  matchReason: string
+  executionNote: string
 }
 
 export interface ConfigHitQuery {
+  configKey: string
   configType?: string
   businessPage?: string
   userId?: string
@@ -133,6 +142,15 @@ export async function updateSystemConfigStatus(configId: number, status: number)
  * @param query - 命中查询参数（业务页面、配置类型等）
  * @returns 配置命中说明
  */
-export async function fetchConfigHitExplanation(query: ConfigHitQuery = {}) {
+export async function fetchConfigHitExplanation(query: ConfigHitQuery) {
   return getData<ConfigHitExplanation>('/config-hit-explanation', { params: query })
+}
+
+export interface ConfigKeyOption {
+  configKey: string
+  configName: string
+}
+
+export async function fetchConfigKeyOptions(configType: string) {
+  return getData<ConfigKeyOption[]>('/config-hit-explanation/options', { params: { configType } })
 }

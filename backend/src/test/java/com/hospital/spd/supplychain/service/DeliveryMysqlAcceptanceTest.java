@@ -92,7 +92,7 @@ class DeliveryMysqlAcceptanceTest {
         jdbc.update("UPDATE inventory_balance SET available_qty = 2 WHERE batch_id = ?", batchId);
         long second = batch(code + "-2", 2);
         String no = pickLoose(4);
-        jdbc.update("INSERT INTO inventory_balance (warehouse_id, product_id, batch_id, available_qty) VALUES (?, ?, ?, 99999999999999.9999)", targetId, productId, second);
+        jdbc.update("INSERT INTO inventory_balance (warehouse_id, product_id, batch_id, available_qty) VALUES (?, ?, ?, 99999999999999)", targetId, productId, second);
         BigDecimal before = stock(targetId);
         assertThatThrownBy(() -> delivery.signDelivery(no)).isInstanceOf(RuntimeException.class);
         assertThat(stock(targetId)).isEqualByComparingTo(before);

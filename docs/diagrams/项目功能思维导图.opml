@@ -1,0 +1,89 @@
+<?xml version='1.0' encoding='utf-8'?>
+<opml version="2.0">
+  <head>
+    <title>院内SPD项目功能思维导图</title>
+  </head>
+  <body>
+    <outline text="院内 SPD 供应链平台" _note="医院物资从目录准入、采购、入库、包装、科室配送与消耗到供应商结算的闭环。">
+      <outline text="首页 / 工作台" _note="依据当前 DashboardView.vue 展示项归纳；仅为工作台区域，非新增菜单。">
+        <outline text="今日业务指标" _note="销售额、售出数量、入库与出库数量。" />
+        <outline text="待办事项与预警" _note="待办任务、库存及业务风险提示。" />
+        <outline text="出入库、耗用与采购趋势" _note="近30天趋势图。" />
+        <outline text="常用功能与个人入口" _note="按账号权限显示可用功能。" />
+      </outline>
+      <outline text="基础数据管理" _note="菜单定义：基础数据管理。入口：/features/master-data-quota">
+        <outline text="商品目录" _note="新品、信息变更、资质更新、价格调整、停用申请，通过审批后更新医院目录。">
+          <outline text="待审批目录" _note="菜单定义：待审批目录。入口：/features/pending-product-catalog" />
+          <outline text="医院目录" _note="菜单定义：医院目录。入口：/features/hospital-product-catalog" />
+        </outline>
+        <outline text="供应商厂家管理" _note="菜单定义：供应商厂家管理。入口：/features/supplier-manufacturer-management" />
+        <outline text="院区管理" _note="菜单定义：院区管理。入口：/features/campus-management" />
+        <outline text="科室管理" _note="菜单定义：科室管理。入口：/features/department-management" />
+        <outline text="科室库房目录" _note="菜单定义：科室库房目录。入口：/features/department-warehouse-catalog" />
+        <outline text="库房 / 货位管理" _note="菜单定义：库房 / 货位管理。入口：/features/warehouse-location-management" />
+        <outline text="证照管理" _note="菜单定义：证照管理。入口：/features/license-management" />
+      </outline>
+      <outline text="定数包管理" _note="菜单定义：定数包管理。入口：/features/quota-template-maintenance">
+        <outline text="定数包模板维护" _note="参考套包价 = 最新已审批医院目录基本单位采购价 × 包内基本单位数量。包装换算不重复相乘。" />
+        <outline text="定数安全量" _note="按科室、定数包模板和关联库房设置整数安全上限／下限。" />
+        <outline text="打包任务确认" _note="菜单定义：打包任务确认。入口：/features/packing-task-confirmation" />
+        <outline text="定数包标签与解包" _note="菜单定义：定数包标签与解包。入口：/features/quota-label-unpack" />
+        <outline text="定数包事件" _note="菜单定义：定数包事件。入口：/features/quota-package-events" />
+        <outline text="可打包散货快照" _note="可打包散货快照是当前目录功能；不同于已取消的“库存事件快照”业务模块。" />
+        <outline text="打印模板调整" _note="菜单定义：打印模板调整。入口：/features/print-template-settings" />
+      </outline>
+      <outline text="供应链业务" _note="菜单定义：供应链业务。入口：/features/supply-chain">
+        <outline text="采购管理" _note="菜单定义：采购管理。入口：/features/purchase-management" />
+        <outline text="收货验收" _note="菜单定义：收货验收。入口：/features/receiving-acceptance" />
+        <outline text="库存管理" _note="仅查询库存余额；库存交易流水是独立功能。按散货、定数包及一物一码查询。" />
+        <outline text="库存交易流水" _note="菜单定义：库存交易流水。入口：/features/inventory-events" />
+        <outline text="补货任务" _note="菜单定义：补货任务。入口：/features/replenishment-task" />
+        <outline text="拣配配送" _note="菜单定义：拣配配送。入口：/features/picking-delivery" />
+        <outline text="拣配记录" _note="菜单定义：拣配记录。入口：/features/picking-records" />
+        <outline text="科室申领" _note="从历史申请列表进入；新增只选当前科室库房目录。散货按基本数量、定数包按包数、高值按唯一码数量申请。" />
+        <outline text="科室消耗" _note="菜单定义：科室消耗。入口：/features/department-consumption" />
+        <outline text="盘点管理" _note="菜单定义：盘点管理。入口：/features/stocktaking-management" />
+      </outline>
+      <outline text="专项与合规" _note="菜单定义：专项与合规。入口：/features/special-compliance">
+        <outline text="UDI / 唯一码追溯" _note="同时覆盖高值一物一码、低值定数包追溯；稳定关联使用 trace_code_id。" />
+        <outline text="收费耗材明细查询" _note="查询患者收费耗材；高值库存扣减由 HIS／手麻／手术计费回传驱动。" />
+        <outline text="冷链监控" _note="菜单定义：冷链监控。入口：/features/cold-chain-monitoring" />
+        <outline text="召回与隔离" _note="菜单定义：召回与隔离。入口：/features/recall-isolation" />
+        <outline text="PDA 离线记录" _note="菜单定义：PDA 离线记录。入口：/features/pda-offline-record" />
+        <outline text="系统操作记录" _note="独立系统操作记录功能，位于专项与合规菜单。" />
+      </outline>
+      <outline text="结算与财务" _note="菜单定义：结算与财务。入口：/features/settlement-finance">
+        <outline text="结算对账" _note="满足批次快照结算规则才生成供应商结算明细；支持追补缺失来源，不重复生成。" />
+        <outline text="红冲管理" _note="菜单定义：红冲管理。入口：/features/red-flush-management" />
+        <outline text="价格调整" _note="菜单定义：价格调整。入口：/features/batch-price-adjustment" />
+        <outline text="发票管理" _note="菜单定义：发票管理。入口：/features/invoice-management" />
+      </outline>
+      <outline text="运营与决策" _note="菜单定义：运营与决策。入口：/features/operations-decision">
+        <outline text="运营驾驶舱" _note="菜单定义：运营驾驶舱。入口：/features/operation-cockpit" />
+        <outline text="报表中心" _note="菜单定义：报表中心。入口：/features/spd-his-reconciliation-report">
+          <outline text="SPD-HIS收费核对" _note="菜单定义：SPD-HIS收费核对。入口：/features/spd-his-reconciliation-report" />
+          <outline text="供应商供货明细台账" _note="菜单定义：供应商供货明细台账。入口：/features/supplier-delivery-ledger-report" />
+          <outline text="集采执行进度报表" _note="菜单定义：集采执行进度报表。入口：/features/centralized-procurement-progress-report" />
+          <outline text="全院物资进销存汇总表" _note="菜单定义：全院物资进销存汇总表。入口：/features/inventory-movement-summary-report" />
+          <outline text="进销存商品明细" _note="菜单定义：进销存商品明细。入口：/features/inventory-product-detail-report" />
+        </outline>
+      </outline>
+      <outline text="系统管理" _note="菜单定义：系统管理。入口：/features/system-management">
+        <outline text="用户管理" _note="菜单定义：用户管理。入口：/features/user-management" />
+        <outline text="角色权限" _note="菜单定义：角色权限。入口：/features/role-permission" />
+        <outline text="审批流设置" _note="配置审批节点、审批人员与权限；最终通过才使目录变更生效。" />
+        <outline text="系统配置" _note="菜单定义：系统配置。入口：/features/system-config" />
+        <outline text="字段管理" _note="菜单定义：字段管理。入口：/features/field-option-management" />
+        <outline text="配置命中说明" _note="菜单定义：配置命中说明。入口：/features/config-hit-explanation" />
+      </outline>
+      <outline text="技术与运行支撑" _note="技术归纳，不属于前端一级菜单。">
+        <outline text="前端：Vue 3 / Vite / Element Plus" _note="views 页面、api 客户端、router 路由、featureCatalog 菜单、公共组件与样式。" />
+        <outline text="后端：Spring Boot 3 / Java 17" _note="foundation / masterdata / supplychain / specialty / operations / system / extension / common。" />
+        <outline text="数据库：MySQL / Flyway" _note="数据库持久化；结构修改通过迁移；物理数量整数 CHECK。" />
+        <outline text="事务、权限、编号与审计" _note="OperatorContextProvider、DocumentNumberService、AuditLogService、InventoryEventService；商品锁及防重约束。" />
+        <outline text="HIS / 手麻 / PDA / AI 对接" _note="外部计费回传、离线记录和智能助手；实际可用性依赖部署配置及外部服务。" />
+        <outline text="运行、验证与离线部署" _note="前端1820、后端1818/api；单元测试、独立MySQL、页面冒烟；JDK+后端+前端+内置MySQL离线包。" />
+      </outline>
+    </outline>
+  </body>
+</opml>

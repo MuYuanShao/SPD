@@ -1,0 +1,66 @@
+flowchart TB
+  application["商品新增 / 变更申请<br/>新品准入、信息变更、价格调整、资质与停用"]
+  approval["多节点审批<br/>最终通过才生效；退回 / 驳回不落正式目录"]
+  catalog["医院商品目录<br/>维护当前采购价、基本单位及高值 / 定数属性"]
+  deptcatalog["科室与库房目录<br/>院区 → 科室 → 库房；目录限定可申领商品"]
+  purchase["采购订单 → 收货验收<br/>批次、供应商、效期、合格数量及结算模式快照"]
+  central["中心库入库：合格数量增加<br/>散货批次入账；高值登记稳定唯一码"]
+  template["定数包模板 / 安全量<br/>医院目录价 × 规范化包内基本数量"]
+  req["科室申领 → 申领审批<br/>从科室目录选择；明确来源库和目标库"]
+  prepare["定数包打包确认 / 标签<br/>整包来源可追溯；区分可打包散货与已占用包"]
+  policy["统一库存约束<br/>数量为整数；库存非负；每次变动写不可变事件"]
+  loosepick["散货｜拣配出库<br/>按原批次 FIFO 扣减中心库可用散货"]
+  loosetransit["配送在途 / 等待科室签收<br/>中心库已扣减；尚未计入科室可用库存"]
+  loosesign["科室签收入库：库存增加<br/>按原配送批次入科室库；包 / 唯一码归属同步"]
+  looseconsume["实际消耗确认<br/>校验科室权限及库房归属，按基本数量扣减"]
+  loosefact["记录科室库存扣减与业务事实<br/>科室消耗明细 + 不可变库存事件"]
+  quotapick["定数包｜拣配出库<br/>选择有效标签；扣减整包对应的来源数量"]
+  quotatransit["配送在途 / 等待科室签收<br/>中心库已扣减；尚未计入科室可用库存"]
+  quotasign["科室签收入库：库存增加<br/>按原配送批次入科室库；包 / 唯一码归属同步"]
+  quotaconsume["扫码整包消耗<br/>按包来源数量扣减；记录包数和基本数量"]
+  quotafact["记录科室库存扣减与业务事实<br/>消耗明细 + 包 trace_code_id + 来源关系"]
+  highpick["高值一物一码｜拣配出库<br/>选择实际唯一码；按对应批次从中心库出库"]
+  hightransit["配送在途 / 等待科室签收<br/>中心库已扣减；尚未计入科室可用库存"]
+  highsign["科室签收入库：库存增加<br/>按原配送批次入科室库；包 / 唯一码归属同步"]
+  highconsume["接收 HIS / 手麻 / 手术计费回传<br/>校验患者、唯一码与科室；防重复回传扣减"]
+  highfact["记录科室库存扣减与业务事实<br/>收费记录 + 唯一码轨迹 + 库存事件"]
+  gateA["触发 A：入库结算 purchase_in<br/>验收通过才生成；该批次消耗不再次结算"]
+  gateB["触发 B：科室消耗 department_consumption<br/>消耗确认才生成；定数包按包计价与来源分摊"]
+  gateC["触发 C：实销结算 actual_sale<br/>收费回传成功且批次为实销模式才生成"]
+  bill["生成供应商结算单 / 明细<br/>按供应商与期间分组；来源防重复；高值、包和散货分别展示数量"]
+  confirm["供应商对账 → 审核确认<br/>混合供应商 / 混合规则包：所有来源完成后才标记整包已结算"]
+  report["财务及运营核对<br/>发票、红冲、SPD-HIS核对、进销存汇总、供应商台账与审计追溯"]
+  application --> approval
+  approval --> catalog
+  catalog --> deptcatalog
+  purchase --> central
+  catalog -->|"目录有效商品"| purchase
+  catalog --> template
+  deptcatalog -->|"当前科室目录"| req
+  template -->|"模板与包内数量"| prepare
+  central -->|"可打包散货"| prepare
+  req -->|"审批通过 / 散货"| loosepick
+  req -->|"审批通过 / 整包"| quotapick
+  req -->|"审批通过 / 唯一码"| highpick
+  prepare -->|"有效标签"| quotapick
+  loosepick --> loosetransit
+  loosetransit --> loosesign
+  loosesign --> looseconsume
+  looseconsume --> loosefact
+  quotapick --> quotatransit
+  quotatransit --> quotasign
+  quotasign --> quotaconsume
+  quotaconsume --> quotafact
+  highpick --> hightransit
+  hightransit --> highsign
+  highsign --> highconsume
+  highconsume --> highfact
+  purchase -.->|"验收通过且该批次配置为入库结算"| gateA
+  loosefact -.->|"按批次规则判断"| gateB
+  quotafact -.->|"按批次规则判断"| gateB
+  highfact -.->|"按批次规则判断"| gateC
+  gateA --> bill
+  gateB --> bill
+  gateC --> bill
+  bill --> confirm
+  confirm --> report

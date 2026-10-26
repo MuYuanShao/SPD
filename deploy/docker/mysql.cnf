@@ -1,0 +1,6 @@
+[mysqld]
+character-set-server=utf8mb4
+collation-server=utf8mb4_0900_ai_ci
+default-time-zone=+08:00
+# Flyway安装不可变库存事件触发器；迁移账号有本库TRIGGER权限，无需给运行账号DDL权限。
+log-bin-trust-function-creators=1

@@ -1,10 +1,12 @@
 # SPD Deployment and Pressure Test
 
-This folder contains the first deployable server shape for the SPD product:
+The current complete Docker entry is [README.docker.md](README.docker.md). Use `start.ps1` / `start.sh` for one-click deployment and `package.ps1` / `package.sh` for complete offline image bundles. The root `Dockerfile` is the canonical build definition.
+
+This folder contains:
 
 - `docker-compose.yml`: MySQL 8.4, Spring Boot backend, Nginx-hosted frontend.
-- `backend.Dockerfile`: builds and runs the backend jar.
-- `frontend.Dockerfile`: builds the Vue app and serves it through Nginx.
+- root `Dockerfile`, target `backend`: JRE, fonts, CA certificates and backend JAR.
+- root `Dockerfile`, targets `web` / `mysql`: Nginx with admin and mobile H5, and MySQL with initialization.
 - `nginx.conf`: serves the SPA and proxies `/api` to the backend.
 
 ## Windows Zero-Data Offline Package
@@ -42,26 +44,15 @@ passed only through a child-process environment. The runtime account is rejected
 
 ## Start
 
-```powershell
-docker compose -f deploy/docker-compose.yml up --build -d
-```
+Windows: `powershell -NoProfile -ExecutionPolicy Bypass -File deploy/start.ps1`.
+Linux: `sh deploy/start.sh`.
 
-The frontend is available at `http://localhost:1820`.
-
-Useful overrides:
-
-```powershell
-$env:SPD_HTTP_PORT="1820"
-$env:SPD_DB_PASSWORD="replace-me"
-$env:SPD_DB_ROOT_PASSWORD="replace-root"
-$env:SPD_JWT_SECRET="replace-with-a-long-random-production-secret"
-docker compose -f deploy/docker-compose.yml up --build -d
-```
+These entries generate a private `.env` once, build all container dependencies, migrate the database, bootstrap admin credentials, and wait for health checks. Reuse the same environment file and volumes on restart. Optional AI and offline export are documented in [README.docker.md](README.docker.md).
 
 ## Health Checks
 
 ```powershell
-docker compose -f deploy/docker-compose.yml ps
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml ps
 curl http://localhost:1820/api/health
 ```
 
@@ -77,6 +68,8 @@ evidence bundle, runs the machine audit, and refreshes the final bundle.
 ```powershell
 $env:SPD_DB_PASSWORD="<strong database password>"
 $env:SPD_DB_ROOT_PASSWORD="<strong root password>"
+$env:SPD_FLYWAY_PASSWORD="<different strong migration password>"
+$env:SPD_INITIAL_ADMIN_PASSWORD="<strong initial administrator password>"
 $env:SPD_JWT_SECRET="<at least 48 random characters>"
 $env:DEPLOYMENT_BASE_URL="http://localhost:1820/api"
 $env:DEPLOYMENT_HEALTH_URL="http://localhost:1820/api/health"
@@ -99,6 +92,8 @@ To validate the required production inputs without starting Docker or k6:
 ```powershell
 $env:SPD_DB_PASSWORD="<strong database password>"
 $env:SPD_DB_ROOT_PASSWORD="<strong root password>"
+$env:SPD_FLYWAY_PASSWORD="<different strong migration password>"
+$env:SPD_INITIAL_ADMIN_PASSWORD="<strong initial administrator password>"
 $env:SPD_JWT_SECRET="<at least 48 random characters>"
 $env:SIGNOFF_DRY_RUN="1"
 npm run signoff:server

@@ -35,6 +35,8 @@ Run this on a deployment host with Docker Desktop/daemon running and k6 installe
 ```powershell
 $env:SPD_DB_PASSWORD="<strong database password>"
 $env:SPD_DB_ROOT_PASSWORD="<strong root password>"
+$env:SPD_FLYWAY_PASSWORD="<different strong migration password>"
+$env:SPD_INITIAL_ADMIN_PASSWORD="<strong initial administrator password>"
 $env:SPD_JWT_SECRET="<at least 48 random characters>"
 $env:DEPLOYMENT_BASE_URL="http://localhost:1820/api"
 $env:DEPLOYMENT_HEALTH_URL="http://localhost:1820/api/health"

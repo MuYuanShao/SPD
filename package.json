@@ -41,7 +41,10 @@
     "verify:signoff-local": "node scripts/verify-signoff-local.mjs",
     "perf:smoke": "node perf/spd-concurrency-smoke.mjs",
     "perf:smoke:read": "node -e \"process.env.VUS=process.env.VUS||'20'; process.env.DURATION_SECONDS=process.env.DURATION_SECONDS||'30'; import('./perf/spd-concurrency-smoke.mjs')\"",
-    "perf:smoke:write": "node -e \"process.env.MUTATING_FLOWS='1'; process.env.VUS=process.env.VUS||'10'; process.env.DURATION_SECONDS=process.env.DURATION_SECONDS||'15'; import('./perf/spd-concurrency-smoke.mjs')\""
+    "perf:smoke:write": "node -e \"process.env.MUTATING_FLOWS='1'; process.env.VUS=process.env.VUS||'10'; process.env.DURATION_SECONDS=process.env.DURATION_SECONDS||'15'; import('./perf/spd-concurrency-smoke.mjs')\"",
+    "docker:up": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/start.ps1",
+    "docker:package": "powershell -NoProfile -ExecutionPolicy Bypass -File deploy/package.ps1",
+    "verify:docker-files": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-docker-oneclick.ps1"
   },
   "workspaces": [
     "frontend"

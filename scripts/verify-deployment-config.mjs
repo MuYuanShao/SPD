@@ -6,8 +6,8 @@ const requireProductionConfig = process.env.REQUIRE_PRODUCTION_CONFIG === '1';
 
 const files = {
   compose: 'deploy/docker-compose.yml',
-  backendDockerfile: 'deploy/backend.Dockerfile',
-  frontendDockerfile: 'deploy/frontend.Dockerfile',
+  backendDockerfile: 'Dockerfile',
+  frontendDockerfile: 'Dockerfile',
   nginx: 'deploy/nginx.conf',
   application: 'backend/src/main/resources/application.yml',
 };
@@ -19,6 +19,10 @@ const content = Object.fromEntries(await Promise.all(
 const findings = [];
 
 requireText('compose-has-mysql', content.compose, 'mysql:', 'Docker Compose includes MySQL service.');
+requireText('compose-has-migrator', content.compose, '  migrate:', 'Database migration is an isolated one-shot service.');
+requireText('compose-has-bootstrap', content.compose, '  bootstrap:', 'Initial administrator setup completes before runtime starts.');
+requireText('backend-has-chinese-fonts', content.backendDockerfile, 'fonts-noto-cjk', 'Backend image includes Chinese fonts for POI/Java2D.');
+requireText('backend-non-root', content.backendDockerfile, 'USER spd', 'Backend runtime is non-root.');
 requireText('compose-has-backend', content.compose, 'backend:', 'Docker Compose includes backend service.');
 requireText('compose-has-frontend', content.compose, 'frontend:', 'Docker Compose includes frontend service.');
 requireText('compose-backend-waits-for-mysql-health', content.compose, 'condition: service_healthy', 'Backend waits for healthy MySQL before startup.');
@@ -28,11 +32,13 @@ requireText('backend-exposes-1818', content.backendDockerfile, 'EXPOSE 1818', 'B
 requireText(
   'backend-copies-stable-artifact',
   content.backendDockerfile,
-  'COPY --from=build /workspace/backend/target/app.jar app.jar',
+  '/workspace/backend/target/app.jar app.jar',
   'Backend image copies the stable Maven finalName without coupling the Dockerfile to one release version.',
 );
 requireText('frontend-exposes-80', content.frontendDockerfile, 'EXPOSE 80', 'Frontend image exposes Nginx port.');
 requireText('nginx-proxies-api', content.nginx, 'proxy_pass http://backend:1818/api/;', 'Nginx proxies /api/ to backend service.');
+requireText('nginx-preserves-host-port', content.nginx, 'proxy_set_header X-Forwarded-Host $http_host;', 'Proxy retains the public host and port for same-origin API requests.');
+requireText('compose-handles-forwarded-headers', content.compose, 'SERVER_FORWARD_HEADERS_STRATEGY: framework', 'Backend uses trusted container proxy headers to restore the public request origin.');
 requireText('nginx-spa-fallback', content.nginx, 'try_files $uri $uri/ /index.html;', 'Nginx serves SPA fallback.');
 requireText('application-api-context', content.application, 'context-path: /api', 'Backend application uses /api context path.');
 requireText('application-flyway-enabled', content.application, 'enabled: true', 'Flyway migration is enabled.');
@@ -45,6 +51,8 @@ warnDefault('application-default-db-password', content.application, 'SPD_DB_PASS
 if (requireProductionConfig) {
   requireSecret('production-db-password', 'SPD_DB_PASSWORD', ['admin123', 'root123'], 16, 'Production DB password is explicitly provided and not the local default.');
   requireSecret('production-root-password', 'SPD_DB_ROOT_PASSWORD', ['root123', 'admin123'], 16, 'Production MySQL root password is explicitly provided and not the local default.');
+  requireSecret('production-migration-password', 'SPD_FLYWAY_PASSWORD', ['admin123', 'root123'], 16, 'Migration credentials are provided separately.');
+  requireSecret('production-initial-admin-password', 'SPD_INITIAL_ADMIN_PASSWORD', ['admin123'], 16, 'Initial administrator credentials are explicitly provided.');
   requireSecret('production-jwt-secret', 'SPD_JWT_SECRET', ['change-me-to-a-strong-64-byte-secret-before-production'], 48, 'Production JWT secret is explicitly provided and long enough for signing.');
 }
 

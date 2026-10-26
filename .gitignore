@@ -38,3 +38,8 @@ sidebar-measure-*.png
 # OS files
 .DS_Store
 Thumbs.db
+
+# Private Docker deployment settings (generated on the target host)
+/deploy/.env
+/deploy/.env.*
+!/deploy/.env.production.example

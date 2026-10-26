@@ -43,3 +43,7 @@ npm run backend:status
 ## 代码规范
 
 - [SPD Code Standards](D:/SPD-PR/docs/code-standards.md)
+
+## Docker 一键部署
+
+Windows双击 `一键Docker部署.bat`；Linux运行 `sh deploy/start.sh`。全部运行依赖在容器内，离线镜像包使用 `deploy/package.ps1` 或 `sh deploy/package.sh` 导出。详见 [Docker部署说明](deploy/README.docker.md)。

@@ -5,5 +5,14 @@ spring:
     password: ${SPD_DB_PASSWORD:admin123}
 
 spd:
+  cors:
+    # Local browser development only; Android uses native HTTP. Keep production origins unchanged.
+    allowed-origins:
+      - http://localhost:1820
+      - http://127.0.0.1:1820
+      - http://localhost:1830
+      - http://127.0.0.1:1830
+      - http://localhost:1831
+      - http://127.0.0.1:1831
   jwt:
     secret: ${SPD_JWT_SECRET:local-only-jwt-secret-local-only-jwt-secret-2026-change-before-sharing}

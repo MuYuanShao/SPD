@@ -12,13 +12,17 @@ import static com.hospital.spd.mobile.MobileContracts.*;
 /** Serializes retries by user and operation ID within the same transaction as delivery signing. */
 @Repository
 public class MobileReceiptRepository {
-    public record Receipt(String payloadHash, Long deptId, Long warehouseId, Result result) {}
+    public record Receipt(String payloadHash, Long deptId, Long warehouseId, Result result, String kind) {
+        public Receipt(String payloadHash, Long deptId, Long warehouseId, Result result) {
+            this(payloadHash, deptId, warehouseId, result, "SIGN_DELIVERY");
+        }
+    }
     private final JdbcTemplate jdbc;
     private final ObjectMapper json;
 
     public MobileReceiptRepository(JdbcTemplate jdbc, ObjectMapper json) { this.jdbc = jdbc; this.json = json; }
 
-    public Receipt acquire(Long userId, SignOperation op, String hash) {
+    public Receipt acquire(Long userId, Command op, String hash) {
         // A concurrent retry waits on the unique key. Rollback removes pending and the business write together.
         jdbc.update("""
                 INSERT INTO mobile_operation_receipt
@@ -32,18 +36,18 @@ public class MobileReceiptRepository {
 
     public Receipt find(Long userId, UUID operationId, boolean lock) {
         List<Receipt> rows = jdbc.query("""
-                SELECT payload_hash, dept_id, warehouse_id, result_json
+                SELECT payload_hash, dept_id, warehouse_id, result_json, kind
                 FROM mobile_operation_receipt WHERE user_id = ? AND operation_id = ?
                 """ + (lock ? " FOR UPDATE" : ""), (rs, row) -> new Receipt(rs.getString(1), rs.getLong(2),
-                rs.getLong(3), decode(rs.getString(4))), userId, operationId.toString());
+                rs.getLong(3), decode(rs.getString(4)), rs.getString(5)), userId, operationId.toString());
         return rows.isEmpty() ? null : rows.get(0);
     }
 
-    public void complete(Long userId, SignOperation op, Result result, String resultJson) {
+    public void complete(Long userId, Command op, Result result, String resultJson) {
         int changed = jdbc.update("""
-                UPDATE mobile_operation_receipt SET status = 'succeeded', result_json = CAST(? AS JSON), completed_at = ?
+                UPDATE mobile_operation_receipt SET status = ?, result_json = CAST(? AS JSON), completed_at = ?
                 WHERE user_id = ? AND operation_id = ? AND status = 'pending'
-                """, resultJson, Timestamp.from(result.completedAt()), userId, op.operationId().toString());
+                """, result.status(), resultJson, Timestamp.from(result.completedAt()), userId, op.operationId().toString());
         if (changed != 1) throw new IllegalStateException("移动操作回执未能保存");
     }
 

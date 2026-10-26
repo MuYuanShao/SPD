@@ -1,0 +1,83 @@
+<!-- Order workbench: the selected requisition owns the complete pending-item list. -->
+<main class="mobile-app" :class="{ 'auth-screen': !ctx && !serverSettings }">
+  <header class="app-bar" :class="{'login-bar':!ctx&&!serverSettings,'consumption-bar':ctx&&screen==='work'&&mode==='consumption'}">
+    <button v-if="serverSettings || (ctx && screen !== 'home')" class="icon-button back-button" aria-label="返回" :disabled="loading" @click="back"><AppIcon name="back" :size="25" /></button>
+    <h1 v-if="title">{{ title }}</h1>
+    <span v-if="ctx&&screen==='work'&&mode==='consumption'" class="bar-context">{{ activeWarehouses.find(w=>String(w.warehouseId)===warehouse)?.deptName }}</span>
+  </header>
+
+  <div v-if="serverSettings" class="screen-scroll settings-screen">
+    <p class="section-caption">连接院内 SPD 服务器</p>
+    <form @submit.prevent="saveSettings">
+      <div class="surface settings-fields"><label>运行环境<select v-model="environment" :disabled="loading||isDemo"><option value="test">测试环境</option><option value="production">正式环境（HTTPS）</option></select></label><label>服务器地址<input v-model="server" :disabled="loading||isDemo" required inputmode="url" placeholder="https://spd.example.com/api" /></label></div>
+      <p class="hint">{{ isDemo?'本地演示不连接真实服务器，地址仅作展示。':'正式环境使用 HTTPS，地址须以 /api 结尾。' }}</p>
+      <button type="button" class="secondary" :disabled="loading" @click="test">测试连接</button><button :disabled="loading">保存服务器配置</button>
+    </form>
+  </div>
+
+  <div v-else-if="!ctx" class="screen-scroll auth-content">
+    <div class="auth-brand"><span class="spd-wordmark">SPD</span><h1>移动作业</h1></div>
+    <form class="login-form" @submit.prevent="signIn">
+      <label class="input-with-icon"><AppIcon name="user"/><input v-model="username" aria-label="账号" placeholder="账号" :disabled="loading" required autocomplete="username" autocapitalize="none" /></label>
+      <label class="input-with-icon"><AppIcon name="lock"/><input v-model="password" aria-label="密码" placeholder="密码" :type="showPassword?'text':'password'" :disabled="loading" required autocomplete="current-password" /><button type="button" class="icon-button password-toggle" :aria-label="showPassword?'隐藏密码':'显示密码'" @click="showPassword=!showPassword"><AppIcon :name="showPassword?'eye-off':'eye'" :size="20"/></button></label>
+      <button class="login-submit" :disabled="loading">{{loading?'登录中…':'登录'}}</button>
+    </form>
+    <button class="settings-link" @click="serverSettings=true"><AppIcon name="settings"/><span>服务器设置</span><AppIcon name="right" :size="19"/></button>
+    <p v-if="isDemo" class="demo-login-note">本地演示 · demo / demo123 · 不写入真实库存</p>
+  </div>
+
+  <div v-else-if="screen==='home'" class="screen-scroll home-screen">
+    <div class="operator-row"><h2>{{ ctx.warehouses[0]?.warehouseName || '移动作业' }} · {{ ctx.username }}</h2><span class="connection-state"><AppIcon name="wifi" :size="15"/>{{isDemo?'演示':'已登录'}}</span></div>
+    <div class="menu-cards">
+      <button class="menu-card" :disabled="loading||!ctx.capabilities.some(c=>c.startsWith('PICK_'))" @click="enterWork('picking')"><AppIcon name="cart" :size="47"/><span><b>拣选</b><small>待处理 <em>{{homeCounts.picking??'—'}}</em> 单</small></span><AppIcon name="right" :size="21"/></button>
+      <button class="menu-card" :disabled="loading||!ctx.capabilities.includes('SIGN_DELIVERY')" @click="enterWork('signing')"><AppIcon name="package" :size="47"/><span><b>签收</b><small>待签收 <em>{{homeCounts.signing??'—'}}</em> 单</small></span><AppIcon name="right" :size="21"/></button>
+      <button class="menu-card" :disabled="loading||!ctx.capabilities.includes('CONSUME_PACKAGE')" @click="enterWork('consumption')"><AppIcon name="scan" :size="47"/><span><b>扫码消耗</b><small>低值耗材 · 定数包</small></span><AppIcon name="right" :size="21"/></button>
+    </div>
+    <p v-if="!ctx.capabilities.length" class="notice">当前账号暂无作业权限，请联系管理员分配。</p>
+    <p v-if="isDemo" class="demo-login-note">本地演示 · 模拟数据</p>
+  </div>
+
+  <div v-else-if="screen==='pending'" class="screen-scroll pending-screen">
+    <p class="notice"><AppIcon name="info" :size="19"/>仅保存原作业恢复记录，不会自动提交库存业务</p>
+    <div v-if="pendingRecords.length" class="surface pending-list"><button v-for="record in pendingRecords" :key="record.operation.operationId" class="pending-row" @click="resumeRecord"><AppIcon :name="record.operation.kind==='CONSUME_PACKAGE'?'scan':record.operation.kind==='SIGN_DELIVERY'?'package':'cart'"/><span><b>{{record.operation.kind==='CONSUME_PACKAGE'?'消耗':record.operation.kind==='SIGN_DELIVERY'?'签收':'拣选'}}</b><small>{{record.operation.operationId.slice(0,8)}}</small></span><em>{{record.state==='succeeded'?'已完成，待确认':'待核对原结果'}}</em><AppIcon name="right" :size="17"/></button></div>
+    <div v-else class="empty-state"><AppIcon name="cloud" :size="48"/><h2>暂无待处理记录</h2><p>需要恢复的原作业会保留在这里</p></div>
+    <p class="pending-explanation"><AppIcon name="info" :size="18"/>查询结果后再确认，不重复创建作业</p><button :disabled="!pendingRecords.length" @click="resumeRecord">查看并核对原操作</button><p class="hint text-center">完整离线队列尚未接入</p>
+  </div>
+
+  <div v-else-if="screen==='profile'" class="screen-scroll profile-screen">
+    <div class="surface profile-card"><AppIcon name="user" :size="42"/><h2>{{ctx.username}}</h2><p class="hint">{{ctx.serverId}}</p></div>
+    <button class="settings-link surface" @click="settingsFromProfile"><AppIcon name="settings"/><span>退出登录 / 修改服务器</span><AppIcon name="right"/></button>
+    <div class="surface version-info"><span>当前版本</span><b>1.3.6-test.1</b><span>数据模式</span><b>{{isDemo?'本地模拟':'真实 SPD 业务'}}</b></div>
+    <p class="hint">{{isDemo?'浏览器演示不代表真机加密、摄像头和网络能力。':'作业记录按服务器和账号加密保存；退出登录不会清除待处理记录。'}}</p>
+  </div>
+
+  <div v-else class="screen-scroll work-screen" :class="{'consumption-screen':mode==='consumption'}">
+    <SigningPanel v-if="currentSigning" :key="signingSession" :flow="currentFlow()" :initial="currentSigning" @closed="signingClosed"/>
+    <PickingPanel v-else-if="currentPicking" :key="signingSession" :flow="currentPickFlow()" :initial="currentPicking" @closed="pickingClosed"/>
+    <ConsumptionPanel v-else-if="currentConsumption" :key="signingSession" :flow="currentConsumeFlow()" :initial="currentConsumption" @closed="consumptionClosed"/>
+    <template v-else>
+      <label v-if="!selectedOrder" class="warehouse-choice">科室与库房<select v-model="warehouse" :disabled="loading" @change="warehouseChanged()"><option value="">请选择库房</option><option v-for="w in activeWarehouses" :key="w.warehouseId" :value="String(w.warehouseId)">{{w.deptName}} · {{w.warehouseName}}</option></select></label>
+      <p v-if="!activeWarehouses.length" class="notice">当前账号没有可操作的科室库房。</p>
+      <template v-if="warehouse">
+        <template v-if="mode==='consumption'"><div class="scan-preview"><AppIcon name="scan" :size="72"/><b>PDA / 手工扫码</b><small>摄像头扫码尚未接入</small></div><form class="surface scan-entry" @submit.prevent="openConsumption"><label>扫描实际定数包<input ref="consumptionInput" v-model="consumptionCode" :disabled="loading" autocomplete="off" placeholder="扫描包码，以 Enter 结束"/></label><button :disabled="loading||!consumptionCode.trim()">识别整包消耗</button></form><p class="notice">高值耗材不支持此操作 · 仅限已签收的整包</p></template>
+        <template v-else>
+          <form v-if="mode==='picking'&&!selectedOrder" class="search-form" @submit.prevent="loadTasks(1)"><label class="sr-only" for="task-query">检索申领单或商品</label><input id="task-query" v-model="query" placeholder="检索单号或单内商品"/><button class="secondary" :disabled="loading">查询</button></form>
+          <div v-if="!selectedOrder" class="list-heading"><h2>{{mode==='picking'?'待拣申领单':'待签收'}}</h2><span>{{total}} 单</span></div>
+          <template v-if="mode==='signing'"><p v-if="!rows.length" class="empty-copy">当前库房没有待签收任务</p><article v-for="row in rows" :key="row.id" class="task surface"><b>{{row.documentNo}}</b><p>{{row.productName}} · {{row.quantity}} {{row.unit}}</p><p class="hint">{{row.productCode}} · {{row.specModel || '规格未提供'}}</p><small>申领单：{{row.requisitionNo || '原单未提供'}}</small><small>{{row.sourceWarehouseName}} → {{row.deptName}} · {{row.warehouseName}}</small><button class="secondary" :disabled="loading" @click="openTask(row)">打开核对</button></article></template>
+          <template v-else-if="!selectedOrder"><p v-if="!pickOrders.length" class="empty-copy">当前库房没有待拣申领单</p><article v-for="order in pickOrders" :key="order.id" class="task surface order-task" :data-order-id="order.id"><div class="order-card-title"><AppIcon name="list" :size="24"/><b>{{order.documentNo}}</b></div><p>{{order.deptName}} · {{order.warehouseName}}</p><small>{{order.sourceWarehouseName}} → {{order.warehouseName}}</small><div class="order-line-count">待拣 <b>{{order.pendingLineCount}}</b> 项商品明细</div><button :disabled="loading" @click="openOrder(order)">进入申领单</button></article></template>
+          <template v-else>
+            <section class="surface order-context"><div class="task-identity"><b>{{selectedOrder.documentNo}}</b><button class="text-button" :disabled="loading" @click="back">返回单据列表</button></div><small>{{selectedOrder.sourceWarehouseName}} → {{selectedOrder.deptName}} · {{selectedOrder.warehouseName}}</small><p>本单待拣 <b>{{selectedOrder.pendingLineCount}}</b> 项商品明细</p></section>
+            <form v-if="pickRows.length" class="surface order-scan" @submit.prevent="scanOrder"><label>扫描本单商品 / 包码 / 唯一码<input ref="orderScanInput" v-model="orderScanCode" :disabled="loading" autocomplete="off" placeholder="扫码后自动定位本单明细，以 Enter 结束"/></label><button :disabled="loading||!orderScanCode.trim()">识别本单明细</button><p class="hint">核对数量并确认后，继续在本单扫描下一商品。</p></form>
+            <div v-if="scanMatches.length" class="surface scan-choices"><p class="notice">同一码对应本单多条明细，请选择本次拣选项</p><button v-for="match in scanMatches" :key="match.task.id" class="secondary" :disabled="loading" @click="chooseMatch(match)">选择明细 #{{match.task.id}} · {{match.task.productName}} · {{match.task.specModel}} · 待拣{{match.task.remainingQuantity}}{{match.task.unit}}</button></div>
+            <div class="list-heading"><h2>本单全部待拣明细</h2><button class="text-button" :disabled="loading" @click="loadOrder">刷新本单</button></div>
+            <p v-if="orderLoaded&&!pickRows.length" class="surface order-complete">{{selectedOrder.status==='picked'?'本单拣选已完成':'本单当前没有可拣明细，请刷新或到电脑端核对原单'}}</p><p v-if="!orderLoaded&&!loading" class="notice">本单明细未加载成功，请刷新重试</p>
+            <article v-for="row in pickRows" :key="row.id" class="task surface product-task" :data-item-id="row.id"><div class="task-identity"><span>明细 #{{row.id}}</span><span>{{row.kind==='PICK_LOOSE'?'散货':row.kind==='PICK_PACKAGE'?'定数包':'高值唯一码'}}</span></div><p><b>{{row.productName}}</b></p><dl class="product-identity"><dt>商品编码</dt><dd>{{row.productCode}}</dd><dt>规格型号</dt><dd>{{row.specModel || '目录未提供，请核对原单'}}</dd><template v-if="row.manufacturerName"><dt>生产厂家</dt><dd>{{row.manufacturerName}}</dd></template></dl><div class="pick-quantities"><span>申请 {{row.quantity}} {{row.unit}}</span><span>已拣 {{row.pickedQuantity}}</span><b>待拣 {{row.remainingQuantity}}</b></div><button class="secondary" :disabled="loading" @click="openPick(row)">扫描此明细</button></article>
+          </template>
+          <div v-if="!selectedOrder" class="actions pagination"><button class="secondary" :disabled="loading||page<=1" @click="loadTasks(page-1)">上一页</button><button class="secondary" :disabled="loading||page*20>=total" @click="loadTasks(page+1)">下一页</button></div>
+        </template>
+      </template>
+    </template>
+  </div>
+  <p v-if="message" role="status" aria-live="polite" class="message app-message" :class="{error:isError}">{{message}}</p>
+  <nav v-if="ctx&&screen==='home'" class="bottom-nav"><button @click="showPending"><AppIcon name="cloud"/><span>待处理</span><em v-if="pendingRecords.length">{{pendingRecords.length}}</em></button><button @click="screen='profile'"><AppIcon name="user"/><span>我的</span></button></nav>
+</main>

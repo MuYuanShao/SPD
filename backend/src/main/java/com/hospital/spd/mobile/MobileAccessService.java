@@ -38,13 +38,43 @@ public class MobileAccessService {
     }
 
     public void requireSigning() {
+        requireEnabled();
+        access.requirePermission("picking-delivery:write");
+    }
+    public void requirePicking() {
+        requireEnabled();
+        access.requirePermission("department-requisition:pick");
+    }
+    public void requireConsumption() {
+        requireEnabled();access.requirePermission("department-consumption:write");
+    }
+    public void requireOperationAccess() {
+        requireEnabled();
+        try { requireSigning();return; } catch (AccessDeniedException ignored) { }
+        try { requirePicking();return; } catch (AccessDeniedException ignored) { }
+        requireConsumption();
+    }
+    private void requireEnabled() {
         operator();
         if (!enabled) throw new AccessDeniedException("移动作业尚未启用");
-        access.requirePermission("picking-delivery:write");
     }
 
     public void requireWarehouse(Long deptId, Long warehouseId) {
         requireSigning();
+        requireScope(deptId, warehouseId);
+    }
+    public void requirePickingWarehouse(Long deptId, Long warehouseId) {
+        requirePicking();
+        requireScope(deptId, warehouseId);
+    }
+    public void requireConsumptionWarehouse(Long deptId,Long warehouseId) {
+        requireConsumption();requireScope(deptId,warehouseId);
+        // Preserve QuotaPackageTraceFlowService's existing own-department rule for non-global operators.
+        OperatorContext operator=operator();
+        if(!operator.canViewAllData() && !java.util.Objects.equals(operator.deptId(),deptId))
+            throw new AccessDeniedException("只能消耗当前登录科室的定数包");
+    }
+    private void requireScope(Long deptId, Long warehouseId) {
         access.requireDepartment(deptId);
         access.requireDestinationWarehouse(deptId, warehouseId);
         Long active = jdbc.queryForObject("SELECT COUNT(*) FROM sys_dept WHERE dept_id = ? AND deleted = 0 AND status = 1",
@@ -54,9 +84,11 @@ public class MobileAccessService {
 
     public MobileContracts.Context context() {
         OperatorContext operator = operator();
-        try {
-            requireSigning();
-        } catch (AccessDeniedException ex) {
+        List<String> capabilities = new ArrayList<>();
+        try { requireSigning(); capabilities.add("SIGN_DELIVERY"); } catch (AccessDeniedException ignored) { }
+        try { requirePicking(); capabilities.addAll(List.of("PICK_LOOSE", "PICK_PACKAGE", "PICK_HIGH_VALUE")); } catch (AccessDeniedException ignored) { }
+        try { requireConsumption();capabilities.add("CONSUME_PACKAGE"); } catch(AccessDeniedException ignored) { }
+        if (capabilities.isEmpty()) {
             return new MobileContracts.Context(serverId, operator.userId(), operator.username(), List.of(), List.of());
         }
         List<Object> args = new ArrayList<>();
@@ -74,6 +106,6 @@ public class MobileAccessService {
                 """ + where + " ORDER BY d.dept_id, w.warehouse_id", (rs, row) -> new MobileContracts.Warehouse(
                 rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4)), args.toArray());
         return new MobileContracts.Context(serverId, operator.userId(), operator.username(),
-                List.of("SIGN_DELIVERY"), warehouses);
+                List.copyOf(capabilities), warehouses,warehouses.stream().filter(w->operator.canViewAllData() || java.util.Objects.equals(operator.deptId(),w.deptId())).toList());
     }
 }

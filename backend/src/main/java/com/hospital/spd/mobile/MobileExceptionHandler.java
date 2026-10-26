@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /** Preserves actionable authorization and conflict responses for mobile clients. */
 @Order(-1)
-@RestControllerAdvice(assignableTypes = MobileController.class)
+@RestControllerAdvice(assignableTypes = {MobileController.class, MobilePickingController.class,MobileConsumptionController.class})
 public class MobileExceptionHandler {
     @ExceptionHandler(MobileConflictException.class)
     public ResponseEntity<ApiResponse<Void>> conflict(MobileConflictException ex) {

@@ -28,7 +28,16 @@ public class MobileReviewService {
         key = secret.isBlank() ? new SecureRandom().generateSeed(32) : secret.getBytes(StandardCharsets.UTF_8);
     }
 
-    public String payloadHash(SignOperation op) {
+    public String payloadHash(Command command) {
+        if(command instanceof ConsumeOperation op) {
+            return hash(encode(List.of(op.operationId(),op.deviceId(),op.kind(),op.taskId(),op.deptId(),op.warehouseId(),op.rawCode(),op.wholePackageConfirmed())));
+        }
+        if (command instanceof PickOperation op) {
+            return hash(encode(List.of(op.operationId(), op.deviceId(), op.kind(), op.taskId(), op.deptId(),
+                    op.warehouseId(), op.sourceWarehouseId(), op.quantity() == null ? "" : op.quantity().stripTrailingZeros().toPlainString(),
+                    op.rawCode() == null ? "" : op.rawCode(), op.packageIds().stream().sorted().toList(), op.traceCodeIds().stream().sorted().toList())));
+        }
+        SignOperation op = (SignOperation) command;
         // Lists are sets for business identity, but duplicates are rejected before hashing.
         return hash(encode(List.of(op.operationId(), op.deviceId(), op.kind(), op.taskId(), op.deptId(),
                 op.warehouseId(), op.packageIds().stream().sorted().toList(),
@@ -43,7 +52,27 @@ public class MobileReviewService {
     }
 
     public void verify(Long userId, SignOperation op, Detail detail) {
-        String token = op.reviewHash();
+        verifyToken(userId, op, detail, op.reviewHash());
+    }
+
+    public PickReview issue(Long userId, PickOperation op, PickSnapshot snapshot) {
+        String epoch = Long.toString(Instant.now().plusSeconds(300).getEpochSecond());
+        return new PickReview(epoch + "." + signature(userId, op, snapshot, epoch),
+                Instant.ofEpochSecond(Long.parseLong(epoch)), snapshot);
+    }
+
+    public void verify(Long userId, PickOperation op, PickSnapshot snapshot) {
+        verifyToken(userId, op, snapshot, op.reviewHash());
+    }
+    public ConsumeReview issue(Long userId,ConsumeOperation op,ConsumeSnapshot snapshot) {
+        String epoch=Long.toString(Instant.now().plusSeconds(300).getEpochSecond());
+        return new ConsumeReview(epoch+"."+signature(userId,op,snapshot,epoch),Instant.ofEpochSecond(Long.parseLong(epoch)),snapshot);
+    }
+    public void verify(Long userId,ConsumeOperation op,ConsumeSnapshot snapshot) {
+        verifyToken(userId,op,snapshot,op.reviewHash());
+    }
+
+    private void verifyToken(Long userId, Command op, Object detail, String token) {
         if (token == null || !token.matches("[0-9]{1,12}\\.[a-f0-9]{64}")) throw conflict();
         String[] parts = token.split("\\.");
         long expiry = Long.parseLong(parts[0]);
@@ -58,7 +87,7 @@ public class MobileReviewService {
         catch (JsonProcessingException ex) { throw new IllegalStateException("无法保存移动操作回执", ex); }
     }
 
-    private String signature(Long userId, SignOperation op, Detail detail, String expiry) {
+    private String signature(Long userId, Command op, Object detail, String expiry) {
         try {
             Mac mac = Mac.getInstance("HmacSHA256");
             mac.init(new SecretKeySpec(key, "HmacSHA256"));

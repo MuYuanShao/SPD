@@ -20,15 +20,19 @@ public class MobileDeliveryRepository {
             JOIN warehouse src ON src.warehouse_id = r.source_warehouse_id AND src.deleted = 0 AND src.status = 1
             JOIN warehouse dst ON dst.warehouse_id = r.warehouse_id AND dst.dept_id = r.dept_id AND dst.deleted = 0 AND dst.status = 1
             JOIN product p ON p.product_code = s.product_code AND p.deleted = 0 AND p.status = 1
+            LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
             """;
     private static final String SELECT = """
             SELECT s.delivery_id, s.delivery_no, s.status, s.delivery_type,
                    d.dept_id, d.dept_name, src.warehouse_id, src.warehouse_name,
-                   dst.warehouse_id, dst.warehouse_name, s.product_code, s.product_name, s.quantity, p.unit
+                   dst.warehouse_id, dst.warehouse_name, s.product_code, s.product_name, s.quantity, p.unit,
+                   s.requisition_no,p.spec_model,m.manufacturer_name,s.create_time,s.sign_time
             """;
     private static final RowMapper<Task> TASK = (rs, row) -> new Task(rs.getLong(1), rs.getString(2), rs.getString(3),
             rs.getString(4), rs.getLong(5), rs.getString(6), rs.getLong(7), rs.getString(8), rs.getLong(9),
-            rs.getString(10), rs.getString(11), rs.getString(12), rs.getBigDecimal(13), rs.getString(14));
+            rs.getString(10), rs.getString(11), rs.getString(12), rs.getBigDecimal(13), rs.getString(14),
+            rs.getString(15),rs.getString(16),rs.getString(17),rs.getObject(18,java.time.LocalDateTime.class),
+            rs.getObject(19,java.time.LocalDateTime.class));
 
     public MobileDeliveryRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
@@ -60,6 +64,15 @@ public class MobileDeliveryRepository {
                 FROM spd_delivery_trace_code b JOIN udi_trace_code t ON t.trace_code_id = b.trace_code_id
                 WHERE b.delivery_id = ? ORDER BY t.trace_code_id
                 """ + suffix, (rs, row) -> new CheckItem("trace", rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)), id));
-        return new Detail(tasks.get(0), List.copyOf(items));
+        // Read the immutable source allocations for this delivery, never the product's current stock batches.
+        List<DeliveryBatch> batches=jdbc.query("""
+                SELECT db.batch_id,ib.system_batch_no,ib.production_batch_no,ib.production_date,ib.expire_date,SUM(db.quantity)
+                FROM spd_delivery_batch db LEFT JOIN inventory_batch ib ON ib.batch_id=db.batch_id
+                WHERE db.delivery_id=?
+                GROUP BY db.batch_id,ib.system_batch_no,ib.production_batch_no,ib.production_date,ib.expire_date
+                ORDER BY db.batch_id
+                """,(rs,row)->new DeliveryBatch(rs.getLong(1),rs.getString(2),rs.getString(3),
+                rs.getObject(4,java.time.LocalDate.class),rs.getObject(5,java.time.LocalDate.class),rs.getBigDecimal(6)),id);
+        return new Detail(tasks.get(0), List.copyOf(items),List.copyOf(batches));
     }
 }

@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.UUID;
 import static com.hospital.spd.mobile.MobileContracts.*;
 
-/** Exposes the first mobile delivery-signing capability without enabling unimplemented picking or consumption. */
+/** Exposes mobile context, signing, shared receipt lookup and original-operation recovery. */
 @RestController
 @RequestMapping("/mobile")
 public class MobileController {
@@ -41,6 +41,8 @@ public class MobileController {
     public ApiResponse<Review> validate(@Valid @RequestBody SignOperation operation) { return ApiResponse.ok(signing.validate(operation)); }
     @PostMapping("/operations")
     public ApiResponse<Result> submit(@Valid @RequestBody SignOperation operation) { return ApiResponse.ok(signing.submit(operation)); }
+    @PostMapping("/operations/recover")
+    public ApiResponse<Recovery<Detail>> recover(@Valid @RequestBody SignOperation operation) { return ApiResponse.ok(signing.recover(operation)); }
     @GetMapping("/operations/{operationId}")
     public ApiResponse<Result> result(@PathVariable UUID operationId) { return ApiResponse.ok(signing.result(operationId)); }
     private static void requireKind(String kind) {

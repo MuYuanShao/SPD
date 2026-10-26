@@ -42,6 +42,10 @@ public class RbacAuthorizationService {
         if (path.equals("/mobile/context")) {
             return userId != null && "GET".equalsIgnoreCase(method);
         }
+        if ("GET".equalsIgnoreCase(method) && path.matches("/mobile/operations/[0-9a-fA-F-]{36}")) {
+            List<String> permissions=permissionCodes(userId);
+            return userId!=null && (permissions.contains("picking-delivery:write") || permissions.contains("department-requisition:pick") || permissions.contains("department-consumption:write"));
+        }
 
         if (path.equals("/purchase-orders") || path.startsWith("/purchase-orders/")) {
             if (userId == null) return false;
@@ -75,11 +79,17 @@ public class RbacAuthorizationService {
         String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
 
         if (path.startsWith("/mobile/")) {
+            if(path.startsWith("/mobile/picking/")) {
+                boolean read="GET".equals(verb) && (path.equals("/mobile/picking/tasks") || path.matches("/mobile/picking/tasks/[0-9]+") || path.equals("/mobile/picking/orders") || path.matches("/mobile/picking/orders/[0-9]+"));
+                boolean write="POST".equals(verb) && (List.of("/mobile/picking/scans/resolve","/mobile/picking/operations/validate","/mobile/picking/operations/recover","/mobile/picking/operations").contains(path) || path.matches("/mobile/picking/orders/[0-9]+/scans/resolve"));
+                return read||write?"department-requisition:pick":null;
+            }
+            if(path.startsWith("/mobile/consumption/")) return "POST".equals(verb) && List.of("/mobile/consumption/packages/resolve","/mobile/consumption/operations/validate","/mobile/consumption/operations/recover","/mobile/consumption/operations").contains(path)?"department-consumption:write":null;
             boolean signingRead = "GET".equals(verb) && (path.equals("/mobile/tasks")
                     || path.matches("/mobile/tasks/SIGN_DELIVERY/[0-9]+")
                     || path.matches("/mobile/operations/[0-9a-fA-F-]{36}"));
             boolean signingWrite = "POST".equals(verb) && List.of("/mobile/scans/resolve",
-                    "/mobile/operations/validate", "/mobile/operations").contains(path);
+                    "/mobile/operations/validate", "/mobile/operations/recover", "/mobile/operations").contains(path);
             return signingRead || signingWrite ? "picking-delivery:write" : null;
         }
 

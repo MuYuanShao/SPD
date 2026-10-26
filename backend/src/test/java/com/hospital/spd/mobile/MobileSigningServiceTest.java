@@ -20,7 +20,7 @@ class MobileSigningServiceTest {
     final MobileReceiptRepository receipts = mock(MobileReceiptRepository.class);
     final OperationalDeliveryModule business = mock(OperationalDeliveryModule.class);
     final MobileReviewService reviews = new MobileReviewService(new ObjectMapper().findAndRegisterModules(), "");
-    final MobileSigningService service = new MobileSigningService(access, deliveries, receipts, reviews, business);
+    final MobileSigningService service = new MobileSigningService(access, deliveries, receipts, reviews, business, mock(MobileRecoveryService.class));
     final UUID operationId = UUID.randomUUID();
 
     @Test void exactPackageSetRequiredEvenWhenCountMatches() {

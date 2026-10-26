@@ -21,12 +21,14 @@ public class MobileSigningService {
     private final MobileReceiptRepository receipts;
     private final MobileReviewService reviews;
     private final OperationalDeliveryModule business;
+    private final MobileRecoveryService recovery;
 
     public MobileSigningService(MobileAccessService access, MobileDeliveryRepository deliveries,
                                  MobileReceiptRepository receipts, MobileReviewService reviews,
-                                 OperationalDeliveryModule business) {
+                                 OperationalDeliveryModule business, MobileRecoveryService recovery) {
         this.access = access; this.deliveries = deliveries; this.receipts = receipts;
         this.reviews = reviews; this.business = business;
+        this.recovery = recovery;
     }
 
     public PageResponse<Task> tasks(Long deptId, Long warehouseId, String status, PageRequest page) {
@@ -59,6 +61,17 @@ public class MobileSigningService {
         return reviews.issue(access.operator().userId(), op, detail);
     }
 
+    public Recovery<Detail> recover(SignOperation op) {
+        requireShape(op);
+        access.requireWarehouse(op.deptId(), op.warehouseId());
+        return recovery.recover(op, () -> {
+            Detail detail = deliveries.detail(op.taskId(), op.deptId(), op.warehouseId(), true);
+            requireComplete(op, detail);
+            Review review = reviews.issue(access.operator().userId(), op, detail);
+            return new Recovery<>(null, review.reviewHash(), review.expiresAt(), review.summary());
+        });
+    }
+
     @Transactional
     public Result submit(SignOperation op) {
         requireShape(op);
@@ -79,12 +92,14 @@ public class MobileSigningService {
     }
 
     public Result result(UUID operationId) {
-        access.requireSigning();
+        access.requireOperationAccess();
         Long userId = access.operator().userId();
         MobileReceiptRepository.Receipt receipt = receipts.find(userId, operationId, false);
         if (receipt == null) return new Result(operationId, "SIGN_DELIVERY", null, null, "unknown", userId,
                 null, null, "尚未查到回执，不能认定失败；请继续查询或沿用原操作编号重试");
-        access.requireWarehouse(receipt.deptId(), receipt.warehouseId());
+        if (receipt.kind().startsWith("PICK_")) access.requirePickingWarehouse(receipt.deptId(), receipt.warehouseId());
+        else if("CONSUME_PACKAGE".equals(receipt.kind())) access.requireConsumptionWarehouse(receipt.deptId(),receipt.warehouseId());
+        else access.requireWarehouse(receipt.deptId(), receipt.warehouseId());
         if (receipt.result() == null) throw new MobileConflictException("操作结果尚未确认，请继续查询");
         return receipt.result();
     }

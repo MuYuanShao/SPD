@@ -156,6 +156,17 @@ public class QuotaPackageTraceFlowService {
         String code = required(body, "code");
         Map<String, Object> initial = findByCode(code, false);
         Long labelId = ((Number) initial.get("labelId")).longValue();
+        return consumeLabel(labelId,code,initial);
+    }
+
+    /** Stable mobile identity entry; keeps the current product locks, pricing and settlement workflow. */
+    @Transactional
+    public Map<String,Object> consumeByLabelId(Long labelId) {
+        Map<String,Object> initial=label(labelId,false);
+        return consumeLabel(labelId,String.valueOf(initial.get("labelNo")),initial);
+    }
+
+    private Map<String,Object> consumeLabel(Long labelId,String code,Map<String,Object> initial) {
         new com.hospital.spd.supplychain.service.QuotaPackagePricingService(jdbcTemplate)
                 .lockProduct(((Number) initial.get("productId")).longValue());
         new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate)

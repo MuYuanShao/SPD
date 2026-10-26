@@ -1,0 +1,8 @@
+{
+  "group": "B",
+  "environment": "test",
+  "clientIp": "172.16.2.153",
+  "cidr": "172.16.2.0/24",
+  "serverBaseUrl": "http://172.16.2.153:1818/api",
+  "note": "测试配置。正式环境必须替换为正式 HTTPS 地址，不得提交到正式 APK。"
+}

@@ -1,0 +1,33 @@
+
+# Code Review Workflow
+
+Several independent reviewers hunt for defects in a code change; this workflow sends them the change, then verifies, triages, presents, and fixes what they found.
+
+Subagents are an important part of this workflow. Use them wherever a step calls for them, if you can. If you need the user's permission to run them, ask once now for the whole run.
+
+## Conventions
+
+- When a step directs you to another file, read it fully and follow it. Load one step at a time, when it is reached.
+- A step that shows a menu or checkpoint halts there and waits for the user.
+
+## No-code review
+
+Review by inspection only. Do not modify code, run builds or tests, or invoke quality gates.
+
+## On activation
+
+Run each of these in order before step 1 (`_None._` means skip):
+
+_None._
+
+Hold every entry below as fact for the whole run. Entries prefixed `file:` are paths or globs under `{project-root}` to read; the rest are facts verbatim (`_None._` means none):
+
+_None._
+
+Then run each of these in order (`_None._` means skip):
+
+_None._
+
+## First step
+
+Read fully and follow `D:/SPD-PR/_bmad/render/bmad-code-review/spd-pr-73d5a828e33c/e60525a400764fd98766/step-01-gather-context.md`.

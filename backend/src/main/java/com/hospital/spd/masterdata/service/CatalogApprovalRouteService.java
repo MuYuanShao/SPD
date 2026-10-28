@@ -143,7 +143,7 @@ public class CatalogApprovalRouteService {
         }
         boolean allowed = switch (step.approverType()) {
             case "user" -> Objects.equals(step.userId(), operator.userId());
-            case "dept_manager" -> operator.deptId() != null
+            case "dept_manager" -> Objects.equals(step.userId(), operator.userId()) && operator.deptId() != null
                     && Objects.equals(step.deptId() != null ? step.deptId() : documentDeptId, operator.deptId());
             default -> step.roleId() != null && roleCode(step.roleId()).map(roles::contains).orElse(false);
         };

@@ -178,7 +178,7 @@ public class OperationalRequisitionModule {
     public Map<String, Object> action(String requisitionNo, Map<String, Object> body) {
         accessService.requirePermission("department-requisition:approve");
         Map<String, Object> requisition = jdbcTemplate.queryForMap("""
-                SELECT requisition_id AS requisitionId, dept_id AS deptId, status
+                SELECT requisition_id AS requisitionId, dept_id AS deptId, applicant_id AS applicantId, status
                   FROM department_requisition
                  WHERE requisition_no = ?
                  FOR UPDATE
@@ -191,8 +191,9 @@ public class OperationalRequisitionModule {
         if (!"approve".equals(action) && !"reject".equals(action)) {
             throw new IllegalArgumentException("requisition action is invalid");
         }
-        approvalFlowGuard.requireApprovalAccess("department-requisition", "requisition-approval",
-                ((Number) requisition.get("deptId")).longValue(), null);
+        if (!approvalFlowGuard.recordDecision("department-requisition", "requisition-approval", requisitionNo,
+                ((Number) requisition.get("deptId")).longValue(), requisition.get("applicantId") instanceof Number owner ? owner.longValue() : null,
+                "approve".equals(action))) return Map.of("requisitionNo", requisitionNo, "status", "pending_approval", "approvalRecorded", true);
         String nextStatus = "approve".equals(action) ? "approved" : "rejected";
         OperatorContext operator = operatorContextProvider.current();
         int updated = jdbcTemplate.update("""

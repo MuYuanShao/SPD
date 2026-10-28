@@ -102,6 +102,7 @@ public class PurchaseOrderService {
             args.add(keyword);
         }
 
+        dataScopeService.appendScope(where, args, "(SELECT owner.dept_id FROM sys_user owner WHERE owner.user_id = po.create_by)", "po.create_by");
         String fromClause = """
                   FROM purchase_order po
                   JOIN supplier s ON s.supplier_id = po.supplier_id
@@ -132,18 +133,30 @@ public class PurchaseOrderService {
                 """ + where + " GROUP BY po.purchase_order_id ORDER BY po.create_time DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
-        Map<String, Object> summary = jdbcTemplate.queryForMap("""
-                SELECT COUNT(*) AS totalOrders,
-                       COALESCE(SUM(total_amount), 0) AS totalAmount,
+        StringBuilder summaryScope = new StringBuilder(" WHERE 1 = 1");
+        List<Object> summaryArgs = new ArrayList<>();
+        dataScopeService.appendScope(summaryScope, summaryArgs, "(SELECT owner.dept_id FROM sys_user owner WHERE owner.user_id = po.create_by)", "po.create_by");
+        String summarySql = """
+                SELECT COUNT(*) AS totalOrders, COALESCE(SUM(total_amount), 0) AS totalAmount,
                        SUM(CASE WHEN order_status = 'pending_approval' THEN 1 ELSE 0 END) AS pendingApproval,
                        SUM(CASE WHEN order_status = 'sent' THEN 1 ELSE 0 END) AS sentOrders,
                        SUM(CASE WHEN order_status = 'closed' THEN 1 ELSE 0 END) AS closedOrders
-                  FROM purchase_order
-                """);
+                  FROM purchase_order po
+                """ + summaryScope;
+        Map<String, Object> summary = summaryArgs.isEmpty() ? jdbcTemplate.queryForMap(summarySql)
+                : jdbcTemplate.queryForMap(summarySql, summaryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq, summary);
     }
 
     public Map<String, Object> getDetail(String orderNo) {
+        StringBuilder allowed = new StringBuilder(" WHERE po.order_no = ?");
+        List<Object> allowedArgs = new ArrayList<>(); allowedArgs.add(orderNo);
+        dataScopeService.appendScope(allowed, allowedArgs, "(SELECT owner.dept_id FROM sys_user owner WHERE owner.user_id = po.create_by)", "po.create_by");
+        if (!operatorContextProvider.current().canViewAllData()) {
+            Long visible = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM purchase_order po" + allowed, Long.class, allowedArgs.toArray());
+            if (visible == null || visible != 1) throw new org.springframework.security.access.AccessDeniedException("无权访问该采购单");
+        }
+
         Map<String, Object> order = jdbcTemplate.queryForMap("""
                 SELECT po.purchase_order_id AS orderId, po.order_no AS orderNo,
                        s.supplier_name AS supplierName, po.order_source AS orderSource,
@@ -596,6 +609,7 @@ public class PurchaseOrderService {
     // ==================== 跟踪与选项 ====================
 
     public List<Map<String, Object>> getTracking(String orderNo) {
+        permissionGuard.requireOrderScope(orderNo);
         Long orderId = jdbcTemplate.queryForObject("SELECT purchase_order_id FROM purchase_order WHERE order_no = ?", Long.class, orderNo);
         return trackingRows(orderId);
     }

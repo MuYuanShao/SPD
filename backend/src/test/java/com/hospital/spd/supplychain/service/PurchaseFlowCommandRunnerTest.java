@@ -106,4 +106,16 @@ class PurchaseFlowCommandRunnerTest {
         assertThat(planSeenByFactory.get()).containsEntry("planNo", "JH001").containsEntry("plan", plan);
         verify(jdbcTemplate).update(contains("converted_order_no"), eq("CG20260609001"), eq("JH001"));
     }
+    @Test
+    void draftCannotCollectApprovalVotesBeforeSubmission() {
+        var approvals = org.mockito.Mockito.mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        var subject = new PurchaseFlowCommandRunner(jdbcTemplate, com.hospital.spd.common.OperatorContext::system,
+                (no, plan) -> "unused", approvals);
+        when(jdbcTemplate.queryForMap(anyString(), eq("CG-DRAFT"))).thenReturn(Map.of(
+                "orderId", 1L, "orderStatus", "draft", "orderQuantity", BigDecimal.TEN, "receivedQuantity", BigDecimal.ZERO));
+        assertThatThrownBy(() -> subject.runOrderAction("CG-DRAFT", new PurchaseOrderActionRequest("approve", null)))
+                .isInstanceOf(IllegalArgumentException.class);
+        org.mockito.Mockito.verifyNoInteractions(approvals);
+        org.mockito.Mockito.verify(jdbcTemplate, org.mockito.Mockito.never()).update(anyString(), any(Object[].class));
+    }
 }

@@ -52,13 +52,56 @@ class ReviewRegressionMysqlTest {
     }
 
     @Test
+    void stocktakingQuantityAndEventAnchorShareOneSnapshot() {
+        jdbc.execute("CREATE TABLE product(product_id BIGINT PRIMARY KEY,purchase_price DECIMAL(18,4),catalog_price_version BIGINT,unit VARCHAR(20)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE warehouse(warehouse_id BIGINT PRIMARY KEY,warehouse_name VARCHAR(30)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_batch(batch_id BIGINT PRIMARY KEY,system_batch_no VARCHAR(30)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_balance(balance_id BIGINT PRIMARY KEY,warehouse_id BIGINT,product_id BIGINT,batch_id BIGINT,available_qty DECIMAL(18,4)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_event(event_id BIGINT PRIMARY KEY,warehouse_id BIGINT,product_id BIGINT) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_stocktaking(stocktaking_id BIGINT AUTO_INCREMENT PRIMARY KEY,stocktaking_no VARCHAR(40),warehouse_id BIGINT,stocktaking_type VARCHAR(30),status VARCHAR(30),reason VARCHAR(100)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_stocktaking_item(item_id BIGINT AUTO_INCREMENT PRIMARY KEY,stocktaking_id BIGINT,balance_id BIGINT,product_id BIGINT,batch_id BIGINT,system_qty DECIMAL(18,4),actual_qty DECIMAL(18,4),diff_qty DECIMAL(18,4),diff_reason VARCHAR(100),snapshot_event_id BIGINT) ENGINE=InnoDB");
+        jdbc.update("INSERT INTO product VALUES (1,1,1,'unit')");
+        jdbc.update("INSERT INTO warehouse VALUES (1,'W1')");
+        jdbc.update("INSERT INTO inventory_batch VALUES (1,'B1')");
+        jdbc.update("INSERT INTO inventory_balance VALUES (1,1,1,1,10)");
+        jdbc.update("INSERT INTO inventory_event VALUES (1,1,1)");
+        doAnswer(call -> {
+            Object oldQuantity = call.callRealMethod();
+            try (Connection movement = dataSource.getConnection()) {
+                movement.setAutoCommit(false);
+                try (var statement = movement.createStatement()) {
+                    statement.executeUpdate("UPDATE inventory_balance SET available_qty=11 WHERE balance_id=1");
+                    statement.executeUpdate("INSERT INTO inventory_event VALUES (2,1,1)");
+                }
+                movement.commit();
+            }
+            return oldQuantity;
+        }).when(jdbc).queryForMap(contains("FROM inventory_balance bal"), eq("W1"), eq("B1"));
+        SupplyChainSupport support = mock(SupplyChainSupport.class);
+        when(support.nextNo(com.hospital.spd.common.service.DocumentKind.INVENTORY_STOCKTAKING)).thenReturn("PD-SNAPSHOT");
+        InventoryService subject = new InventoryService(jdbc, support);
+        TransactionTemplate tx = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        tx.setIsolationLevel(org.springframework.transaction.TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        tx.execute(status -> subject.createStocktaking(new com.hospital.spd.supplychain.StocktakingRequest("W1","B1",new java.math.BigDecimal("9"),"count")));
+        assertThat(jdbc.queryForObject("SELECT snapshot_event_id FROM inventory_stocktaking_item", Long.class)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject("SELECT system_qty FROM inventory_stocktaking_item", java.math.BigDecimal.class)).isEqualByComparingTo("10");
+        assertThatThrownBy(() -> tx.execute(status -> subject.approveStocktaking("PD-SNAPSHOT")))
+                .hasMessageContaining("快照");
+        assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance", java.math.BigDecimal.class)).isEqualByComparingTo("11");
+    }
+
+    @Test
     void reversalWaitsForConcurrentSettlementConfirmationAndRejectsRestoringStock() throws Exception {
-        jdbc.execute("CREATE TABLE department_consumption (consumption_id BIGINT PRIMARY KEY, consumption_no VARCHAR(40), warehouse_id BIGINT, status VARCHAR(30), related_biz_type VARCHAR(40), related_biz_id BIGINT) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE product (product_id BIGINT PRIMARY KEY, purchase_price DECIMAL(18,4), catalog_price_version BIGINT, unit VARCHAR(20)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE warehouse (warehouse_id BIGINT PRIMARY KEY, dept_id BIGINT, deleted INT, status INT) ENGINE=InnoDB");
+        jdbc.update("INSERT INTO product VALUES (1,1,1,'unit')");
+        jdbc.update("INSERT INTO warehouse VALUES (1,1,0,1)");
+        jdbc.execute("CREATE TABLE department_consumption (consumption_id BIGINT PRIMARY KEY, consumption_no VARCHAR(40), warehouse_id BIGINT, status VARCHAR(30), related_biz_type VARCHAR(40), related_biz_id BIGINT, dept_id BIGINT, consume_by BIGINT) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE department_consumption_item (item_id BIGINT PRIMARY KEY, consumption_id BIGINT, product_id BIGINT, batch_id BIGINT, quantity DECIMAL(18,4)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE settlement_bill (settlement_id BIGINT PRIMARY KEY, status VARCHAR(30), total_amount DECIMAL(18,4)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE settlement_bill_item (item_id BIGINT PRIMARY KEY, settlement_id BIGINT, source_biz_type VARCHAR(40), source_biz_id BIGINT, amount DECIMAL(18,4)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE consumption_red_flush (flush_no VARCHAR(40), source_consumption_no VARCHAR(40), flush_type VARCHAR(40), status VARCHAR(30), remark VARCHAR(100)) ENGINE=InnoDB");
-        jdbc.update("INSERT INTO department_consumption VALUES (1,'XH1',1,'confirmed','inventory',NULL)");
+        jdbc.update("INSERT INTO department_consumption VALUES (1,'XH1',1,'confirmed','inventory',NULL,1,1)");
         jdbc.update("INSERT INTO department_consumption_item VALUES (1,1,1,1,10)");
         jdbc.update("INSERT INTO settlement_bill VALUES (1,'pending_confirm',100)");
         jdbc.update("INSERT INTO settlement_bill_item VALUES (1,1,'department_consumption_item',1,100)");

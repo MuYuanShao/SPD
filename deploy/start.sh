@@ -11,6 +11,7 @@ while [ "$#" -gt 0 ]; do
   esac
   shift
 done
+[ "$init_only" = true ] || check_existing_database
 initialize_env
 validate_settings
 if [ "$init_only" = true ]; then echo 'Settings validated; no containers started.'; exit 0; fi

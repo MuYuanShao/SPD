@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+/** Authorizes configured approval participants and advances per-document approval snapshots. */
 @Service
 public class ApprovalFlowGuard {
 
@@ -75,6 +76,87 @@ public class ApprovalFlowGuard {
         throw new IllegalArgumentException("当前用户无权审批该节点");
     }
 
+    public void requireNotStarted(String feature, String node, String documentNo) {
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM business_approval_run WHERE document_key = ?", Long.class,
+                feature + ":" + node + ":" + documentNo);
+        if (count != null && count > 0) throw new IllegalArgumentException("单据已开始审批，不能修改审批内容");
+    }
+
+    /** Caller holds its business document lock; votes and downstream effects share the same transaction. */
+    public boolean recordDecision(String feature, String node, String documentNo, Long deptId, Long ownerId, boolean approve) {
+        OperatorContext operator = operatorContextProvider.current();
+        if (isGlobalApprovalAdmin(operator)) return true;
+        String key = feature + ":" + node + ":" + documentNo;
+        List<Map<String, Object>> runs = jdbcTemplate.queryForList(
+                "SELECT current_order AS currentOrder, status, flow_data_scope AS flowDataScope FROM business_approval_run WHERE document_key = ? FOR UPDATE", key);
+        if (runs.isEmpty()) {
+            List<String> roles = normalizedRoleCodes(operator);
+            Map<String, Object> flow = jdbcTemplate.queryForList("""
+                    SELECT flow_id AS flowId, scope_type AS scopeType, scope_id AS scopeId,
+                           data_scope AS dataScope, dept_id AS deptId
+                      FROM approval_flow WHERE feature_code = ? AND node_code = ? AND status = 1 AND deleted = 0
+                      ORDER BY flow_id FOR SHARE
+                    """, feature, node).stream()
+                    .filter(candidate -> flowApplies(candidate, roles, deptId, operator))
+                    .filter(candidate -> dataScopeAllows(integer(candidate.get("dataScope")), deptId, ownerId, operator))
+                    .sorted(Comparator.comparingInt(ApprovalFlowGuard::flowSpecificity).reversed())
+                    .findFirst().orElseThrow(() -> new IllegalArgumentException("当前节点未配置适用的审批流程"));
+            List<Map<String, Object>> steps = jdbcTemplate.queryForList("""
+                    SELECT s.step_order AS stepOrder, s.approver_type AS approverType, r.role_code AS roleCode,
+                           s.user_id AS userId, s.dept_id AS deptId, s.min_approvals AS minApprovals,
+                           s.allow_self_approve AS allowSelfApprove, s.data_scope AS dataScope
+                      FROM approval_flow_step s LEFT JOIN sys_role r ON r.role_id = s.role_id
+                     WHERE s.flow_id = ? AND s.status = 1
+                     ORDER BY s.step_order, s.step_id FOR SHARE
+                    """, flow.get("flowId"));
+            if (steps.isEmpty()) throw new IllegalArgumentException("审批流程没有启用步骤");
+            int flowScope = integer(flow.get("dataScope")) == null ? OperatorContext.DATA_SCOPE_ALL : integer(flow.get("dataScope"));
+            jdbcTemplate.update("INSERT INTO business_approval_run (document_key, current_order, status, flow_data_scope) VALUES (?, ?, 'pending', ?)",
+                    key, steps.get(0).get("stepOrder"), flowScope);
+            for (Map<String, Object> step : steps) {
+                jdbcTemplate.update("""
+                        INSERT INTO business_approval_step
+                        (document_key, step_order, approver_type, role_code, user_id, dept_id, min_approvals, allow_self_approve, data_scope)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, key, step.get("stepOrder"), step.get("approverType"), step.get("roleCode"), step.get("userId"),
+                        step.get("deptId"), step.get("minApprovals"), step.get("allowSelfApprove"), step.get("dataScope"));
+            }
+            runs = List.of(Map.of("currentOrder", steps.get(0).get("stepOrder"), "status", "pending", "flowDataScope", flowScope));
+        }
+        Map<String, Object> run = runs.get(0);
+        if (!"pending".equals(run.get("status"))) throw new IllegalArgumentException("该单据审批已完成");
+        Map<String, Object> step = jdbcTemplate.queryForMap("""
+                SELECT approver_type AS approverType, role_code AS roleCode, user_id AS userId,
+                       dept_id AS deptId, min_approvals AS minApprovals, allow_self_approve AS allowSelfApprove,
+                       data_scope AS dataScope
+                  FROM business_approval_step WHERE document_key = ? AND step_order = ?
+                """, key, run.get("currentOrder"));
+        List<String> roles = normalizedRoleCodes(operator);
+        if (!dataScopeAllows(integer(run.get("flowDataScope")), deptId, ownerId, operator)
+                || !selfApprovalAllows(step.get("allowSelfApprove"), ownerId, operator, roles)
+                || !dataScopeAllows(integer(step.get("dataScope")), deptId, ownerId, operator)
+                || !approverAllows(step, roles, deptId, operator)) throw new IllegalArgumentException("当前用户无权审批当前步骤");
+        if (!approve) {
+            jdbcTemplate.update("UPDATE business_approval_run SET status = 'rejected' WHERE document_key = ?", key);
+            return true;
+        }
+        List<Long> prior = jdbcTemplate.queryForList("SELECT operator_id FROM business_approval_vote WHERE document_key = ? AND step_order = ? AND operator_id = ?",
+                Long.class, key, run.get("currentOrder"), operator.userId());
+        if (!prior.isEmpty()) throw new IllegalArgumentException("本人已审批当前步骤，请勿重复提交");
+        jdbcTemplate.update("INSERT INTO business_approval_vote (document_key, step_order, operator_id) VALUES (?, ?, ?)",
+                key, run.get("currentOrder"), operator.userId());
+        Long count = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM business_approval_vote WHERE document_key = ? AND step_order = ?", Long.class, key, run.get("currentOrder"));
+        if (count == null || count < ((Number) step.get("minApprovals")).longValue()) return false;
+        List<Integer> next = jdbcTemplate.queryForList("SELECT step_order FROM business_approval_step WHERE document_key = ? AND step_order > ? ORDER BY step_order LIMIT 1",
+                Integer.class, key, run.get("currentOrder"));
+        if (!next.isEmpty()) {
+            jdbcTemplate.update("UPDATE business_approval_run SET current_order = ? WHERE document_key = ?", next.get(0), key);
+            return false;
+        }
+        jdbcTemplate.update("UPDATE business_approval_run SET status = 'approved' WHERE document_key = ?", key);
+        return true;
+    }
+
     private boolean hasAuthorizedStep(Long flowId,
                                       Integer stepOrder,
                                       List<String> roleCodes,
@@ -121,11 +203,9 @@ public class ApprovalFlowGuard {
             return Objects.equals(number(step.get("userId")), operator.userId());
         }
         if ("dept_manager".equals(approverType)) {
-            Long stepDeptId = number(step.get("deptId"));
-            if (stepDeptId != null && !Objects.equals(stepDeptId, operator.deptId())) {
-                return false;
-            }
-            return operator.deptId() != null && (documentDeptId == null || Objects.equals(documentDeptId, operator.deptId()));
+            Long targetDept = number(step.get("deptId")) != null ? number(step.get("deptId")) : documentDeptId;
+            return targetDept != null && Objects.equals(targetDept, operator.deptId())
+                    && Objects.equals(number(step.get("userId")), operator.userId());
         }
         String roleCode = normalizedRoleCode(text(step.get("roleCode")));
         return roleCode != null && roleCodes.contains(roleCode);

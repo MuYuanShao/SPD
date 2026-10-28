@@ -77,3 +77,21 @@ function Assert-SpdBundle([string]$Directory) {
         if (-not (Test-Path -LiteralPath $target) -or (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ine $hash) { throw "Bundle checksum failed: $relative" }
     }
 }
+
+function Assert-SpdExistingDatabase([string]$Path) {
+    & docker info --format '{{.OSType}}' > $null 2>&1
+    if ($LASTEXITCODE -ne 0) { return }
+    $project = if (Test-Path -LiteralPath $Path) { Get-SpdSetting $Path 'COMPOSE_PROJECT_NAME' 'hospital-spd' } else { 'hospital-spd' }
+    $expected = if (Test-Path -LiteralPath $Path) { Get-SpdSetting $Path 'SPD_MYSQL_VOLUME' "$($project)_spd-mysql-data" } else { "$($project)_spd-mysql-data" }
+    $volumes = @(& docker volume ls --filter 'label=com.docker.compose.volume=spd-mysql-data' --format '{{.Name}}')
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect existing database volumes.' }
+    & docker volume inspect $expected > $null 2>&1
+    $exists = $LASTEXITCODE -eq 0
+    if ($exists -and -not (Test-Path -LiteralPath $Path)) {
+        throw 'The database volume already exists. Restore its original private environment file; do not generate replacement credentials.'
+    }
+    $allowNew = if (Test-Path -LiteralPath $Path) { Get-SpdSetting $Path 'SPD_ALLOW_NEW_DATABASE' 'false' } else { 'false' }
+    if (-not $exists -and $volumes.Count -gt 0 -and $allowNew -ne 'true') {
+        throw 'Existing SPD database volumes detected. Preserve the original volume via SPD_MYSQL_VOLUME; prepare legacy credentials with deploy/upgrade-legacy-env.ps1 before startup. No new database was created.'
+    }
+}

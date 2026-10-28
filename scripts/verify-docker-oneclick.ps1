@@ -28,7 +28,9 @@ Check 'database-not-published' (-not $cfg.services.mysql.ports)
 Check 'backend-not-published' (-not $cfg.services.backend.ports)
 Check 'forwarded-host-and-port-restored-for-same-origin' ($cfg.services.backend.environment.SERVER_FORWARD_HEADERS_STRATEGY -eq 'framework')
 Check 'migration-gated-by-database-health' ($cfg.services.migrate.depends_on.mysql.condition -eq 'service_healthy')
-Check 'bootstrap-gated-by-migration' ($cfg.services.bootstrap.depends_on.migrate.condition -eq 'service_completed_successfully')
+Check 'account-upgrade-gates-migration' ($cfg.services.migrate.depends_on.'database-accounts'.condition -eq 'service_completed_successfully')
+Check 'account-upgrade-uses-mysql-image' ($cfg.services.'database-accounts'.image -eq $cfg.services.mysql.image)
+Check 'bootstrap-gated-by-migration'  ($cfg.services.bootstrap.depends_on.migrate.condition -eq 'service_completed_successfully')
 Check 'runtime-gated-by-bootstrap' ($cfg.services.backend.depends_on.bootstrap.condition -eq 'service_completed_successfully')
 Check 'web-gated-by-backend-health' ($cfg.services.frontend.depends_on.backend.condition -eq 'service_healthy')
 Check 'runtime-disables-automatic-ddl' ($cfg.services.backend.environment.SPRING_FLYWAY_ENABLED -eq 'false' -and $cfg.services.backend.environment.SPD_REQUIRE_NO_DDL -eq 'true')
@@ -57,10 +59,41 @@ Check 'tampered-bundle-rejected' $rejected
 $rejected=$false
 try { Assert-SpdBundle $bundle } catch { $rejected=$_.Exception.Message -match 'Invalid path' }
 Check 'bundle-path-traversal-rejected' $rejected
-foreach ($file in @('deploy/start.ps1','deploy/package.ps1','deploy/docker/common.ps1')) {
+foreach ($file in @('deploy/start.ps1','deploy/package.ps1','deploy/docker/common.ps1','deploy/upgrade-legacy-env.ps1')) {
     $errors=$null
     [Management.Automation.Language.Parser]::ParseFile((Join-Path $repoRoot $file),[ref]$null,[ref]$errors) | Out-Null
     Check "syntax-$file" (-not $errors)
+}
+# Simulate volume discovery without a Docker daemon or business database.
+function docker {
+    param([Parameter(ValueFromRemainingArguments=$true)][string[]]$DockerArgs)
+    $global:LASTEXITCODE=0
+    if ($DockerArgs[0] -eq 'info') { return 'linux' }
+    if ($DockerArgs[0] -eq 'volume' -and $DockerArgs[1] -eq 'ls') { return 'legacy_spd-mysql-data' }
+    if ($DockerArgs[0] -eq 'volume' -and $DockerArgs[1] -eq 'inspect') {
+        if ($DockerArgs[2] -ne 'legacy_spd-mysql-data') { $global:LASTEXITCODE=1 }
+        return
+    }
+    throw 'Unexpected Docker call in the volume fixture'
+}
+try {
+    $missingEnv=Join-Path $OutputDirectory 'must-not-be-created.env'
+    $rejected=$false
+    try { Assert-SpdExistingDatabase $missingEnv } catch { $rejected=$_.Exception.Message -match 'Existing SPD database volumes' }
+    Check 'old-volume-does-not-silently-create-empty-database' $rejected
+    Check 'volume-guard-does-not-write-settings' (-not (Test-Path -LiteralPath $missingEnv))
+    $legacy=Join-Path $OutputDirectory 'legacy.env'
+    [IO.File]::WriteAllText($legacy,"SPD_DB_USERNAME=legacy_owner`nSPD_DB_PASSWORD=legacy-owner-password-123`nSPD_DB_ROOT_PASSWORD=legacy-root-password-123`nSPD_JWT_SECRET=legacy-jwt-key-00000000000000000000000000000000000000`n",[Text.UTF8Encoding]::new($false))
+    $legacyHash=(Get-FileHash -LiteralPath $legacy).Hash
+    $upgraded=Join-Path $OutputDirectory 'upgraded.env'
+    & (Join-Path $repoRoot 'deploy/upgrade-legacy-env.ps1') -LegacyEnvFile $legacy -DatabaseVolume 'legacy_spd-mysql-data' -OutputEnvFile $upgraded
+    $upgradedText=[IO.File]::ReadAllText($upgraded)
+    Check 'upgrade-retains-old-owner-as-migrator' ($upgradedText.Contains("SPD_FLYWAY_USERNAME='legacy_owner'"))
+    Check 'upgrade-creates-separate-runtime-account' ($upgradedText.Contains("SPD_DB_USERNAME='spd_runtime'"))
+    Check 'upgrade-retains-explicit-original-volume' ($upgradedText.Contains("SPD_MYSQL_VOLUME='legacy_spd-mysql-data'"))
+    Check 'upgrade-preserves-original-configuration' ((Get-FileHash -LiteralPath $legacy).Hash -eq $legacyHash)
+} finally {
+    Remove-Item Function:\docker
 }
 $report=[ordered]@{generatedAt=[DateTime]::UtcNow.ToString('o');scope='configuration-and-script-fixtures';containerBuildExecuted=$false;passed=$true;checks=$results}
 [IO.File]::WriteAllText((Join-Path $OutputDirectory 'report.json'),($report|ConvertTo-Json -Depth 8)+"`n",[Text.UTF8Encoding]::new($false))

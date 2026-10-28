@@ -62,7 +62,8 @@ public class OperationalSettlementModule {
         if (!"pending_confirm".equals(String.valueOf(settlement.get("status")))) {
             throw new IllegalArgumentException("只有待确认的结算单才能确认");
         }
-        approvalFlowGuard.requireApprovalAccess("settlement-reconciliation", "settlement-confirm", null, null);
+        if (!approvalFlowGuard.recordDecision("settlement-reconciliation", "settlement-confirm", settlementNo, null, null, true))
+            return Map.of("settlementNo", settlementNo, "status", "pending_confirm", "approvalRecorded", true);
         int updated = jdbcTemplate.update("""
                 UPDATE settlement_bill
                    SET status = 'confirmed', confirm_time = NOW()

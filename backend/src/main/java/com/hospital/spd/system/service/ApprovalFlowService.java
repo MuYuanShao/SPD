@@ -263,6 +263,11 @@ public class ApprovalFlowService {
         int fallbackOrder = 1;
         for (ApprovalFlowStepRequest step : safeSteps) {
             int order = step.stepOrder() == null ? fallbackOrder : step.stepOrder();
+            if ("dept_manager".equals(step.approverType()) && step.userId() == null) {
+                throw new IllegalArgumentException("部门负责人审批必须指定负责人用户，不能仅指定科室");
+            }
+            if (("user".equals(step.approverType()) || "dept_manager".equals(step.approverType()))
+                    && nvl(step.minApprovals(), 1) != 1) throw new IllegalArgumentException("指定人员节点的最少通过人数必须为1");
             jdbcTemplate.update("""
                     INSERT INTO approval_flow_step
                     (flow_id, step_order, step_name, approver_type, role_id, user_id, dept_id, min_approvals, allow_self_approve, data_scope, status, revision_no)

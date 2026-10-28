@@ -87,6 +87,7 @@ public class InvoiceService {
         String remark = text(body.get("remark"));
         Long supplierCount = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM supplier WHERE supplier_id = ? AND deleted = 0 AND status = 1", Long.class, supplierId);
         if (supplierCount == null || supplierCount == 0) throw new IllegalArgumentException("supplier not found or disabled");
+        requireSettlementSupplier(settlementId, supplierId);
         String invoiceNo = documentNumberService.next(DocumentKind.SUPPLIER_INVOICE);
         jdbcTemplate.update("""
                 INSERT INTO supplier_invoice (
@@ -102,11 +103,19 @@ public class InvoiceService {
 
     @Transactional
     public Map<String, Object> verify(String invoiceNo) {
+        Map<String, Object> invoice = jdbcTemplate.queryForMap("SELECT supplier_id AS supplierId, settlement_id AS settlementId FROM supplier_invoice WHERE invoice_no = ? FOR UPDATE", invoiceNo);
+        requireSettlementSupplier(nullableLong(invoice.get("settlementId")), longValue(invoice.get("supplierId"), "supplierId"));
         int updated = jdbcTemplate.update("UPDATE supplier_invoice SET status = 'verified', verify_time = CURRENT_TIMESTAMP WHERE invoice_no = ? AND status = 'pending_verification'", invoiceNo);
         if (updated != 1) throw new IllegalArgumentException("invoice is not pending verification");
         Long invoiceId = jdbcTemplate.queryForObject("SELECT invoice_id FROM supplier_invoice WHERE invoice_no = ?", Long.class, invoiceNo);
         auditLogService.record("supplier_invoice", "verify", invoiceId, invoiceNo, "supplier invoice verified");
         return Map.of("invoiceNo", invoiceNo, "status", "verified");
+    }
+
+    private void requireSettlementSupplier(Long settlementId, long supplierId) {
+        if (settlementId == null) return;
+        List<Long> suppliers = jdbcTemplate.queryForList("SELECT supplier_id FROM settlement_bill WHERE settlement_id = ? FOR SHARE", Long.class, settlementId);
+        if (suppliers.size() != 1 || suppliers.get(0) != supplierId) throw new IllegalArgumentException("发票与结算单必须属于同一供应商");
     }
 
     private static String required(Map<String, Object> body, String key) {

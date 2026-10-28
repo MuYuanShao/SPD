@@ -24,8 +24,10 @@ class BatchPriceAdjustmentServiceTest {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         OperatorContextProvider operators = mock(OperatorContextProvider.class);
         InventoryEventService events = mock(InventoryEventService.class);
+        ApprovalFlowGuard approvals = mock(ApprovalFlowGuard.class);
+        when(approvals.recordDecision(anyString(), anyString(), anyString(), isNull(), isNull(), eq(true))).thenReturn(true);
         BatchPriceAdjustmentService service = new BatchPriceAdjustmentService(jdbc,
-                mock(SupplyChainSupport.class), operators, mock(ApprovalFlowGuard.class), events,
+                mock(SupplyChainSupport.class), operators, approvals, events,
                 mock(AuditLogService.class));
         when(operators.current()).thenReturn(OperatorContext.system());
         when(jdbc.queryForMap(contains("FROM batch_price_adjustment"), eq("TJ002"))).thenReturn(Map.of(
@@ -44,6 +46,7 @@ class BatchPriceAdjustmentServiceTest {
         SupplyChainSupport support = mock(SupplyChainSupport.class);
         OperatorContextProvider operators = mock(OperatorContextProvider.class);
         ApprovalFlowGuard approvals = mock(ApprovalFlowGuard.class);
+        when(approvals.recordDecision(anyString(), anyString(), anyString(), isNull(), isNull(), eq(true))).thenReturn(true);
         InventoryEventService events = mock(InventoryEventService.class);
         AuditLogService audit = mock(AuditLogService.class);
         BatchPriceAdjustmentService service = new BatchPriceAdjustmentService(

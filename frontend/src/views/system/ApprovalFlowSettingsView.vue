@@ -382,6 +382,7 @@ function validateSteps(): string {
     if (!step.stepName?.trim()) return '审批步骤名称不能为空'
     if (step.approverType === 'role' && !step.roleId) return '按角色审批时必须选择角色'
     if (step.approverType === 'user' && !step.userId) return '指定人员审批时必须选择人员'
+    if (step.approverType === 'dept_manager' && !step.userId) return '部门负责人审批必须选择负责人用户'
   }
   return ''
 }
@@ -674,14 +675,14 @@ onMounted(loadAll)
                       </select>
                     </td>
                     <td>
-                      <select v-model.number="step.userId" class="sys-select" @change="setStepApproverType(step, 'user')">
+                      <select v-model.number="step.userId" class="sys-select" @change="setStepApproverType(step, step.approverType === 'dept_manager' ? 'dept_manager' : 'user')">
                         <option :value="undefined">不指定人员</option>
                         <option v-for="u in options.users" :key="u.userId" :value="u.userId">{{ u.realName }}</option>
                       </select>
                     </td>
                     <td>
                       <select v-model.number="step.deptId" class="sys-select" @change="setStepApproverType(step, 'dept_manager')">
-                        <option :value="undefined">按单据科室</option>
+                        <option :value="undefined">按单据科室（需指定负责人）</option>
                         <option v-for="d in options.departments" :key="d.deptId" :value="d.deptId">{{ d.deptName }}</option>
                       </select>
                     </td>

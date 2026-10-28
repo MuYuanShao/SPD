@@ -49,6 +49,15 @@ class ProductApprovalServiceTest {
         )).thenReturn(1);
     }
 
+    @Test
+    void rejectsNegativeNewAdmissionPriceBeforeWritingApplication() {
+        PendingProductApplicationRequest request = new com.fasterxml.jackson.databind.ObjectMapper().convertValue(
+                Map.of("productName", "测试商品", "specModel", "S1", "unit", "支", "purchasePrice", "-1"),
+                PendingProductApplicationRequest.class);
+        assertThatThrownBy(() -> service.createApplication(request)).hasMessageContaining("价格不能为负数");
+        verifyNoInteractions(jdbcTemplate);
+    }
+
     // ==================== Helper: build common test data ====================
 
     private List<ApprovalTimelineNode> timelineForStatus(String status) {
@@ -167,7 +176,7 @@ class ProductApprovalServiceTest {
         var guard = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
         var audit = mock(com.hospital.spd.common.service.AuditLogService.class);
         service = spy(new ProductApprovalService(jdbcTemplate, OperatorContext::system, guard,
-                null, null, routes, audit, null, null));
+                new ProductCodeService(jdbcTemplate), null, routes, audit, null, null));
         doReturn(detail("pending_step_1", "新品准入")).when(service).getDetail("APP001");
         when(jdbcTemplate.queryForMap(contains("FOR UPDATE"), eq("APP001")))
                 .thenReturn(Map.of("applicationId", 100L, "approvalRound", 1, "submitBy", 9L,
@@ -189,7 +198,7 @@ class ProductApprovalServiceTest {
         var routes = mock(CatalogApprovalRouteService.class);
         var guard = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
         service = spy(new ProductApprovalService(jdbcTemplate, OperatorContext::system, guard,
-                null, null, routes, null, null, null));
+                new ProductCodeService(jdbcTemplate), null, routes, null, null, null));
         doReturn(detail("pending_step_1", "新品准入")).when(service).getDetail("APP001");
         when(jdbcTemplate.queryForMap(contains("a.application_id AS applicationId"), eq("APP001")))
                 .thenReturn(Map.of("applicationId", 100L, "approvalRound", 1, "submitBy", 9L,

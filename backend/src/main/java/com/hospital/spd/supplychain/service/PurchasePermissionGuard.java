@@ -34,6 +34,24 @@ final class PurchasePermissionGuard {
         }
     }
 
+    void requireOrderScope(String orderNo) {
+        requireOrderScope("po.order_no", orderNo);
+    }
+
+    void requireOrderIdScope(Long orderId) {
+        requireOrderScope("po.purchase_order_id", orderId);
+    }
+
+    private void requireOrderScope(String column, Object id) {
+        if (operatorContextProvider.current().canViewAllData()) return;
+        StringBuilder where = new StringBuilder(" WHERE " + column + " = ?");
+        java.util.List<Object> args = new java.util.ArrayList<>(); args.add(id);
+        new com.hospital.spd.common.DataScopeService(operatorContextProvider).appendScope(where, args,
+                "(SELECT owner.dept_id FROM sys_user owner WHERE owner.user_id = po.create_by)", "po.create_by");
+        Long visible = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM purchase_order po" + where, Long.class, args.toArray());
+        if (visible == null || visible != 1) throw new AccessDeniedException("无权访问该采购单");
+    }
+
     private static boolean isAdministrator(String role) {
         return "admin".equalsIgnoreCase(role)
                 || "ROLE_ADMIN".equalsIgnoreCase(role)

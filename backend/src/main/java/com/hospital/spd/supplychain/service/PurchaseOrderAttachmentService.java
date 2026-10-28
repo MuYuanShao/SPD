@@ -101,10 +101,11 @@ public class PurchaseOrderAttachmentService {
 
     public ResponseEntity<Resource> file(Long attachmentId) {
         Map<String, Object> row = jdbcTemplate.queryForMap("""
-                SELECT file_name AS fileName, file_path AS filePath, file_ext AS ext
+                SELECT biz_id AS orderId, file_name AS fileName, file_path AS filePath, file_ext AS ext
                   FROM sys_attachment
                  WHERE attachment_id = ? AND biz_type = ? AND deleted = 0
                 """, attachmentId, BIZ_TYPE);
+        permissionGuard.requireOrderIdScope(row.get("orderId") instanceof Number id ? id.longValue() : null);
         Path file = uploadRoot.resolve(String.valueOf(row.get("filePath"))).normalize();
         if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) {
             throw new IllegalArgumentException("采购订单附件文件不存在");
@@ -118,6 +119,7 @@ public class PurchaseOrderAttachmentService {
     }
 
     private Long orderId(String orderNo) {
+        permissionGuard.requireOrderScope(orderNo);
         List<Long> ids = jdbcTemplate.queryForList(
                 "SELECT purchase_order_id FROM purchase_order WHERE order_no = ?", Long.class, orderNo);
         if (ids.isEmpty()) {

@@ -7,7 +7,7 @@ public record ProductBatchUpdateRequest(
         List<String> productCodes,
         String volumeBased,
         String domestic,
-        BigDecimal purchasePrice,
+        @jakarta.validation.constraints.DecimalMin(value = "0", message = "采购价不能为负数") BigDecimal purchasePrice,
         String unit,
         String registrationNo,
         String contractCode,

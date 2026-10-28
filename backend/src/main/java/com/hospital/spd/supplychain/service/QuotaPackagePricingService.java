@@ -77,6 +77,11 @@ public class QuotaPackagePricingService {
         Map<String, Object> current = lockProduct(productId);
         BigDecimal oldPrice = decimal(before.get("unitPrice"));
         BigDecimal newPrice = decimal(current.get("unitPrice"));
+        if (!Objects.equals(before.get("unit"), current.get("unit"))) {
+            List<Long> history = jdbc.queryForList("SELECT batch_id FROM inventory_batch WHERE product_id = ? LIMIT 1 FOR SHARE", Long.class, productId);
+            List<Long> templates = jdbc.queryForList("SELECT item_id FROM quota_package_template_item WHERE product_id = ? LIMIT 1 FOR SHARE", Long.class, productId);
+            if (!history.isEmpty() || !templates.isEmpty()) throw new IllegalArgumentException("商品已有库存业务历史，不能修改基本单位；请新建商品或执行专门的单位转换");
+        }
         if (oldPrice.compareTo(newPrice) == 0) return;
         if (!Objects.equals(before.get("unit"), current.get("unit"))) {
             throw new IllegalArgumentException("调价时不能同时变更基本单位，请分开申请并核实包装换算");

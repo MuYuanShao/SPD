@@ -86,7 +86,7 @@ public class OperationalHighValueModule {
             throw new IllegalArgumentException("externalChargeNo or eventId is required");
         }
 
-        List<Map<String, Object>> existing = findExistingCharge(externalChargeNo);
+        List<Map<String, Object>> existing = findExistingCharge(text(body, "sourceSystem", "AIMS"), externalChargeNo);
         if (!existing.isEmpty()) {
             return idempotentResult(existing.get(0), body);
         }
@@ -99,7 +99,7 @@ public class OperationalHighValueModule {
         }
         Map<String, Object> product = findProduct(productCode);
         // Product -> trace is the shared lock order. Re-read after waiting; the discovery read can be stale.
-        List<Map<String, Object>> concurrentCharge = findExistingCharge(externalChargeNo);
+        List<Map<String, Object>> concurrentCharge = findExistingCharge(text(body, "sourceSystem", "AIMS"), externalChargeNo);
         if (!concurrentCharge.isEmpty()) return idempotentResult(concurrentCharge.get(0), body);
         Map<String, Object> trace = findTrace(body, true);
         BigDecimal quantity = requiredPositive(body, "quantity");
@@ -148,7 +148,7 @@ public class OperationalHighValueModule {
                 return ps;
             }, keyHolder);
         } catch (DuplicateKeyException ex) {
-            List<Map<String, Object>> concurrent = findExistingCharge(externalChargeNo);
+            List<Map<String, Object>> concurrent = findExistingCharge(text(body, "sourceSystem", "AIMS"), externalChargeNo);
             if (!concurrent.isEmpty()) {
                 return idempotentResult(concurrent.get(0), body);
             }
@@ -261,16 +261,16 @@ public class OperationalHighValueModule {
                 """.formatted(predicate);
     }
 
-    private List<Map<String, Object>> findExistingCharge(String externalChargeNo) {
+    private List<Map<String, Object>> findExistingCharge(String sourceSystem, String externalChargeNo) {
         return jdbcTemplate.queryForList("""
                 SELECT charge_no AS chargeNo, status, source_system AS sourceSystem,
                        unique_code AS uniqueCode, udi_code AS udiCode, product_code AS productCode,
                        patient_no AS patientNo, dept_name AS deptName, operation_no AS operationNo,
                        quantity, amount
                   FROM high_value_charge
-                 WHERE external_charge_no = ?
+                 WHERE source_system = ? AND external_charge_no = ?
                  LIMIT 1
-                """, externalChargeNo);
+                """, sourceSystem, externalChargeNo);
     }
 
     private static Map<String, Object> idempotentResult(Map<String, Object> existing, Map<String, Object> body) {

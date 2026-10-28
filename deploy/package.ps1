@@ -19,7 +19,7 @@ if (-not $OutputDirectory) { $OutputDirectory=Join-Path $SpdDeployRoot "../outpu
 $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
 if (Test-Path -LiteralPath $OutputDirectory) { throw 'Output directory already exists; choose a new directory to preserve old bundles.' }
 [IO.Directory]::CreateDirectory((Join-Path $OutputDirectory 'docker')) | Out-Null
-foreach ($name in @('start.ps1','start.sh','start.bat','docker-compose.yml','.env.production.example','README.docker.md')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $OutputDirectory }
+foreach ($name in @('start.ps1','start.sh','start.bat','upgrade-legacy-env.ps1','upgrade-legacy-env.sh','docker-compose.yml','.env.production.example','README.docker.md')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $OutputDirectory }
 foreach ($common in @('common.ps1','common.sh')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot "docker/$common") -Destination (Join-Path $OutputDirectory 'docker') }
 $images=@(& docker @composeArgs config --images | Sort-Object -Unique)
 if ($LASTEXITCODE -ne 0 -or $images.Count -eq 0) { throw 'Cannot resolve image list.' }

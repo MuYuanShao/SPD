@@ -3,7 +3,7 @@
 fail() { printf '%s\n' "$*" >&2; exit 1; }
 setting() {
   value=$(printenv "$1" 2>/dev/null || true)
-  if [ -z "$value" ]; then value=$(sed -n "s/^$1=//p" "$env_file" | head -n 1 | tr -d '\r'); fi
+  if [ -z "$value" ] && [ -f "$env_file" ]; then value=$(sed -n "s/^$1=//p" "$env_file" | head -n 1 | tr -d '\r'); fi
   case "$value" in \"*\") value=${value#\"}; value=${value%\"};; \'*\') value=${value#\'}; value=${value%\'};; esac
   printf '%s' "${value:-$2}"
 }
@@ -44,4 +44,17 @@ validate_settings() {
 require_engine() {
   kind=$(docker info --format '{{.OSType}}' 2>/dev/null) || fail 'Docker Linux engine is not ready. Start Docker Desktop/Engine and retry.'
   [ "$kind" = linux ] || fail 'Switch Docker Desktop to Linux containers.'
+}
+
+check_existing_database() {
+  docker info --format '{{.OSType}}' >/dev/null 2>&1 || return 0
+  project=$(setting COMPOSE_PROJECT_NAME hospital-spd)
+  expected=$(setting SPD_MYSQL_VOLUME "${project}_spd-mysql-data")
+  volumes=$(docker volume ls --filter label=com.docker.compose.volume=spd-mysql-data --format '{{.Name}}') || fail 'Cannot inspect database volumes'
+  if docker volume inspect "$expected" >/dev/null 2>&1 && [ ! -f "$env_file" ]; then
+    fail 'Database volume already exists. Restore its original private environment file instead of generating replacement credentials.'
+  fi
+  if ! docker volume inspect "$expected" >/dev/null 2>&1 && [ -n "$volumes" ] && [ "$(setting SPD_ALLOW_NEW_DATABASE false)" != true ]; then
+    fail 'Existing SPD database volumes detected. Preserve SPD_MYSQL_VOLUME and use deploy/upgrade-legacy-env.sh. No database was created.'
+  fi
 }

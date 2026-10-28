@@ -20,7 +20,7 @@ fi
 [ ! -e "$output_dir" ] || fail 'Output already exists; choose a new directory.'
 mkdir -p "$output_dir/docker"
 output_dir=$(CDPATH='' cd "$output_dir" && pwd)
-for file in start.ps1 start.sh start.bat docker-compose.yml .env.production.example README.docker.md; do cp "$deploy_root/$file" "$output_dir/"; done
+for file in start.ps1 start.sh start.bat upgrade-legacy-env.ps1 upgrade-legacy-env.sh docker-compose.yml .env.production.example README.docker.md; do cp "$deploy_root/$file" "$output_dir/"; done
 cp "$deploy_root/docker/common.ps1" "$deploy_root/docker/common.sh" "$output_dir/docker/"
 # Image names are Docker-generated, not arbitrary shell text. Preserve no source/private environment file.
 images=$(compose config --images | sort -u)

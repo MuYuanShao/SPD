@@ -555,6 +555,10 @@ class OperationalHighValueMysqlConcurrencyTest {
                   JOIN product p ON p.product_id = bal.product_id
                  WHERE bal.balance_id = ?
                 """, fixtureBalanceId);
+        String supplierCode = "IT-SUP-" + UUID.randomUUID().toString().replace("-", "");
+        jdbcTemplate.update("INSERT INTO supplier(supplier_code,supplier_name) VALUES (?,?)", supplierCode, supplierCode);
+        Long supplierId = jdbcTemplate.queryForObject("SELECT supplier_id FROM supplier WHERE supplier_code=?", Long.class, supplierCode);
+        jdbcTemplate.update("UPDATE inventory_batch SET supplier_id=?, settlement_mode='actual_sale' WHERE batch_id=?", supplierId, fixture.get("batchId"));
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         String uniqueCode = "IT-UID-" + suffix;
         String udiCode = "IT-UDI-" + suffix;
@@ -628,6 +632,10 @@ class OperationalHighValueMysqlConcurrencyTest {
                     "SELECT SUM(available_qty) FROM inventory_balance WHERE warehouse_id = ? AND product_id = ?",
                     BigDecimal.class, fixture.get("warehouseId"), fixture.get("productId"));
             assertThat(after).isEqualByComparingTo(totalBefore.subtract(BigDecimal.ONE));
+            assertThat(jdbcTemplate.queryForObject("SELECT COUNT(*) FROM settlement_bill_item WHERE source_biz_type='high_value_charge' AND trace_code_id=?", Long.class, traceId)).isEqualTo(1L);
+            assertThat(jdbcTemplate.queryForObject("SELECT amount FROM settlement_bill_item WHERE source_biz_type='high_value_charge' AND trace_code_id=?", BigDecimal.class, traceId)).isEqualByComparingTo("120.1235");
+            assertThat(jdbcTemplate.queryForObject("SELECT sb.total_amount FROM settlement_bill sb JOIN settlement_bill_item item ON item.settlement_id=sb.settlement_id WHERE item.trace_code_id=?", BigDecimal.class, traceId)).isEqualByComparingTo("120.1235");
+
             assertThat(jdbcTemplate.queryForObject(
                     "SELECT trace_code_id FROM high_value_charge WHERE external_charge_no LIKE ?", Long.class, externalNo + "%"))
                     .isEqualTo(traceId);

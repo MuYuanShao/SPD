@@ -104,10 +104,13 @@ class CatalogApprovalRouteServiceTest {
     @Test
     void configuredReviewDepartmentCanReviewAnotherDepartmentsApplication() {
         var step = new CatalogApprovalRouteService.RouteSnapshotStep(1, "pending-product-catalog", "initial-review", 1L, 11L,
-                "设备科审批", "dept_manager", null, null, 20L, 1, false, 1);
+                "设备科审批", "dept_manager", null, 9L, 20L, 1, false, 1);
         org.assertj.core.api.Assertions.assertThatCode(() -> service.requireApprovalAccess(step, 30L, 99L)).doesNotThrowAnyException();
+        var anotherManager = new CatalogApprovalRouteService.RouteSnapshotStep(1, "pending-product-catalog", "initial-review", 1L, 11L,
+                "设备科负责人", "dept_manager", null, 8L, 20L, 1, false, 1);
+        assertThatThrownBy(() -> service.requireApprovalAccess(anotherManager, 30L, 99L)).hasMessageContaining("无权审批");
         var other = new CatalogApprovalRouteService.RouteSnapshotStep(1, "pending-product-catalog", "initial-review", 1L, 11L,
-                "采购科审批", "dept_manager", null, null, 30L, 1, false, 1);
+                "采购科审批", "dept_manager", null, 9L, 30L, 1, false, 1);
         assertThatThrownBy(() -> service.requireApprovalAccess(other, 20L, 99L)).hasMessageContaining("无权审批");
     }
 

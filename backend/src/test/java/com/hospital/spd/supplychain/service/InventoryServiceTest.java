@@ -51,6 +51,45 @@ class InventoryServiceTest {
                 sql.contains("qpl.status IN ('pending_print', 'available', 'signed')")), eq(20), eq(0));
     }
 
+    @Test
+    void refusesStaleSnapshotEvenWhenTheBalanceRemainsNonNegative() {
+        when(jdbcTemplate.queryForMap(contains("FROM inventory_stocktaking"), eq("PD-STALE")))
+                .thenReturn(Map.of("stocktakingId", 301L, "warehouseId", 10L, "status", "draft"));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_stocktaking_item"), eq(301L)))
+                .thenReturn(List.of(Map.of("productId", 20L, "balanceId", 1L, "batchId", 30L,
+                        "actualQty", new BigDecimal("9"), "diffQty", new BigDecimal("-1"), "snapshotEventId", 5L)));
+        when(jdbcTemplate.queryForList(contains("SELECT balance_id FROM inventory_balance"), eq(10L), eq(20L))).thenReturn(List.of());
+        when(jdbcTemplate.queryForList(contains("SELECT event_id FROM inventory_event"), eq(Long.class), eq(10L), eq(20L)))
+                .thenReturn(List.of(6L));
+        assertThatThrownBy(() -> service.approveStocktaking("PD-STALE")).hasMessageContaining("快照");
+        verify(support, never()).adjustAvailable(anyLong(), anyLong(), anyLong(), anyLong(), any(), anyString(), anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    void refusesScalarAdjustmentsToProtectedPackageOrUniqueCodeStock() {
+        when(jdbcTemplate.queryForMap(contains("FROM inventory_stocktaking"), eq("PD-TRACE")))
+                .thenReturn(Map.of("stocktakingId", 302L, "warehouseId", 10L, "status", "draft"));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_stocktaking_item"), eq(302L)))
+                .thenReturn(List.of(Map.of("productId", 20L, "balanceId", 1L, "batchId", 30L,
+                        "actualQty", new BigDecimal("9"), "diffQty", new BigDecimal("-1"), "snapshotEventId", 0L)));
+        when(jdbcTemplate.queryForObject(contains("EXISTS(SELECT 1 FROM product"), eq(Long.class), any(Object[].class)))
+                .thenReturn(1L);
+        assertThatThrownBy(() -> service.approveStocktaking("PD-TRACE")).hasMessageContaining("不能直接");
+        verify(support, never()).adjustAvailable(anyLong(), anyLong(), anyLong(), anyLong(), any(), anyString(), anyString(), anyLong(), anyString());
+    }
+
+    @Test
+    void incompleteSheetCannotCommitEvenTheFirstApprovalVote() {
+        var approvals = mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        var subject = new InventoryService(jdbcTemplate, support, com.hospital.spd.common.OperatorContext::system, approvals);
+        when(jdbcTemplate.queryForMap(contains("FROM inventory_stocktaking"), eq("PD-BLANK")))
+                .thenReturn(Map.of("stocktakingId", 303L, "warehouseId", 10L, "status", "draft"));
+        when(jdbcTemplate.queryForList(contains("FROM inventory_stocktaking_item"), eq(303L)))
+                .thenReturn(List.of(Map.of("productId", 20L)));
+        assertThatThrownBy(() -> subject.approveStocktaking("PD-BLANK")).hasMessageContaining("实盘数量");
+        verifyNoInteractions(approvals);
+    }
+
     // ==================== 库存余额查询 ====================
 
     @Test
@@ -255,7 +294,7 @@ class InventoryServiceTest {
                     .thenReturn(List.of(
                             Map.of("itemId", 1L, "balanceId", 1L, "productId", 20L,
                                     "batchId", 30L, "diffQty", BigDecimal.valueOf(50),
-                                    "actualQty", BigDecimal.valueOf(150))
+                                    "actualQty", BigDecimal.valueOf(150), "snapshotEventId", 0L)
                     ));
             when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
@@ -277,7 +316,7 @@ class InventoryServiceTest {
                     .thenReturn(List.of(
                             Map.of("itemId", 2L, "balanceId", 2L, "productId", 21L,
                                     "batchId", 31L, "diffQty", BigDecimal.valueOf(-30),
-                                    "actualQty", BigDecimal.valueOf(70))
+                                    "actualQty", BigDecimal.valueOf(70), "snapshotEventId", 0L)
                     ));
             when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
@@ -299,7 +338,7 @@ class InventoryServiceTest {
                     .thenReturn(List.of(
                             Map.of("itemId", 3L, "balanceId", 3L, "productId", 22L,
                                     "batchId", 32L, "diffQty", BigDecimal.valueOf(-200),
-                                    "actualQty", BigDecimal.ZERO)
+                                    "actualQty", BigDecimal.ZERO, "snapshotEventId", 0L)
                     ));
             when(support.adjustAvailable(eq(3L), eq(10L), eq(22L), eq(32L), eq(BigDecimal.valueOf(-200)),
                     eq("stocktaking_loss"), eq("inventory_stocktaking"), eq(202L), anyString()))

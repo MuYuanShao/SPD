@@ -51,8 +51,9 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=5 CMD wget 
 FROM ${MYSQL_IMAGE} AS mysql
 # MySQL官方镜像已包含数据库服务器和mysql客户端，无宿主机数据库依赖。
 COPY deploy/docker/mysql-init-runtime.sh /docker-entrypoint-initdb.d/10-spd-runtime.sh
+COPY deploy/docker/mysql-ensure-accounts.sh /usr/local/bin/spd-ensure-accounts.sh
 COPY deploy/docker/mysql.cnf /etc/mysql/conf.d/spd.cnf
-RUN chmod 0444 /etc/mysql/conf.d/spd.cnf && chmod 0555 /docker-entrypoint-initdb.d/10-spd-runtime.sh
+RUN chmod 0444 /etc/mysql/conf.d/spd.cnf && chmod 0555 /docker-entrypoint-initdb.d/10-spd-runtime.sh /usr/local/bin/spd-ensure-accounts.sh
 EXPOSE 3306
 
 FROM ${JAVA_IMAGE} AS backend

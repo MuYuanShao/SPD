@@ -348,7 +348,7 @@ public class OperationalClosureReadModel {
                        sbi.amount AS settlementAmount,
                        CASE WHEN sbi.source_biz_type = 'high_value_charge' THEN 'high_value'
                             WHEN qpl.label_id IS NOT NULL THEN 'quota_package'
-                            WHEN p.is_high_value = 1 THEN 'high_value' ELSE 'loose' END AS goodsType,
+                            WHEN EXISTS (SELECT 1 FROM inventory_batch_trace_code historical_trace WHERE historical_trace.batch_id = sbi.batch_id) THEN 'high_value' ELSE 'loose' END AS goodsType,
                        qpl.label_id AS packageLabelId,
                        qpl.package_quantity AS packageQuantity,
                        CASE WHEN qpl.label_id IS NOT NULL AND sbi.item_id = (
@@ -363,9 +363,9 @@ public class OperationalClosureReadModel {
                        ) THEN 1 ELSE 0 END AS packageCount,
                        CASE WHEN qpl.label_id IS NOT NULL THEN sbi.quantity ELSE 0 END AS packageBaseQuantity,
                        CASE WHEN sbi.source_biz_type = 'high_value_charge'
-                                  OR (qpl.label_id IS NULL AND p.is_high_value = 1)
+                                  OR (qpl.label_id IS NULL AND EXISTS (SELECT 1 FROM inventory_batch_trace_code historical_trace WHERE historical_trace.batch_id = sbi.batch_id))
                             THEN sbi.quantity ELSE 0 END AS highValueQuantity,
-                       CASE WHEN sbi.source_biz_type <> 'high_value_charge' AND qpl.label_id IS NULL AND p.is_high_value = 0
+                       CASE WHEN sbi.source_biz_type <> 'high_value_charge' AND qpl.label_id IS NULL AND NOT EXISTS (SELECT 1 FROM inventory_batch_trace_code historical_trace WHERE historical_trace.batch_id = sbi.batch_id)
                             THEN sbi.quantity ELSE 0 END AS looseQuantity,
                        ROUND(COALESCE(qpl.settlement_unit_price * qpl.package_quantity,
                            (SELECT SUM(src.source_qty * src.unit_price)

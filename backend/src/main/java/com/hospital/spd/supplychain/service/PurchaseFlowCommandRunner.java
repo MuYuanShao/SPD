@@ -62,7 +62,6 @@ final class PurchaseFlowCommandRunner {
         Long orderId = ((Number) order.get("orderId")).longValue();
         OperatorContext operator = operatorContextProvider.current();
         String action = normalizeAction(request.action());
-        requireApprovalFlowForAction(action, "order-approval", null, number(order.get("createBy")));
         String nextStatus = PurchaseFlowRules.nextOrderStatus(
                 String.valueOf(order.get("orderStatus")),
                 action,
@@ -70,6 +69,9 @@ final class PurchaseFlowCommandRunner {
                 (BigDecimal) order.get("receivedQuantity"),
                 request.opinion()
         );
+        if (!recordApprovalForAction(action, "order-approval", orderNo, null, number(order.get("createBy"))))
+            return result("orderNo", orderNo, String.valueOf(order.get("orderStatus")));
+
         jdbcTemplate.update("""
                 UPDATE purchase_order
                    SET order_status = ?,
@@ -97,12 +99,13 @@ final class PurchaseFlowCommandRunner {
         if (rows.isEmpty()) {
             throw new IllegalArgumentException("purchase demand not found");
         }
-        requireApprovalFlowForAction(request.action(), "demand-review",
-                number(rows.get(0).get("deptId")), null);
         String nextStatus = PurchaseFlowRules.nextDemandStatus(
                 String.valueOf(rows.get(0).get("demandStatus")),
                 request.action()
         );
+        if (!recordApprovalForAction(request.action(), "demand-review", demandNo,
+                number(rows.get(0).get("deptId")), null)) return result("demandNo", demandNo, String.valueOf(rows.get(0).get("demandStatus")));
+
         jdbcTemplate.update("""
                 UPDATE purchase_demand
                    SET demand_status = ?,
@@ -123,8 +126,10 @@ final class PurchaseFlowCommandRunner {
                  WHERE plan_no = ?
                  FOR UPDATE
                 """, planNo);
-        requireApprovalFlowForAction(request.action(), "plan-approval", null, null);
         String nextStatus = PurchaseFlowRules.nextPlanStatus(String.valueOf(plan.get("planStatus")), request.action());
+        if (!recordApprovalForAction(request.action(), "plan-approval", planNo, null, null))
+            return result("planNo", planNo, String.valueOf(plan.get("planStatus")));
+
         if ("approved".equals(nextStatus)) {
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'approved', approve_time = NOW() WHERE plan_no = ? AND plan_status = 'draft'", planNo));
             writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
@@ -162,11 +167,10 @@ final class PurchaseFlowCommandRunner {
         auditLogService.record(bizType, operationType, bizId, bizNo, remark);
     }
 
-    private void requireApprovalFlowForAction(String action, String nodeCode, Long documentDeptId, Long documentOwnerId) {
-        String normalizedAction = normalizeAction(action);
-        if ("approve".equals(normalizedAction) || "reject".equals(normalizedAction)) {
-            approvalFlowGuard.requireApprovalAccess("purchase-management", nodeCode, documentDeptId, documentOwnerId);
-        }
+    private boolean recordApprovalForAction(String action, String node, String documentNo, Long deptId, Long ownerId) {
+        String normalized = normalizeAction(action);
+        return !"approve".equals(normalized) && !"reject".equals(normalized)
+                || approvalFlowGuard.recordDecision("purchase-management", node, documentNo, deptId, ownerId, "approve".equals(normalized));
     }
 
     private static Long number(Object value) {

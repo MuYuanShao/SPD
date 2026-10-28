@@ -42,6 +42,23 @@ class InventoryMovementServiceTest {
     private InventoryEventService inventoryEventService;
 
     @Test
+    void expiredLooseStockCanBeWrittenOffButCannotBeIssuedForConsumption() {
+        InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
+        when(jdbcTemplate.queryForList(contains("FROM inventory_balance"), eq(1L), eq(2L))).thenAnswer(call ->
+                ((String) call.getArgument(0)).contains("expire_date >= CURRENT_DATE") ? List.of() : List.of(balance()));
+        when(jdbcTemplate.update(contains("available_qty = available_qty -"), any(), any(), any())).thenReturn(1);
+        when(jdbcTemplate.queryForObject(contains("SELECT available_qty"), eq(BigDecimal.class), eq(10L))).thenReturn(BigDecimal.ZERO);
+        when(inventoryEventService.record(any())).thenReturn(99L);
+        assertThatThrownBy(() -> service.consumeAvailableFifo(1L, 2L, BigDecimal.TEN,
+                "department_consumption_out", "department_consumption", 1L, "expired"))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThat(service.consumeAvailableFifo(1L, 2L, BigDecimal.TEN,
+                "stocktaking_loss", "inventory_stocktaking", 2L, "expired writeoff"))
+                .hasSize(1);
+        verify(inventoryEventService).record(any());
+    }
+
+    @Test
     void cannotConsumeSignedPackageAsLooseStockAndLeavesBalancesUntouched() {
         InventoryMovementService service = new InventoryMovementService(jdbcTemplate, inventoryEventService);
         when(jdbcTemplate.queryForList(contains("FROM quota_package_label"), eq(1L), eq(2L)))

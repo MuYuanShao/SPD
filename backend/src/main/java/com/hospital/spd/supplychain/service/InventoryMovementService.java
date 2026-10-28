@@ -79,9 +79,10 @@ public class InventoryMovementService {
                   FROM inventory_balance bal
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.available_qty > 0
-                 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
+                 %s
+                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
                  FOR UPDATE
-                """, warehouseId, productId);
+                """.formatted("stocktaking_loss".equals(eventType) ? "" : "AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)"), warehouseId, productId);
         balances = balances.stream().map(balance -> {
             Map<String, Object> loose = new java.util.HashMap<>(balance);
             if (balance.get("locationId") == null) {
@@ -162,7 +163,8 @@ public class InventoryMovementService {
                   FROM inventory_balance bal
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.batch_id = ?
-                 LIMIT 1
+                 AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
+                  LIMIT 1
                  FOR UPDATE
                 """, warehouseId, productId, batchId);
         if (rows.isEmpty()) {
@@ -208,7 +210,8 @@ public class InventoryMovementService {
                   FROM inventory_balance bal
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.available_qty > 0
-                 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
+                 AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
+                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
                  FOR UPDATE
                 """, warehouseId, productId);
         BigDecimal remaining = requiredQty;
@@ -351,6 +354,8 @@ public class InventoryMovementService {
     public Long consumeLocked(Long balanceId, Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
                               String eventType, String sourceType, Long sourceId, String remark) {
         requirePositive(quantity);
+        List<Long> expired = jdbcTemplate.queryForList("SELECT batch_id FROM inventory_batch WHERE batch_id = ? AND expire_date < CURRENT_DATE FOR SHARE", Long.class, batchId);
+        if (!expired.isEmpty()) throw new IllegalArgumentException("来源批次已过期，不能确认打包");
         int affected = jdbcTemplate.update("""
                 UPDATE inventory_balance
                    SET locked_qty = locked_qty - ?

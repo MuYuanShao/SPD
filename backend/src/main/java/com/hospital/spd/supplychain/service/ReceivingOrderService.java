@@ -316,6 +316,7 @@ public class ReceivingOrderService {
                 """, receivingNo);
         Long receivingOrderId = ((Number) order.get("receivingOrderId")).longValue();
         requireStatus(String.valueOf(order.get("receivingStatus")), "draft");
+        approvalFlowGuard.requireNotStarted("receiving-acceptance", "receiving-approval", receivingNo);
 
         Long purchaseOrderId = sourceType == ReceivingSourceType.PURCHASE_ORDER
                 ? findPurchaseOrderId(request.purchaseOrderNo()) : null;
@@ -368,8 +369,8 @@ public class ReceivingOrderService {
             if (isBlank(request.opinion())) {
                 throw new IllegalArgumentException("拒收原因不能为空");
             }
-            approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval",
-                    number(order.get("warehouseDeptId")), number(order.get("receiverId")));
+            approvalFlowGuard.recordDecision("receiving-acceptance", "receiving-approval", receivingNo,
+                    number(order.get("warehouseDeptId")), number(order.get("receiverId")), false);
             int updated = jdbcTemplate.update("UPDATE receiving_order SET receiving_status = 'rejected', remark = ? WHERE receiving_no = ? AND receiving_status = 'draft'",
                     nullIfBlank(request.opinion()), receivingNo);
             requireSingleStateChange(updated);
@@ -395,8 +396,9 @@ public class ReceivingOrderService {
                 throw new IllegalArgumentException("收货单供应商与采购订单供应商不一致");
             }
         }
-        approvalFlowGuard.requireApprovalAccess("receiving-acceptance", "receiving-approval",
-                number(order.get("warehouseDeptId")), number(order.get("receiverId")));
+        if (!approvalFlowGuard.recordDecision("receiving-acceptance", "receiving-approval", receivingNo,
+                number(order.get("warehouseDeptId")), number(order.get("receiverId")), true))
+            return Map.of("receivingNo", receivingNo, "status", "draft", "approvalRecorded", true);
         List<Long> currentProducts = jdbcTemplate.queryForList(
                 "SELECT DISTINCT product_id FROM receiving_order_item WHERE receiving_order_id = ? FOR SHARE",
                 Long.class, receivingOrderId);

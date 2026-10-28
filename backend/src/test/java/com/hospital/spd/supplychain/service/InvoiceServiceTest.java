@@ -57,4 +57,14 @@ class InvoiceServiceTest {
                 eq(new BigDecimal("100.00")), eq(new BigDecimal("13.00")), eq(null), eq("pending_verification"), eq(null));
         verify(auditLogService).record("supplier_invoice", "create", 9L, "FP2026072200001", "supplier invoice created");
     }
+    @Test
+    void refusesAnotherSuppliersSettlementBeforeCreatingInvoice() {
+        when(jdbcTemplate.queryForObject(contains("FROM supplier"), eq(Long.class), eq(1L))).thenReturn(1L);
+        when(jdbcTemplate.queryForList(contains("FROM settlement_bill"), eq(Long.class), eq(99L))).thenReturn(List.of(2L));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.create(Map.of(
+                "supplierId", 1, "invoiceCode", "C1", "invoiceNumber", "N1", "invoiceDate", "2026-10-28",
+                "amount", BigDecimal.TEN, "settlementId", 99)))
+                .hasMessageContaining("同一供应商");
+        org.mockito.Mockito.verifyNoInteractions(documentNumberService, auditLogService);
+    }
 }

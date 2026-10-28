@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'docker/common.ps1')
 if (-not $EnvFile) { $EnvFile = Join-Path $PSScriptRoot '.env' }
 $EnvFile = [IO.Path]::GetFullPath($EnvFile)
+if (-not $InitOnly) { Assert-SpdExistingDatabase $EnvFile }
 Initialize-SpdEnvironment $EnvFile
 $composeArgs = @('compose', '--env-file', $EnvFile, '-f', (Join-Path $PSScriptRoot 'docker-compose.yml'))
 if ($WithAi) { $composeArgs += @('--profile','ai') }

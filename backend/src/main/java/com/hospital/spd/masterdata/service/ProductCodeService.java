@@ -27,6 +27,7 @@ public class ProductCodeService {
      * SPD+000001 style code is allocated from the shared sequence.
      */
     public String resolveNewProductCode(String providedCode, String tenderSubCode) {
+        lockAdmission();
         if (!isBlank(providedCode)) {
             return providedCode.trim();
         }
@@ -43,8 +44,9 @@ public class ProductCodeService {
      * resubmitted application does not conflict with itself.
      */
     public void requireAvailable(String code, String excludedApplicationNo) {
+        lockAdmission();
         Integer productCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM product WHERE product_code = ?",
+                "SELECT COUNT(*) FROM product WHERE product_code = ? FOR SHARE",
                 Integer.class, code);
         if (productCount != null && productCount > 0) {
             throw new IllegalArgumentException("商品编码已存在，请更换商品编码");
@@ -57,10 +59,16 @@ public class ProductCodeService {
             pendingSql += " AND application_no <> ?";
             pendingArgs = new Object[]{code, excludedApplicationNo.trim()};
         }
-        Integer pendingCount = jdbcTemplate.queryForObject(pendingSql, Integer.class, pendingArgs);
+        Integer pendingCount = jdbcTemplate.queryForObject(pendingSql + " FOR SHARE", Integer.class, pendingArgs);
         if (pendingCount != null && pendingCount > 0) {
             throw new IllegalArgumentException("商品编码已存在，请更换商品编码");
         }
+    }
+
+    /** Catalog writers take this mutex before application/product/sequence locks. */
+    void lockAdmission() {
+        jdbcTemplate.update("INSERT INTO sys_sequence (seq_key, seq_value) VALUES (?, 0) ON DUPLICATE KEY UPDATE seq_value = seq_value", "catalog_admission_mutex");
+        jdbcTemplate.queryForList("SELECT seq_key FROM sys_sequence WHERE seq_key = ? FOR UPDATE", "catalog_admission_mutex");
     }
 
     private String nextGeneratedCode() {

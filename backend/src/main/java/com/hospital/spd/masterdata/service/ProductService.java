@@ -170,6 +170,8 @@ public class ProductService {
                 isBlank(request.unit())) {
             throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
+        if (request.purchasePrice() != null && request.purchasePrice().signum() < 0
+                || request.retailPrice() != null && request.retailPrice().signum() < 0) throw new IllegalArgumentException("目录价格不能为负数");
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
         com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");
@@ -177,6 +179,8 @@ public class ProductService {
 
         String productCode = productCodeService.resolveNewProductCode(request.productCode(), request.tenderSubCode());
         productCodeService.requireAvailable(productCode, null);
+        new CatalogDuplicateGuard(jdbcTemplate).requireAvailable(new CatalogDuplicateGuard.Identity(request.productName(), request.specModel(),
+                request.manufacturerName(), request.supplierName(), request.registrationNo()), null);
         String applicationNo = createPendingApplication("新品准入", request, productCode, "医院目录新增提交审批");
         return Map.of("productCode", productCode, "applicationNo", applicationNo);
     }
@@ -188,6 +192,8 @@ public class ProductService {
                 isBlank(request.unit())) {
             throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
         }
+        if (request.purchasePrice() != null && request.purchasePrice().signum() < 0
+                || request.retailPrice() != null && request.retailPrice().signum() < 0) throw new IllegalArgumentException("目录价格不能为负数");
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
         com.hospital.spd.common.QuantityRules.optionalPositive(request.conversionRate(), "包装换算数量");

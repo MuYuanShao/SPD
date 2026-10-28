@@ -86,7 +86,8 @@ public class BatchPriceAdjustmentService {
         if (!"draft".equals(String.valueOf(adjustment.get("status")))) {
             throw new IllegalArgumentException("调价单已处理");
         }
-        approvalFlowGuard.requireApprovalAccess("batch-price-adjustment", "price-adjustment-approval", null, null);
+        if (!approvalFlowGuard.recordDecision("batch-price-adjustment", "price-adjustment-approval", adjustmentNo, null, null, true))
+            return Map.of("adjustmentNo", adjustmentNo, "status", "draft", "approvalRecorded", true);
         Long batchId = ((Number) adjustment.get("batchId")).longValue();
         BigDecimal currentPrice = jdbcTemplate.queryForObject(
                 "SELECT batch_unit_price FROM inventory_batch WHERE batch_id = ? FOR UPDATE",

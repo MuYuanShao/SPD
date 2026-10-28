@@ -154,7 +154,10 @@ public class InventoryService {
         appendLike(where, args, "p.product_name", params.get("productName"));
 
         // Signed packages are already represented in department balances, across all templates.
-        String looseQuantity = "GREATEST(COALESCE(lo.loose_qty, 0) - COALESCE(qpl.signed_qty, 0), 0)";
+        String looseQuantity = "CASE WHEN qpl.template_id = (SELECT MIN(owned.template_id) FROM quota_package_label owned "
+                + "WHERE owned.warehouse_id = qpl.warehouse_id AND owned.product_id = qpl.product_id "
+                + "AND owned.status IN ('pending_print','available','signed')) "
+                + "THEN GREATEST(COALESCE(lo.loose_qty, 0) - COALESCE(qpl.signed_qty, 0), 0) ELSE 0 END";
         String groupedSql = """
                 SELECT w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
                        qpt.template_code AS packageCode, qpt.template_name AS packageName,
@@ -308,7 +311,7 @@ public class InventoryService {
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> createStocktaking(StocktakingRequest request) {
         Map<String, Object> row = findBalance(request.warehouseName(), request.systemBatchNo());
         BigDecimal systemQty = (BigDecimal) row.get("availableQty");
@@ -333,6 +336,7 @@ public class InventoryService {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, stocktakingId, row.get("balanceId"), row.get("productId"), row.get("batchId"), systemQty,
                 actualQty, diffQty, nullIfBlank(request.reason()));
+        captureStocktakingSnapshot(stocktakingId);
         writeAudit("create_stocktaking", stocktakingId, stocktakingNo, "create stocktaking");
         return Map.of("stocktakingNo", stocktakingNo, "diffQty", diffQty);
     }
@@ -341,7 +345,7 @@ public class InventoryService {
      * 新增盘点表：按所选商品范围（高值耗材/可收费耗材/不可收费耗材/定数包）生成该库房散货商品的
      * 盘点明细，库存数量 = 无货位可用余额合计；盘点数量由盘点人录入，差异数量 = 库存数量 - 盘点数量。
      */
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> createStocktakingSheet(StocktakingSheetRequest request) {
         List<Map<String, Object>> balances = loadStocktakingSheetBalances(request);
         Long warehouseId = findStocktakingWarehouseId(request);
@@ -366,6 +370,7 @@ public class InventoryService {
                     """, stocktakingId, ((Number) balance.get("productId")).longValue(),
                     (BigDecimal) balance.get("systemQty"));
         }
+        captureStocktakingSnapshot(stocktakingId);
         writeAudit("create_stocktaking_sheet", stocktakingId, stocktakingNo,
                 "create scope stocktaking sheet with scopes " + request.scopes());
         return Map.of("stocktakingNo", stocktakingNo, "rowCount", balances.size());
@@ -453,6 +458,7 @@ public class InventoryService {
                  WHERE stocktaking_no = ?
                  FOR UPDATE
                 """, stocktakingNo.trim());
+        approvalFlowGuard.requireNotStarted("stocktaking-management", "stocktaking-approval", stocktakingNo);
         if (!"draft".equals(String.valueOf(doc.get("status")))) {
             throw new IllegalArgumentException("盘点表已复核，不能再保存盘点数量");
         }
@@ -476,6 +482,45 @@ public class InventoryService {
         return Map.of("stocktakingNo", stocktakingNo, "updatedRows", updated);
     }
 
+    private void captureStocktakingSnapshot(Long id) {
+        // Plain reads share the explicitly repeatable-read snapshot used for system_qty.
+        // An UPDATE/subquery here would instead read newer events and validate stale quantities.
+        List<Map<String, Object>> items = jdbcTemplate.queryForList("""
+                SELECT item.item_id AS itemId, item.product_id AS productId, doc.warehouse_id AS warehouseId
+                  FROM inventory_stocktaking_item item
+                  JOIN inventory_stocktaking doc ON doc.stocktaking_id = item.stocktaking_id
+                 WHERE item.stocktaking_id = ?
+                """, id);
+        for (Map<String, Object> item : items) {
+            Long anchor = jdbcTemplate.queryForObject("SELECT COALESCE(MAX(event_id), 0) FROM inventory_event WHERE warehouse_id = ? AND product_id = ?",
+                    Long.class, item.get("warehouseId"), item.get("productId"));
+            jdbcTemplate.update("UPDATE inventory_stocktaking_item SET snapshot_event_id = ? WHERE item_id = ?", anchor == null ? 0L : anchor, item.get("itemId"));
+        }
+    }
+
+    private void requireStocktakingSnapshot(Map<String, Object> item, long warehouseId) {
+        Long productId = ((Number) item.get("productId")).longValue();
+        jdbcTemplate.queryForList("SELECT balance_id FROM inventory_balance WHERE warehouse_id = ? AND product_id = ? ORDER BY balance_id FOR UPDATE", warehouseId, productId);
+        List<Long> events = jdbcTemplate.queryForList("SELECT event_id FROM inventory_event WHERE warehouse_id = ? AND product_id = ? ORDER BY event_id DESC LIMIT 1 FOR SHARE", Long.class, warehouseId, productId);
+        long current = events.isEmpty() ? 0 : events.get(0);
+        if (!(item.get("snapshotEventId") instanceof Number snapshot) || snapshot.longValue() != current) {
+            throw new IllegalArgumentException("盘点快照后库存已发生变化或历史快照缺失，请重新盘点");
+        }
+        BigDecimal diff = (BigDecimal) item.get("diffQty");
+        if (diff == null || diff.signum() == 0) return;
+        Long protectedStock = jdbcTemplate.queryForObject("""
+                SELECT (
+                  EXISTS(SELECT 1 FROM product WHERE product_id = ? AND is_high_value = 1 FOR SHARE)
+                  OR EXISTS(SELECT 1 FROM quota_package_label WHERE warehouse_id = ? AND product_id = ?
+                       AND status IN ('pending_print','available','delivered','signed') FOR SHARE)
+                  OR EXISTS(SELECT 1 FROM inventory_batch_trace_code trace JOIN inventory_batch batch ON batch.batch_id = trace.batch_id
+                       WHERE trace.current_warehouse_id = ? AND batch.product_id = ?
+                         AND trace.lifecycle_status NOT IN ('consumed','settled','void','cancelled') FOR SHARE)
+                )
+                """, Long.class, productId, warehouseId, productId, warehouseId, productId);
+        if (protectedStock != null && protectedStock != 0) throw new IllegalArgumentException("高值唯一码或完整定数包库存不能直接按散货盘盈盘亏，请使用追溯身份核对流程");
+    }
+
     private static Object[] prepend(Object first, List<Object> rest) {
         List<Object> args = new ArrayList<>();
         args.add(first);
@@ -495,10 +540,9 @@ public class InventoryService {
         if (!"draft".equals(String.valueOf(doc.get("status")))) {
             throw new IllegalArgumentException("stocktaking document has already been processed");
         }
-        approvalFlowGuard.requireApprovalAccess("stocktaking-management", "stocktaking-approval", null, null);
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
                 SELECT item_id AS itemId, balance_id AS balanceId, product_id AS productId,
-                       batch_id AS batchId, diff_qty AS diffQty, actual_qty AS actualQty
+                       batch_id AS batchId, diff_qty AS diffQty, actual_qty AS actualQty, snapshot_event_id AS snapshotEventId
                   FROM inventory_stocktaking_item
                  WHERE stocktaking_id = ?
                 """, doc.get("stocktakingId"));
@@ -507,6 +551,13 @@ public class InventoryService {
                         || item.get("diffQty") == null)) {
             throw new IllegalArgumentException("请先填写全部明细的合法实盘数量，再复核盘点单");
         }
+        List<Long> productIds = items.stream().map(item -> ((Number) item.get("productId")).longValue()).distinct().sorted().toList();
+        new QuotaPackagePricingService(jdbcTemplate).lockProducts(productIds);
+        for (Map<String, Object> item : items) {
+            requireStocktakingSnapshot(item, ((Number) doc.get("warehouseId")).longValue());
+        }
+        if (!approvalFlowGuard.recordDecision("stocktaking-management", "stocktaking-approval", stocktakingNo, null, null, true))
+            return Map.of("stocktakingNo", stocktakingNo, "status", "draft", "approvalRecorded", true);
         for (Map<String, Object> item : items) {
             BigDecimal diffQty = (BigDecimal) item.get("diffQty");
             if (diffQty == null || diffQty.compareTo(BigDecimal.ZERO) == 0) {

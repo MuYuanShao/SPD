@@ -123,3 +123,21 @@ docker compose --env-file deploy/.env -f deploy/docker-compose.yml stop
 ```
 
 失败时先检查Docker引擎、端口占用、migrate/bootstrap日志、私有.env与现有卷是否匹配。脚本不会删除已有卷，也不会通过关闭Flyway验证来掩盖不兼容。
+
+## 从旧版 Docker 部署升级
+
+先备份原数据库与附件、保留原私有配置，在维护窗口停止旧应用。新启动脚本发现其他SPD数据库卷时会中止，避免静默创建另一套业务库。使用原卷及原凭据准备新的配置文件：
+
+```powershell
+.\deploy\upgrade-legacy-env.ps1 -LegacyEnvFile D:/secure/old.env -DatabaseVolume deploy_spd-mysql-data
+.\deploy\start.ps1 -EnvFile .\deploy\.env.upgraded
+```
+
+```sh
+sh deploy/upgrade-legacy-env.sh /secure/old.env deploy_spd-mysql-data
+sh deploy/start.sh --env-file deploy/.env.upgraded
+```
+
+准备脚本不覆盖原配置、不创建或删除数据库卷。旧应用账号保留为迁移账号，原有触发器定义者身份及权限保持；新运行账号由一次性 database-accounts 服务授予DML权限。该服务在已有卷上也执行，随后才允许迁移和启动应用。已有账号密码不自动修改，凭据不一致会明确失败。请在无同名SPD环境变量覆盖的新终端运行，并核对迁移前后商品、余额、结算记录。
+
+`SPD_MYSQL_VOLUME` 显式指定原数据库卷。确需另开一套空数据库时须明确设置 `SPD_ALLOW_NEW_DATABASE=true`；这不属于数据迁移。此脚本不能替代数据库备份与真实升级演练。

@@ -97,6 +97,22 @@ class SettlementPointServiceTest {
     }
 
     @Test
+    void actualSaleCreatesOneTraceLinkedSettlementAndRetryCreatesNone() throws Exception {
+        Map<String,Object> charged = new java.util.LinkedHashMap<>(source("high_value_charge", 81L, 301L));
+        charged.put("quantity", BigDecimal.ONE);
+        charged.put("unitPrice", new BigDecimal("20"));
+        when(jdbcTemplate.queryForList(contains("ib.settlement_mode = 'actual_sale'"), eq(81L)))
+                .thenReturn(List.of(charged), List.of(charged), List.of());
+        when(support.nextNo(DocumentKind.SETTLEMENT_BILL)).thenReturn("JS-ACTUAL-SALE");
+        mockGeneratedKey(53L);
+        assertThat(service.generateForHighValueCharge(81L)).containsExactly("JS-ACTUAL-SALE");
+        assertThat(service.generateForHighValueCharge(81L)).isEmpty();
+        verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(53L),
+                eq("high_value_charge"), eq(81L), eq(101L), eq(201L), eq(301L), eq(BigDecimal.ONE),
+                eq(new BigDecimal("20")), eq(new BigDecimal("20.0000")));
+    }
+
+    @Test
     void repeatedOrWrongPointProducesNoDuplicateSettlement() {
         when(jdbcTemplate.queryForList(contains("ib.settlement_mode = 'actual_sale'"), eq(81L)))
                 .thenReturn(List.of());

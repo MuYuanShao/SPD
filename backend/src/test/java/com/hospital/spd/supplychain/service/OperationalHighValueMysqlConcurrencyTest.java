@@ -375,12 +375,13 @@ class OperationalHighValueMysqlConcurrencyTest {
 
         Long bill = jdbcTemplate.queryForObject("SELECT settlement_id FROM settlement_bill WHERE settlement_no=?",
                 Long.class, "JS-" + suffix + "1");
-        // Receipt-triggered high-value settlement has no billing callback or trace link yet.
+        // A legacy receipt retains its original explicit high-value snapshot even without a trace link.
         jdbcTemplate.update("""
-                INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount)
-                VALUES(?,'receiving_order_item',?,?,?,1,10,10)
+                INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,product_id,batch_id,quantity,unit_price,amount,goods_type)
+                VALUES(?,'receiving_order_item',?,?,?,1,10,10,'high_value')
                 """, bill, 100000000L + label, fixture.get("product_id"), fixture.get("batch_id"));
         Long highValueItem = jdbcTemplate.queryForObject("SELECT MAX(item_id) FROM settlement_bill_item WHERE settlement_id=?", Long.class, bill);
+        jdbcTemplate.update("UPDATE product SET is_high_value=0 WHERE product_id=?", fixture.get("product_id"));
         var highValuePage = readModel.list("settlement", Map.of("goodsType", "high_value", "size", "200"));
         var highValueRows = (List<Map<String, Object>>) highValuePage.get("rows");
         assertThat(highValueRows).filteredOn(row -> ((Number) row.get("settlementItemId")).longValue() == highValueItem)
@@ -555,9 +556,8 @@ class OperationalHighValueMysqlConcurrencyTest {
                   JOIN product p ON p.product_id = bal.product_id
                  WHERE bal.balance_id = ?
                 """, fixtureBalanceId);
-        String supplierCode = "IT-SUP-" + UUID.randomUUID().toString().replace("-", "");
-        jdbcTemplate.update("INSERT INTO supplier(supplier_code,supplier_name) VALUES (?,?)", supplierCode, supplierCode);
-        Long supplierId = jdbcTemplate.queryForObject("SELECT supplier_id FROM supplier WHERE supplier_code=?", Long.class, supplierCode);
+        Long supplierId = jdbcTemplate.queryForObject("SELECT MIN(supplier_id) FROM supplier WHERE deleted=0 AND status=1", Long.class);
+        assertThat(supplierId).isNotNull();
         jdbcTemplate.update("UPDATE inventory_batch SET supplier_id=?, settlement_mode='actual_sale' WHERE batch_id=?", supplierId, fixture.get("batchId"));
         String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 16);
         String uniqueCode = "IT-UID-" + suffix;

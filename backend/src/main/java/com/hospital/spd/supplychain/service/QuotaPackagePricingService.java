@@ -260,6 +260,7 @@ public class QuotaPackagePricingService {
                     if (label.get("traceCodeId") != null) copy.put("traceCodeId", label.get("traceCodeId"));
                 }
             }
+            if (label != null) copy.put("goodsType", "quota_package");
             if (label != null && label.get("unitPrice") != null) {
                 if (label.get("productId") instanceof Number productId
                         && productId.longValue() != ((Number) row.get("productId")).longValue()) {

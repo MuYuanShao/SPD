@@ -20,6 +20,13 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public org.springframework.http.ResponseEntity<ApiResponse<Void>> handleAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        log.warn("Data-scope or operation access denied");
+        return org.springframework.http.ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.error(403, "无权访问当前数据或执行此操作"));
+    }
+
     /** 业务参数校验失败（由 Controller 中 throw IllegalArgumentException 触发） */
     @ExceptionHandler(IllegalArgumentException.class)
     public ApiResponse<Void> handleBadRequest(IllegalArgumentException ex) {

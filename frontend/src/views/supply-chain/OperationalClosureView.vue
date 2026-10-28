@@ -259,7 +259,7 @@ const settlementLooseQuantity = computed(() => rows.value.reduce((sum, row) => s
 const settlementHighValueQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.highValueQuantity || 0), 0))
 
 function settlementGoodsLabel(value: unknown) {
-  return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货' } as Record<string, string>)[String(value)] || '-'
+  return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货', unknown: '待核对货型' } as Record<string, string>)[String(value)] || '-'
 }
 
 function changeSettlementGoodsType() {
@@ -1509,6 +1509,7 @@ watch(() => form.productCode, () => {
           <option value="high_value">高值耗材</option>
           <option value="quota_package">定数包</option>
           <option value="loose">散货</option>
+          <option value="unknown">待核对货型</option>
         </select>
         <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行显示包内基本数量。</span>
       </div>

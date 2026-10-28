@@ -76,7 +76,7 @@ class SettlementPointServiceTest {
         verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(51L),
                 eq("receiving_order_item"), eq(41L), eq(101L), eq(201L),
                 org.mockito.ArgumentMatchers.isNull(), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)),
-                eq(new BigDecimal("20.0000")));
+                eq(new BigDecimal("20.0000")), eq("loose"));
         verify(support).writeAudit("settlement_bill", "auto_generate", 51L,
                 "JS2026072400010", "settlement generated automatically at purchase_in");
     }
@@ -93,7 +93,22 @@ class SettlementPointServiceTest {
         assertThat(settlementNos).containsExactly("JS2026072400011");
         verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(52L),
                 eq("department_consumption_item"), eq(71L), eq(101L), eq(201L),
-                eq(301L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)), eq(new BigDecimal("20.0000")));
+                eq(301L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)), eq(new BigDecimal("20.0000")), eq("loose"));
+    }
+
+    @Test
+    void historicalTracedConsumptionKeepsHighValueSnapshotWhenGeneratingSettlement() throws Exception {
+        Map<String,Object> row = new java.util.LinkedHashMap<>(source("department_consumption_item", 71L, null));
+        row.put("highValueBatch", true);
+        when(jdbcTemplate.queryForList(org.mockito.ArgumentMatchers.argThat(sql ->
+                sql.contains("ib.settlement_mode = 'department_consumption'") && sql.contains("AS highValueBatch")), eq(61L)))
+                .thenReturn(List.of(row));
+        when(support.nextNo(DocumentKind.SETTLEMENT_BILL)).thenReturn("JS-HISTORICAL-TYPE");
+        mockGeneratedKey(54L);
+        assertThat(service.generateForConsumption(61L)).containsExactly("JS-HISTORICAL-TYPE");
+        verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(54L),
+                eq("department_consumption_item"), eq(71L), eq(101L), eq(201L), org.mockito.ArgumentMatchers.isNull(),
+                eq(BigDecimal.TEN), eq(BigDecimal.valueOf(2)), eq(new BigDecimal("20.0000")), eq("high_value"));
     }
 
     @Test
@@ -109,7 +124,7 @@ class SettlementPointServiceTest {
         assertThat(service.generateForHighValueCharge(81L)).isEmpty();
         verify(jdbcTemplate).update(contains("INSERT INTO settlement_bill_item"), eq(53L),
                 eq("high_value_charge"), eq(81L), eq(101L), eq(201L), eq(301L), eq(BigDecimal.ONE),
-                eq(new BigDecimal("20")), eq(new BigDecimal("20.0000")));
+                eq(new BigDecimal("20")), eq(new BigDecimal("20.0000")), eq("high_value"));
     }
 
     @Test

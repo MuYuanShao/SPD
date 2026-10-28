@@ -127,10 +127,12 @@ class InventoryStockQueriesMysqlTest {
     void signedPackagesInOtherTemplatesAreExcludedFromLooseStock() {
         jdbc.update("INSERT INTO quota_package_label VALUES (1,1,1,2,5,'signed'),(2,2,1,2,5,'signed')");
         balance(2, 1, 10, 13);
-        for (Map<String, Object> row : rows(service.quotaPackageStock(Map.of("warehouseName", "DEPARTMENT")))) {
-            assertDecimal(row, "packageQty", 5);
-            assertDecimal(row, "looseQty", 3);
-        }
+        List<Map<String, Object>> stock = rows(service.quotaPackageStock(Map.of("warehouseName", "DEPARTMENT")));
+        assertThat(stock).hasSize(2);
+        assertThat(stock.stream().map(row -> (BigDecimal) row.get("looseQty")).reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("3");
+        assertThat(stock.stream().filter(row -> ((BigDecimal) row.get("looseQty")).signum() > 0).count()).isEqualTo(1);
+        assertThat(stock.stream().map(row -> (BigDecimal) row.get("amount")).reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualByComparingTo("26");
+        stock.forEach(row -> assertDecimal(row, "packageQty", 5));
     }
 
     @Test

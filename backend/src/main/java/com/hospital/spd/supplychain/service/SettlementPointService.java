@@ -45,7 +45,7 @@ public class SettlementPointService {
         return createBills(PURCHASE_IN, lockedSourceRows("""
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(ro.receive_time, '%Y-%m') AS settlementPeriod,
                        'receiving_order_item' AS sourceBizType, roi.item_id AS sourceBizId,
-                       roi.product_id AS productId, ib.batch_id AS batchId, NULL AS traceCodeId,
+                       roi.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=roi.product_id AND current_product.is_high_value=1) AS catalogHighValue, ib.batch_id AS batchId, NULL AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
                        roi.qualified_quantity AS quantity, ib.batch_unit_price AS unitPrice,
                        roi.qualified_quantity * ib.batch_unit_price AS amount
                   FROM receiving_order ro
@@ -67,7 +67,7 @@ public class SettlementPointService {
         return createBills(DEPARTMENT_CONSUMPTION, lockedSourceRows("""
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(dc.consume_time, '%Y-%m') AS settlementPeriod,
                        'department_consumption_item' AS sourceBizType, dci.item_id AS sourceBizId,
-                       dci.product_id AS productId, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId,
+                       dci.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=dci.product_id AND current_product.is_high_value=1) AS catalogHighValue, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
                        dci.quantity, dci.unit_price AS unitPrice, dci.amount
                   FROM department_consumption dc
                   JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
@@ -177,7 +177,7 @@ public class SettlementPointService {
             case PURCHASE_IN -> """
                     SELECT ib.supplier_id AS supplierId, DATE_FORMAT(ro.receive_time, '%Y-%m') AS settlementPeriod,
                            'receiving_order_item' AS sourceBizType, roi.item_id AS sourceBizId,
-                           roi.product_id AS productId, ib.batch_id AS batchId, NULL AS traceCodeId,
+                           roi.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=roi.product_id AND current_product.is_high_value=1) AS catalogHighValue, ib.batch_id AS batchId, NULL AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
                            roi.qualified_quantity AS quantity, ib.batch_unit_price AS unitPrice,
                            roi.qualified_quantity * ib.batch_unit_price AS amount,
                            EXISTS (SELECT 1 FROM settlement_bill_item sbi
@@ -192,7 +192,7 @@ public class SettlementPointService {
             case DEPARTMENT_CONSUMPTION -> """
                     SELECT ib.supplier_id AS supplierId, DATE_FORMAT(dc.consume_time, '%Y-%m') AS settlementPeriod,
                            'department_consumption_item' AS sourceBizType, dci.item_id AS sourceBizId,
-                           dci.product_id AS productId, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId,
+                           dci.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=dci.product_id AND current_product.is_high_value=1) AS catalogHighValue, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
                            dci.quantity, dci.unit_price AS unitPrice, dci.amount,
                            EXISTS (SELECT 1 FROM settlement_bill_item sbi
                                     WHERE sbi.source_biz_type = 'department_consumption_item'
@@ -272,11 +272,11 @@ public class SettlementPointService {
                 jdbcTemplate.update("""
                         INSERT INTO settlement_bill_item (
                           settlement_id, source_biz_type, source_biz_id, product_id, batch_id, trace_code_id,
-                          quantity, unit_price, amount
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          quantity, unit_price, amount, goods_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, settlementId, row.get("sourceBizType"), row.get("sourceBizId"), row.get("productId"),
                         row.get("batchId"), row.get("traceCodeId"), row.get("quantity"),
-                        row.get("unitPrice"), row.get("amount"));
+                        row.get("unitPrice"), row.get("amount"), snapshotGoodsType(row));
             }
             String adverb = "manual_generate".equals(auditAction) ? "manually" : "automatically";
             support.writeAudit("settlement_bill", auditAction, settlementId, settlementNo,
@@ -284,6 +284,13 @@ public class SettlementPointService {
             settlementNos.add(settlementNo);
         }
         return List.copyOf(settlementNos);
+    }
+
+    private static String snapshotGoodsType(Map<String, Object> row) {
+        if ("high_value_charge".equals(row.get("sourceBizType"))) return "high_value";
+        if ("quota_package".equals(row.get("goodsType"))) return "quota_package";
+        if (truthy(row.get("highValueBatch"))) return "high_value";
+        return truthy(row.get("catalogHighValue")) ? "unknown" : "loose";
     }
 
     private static Long number(Object value) {

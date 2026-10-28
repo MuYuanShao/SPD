@@ -97,6 +97,10 @@ public final class DeploymentDatabaseCommand {
             }
             output.println("运行账号权限校验通过：未发现 DDL 权限。");
         }
+        try (Connection connection = DriverManager.getConnection(environment.get("SPD_DB_URL"),
+                environment.get("SPD_FLYWAY_USERNAME"), environment.get("SPD_FLYWAY_PASSWORD"))) {
+            DatabaseSchemaContract.verify(connection);
+        }
         output.println("数据库校验通过，已校验迁移数量：" + result.validateCount);
         return 0;
     }

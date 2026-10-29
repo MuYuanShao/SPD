@@ -185,6 +185,7 @@ public class OperationalDeliveryModule {
                   JOIN inventory_balance bal ON bal.product_id = dri.product_id
                    AND bal.location_id IS NULL AND bal.available_qty > 0
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
+                    AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
                   JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
                   JOIN product p ON p.product_id = bal.product_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
@@ -261,6 +262,7 @@ public class OperationalDeliveryModule {
                     AND packaged.product_id = bal.product_id AND packaged.batch_id = bal.batch_id
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.location_id IS NULL
+                   AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
                  HAVING looseQty > 0
                  ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id
                  FOR UPDATE
@@ -317,12 +319,12 @@ public class OperationalDeliveryModule {
                     SELECT requisition_item_id, SUM(picked_qty) AS picked_qty
                       FROM (
                         SELECT requisition_item_id, SUM(package_quantity) AS picked_qty
-                          FROM spd_delivery_package_binding
+                          FROM spd_delivery_package_binding WHERE recalled = 0
                          GROUP BY requisition_item_id
                         UNION ALL
                         SELECT rt.requisition_item_id, COUNT(*) AS picked_qty
                           FROM department_requisition_trace_code rt
-                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id AND dt.recalled = 0
                          GROUP BY rt.requisition_item_id
                         UNION ALL
                         SELECT requisition_item_id, SUM(quantity) AS picked_qty
@@ -482,6 +484,7 @@ public class OperationalDeliveryModule {
             throw new IllegalArgumentException("申领定数包模板快照缺失，请核对原申请");
         }
         validateLabelSet(labels, labelNos, warehouseId);
+        for (Map<String, Object> label : labels) requirePackageExpiry(((Number) label.get("labelId")).longValue());
         BigDecimal selectedPackageQuantity = labels.stream()
                 .map(label -> (BigDecimal) label.get("packageQuantity"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -557,9 +560,9 @@ public class OperationalDeliveryModule {
         Long sourceWarehouseId = ((Number) route.get("sourceWarehouseId")).longValue();
         Long destinationWarehouseId = ((Number) route.get("destinationWarehouseId")).longValue();
         Integer packageBindingCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM spd_delivery_package_binding WHERE delivery_id = ?", Integer.class, deliveryId);
+                "SELECT COUNT(*) FROM spd_delivery_package_binding WHERE delivery_id = ? AND recalled = 0", Integer.class, deliveryId);
         Integer traceBindingCount = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM spd_delivery_trace_code WHERE delivery_id = ?", Integer.class, deliveryId);
+                "SELECT COUNT(*) FROM spd_delivery_trace_code WHERE delivery_id = ? AND recalled = 0", Integer.class, deliveryId);
         if (traceBindingCount != null && traceBindingCount > 0) {
             Map<String, Object> product = findProduct(String.valueOf(delivery.get("productCode")));
             int signedCount = traceFlowService.signDelivery(deliveryId, deliveryNo,
@@ -633,7 +636,7 @@ public class OperationalDeliveryModule {
         Integer invalid = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*) FROM spd_delivery_package_binding b
                   LEFT JOIN quota_package_label q ON q.label_id = b.label_id
-                 WHERE b.delivery_id = ? AND (
+                 WHERE b.delivery_id = ? AND b.recalled = 0 AND (
                    q.label_id IS NULL OR q.status <> 'delivered' OR q.trace_code_id IS NULL
                    OR q.warehouse_id <> ? OR q.product_id <> b.product_id
                    OR q.package_quantity <> b.package_quantity
@@ -654,7 +657,7 @@ public class OperationalDeliveryModule {
                   FROM spd_delivery_package_binding b
                   JOIN quota_package_label_source s ON s.label_id = b.label_id
                   JOIN quota_package_label qpl ON qpl.label_id = b.label_id AND qpl.status = 'delivered'
-                 WHERE b.delivery_id = ?
+                 WHERE b.delivery_id = ? AND b.recalled = 0
                  FOR UPDATE
                 """, deliveryId);
         if (sources.isEmpty()) {
@@ -663,6 +666,7 @@ public class OperationalDeliveryModule {
         List<Long> signedLabelIds = new ArrayList<>();
         for (Map<String, Object> source : sources) {
             Long labelId = ((Number) source.get("labelId")).longValue();
+            requirePackageExpiry(labelId);
             Long inventoryEventId = support.receiveAvailable(destinationWarehouseId,
                     ((Number) source.get("productId")).longValue(),
                     ((Number) source.get("batchId")).longValue(),
@@ -730,11 +734,11 @@ public class OperationalDeliveryModule {
                 SELECT (
                     SELECT COALESCE(SUM(package_quantity), 0)
                       FROM spd_delivery_package_binding
-                     WHERE requisition_item_id = ?
+                     WHERE requisition_item_id = ? AND recalled = 0
                   ) + (
                     SELECT COUNT(*)
                       FROM department_requisition_trace_code rt
-                      JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                      JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id AND dt.recalled = 0
                      WHERE rt.requisition_item_id = ?
                   ) + (
                     SELECT COALESCE(SUM(quantity), 0)
@@ -775,6 +779,15 @@ public class OperationalDeliveryModule {
                 throw new IllegalArgumentException("所选定数包必须属于本次来源库房");
             }
         }
+    }
+
+    private void requirePackageExpiry(Long labelId) {
+        List<Long> expired = jdbcTemplate.queryForList("""
+                SELECT batch.batch_id FROM quota_package_label_source source
+                  JOIN inventory_batch batch ON batch.batch_id = source.batch_id
+                 WHERE source.label_id = ? AND batch.expire_date < CURRENT_DATE FOR SHARE
+                """, Long.class, labelId);
+        if (!expired.isEmpty()) throw new IllegalArgumentException("定数包来源批次已过期，不能拣配或签收入可用库存");
     }
 
     private Long insertPickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
@@ -859,12 +872,12 @@ public class OperationalDeliveryModule {
                     SELECT requisition_item_id, SUM(picked_qty) AS picked_qty
                       FROM (
                         SELECT requisition_item_id, SUM(package_quantity) AS picked_qty
-                          FROM spd_delivery_package_binding
+                          FROM spd_delivery_package_binding WHERE recalled = 0
                          GROUP BY requisition_item_id
                         UNION ALL
                         SELECT rt.requisition_item_id, COUNT(*) AS picked_qty
                           FROM department_requisition_trace_code rt
-                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id AND dt.recalled = 0
                          GROUP BY rt.requisition_item_id
                         UNION ALL
                         SELECT requisition_item_id, SUM(quantity) AS picked_qty

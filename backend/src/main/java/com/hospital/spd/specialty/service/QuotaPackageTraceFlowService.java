@@ -64,7 +64,7 @@ public class QuotaPackageTraceFlowService {
                   FROM quota_package_label_source qpls
                   JOIN inventory_batch ib ON ib.batch_id = qpls.batch_id
                  WHERE qpls.label_id = ?
-                 ORDER BY qpls.source_id
+                 ORDER BY ib.expire_date IS NULL, ib.expire_date, qpls.source_id
                  LIMIT 1
                 """, labelId);
         Map<String, Object> source = sourceRows.isEmpty() ? Map.of() : sourceRows.get(0);

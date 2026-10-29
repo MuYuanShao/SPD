@@ -31,6 +31,12 @@ class OperationalRiskModuleTest {
     @BeforeEach
     void setUp() {
         module = new OperationalRiskModule(jdbcTemplate, support);
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_id = ?"), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(Map.of("productId", 100L));
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("FROM quota_packing_task_reservation r"), any(Object[].class)))
+                .thenReturn(java.util.List.of());
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("SELECT trace.trace_code_id"), eq(Long.class), any(Object[].class)))
+                .thenReturn(java.util.List.of());
     }
 
     @Test

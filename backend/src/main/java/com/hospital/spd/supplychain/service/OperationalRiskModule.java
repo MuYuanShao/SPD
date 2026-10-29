@@ -93,6 +93,7 @@ public class OperationalRiskModule {
         String batchNo = requireText(body, "batchNo");
         String reason = requireText(body, "reason");
         Long productId = ((Number) product.get("productId")).longValue();
+        new QuotaPackagePricingService(jdbcTemplate).lockProduct(productId);
         List<Map<String, Object>> candidates = recallInventoryRows(productId, scope, warehouseName, batchNo);
         if (candidates.isEmpty()) throw new IllegalArgumentException("所选范围内没有该商品批号的可召回库存");
         Map<String, Object> primary = recall ? jdbcTemplate.queryForMap("""
@@ -133,11 +134,14 @@ public class OperationalRiskModule {
         }, keyHolder);
         Long recallId = Objects.requireNonNull(keyHolder.getKey()).longValue();
 
+        releaseRecallReservations(candidates, productId);
         unpackRecallPackages(candidates, productId, recallId, reason);
         for (Map<String, Object> candidate : candidates) {
             Long sourceWarehouseId = ((Number) candidate.get("warehouseId")).longValue();
             Long batchId = ((Number) candidate.get("batchId")).longValue();
             BigDecimal totalQty = (BigDecimal) candidate.get("totalQty");
+            Long destinationId = recall ? primaryWarehouseId : sourceWarehouseId;
+            isolateTraceUnits(sourceWarehouseId, destinationId, productId, batchId, recallNo, reason);
             if (recall && !sourceWarehouseId.equals(primaryWarehouseId)) {
                 support.transferSpecificBatch(sourceWarehouseId, primaryWarehouseId, productId, batchId, totalQty,
                         "recall_event", recallId, "召回库存回收到一级库：" + reason);
@@ -184,7 +188,7 @@ public class OperationalRiskModule {
                            SUM(package_qty) AS package_qty, SUM(loose_qty + package_qty) AS total_qty
                       FROM (
                         SELECT bal.warehouse_id, bal.product_id, bal.batch_id,
-                               GREATEST(SUM(bal.available_qty) - COALESCE(signed_pkg.package_qty, 0), 0) AS loose_qty,
+                               GREATEST(SUM(bal.available_qty + bal.locked_qty) - COALESCE(signed_pkg.package_qty, 0), 0) AS loose_qty,
                                CAST(0 AS DECIMAL(18,4)) AS package_qty
                           FROM inventory_balance bal
                           LEFT JOIN (
@@ -195,14 +199,14 @@ public class OperationalRiskModule {
                              GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
                           ) signed_pkg ON signed_pkg.warehouse_id = bal.warehouse_id
                             AND signed_pkg.product_id = bal.product_id AND signed_pkg.batch_id = bal.batch_id
-                         WHERE bal.location_id IS NULL AND bal.available_qty > 0
+                         WHERE bal.location_id IS NULL AND (bal.available_qty > 0 OR bal.locked_qty > 0)
                          GROUP BY bal.warehouse_id, bal.product_id, bal.batch_id, signed_pkg.package_qty
                         UNION ALL
                         SELECT qpl.warehouse_id, qpl.product_id, src.batch_id,
                                CAST(0 AS DECIMAL(18,4)) AS loose_qty, SUM(src.source_qty) AS package_qty
                           FROM quota_package_label qpl
                           JOIN quota_package_label_source src ON src.label_id = qpl.label_id
-                         WHERE qpl.status IN ('available', 'signed')
+                         WHERE qpl.status IN ('pending_print', 'available', 'delivered', 'signed')
                          GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
                       ) converted_stock
                      GROUP BY warehouse_id, product_id, batch_id
@@ -223,13 +227,18 @@ public class OperationalRiskModule {
                     SELECT DISTINCT qpl.label_id AS labelId, qpl.label_no AS labelNo, qpl.status
                       FROM quota_package_label qpl
                       JOIN quota_package_label_source src ON src.label_id = qpl.label_id
-                     WHERE qpl.status IN ('available', 'signed') AND qpl.warehouse_id = ?
+                     WHERE qpl.status IN ('pending_print', 'available', 'delivered', 'signed') AND qpl.warehouse_id = ?
                        AND qpl.product_id = ? AND src.batch_id = ?
                      FOR UPDATE
                     """, warehouseId, productId, batchId);
             for (Map<String, Object> label : labels) {
                 Long labelId = ((Number) label.get("labelId")).longValue();
                 String statusBefore = String.valueOf(label.get("status"));
+                if ("delivered".equals(statusBefore)) {
+                    List<Long> deliveries = jdbcTemplate.queryForList("SELECT delivery_id FROM spd_delivery_package_binding WHERE label_id = ? AND recalled = 0 FOR UPDATE", Long.class, labelId);
+                    jdbcTemplate.update("UPDATE spd_delivery_package_binding SET recalled = 1 WHERE label_id = ?", labelId);
+                    for (Long delivery : deliveries) reconcileRecallDelivery(delivery);
+                }
                 List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
                         SELECT batch_id AS batchId, source_qty AS sourceQty, warehouse_id AS warehouseId
                           FROM quota_package_label_source WHERE label_id = ?
@@ -237,14 +246,14 @@ public class OperationalRiskModule {
                 BigDecimal unpacked = BigDecimal.ZERO;
                 for (Map<String, Object> source : sources) {
                     BigDecimal sourceQty = (BigDecimal) source.get("sourceQty");
-                    if ("available".equals(statusBefore)) {
+                    if (!"signed".equals(statusBefore)) {
                         support.receiveAvailable(warehouseId, productId,
                                 ((Number) source.get("batchId")).longValue(), sourceQty,
                                 "quota_unpack_in", "recall_event", recallId, "召回自动解包：" + reason);
                     }
                     unpacked = unpacked.add(sourceQty);
                 }
-                jdbcTemplate.update("UPDATE quota_package_label SET status = 'void', version = version + 1 WHERE label_id = ? AND status IN ('available', 'signed')", labelId);
+                jdbcTemplate.update("UPDATE quota_package_label SET status = 'void', version = version + 1 WHERE label_id = ? AND status IN ('pending_print', 'available', 'delivered', 'signed')", labelId);
                 jdbcTemplate.update("""
                         UPDATE udi_trace_code utc
                         JOIN quota_package_label qpl ON qpl.trace_code_id = utc.trace_code_id
@@ -258,6 +267,73 @@ public class OperationalRiskModule {
                         """, support.nextNo(QUOTA_PACKAGE_EVENT), labelId, statusBefore, unpacked, "召回自动解包：" + reason);
             }
         }
+    }
+
+    private void releaseRecallReservations(List<Map<String, Object>> candidates, Long productId) {
+        for (Map<String, Object> candidate : candidates) {
+            List<Map<String, Object>> reserved = jdbcTemplate.queryForList("""
+                    SELECT r.reservation_id AS reservationId, r.task_id AS taskId,
+                           r.balance_id AS balanceId, r.reserved_qty AS quantity
+                      FROM quota_packing_task_reservation r
+                      JOIN inventory_balance bal ON bal.balance_id = r.balance_id
+                     WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.batch_id = ?
+                       AND r.status = 'reserved' ORDER BY r.reservation_id FOR UPDATE
+                    """, candidate.get("warehouseId"), productId, candidate.get("batchId"));
+            for (Map<String, Object> reservation : reserved) {
+                support.releaseLockedToAvailable(((Number) reservation.get("balanceId")).longValue(), (BigDecimal) reservation.get("quantity"));
+                jdbcTemplate.update("UPDATE quota_packing_task_reservation SET status = 'released' WHERE reservation_id = ? AND status = 'reserved'", reservation.get("reservationId"));
+                jdbcTemplate.update("UPDATE quota_packing_task SET status = 'need_recalculate', reserved_loose_qty = GREATEST(reserved_loose_qty - ?, 0) WHERE task_id = ? AND status IN ('pending_confirm', 'need_recalculate')", reservation.get("quantity"), reservation.get("taskId"));
+            }
+        }
+    }
+
+    private void isolateTraceUnits(Long sourceWarehouse, Long destinationWarehouse, Long productId, Long batchId,
+                                   String recallNo, String reason) {
+        List<Long> units = jdbcTemplate.queryForList("""
+                SELECT trace.trace_code_id FROM inventory_batch_trace_code trace
+                  JOIN inventory_batch batch ON batch.batch_id = trace.batch_id
+                  JOIN udi_trace_code code ON code.trace_code_id = trace.trace_code_id AND code.trace_scope = 'high_value'
+                 WHERE trace.current_warehouse_id = ? AND trace.batch_id = ? AND batch.product_id = ?
+                   AND trace.lifecycle_status NOT IN ('consumed', 'settled', 'void', 'cancelled', 'isolated')
+                 ORDER BY trace.trace_code_id FOR UPDATE
+                """, Long.class, sourceWarehouse, batchId, productId);
+        for (Long traceId : units) {
+            List<Long> deliveries = jdbcTemplate.queryForList("SELECT delivery_id FROM spd_delivery_trace_code WHERE trace_code_id = ? AND recalled = 0 FOR UPDATE", Long.class, traceId);
+            jdbcTemplate.update("UPDATE spd_delivery_trace_code SET recalled = 1 WHERE trace_code_id = ?", traceId);
+            for (Long delivery : deliveries) reconcileRecallDelivery(delivery);
+            jdbcTemplate.update("UPDATE inventory_batch_trace_code SET current_warehouse_id = ?, lifecycle_status = 'isolated' WHERE trace_code_id = ?", destinationWarehouse, traceId);
+            jdbcTemplate.update("""
+                    UPDATE udi_trace_code code JOIN warehouse w ON w.warehouse_id = ?
+                      LEFT JOIN sys_dept d ON d.dept_id = w.dept_id
+                       SET code.current_status = 'isolated', code.risk_level = 'exception',
+                           code.current_location = w.warehouse_name, code.current_department = d.dept_name,
+                           code.last_event_name = '召回隔离', code.last_event_time = NOW()
+                     WHERE code.trace_code_id = ?
+                    """, destinationWarehouse, traceId);
+            jdbcTemplate.update("""
+                    INSERT INTO udi_trace_event (trace_code_id, event_no, event_type, event_name, biz_no, status, remark, sort_order, event_time)
+                    VALUES (?, ?, 'recall_isolation', '召回隔离', ?, 'done', ?, 80, NOW())
+                    """, traceId, support.nextNo(com.hospital.spd.common.service.DocumentKind.UDI_TRACE_EVENT), recallNo, reason);
+        }
+    }
+
+    private void reconcileRecallDelivery(Long deliveryId) {
+        jdbcTemplate.update("""
+                UPDATE spd_delivery_order d SET quantity =
+                  CASE WHEN d.delivery_type = 'package' THEN
+                    (SELECT COALESCE(SUM(b.package_quantity), 0) FROM spd_delivery_package_binding b WHERE b.delivery_id = d.delivery_id AND b.recalled = 0)
+                  ELSE (SELECT COUNT(*) FROM spd_delivery_trace_code t WHERE t.delivery_id = d.delivery_id AND t.recalled = 0) END
+                 WHERE d.delivery_id = ? AND d.status = 'picked'
+                """, deliveryId);
+        jdbcTemplate.update("UPDATE spd_delivery_order SET status = 'cancelled' WHERE delivery_id = ? AND status = 'picked' AND quantity = 0", deliveryId);
+        jdbcTemplate.update("""
+                UPDATE department_requisition r JOIN spd_delivery_order d ON d.requisition_no = r.requisition_no
+                   SET r.status = CASE WHEN
+                       (SELECT COALESCE(SUM(active.quantity), 0) FROM spd_delivery_order active
+                         WHERE active.requisition_no = r.requisition_no AND active.status <> 'cancelled') = 0
+                       THEN 'approved' ELSE 'partial_picked' END
+                 WHERE d.delivery_id = ? AND r.status IN ('picked', 'partial_picked')
+                """, deliveryId);
     }
 
     private static String normalizeScope(String value) {
@@ -302,7 +378,7 @@ public class OperationalRiskModule {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,
                        unit, purchase_price AS purchasePrice
-                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1
+                  FROM product WHERE product_code = ? AND deleted = 0 AND status = 1 FOR UPDATE
                 """, productCode);
     }
 

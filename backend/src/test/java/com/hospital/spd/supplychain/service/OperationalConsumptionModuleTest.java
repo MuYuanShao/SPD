@@ -47,6 +47,8 @@ class OperationalConsumptionModuleTest {
     @BeforeEach
     void setUp() {
         module = new OperationalConsumptionModule(jdbcTemplate, support, quotaPackageTraceFlowService);
+        org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("FROM supplier_invoice"), eq(Long.class), anyLong()))
+                .thenReturn(List.of());
     }
 
     @Test

@@ -123,7 +123,9 @@ public class OperationalClosureReadModel {
 
     public Map<String, Object> list(String type, Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
-
+        if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption", "red-flush").contains(type)) {
+            return scopedDepartmentRecords(type, pageReq);
+        }
         return switch (type) {
             case "shortage" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT task_no AS bizNo, dept_name AS deptName, product_code AS productCode, product_name AS productName,
@@ -227,11 +229,11 @@ public class OperationalClosureReadModel {
                     SELECT requisition_item_id, SUM(pickedQty) AS pickedQty
                       FROM (
                         SELECT requisition_item_id, SUM(package_quantity) AS pickedQty
-                          FROM spd_delivery_package_binding GROUP BY requisition_item_id
+                          FROM spd_delivery_package_binding WHERE recalled = 0 GROUP BY requisition_item_id
                         UNION ALL
                         SELECT rt.requisition_item_id, COUNT(*) AS pickedQty
                           FROM department_requisition_trace_code rt
-                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id
+                          JOIN spd_delivery_trace_code dt ON dt.trace_code_id = rt.trace_code_id AND dt.recalled = 0
                          GROUP BY rt.requisition_item_id
                         UNION ALL
                         SELECT requisition_item_id, SUM(quantity) AS pickedQty
@@ -282,6 +284,34 @@ public class OperationalClosureReadModel {
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
+    private Map<String, Object> scopedDepartmentRecords(String type, PageRequest page) {
+        String select;
+        String from;
+        String dept;
+        String owner;
+        String order;
+        if ("shortage".equals(type)) {
+            select = "task.task_no AS bizNo, task.dept_name AS deptName, task.product_code AS productCode, task.product_name AS productName, task.replenish_qty AS quantity, task.min_qty AS minQty, task.current_qty AS currentQty, task.period_days AS periodDays, task.period_issue_qty AS periodIssueQty, task.avg_daily_issue_qty AS avgDailyIssueQty, task.formula_replenish_qty AS formulaReplenishQty, task.manual_adjusted AS manualAdjusted, task.formula_text AS formulaText, task.status, task.create_time AS createTime";
+            from = " FROM shortage_replenishment_task task";
+            dept = "(SELECT CASE WHEN COUNT(*) = 1 THEN MIN(d.dept_id) ELSE NULL END FROM sys_dept d WHERE d.dept_name = task.dept_name AND d.deleted = 0)";
+            owner = null; order = "task.create_time";
+        } else if ("consumption".equals(type)) {
+            select = "dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode, p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount, dc.status, dc.consume_time AS createTime";
+            from = " FROM department_consumption dc JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id JOIN product p ON p.product_id = item.product_id JOIN sys_dept d ON d.dept_id = dc.dept_id";
+            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time";
+        } else {
+            select = "flush.flush_no AS bizNo, flush.source_consumption_no AS sourceNo, flush.flush_type AS flushType, flush.status, flush.remark, flush.create_time AS createTime";
+            from = " FROM consumption_red_flush flush JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no";
+            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "flush.create_time";
+        }
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, dept, owner);
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+        args.add(page.size()); args.add(page.offset());
+        return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " DESC LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
+    }
+
     private Map<String, Object> deliveryRecords(Map<String, String> params, PageRequest pageReq) {
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
@@ -299,7 +329,7 @@ public class OperationalClosureReadModel {
         Long total = jdbcTemplate.queryForObject("""
                 SELECT COUNT(DISTINCT d.delivery_id)
                   FROM spd_delivery_order d
-                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
+                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id AND b.recalled = 0
                   LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
                 """ + where, Long.class, countArgs);
 
@@ -314,7 +344,7 @@ public class OperationalClosureReadModel {
                        DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
                        DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM spd_delivery_order d
-                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id
+                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id AND b.recalled = 0
                   LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
                 """ + where + """
                  GROUP BY d.delivery_id, d.delivery_no, d.requisition_no, d.dept_name, d.warehouse_name,

@@ -103,7 +103,7 @@ public class UdiTraceabilityService {
                        te.sort_order AS sortOrder
                   FROM udi_trace_event te
                  WHERE te.trace_code_id = ?
-                 ORDER BY te.sort_order ASC, te.event_time ASC
+                 ORDER BY te.event_time ASC, te.trace_event_id ASC
                 """, traceCodeId);
 
         Map<String, Object> result = new LinkedHashMap<>();

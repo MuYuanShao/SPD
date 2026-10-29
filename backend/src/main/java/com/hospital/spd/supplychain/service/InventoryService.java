@@ -314,6 +314,7 @@ public class InventoryService {
     @Transactional(isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public Map<String, Object> createStocktaking(StocktakingRequest request) {
         Map<String, Object> row = findBalance(request.warehouseName(), request.systemBatchNo());
+        requireNoReservations(((Number) row.get("warehouseId")).longValue(), ((Number) row.get("productId")).longValue());
         BigDecimal systemQty = (BigDecimal) row.get("availableQty");
         BigDecimal actualQty = com.hospital.spd.common.QuantityRules.nonNegative(request.actualQty() == null ? BigDecimal.ZERO : request.actualQty(), "实盘数量");
         BigDecimal diffQty = actualQty.subtract(systemQty);
@@ -349,6 +350,10 @@ public class InventoryService {
     public Map<String, Object> createStocktakingSheet(StocktakingSheetRequest request) {
         List<Map<String, Object>> balances = loadStocktakingSheetBalances(request);
         Long warehouseId = findStocktakingWarehouseId(request);
+        if (balances.isEmpty()) throw new IllegalArgumentException("所选范围没有可盘点的库房目录商品");
+        for (Map<String, Object> balance : balances) {
+            requireNoReservations(warehouseId, ((Number) balance.get("productId")).longValue());
+        }
         String stocktakingNo = support.nextNo(INVENTORY_STOCKTAKING);
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
@@ -409,14 +414,20 @@ public class InventoryService {
         return jdbcTemplate.queryForList("""
                 SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       p.unit, SUM(bal.available_qty) AS systemQty
-                  FROM inventory_balance bal
-                  JOIN product p ON p.product_id = bal.product_id AND p.deleted = 0 AND p.status = 1
+                       p.unit, COALESCE(SUM(bal.available_qty), 0) AS systemQty
+                  FROM product p
+                  LEFT JOIN inventory_balance bal ON bal.product_id = p.product_id
+                    AND bal.warehouse_id = ? AND bal.location_id IS NULL
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                 WHERE bal.warehouse_id = ? AND bal.location_id IS NULL AND bal.available_qty > 0
+                 WHERE p.deleted = 0 AND p.status = 1
+                   AND (bal.balance_id IS NOT NULL
+                     OR EXISTS(SELECT 1 FROM warehouse_product_binding binding
+                       WHERE binding.product_id = p.product_id AND binding.warehouse_id = ? AND binding.deleted = 0 AND binding.status = 1)
+                     OR EXISTS(SELECT 1 FROM department_warehouse_catalog catalog
+                       WHERE catalog.product_id = p.product_id AND catalog.warehouse_id = ? AND catalog.deleted = 0 AND catalog.status = 1))
                    AND (
                 """ + scopeWhere + " ) GROUP BY p.product_id, p.product_code, p.product_name, p.spec_model, m.manufacturer_name, p.unit ORDER BY p.product_code",
-                prepend(warehouseId, scopeArgs));
+                new Object[] {warehouseId, warehouseId, warehouseId});
     }
 
     private Long findStocktakingWarehouseId(StocktakingSheetRequest request) {
@@ -506,6 +517,7 @@ public class InventoryService {
         if (!(item.get("snapshotEventId") instanceof Number snapshot) || snapshot.longValue() != current) {
             throw new IllegalArgumentException("盘点快照后库存已发生变化或历史快照缺失，请重新盘点");
         }
+        requireNoReservations(warehouseId, productId);
         BigDecimal diff = (BigDecimal) item.get("diffQty");
         if (diff == null || diff.signum() == 0) return;
         Long protectedStock = jdbcTemplate.queryForObject("""
@@ -519,6 +531,14 @@ public class InventoryService {
                 )
                 """, Long.class, productId, warehouseId, productId, warehouseId, productId);
         if (protectedStock != null && protectedStock != 0) throw new IllegalArgumentException("高值唯一码或完整定数包库存不能直接按散货盘盈盘亏，请使用追溯身份核对流程");
+    }
+
+    private void requireNoReservations(long warehouseId, long productId) {
+        List<Long> reserved = jdbcTemplate.queryForList("""
+                SELECT balance_id FROM inventory_balance
+                 WHERE warehouse_id = ? AND product_id = ? AND locked_qty > 0 FOR UPDATE
+                """, Long.class, warehouseId, productId);
+        if (!reserved.isEmpty()) throw new IllegalArgumentException("商品存在打包预占库存，请先取消或完成预占后重新盘点");
     }
 
     private static Object[] prepend(Object first, List<Object> rest) {
@@ -572,11 +592,13 @@ public class InventoryService {
                             ((Number) doc.get("stocktakingId")).longValue(),
                             "stocktaking approval generated inventory adjustment");
                 } else {
-                    Long batchId = jdbcTemplate.queryForObject("""
-                            SELECT batch_id FROM inventory_batch
-                             WHERE product_id = ?
-                             ORDER BY batch_id DESC LIMIT 1
-                            """, Long.class, productId);
+                    List<Long> batches = jdbcTemplate.queryForList("""
+                            SELECT batch_id FROM inventory_balance WHERE warehouse_id = ? AND product_id = ?
+                            UNION
+                            SELECT batch_id FROM inventory_event WHERE warehouse_id = ? AND product_id = ?
+                            """, Long.class, doc.get("warehouseId"), productId, doc.get("warehouseId"), productId);
+                    if (batches.size() != 1) throw new IllegalArgumentException("盘盈无法唯一确定本库房来源批次，请按批次盘点或先登记合法收货来源");
+                    Long batchId = batches.get(0);
                     support.receiveAvailable(((Number) doc.get("warehouseId")).longValue(), productId, batchId,
                             diffQty, "stocktaking_profit", "inventory_stocktaking",
                             ((Number) doc.get("stocktakingId")).longValue(),

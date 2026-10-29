@@ -151,7 +151,7 @@ public class HighValueTraceFlowService {
                   FROM spd_delivery_trace_code dtc
                   JOIN udi_trace_code tc ON tc.trace_code_id = dtc.trace_code_id
                   JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = tc.trace_code_id
-                 WHERE dtc.delivery_id = ? AND ibtc.current_warehouse_id = ? AND ibtc.lifecycle_status = 'delivery_picked'
+                 WHERE dtc.delivery_id = ? AND dtc.recalled = 0 AND ibtc.current_warehouse_id = ? AND ibtc.lifecycle_status = 'delivery_picked'
                  FOR UPDATE
                 """, deliveryId, sourceWarehouseId);
         for (Map<String, Object> row : rows) {

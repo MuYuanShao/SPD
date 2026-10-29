@@ -25,10 +25,17 @@ public class OperationalShortageModule {
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
+    private final DepartmentRequisitionAccessService access;
 
     public OperationalShortageModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
+        this(jdbcTemplate, support, new DepartmentRequisitionAccessService(jdbcTemplate, com.hospital.spd.common.OperatorContext::system));
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public OperationalShortageModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support, DepartmentRequisitionAccessService access) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
+        this.access = access;
     }
 
     @Transactional
@@ -37,6 +44,7 @@ public class OperationalShortageModule {
         if (deptName.isBlank()) {
             throw new IllegalArgumentException("deptName is required");
         }
+        if (!access.isUnrestricted()) access.resolveDepartment(null, deptName);
         String productCode = text(body, "productCode");
         if (productCode.isBlank()) {
             throw new IllegalArgumentException("productCode is required");
@@ -92,6 +100,10 @@ public class OperationalShortageModule {
     public Map<String, Object> smartAnalyze(Map<String, Object> body) {
         String deptName = text(body, "deptName");
         String warehouseName = text(body, "warehouseName");
+        if (!access.isUnrestricted()) {
+            if (deptName.isBlank()) throw new org.springframework.security.access.AccessDeniedException("请选择有权访问的科室，不能分析全院库存");
+            access.resolveDepartment(null, deptName);
+        }
         if (!deptName.isBlank()) {
             warehouseName = resolveLinkedWarehouse(deptName, warehouseName);
         }
@@ -125,6 +137,10 @@ public class OperationalShortageModule {
      */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> computeDeptWarehouseOutbound(String deptName, String warehouseName) {
+        if (!access.isUnrestricted()) {
+            if (isBlank(deptName)) throw new org.springframework.security.access.AccessDeniedException("不能分析全院库存");
+            access.resolveDepartment(null, deptName);
+        }
         List<Object> args = new ArrayList<>();
         StringBuilder where = new StringBuilder("""
                  WHERE ie.qty_change < 0

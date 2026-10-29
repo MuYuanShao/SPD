@@ -163,10 +163,11 @@ public class InventoryMovementService {
                   FROM inventory_balance bal
                   JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
                  WHERE bal.warehouse_id = ? AND bal.product_id = ? AND bal.batch_id = ?
-                 AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
+                 %s
                   LIMIT 1
                  FOR UPDATE
-                """, warehouseId, productId, batchId);
+                """.formatted("recall_event".equals(sourceType) && "warehouse_transfer_out".equals(eventType)
+                        ? "" : "AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)"), warehouseId, productId, batchId);
         if (rows.isEmpty()) {
             throw new IllegalArgumentException(INSUFFICIENT_INVENTORY_MESSAGE);
         }

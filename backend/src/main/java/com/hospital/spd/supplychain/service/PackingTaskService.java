@@ -240,7 +240,6 @@ public class PackingTaskService {
         for (int i = 0; i < packageCount; i++) {
             String labelNo = support.nextNo(QUOTA_PACKAGE_LABEL);
             Long labelId = insertLabel(labelNo, task);
-            traceFlowService.ensureTrace(labelId);
             sourceIndex = insertLabelSources(labelId, consumed, sourceRemaining, sourceIndex,
                     (BigDecimal) task.get("packageQuantity"), warehouseId);
             quotaPricing.initializePackage(labelId, ((Number) task.get("productId")).longValue());
@@ -810,6 +809,7 @@ public class PackingTaskService {
                                    List<BigDecimal> sourceRemaining, int sourceIndex,
                                    BigDecimal packageQuantity, Long warehouseId) {
         BigDecimal remainingPackageQty = packageQuantity;
+        List<Map<String, Object>> eventLinks = new ArrayList<>();
         while (remainingPackageQty.compareTo(BigDecimal.ZERO) > 0 && sourceIndex < consumed.size()) {
             BigDecimal currentRemaining = sourceRemaining.get(sourceIndex);
             if (currentRemaining.compareTo(BigDecimal.ZERO) <= 0) {
@@ -822,9 +822,7 @@ public class PackingTaskService {
                     INSERT INTO quota_package_label_source (label_id, batch_id, source_qty, unit_price, warehouse_id)
                     VALUES (?, ?, ?, ?, ?)
                     """, labelId, row.get("batchId"), sourceQty, row.get("unitPrice"), warehouseId);
-            support.linkInventoryEventTraceCodes(((Number) row.get("inventoryEventId")).longValue(), List.of(
-                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(
-                            traceFlowService.ensureTrace(labelId), "quota_package", sourceQty)));
+            eventLinks.add(Map.of("eventId", row.get("inventoryEventId"), "quantity", sourceQty));
             sourceRemaining.set(sourceIndex, currentRemaining.subtract(sourceQty));
             remainingPackageQty = remainingPackageQty.subtract(sourceQty);
             if (sourceRemaining.get(sourceIndex).compareTo(BigDecimal.ZERO) <= 0) {
@@ -833,6 +831,11 @@ public class PackingTaskService {
         }
         if (remainingPackageQty.compareTo(BigDecimal.ZERO) > 0) {
             throw new IllegalArgumentException("打包任务来源批次无法覆盖每包数量");
+        }
+        Long traceId = traceFlowService.ensureTrace(labelId);
+        for (Map<String, Object> link : eventLinks) {
+            support.linkInventoryEventTraceCodes(((Number) link.get("eventId")).longValue(), List.of(
+                    new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(traceId, "quota_package", (BigDecimal) link.get("quantity"))));
         }
         return sourceIndex;
     }

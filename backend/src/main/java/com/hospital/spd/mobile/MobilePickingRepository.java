@@ -17,8 +17,8 @@ public class MobilePickingRepository {
     private final JdbcTemplate jdbc;
     private final DataScopeService scopes;
     private static final String PICKED = """
-            ((SELECT COALESCE(SUM(b.package_quantity),0) FROM spd_delivery_package_binding b WHERE b.requisition_item_id=i.item_id)
-             + (SELECT COUNT(*) FROM department_requisition_trace_code rt JOIN spd_delivery_trace_code dt ON dt.trace_code_id=rt.trace_code_id WHERE rt.requisition_item_id=i.item_id)
+            ((SELECT COALESCE(SUM(b.package_quantity),0) FROM spd_delivery_package_binding b WHERE b.requisition_item_id=i.item_id AND b.recalled=0)
+             + (SELECT COUNT(*) FROM department_requisition_trace_code rt JOIN spd_delivery_trace_code dt ON dt.trace_code_id=rt.trace_code_id WHERE rt.requisition_item_id=i.item_id AND dt.recalled=0)
              + (SELECT COALESCE(SUM(d.quantity),0) FROM spd_delivery_order d WHERE d.requisition_item_id=i.item_id AND d.delivery_type='loose'))
             """;
     private static final String BASE = """

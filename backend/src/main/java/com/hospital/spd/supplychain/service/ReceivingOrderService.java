@@ -585,6 +585,9 @@ public class ReceivingOrderService {
         for (var item : items) {
             com.hospital.spd.common.QuantityRules.positive((BigDecimal) item.get("quantity"), "收货数量");
             com.hospital.spd.common.QuantityRules.nonNegative((BigDecimal) item.get("qualifiedQuantity"), "合格数量");
+            if (((BigDecimal) item.get("qualifiedQuantity")).signum() > 0) {
+                validateDates((Date) item.get("productionDate"), (Date) item.get("expireDate"), true);
+            }
         }
         validateHighValueUdisBeforeInventoryMutation(items);
         validatePurchaseRemainingBeforeInventoryMutation(purchaseOrderIdObject, items);
@@ -671,6 +674,7 @@ public class ReceivingOrderService {
             if (udiCode == null) {
                 continue;
             }
+            if (unitCount == 0) continue;
             if (unitCount != 1) {
                 throw new IllegalArgumentException("每件高值耗材必须使用独立 UDI；录入 UDI 时合格数量只能为 1");
             }
@@ -843,29 +847,29 @@ public class ReceivingOrderService {
         if (purchaseOrderId == null) {
             return;
         }
+        Map<String, BigDecimal> totals = new LinkedHashMap<>();
+        Map<Long, BigDecimal> explicit = new LinkedHashMap<>();
+        Map<String, List<Map<String, Object>>> capacities = new LinkedHashMap<>();
         for (ReceivingItemRequest item : items) {
-            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                    SELECT po.order_status AS orderStatus,
+            List<Map<String, Object>> rows = capacities.computeIfAbsent(item.productCode(), code -> jdbcTemplate.queryForList("""
+                    SELECT po.order_status AS orderStatus, poi.item_id AS purchaseOrderItemId,
                            poi.quantity - poi.received_quantity AS remainingQuantity
                       FROM purchase_order po
                       JOIN purchase_order_item poi ON poi.purchase_order_id = po.purchase_order_id
                       JOIN product p ON p.product_id = poi.product_id
-                     WHERE po.purchase_order_id = ? AND p.product_code = ?
-                     FOR UPDATE
-                    """, purchaseOrderId, item.productCode());
-            if (rows.isEmpty()) {
-                throw new IllegalArgumentException("收货商品不在采购订单明细中");
-            }
-            Map<String, Object> row = rows.get(0);
-            String status = String.valueOf(row.get("orderStatus"));
-            if (!"approved".equals(status) && !"sent".equals(status)) {
-                throw new IllegalArgumentException("采购订单当前状态不允许收货");
-            }
-            com.hospital.spd.common.QuantityRules.positive(item.quantity(), "收货数量");
+                     WHERE po.purchase_order_id = ? AND p.product_code = ? FOR UPDATE
+                    """, purchaseOrderId, code));
+            if (rows.isEmpty()) throw new IllegalArgumentException("收货商品不在采购订单明细中");
+            String status = String.valueOf(rows.get(0).get("orderStatus"));
+            if (!"approved".equals(status) && !"sent".equals(status)) throw new IllegalArgumentException("采购订单当前状态不允许收货");
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
-            BigDecimal remaining = (BigDecimal) row.get("remainingQuantity");
-            if (remaining == null || qualified.compareTo(remaining) > 0) {
-                throw new IllegalArgumentException("验收合格数量超过采购订单剩余可收数量");
+            BigDecimal allRemaining = rows.stream().map(row -> (BigDecimal) row.get("remainingQuantity")).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (totals.merge(item.productCode(), qualified, BigDecimal::add).compareTo(allRemaining) > 0) throw new IllegalArgumentException("验收合格数量超过采购订单剩余可收数量");
+            if (item.purchaseOrderItemId() != null) {
+                BigDecimal remaining = rows.stream().filter(row -> row.get("purchaseOrderItemId") instanceof Number id && id.longValue() == item.purchaseOrderItemId())
+                        .map(row -> (BigDecimal) row.get("remainingQuantity")).findFirst()
+                        .orElseThrow(() -> new IllegalArgumentException("指定采购明细与收货订单或商品不一致"));
+                if (explicit.merge(item.purchaseOrderItemId(), qualified, BigDecimal::add).compareTo(remaining) > 0) throw new IllegalArgumentException("指定采购明细剩余可收数量不足");
             }
         }
     }
@@ -979,6 +983,7 @@ public class ReceivingOrderService {
             }
             com.hospital.spd.common.QuantityRules.positive(item.quantity(), "收货数量");
             BigDecimal qualified = item.qualifiedQuantity() == null ? item.quantity() : item.qualifiedQuantity();
+            validateDates(parseDate(item.productionDate()), parseDate(item.expireDate()), qualified.signum() > 0);
             BigDecimal unqualified = item.unqualifiedQuantity() == null ? BigDecimal.ZERO : item.unqualifiedQuantity();
             com.hospital.spd.common.QuantityRules.nonNegative(qualified, "合格数量");
             com.hospital.spd.common.QuantityRules.nonNegative(unqualified, "不合格数量");
@@ -987,6 +992,13 @@ public class ReceivingOrderService {
                 throw new IllegalArgumentException("合格数量与不合格数量之和必须等于收货数量");
             }
         }
+    }
+
+    private static void validateDates(Date production, Date expiry, boolean accept) {
+        LocalDate today = LocalDate.now();
+        if (production != null && production.toLocalDate().isAfter(today)) throw new IllegalArgumentException("生产日期不能晚于今天");
+        if (accept && expiry != null && expiry.toLocalDate().isBefore(today)) throw new IllegalArgumentException("耗材已过期，不能验收入可用库存");
+        if (production != null && expiry != null && production.after(expiry)) throw new IllegalArgumentException("生产日期不能晚于有效期");
     }
 
     private static void requireSingleStateChange(int updated) {

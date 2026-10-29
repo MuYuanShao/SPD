@@ -157,6 +157,10 @@ public class OperationalConsumptionModule {
         if (settlements.stream().anyMatch(row -> "confirmed".equals(row.get("status")))) {
             throw new IllegalArgumentException("该消耗已确认结算，不能反消耗；请先按财务红冲流程处理结算单");
         }
+        for (Map<String, Object> bill : settlements) {
+            List<Long> invoices = jdbcTemplate.queryForList("SELECT invoice_id FROM supplier_invoice WHERE settlement_id = ? FOR UPDATE", Long.class, bill.get("settlementId"));
+            if (!invoices.isEmpty()) throw new IllegalArgumentException("该消耗结算单已关联发票，请先完成发票与结算的财务撤销处理，不能直接反消耗");
+        }
         if ("quota_package_label".equals(String.valueOf(consumption.get("relatedBizType")))
                 && consumption.get("relatedBizId") instanceof Number labelId) {
             quotaPackageTraceFlowService.reverseConsumption(labelId.longValue(), consumptionNo);
@@ -247,7 +251,7 @@ public class OperationalConsumptionModule {
                        qpl.package_quantity AS packageQuantity,
                        p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, p.unit,
-                       w.warehouse_name AS warehouseName
+                       w.warehouse_name AS warehouseName, w.dept_id AS deptId
                   FROM quota_package_label qpl
                   LEFT JOIN udi_trace_code tc ON tc.trace_code_id = qpl.trace_code_id
                   JOIN product p ON p.product_id = qpl.product_id AND p.deleted = 0 AND p.status = 1
@@ -257,6 +261,7 @@ public class OperationalConsumptionModule {
                 """, code, code, code);
         if (!labels.isEmpty()) {
             Map<String, Object> row = labels.get(0);
+            requireResolvedDepartment(row);
             row.put("sourceType", "package");
             row.put("sourceCode", code);
             return row;
@@ -266,20 +271,29 @@ public class OperationalConsumptionModule {
                 SELECT utc.udi_code AS udiCode, utc.unique_code AS uniqueCode,
                        utc.product_code AS productCode, utc.product_name AS productName,
                        utc.spec_model AS specModel, p.unit,
-                       utc.current_location AS warehouseName
+                       utc.current_location AS warehouseName, w.dept_id AS deptId
                   FROM udi_trace_code utc
+                  LEFT JOIN inventory_batch_trace_code bt ON bt.trace_code_id = utc.trace_code_id
+                  LEFT JOIN warehouse w ON w.warehouse_id = bt.current_warehouse_id
                   LEFT JOIN product p ON p.product_code = utc.product_code AND p.deleted = 0 AND p.status = 1
                  WHERE utc.udi_code = ? OR utc.unique_code = ?
                  LIMIT 1
                 """, code, code);
         if (!traces.isEmpty()) {
             Map<String, Object> row = traces.get(0);
+            requireResolvedDepartment(row);
             row.put("sourceType", "udi");
             row.put("sourceCode", code);
             return row;
         }
 
         throw new IllegalArgumentException("未找到该定数包码/UDI/唯一码对应的商品");
+    }
+
+    private void requireResolvedDepartment(Map<String, Object> row) {
+        if (operatorContextProvider.current().canViewAllData()) return;
+        if (!(row.get("deptId") instanceof Number dept)) throw new org.springframework.security.access.AccessDeniedException("追溯码不属于可访问的科室库房");
+        new DepartmentRequisitionAccessService(jdbcTemplate, operatorContextProvider).requireDepartment(dept.longValue());
     }
 
     private Map<String, Object> findProduct(String productCode) {

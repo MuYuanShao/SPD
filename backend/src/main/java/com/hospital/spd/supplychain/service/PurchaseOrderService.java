@@ -347,7 +347,10 @@ public class PurchaseOrderService {
             ));
         }
 
+        if (items.isEmpty()) throw new IllegalArgumentException("采购需求至少需要一条明细");
         Long analysisId = nullableLong(request.get("analysisId"));
+        Map<String, BigDecimal> adjustedByProduct = new LinkedHashMap<>();
+        java.util.Set<String> adjustmentKeys = new java.util.HashSet<>();
         String analysisNo = null;
         BigDecimal adjustedTotal = null;
         if (analysisId != null) {
@@ -384,6 +387,9 @@ public class PurchaseOrderService {
                 if (updated != 1) {
                     throw new IllegalArgumentException("analysis adjustment does not match the analysis snapshot");
                 }
+                com.hospital.spd.common.QuantityRules.nonNegative(quantity, "分析调整数量");
+                if (!adjustmentKeys.add(warehouseCode + ":" + productCode)) throw new IllegalArgumentException("分析调整明细不能重复");
+                adjustedByProduct.merge(productCode, quantity, BigDecimal::add);
                 adjustedTotal = adjustedTotal.add(quantity);
             }
         }
@@ -413,6 +419,15 @@ public class PurchaseOrderService {
             validatedItems.add(Map.of("product", product, "quantity", quantity, "suggested", suggested));
         }
 
+        if (analysisId != null) {
+            Map<String, BigDecimal> demandByProduct = new LinkedHashMap<>();
+            for (Map<String, Object> item : items) demandByProduct.merge(stringValue(item.get("productCode")), decimalValue(item.get("quantity"), BigDecimal.ZERO), BigDecimal::add);
+            adjustedByProduct.entrySet().removeIf(entry -> entry.getValue().signum() == 0);
+            if (!adjustedByProduct.keySet().equals(demandByProduct.keySet()) || adjustedByProduct.entrySet().stream()
+                    .anyMatch(entry -> entry.getValue().compareTo(demandByProduct.get(entry.getKey())) != 0)) {
+                throw new IllegalArgumentException("采购需求商品及数量必须与分析调整结果一致");
+            }
+        }
         String demandNo = support.nextNo(PURCHASE_DEMAND);
         OperatorContext operator = operatorContextProvider.current();
         for (Map<String, Object> item : validatedItems) {

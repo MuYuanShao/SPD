@@ -329,6 +329,7 @@ async function openEditModal(row: ReceivingOrderRow) {
 }
 
 function changeSourceType() {
+  form.items.forEach(item => { item.purchaseOrderItemId = undefined })
   form.purchaseOrderNo = ''
   clearSupplier()
 }

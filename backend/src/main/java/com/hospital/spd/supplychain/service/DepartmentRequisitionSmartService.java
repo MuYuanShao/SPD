@@ -223,6 +223,9 @@ public class DepartmentRequisitionSmartService {
                        COALESCE((SELECT SUM(-ie.qty_change) FROM inventory_event ie
                                   WHERE ie.warehouse_id = dwc.warehouse_id AND ie.product_id = dwc.product_id
                                     AND ie.qty_change < 0
+                                    AND NOT EXISTS (SELECT 1 FROM department_consumption reversed
+                                      WHERE ie.source_biz_type = 'department_consumption'
+                                        AND reversed.consumption_id = ie.source_biz_id AND reversed.status = 'reversed')
                                     AND ie.event_type IN ('department_consumption_out', 'quota_package_scan_out', 'high_value_billing_deduct')
                                     AND ie.event_time >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL %s DAY)), 0) AS periodDemand,
                        COALESCE((SELECT SUM(ib.available_qty) FROM inventory_balance ib

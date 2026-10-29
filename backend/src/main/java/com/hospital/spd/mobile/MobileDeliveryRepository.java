@@ -57,12 +57,12 @@ public class MobileDeliveryRepository {
                 SELECT q.label_id, q.label_no, COALESCE(t.unique_code, ''), q.status
                 FROM spd_delivery_package_binding b JOIN quota_package_label q ON q.label_id = b.label_id
                 LEFT JOIN udi_trace_code t ON t.trace_code_id = q.trace_code_id
-                WHERE b.delivery_id = ? ORDER BY q.label_id
+                WHERE b.delivery_id = ? AND b.recalled = 0 ORDER BY q.label_id
                 """ + suffix, (rs, row) -> new CheckItem("package", rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)), id));
         items.addAll(jdbc.query("""
                 SELECT t.trace_code_id, t.unique_code, COALESCE(t.udi_code, ''), t.current_status
                 FROM spd_delivery_trace_code b JOIN udi_trace_code t ON t.trace_code_id = b.trace_code_id
-                WHERE b.delivery_id = ? ORDER BY t.trace_code_id
+                WHERE b.delivery_id = ? AND b.recalled = 0 ORDER BY t.trace_code_id
                 """ + suffix, (rs, row) -> new CheckItem("trace", rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4)), id));
         // Read the immutable source allocations for this delivery, never the product's current stock batches.
         List<DeliveryBatch> batches=jdbc.query("""

@@ -13,11 +13,11 @@ import java.util.Objects;
 /** Materialises one incremental inventory movement snapshot per business day and inventory batch. */
 @Service
 public class DailyInventorySummaryService {
-    private static final int CALCULATION_VERSION = 2;
+    private static final int CALCULATION_VERSION = 3;
 
     private enum MovementCategory {
         INBOUND(List.of(
-                "purchase_receive_in", "warehouse_transfer_in", "stocktaking_profit",
+                "purchase_receive_in", "delivery_sign_in", "warehouse_transfer_in", "stocktaking_profit",
                 "quota_package_delivery_sign_in", "department_consumption_reverse_in",
                 "quota_unpack_in", "quota_terminate_in")),
         RETURN(List.of("supplier_return_out", "warehouse_return_out", "purchase_return_out")),
@@ -125,7 +125,8 @@ public class DailyInventorySummaryService {
                        COALESCE(previous.closing_quantity, 0) + COALESCE(m.inbound_qty, 0)
                          - COALESCE(m.return_qty, 0) - COALESCE(m.requisition_qty, 0)
                          - COALESCE(m.consumption_qty, 0) - COALESCE(m.scrap_qty, 0),
-                       COALESCE(ib.batch_unit_price, previous.unit_price, 0), ?
+                """ + historicalPrice("k.batch_id", businessDate) + """
+                       , ?
                   FROM keys_for_day k
                   LEFT JOIN inventory_daily_summary previous
                     ON previous.business_date = ? AND previous.warehouse_id = k.warehouse_id
@@ -182,7 +183,9 @@ public class DailyInventorySummaryService {
                 SELECT ?, ?, c.warehouse_id, c.product_id, c.batch_id, ib.supplier_id,
                        c.closing_qty - c.inbound_qty + c.return_qty + c.requisition_qty + c.consumption_qty + c.scrap_qty,
                        c.inbound_qty, c.return_qty, c.requisition_qty, c.consumption_qty, c.scrap_qty,
-                       c.closing_qty, COALESCE(ib.batch_unit_price, 0), ?
+                       c.closing_qty,
+                """ + historicalPrice("c.batch_id", businessDate) + """
+                       , ?
                   FROM calculated c
                   LEFT JOIN inventory_batch ib ON ib.batch_id = c.batch_id
                 ON DUPLICATE KEY UPDATE
@@ -195,6 +198,17 @@ public class DailyInventorySummaryService {
                 """, start, end, start, end, start, end, start, end, start, end, end,
                 date, Timestamp.valueOf(businessDate.plusDays(1).atStartOfDay()), CALCULATION_VERSION);
         assertFormula(date);
+    }
+
+    /** The first later valuation records the price that was still valid at this day's close. */
+    private static String historicalPrice(String batchColumn, LocalDate date) {
+        String boundary = "'" + date.plusDays(1) + "'";
+        return "COALESCE((SELECT e.old_unit_price FROM inventory_event e WHERE e.batch_id = " + batchColumn
+                + " AND e.event_category = 'valuation' AND e.event_time >= " + boundary
+                + " ORDER BY e.event_time, e.event_id LIMIT 1),"
+                + "(SELECT e.new_unit_price FROM inventory_event e WHERE e.batch_id = " + batchColumn
+                + " AND e.event_category = 'valuation' AND e.event_time < " + boundary
+                + " ORDER BY e.event_time DESC, e.event_id DESC LIMIT 1), ib.batch_unit_price, 0)";
     }
 
     private static String movementColumns(String timeCondition) {

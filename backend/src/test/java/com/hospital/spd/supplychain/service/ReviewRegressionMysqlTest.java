@@ -56,14 +56,14 @@ class ReviewRegressionMysqlTest {
         jdbc.execute("CREATE TABLE product(product_id BIGINT PRIMARY KEY,purchase_price DECIMAL(18,4),catalog_price_version BIGINT,unit VARCHAR(20)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE warehouse(warehouse_id BIGINT PRIMARY KEY,warehouse_name VARCHAR(30)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE inventory_batch(batch_id BIGINT PRIMARY KEY,system_batch_no VARCHAR(30)) ENGINE=InnoDB");
-        jdbc.execute("CREATE TABLE inventory_balance(balance_id BIGINT PRIMARY KEY,warehouse_id BIGINT,product_id BIGINT,batch_id BIGINT,available_qty DECIMAL(18,4)) ENGINE=InnoDB");
+        jdbc.execute("CREATE TABLE inventory_balance(balance_id BIGINT PRIMARY KEY,warehouse_id BIGINT,product_id BIGINT,batch_id BIGINT,available_qty DECIMAL(18,4),locked_qty DECIMAL(18,4) DEFAULT 0) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE inventory_event(event_id BIGINT PRIMARY KEY,warehouse_id BIGINT,product_id BIGINT) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE inventory_stocktaking(stocktaking_id BIGINT AUTO_INCREMENT PRIMARY KEY,stocktaking_no VARCHAR(40),warehouse_id BIGINT,stocktaking_type VARCHAR(30),status VARCHAR(30),reason VARCHAR(100)) ENGINE=InnoDB");
         jdbc.execute("CREATE TABLE inventory_stocktaking_item(item_id BIGINT AUTO_INCREMENT PRIMARY KEY,stocktaking_id BIGINT,balance_id BIGINT,product_id BIGINT,batch_id BIGINT,system_qty DECIMAL(18,4),actual_qty DECIMAL(18,4),diff_qty DECIMAL(18,4),diff_reason VARCHAR(100),snapshot_event_id BIGINT) ENGINE=InnoDB");
         jdbc.update("INSERT INTO product VALUES (1,1,1,'unit')");
         jdbc.update("INSERT INTO warehouse VALUES (1,'W1')");
         jdbc.update("INSERT INTO inventory_batch VALUES (1,'B1')");
-        jdbc.update("INSERT INTO inventory_balance VALUES (1,1,1,1,10)");
+        jdbc.update("INSERT INTO inventory_balance(balance_id,warehouse_id,product_id,batch_id,available_qty) VALUES (1,1,1,1,10)");
         jdbc.update("INSERT INTO inventory_event VALUES (1,1,1)");
         doAnswer(call -> {
             Object oldQuantity = call.callRealMethod();
@@ -139,9 +139,9 @@ class ReviewRegressionMysqlTest {
         jdbc.execute("CREATE TABLE quota_package_label (label_no VARCHAR(40), status VARCHAR(30), trace_code_id BIGINT, package_quantity DECIMAL(18,4), product_id BIGINT, warehouse_id BIGINT)");
         jdbc.execute("CREATE TABLE udi_trace_code (trace_code_id BIGINT, udi_code VARCHAR(80), unique_code VARCHAR(80))");
         jdbc.execute("CREATE TABLE product (product_id BIGINT, product_code VARCHAR(30), product_name VARCHAR(30), spec_model VARCHAR(30), unit VARCHAR(10), deleted INT, status INT)");
-        jdbc.execute("CREATE TABLE warehouse (warehouse_id BIGINT, warehouse_name VARCHAR(30))");
+        jdbc.execute("CREATE TABLE warehouse (warehouse_id BIGINT, warehouse_name VARCHAR(30), dept_id BIGINT)");
         jdbc.update("INSERT INTO product VALUES (1,'P1','Syringe','10ml','piece',0,1)");
-        jdbc.update("INSERT INTO warehouse VALUES (1,'Department')");
+        jdbc.update("INSERT INTO warehouse(warehouse_id,warehouse_name) VALUES (1,'Department')");
         jdbc.update("INSERT INTO udi_trace_code VALUES (55,'QP-PKG001','UNIQUE001')");
         jdbc.update("INSERT INTO quota_package_label VALUES ('PKG001','signed',55,10,1,1)");
         var module = new OperationalConsumptionModule(jdbc, mock(SupplyChainSupport.class));

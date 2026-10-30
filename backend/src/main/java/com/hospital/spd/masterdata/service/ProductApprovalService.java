@@ -1382,7 +1382,7 @@ public class ProductApprovalService {
                    AND promoted.source_attachment_id = source.attachment_id AND promoted.deleted = 0
                  WHERE application.application_no = ? AND promoted.attachment_id IS NULL
                 """, applicationNo);
-        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo);
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo,operatorContextProvider);
     }
 
     private void disableHospitalCatalogProduct(String applicationNo) {
@@ -1394,7 +1394,7 @@ public class ProductApprovalService {
                    SET p.status = 0, p.deleted = 0
                  WHERE a.application_no = ? AND p.deleted = 0
                 """, applicationNo);
-        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo);
+        new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo,operatorContextProvider);
     }
 
     private void retireMcpLicenseAttachments(String applicationNo) {

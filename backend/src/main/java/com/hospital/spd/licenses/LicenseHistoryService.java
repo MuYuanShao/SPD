@@ -20,7 +20,9 @@ final class LicenseHistoryService {
                   'ownerType', l.owner_type, 'ownerId', l.owner_id, 'ownerCode', l.owner_code, 'ownerName', l.owner_name,
                   'partyA', l.party_a, 'partyB', l.party_b, 'contractAmount', l.contract_amount,
                   'issueDate', l.issue_date, 'expireDate', l.expire_date, 'status', l.status, 'deleted', l.deleted,
-                  'remark', l.remark, 'attachments', COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT(
+                  'remark', l.remark, 'sourceProductId',CAST(l.source_product_id AS CHAR),'sourceLicenseId',l.source_license_id,
+                  'sourceApplicationNo',l.source_application_no,'sourceUpdatedAt',l.source_updated_at,
+                  'attachments', COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT(
                     'id', a.attachment_id, 'fileName', a.file_name, 'fileType', a.file_type, 'size', a.file_size))
                     FROM sys_attachment a WHERE a.biz_type = 'license' AND a.biz_id = l.license_id AND a.deleted = 0), JSON_ARRAY())
                 ), ?, ? FROM license_document l WHERE l.license_id = ?

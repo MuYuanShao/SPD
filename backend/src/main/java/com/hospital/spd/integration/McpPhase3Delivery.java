@@ -14,18 +14,21 @@ import java.util.*;
 @Service
 public class McpPhase3Delivery {
     @FunctionalInterface public interface Transport {JsonNode request(String method,String path,Object body,String key,Duration timeout) throws Exception;}
+    private sealed interface ClaimResult permits Unclaimed,ClaimedMessage {}
+    private enum Unclaimed implements ClaimResult { EMPTY, CONFIGURATION_BLOCKED }
+    private record ClaimedMessage(String id,long revision,int attempts,JsonNode envelope,String payloadHash) implements ClaimResult {}
     private final JdbcTemplate db;private final Environment env;private final TransactionTemplate tx;
     public McpPhase3Delivery(JdbcTemplate db,Environment env,PlatformTransactionManager manager){this.db=db;this.env=env;this.tx=new TransactionTemplate(manager);}
 
     public void deliver(String target,Transport transport) {
         long deadline=System.nanoTime()+Duration.ofSeconds(30).toNanos();
         for(int count=0;count<50 && System.nanoTime()<deadline;count++) {
-            String lease=UUID.randomUUID().toString();Map<String,Object> row=claim(target,lease);
-            if(row==null)return;
-            if(Boolean.TRUE.equals(row.get("blocked")))continue;
-            String id=row.get("message_id").toString();
+            String lease=UUID.randomUUID().toString();ClaimResult result=claim(target,lease);
+            if(result==Unclaimed.EMPTY)return;
+            if(!(result instanceof ClaimedMessage message))continue;
+            String id=message.id();
             try {
-                JsonNode envelope=Phase3Json.parse(row.get("wire_payload").toString());JsonNode receipt;
+                JsonNode envelope=message.envelope();JsonNode receipt;
                 String base="/integration/instances/"+env.getProperty("SPD_MCP_UI_INSTANCE_ID")+"/phase3";
                 String route=envelope.path("documentType").asText().equals("purchase_plan")?"purchase-plans":"settlements";
                 JsonNode items=envelope.path("payload").path("items");
@@ -33,7 +36,7 @@ public class McpPhase3Delivery {
                 else {
                     ObjectNode header=envelope.deepCopy();((ObjectNode)header.path("payload")).remove("items");
                     var manifest=Phase3Json.MAPPER.createObjectNode();manifest.set("envelope",header);
-                    manifest.put("payloadHash",row.get("payload_hash").toString());manifest.put("totalLines",items.size());manifest.put("totalParts",(items.size()+999)/1000);
+                    manifest.put("payloadHash",message.payloadHash());manifest.put("totalLines",items.size());manifest.put("totalParts",(items.size()+999)/1000);
                     var session=transport.request("POST",base+"/upload-sessions",manifest,id,remaining(deadline)).path("data");
                     if("processed".equals(session.path("state").asText())) receipt=session;
                     else {
@@ -50,14 +53,14 @@ public class McpPhase3Delivery {
                 }
                 String state=receipt.path("state").asText();
                 if(!Set.of("processed","ignored").contains(state))throw new IllegalStateException("第三期回执未确认成功");
-                if(receipt.path("storedRevision").asLong()<((Number)row.get("revision")).longValue())throw new IllegalStateException("第三期回执版本不完整");
+                if(receipt.path("storedRevision").asLong()<message.revision())throw new IllegalStateException("第三期回执版本不完整");
                 db.update("UPDATE mcp_phase3_outbox SET state=?,message='处理成功',lease_id=NULL,lease_until=NULL WHERE message_id=? AND lease_id=?",state,id,lease);
             } catch(Continuation error) {
                 db.update("UPDATE mcp_phase3_outbox SET state='pending',message='大单分片待继续',next_attempt=DATE_ADD(NOW(6),INTERVAL 5 SECOND),lease_id=NULL,lease_until=NULL WHERE message_id=? AND lease_id=?",id,lease);
                 return;
             } catch(Exception error) {
                 if(error instanceof InterruptedException)Thread.currentThread().interrupt();
-                int attempts=((Number)row.get("attempts")).intValue();int delay=Math.min(900,1<<Math.min(attempts,9))+java.util.concurrent.ThreadLocalRandom.current().nextInt(5);
+                int attempts=message.attempts();int delay=Math.min(900,1<<Math.min(attempts,9))+java.util.concurrent.ThreadLocalRandom.current().nextInt(5);
                 db.update("UPDATE mcp_phase3_outbox SET state=CASE WHEN revision<(SELECT doc.revision FROM mcp_phase3_document doc WHERE doc.document_type=mcp_phase3_outbox.document_type AND doc.source_id=mcp_phase3_outbox.source_id) THEN 'superseded' ELSE 'failed' END,message=?,next_attempt=DATE_ADD(NOW(6),INTERVAL ? SECOND),lease_id=NULL,lease_until=NULL WHERE message_id=? AND lease_id=?",
                         safeMessage(error),delay,id,lease);
                 if(Thread.currentThread().isInterrupted())return;
@@ -65,7 +68,7 @@ public class McpPhase3Delivery {
         }
     }
 
-    private Map<String,Object> claim(String target,String lease) {
+    private ClaimResult claim(String target,String lease) {
         return tx.execute(status->{
             var rows=db.queryForList("""
                     SELECT box.message_id FROM mcp_phase3_outbox box
@@ -75,16 +78,18 @@ public class McpPhase3Delivery {
                          AND older.revision<box.revision AND older.state IN ('pending','failed','sending'))
                      ORDER BY box.created_at,box.message_id LIMIT 1 FOR UPDATE SKIP LOCKED
                     """,target);
-            if(rows.isEmpty())return null;
+            if(rows.isEmpty())return Unclaimed.EMPTY;
             String id=rows.get(0).get("message_id").toString();
             // Sort only the narrow identity above: sorting JSON snapshots can exhaust MySQL sort memory.
             var row=new LinkedHashMap<>(db.queryForMap("SELECT * FROM mcp_phase3_outbox WHERE message_id=? FOR UPDATE",id));
             if(row.get("wire_payload")==null) {
                 ObjectNode payload=Phase3Json.parse(row.get("source_payload").toString()).deepCopy();
                 if(row.get("document_type").equals("settlement")) {
-                    String currency=env.getProperty("SPD_MCP_CURRENCY","");String tax=env.getProperty("SPD_MCP_TAX_INCLUDED","");
+                    boolean preserved=payload.has("currency") || payload.has("taxIncluded");
+                    String currency=preserved?payload.path("currency").asText():env.getProperty("SPD_MCP_CURRENCY","");
+                    String tax=preserved?(payload.path("taxIncluded").isBoolean()?payload.path("taxIncluded").asText():""):env.getProperty("SPD_MCP_TAX_INCLUDED","");
                     if(!currency.matches("[A-Z]{3}") || !Set.of("true","false").contains(tax)) {
-                        db.update("UPDATE mcp_phase3_outbox SET state='failed',message='必须明确配置币种和税口径',next_attempt=DATE_ADD(NOW(6),INTERVAL 60 SECOND) WHERE message_id=?",id);return Map.<String,Object>of("blocked",true);
+                        db.update("UPDATE mcp_phase3_outbox SET state='failed',message='必须明确配置币种和税口径',next_attempt=DATE_ADD(NOW(6),INTERVAL 60 SECOND) WHERE message_id=?",id);return Unclaimed.CONFIGURATION_BLOCKED;
                     }
                     payload.put("currency",currency);payload.put("taxIncluded",Boolean.parseBoolean(tax));
                 }
@@ -96,7 +101,8 @@ public class McpPhase3Delivery {
                 db.update("UPDATE mcp_phase3_outbox SET wire_payload=CAST(? AS JSON),payload_hash=? WHERE message_id=?",text,hash,id);
             }
             db.update("UPDATE mcp_phase3_outbox SET state='sending',attempts=attempts+1,lease_id=?,lease_until=DATE_ADD(NOW(6),INTERVAL 60 SECOND),target_key=? WHERE message_id=?",lease,target,id);
-            row.put("attempts",((Number)row.get("attempts")).intValue()+1);return row;
+            return new ClaimedMessage(id,((Number)row.get("revision")).longValue(),((Number)row.get("attempts")).intValue()+1,
+                    Phase3Json.parse(row.get("wire_payload").toString()),row.get("payload_hash").toString());
         });
     }
     private String safeMessage(Exception error) {

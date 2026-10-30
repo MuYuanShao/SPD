@@ -65,8 +65,10 @@ public class McpReceiveService {
     if(applyLicenses) {
       for(var license:decoded) {
         String identity=license.metadata().path("sourceLicenseId").asText(),number=license.metadata().path("licenseCode").asText();
-        if(!identity.startsWith("legacy:") && db.queryForList("SELECT source_license_id FROM mcp_license_approved WHERE source_product_id=? AND source_license_id=?",sourceId,identity).isEmpty())
+        if(!identity.startsWith("legacy:") && db.queryForList("SELECT source_license_id FROM mcp_license_approved WHERE source_product_id=? AND source_license_id=?",sourceId,identity).isEmpty()) {
           db.update("UPDATE mcp_license_approved SET source_license_id=? WHERE source_product_id=? AND source_license_id=?",identity,sourceId,"legacy:"+number);
+          db.update("UPDATE license_document SET source_license_id=? WHERE source_product_id=? AND source_license_id=?",identity,sourceId,"legacy:"+number);
+        }
       }
       if(payload.path("licensesComplete").asBoolean(false)) {
         var complete=new ArrayList<>(decoded);var identities=new HashSet<String>();decoded.forEach(l->identities.add(l.metadata().path("sourceLicenseId").asText()));

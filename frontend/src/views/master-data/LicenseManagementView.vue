@@ -63,6 +63,7 @@ const historyOpen = ref(false)
 const historyLoading = ref(false)
 const revisions = ref<Array<LicenseRevision & { snapshot: Record<string, any> }>>([])
 const historyTitle = ref('')
+const historyLicenseId = ref<number | null>(null)
 const historyFileOpen = ref(false)
 const ownerSearched = ref(false)
 
@@ -91,6 +92,7 @@ function resetOwner() {
   ownerKeyword.value = ''; ownerOptions.value = []
 }
 async function openHistory(row: LicenseRow) {
+  historyLicenseId.value = row.id
   historyOpen.value = true; historyLoading.value = true; revisions.value = []; historyTitle.value = row.licenseName
   try {
     const data = await fetchLicenseHistory(row.id)
@@ -99,7 +101,7 @@ async function openHistory(row: LicenseRow) {
   finally { historyLoading.value = false }
 }
 function operationText(value: string) {
-  return ({ create: '新增', update: '编辑', renew: '续证', attachment: '附件上传', baseline: '历史原版本', delete: '删除' } as Record<string, string>)[value] || value
+  return ({ create: '新增', update: '编辑', renew: '续证', attachment: '附件上传', baseline: '历史原版本', delete: '删除', mcp_import: 'MCP审批发布' } as Record<string, string>)[value] || value
 }
 
 const showAttachmentModal = ref(false)
@@ -327,10 +329,10 @@ async function handleUpload(event: Event) {
   }
 }
 
-async function previewAttachment(attachment: LicenseAttachment) {
+async function previewAttachment(attachment: LicenseAttachment, revision?: number) {
   previewing.value = true
   try {
-    const { blob, contentType } = await fetchLicenseAttachmentBlob(attachment.id)
+    const { blob, contentType } = await fetchLicenseAttachmentBlob(attachment.id, revision !== undefined && historyLicenseId.value !== null ? { licenseId: historyLicenseId.value, revision } : undefined)
     if (previewBlobUrl.value) URL.revokeObjectURL(previewBlobUrl.value)
     previewBlobUrl.value = URL.createObjectURL(blob)
     previewContentType.value = contentType
@@ -427,7 +429,7 @@ onUnmounted(closePreview)
             <td colspan="8" class="approval-empty">暂无{{ activeTabInfo.label }}数据，点击右上角新增</td>
           </tr>
           <tr v-for="row in rows" v-else :key="row.id">
-            <td>{{ row.licenseName }}</td>
+            <td>{{ row.licenseName }}<small v-if="row.sourceSystem === 'MCP-UI'"> · MCP审批同步</small></td>
             <td>{{ row.licenseNo || '-' }}</td>
             <td v-if="isContract">{{ [row.partyA, row.partyB].filter(Boolean).join(' / ') || '-' }}<small>所属：{{ row.ownerName || '未关联' }} / {{ row.ownerCode || '-' }}</small></td>
             <td v-else>{{ [row.ownerName, row.ownerCode].filter(Boolean).join(' / ') || '-' }}</td>
@@ -441,11 +443,11 @@ onUnmounted(closePreview)
             </td>
             <td>{{ row.attachmentCount ?? 0 }}</td>
             <td class="license-actions">
-              <button class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row)"><Pencil :size="14" /> 编辑</button>
-              <button class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row, true)">续证</button>
+              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row)"><Pencil :size="14" /> 编辑</button>
+              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row, true)">续证</button>
               <button class="btn-text" type="button" @click="openHistory(row)">历史</button>
               <button class="btn-text" type="button" @click="openAttachments(row)"><FileText :size="14" /> 附件</button>
-              <button class="btn-text btn-text-danger" type="button" @click="confirmRemove(row)"><Trash2 :size="14" /> 删除</button>
+              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text btn-text-danger" type="button" @click="confirmRemove(row)"><Trash2 :size="14" /> 删除</button>
             </td>
           </tr>
         </tbody>
@@ -668,7 +670,7 @@ onUnmounted(closePreview)
                       :key="file.id"
                       class="lf-btn lf-btn-info lf-btn-sm"
                       type="button"
-                      @click="historyFileOpen = true; closePreview(); previewAttachment(file)"
+                      @click="historyFileOpen = true; closePreview(); previewAttachment(file, revision.revisionNo)"
                     >
                       <Eye :size="13" /> {{ file.fileName }}
                     </button>
@@ -729,7 +731,8 @@ onUnmounted(closePreview)
         </header>
         <div class="la-dialog-body">
           <div class="la-attachment-list">
-            <div class="la-upload-row">
+            <p v-if="attachmentLicense?.sourceSystem === 'MCP-UI'">来源证照由MCP下发并经院内审批生效，变更请在MCP-UI发起。</p>
+            <div v-else class="la-upload-row">
               <label class="lf-btn lf-btn-secondary">
                 <Upload :size="15" /> 上传附件
                 <input type="file" hidden accept=".pdf,.png,.jpg,.jpeg,.gif,.webp" @change="handleUpload" />

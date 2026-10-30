@@ -1,4 +1,17 @@
-import { deleteData, getData, postData, putData } from './http'
+import { deleteData, getData, postData, putData, http } from './http'
+
+/** Resolve private attachment URLs through the authenticated API client, never through a page iframe URL. */
+export async function fetchProductAttachmentBlob(fileUrl: string) {
+  const target = new URL(fileUrl, window.location.origin)
+  if (target.origin !== window.location.origin || !fileUrl.startsWith('/')) throw new Error('附件地址不是院内文件地址')
+  const path = target.pathname.replace(/^\/api\//, '/') + target.search
+  const response = await http.get<Blob>(path, { responseType: 'blob' })
+  if (response.data.type.includes('json')) {
+    const result = JSON.parse(await response.data.text())
+    throw new Error(result.message || '附件读取失败')
+  }
+  return response.data
+}
 
 export interface MasterDataPage {
   title: string

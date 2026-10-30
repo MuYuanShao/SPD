@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 
 /** Captures source facts and their durable versions inside the owning business transaction. */
@@ -87,11 +88,22 @@ public class McpPhase3Outbox {
     }
 
     @Transactional public Map<String,Object> backfill(int size) {
+        return backfill(size,null,null,null);
+    }
+
+    /** Historical capture is always restricted to one supplier and an inclusive source-date range. */
+    @Transactional public Map<String,Object> backfill(int size,String supplierCode,LocalDate startDate,LocalDate endDate) {
         if(size<1 || size>500) throw new IllegalArgumentException("回填批次必须为1至500");
+        if(supplierCode==null || supplierCode.isBlank() || supplierCode.length()>100 || startDate==null || endDate==null || startDate.isAfter(endDate))
+            throw new IllegalArgumentException("回填必须指定供应商及有效的起止日期");
+        var suppliers=db.queryForList("SELECT supplier_id FROM supplier WHERE supplier_code=?",Long.class,supplierCode.trim());
+        if(suppliers.size()!=1)throw new IllegalArgumentException("回填供应商编码不存在或不唯一");
+        long supplier=suppliers.get(0);
+        var from=startDate.atStartOfDay();var until=endDate.plusDays(1).atStartOfDay();
         // A persisted revision remains after deletion; do not infer cancellations from missing rows.
-        var plans=db.queryForList("SELECT plan_no FROM purchase_plan WHERE plan_status IN ('approved','executed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='purchase_plan' AND doc.source_id=purchase_plan.plan_id AND doc.published=1) ORDER BY plan_id LIMIT ?",String.class,size);
+        var plans=db.queryForList("SELECT plan_no FROM purchase_plan WHERE supplier_id=? AND create_time>=? AND create_time<? AND plan_status IN ('approved','executed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='purchase_plan' AND doc.source_id=purchase_plan.plan_id AND doc.published=1) ORDER BY plan_id LIMIT ?",String.class,supplier,from,until,size);
         for(String no:plans) capturePlan(no,true);
-        var bills=db.queryForList("SELECT settlement_id FROM settlement_bill WHERE status IN ('pending_confirm','confirmed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='settlement' AND doc.source_id=settlement_bill.settlement_id AND doc.published=1) ORDER BY settlement_id LIMIT ?",Long.class,size);
+        var bills=db.queryForList("SELECT settlement_id FROM settlement_bill WHERE supplier_id=? AND generate_time>=? AND generate_time<? AND status IN ('pending_confirm','confirmed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='settlement' AND doc.source_id=settlement_bill.settlement_id AND doc.published=1) ORDER BY settlement_id LIMIT ?",Long.class,supplier,from,until,size);
         for(Long id:bills) captureSettlement(id,false,true);
         return Map.of("plans",plans.size(),"settlements",bills.size());
     }
@@ -103,10 +115,23 @@ public class McpPhase3Outbox {
         if(!Set.of("purchase_plan","settlement").contains(kind))throw new IllegalArgumentException("来源类型不合法");
         var doc=db.queryForMap("SELECT revision FROM mcp_phase3_document WHERE document_type=? AND source_id=? FOR UPDATE",kind,source);
         long revision=((Number)doc.get("revision")).longValue();
-        var row=db.queryForMap("SELECT operation,source_updated_at,source_payload FROM mcp_phase3_outbox WHERE document_type=? AND source_id=? AND revision=?",kind,source,revision);
+        var sending=db.queryForList("SELECT message_id FROM mcp_phase3_outbox WHERE document_type=? AND source_id=? AND state='sending' AND lease_until>=NOW(6) FOR UPDATE",kind,source);
+        if(!sending.isEmpty())throw new IllegalArgumentException("仍有消息发送中，请在发送结束或租约到期后重新发布");
+        var row=db.queryForMap("SELECT operation,source_updated_at,source_payload,wire_payload FROM mcp_phase3_outbox WHERE document_type=? AND source_id=? AND revision=?",kind,source,revision);
+        ObjectNode payload=Phase3Json.parse(row.get("source_payload").toString()).deepCopy();
+        if(row.get("wire_payload")!=null)payload=Phase3Json.parse(row.get("wire_payload").toString()).path("payload").deepCopy();
+        // An unsent newer business revision must also retain an earlier transmitted financial basis.
+        if(kind.equals("settlement")) {
+            var frozen=db.queryForList("SELECT wire_payload FROM mcp_phase3_outbox WHERE document_type=? AND source_id=? AND wire_payload IS NOT NULL ORDER BY revision DESC LIMIT 1",String.class,kind,source);
+            if(!frozen.isEmpty()) {
+                var basis=Phase3Json.parse(frozen.get(0)).path("payload");
+                if(!basis.path("currency").asText().matches("[A-Z]{3}") || !basis.path("taxIncluded").isBoolean())throw new IllegalArgumentException("原结算快照缺少有效的币种或税口径");
+                payload.set("currency",basis.get("currency"));payload.set("taxIncluded",basis.get("taxIncluded"));
+            }
+        }
         db.update("UPDATE mcp_phase3_document SET revision=? WHERE document_type=? AND source_id=?",revision+1,kind,source);
-        db.update("UPDATE mcp_phase3_outbox SET state='superseded',message='管理员重新发布最新快照' WHERE document_type=? AND source_id=? AND state IN ('pending','failed')",kind,source);
-        db.update("INSERT INTO mcp_phase3_outbox(message_id,document_type,source_id,revision,operation,source_updated_at,source_payload) VALUES(?,?,?,?,?,?,CAST(? AS JSON))",UUID.randomUUID().toString(),kind,source,revision+1,row.get("operation"),row.get("source_updated_at"),row.get("source_payload").toString());
+        db.update("UPDATE mcp_phase3_outbox SET state='superseded',message='管理员重新发布最新快照',lease_id=NULL,lease_until=NULL WHERE document_type=? AND source_id=? AND (state IN ('pending','failed') OR (state='sending' AND lease_until<NOW(6)))",kind,source);
+        db.update("INSERT INTO mcp_phase3_outbox(message_id,document_type,source_id,revision,operation,source_updated_at,source_payload) VALUES(?,?,?,?,?,?,CAST(? AS JSON))",UUID.randomUUID().toString(),kind,source,revision+1,row.get("operation"),row.get("source_updated_at"),Phase3Json.json(payload));
     }
     private String time(Object value){return value==null?null:McpSourceTime.instant(value,env.getProperty("SPD_MCP_SOURCE_ZONE","Asia/Shanghai"));}
     private static String whole(Object value){BigDecimal q=(BigDecimal)value;com.hospital.spd.common.QuantityRules.positive(q,"来源数量");return q.toBigIntegerExact().toString();}

@@ -357,15 +357,15 @@ public class ProductService {
 
     private List<ProductAttachment> loadProductAttachments(Long productId) {
         return jdbcTemplate.query("""
-                SELECT file_name, category, file_url, valid_date
-                FROM sys_attachment
-                WHERE biz_type = 'product' AND biz_id = ? AND deleted = 0
-                ORDER BY attachment_id DESC
+                SELECT a.attachment_id,a.file_name,a.category,a.valid_date,p.product_code
+                FROM sys_attachment a JOIN product p ON p.product_id=a.biz_id
+                WHERE a.biz_type = 'product' AND a.biz_id = ? AND a.deleted = 0
+                ORDER BY a.attachment_id DESC
                 """, (rs, rowNum) -> new ProductAttachment(
                 rs.getString("file_name"),
                 attachmentCategory(rs.getString("category")),
                 "可查看",
-                rs.getString("file_url"),
+                "/master-data/hospital-products/"+org.springframework.web.util.UriUtils.encodePathSegment(rs.getString("product_code"),java.nio.charset.StandardCharsets.UTF_8)+"/attachments/"+rs.getLong("attachment_id")+"/file",
                 dateString(rs.getDate("valid_date"))
         ), productId);
     }

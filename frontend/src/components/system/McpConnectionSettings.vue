@@ -19,6 +19,9 @@ const phase3Enabled = ref(false)
 const phase3Rows = ref<Phase3Message[]>([])
 const phase3Feedback = ref<Phase3Feedback[]>([])
 const phase3Busy = ref(false)
+const backfillSupplier = ref('')
+const backfillStart = ref('')
+const backfillEnd = ref('')
 const configId = ref<number | null>(null)
 const loading = ref(true)
 const saving = ref(false)
@@ -72,8 +75,14 @@ async function refreshPhase3() {
   finally { phase3Busy.value = false }
 }
 async function runBackfill() {
+  if (!backfillSupplier.value.trim() || !backfillStart.value || !backfillEnd.value || backfillStart.value > backfillEnd.value) {
+    notify.error('请填写来源供应商编码及有效的起止日期')
+    return
+  }
+  const range = { supplierCode: backfillSupplier.value.trim(), startDate: backfillStart.value, endDate: backfillEnd.value }
+  if (!await notify.confirm(`将回填供应商 ${range.supplierCode}，来源生成日期 ${range.startDate} 至 ${range.endDate}（含）的历史数据，每批最多100张计划及100张结算。`)) return
   phase3Busy.value = true
-  try { const result = await backfillPhase3(); notify.success(`本批回填计划 ${result.plans} 条、结算 ${result.settlements} 条；仍有历史数据时可继续回填`); await refreshPhase3() }
+  try { const result = await backfillPhase3(range); notify.success(`供应商 ${range.supplierCode}，${range.startDate} 至 ${range.endDate}：本批回填计划 ${result.plans} 条、结算 ${result.settlements} 条；范围内仍有历史数据时可继续回填`); await refreshPhase3() }
   catch (e) { notify.error(e instanceof Error ? e.message : '历史回填失败') }
   finally { phase3Busy.value = false }
 }
@@ -84,7 +93,7 @@ async function retryMessage(id: string) {
   finally { phase3Busy.value = false }
 }
 async function republishMessage(row: Phase3Message) {
-  if (!await notify.confirm('将最新完整快照以新版本发送至当前配置的医院实例，请先核对目标地址和币种税口径。')) return
+  if (!await notify.confirm('将最新完整快照以新版本发送至当前配置的医院实例。已冻结的结算币种与税口径保持原值，请先核对目标地址。')) return
   phase3Busy.value = true
   try { await republishPhase3(row.documentType, row.sourceId); notify.success('最新快照已重新入队'); await refreshPhase3() }
   catch (e) { notify.error(e instanceof Error ? e.message : '重新发布失败') }
@@ -109,7 +118,14 @@ onMounted(load)
     <p class="connection-description">接口地址：{{ preview }}</p>
     <details class="phase3-status"><summary>医院计划与结算同步状态</summary>
       <p class="connection-description">第三期默认关闭。启用前需在 MCP-UI 服务器启用第三期，并明确配置币种、税口径和接收账户。每批最多回填100张计划及100张结算。</p>
-      <div class="hospital-query-actions"><button type="button" class="btn" :disabled="phase3Busy" @click="refreshPhase3">读取同步与反馈状态</button><button type="button" class="btn" :disabled="phase3Busy || !phase3Enabled" @click="runBackfill">回填历史计划与结算</button></div>
+      <div class="hospital-query-actions"><button type="button" class="btn" :disabled="phase3Busy" @click="refreshPhase3">读取同步与反馈状态</button></div>
+      <form class="hospital-query-grid" @submit.prevent="runBackfill">
+        <label><span>回填供应商编码</span><input v-model.trim="backfillSupplier" aria-label="回填供应商编码" required maxlength="100" placeholder="来源供应商编码，如 SUP-001" :disabled="phase3Busy" /></label>
+        <label><span>来源生成日期起</span><input v-model="backfillStart" aria-label="回填开始日期" type="date" required :max="backfillEnd || undefined" :disabled="phase3Busy" /></label>
+        <label><span>来源生成日期止（含）</span><input v-model="backfillEnd" aria-label="回填结束日期" type="date" required :min="backfillStart || undefined" :disabled="phase3Busy" /></label>
+        <div class="hospital-query-actions"><button type="submit" class="btn" :disabled="phase3Busy || !phase3Enabled">回填历史计划与结算</button></div>
+      </form>
+      <p class="connection-description">仅回填所选供应商及日期内的数据：采购计划按创建日期，结算单按生成日期。重复执行仍限定在此范围。</p>
       <div class="phase3-table"><table class="master-table"><thead><tr><th>类型</th><th>来源编号</th><th>版本</th><th>状态</th><th>处理说明</th><th>操作</th></tr></thead><tbody><tr v-for="row in phase3Rows" :key="row.messageId"><td>{{ row.documentType === 'purchase_plan' ? '采购计划' : '结算单' }}</td><td>{{ row.sourceId }}</td><td>{{ row.revision }}</td><td>{{ phase3State(row.state) }}</td><td>{{ row.message || '等待后台处理' }}</td><td><button type="button" class="btn" :disabled="row.state !== 'failed' || phase3Busy" @click="retryMessage(row.messageId)">重试</button><button type="button" class="btn" :disabled="phase3Busy" @click="republishMessage(row)">重新发布最新快照</button></td></tr><tr v-if="!phase3Rows.length"><td colspan="6">暂无已读取的同步消息。</td></tr></tbody></table></div>
       <h4>供应商协同反馈</h4><div class="phase3-table"><table class="master-table"><thead><tr><th>来源结算</th><th>版本</th><th>供应商</th><th>反馈</th><th>接收时间</th></tr></thead><tbody><tr v-for="row in phase3Feedback" :key="row.messageId"><td>{{ row.settlementId }}</td><td>{{ row.revision }}</td><td>{{ row.supplierCode }}</td><td>{{ ({ received: '已接收', disputed: '存在差异', withdrawn: '撤回反馈' } as Record<string, string>)[row.feedbackType] || row.feedbackType }}</td><td>{{ row.receivedAt }}</td></tr><tr v-if="!phase3Feedback.length"><td colspan="5">暂无已读取的协同反馈。</td></tr></tbody></table></div>
     </details>

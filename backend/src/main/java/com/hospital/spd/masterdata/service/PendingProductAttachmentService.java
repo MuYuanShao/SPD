@@ -100,6 +100,9 @@ public class PendingProductAttachmentService {
                   JOIN pending_product_application p ON p.application_id=?
                   LEFT JOIN product pr ON pr.product_code=p.product_code AND pr.deleted=0
                  WHERE a.deleted=0 AND l.deleted=0
+                   AND NOT EXISTS (SELECT 1 FROM sys_attachment direct
+                     WHERE direct.attachment_id=a.source_attachment_id AND direct.biz_type='pending_product_application'
+                       AND direct.biz_id=p.application_id AND direct.deleted=0)
                    AND (l.license_type<>'contract' OR l.license_no=p.contract_code)
                    AND (
                      (COALESCE(NULLIF(l.owner_type,''),l.license_type)='product' AND

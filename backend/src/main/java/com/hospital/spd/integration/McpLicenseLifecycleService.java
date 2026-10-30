@@ -23,12 +23,16 @@ public class McpLicenseLifecycleService {
     }
   }
   public void publishApproval(String application) {
+    publishApproval(application,com.hospital.spd.common.OperatorContext::system);
+  }
+  public void publishApproval(String application,com.hospital.spd.common.OperatorContextProvider operators) {
     db.update("""
         INSERT INTO mcp_license_approved(source_product_id,source_license_id,product_code,license_code,attachment_id,metadata,application_no,source_updated_at)
         SELECT source_product_id,source_license_id,product_code,license_code,attachment_id,metadata,application_no,source_updated_at
         FROM mcp_license_intent WHERE application_no=?
         ON DUPLICATE KEY UPDATE product_code=VALUES(product_code),license_code=VALUES(license_code),attachment_id=VALUES(attachment_id),metadata=VALUES(metadata),application_no=VALUES(application_no),source_updated_at=VALUES(source_updated_at)
         """,application);
+    new com.hospital.spd.licenses.McpLicenseLedgerService(db,operators).publish(application);
   }
   public void requireEligible(String productCode) {
     for(var row:db.queryForList("SELECT license_code,metadata FROM mcp_license_approved WHERE product_code=?",productCode)) requireValid(row);

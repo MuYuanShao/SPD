@@ -89,6 +89,7 @@ public class LicenseService {
                             WHEN l.issue_date > CURRENT_DATE THEN 'not_effective' ELSE 'valid' END AS effectiveStatus, l.party_a AS partyA, l.party_b AS partyB,
                        l.contract_amount AS contractAmount, l.issue_date AS issueDate,
                        l.expire_date AS expireDate, l.status AS status, l.remark,
+                       CASE WHEN l.source_product_id IS NOT NULL THEN 'MCP-UI' ELSE 'SPD-PR' END AS sourceSystem,
                        (SELECT COUNT(*) FROM sys_attachment a
                          WHERE a.biz_type = 'license' AND a.biz_id = l.license_id AND a.deleted = 0) AS attachmentCount
                   FROM license_document l
@@ -110,7 +111,8 @@ public class LicenseService {
                        license_no AS licenseNo, owner_type AS ownerType, owner_id AS ownerId,
                        owner_code AS ownerCode, owner_name AS ownerName, party_a AS partyA,
                        party_b AS partyB, contract_amount AS contractAmount, issue_date AS issueDate,
-                       expire_date AS expireDate, status AS status, remark, revision_no AS revisionNo
+                       expire_date AS expireDate, status AS status, remark, revision_no AS revisionNo,
+                       CASE WHEN source_product_id IS NOT NULL THEN 'MCP-UI' ELSE 'SPD-PR' END AS sourceSystem
                   FROM license_document
                  WHERE license_id = ? AND deleted = 0
                 """, licenseId);
@@ -167,6 +169,7 @@ public class LicenseService {
     private Map<String, Object> saveVersion(Long id, LicenseUpsertRequest request, boolean renewal) {
         validate(request);
         Map<String, Object> current = lockDocument(id);
+        requireLocallyManaged(current);
         String type = String.valueOf(current.get("ownerLicenseType"));
         if (!type.equals(normalizeType(request.licenseType()))) throw new IllegalArgumentException("编辑不能改变证照类型");
         if (request.revisionNo() != null && request.revisionNo().intValue() != ((Number) current.get("revisionNo")).intValue()) {
@@ -211,7 +214,7 @@ public class LicenseService {
     private Map<String, Object> lockDocument(Long id) {
         var rows = jdbcTemplate.queryForList("""
                 SELECT license_type AS ownerLicenseType, owner_type AS ownerType, owner_id AS ownerId,
-                       owner_code AS ownerCode, expire_date AS expireDate, revision_no AS revisionNo
+                       owner_code AS ownerCode, expire_date AS expireDate, revision_no AS revisionNo,source_product_id AS sourceProductId
                   FROM license_document WHERE license_id=? AND deleted=0 FOR UPDATE
                 """, id);
         if (rows.isEmpty()) throw new IllegalArgumentException("证照不存在或已删除");
@@ -220,7 +223,7 @@ public class LicenseService {
 
     @Transactional
     public Map<String, Object> remove(Long licenseId) {
-        lockDocument(licenseId);
+        requireLocallyManaged(lockDocument(licenseId));
         history.capture(licenseId, "baseline");
         jdbcTemplate.update("UPDATE license_document SET deleted = 1, revision_no=revision_no+1 WHERE license_id = ?", licenseId);
         jdbcTemplate.update("UPDATE sys_attachment SET deleted = 1 WHERE biz_type = 'license' AND biz_id = ?", licenseId);
@@ -243,7 +246,7 @@ public class LicenseService {
 
     @Transactional
     public Map<String, Object> uploadAttachment(Long licenseId, MultipartFile file, String category) {
-        lockDocument(licenseId);
+        requireLocallyManaged(lockDocument(licenseId));
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("请选择要上传的证照附件");
         }
@@ -281,6 +284,19 @@ public class LicenseService {
         return attachmentFile("a.attachment_id", attachmentId);
     }
 
+    /** Retired files are readable only through a version that actually owned that attachment. */
+    public ResponseEntity<Resource> downloadHistoryAttachment(Long licenseId,int revision,Long attachmentId) {
+        var rows=jdbcTemplate.queryForList("""
+                SELECT a.file_name AS fileName,a.file_path AS filePath,a.file_ext AS ext
+                FROM sys_attachment a JOIN license_document l ON l.license_id=a.biz_id AND l.deleted=0
+                JOIN license_revision r ON r.license_id=l.license_id AND r.revision_no=?
+                WHERE a.biz_type='license' AND l.license_id=? AND a.attachment_id=?
+                  AND JSON_CONTAINS(JSON_EXTRACT(r.snapshot_json,'$.attachments'),JSON_OBJECT('id',a.attachment_id))
+                """,revision,licenseId,attachmentId);
+        if(rows.size()!=1)throw new IllegalArgumentException("该版本不存在此证照附件");
+        return attachmentResource(rows.get(0));
+    }
+
     public ResponseEntity<Resource> downloadAttachmentByStoredName(String storedName) {
         return attachmentFile("a.file_path", storedName);
     }
@@ -292,7 +308,10 @@ public class LicenseService {
                  WHERE a.biz_type='license' AND a.deleted=0 AND l.deleted=0 AND
                 """ + selector + " = ?", value);
         if (rows.size() != 1) throw new IllegalArgumentException("证照附件不存在或已删除");
-        var row = rows.get(0);
+        return attachmentResource(rows.get(0));
+    }
+
+    private ResponseEntity<Resource> attachmentResource(Map<String,Object> row) {
         Path file = uploadRoot.resolve(String.valueOf(row.get("filePath"))).normalize();
         if (!file.startsWith(uploadRoot) || !Files.isRegularFile(file)) throw new IllegalArgumentException("证照附件文件不存在");
         String encodedName = URLEncoder.encode(String.valueOf(row.get("fileName")), StandardCharsets.UTF_8).replace("+", "%20");
@@ -302,6 +321,10 @@ public class LicenseService {
     }
 
     // ======================== helpers ========================
+
+    private void requireLocallyManaged(Map<String,Object> row) {
+        if(row.get("sourceProductId")!=null)throw new IllegalArgumentException("MCP来源证照请在MCP-UI发起变更，并通过院内目录审批后生效");
+    }
 
     private void validate(LicenseUpsertRequest request) {
         if (isBlank(request.licenseType()) || isBlank(request.licenseName())) {

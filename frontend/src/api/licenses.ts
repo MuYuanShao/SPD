@@ -4,6 +4,7 @@ import { getData, getPage, postData, putData, deleteData, http } from './http'
 export type LicenseType = 'product' | 'supplier' | 'manufacturer' | 'contract'
 
 export interface LicenseRow {
+  sourceSystem?: string
   id: number
   licenseType: LicenseType
   licenseName: string
@@ -87,9 +88,10 @@ export function uploadLicenseAttachment(licenseId: number, file: File, category 
 }
 
 /** 以 blob 形式获取证照附件（携带认证头），返回可预览/下载的对象 URL。 */
-export async function fetchLicenseAttachmentBlob(attachmentId: number) {
+export async function fetchLicenseAttachmentBlob(attachmentId: number, history?: { licenseId: number; revision: number }) {
   try {
-    const response = await http.get(`/licenses/attachments/${attachmentId}/file`, { responseType: 'blob' })
+    const path = history ? `/licenses/${history.licenseId}/history/${history.revision}/attachments/${attachmentId}/file` : `/licenses/attachments/${attachmentId}/file`
+    const response = await http.get(path, { responseType: 'blob' })
     const contentType = String(response.headers['content-type'] ?? '')
     if (contentType.includes('json')) {
       const result = JSON.parse(await (response.data as Blob).text())

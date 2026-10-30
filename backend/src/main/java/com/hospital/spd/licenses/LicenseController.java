@@ -51,6 +51,11 @@ public class LicenseController {
         return ApiResponse.ok(licenseService.history(licenseId));
     }
 
+    @GetMapping("/{licenseId}/history/{revision}/attachments/{attachmentId}/file")
+    public ResponseEntity<Resource> historyFile(@PathVariable Long licenseId,@PathVariable int revision,@PathVariable Long attachmentId) {
+        return licenseService.downloadHistoryAttachment(licenseId,revision,attachmentId);
+    }
+
     @PostMapping("/{licenseId}/renew")
     public ApiResponse<Map<String, Object>> renew(@PathVariable Long licenseId, @RequestBody LicenseUpsertRequest request) {
         return ApiResponse.ok(licenseService.renew(licenseId, request));

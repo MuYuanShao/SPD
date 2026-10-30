@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, ref, watch } from 'vue'
+import { computed, onActivated, onDeactivated, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Eye, FileText, Pencil, X } from '@lucide/vue'
 import { formatStatusText } from '../../utils/chineseDisplay'
 import {
   fetchHospitalProductDetail,
+  fetchProductAttachmentBlob,
   type ProductAttachment,
   type ProductDetail
 } from '../../api/masterData'
@@ -32,6 +33,11 @@ const detail = ref<ProductDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
 const previewFile = ref<ProductAttachment | null>(null)
+const previewUrl = ref('')
+const previewType = ref('')
+const previewLoading = ref(false)
+const previewError = ref('')
+let previewRequest = 0
 
 let requestVersion = 0
 let active = false
@@ -46,8 +52,25 @@ function displayValue(value: unknown) {
   return value === null || value === undefined || value === '' ? '-' : String(value)
 }
 
-function openAttachment(file: ProductAttachment) {
+function closeAttachment() {
+  previewRequest++
+  if (previewUrl.value) URL.revokeObjectURL(previewUrl.value)
+  previewUrl.value = ''; previewType.value = ''; previewError.value = ''; previewLoading.value = false; previewFile.value = null
+}
+async function openAttachment(file: ProductAttachment) {
+  closeAttachment()
+  const request = ++previewRequest
   previewFile.value = file
+  if (!file.fileUrl) { previewError.value = '未配置预览文件'; return }
+  previewLoading.value = true
+  try {
+    const blob = await fetchProductAttachmentBlob(file.fileUrl)
+    if (request !== previewRequest) return
+    previewType.value = blob.type.split(';')[0].toLowerCase()
+    previewUrl.value = URL.createObjectURL(blob)
+  } catch (error) {
+    if (request === previewRequest) previewError.value = error instanceof Error ? error.message : '附件读取失败'
+  } finally { if (request === previewRequest) previewLoading.value = false }
 }
 
 function money(value: ProductDetail['purchasePrice'] | null) {
@@ -135,7 +158,7 @@ async function loadDetail() {
   if (!active || route.name !== 'hospital-product-detail') return
   const request = ++requestVersion
   const expectedCode = productCode.value
-  previewFile.value = null
+  closeAttachment()
   detail.value = null
   loading.value = true
   error.value = ''
@@ -151,7 +174,8 @@ async function loadDetail() {
 }
 
 onActivated(() => { active = true; void loadDetail() })
-onDeactivated(() => { active = false; requestVersion++; loading.value = false; previewFile.value = null })
+onDeactivated(() => { active = false; requestVersion++; loading.value = false; closeAttachment() })
+onUnmounted(closeAttachment)
 watch(productCode, () => { if (active) void loadDetail() })
 </script>
 
@@ -282,27 +306,30 @@ watch(productCode, () => { if (active) void loadDetail() })
       </section>
 
       <Teleport to="body">
-      <div v-if="previewFile" class="attachment-preview-mask" @click.self="previewFile = null">
+      <div v-if="previewFile" class="attachment-preview-mask" @click.self="closeAttachment">
         <section class="attachment-preview-dialog" role="dialog" aria-modal="true" aria-label="附件预览">
           <header>
             <div>
               <p>{{ previewFile.category }}</p>
               <h3>{{ previewFile.fileName }}</h3>
             </div>
-            <button class="btn-icon" type="button" aria-label="关闭附件预览" @click="previewFile = null">
+            <button class="btn-icon" type="button" aria-label="关闭附件预览" @click="closeAttachment">
               <X :size="18" aria-hidden="true" />
             </button>
           </header>
+          <p v-if="previewLoading" role="status">正在读取附件...</p>
+          <p v-else-if="previewError" role="alert">{{ previewError }}</p>
+          <img v-else-if="previewUrl && previewType.startsWith('image/')" class="product-attachment-image" :src="previewUrl" :alt="previewFile.fileName" />
           <iframe
-            v-if="previewFile.fileUrl"
+            v-else-if="previewUrl && previewType === 'application/pdf'"
             class="attachment-preview-frame"
-            :src="previewFile.fileUrl"
+            :src="previewUrl"
             title="附件预览"
           ></iframe>
           <div v-else class="attachment-preview-empty">
             <FileText :size="36" aria-hidden="true" />
             <strong>{{ previewFile.fileName }}</strong>
-            <span>未配置预览</span>
+            <span>该格式不支持在线预览</span>
           </div>
         </section>
       </div>
@@ -312,6 +339,7 @@ watch(productCode, () => { if (active) void loadDetail() })
 </template>
 
 <style scoped>
+.product-attachment-image { display: block; max-width: 100%; max-height: 70vh; object-fit: contain; margin: 0 auto; }
 /* 注：详细样式由 master-data-all.override.css 统一控制 */
 .sr-only {
   position: absolute;

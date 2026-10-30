@@ -18,28 +18,42 @@ public class McpPhase3Outbox {
     public McpPhase3Outbox(JdbcTemplate db,Environment env){this.db=db;this.env=env;}
 
     @Transactional public void capturePlan(String planNo){capturePlan(planNo,false);}
-    private void capturePlan(String planNo,boolean backfill) {
-        var rows=db.queryForList("""
-                SELECT plan.*,s.supplier_code,p.product_code,p.unit
-                  FROM purchase_plan plan JOIN supplier s ON s.supplier_id=plan.supplier_id
-                  JOIN product p ON p.product_id=plan.product_id WHERE plan.plan_no=? FOR SHARE
-                """,planNo);
-        if(rows.isEmpty()) return;
-        var row=rows.get(0);long id=((Number)row.get("plan_id")).longValue();
-        var payload=Phase3Json.MAPPER.createObjectNode();payload.put("documentNo",planNo);payload.put("supplierCode",row.get("supplier_code").toString());
-        String status=row.get("plan_status").toString();payload.put("sourceStatus",status);
-        payload.put("createdAt",time(row.get("create_time")));nullable(payload,"approvedAt",time(row.get("approve_time")));
-        payload.put("remark",Objects.toString(row.get("remark"),""));
-        var orderNos=payload.putArray("convertedOrderNos");var orderIds=payload.putArray("convertedOrderIds");
-        if(row.get("converted_order_no")!=null) {
-            orderNos.add(row.get("converted_order_no").toString());
-            db.queryForList("SELECT purchase_order_id FROM purchase_order WHERE order_no=?",Long.class,row.get("converted_order_no")).forEach(order->orderIds.add(order.toString()));
+    private void capturePlan(String planNo,boolean backfill) { capturePlan(planNo,backfill,null); }
+    private void capturePlan(String planNo,boolean backfill,Long supplierFilter) {
+        var args=new ArrayList<Object>(List.of(planNo));
+        String filter="";
+        if(supplierFilter!=null){filter=" AND ps.supplier_id=?";args.add(supplierFilter);}
+        var projections=db.queryForList("""
+                SELECT plan.*,ps.projection_id,ps.supplier_id AS projection_supplier,s.supplier_code
+                  FROM purchase_plan plan JOIN purchase_plan_supplier ps ON ps.plan_id=plan.plan_id
+                  JOIN supplier s ON s.supplier_id=ps.supplier_id WHERE plan.plan_no=?
+                """+filter+" ORDER BY ps.projection_id FOR SHARE",args.toArray());
+        for(var row:projections) {
+            long id=((Number)row.get("projection_id")).longValue();
+            var payload=Phase3Json.MAPPER.createObjectNode();payload.put("documentNo",planNo);payload.put("supplierCode",row.get("supplier_code").toString());
+            payload.put("sourcePlanId",row.get("plan_id").toString());
+            String status=row.get("plan_status").toString();payload.put("sourceStatus",status);
+            payload.put("createdAt",time(row.get("create_time")));nullable(payload,"approvedAt",time(row.get("approve_time")));
+            payload.put("remark",Objects.toString(row.get("remark"),""));
+            var orderNos=payload.putArray("convertedOrderNos");var orderIds=payload.putArray("convertedOrderIds");
+            for(var order:db.queryForList("SELECT purchase_order_id,order_no FROM purchase_order WHERE source_plan_id=? AND supplier_id=? ORDER BY purchase_order_id",row.get("plan_id"),row.get("projection_supplier"))) {
+                orderNos.add(order.get("order_no").toString());orderIds.add(order.get("purchase_order_id").toString());
+            }
+            var items=payload.putArray("items");
+            for(var line:db.queryForList("""
+                    SELECT i.*,p.product_code FROM purchase_plan_item i JOIN product p ON p.product_id=i.product_id
+                     WHERE i.plan_id=? AND i.supplier_id=? ORDER BY i.plan_item_id FOR SHARE
+                    """,row.get("plan_id"),row.get("projection_supplier"))) {
+                var item=items.addObject();item.put("sourceLineId",line.get("plan_item_id").toString());item.put("productCode",line.get("product_code").toString());
+                item.put("unit",line.get("unit").toString());item.put("plannedQuantity",whole(line.get("quantity")));item.putNull("expectedDate");
+                String basis=Objects.toString(line.get("price_basis"),"not_recorded");item.put("priceBasis",basis);
+                if(line.get("estimated_unit_price")==null||basis.equals("not_recorded")){item.putNull("estimatedUnitPrice");item.putNull("estimatedAmount");}
+                else {item.put("estimatedUnitPrice",money(line.get("estimated_unit_price")));item.put("estimatedAmount",money(((BigDecimal)line.get("estimated_unit_price")).multiply((BigDecimal)line.get("quantity"))));}
+            }
+            if(items.isEmpty())throw new IllegalArgumentException("计划供应商投影缺少明细");
+            capture("purchase_plan",id,"UPSERT",payload,Set.of("approved","executed").contains(status),backfill,
+                    row.get("approve_time")==null?time(row.get("create_time")):time(row.get("approve_time")));
         }
-        var item=payload.putArray("items").addObject();item.put("sourceLineId",Long.toString(id));item.put("productCode",row.get("product_code").toString());
-        item.put("unit",row.get("unit").toString());item.put("plannedQuantity",whole(row.get("planned_quantity")));
-        item.putNull("estimatedUnitPrice");item.putNull("estimatedAmount");item.putNull("expectedDate");item.put("priceBasis","not_recorded");
-        capture("purchase_plan",id,"UPSERT",payload,Set.of("approved","executed").contains(status),backfill,
-                row.get("approve_time")==null?time(row.get("create_time")):time(row.get("approve_time")));
     }
 
     @Transactional public void captureSettlement(long id){captureSettlement(id,false,false);}
@@ -101,8 +115,8 @@ public class McpPhase3Outbox {
         long supplier=suppliers.get(0);
         var from=startDate.atStartOfDay();var until=endDate.plusDays(1).atStartOfDay();
         // A persisted revision remains after deletion; do not infer cancellations from missing rows.
-        var plans=db.queryForList("SELECT plan_no FROM purchase_plan WHERE supplier_id=? AND create_time>=? AND create_time<? AND plan_status IN ('approved','executed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='purchase_plan' AND doc.source_id=purchase_plan.plan_id AND doc.published=1) ORDER BY plan_id LIMIT ?",String.class,supplier,from,until,size);
-        for(String no:plans) capturePlan(no,true);
+        var plans=db.queryForList("SELECT plan.plan_no FROM purchase_plan plan JOIN purchase_plan_supplier ps ON ps.plan_id=plan.plan_id WHERE ps.supplier_id=? AND plan.create_time>=? AND plan.create_time<? AND plan.plan_status IN ('approved','executed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='purchase_plan' AND doc.source_id=ps.projection_id AND doc.published=1) ORDER BY plan.plan_id LIMIT ?",String.class,supplier,from,until,size);
+        for(String no:plans) capturePlan(no,true,supplier);
         var bills=db.queryForList("SELECT settlement_id FROM settlement_bill WHERE supplier_id=? AND generate_time>=? AND generate_time<? AND status IN ('pending_confirm','confirmed') AND NOT EXISTS(SELECT 1 FROM mcp_phase3_document doc WHERE doc.document_type='settlement' AND doc.source_id=settlement_bill.settlement_id AND doc.published=1) ORDER BY settlement_id LIMIT ?",Long.class,supplier,from,until,size);
         for(Long id:bills) captureSettlement(id,false,true);
         return Map.of("plans",plans.size(),"settlements",bills.size());

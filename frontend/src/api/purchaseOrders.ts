@@ -81,15 +81,18 @@ export interface PurchasePlanRow {
   planId: number
   planNo: string
   planStatus: string
-  supplierName: string
-  productCode: string
-  productName: string
+  supplierName?: string
+  productCode?: string
+  productName?: string
   specModel?: string
   registrationNo?: string
   manufacturerName?: string
   unit?: string
   unitPrice?: number
-  plannedQuantity: number
+  plannedQuantity?: number
+  itemCount: number
+  supplierCount: number
+  orderCount: number
   amount?: number
   tenderSubCode?: string
   convertedOrderNo?: string
@@ -310,8 +313,26 @@ export async function createPurchasePlansFromDemands(payload: { demandNos: strin
  * @returns 操作后的计划状态及关联订单号
  */
 export async function updatePurchasePlanAction(planNo: string, action: string, opinion = '') {
-  return putData<{ planNo: string; status: string; orderNo?: string }>(
+  return putData<{ planNo: string; status: string; orderNo?: string; orderNos: string[] }>(
     `/purchase-orders/plans/${planNo}/action`,
     { action, opinion }
   )
+}
+
+export interface PurchasePlanDetail {
+  planNo: string
+  status: string
+  canEditSupplier: boolean
+  orderNos: string[]
+  suppliers: Array<{ supplierId: number; supplierName: string }>
+  items: Array<{ planItemId: number; productCode: string; productName: string; specModel: string;
+    quantity: number; unit: string; supplierId: number; supplierName: string; unitPrice: number | null; amount: number | null }>
+}
+
+export function fetchPurchasePlanDetail(planNo: string) {
+  return getData<PurchasePlanDetail>(`/purchase-orders/plans/${encodeURIComponent(planNo)}`)
+}
+
+export function updatePurchasePlanSupplier(planNo: string, itemId: number, supplierId: number) {
+  return putData<PurchasePlanDetail>(`/purchase-orders/plans/${encodeURIComponent(planNo)}/items/${itemId}/supplier`, { supplierId })
 }

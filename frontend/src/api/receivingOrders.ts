@@ -1,6 +1,8 @@
 import { getData, postData, putData, type PageResult } from './http'
 
 export interface ReceivingOrderRow {
+  sourceSystem?: string
+  externalSupplyNo?: string
   receivingOrderId: number
   receivingNo: string
   purchaseOrderNo?: string

@@ -128,7 +128,7 @@ public class McpUploadJob {
         cursor=((Number)row.get("purchase_order_id")).longValue();String code=row.get("order_no").toString();
         try {
           var payload=new LinkedHashMap<String,Object>();payload.put("orderNo",code);payload.put("supplierCode",row.get("supplier_code"));
-          var plans=db.queryForList("SELECT plan_id,plan_no FROM purchase_plan WHERE converted_order_no=?",code);
+          var plans=db.queryForList("SELECT pp.plan_id,pp.plan_no FROM purchase_order po JOIN purchase_plan pp ON pp.plan_id=po.source_plan_id WHERE po.order_no=?",code);
           if(plans.size()==1){payload.put("sourcePlanId",plans.get(0).get("plan_id").toString());payload.put("sourcePlanNo",plans.get(0).get("plan_no"));}
           payload.put("orderDate",McpSourceTime.date(row.get("create_time")).toString());
           payload.put("status",orderStatus(row.get("order_status").toString()));payload.put("totalAmount",row.get("total_amount"));

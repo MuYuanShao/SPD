@@ -121,25 +121,25 @@ final class PurchaseFlowCommandRunner {
     Map<String, Object> runPlanAction(String planNo, PurchaseOrderActionRequest request) {
         Map<String, Object> plan = jdbcTemplate.queryForMap("""
                 SELECT plan_id AS planId, plan_status AS planStatus, supplier_id AS supplierId,
+                       create_by AS createBy, dept_id AS deptId,
                        product_id AS productId, planned_quantity AS plannedQuantity
                  FROM purchase_plan
                  WHERE plan_no = ?
                  FOR UPDATE
                 """, planNo);
         String nextStatus = PurchaseFlowRules.nextPlanStatus(String.valueOf(plan.get("planStatus")), request.action());
-        if (!recordApprovalForAction(request.action(), "plan-approval", planNo, null, null))
+        if (!recordApprovalForAction(request.action(), "plan-approval", planNo, number(plan.get("deptId")), number(plan.get("createBy"))))
             return result("planNo", planNo, String.valueOf(plan.get("planStatus")));
 
         if ("approved".equals(nextStatus)) {
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'approved', approve_time = NOW() WHERE plan_no = ? AND plan_status = 'draft'", planNo));
             writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
-            return result("planNo", planNo, nextStatus);
         }
-        if ("executed".equals(nextStatus)) {
+        if ("approved".equals(nextStatus) || "executed".equals(nextStatus)) {
             String orderNo = orderFromPlanFactory.apply(planNo, plan);
             requireSingleChange(jdbcTemplate.update("UPDATE purchase_plan SET plan_status = 'executed', converted_order_no = ? WHERE plan_no = ? AND plan_status = 'approved'", orderNo, planNo));
-            writeAudit("purchase_plan", request.action(), number(plan.get("planId")), planNo, request.opinion());
-            Map<String, Object> result = result("planNo", planNo, nextStatus);
+            writeAudit("purchase_plan", "approved".equals(nextStatus) ? "auto_execute" : request.action(), number(plan.get("planId")), planNo, request.opinion());
+            Map<String, Object> result = result("planNo", planNo, "executed");
             result.put("orderNo", orderNo);
             return result;
         }

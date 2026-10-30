@@ -118,4 +118,19 @@ class PurchaseFlowCommandRunnerTest {
         org.mockito.Mockito.verifyNoInteractions(approvals);
         org.mockito.Mockito.verify(jdbcTemplate, org.mockito.Mockito.never()).update(anyString(), any(Object[].class));
     }
+
+    @Test
+    void finalPlanApprovalCreatesOrdersButIntermediateVoteDoesNot() {
+        var approvals = org.mockito.Mockito.mock(com.hospital.spd.system.service.ApprovalFlowGuard.class);
+        var calls = new java.util.concurrent.atomic.AtomicInteger();
+        var subject = new PurchaseFlowCommandRunner(jdbcTemplate, com.hospital.spd.common.OperatorContext::system,
+                (no, plan) -> { calls.incrementAndGet(); return "CG-FINAL"; }, approvals);
+        when(jdbcTemplate.queryForMap(anyString(), eq("JH-FINAL"))).thenReturn(Map.of("planId",1L,"planStatus","draft"));
+        when(approvals.recordDecision("purchase-management","plan-approval","JH-FINAL",null,null,true)).thenReturn(false,true);
+        when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+        assertThat(subject.runPlanAction("JH-FINAL",new PurchaseOrderActionRequest("approve",null))).containsEntry("status","draft");
+        assertThat(calls.get()).isZero();
+        assertThat(subject.runPlanAction("JH-FINAL",new PurchaseOrderActionRequest("approve",null))).containsEntry("status","executed");
+        assertThat(calls.get()).isEqualTo(1);
+    }
 }

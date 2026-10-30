@@ -46,6 +46,7 @@ public class PurchaseOrderService {
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
     private final PurchaseFlowCommandRunner purchaseFlow;
+    private final MixedPurchasePlanService mixedPlans;
     private final DataScopeService dataScopeService;
     private final OperatorContextProvider operatorContextProvider;
     private final PurchasePermissionGuard permissionGuard;
@@ -72,6 +73,7 @@ public class PurchaseOrderService {
         this.operatorContextProvider = operatorContextProvider;
         this.permissionGuard = new PurchasePermissionGuard(jdbcTemplate, operatorContextProvider);
         this.auditLogService = new AuditLogService(jdbcTemplate, operatorContextProvider);
+        this.mixedPlans = new MixedPurchasePlanService(jdbcTemplate, support, operatorContextProvider, dataScopeService);
         this.purchaseFlow = new PurchaseFlowCommandRunner(jdbcTemplate, operatorContextProvider, this::createOrderFromPlan);
     }
 
@@ -480,138 +482,29 @@ public class PurchaseOrderService {
     // ==================== 采购计划 ====================
 
     public Map<String, Object> listPlans(Map<String, String> params) {
-        PageRequest pageReq = PageRequest.from(params);
-        List<Object> args = new ArrayList<>();
-        StringBuilder where = new StringBuilder("""
-                 WHERE 1 = 1
-                """);
-        appendLike(where, args, "pp.plan_no", params.get("planNo"));
-        appendLike(where, args, "p.product_name", params.get("keyword"));
-        appendLike(where, args, "s.supplier_name", params.get("supplierName"));
-        if (!isBlank(params.get("status"))) {
-            where.append(" AND pp.plan_status = ?");
-            args.add(params.get("status").trim());
-        }
+        permissionGuard.require("purchase-management");
+        return mixedPlans.list(params);
+    }
 
-        String fromClause = """
-                  FROM purchase_plan pp
-                  JOIN supplier s ON s.supplier_id = pp.supplier_id
-                  JOIN product p ON p.product_id = pp.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                  LEFT JOIN (
-                       SELECT ppd.plan_id,
-                              GROUP_CONCAT(DISTINCT d.dept_name ORDER BY d.dept_name SEPARATOR '、') AS initiatingDeptName,
-                              GROUP_CONCAT(DISTINCT w.warehouse_name ORDER BY w.warehouse_name SEPARATOR '、') AS deliveryWarehouseName
-                         FROM purchase_plan_demand ppd
-                         JOIN purchase_demand pd ON pd.demand_id = ppd.demand_id
-                         LEFT JOIN sys_dept d ON d.dept_id = pd.dept_id AND d.deleted = 0
-                         LEFT JOIN warehouse w ON w.dept_id = pd.dept_id AND w.deleted = 0 AND w.status = 1
-                        GROUP BY ppd.plan_id
-                  ) plan_origin ON plan_origin.plan_id = pp.plan_id
-                """;
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + fromClause + where, Long.class, args.toArray());
+    public Map<String,Object> getPlanDetail(String planNo) {
+        permissionGuard.require("purchase-management");
+        return mixedPlans.detail(planNo);
+    }
 
-        List<Object> queryArgs = new ArrayList<>(args);
-        queryArgs.add(pageReq.size());
-        queryArgs.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT pp.plan_id AS planId, pp.plan_no AS planNo, pp.plan_status AS planStatus,
-                       s.supplier_name AS supplierName, p.product_code AS productCode, p.product_name AS productName,
-                       p.spec_model AS specModel, p.registration_no AS registrationNo,
-                       m.manufacturer_name AS manufacturerName, p.unit, p.purchase_price AS unitPrice,
-                       pp.planned_quantity AS plannedQuantity, pp.converted_order_no AS convertedOrderNo,
-                       ROUND(p.purchase_price * pp.planned_quantity, 4) AS amount,
-                       p.tender_sub_code AS tenderSubCode,
-                       plan_origin.initiatingDeptName, plan_origin.deliveryWarehouseName,
-                       pp.remark, DATE_FORMAT(pp.create_time, '%Y-%m-%d %H:%i') AS createTime
-                """ + fromClause + where + " ORDER BY pp.create_time DESC LIMIT ? OFFSET ?",
-                queryArgs.toArray());
-        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    @Transactional
+    public Map<String,Object> updatePlanSupplier(String planNo,long itemId,long supplierId) {
+        permissionGuard.require("purchase-demand:convert-plan");
+        mixedPlans.supplier(planNo,itemId,supplierId);
+        if(phase3Outbox!=null)phase3Outbox.capturePlan(planNo);
+        return mixedPlans.detail(planNo);
     }
 
     @Transactional
     public Map<String, Object> createPlanFromDemands(Map<String, Object> request) {
         permissionGuard.require("purchase-demand:convert-plan");
-        Object rawDemandNos = request.get("demandNos");
-        if (!(rawDemandNos instanceof List<?> rawList)) {
-            throw new IllegalArgumentException("请选择需要转计划的已审核需求");
-        }
-        List<String> demandNos = rawList.stream()
-                .map(PurchaseOrderService::stringValue)
-                .filter(value -> !isBlank(value))
-                .distinct()
-                .toList();
-        if (demandNos.isEmpty()) {
-            throw new IllegalArgumentException("请选择需要转计划的已审核需求");
-        }
-        String supplierName = stringValue(request.get("supplierName"));
-        Long requestedSupplierId = isBlank(supplierName) ? null : findSupplierId(supplierName);
-        String placeholders = String.join(",", java.util.Collections.nCopies(demandNos.size(), "?"));
-        List<Object> queryArgs = new ArrayList<>(demandNos);
-        StringBuilder demandWhere = new StringBuilder(" WHERE pd.demand_no IN (" + placeholders + ")");
-        demandWhere.append(" AND pd.demand_status = 'approved' AND pd.approved_quantity > 0");
-        dataScopeService.appendScope(demandWhere, queryArgs, "pd.dept_id", "pd.create_by");
-        List<Map<String, Object>> demands = jdbcTemplate.queryForList("""
-                SELECT pd.demand_id AS demandId, pd.demand_no AS demandNo, pd.product_id AS productId,
-                       ps.supplier_id AS productSupplierId, pd.approved_quantity AS plannedQuantity
-                  FROM purchase_demand pd
-                  JOIN product p ON p.product_id = pd.product_id
-                  LEFT JOIN supplier ps ON ps.supplier_id = p.supplier_id
-                                        AND ps.status = 1 AND ps.deleted = 0
-                """ + demandWhere + " ORDER BY pd.demand_id FOR UPDATE", queryArgs.toArray());
-        long matchedDemandCount = demands.stream()
-                .map(row -> stringValue(row.get("demandNo")))
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
-        if (matchedDemandCount != demandNos.size()) {
-            throw new IllegalArgumentException("所选需求不存在、无权访问、状态已变化或已转计划，请刷新后重试");
-        }
-        int created = 0;
-        List<String> planNos = new ArrayList<>();
-        for (Map<String, Object> row : demands) {
-            Long supplierId = requestedSupplierId != null
-                    ? requestedSupplierId
-                    : nullableLong(row.get("productSupplierId"));
-            if (supplierId == null) {
-                supplierId = findFirstEnabledSupplierId();
-            }
-            String planNo = support.nextNo(PURCHASE_PLAN);
-            KeyHolder keyHolder = new GeneratedKeyHolder();
-            Long finalSupplierId = supplierId;
-            jdbcTemplate.update(connection -> {
-                PreparedStatement ps = connection.prepareStatement("""
-                        INSERT INTO purchase_plan (plan_no, plan_status, supplier_id, product_id, planned_quantity, remark)
-                        VALUES (?, 'draft', ?, ?, ?, ?)
-                        """, Statement.RETURN_GENERATED_KEYS);
-                ps.setString(1, planNo);
-                ps.setLong(2, finalSupplierId);
-                ps.setLong(3, ((Number) row.get("productId")).longValue());
-                ps.setBigDecimal(4, (BigDecimal) row.get("plannedQuantity"));
-                ps.setString(5, defaultText(request.get("remark"), "由已审核采购需求生成"));
-                return ps;
-            }, keyHolder);
-            Long planId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-            writeAudit("purchase_plan", "create_from_demand", planId, planNo,
-                    "由采购需求 " + row.get("demandNo") + " 生成");
-            Long demandId = ((Number) row.get("demandId")).longValue();
-            jdbcTemplate.update("""
-                    INSERT INTO purchase_plan_demand (plan_id, demand_id, allocated_quantity)
-                    VALUES (?, ?, ?)
-                    """, planId, demandId, row.get("plannedQuantity"));
-            int changed = jdbcTemplate.update("""
-                    UPDATE purchase_demand
-                       SET demand_status = 'planned'
-                     WHERE demand_id = ? AND demand_status = 'approved'
-                    """, demandId);
-            if (changed != 1) {
-                throw new IllegalStateException("purchase demand status changed, please refresh and retry");
-            }
-            if (phase3Outbox != null) phase3Outbox.capturePlan(planNo);
-            planNos.add(planNo);
-            created++;
-        }
-        return Map.of("createdPlans", created, "planNos", List.copyOf(planNos));
+        var result=mixedPlans.create(request);
+        if(phase3Outbox!=null)phase3Outbox.capturePlan(result.get("planNo").toString());
+        return result;
     }
 
     @Transactional
@@ -622,8 +515,8 @@ public class PurchaseOrderService {
             case "execute" -> "purchase-plan:execute";
             default -> throw new IllegalArgumentException("purchase plan action is invalid");
         });
-        Map<String, Object> result = purchaseFlow.runPlanAction(planNo, request);
-        if (phase3Outbox != null) phase3Outbox.capturePlan(planNo);
+        var result=mixedPlans.action(planNo,request);
+        if(phase3Outbox!=null)phase3Outbox.capturePlan(planNo);
         return result;
     }
 
@@ -821,40 +714,7 @@ public class PurchaseOrderService {
     // ==================== 私有辅助方法 ====================
 
     private String createOrderFromPlan(String planNo, Map<String, Object> plan) {
-        Long supplierId = ((Number) plan.get("supplierId")).longValue();
-        Long productId = ((Number) plan.get("productId")).longValue();
-        BigDecimal plannedQuantity = (BigDecimal) plan.get("plannedQuantity");
-        Map<String, Object> product = jdbcTemplate.queryForMap("""
-                SELECT product_code AS productCode, unit, purchase_price AS purchasePrice
-                  FROM product
-                 WHERE product_id = ?
-                """, productId);
-        String orderNo = support.nextNo(PURCHASE_ORDER);
-        BigDecimal price = (BigDecimal) product.get("purchasePrice");
-        BigDecimal totalAmount = plannedQuantity.multiply(price);
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO purchase_order (
-                      order_no, supplier_id, order_source, order_status, total_amount,
-                      expected_arrival_date, create_by, purchase_type
-                    ) VALUES (?, ?, 'plan', 'draft', ?, ?, ?, 'regular')
-                    """, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, orderNo);
-            ps.setLong(2, supplierId);
-            ps.setBigDecimal(3, totalAmount);
-            ps.setDate(4, Date.valueOf(LocalDate.now().plusDays(7)));
-            ps.setLong(5, operatorContextProvider.current().userId());
-            return ps;
-        }, keyHolder);
-        Long orderId = Objects.requireNonNull(keyHolder.getKey()).longValue();
-        jdbcTemplate.update("""
-                INSERT INTO purchase_order_item (
-                  purchase_order_id, product_id, quantity, unit, estimated_unit_price, amount, received_quantity
-                ) VALUES (?, ?, ?, ?, ?, ?, 0)
-                """, orderId, productId, plannedQuantity, product.get("unit"), price, totalAmount);
-        appendTracking(orderId, "created_from_plan", "订单由采购计划生成", planNo);
-        return orderNo;
+        return mixedPlans.createOrders(planNo,plan);
     }
 
     private void insertItems(Long orderId, List<PurchaseOrderItemRequest> items) {

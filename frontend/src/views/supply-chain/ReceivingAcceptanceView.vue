@@ -496,7 +496,7 @@ onMounted(() => {
               <td colspan="10" class="receiving-loading-cell"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="row.receivingNo">
-              <td class="document-no-cell">{{ row.receivingNo }}</td>
+              <td class="document-no-cell">{{ row.receivingNo }}<small v-if="row.sourceSystem === 'MCP-UI'" style="display:block">MCP供货：{{ row.externalSupplyNo }}</small></td>
               <td class="document-no-cell">{{ row.purchaseOrderNo || '-' }}</td>
               <td>{{ row.supplierName }}</td>
               <td>{{ row.warehouseName }}</td>

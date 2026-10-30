@@ -140,6 +140,7 @@ public class ReceivingOrderService {
                        po.order_no AS purchaseOrderNo, s.supplier_name AS supplierName,
                        s.supplier_id AS supplierId, w.warehouse_code AS warehouseCode,
                        w.warehouse_name AS warehouseName, ro.receiving_status AS receivingStatus,
+                       ro.source_system AS sourceSystem,ro.external_supply_no AS externalSupplyNo,
                        CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
                        ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
@@ -180,6 +181,7 @@ public class ReceivingOrderService {
                        po.order_no AS purchaseOrderNo, s.supplier_name AS supplierName,
                        s.supplier_id AS supplierId, w.warehouse_code AS warehouseCode,
                        w.warehouse_name AS warehouseName, ro.receiving_status AS receivingStatus,
+                       ro.source_system AS sourceSystem,ro.external_supply_no AS externalSupplyNo,
                        CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
                        ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        ro.remark, DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
@@ -320,6 +322,7 @@ public class ReceivingOrderService {
 
         Long purchaseOrderId = sourceType == ReceivingSourceType.PURCHASE_ORDER
                 ? findPurchaseOrderId(request.purchaseOrderNo()) : null;
+        new com.hospital.spd.integration.McpSupplyReceiptRules(jdbcTemplate).validateEdit(receivingOrderId,purchaseOrderId,request.items());
         validatePurchaseOrderItems(purchaseOrderId, request.items());
         Long supplierId = findSupplierId(request.supplierId(), request.supplierName(), purchaseOrderId);
         Long warehouseId = findWarehouseId(request.warehouseCode(), request.warehouseName());

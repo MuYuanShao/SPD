@@ -27,15 +27,17 @@ class McpPhase3ReviewMysqlTest {
         assertTrue(url.contains("/spd_phase3_review?"),"Only the owned review database is permitted");
         var source=new DriverManagerDataSource(url,"root",System.getenv("SPD_PHASE3_REVIEW_PASSWORD"));
         db=new JdbcTemplate(source);
-        for(String table:List.of("mcp_phase3_feedback","mcp_phase3_outbox","mcp_phase3_document","sys_role_perm","sys_role","sys_permission","purchase_plan","purchase_order","settlement_bill_item","settlement_bill","inventory_batch","supplier","product"))db.execute("DROP TABLE IF EXISTS "+table);
+        for(String table:List.of("mcp_phase3_feedback","mcp_phase3_outbox","mcp_phase3_document","sys_role_perm","sys_role","sys_permission","purchase_plan_item","purchase_plan_supplier","purchase_plan","purchase_order","settlement_bill_item","settlement_bill","inventory_batch","supplier","product"))db.execute("DROP TABLE IF EXISTS "+table);
         db.execute("CREATE TABLE sys_permission(perm_id BIGINT PRIMARY KEY AUTO_INCREMENT,parent_id BIGINT,perm_name VARCHAR(100),perm_code VARCHAR(100),perm_type INT,path VARCHAR(100),sort_order INT)");
         db.execute("CREATE TABLE sys_role(role_id BIGINT,role_code VARCHAR(100),deleted INT)");
         db.execute("CREATE TABLE sys_role_perm(role_id BIGINT,perm_id BIGINT)");
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V104__mcp_phase3_outbox.sql")).execute(source);
         db.execute("CREATE TABLE supplier(supplier_id BIGINT PRIMARY KEY,supplier_code VARCHAR(100))");
         db.execute("CREATE TABLE product(product_id BIGINT PRIMARY KEY,product_code VARCHAR(100),unit VARCHAR(30))");
-        db.execute("CREATE TABLE purchase_order(purchase_order_id BIGINT,order_no VARCHAR(100))");
+        db.execute("CREATE TABLE purchase_order(purchase_order_id BIGINT,order_no VARCHAR(100),source_plan_id BIGINT,supplier_id BIGINT)");
         db.execute("CREATE TABLE purchase_plan(plan_id BIGINT PRIMARY KEY,plan_no VARCHAR(100),supplier_id BIGINT,product_id BIGINT,plan_status VARCHAR(30),planned_quantity DECIMAL(18,4),create_time DATETIME(6),approve_time DATETIME(6),converted_order_no VARCHAR(100),remark VARCHAR(100))");
+        db.execute("CREATE TABLE purchase_plan_supplier(projection_id BIGINT PRIMARY KEY,plan_id BIGINT,supplier_id BIGINT)");
+        db.execute("CREATE TABLE purchase_plan_item(plan_item_id BIGINT PRIMARY KEY,plan_id BIGINT,supplier_id BIGINT,product_id BIGINT,unit VARCHAR(30),quantity DECIMAL(18,4),price_basis VARCHAR(40),estimated_unit_price DECIMAL(18,4))");
         db.execute("CREATE TABLE settlement_bill(settlement_id BIGINT PRIMARY KEY,settlement_no VARCHAR(100),supplier_id BIGINT,status VARCHAR(30),settlement_period VARCHAR(30),settlement_mode VARCHAR(30),total_amount DECIMAL(18,4),generate_time DATETIME(6),confirm_time DATETIME(6))");
         db.execute("CREATE TABLE inventory_batch(batch_id BIGINT PRIMARY KEY,system_batch_no VARCHAR(100))");
         db.execute("CREATE TABLE settlement_bill_item(item_id BIGINT PRIMARY KEY,settlement_id BIGINT,product_id BIGINT,batch_id BIGINT,source_biz_type VARCHAR(50),source_biz_id BIGINT,trace_code_id BIGINT,goods_type VARCHAR(30),quantity DECIMAL(18,4),unit_price DECIMAL(18,4),amount DECIMAL(18,4))");
@@ -111,6 +113,8 @@ class McpPhase3ReviewMysqlTest {
         for(int i=0;i<dates.length;i++) {
             int supplier=i==2?2:1;
             db.update("INSERT INTO purchase_plan(plan_id,plan_no,supplier_id,product_id,plan_status,planned_quantity,create_time) VALUES(?,?,?,1,?,12,?)",10+i,"PLAN-"+i,supplier,i==5?"draft":"approved",dates[i]);
+            db.update("INSERT INTO purchase_plan_supplier VALUES(?,?,?)",10+i,10+i,supplier);
+            db.update("INSERT INTO purchase_plan_item VALUES(?,?,?,1,'支',12,'not_recorded',NULL)",10+i,10+i,supplier);
             db.update("INSERT INTO settlement_bill(settlement_id,settlement_no,supplier_id,status,settlement_period,settlement_mode,total_amount,generate_time) VALUES(?,?,?,'pending_confirm','2026-10','department_consumption',0.0001,?)",20+i,"BILL-"+i,supplier,dates[i]);
             db.update("INSERT INTO settlement_bill_item(item_id,settlement_id,product_id,source_biz_type,source_biz_id,goods_type,quantity,unit_price,amount) VALUES(?,?,1,'department_consumption_item',?,'low_value',1,0.0001,0.0001)",30+i,20+i,40+i);
         }

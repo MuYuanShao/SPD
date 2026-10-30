@@ -133,6 +133,9 @@ public class RbacAuthorizationService {
             if (path.matches("/purchase-orders/[^/]+/attachments")) return List.of("purchase-order:attachment");
         }
         if ("PUT".equals(verb)) {
+            if (path.matches("/purchase-orders/plans/[^/]+/items/[0-9]+/supplier")) {
+                return List.of("purchase-demand:convert-plan");
+            }
             if (path.matches("/purchase-orders/demands/[^/]+/action")) {
                 return List.of("purchase-demand:submit", "purchase-demand:review", "purchase-demand:reject");
             }

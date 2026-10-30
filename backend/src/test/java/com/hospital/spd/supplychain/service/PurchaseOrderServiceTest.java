@@ -178,18 +178,8 @@ class PurchaseOrderServiceTest {
         @DisplayName("返回商品、价格、配送商及来源科室库房字段")
         void shouldReturnCompletePlanDetailFields() {
             when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(1L);
-            when(jdbcTemplate.queryForList(argThat(sql ->
-                            sql.contains("p.registration_no AS registrationNo")
-                                    && sql.contains("m.manufacturer_name AS manufacturerName")
-                                    && sql.contains("p.purchase_price AS unitPrice")
-                                    && sql.contains("p.tender_sub_code AS tenderSubCode")
-                                    && sql.contains("plan_origin.initiatingDeptName")
-                                    && sql.contains("plan_origin.deliveryWarehouseName")),
-                    any(Object[].class))).thenReturn(List.of(Map.of(
-                            "planNo", "JH20260825001",
-                            "productCode", "P001",
-                            "supplierName", "测试配送商"
-                    )));
+            when(jdbcTemplate.queryForList(argThat(sql -> sql.contains("AS itemCount") && sql.contains("AS supplierCount") && sql.contains("AS initiatingDeptName")),
+                    any(Object[].class))).thenReturn(List.of(Map.of("planNo","JH20260825001","itemCount",2L,"supplierCount",2L)));
 
             Map<String, Object> result = service.listPlans(Map.of("page", "1", "size", "20"));
 
@@ -741,15 +731,14 @@ class PurchaseOrderServiceTest {
         @DisplayName("createPlanFromDemands 成功生成采购计划")
         void shouldCreatePlanFromDemandsSuccessfully() {
             Map<String, Object> request = Map.of(
-                    "supplierName", "测试供应商",
                     "remark", "由需求生成",
                     "demandNos", List.of("XQ20260601001")
             );
-            when(jdbcTemplate.queryForList(anyString(), eq(Long.class), anyString()))
-                    .thenReturn(List.of(1L));
             when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of(
-                    Map.of("demandId", 20L, "demandNo", "XQ20260601001", "productId", 10L, "productSupplierId", 1L,
-                            "plannedQuantity", BigDecimal.valueOf(100))
+                    Map.ofEntries(Map.entry("demand_id",20L),Map.entry("demand_no","XQ20260601001"),Map.entry("product_id",10L),
+                            Map.entry("supplier_id",1L),Map.entry("approved_quantity",BigDecimal.valueOf(100)),Map.entry("unit","支"),
+                            Map.entry("purchase_price",BigDecimal.ONE),Map.entry("product_status",1),Map.entry("product_deleted",0),
+                            Map.entry("supplier_status",1),Map.entry("supplier_deleted",0))
             ));
             when(support.nextNo(any(DocumentKind.class)))
                     .thenReturn("JH20260601001");
@@ -769,60 +758,40 @@ class PurchaseOrderServiceTest {
 
             assertThatThrownBy(() -> service.createPlanFromDemands(request))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("请选择需要转计划的已审核需求");
+                    .hasMessageContaining("请选择已审核需求");
             verify(jdbcTemplate, never()).update(anyString(), any(Object[].class));
         }
 
         @Test
-        @DisplayName("performPlanAction：审批计划")
-        void shouldApprovePlan() {
-            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
-                    Map.of("planId", 1L, "planStatus", "draft",
-                            "supplierId", 1L, "productId", 10L, "plannedQuantity", BigDecimal.valueOf(100))
-            );
-            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-            Map<String, Object> result = service.performPlanAction("JH001",
-                    new PurchaseOrderActionRequest("approve", null));
-
-            assertThat(result.get("status")).isEqualTo("approved");
+        @DisplayName("最终计划审批返回全部自动生成订单")
+        void shouldApprovePlan() throws Exception {
+            var plans=mockPlans();var request=new PurchaseOrderActionRequest("approve",null);
+            when(plans.action("JH001",request)).thenReturn(Map.of("status","executed","orderNos",List.of("CG-A","CG-B")));
+            assertThat(service.performPlanAction("JH001",request)).containsEntry("status","executed").containsEntry("orderNos",List.of("CG-A","CG-B"));
+            verify(plans).action("JH001",request);
         }
 
         @Test
-        @DisplayName("performPlanAction：执行计划生成订单")
-        void shouldExecutePlanAndCreateOrder() {
-            Map<String, Object> planMap = Map.of("planId", 1L, "planStatus", "approved",
-                    "supplierId", 1L, "productId", 10L, "plannedQuantity", BigDecimal.valueOf(100));
-            Map<String, Object> productMap = Map.of("productCode", "P001", "unit", "个",
-                    "purchasePrice", BigDecimal.valueOf(100));
-            when(jdbcTemplate.queryForMap(anyString(), any(Object[].class)))
-                    .thenReturn(planMap, productMap);
-            when(support.nextNo(any(DocumentKind.class)))
-                    .thenReturn("CG20260601001");
-            mockKeyHolderInsert(jdbcTemplate, 200L);
-            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-            Map<String, Object> result = service.performPlanAction("JH001",
-                    new PurchaseOrderActionRequest("execute", null));
-
-            assertThat(result.get("status")).isEqualTo("executed");
-            assertThat(result).containsKey("orderNo");
+        @DisplayName("旧执行入口调用同一计划拆单边界")
+        void shouldExecutePlanAndCreateOrder() throws Exception {
+            var plans=mockPlans();var request=new PurchaseOrderActionRequest("execute",null);
+            when(plans.action("JH001",request)).thenReturn(Map.of("status","executed","orderNos",List.of("CG-A","CG-B")));
+            assertThat(service.performPlanAction("JH001",request)).containsEntry("orderNos",List.of("CG-A","CG-B"));
         }
 
         @Test
-        @DisplayName("performPlanAction：驳回计划")
-        void shouldRejectPlan() {
-            when(jdbcTemplate.queryForMap(anyString(), anyString())).thenReturn(
-                    Map.of("planId", 1L, "planStatus", "draft",
-                            "supplierId", 1L, "productId", 10L, "plannedQuantity", BigDecimal.valueOf(100))
-            );
-            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
-
-            Map<String, Object> result = service.performPlanAction("JH001",
-                    new PurchaseOrderActionRequest("reject", "不需要"));
-
-            assertThat(result.get("status")).isEqualTo("rejected");
+        @DisplayName("驳回计划不触发订单生成")
+        void shouldRejectPlan() throws Exception {
+            var plans=mockPlans();var request=new PurchaseOrderActionRequest("reject","不需要");
+            when(plans.action("JH001",request)).thenReturn(Map.of("status","rejected","orderNos",List.of()));
+            assertThat(service.performPlanAction("JH001",request)).containsEntry("status","rejected").containsEntry("orderNos",List.of());
         }
+
+    }
+
+    private MixedPurchasePlanService mockPlans() throws Exception {
+        var plans=org.mockito.Mockito.mock(MixedPurchasePlanService.class);
+        var field=PurchaseOrderService.class.getDeclaredField("mixedPlans");field.setAccessible(true);field.set(service,plans);return plans;
     }
 
     // ==================== 辅助方法 ====================

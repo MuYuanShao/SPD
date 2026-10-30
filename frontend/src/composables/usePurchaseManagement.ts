@@ -489,7 +489,6 @@ export function usePurchaseManagement() {
       }
       const result = await createPurchasePlansFromDemands({
         demandNos: selectedDemandNos.value,
-        supplierName: planForm.supplierName || undefined,
         remark: planForm.remark
       })
       notify.success(`已根据审核通过需求生成 ${result.createdPlans} 条采购计划`)
@@ -627,8 +626,8 @@ export function usePurchaseManagement() {
     try {
       const result = await updatePurchasePlanAction(row.planNo, action, `${statusLabel(row.planStatus)} -> ${action}`)
       notify.success(
-        result.orderNo
-          ? `${row.planNo} 已转采购订单：${result.orderNo}`
+        result.orderNos?.length
+          ? `${row.planNo} 已生成 ${result.orderNos.length} 张采购订单：${result.orderNos.join('、')}`
           : `${row.planNo} 已更新为 ${statusLabel(result.status)}`
       )
       await loadData()

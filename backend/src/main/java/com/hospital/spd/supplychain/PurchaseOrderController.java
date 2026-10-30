@@ -103,6 +103,19 @@ public class PurchaseOrderController {
         return ApiResponse.ok(service.createPlanFromDemands(request));
     }
 
+    @GetMapping("/plans/{planNo}")
+    public ApiResponse<Map<String,Object>> planDetail(@PathVariable String planNo) {
+        return ApiResponse.ok(service.getPlanDetail(planNo));
+    }
+
+    @PutMapping("/plans/{planNo}/items/{itemId}/supplier")
+    public ApiResponse<Map<String,Object>> planSupplier(@PathVariable String planNo,@PathVariable long itemId,
+                                                        @RequestBody Map<String,Long> request) {
+        Long supplier=request.get("supplierId");
+        if(supplier==null||supplier<=0)throw new IllegalArgumentException("请选择明细配送商");
+        return ApiResponse.ok(service.updatePlanSupplier(planNo,itemId,supplier));
+    }
+
     @PutMapping("/plans/{planNo}/action")
     public ApiResponse<Map<String, Object>> planAction(@PathVariable String planNo,
                                                        @jakarta.validation.Valid @RequestBody PurchaseOrderActionRequest request) {

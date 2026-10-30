@@ -49,6 +49,28 @@ The set of downstream flows that close operational work: shortage reminders, rep
 requisition, delivery, consumption, settlement, PDA upload, cold-chain exceptions, recalls,
 and high-value charges.
 
+### Mixed Purchase Plan
+
+A hospital Purchase Plan is one document with multiple product lines. It does not split by
+supplier or by high-value/low-value classification. Each line owns its distributor. Final
+plan approval generates Purchase Orders grouped by the lines' distributors; one mixed plan
+can produce multiple supplier orders. Upload those supplier orders to MCP with their common
+source plan identity, and restrict each supplier to its own lines and documents.
+
+### Picking Occupancy And Department Receipt
+
+Scanning a high-value unique code for picking occupies that exact unit and puts the delivery
+in transit from the first-level warehouse to the department warehouse. Occupancy is the
+business meaning of inventory pre-deduction: the occupied unit cannot be picked again.
+Picking alone does not formally remove the unit from source on-hand inventory or add it to
+department inventory. Department signing completes both inventory changes atomically and
+must be idempotent. Do not infer a failed occupancy solely from a particular balance column;
+verify exclusive unique-code ownership, in-transit delivery state, and signing behavior.
+
+Department signing is not patient charging. High-value department inventory is deducted on
+receipt of HIS/anesthesia/surgery billing data; low-value quota packages support scan-driven
+department consumption. Settlement uses the corresponding actual business source.
+
 ### Concurrency Flow
 
 The operational path exercised by many users at the same time. The Concurrency Flow includes

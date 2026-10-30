@@ -28,6 +28,7 @@ import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
 import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import PurchasePlanDetailDialog from '../../components/purchase/PurchasePlanDetailDialog.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
@@ -123,6 +124,7 @@ const {
   previewOrderAttachment,
   closeOrderAttachmentDialog
 } = usePurchaseManagement()
+const planDetailNo = ref('')
 const authStore = useAuthStore()
 const notify = useNotify()
 
@@ -279,12 +281,6 @@ async function handleOrderAttachmentUpload(event: Event) {
           <PackagePlus :size="18" />
           新增采购
         </button>
-        <select v-if="activeTab === 'demands'" v-model="planForm.supplierName" class="inline-select md-select" title="计划供应商">
-          <option value="">按商品默认供应商生成计划</option>
-          <option v-for="supplier in suppliers" :key="supplier.supplierName" :value="supplier.supplierName">
-            {{ supplier.supplierName }}
-          </option>
-        </select>
         <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" class="btn md-btn" type="button" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
           <FileCheck2 :size="17" />
           需求转计划
@@ -417,10 +413,10 @@ async function handleOrderAttachmentUpload(event: Event) {
           <thead>
             <tr>
               <th>计划编号</th>
-              <th>商品</th>
-              <th>采购数量</th>
+              <th>商品明细数</th>
+              <th>已生成订单数</th>
               <th>金额</th>
-              <th>供应商</th>
+              <th>配送商数</th>
               <th>发起科室</th>
               <th>状态</th>
               <th>操作</th>
@@ -432,13 +428,14 @@ async function handleOrderAttachmentUpload(event: Event) {
             </tr>
             <tr v-for="row in plans" v-else :key="row.planNo">
               <td class="document-no-cell">{{ row.planNo }}</td>
-              <td :title="`${row.productCode || ''} ${row.specModel || ''} ${row.manufacturerName || ''}`"><strong>{{ row.productName || '-' }}</strong><small>{{ row.productCode || '-' }} · {{ row.specModel || '-' }}</small></td>
-              <td>{{ row.plannedQuantity }}</td>
-              <td class="purchase-plan-amount">¥ {{ Number(row.amount ?? Number(row.unitPrice || 0) * Number(row.plannedQuantity || 0)).toFixed(2) }}</td>
-              <td>{{ row.supplierName || '-' }}</td>
+              <td>{{ row.itemCount }}</td>
+              <td>{{ row.orderCount }}</td>
+              <td class="purchase-plan-amount">{{ row.amount == null ? '历史未记录' : `¥ ${Number(row.amount).toFixed(2)}` }}</td>
+              <td>{{ row.supplierCount }}</td>
               <td>{{ row.initiatingDeptName || '-' }}</td>
               <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
               <td class="row-actions">
+                <button class="btn-text" @click="planDetailNo = row.planNo">明细/配送商</button>
                 <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:approve')" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
                 <button v-if="row.planStatus === 'approved' && authStore.hasPermission('purchase-plan:execute')" class="btn-text" @click="runPlanAction(row, 'execute')">转订单</button>
                 <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:reject')" class="btn-text btn-text-danger" @click="runPlanAction(row, 'reject')">驳回</button>
@@ -1292,6 +1289,7 @@ async function handleOrderAttachmentUpload(event: Event) {
     </div>
     </Teleport>
   </section>
+  <PurchasePlanDetailDialog :plan-no="planDetailNo" @close="planDetailNo = ''" @updated="loadData" />
 </template>
 
 <style scoped>

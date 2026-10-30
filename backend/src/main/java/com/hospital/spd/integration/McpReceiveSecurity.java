@@ -37,6 +37,7 @@ public class McpReceiveSecurity {
         Long operator=env.getProperty("SPD_MCP_OPERATOR_ID",Long.class,0L);
         var users=db.queryForList("SELECT u.user_id,u.username,u.dept_id,COALESCE((SELECT MIN(r.data_scope) FROM sys_role r JOIN sys_user_role ur ON ur.role_id=r.role_id WHERE ur.user_id=u.user_id AND r.status=1 AND r.deleted=0),4) AS data_scope FROM sys_user u WHERE u.user_id=? AND u.status=1 AND u.deleted=0",operator);
         if(users.size()!=1) {res.sendError(403,"MCP operator missing or disabled");return;}
+        if(req.getServletPath().equals("/mcp/phase3/feedback") && !rbac.permissionCodes(operator).contains("mcp-phase3:feedback")) {res.sendError(403,"MCP feedback permission missing");return;}
         var user=users.get(0);
         var roles=db.queryForList("SELECT r.role_code FROM sys_role r JOIN sys_user_role ur ON ur.role_id=r.role_id WHERE ur.user_id=? AND r.status=1 AND r.deleted=0",String.class,operator);
         List<String> normalized=roles.stream().map(r->r.startsWith("ROLE_")?r:"ROLE_"+r.toUpperCase()).toList();
@@ -46,7 +47,7 @@ public class McpReceiveSecurity {
         try {chain.doFilter(req,res);} finally {SecurityContextHolder.clearContext();}
       }
     };
-    return http.securityMatcher("/mcp/receive").csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+    return http.securityMatcher("/mcp/receive","/mcp/phase3/feedback").csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(a->a.anyRequest().authenticated()).addFilterBefore(filter,UsernamePasswordAuthenticationFilter.class).build();
   }
 }

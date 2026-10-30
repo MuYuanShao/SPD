@@ -96,4 +96,57 @@ class McpReceiveServiceTest {
     var captured=org.mockito.ArgumentCaptor.forClass(org.springframework.web.multipart.MultipartFile.class);
     verify(attachments).upload(eq("APP1"),captured.capture());assertArrayEquals(bytes,captured.getValue().getBytes());verifyNoInteractions(products);
   }
+
+  @Test void renamingTheSamePendingLicenseReplacesItsPreviousAttachmentByStableIdentity() {
+    var e=envelope();
+    var l=((com.fasterxml.jackson.databind.node.ArrayNode)e.path("payload").path("licenses")).addObject();
+    l.put("sourceLicenseId","42");l.put("licenseCode","RENAMED");l.put("licenseType","注册证");l.put("productCode","P1");
+    l.put("status","active");l.put("expiryDate","2030-01-01");l.put("fileName","certificate.pdf");
+    l.put("attachmentBase64",Base64.getEncoder().encodeToString("%PDF-1.4\ncertificate".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+    when(db.queryForMap(anyString(),eq(1L))).thenReturn(Map.of("product_code","P1","application_no","APP1","source_updated_at","2026-10-07T00:00:00Z"));
+    when(approvals.getDetail("APP1")).thenReturn(mapper.convertValue(Map.of("applicationNo","APP1","applicationType","新品准入","approvalStatus","pending_initial"),com.hospital.spd.masterdata.PendingProductApplicationDetail.class));
+    when(db.queryForObject(contains("SELECT application_id"),eq(Long.class),eq("APP1"))).thenReturn(10L);
+    when(db.queryForList(contains("FROM mcp_license_intent WHERE application_no=? AND source_product_id=? AND source_license_id=?"),eq("APP1"),eq(1L),eq("42")))
+        .thenReturn(List.of(Map.of("attachment_id",41L,"license_code","ORIGINAL")));
+    when(attachments.upload(eq("APP1"),any())).thenReturn(Map.of("attachmentId",42L));
+    assertEquals("processed",service.receive(key,e).get("state"));
+    verify(attachments).delete("APP1",41L);
+    verify(attachments).upload(eq("APP1"),any());
+  }
+
+  @Test void explicitReactivationIsAnApprovalTargetRatherThanADirectCatalogUpdate() {
+    when(db.queryForMap(anyString(),eq(1L))).thenReturn(Map.of("product_code","P1","application_no","","source_updated_at",""));
+    when(db.queryForObject(contains("COUNT(*) FROM product"),eq(Integer.class),eq("P1"))).thenReturn(1);
+    when(db.queryForList(contains("SELECT status FROM product WHERE product_code=?"),eq(Integer.class),eq("P1"))).thenReturn(List.of(0));
+    when(products.hospitalProductDetail("P1")).thenReturn(mapper.convertValue(Map.of("productCode","P1","productName","测试商品","specModel","5ml","unit","支","statusLabel","停用"),com.hospital.spd.masterdata.ProductDetail.class));
+    when(approvals.createApplication(any(),eq(1))).thenReturn(Map.of("applicationNo","ENABLE"));
+    when(db.queryForObject(contains("SELECT application_id"),eq(Long.class),eq("ENABLE"))).thenReturn(11L);
+    assertEquals("processed",service.receive(key,envelope()).get("state"));
+    verify(approvals).createApplication(any(),eq(1));
+    verify(db,never()).update(startsWith("UPDATE product SET status"),any(Object[].class));
+  }
+
+  @Test void revocationMetadataDoesNotConsumeTheTenCurrentCertificateSlots() {
+    var e=envelope();var licenses=(com.fasterxml.jackson.databind.node.ArrayNode)e.path("payload").path("licenses");
+    for(int i=1;i<=12;i++) {
+      var l=licenses.addObject();l.put("sourceLicenseId",Integer.toString(i));l.put("licenseCode","OLD-"+i);
+      l.put("licenseType","注册证");l.put("productCode","P1");l.put("status","revoked");l.put("expiryDate","2030-01-01");
+    }
+    when(db.queryForMap(anyString(),eq(1L))).thenReturn(Map.of("product_code","P1","application_no","","source_updated_at",""));
+    when(approvals.createApplication(any())).thenReturn(Map.of("applicationNo","APP1"));
+    when(db.queryForObject(contains("SELECT application_id"),eq(Long.class),eq("APP1"))).thenReturn(10L);
+    assertEquals("processed",service.receive(key,e).get("state"));
+    verify(attachments,never()).upload(anyString(),any());
+    verify(db,times(12)).update(startsWith("INSERT INTO mcp_license_intent"),any(Object[].class));
+  }
+
+  @Test void certificateOnlyRefreshPreservesAnAlreadyPendingActivationTarget() {
+    var e=envelope();((ObjectNode)e.path("payload")).put("licensesOnly",true);
+    when(db.queryForMap(anyString(),eq(1L))).thenReturn(Map.of("product_code","P1","application_no","APP1","source_updated_at","2026-10-07T00:00:00Z"));
+    when(approvals.getDetail("APP1")).thenReturn(mapper.convertValue(Map.of("applicationNo","APP1","applicationType","信息变更","approvalStatus","pending_initial"),com.hospital.spd.masterdata.PendingProductApplicationDetail.class));
+    when(db.queryForObject(contains("SELECT application_id"),eq(Long.class),eq("APP1"))).thenReturn(10L);
+    assertEquals("processed",service.receive(key,e).get("state"));
+    verify(approvals).updateApplicationData(eq("APP1"),any());
+    verify(db,never()).update(startsWith("UPDATE pending_product_application a JOIN product p"),any(Object[].class));
+  }
 }

@@ -285,6 +285,7 @@ public class RbacAuthorizationService {
         prefixes.put("/operational-closure", "operational-closure");
         prefixes.put("/approval-flows", "approval-flow-settings");
         prefixes.put("/system/field-options", "field-option-management");
+        prefixes.put("/mcp-phase3", "system-config");
         prefixes.put("/system-config", "system-config");
         prefixes.put("/config-hit-explanation", "config-hit-explanation");
         prefixes.put("/report-center/supplier-delivery-ledger", "supplier-delivery-ledger-report");

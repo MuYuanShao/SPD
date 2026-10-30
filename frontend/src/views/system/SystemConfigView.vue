@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { Teleport } from 'vue'
+import McpConnectionSettings from '../../components/system/McpConnectionSettings.vue'
 import {
   AlertOctagon,
   Check,
@@ -248,6 +249,8 @@ onMounted(loadConfigs)
         {{ item.label }}
       </button>
     </div>
+
+    <McpConnectionSettings v-if="activeType === 'integration'" @saved="loadConfigs" />
 
     <!-- 工具栏 -->
     <div class="sys-toolbar-panel">

@@ -37,6 +37,9 @@ import java.util.Objects;
  */
 @Service
 public class PurchaseOrderService {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.hospital.spd.integration.McpPhase3Outbox phase3Outbox;
+
 
     private static final List<Integer> SMART_REPLENISHMENT_PERIOD_DAYS = List.of(5, 15, 30, 45, 60);
 
@@ -604,6 +607,7 @@ public class PurchaseOrderService {
             if (changed != 1) {
                 throw new IllegalStateException("purchase demand status changed, please refresh and retry");
             }
+            if (phase3Outbox != null) phase3Outbox.capturePlan(planNo);
             planNos.add(planNo);
             created++;
         }
@@ -618,7 +622,9 @@ public class PurchaseOrderService {
             case "execute" -> "purchase-plan:execute";
             default -> throw new IllegalArgumentException("purchase plan action is invalid");
         });
-        return purchaseFlow.runPlanAction(planNo, request);
+        Map<String, Object> result = purchaseFlow.runPlanAction(planNo, request);
+        if (phase3Outbox != null) phase3Outbox.capturePlan(planNo);
+        return result;
     }
 
     // ==================== 跟踪与选项 ====================

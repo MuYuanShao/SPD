@@ -50,6 +50,12 @@ public class McpReceiveService {
     var duplicate=db.queryForList("SELECT request_hash,result_json FROM mcp_receive_result WHERE sync_id=?",key);
     if(!duplicate.isEmpty()) {require(hash.equals(duplicate.get(0).get("request_hash")),"幂等编号不能用于不同请求");return result(duplicate.get(0).get("result_json").toString());}
     boolean licensesOnly=payload.path("licensesOnly").asBoolean();
+    require(Set.of("active","inactive").contains(product.path("status").asText()),"商品启停状态不合法");
+    Integer targetStatus=null;
+    if(!licensesOnly && product.path("status").asText().equals("active")) {
+      var current=db.queryForList("SELECT status FROM product WHERE product_code=? AND deleted=0 FOR SHARE",Integer.class,code);
+      if(current.size()==1 && current.get(0)==0) targetStatus=1;
+    }
     String previous=Objects.toString(mapping.get(licensesOnly?"license_updated_at":"source_updated_at"),"");
     if(!previous.isBlank() && !version.isAfter(Instant.parse(previous))) return saveResult(key,hash,code,"重复或旧版本，待审批目录未被覆盖");
     String previousLicenseVersion=Objects.toString(mapping.get("license_updated_at"),"");
@@ -107,6 +113,13 @@ public class McpReceiveService {
       // Detail DTOs render absent optional values as "-"; never write that UI marker back to business fields.
       var displayFields=merged.fields();
       while(displayFields.hasNext()) {var field=displayFields.next();if(field.getValue().isTextual() && field.getValue().asText().equals("-")) merged.putNull(field.getKey());}
+      // Numeric detail DTOs likewise display SQL NULL as zero. Preserve the actual optional quantities.
+      if(!merged.isEmpty()) {
+        var quantities=db.queryForList("SELECT min_purchase_qty AS minPurchaseQty,conversion_rate AS conversionRate,purchase_package_qty AS purchasePackageQty FROM "
+            +(!application.isBlank()?"pending_product_application WHERE application_no=?":"product WHERE product_code=? AND deleted=0"),!application.isBlank()?application:code);
+        if(quantities.size()==1) for(String field:List.of("minPurchaseQty","conversionRate","purchasePackageQty"))
+          merged.set(field,mapper.valueToTree(quantities.get(0).get(field)));
+      }
       var target=merged;
       product.fields().forEachRemaining(e->{
         if(!applyLicenses && Set.of("registrationNo","registrationExpireDate").contains(e.getKey())) return;
@@ -120,15 +133,26 @@ public class McpReceiveService {
       var requestNode=mapper.createObjectNode();target.fields().forEachRemaining(e->{if(allowed.contains(e.getKey())) requestNode.set(e.getKey(),e.getValue());});
       PendingProductApplicationRequest request;
       try {request=mapper.treeToValue(requestNode,PendingProductApplicationRequest.class);} catch(Exception e) {throw new IllegalArgumentException("商品字段不合法",e);}
-      if(application.isBlank()) application=Objects.toString(approvals.createApplication(request).get("applicationNo"));
-      else if(resubmitting) approvals.resubmitApplication(application,request);
-      else approvals.updateApplicationData(application,request);
+      if(application.isBlank()) application=Objects.toString((targetStatus==null?approvals.createApplication(request):approvals.createApplication(request,targetStatus)).get("applicationNo"));
+      else if(resubmitting) {
+        if(targetStatus==null) approvals.resubmitApplication(application,request);
+        else approvals.resubmitApplication(application,request,targetStatus);
+      } else {
+        if(targetStatus==null) approvals.updateApplicationData(application,request);
+        else approvals.updateApplicationData(application,request,targetStatus);
+      }
     }
     Long applicationId=db.queryForObject("SELECT application_id FROM pending_product_application WHERE application_no=?",Long.class,application);
-    if(licensesOnly) db.update("UPDATE pending_product_application a JOIN product p ON p.product_code=a.product_code AND p.deleted=0 SET a.product_snapshot=JSON_SET(COALESCE(a.product_snapshot,JSON_OBJECT()),'$.targetStatus',p.status) WHERE a.application_no=?",application);
+    if(licensesOnly && newQualification) db.update("UPDATE pending_product_application a JOIN product p ON p.product_code=a.product_code AND p.deleted=0 SET a.product_snapshot=JSON_SET(COALESCE(a.product_snapshot,JSON_OBJECT()),'$.targetStatus',p.status) WHERE a.application_no=?",application);
     for(var license:decoded) {
       String licenseCode=license.metadata().path("licenseCode").asText();
       String identity=license.metadata().path("sourceLicenseId").asText();
+      // The certificate number may change while the same application is pending.
+      var pendingIntent=db.queryForList("SELECT attachment_id,license_code FROM mcp_license_intent WHERE application_no=? AND source_product_id=? AND source_license_id=? FOR UPDATE",application,sourceId,identity);
+      for(var prior:pendingIntent) if(prior.get("attachment_id") instanceof Number old) {
+        attachments.delete(application,old.longValue());
+        db.update("DELETE FROM mcp_pending_license WHERE source_product_id=? AND application_no=? AND attachment_id=?",sourceId,application,old.longValue());
+      }
       var approvedLicense=db.queryForList("SELECT attachment_id FROM mcp_license_approved WHERE source_product_id=? AND source_license_id=?",sourceId,identity);
       if(!approvedLicense.isEmpty() && approvedLicense.get(0).get("attachment_id") instanceof Number approvedAttachment)
         db.update("INSERT IGNORE INTO mcp_license_retirement(application_no,source_attachment_id,source_product_id,license_code) VALUES(?,?,?,?)",application,approvedAttachment.longValue(),sourceId,licenseCode);
@@ -151,14 +175,16 @@ public class McpReceiveService {
     return saveResult(key,hash,code,"商品及证照已进入待审批目录："+application+"，尚未进入院内目录");
   }
   private List<DecodedLicense> decodeLicenses(JsonNode licenses,String code) {
-    require(licenses.isArray() && licenses.size()<=10,"每个商品最多下发10个证照");
+    require(licenses.isArray() && licenses.size()<=1000,"商品证照及撤销元数据超过1000条传输上限");
     var list=new ArrayList<DecodedLicense>();var codes=new HashSet<String>();var sourceIds=new HashSet<String>();long size=0;
+    int currentLicenses=0;
     for(var l:licenses) {
       String licenseCode=l.path("licenseCode").asText();require(!licenseCode.isBlank() && licenseCode.length()<=80 && codes.add(licenseCode),"证照编号缺失或重复");
       String identity=l.path("sourceLicenseId").asText("legacy:"+licenseCode);
       require(identity.startsWith("legacy:") || identity.matches("[1-9][0-9]{0,18}"),"来源证照身份不合法");require(sourceIds.add(identity),"来源证照身份重复");
       require(code.equals(l.path("productCode").asText()),"证照商品关联不一致");
       String state=l.path("status").asText();require(Set.of("active","pending","expired","revoked").contains(state),"证照状态不合法");
+      if(!state.equals("revoked")) require(++currentLicenses<=10,"每个商品最多下发10个未撤销证照");
       LocalDate expiry=LocalDate.parse(l.path("expiryDate").asText());
       if(l.hasNonNull("issueDate")) require(!LocalDate.parse(l.path("issueDate").asText()).isAfter(expiry),"证照签发日期不能晚于有效期");
       MultipartFile file=null;

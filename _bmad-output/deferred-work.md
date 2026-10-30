@@ -48,3 +48,22 @@
 ## Repair follow-up (2026-10-29)
 
 原四批23项逻辑问题已完成对应修正并复核；4项验证缺口已补真实MySQL回归，B2-F8/B2-F9保留待确认。详见 docs/reviews/2026-10-29-inventory-audit-fixes.md。AI外部服务冒烟超时单列，不计为通过。
+
+
+## Deferred from: code review (2026-10-29) — SPD-MCP-UI integration
+
+- [bug/high] 待审批证照改号遗留旧附件并一并准入 — D:/SPD-PR/backend/src/main/java/com/hospital/spd/integration/McpReceiveService.java:135；licensesComplete按sourceLicenseId判断，A与B同ID不会生成旧附件unlinked动作；审批提升全部deleted=0的申请附件，A和B都进入院内商品；后续已批准版本只跟踪B，A成为无法正常退役的旧来源证照。
+- [bug/high] MCP原生采购计划并发转单可超过计划量 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/purchase/PurchaseRepository.java:250；PurchaseService只先普通读状态并开启事务；findPlanSeed和remainingPlanQty均未锁父计划。ID序列锁发生在剩余量计算之后，后续UPDATE计划不重新校验，不能防止第二事务沿用旧剩余量。此问题属于MCP本地计划转单接口，不冒充已实现的SPD计划同步。
+- [bug/medium] 商品重新启用状态未传入审批目标 — D:/SPD-PR/backend/src/main/java/com/hospital/spd/integration/McpReceiveService.java:111；DTO没有status/targetStatus；普通信息变更调用snapshotService.write时explicitTargetStatus为null。仅启用无其他变化会被无差异校验拒绝；连同其他资料修改批准后仍停用。院内原生启停流程可绕过，故为中风险。
+- [bug/medium] 历史软删除证照持续占用十份下发额度 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/integration/IntegrationService.java:143；累计创建删除超过十份后，即使只有一份有效证照，商品及独立证照下发均失败；已成功撤销的历史墓碑没有清理/checkpoint。不是反对单次十份协议上限，而是历史记录永久挤占当前可传集合。
+- [bug/medium] 双方HTTP响应正文读取无超时边界 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/integration/SpdTransport.java:33；已核对本机Java17源码HttpResponse.BodyHandlers.ofInputStream说明及MultiExchange.cancelTimer：响应对象返回时正文可未收完；代码后续流读取没有deadline。SPD上传为synchronized且串行扫描，单次卡住会阻止后续轮次、失败落库及重试；需运维恢复，因此中风险。
+- [verification_gap/medium] 乱序下发回执缺少版本保持回归 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/integration/IntegrationService.java:184；需断言较新商品映射与完整证照绑定集合保持不变。当前有版本保护，未证明其失效；这是测试缺口。
+- [verification_gap/medium] 计划转订单缺少数量和金额落库断言 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/purchase/PurchaseRepository.java:250；mock服务测试不执行仓储转换；需补真实数据库/API断言，防止成功建单却转错数量金额。此缺口独立于R8并发超量。
+- [verification_gap/medium] 结算查询缺少租户隔离和财务字段测试 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/settlement/SettlementRepository.java:22；现有dual_system脚本不请求settlements，单元测试也未覆盖。需两个租户及deleted记录夹具验证精确返回值；这不是已证明越权或金额计算错误，也不是要求补不存在的结算写接口。
+- [capability_gap/medium] 采购计划尚无双端同步链路 — D:/SPD-PR/backend/src/main/java/com/hospital/spd/integration/McpUploadJob.java:44；未找到来源计划身份映射、计划上传下发和审批状态回写。第一二期现有契约没有承诺采购计划对接，应视为用户本次检查范围未覆盖，而非已实现接口的BUG。
+- [capability_gap/medium] 结算数据尚无双端同步链路 — D:/SPD-MCP-UI/server/src/main/java/com/spd/mcp/api/settlement/SettlementController.java:19；入库金额、采购统计不等于供应商结算。未发现结算单及明细、确认/撤销状态同步或双方结算身份映射；属于未覆盖能力，非现有第一二期契约违约。
+
+
+## SPD-MCP-UI repair follow-up (2026-10-29)
+
+F1—F5已修复并完成真实双端102项验收；F7计划转单数量金额缺口已补真实落库断言。F6乱序回执及F8原生结算查询的专项测试缺口继续登记，不冒充已验证。F9/F10采购计划及结算对接已在测试通过后制定方案，尚未实现。详见 docs/reviews/2026-10-29-spd-mcp-interface-fixes.md 和 docs/plans/2026-10-29-mcp-purchase-plan-settlement-integration.md。

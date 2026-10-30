@@ -26,6 +26,8 @@ public class McpUploadJob {
   private Instant renewAt=Instant.EPOCH;
   private String runtimeUrl="";
   private boolean phase2UploadEnabled;
+  private boolean phase3UploadEnabled;
+  @org.springframework.beans.factory.annotation.Autowired(required=false) private McpPhase3Delivery phase3Delivery;
   public McpUploadJob(JdbcTemplate db,ObjectMapper mapper,Environment env) {this(db,mapper,env,new McpPhase2Source(db,env));}
   @org.springframework.beans.factory.annotation.Autowired
   public McpUploadJob(JdbcTemplate db,ObjectMapper mapper,Environment env,McpPhase2Source phase2) {this.db=db;this.mapper=mapper;this.env=env;this.phase2=phase2;}
@@ -42,7 +44,12 @@ public class McpUploadJob {
         if(env.getProperty(key,"").isBlank()) throw new IllegalArgumentException("上传配置缺少 "+key);
       login();
       uploadMasters("manufacturer");uploadMasters("supplier");uploadOrders();
-      if(phase2UploadEnabled) uploadPhase2();
+      if(phase2UploadEnabled) {
+        try {uploadPhase2();}
+        catch(Exception e) {log.warn("MCP二期上传未完成，将在下次任务重试 ({})",e.getClass().getSimpleName());}
+      }
+      if(phase3UploadEnabled && phase3Delivery!=null) phase3Delivery.deliver(runtimeUrl+"|"+env.getProperty("SPD_MCP_UI_INSTANCE_ID")+"|"+env.getProperty("SPD_MCP_UI_TENANT_ID","1"),
+          (method,path,body,key,deadline)->exchange(method,path,body,true,key,deadline));
     } catch(Exception e) {log.warn("MCP上传任务未完成：{} ({})",e instanceof IllegalArgumentException?e.getMessage():"网络或数据库异常，请检查同步配置和上传状态",e.getClass().getSimpleName());}
   }
   private void uploadPhase2() throws Exception {
@@ -73,11 +80,13 @@ public class McpUploadJob {
       if(row.get("effective_time")!=null && McpSourceTime.dateTime(row.get("effective_time")).isAfter(LocalDateTime.now())) throw new IllegalArgumentException("MCP-UI连接配置尚未生效");
       if(row.get("expire_time")!=null && McpSourceTime.date(row.get("expire_time")).isBefore(LocalDate.now())) throw new IllegalArgumentException("MCP-UI连接配置已过期");
       var settings=mapper.readTree(row.get("config_value").toString());
+      phase3UploadEnabled=settings.path("phase3Enabled").asBoolean(env.getProperty("SPD_MCP_PHASE3_UPLOAD_ENABLED",Boolean.class,false));
       phase2UploadEnabled=settings.path("phase2Enabled").asBoolean(env.getProperty("SPD_MCP_PHASE2_UPLOAD_ENABLED",Boolean.class,false));
       return McpConnectionAddress.apiUrl(settings);
     }
     String fallback=env.getProperty("SPD_MCP_UI_URL","");
     phase2UploadEnabled=env.getProperty("SPD_MCP_PHASE2_UPLOAD_ENABLED",Boolean.class,false);
+    phase3UploadEnabled=env.getProperty("SPD_MCP_PHASE3_UPLOAD_ENABLED",Boolean.class,false);
     if(fallback.isBlank()) throw new IllegalArgumentException("请在系统配置的系统集成中设置MCP-UI IP地址和端口");
     return fallback;
   }
@@ -119,6 +128,8 @@ public class McpUploadJob {
         cursor=((Number)row.get("purchase_order_id")).longValue();String code=row.get("order_no").toString();
         try {
           var payload=new LinkedHashMap<String,Object>();payload.put("orderNo",code);payload.put("supplierCode",row.get("supplier_code"));
+          var plans=db.queryForList("SELECT plan_id,plan_no FROM purchase_plan WHERE converted_order_no=?",code);
+          if(plans.size()==1){payload.put("sourcePlanId",plans.get(0).get("plan_id").toString());payload.put("sourcePlanNo",plans.get(0).get("plan_no"));}
           payload.put("orderDate",McpSourceTime.date(row.get("create_time")).toString());
           payload.put("status",orderStatus(row.get("order_status").toString()));payload.put("totalAmount",row.get("total_amount"));
           payload.put("currency",currency);payload.put("taxIncluded",Boolean.parseBoolean(tax));payload.put("sourceUpdatedAt",timestamp(row.get("update_time")));
@@ -145,19 +156,24 @@ public class McpUploadJob {
     db.update("INSERT INTO mcp_upload_state(kind,source_code,payload_hash,state,message,target_key) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload_hash=VALUES(payload_hash),state=VALUES(state),message=VALUES(message),target_key=VALUES(target_key)",kind,code,hash,state,message.substring(0,Math.min(1000,message.length())),target);
   }
   private JsonNode post(String path,Object payload,boolean authenticated) throws Exception {
+    return exchange("POST",path,payload,authenticated,null,Duration.ofMillis(env.getProperty("SPD_MCP_HTTP_TIMEOUT_MS",Long.class,15000L)));
+  }
+  private JsonNode exchange(String method,String path,Object payload,boolean authenticated,String key,Duration deadline) throws Exception {
     URI base=URI.create(runtimeUrl);
     if(!Set.of("http","https").contains(base.getScheme()) || base.getHost()==null || base.getUserInfo()!=null || base.getQuery()!=null || base.getFragment()!=null) throw new IllegalArgumentException("MCP接口地址不合法");
     var builder=HttpRequest.newBuilder(URI.create(base.toString().replaceAll("/$","")+path)).timeout(Duration.ofSeconds(15))
         .header("Content-Type","application/json").header("x-api-key",env.getProperty("SPD_MCP_UI_API_KEY"))
         .header("x-tenant-id",env.getProperty("SPD_MCP_UI_TENANT_ID","1"));
     if(authenticated) builder.header("Authorization","Bearer "+token).header("x-spd-token",env.getProperty("SPD_MCP_SHARED_TOKEN"));
-    var response=client.send(builder.POST(HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload))).build(),HttpResponse.BodyHandlers.ofInputStream());
-    try(var body=response.body()) {
-      if(response.statusCode()==401) token="";
-      if(response.statusCode()!=200) throw new IllegalArgumentException("MCP接口返回 HTTP "+response.statusCode());
-      var bytes=body.readNBytes(1024*1024+1);if(bytes.length>1024*1024) throw new IllegalArgumentException("MCP回执过大");
-      return mapper.readTree(bytes);
+    if(key!=null)builder.header("Idempotency-Key",key);
+    var response=BoundedHttpClient.send(client,builder.method(method,HttpRequest.BodyPublishers.ofString(mapper.writeValueAsString(payload))).build(),1024*1024,deadline);
+    if(response.statusCode()==401) token="";
+    if(response.statusCode()!=200) {
+      String code="";try {code=mapper.readTree(response.body()).path("code").asText();}catch(Exception ignored) {}
+      if(!code.matches("[A-Z_]{1,60}"))code="REMOTE_ERROR";
+      throw new IllegalArgumentException("MCP接口返回 HTTP "+response.statusCode()+"："+code);
     }
+    return mapper.readTree(response.body());
   }
   private String timestamp(Object timestamp) {
     return McpSourceTime.instant(timestamp,env.getProperty("SPD_MCP_SOURCE_ZONE","Asia/Shanghai"));

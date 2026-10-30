@@ -423,6 +423,13 @@ public class ProductApprovalService {
 
     @Transactional
     public Map<String, Object> createApplication(PendingProductApplicationRequest request) {
+        return createApplication(request, null);
+    }
+
+    /** Trusted integrations may request a status transition, still subject to the normal approval route. */
+    @Transactional
+    public Map<String, Object> createApplication(PendingProductApplicationRequest request, Integer targetStatus) {
+        validateTargetStatus(targetStatus);
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
         com.hospital.spd.common.QuantityRules.optionalPositive(request.minPurchaseQty(), "最小采购数量");
@@ -435,7 +442,7 @@ public class ProductApprovalService {
         } else {
             validateExistingApplicationSource(productCode, applicationType, request.purchasePrice(), null);
         }
-        validateInformationChangeHasDifference(request, applicationType);
+        validateInformationChangeHasDifference(request, applicationType, targetStatus);
         OperatorContext operator = operatorContextProvider.current();
         String applicationNo = nextApplicationNo();
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
@@ -507,7 +514,7 @@ public class ProductApprovalService {
         Long applicationId = jdbcTemplate.queryForObject(
                 "SELECT application_id FROM pending_product_application WHERE application_no = ?",
                 Long.class, applicationNo);
-        snapshotExistingCatalog(applicationId, applicationType, request.changeReason());
+        snapshotService.write(applicationId, applicationType, nullIfBlank(request.changeReason()), targetStatus);
         if (catalogApprovalRouteService != null) {
             String status = catalogApprovalRouteService.snapshotRoute(
                     applicationId, 1, applicationType, operator.deptId());
@@ -675,6 +682,12 @@ public class ProductApprovalService {
 
     @Transactional
     public Map<String, Object> resubmitApplication(String applicationNo, PendingProductApplicationRequest request) {
+        return resubmitApplication(applicationNo, request, null);
+    }
+
+    @Transactional
+    public Map<String, Object> resubmitApplication(String applicationNo, PendingProductApplicationRequest request, Integer targetStatus) {
+        validateTargetStatus(targetStatus);
         productCodeService.lockAdmission();
         jdbcTemplate.queryForList("SELECT application_id FROM pending_product_application WHERE application_no = ? FOR UPDATE", applicationNo);
         PendingProductApplicationDetail detail = getDetail(applicationNo);
@@ -698,7 +711,7 @@ public class ProductApprovalService {
         } else {
             validateExistingApplicationSource(productCode, applicationType, request.purchasePrice(), applicationNo);
         }
-        validateInformationChangeHasDifference(request, applicationType);
+        validateInformationChangeHasDifference(request, applicationType, targetStatus);
 
         Long manufacturerId = findIdByName("manufacturer", "manufacturer_id", "manufacturer_name", request.manufacturerName());
         Long supplierId = findIdByName("supplier", "supplier_id", "supplier_name", request.supplierName());
@@ -782,7 +795,7 @@ public class ProductApprovalService {
                     """, applicationNo);
             Long applicationId = number(identity.get("applicationId"));
             int approvalRound = integer(identity.get("approvalRound"));
-            snapshotExistingCatalog(applicationId, applicationType, request.changeReason());
+            snapshotService.write(applicationId, applicationType, nullIfBlank(request.changeReason()), targetStatus);
             resubmittedStatus = catalogApprovalRouteService.snapshotRoute(
                     applicationId, approvalRound, applicationType, operator.deptId());
             jdbcTemplate.update("UPDATE pending_product_application SET approval_status = ? WHERE application_id = ?",
@@ -800,6 +813,12 @@ public class ProductApprovalService {
      */
     @Transactional
     public Map<String, Object> updateApplicationData(String applicationNo, PendingProductApplicationRequest request) {
+        return updateApplicationData(applicationNo, request, null);
+    }
+
+    @Transactional
+    public Map<String, Object> updateApplicationData(String applicationNo, PendingProductApplicationRequest request, Integer targetStatus) {
+        validateTargetStatus(targetStatus);
         productCodeService.lockAdmission();
         jdbcTemplate.queryForList("SELECT application_id FROM pending_product_application WHERE application_no = ? FOR UPDATE", applicationNo);
         PendingProductApplicationDetail detail = getDetail(applicationNo);
@@ -898,6 +917,10 @@ public class ProductApprovalService {
                 applicationNo
         );
 
+        if (targetStatus != null) {
+            Long applicationId = jdbcTemplate.queryForObject("SELECT application_id FROM pending_product_application WHERE application_no = ?", Long.class, applicationNo);
+            snapshotService.write(applicationId, applicationType, nullIfBlank(request.changeReason()), targetStatus);
+        }
         writeAudit("reviewer_update", applicationNo, "Reviewer updated application fields");
         return Map.of("applicationNo", applicationNo);
     }
@@ -1177,7 +1200,15 @@ public class ProductApprovalService {
         return pendingStatus(loadApprovalSteps().get(0).stepOrder());
     }
 
-    private void validateInformationChangeHasDifference(PendingProductApplicationRequest request, String applicationType) {
+    private void validateTargetStatus(Integer status) {
+        if (status != null && status != 0 && status != 1) throw new IllegalArgumentException("目标启停状态不合法");
+    }
+
+    private void validateInformationChangeHasDifference(PendingProductApplicationRequest request, String applicationType, Integer targetStatus) {
+        if (targetStatus != null && "信息变更".equals(applicationType)) {
+            List<Integer> current = jdbcTemplate.queryForList("SELECT status FROM product WHERE product_code = ? AND deleted = 0 FOR SHARE", Integer.class, request.productCode());
+            if (current.size() == 1 && !targetStatus.equals(current.get(0))) return;
+        }
         if (!"信息变更".equals(applicationType)) {
             return;
         }

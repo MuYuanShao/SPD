@@ -25,6 +25,9 @@ import static com.hospital.spd.common.service.DocumentKind.SETTLEMENT_BILL;
  */
 @Service
 public class SettlementPointService {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.hospital.spd.integration.McpPhase3Outbox phase3Outbox;
+
 
     public static final String PURCHASE_IN = "purchase_in";
     public static final String DEPARTMENT_CONSUMPTION = "department_consumption";
@@ -278,6 +281,7 @@ public class SettlementPointService {
                         row.get("batchId"), row.get("traceCodeId"), row.get("quantity"),
                         row.get("unitPrice"), row.get("amount"), snapshotGoodsType(row));
             }
+            if (phase3Outbox != null) phase3Outbox.captureSettlement(settlementId);
             String adverb = "manual_generate".equals(auditAction) ? "manually" : "automatically";
             support.writeAudit("settlement_bill", auditAction, settlementId, settlementNo,
                     "settlement generated " + adverb + " at " + settlementPoint);

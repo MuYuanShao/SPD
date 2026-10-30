@@ -19,6 +19,9 @@ import java.util.Map;
  */
 @Service
 public class OperationalSettlementModule {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.hospital.spd.integration.McpPhase3Outbox phase3Outbox;
+
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
@@ -94,6 +97,7 @@ public class OperationalSettlementModule {
         for (Long traceCodeId : receivingPackageTraces) {
             quotaPackageTraceFlowService.markSettled(traceCodeId, settlementNo);
         }
+        if (phase3Outbox != null) phase3Outbox.captureSettlement(((Number) settlement.get("settlementId")).longValue());
         support.writeAudit("settlement_bill", "confirm_settlement", number(settlement.get("settlementId")),
                 settlementNo, "confirm settlement bill");
         return Map.of("settlementNo", settlementNo, "status", "confirmed");

@@ -26,6 +26,9 @@ import static com.hospital.spd.common.service.DocumentKind.DEPARTMENT_CONSUMPTIO
  */
 @Service
 public class OperationalConsumptionModule {
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private com.hospital.spd.integration.McpPhase3Outbox phase3Outbox;
+
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
@@ -226,6 +229,7 @@ public class OperationalConsumptionModule {
                        ), 0)
                      WHERE sb.settlement_id = ? AND sb.status = 'pending_confirm'
                     """, settlementId);
+            if (phase3Outbox != null) phase3Outbox.captureSettlementAfterReversal(settlementId);
             jdbcTemplate.update("""
                     DELETE FROM settlement_bill
                      WHERE settlement_id = ? AND status = 'pending_confirm'

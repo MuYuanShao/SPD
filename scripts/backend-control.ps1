@@ -198,6 +198,11 @@ function Start-Backend {
         $env:SPRING_PROFILES_ACTIVE = 'local'
     }
 
+    $lanConfig = Join-Path $repoRoot 'output\lan-access\spring-lan.json'
+    if (Test-Path -LiteralPath $lanConfig) {
+        $env:SPRING_APPLICATION_JSON = [IO.File]::ReadAllText($lanConfig)
+    }
+
     $maven = Resolve-MavenCommand
     if (-not $maven) {
         throw 'Maven was not found. Install Maven 3.9.9+ (the pom enforcer requires [3.9.9,3.10.0)), or set SPD_MAVEN_HOME.'

@@ -18,7 +18,7 @@ if ($offline) {
     $env:SPD_OFFLINE='true'
     if ($WithAi -and (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'models.tar'))) {
         $project = Get-SpdSetting $EnvFile 'COMPOSE_PROJECT_NAME' 'hospital-spd'
-        $tag = Get-SpdSetting $EnvFile 'SPD_IMAGE_TAG' '20261020'
+        $tag = Get-SpdSetting $EnvFile 'SPD_IMAGE_TAG' '1.2.0'
         if ($project -notmatch '^[a-z0-9][a-z0-9_-]*$') { throw 'Invalid Compose project name.' }
         $volume="$project-ollama-models"
         Invoke-SpdDocker volume create $volume | Out-Null

@@ -11,7 +11,7 @@ initialize_env
 validate_settings
 require_engine
 compose build mysql backend frontend
-tag=$(setting SPD_IMAGE_TAG 20261020); project=$(setting COMPOSE_PROJECT_NAME hospital-spd)
+tag=$(setting SPD_IMAGE_TAG 1.2.0); project=$(setting COMPOSE_PROJECT_NAME hospital-spd)
 if [ "$with_ai" = true ]; then
   compose up -d --wait --wait-timeout 600 ollama
   compose run --rm ollama-init

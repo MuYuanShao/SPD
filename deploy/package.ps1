@@ -9,7 +9,7 @@ $composeArgs=@('compose','--env-file',$EnvFile,'-f',(Join-Path $PSScriptRoot 'do
 if ($WithAi) { $composeArgs+=@('--profile','ai') }
 Assert-SpdCompose $composeArgs
 Invoke-SpdDocker @composeArgs build mysql backend frontend
-$tag=Get-SpdSetting $EnvFile 'SPD_IMAGE_TAG' '20261020'
+$tag=Get-SpdSetting $EnvFile 'SPD_IMAGE_TAG' '1.2.0'
 $project=Get-SpdSetting $EnvFile 'COMPOSE_PROJECT_NAME' 'hospital-spd'
 if ($WithAi) {
     Invoke-SpdDocker @composeArgs up -d --wait --wait-timeout 600 ollama

@@ -18,6 +18,7 @@ import {
 } from '@lucide/vue'
 import { useAuthStore } from '../stores/auth'
 import { useUiStore } from '../stores/ui'
+import { APP_VERSION } from '../config/appVersion'
 
 const route = useRoute()
 const router = useRouter()
@@ -247,7 +248,7 @@ async function submitLogin() {
         </form>
 
         <div class="login-panel-foot">
-          <span>院内供应链中心 · v2026.10</span>
+          <span>院内供应链中心 · {{ APP_VERSION }}</span>
           <span class="divider" />
           <span>技术支持 <Activity :size="11" style="vertical-align: -1px" /> Online</span>
         </div>

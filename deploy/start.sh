@@ -24,7 +24,7 @@ if [ -f "$deploy_root/images.tar" ]; then
   docker load --input "$deploy_root/images.tar"
   export SPD_OFFLINE=true
   if [ "$with_ai" = true ] && [ -f "$deploy_root/models.tar" ]; then
-    project=$(setting COMPOSE_PROJECT_NAME hospital-spd); tag=$(setting SPD_IMAGE_TAG 20261020)
+    project=$(setting COMPOSE_PROJECT_NAME hospital-spd); tag=$(setting SPD_IMAGE_TAG 1.2.0)
     case "$project" in ''|*[!a-z0-9_-]*) fail 'Invalid Compose project name';; esac
     volume="$project-ollama-models"
     docker volume create "$volume" >/dev/null

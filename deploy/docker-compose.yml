@@ -1,7 +1,7 @@
 name: ${COMPOSE_PROJECT_NAME:-hospital-spd}
 
 x-backend-image: &backend-image
-  image: hospital-spd/backend:${SPD_IMAGE_TAG:-20261020}
+  image: hospital-spd/backend:${SPD_IMAGE_TAG:-1.2.0}
   build:
     context: ..
     dockerfile: Dockerfile
@@ -12,7 +12,7 @@ x-database-url: &database-url jdbc:mysql://mysql:3306/${SPD_DB_NAME:-ISPD}?useUn
 
 services:
   mysql:
-    image: hospital-spd/mysql:${SPD_IMAGE_TAG:-20261020}
+    image: hospital-spd/mysql:${SPD_IMAGE_TAG:-1.2.0}
     build:
       context: ..
       dockerfile: Dockerfile
@@ -40,7 +40,7 @@ services:
       options: {max-size: "20m", max-file: "5"}
 
   database-accounts:
-    image: hospital-spd/mysql:${SPD_IMAGE_TAG:-20261020}
+    image: hospital-spd/mysql:${SPD_IMAGE_TAG:-1.2.0}
     pull_policy: never
     restart: "no"
     entrypoint: [/usr/local/bin/spd-ensure-accounts.sh]
@@ -141,7 +141,7 @@ services:
     logging: *bounded-logs
 
   frontend:
-    image: hospital-spd/web:${SPD_IMAGE_TAG:-20261020}
+    image: hospital-spd/web:${SPD_IMAGE_TAG:-1.2.0}
     build:
       context: ..
       dockerfile: Dockerfile

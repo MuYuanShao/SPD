@@ -12,7 +12,7 @@ initialize_env() {
   [ ! -f "$env_file" ] || return 0
   ( umask 077; set -C; {
     printf '%s\n' '# Generated once; keep private and reuse with the same data volumes.'
-    printf '%s\n' 'COMPOSE_PROJECT_NAME=hospital-spd' 'SPD_IMAGE_TAG=20261020' 'SPD_HTTP_PORT=1820' 'SPD_DB_NAME=ISPD' 'SPD_DB_USERNAME=spd_runtime'
+    printf '%s\n' 'COMPOSE_PROJECT_NAME=hospital-spd' 'SPD_IMAGE_TAG=1.2.0' 'SPD_HTTP_PORT=1820' 'SPD_DB_NAME=ISPD' 'SPD_DB_USERNAME=spd_runtime'
     printf 'SPD_DB_PASSWORD=%s\nSPD_DB_ROOT_PASSWORD=%s\nSPD_FLYWAY_USERNAME=spd_migrate\nSPD_FLYWAY_PASSWORD=%s\n' "$(secret 24)" "$(secret 24)" "$(secret 24)"
     printf 'SPD_JWT_SECRET=%s\nSPD_INITIAL_ADMIN_PASSWORD=%s\n' "$(secret 48)" "$(secret 16)"
     printf 'SPD_MOBILE_ENABLED=true\nSPD_MOBILE_SERVER_ID=%s\nSPD_MOBILE_REVIEW_SECRET=%s\n' "$(secret 16)" "$(secret 32)"

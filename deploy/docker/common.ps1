@@ -18,7 +18,7 @@ function Initialize-SpdEnvironment([string]$Path) {
     }
     $values = @(
         '# Generated once. Keep private. Reuse this file with the same data volumes.',
-        'COMPOSE_PROJECT_NAME=hospital-spd', 'SPD_IMAGE_TAG=20261020', 'SPD_HTTP_PORT=1820',
+        'COMPOSE_PROJECT_NAME=hospital-spd', 'SPD_IMAGE_TAG=1.2.0', 'SPD_HTTP_PORT=1820',
         'SPD_DB_NAME=ISPD', 'SPD_DB_USERNAME=spd_runtime', "SPD_DB_PASSWORD=$(New-SpdSecret)",
         "SPD_DB_ROOT_PASSWORD=$(New-SpdSecret)", 'SPD_FLYWAY_USERNAME=spd_migrate', "SPD_FLYWAY_PASSWORD=$(New-SpdSecret)",
         "SPD_JWT_SECRET=$(New-SpdSecret 48)", "SPD_INITIAL_ADMIN_PASSWORD=$(New-SpdSecret 16)",

@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.StocktakingRequest;
+import com.hospital.spd.supplychain.PackingTaskRequest;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -78,6 +79,29 @@ class InventoryAuditMysqlTest {
         assertThat(quantity("isolated_qty")).isEqualByComparingTo("10");
         assertThat(jdbc.queryForObject("SELECT status FROM quota_packing_task WHERE task_id = ?", String.class, task)).isEqualTo("need_recalculate");
         assertThatThrownBy(() -> packing.confirmTask(code)).hasMessageContaining("待确认");
+    }
+
+    @Test void packingPreviewsChangedTemplateAndReservesOnlyAfterVersionConfirmation() {
+        long originalId = template();
+        jdbc.update("UPDATE quota_package_template SET is_current = 0, status = 0 WHERE template_id = ?", originalId);
+        jdbc.update("""
+                INSERT INTO quota_package_template (template_code, template_name, version_no, is_current, status)
+                VALUES (?, '更新后的测试定数包', 2, 1, 1)
+                """, code);
+        long currentId = id("SELECT template_id FROM quota_package_template WHERE template_code = ? AND is_current = 1", code);
+        jdbc.update("INSERT INTO quota_package_template_item (template_id, product_id, quantity, unit) VALUES (?, ?, 7, '个')",
+                currentId, productId);
+        jdbc.update("UPDATE inventory_balance SET available_qty = 20, locked_qty = 0 WHERE batch_id = ?", batchId);
+
+        var preview = packing.createTask(new PackingTaskRequest(code, code, BigDecimal.ONE, null, false, null, originalId));
+        assertThat(preview).containsEntry("created", false).containsKey("latestTemplate");
+        assertThat(id("SELECT COUNT(*) FROM quota_packing_task WHERE product_id = ?", productId)).isZero();
+        assertThat(id("SELECT locked_qty FROM inventory_balance WHERE batch_id = ?", batchId)).isZero();
+
+        var result = packing.createTask(new PackingTaskRequest(code, code, BigDecimal.ONE, null, false, null, currentId));
+        assertThat(result).containsEntry("created", true);
+        assertThat(id("SELECT template_id FROM quota_packing_task WHERE product_id = ?", productId)).isEqualTo(currentId);
+        assertThat(id("SELECT locked_qty FROM inventory_balance WHERE batch_id = ?", batchId)).isEqualTo(7L);
     }
 
     @Test void recallIncludesUnprintedAndInTransitPackages() {

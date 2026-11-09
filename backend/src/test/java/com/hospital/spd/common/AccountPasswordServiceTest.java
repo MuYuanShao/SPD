@@ -55,6 +55,27 @@ class AccountPasswordServiceTest {
     }
 
     @Test
+    void rejectsPasswordsThatCannotBeEnteredAtLogin() {
+        for (String candidate : List.of("\u00a0".repeat(8), "\uFEFF".repeat(8), "\u0001".repeat(8), "example\npassword")) {
+            assertThatThrownBy(() -> service.changePassword(7L, "old-password", candidate))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+        verifyNoInteractions(jdbc, audit);
+    }
+
+    @Test
+    void rejectsSameEffectiveBcryptPasswordWhenCurrentInputContainsSuffix() {
+        String password = "a".repeat(72);
+        when(jdbc.queryForList(anyString(), eq(String.class), eq(7L)))
+                .thenReturn(List.of(encoder.encode(password)));
+
+        assertThatThrownBy(() -> service.changePassword(7L, password + "suffix", password))
+                .hasMessage("新密码不能与当前密码相同");
+        verify(jdbc, never()).update(anyString(), any(Object[].class));
+        verifyNoInteractions(audit);
+    }
+
+    @Test
     void concurrentCredentialUpdateCannotBeOverwritten() {
         when(jdbc.queryForList(anyString(), eq(String.class), eq(7L))).thenReturn(List.of("old-password"));
         when(jdbc.update(contains("CAST(password AS BINARY)"), anyString(), eq(7L), eq("old-password")))

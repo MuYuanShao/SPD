@@ -37,8 +37,12 @@ public class AccountPasswordService {
         if (currentPassword == null || currentPassword.isBlank()) {
             throw new IllegalArgumentException("请输入当前密码");
         }
-        if (newPassword == null || newPassword.isBlank() || newPassword.codePointCount(0, newPassword.length()) < 8) {
+        if (newPassword == null || newPassword.codePointCount(0, newPassword.length()) < 8
+                || newPassword.codePoints().allMatch(c -> Character.isWhitespace(c) || Character.isSpaceChar(c) || c == 0xFEFF)) {
             throw new IllegalArgumentException("新密码至少需要 8 个字符");
+        }
+        if (newPassword.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("新密码不能包含换行或其他控制字符");
         }
         if (newPassword.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new IllegalArgumentException("新密码不能超过 72 个 UTF-8 字节");
@@ -51,7 +55,7 @@ public class AccountPasswordService {
         if (!matches(currentPassword, storedPassword)) {
             throw new IllegalArgumentException("当前密码不正确");
         }
-        if (currentPassword.equals(newPassword)) {
+        if (matches(newPassword, storedPassword)) {
             throw new IllegalArgumentException("新密码不能与当前密码相同");
         }
 

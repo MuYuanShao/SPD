@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { h, type Ref } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import {
   cancelPackingTask,
@@ -10,6 +10,7 @@ import {
   terminatePackingTask,
   unpackPackageLabel,
   type PackageLabelRow,
+  type PackingTemplateVersion,
   type PackingTaskRow
 } from '../api/quotaPackages'
 import { printQuotaLabel } from '../utils/zebraBrowserPrint'
@@ -23,7 +24,7 @@ type PackingTaskForm = {
 
 async function confirmAction(message: string, title: string, confirmButtonText: string) {
   try {
-    await ElMessageBox.confirm(message, title, {
+    await ElMessageBox.confirm(h('div', { style: { whiteSpace: 'pre-line' } }, message), title, {
       confirmButtonText,
       cancelButtonText: '返回',
       type: 'warning'
@@ -34,8 +35,15 @@ async function confirmAction(message: string, title: string, confirmButtonText: 
   }
 }
 
+function describeTemplate(template: PackingTemplateVersion) {
+  return `版本 ${template.versionNo} · ${template.templateName || template.templateCode}\n`
+    + `商品：${template.productCode} · ${template.productName} · ${template.specModel || '-'}\n`
+    + `厂家：${template.manufacturerName || '-'} · 每包：${template.quantity} ${template.unit}`
+}
+
 export function useQuotaPackingTaskActions(options: {
   packingForm: PackingTaskForm
+  onTemplateConfirmed: (template: PackingTemplateVersion) => void
   /** 操作结果：tone=success 就地显示，tone=error 用 ElMessage 弹出 */
   message: Ref<{ text: string; tone: 'success' | 'error' | 'warning' }>
   taskLoading: Ref<boolean>
@@ -47,7 +55,7 @@ export function useQuotaPackingTaskActions(options: {
   function setResult(text: string, tone: 'success' | 'error' | 'warning' = 'success') {
     options.message.value = { text, tone }
   }
-  async function submitPackingTask() {
+  async function submitPackingTask(template: PackingTemplateVersion) {
     if (options.taskLoading.value) return
     if (!options.packingForm.templateCode) {
       setResult('请先选择打包模板')
@@ -56,8 +64,22 @@ export function useQuotaPackingTaskActions(options: {
     options.taskLoading.value = true
     options.message.value = { text: '', tone: 'success' }
     try {
-      let result = await createPackingTask(options.packingForm)
-      if (result.requiresConfirmation && !result.created) {
+      const draft = { ...options.packingForm }
+      let result = await createPackingTask({ ...draft, expectedTemplateId: template.templateId })
+      while (!result.created) {
+        if (result.latestTemplate) {
+          const latest = result.latestTemplate
+          if (!await confirmAction(
+            `原模板\n${describeTemplate(template)}\n\n最新模板\n${describeTemplate(latest)}`,
+            '打包模板已更新',
+            '确认使用新版本'
+          )) return
+          template = latest
+          options.onTemplateConfirmed(latest)
+          result = await createPackingTask({ ...draft, expectedTemplateId: template.templateId })
+          continue
+        }
+        if (!result.requiresConfirmation) throw new Error('未创建打包任务，请重试')
         const packable = result.packablePackageCount ?? 0
         const accepted = await confirmAction(
           `申请 ${result.requestedPackageCount} 包，当前仅可创建 ${packable} 包，缺口 ${result.shortagePackageCount ?? 0} 包（可用散货 ${result.availableLooseQty ?? 0}）。是否按当前库存创建？`,
@@ -66,17 +88,18 @@ export function useQuotaPackingTaskActions(options: {
         )
         if (!accepted) return
         result = await createPackingTask({
-          ...options.packingForm,
+          ...draft,
+          expectedTemplateId: template.templateId,
           allowPartial: true,
           expectedPackableCount: packable
         })
-        if (result.requiresConfirmation || !result.created) {
+        if (!result.created && !result.latestTemplate) {
           setResult('库存已发生变化，请根据最新可打包数量再次确认', 'warning')
           return
         }
       }
       const reservedLooseQty = result.reservedLooseQty ?? result.plannedLooseQty
-      const requestedCount = result.requestedPackageCount ?? options.packingForm.packageCount
+      const requestedCount = result.requestedPackageCount ?? draft.packageCount
       const actualCount = result.packageCount ?? requestedCount
       setResult(
         actualCount < requestedCount

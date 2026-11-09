@@ -19,6 +19,7 @@ import static com.hospital.spd.common.SqlHelper.nullIfBlank;
 @Service
 public class CampusService {
 
+    private static final int MAX_CODE_ATTEMPTS = 5;
     private final JdbcTemplate jdbcTemplate;
 
     public CampusService(JdbcTemplate jdbcTemplate) {
@@ -74,26 +75,40 @@ public class CampusService {
     }
 
     public Map<String, Object> createCampus(CampusUpsertRequest request) {
-        validate(request, true);
-        String campusCode = isBlank(request.campusCode()) ? nextCampusCode() : request.campusCode().trim();
-        try {
-            jdbcTemplate.update("""
-                    INSERT INTO campus (
-                      campus_code, campus_name, address, manager_name, phone, sort_order, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    campusCode,
-                    request.campusName().trim(),
-                    nullIfBlank(request.address()),
-                    nullIfBlank(request.managerName()),
-                    nullIfBlank(request.phone()),
-                    request.sortOrder() == null ? 0 : request.sortOrder(),
-                    request.status() == null ? 1 : request.status()
-            );
-        } catch (DuplicateKeyException ex) {
-            throw new IllegalArgumentException("院区编码或院区名称已存在");
+        validate(request);
+        boolean autoCode = isBlank(request.campusCode());
+        for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
+            String campusCode = autoCode ? nextCampusCode() : request.campusCode().trim();
+            try {
+                insertCampus(request, campusCode);
+                return Map.of("campusCode", campusCode);
+            } catch (DuplicateKeyException ex) {
+                String key = String.valueOf(ex.getMostSpecificCause().getMessage());
+                if (key.endsWith(".uk_campus_name'") || key.endsWith("'uk_campus_name'")) {
+                    throw new IllegalArgumentException("院区名称已存在");
+                }
+                if (!autoCode || !(key.endsWith(".uk_campus_code'") || key.endsWith("'uk_campus_code'"))) {
+                    throw new IllegalArgumentException("院区编码或院区名称已存在");
+                }
+            }
         }
-        return Map.of("campusCode", campusCode);
+        throw new IllegalArgumentException("院区编码分配冲突，请重试");
+    }
+
+    private void insertCampus(CampusUpsertRequest request, String campusCode) {
+        jdbcTemplate.update("""
+                INSERT INTO campus (
+                  campus_code, campus_name, address, manager_name, phone, sort_order, status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                campusCode,
+                request.campusName().trim(),
+                nullIfBlank(request.address()),
+                nullIfBlank(request.managerName()),
+                nullIfBlank(request.phone()),
+                request.sortOrder() == null ? 0 : request.sortOrder(),
+                request.status() == null ? 1 : request.status()
+        );
     }
 
     /** 院区编码自动生成：XQ + 三位序号（按现有编码最大值递增） */
@@ -107,7 +122,7 @@ public class CampusService {
     }
 
     public Map<String, Object> updateCampus(String campusCode, CampusUpsertRequest request) {
-        validate(request, false);
+        validate(request);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE campus
                    SET campus_name = ?, address = ?, manager_name = ?, phone = ?, sort_order = ?, status = ?
@@ -137,7 +152,7 @@ public class CampusService {
         return Map.of("deletedRows", deletedRows);
     }
 
-    private static void validate(CampusUpsertRequest request, boolean requireCode) {
+    private static void validate(CampusUpsertRequest request) {
         if (isBlank(request.campusName())) {
             throw new IllegalArgumentException("院区名称为必填项");
         }

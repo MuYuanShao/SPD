@@ -675,6 +675,11 @@ const {
   printLabel
 } = useQuotaPackingTaskActions({
   packingForm,
+  onTemplateConfirmed: (template) => {
+    if (selectedPackingTemplate.value?.templateCode === template.templateCode) {
+      selectPackingTemplate({ ...selectedPackingTemplate.value, ...template })
+    }
+  },
   message: actionResult,
   taskLoading,
   selectedTaskNo,
@@ -709,12 +714,12 @@ watch(actionResult, (result) => {
 })
 
 async function submitPackingTask() {
-  if (!packingForm.templateCode) {
+  if (!selectedPackingTemplate.value) {
     notifyError('请先点击上方「打包模板」选择模板，再创建任务', 'warning')
     return
   }
   packingFeedback.value = ''
-  await submitPackingTaskRaw()
+  await submitPackingTaskRaw(selectedPackingTemplate.value)
 }
 
 async function terminateTaskByTaskNo() {
@@ -1048,6 +1053,7 @@ watch(
                 v-if="!selectedPackingTemplate"
                 type="button"
                 class="pt-template-picker is-empty"
+                :disabled="taskLoading"
                 @click="openTemplateSelector"
               >
                 <Search :size="14" />
@@ -1066,6 +1072,7 @@ watch(
                       type="button"
                       class="pt-btn-text"
                       :title="'更换打包模板'"
+                      :disabled="taskLoading"
                       @click="openTemplateSelector"
                     >
                       <RefreshCw :size="13" />
@@ -1075,6 +1082,7 @@ watch(
                       type="button"
                       class="pt-btn-text pt-btn-text-danger"
                       :title="'清除已选模板'"
+                      :disabled="taskLoading"
                       @click="clearPackingTemplate"
                     >
                       <X :size="13" />
@@ -1104,7 +1112,7 @@ watch(
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">库房</span>
-              <select v-model="packingForm.warehouseName" class="pt-select">
+              <select v-model="packingForm.warehouseName" class="pt-select" :disabled="taskLoading">
                 <option
                   v-for="item in warehouses"
                   :key="item.warehouseName"
@@ -1118,6 +1126,7 @@ watch(
               <span class="pt-form-label">打包数量</span>
               <input v-integer-quantity
                 v-model.number="packingForm.packageCount"
+                :disabled="taskLoading"
                 type="number"
                 min="1"
                 class="pt-input"
@@ -1127,6 +1136,7 @@ watch(
               <span class="pt-form-label">备注</span>
               <input
                 v-model="packingForm.remark"
+                :disabled="taskLoading"
                 placeholder="任务说明"
                 class="pt-input"
               />
@@ -1147,7 +1157,7 @@ watch(
                 v-if="authStore.hasPermission('quota-packing-task:create')"
                 type="button"
                 class="pt-btn pt-btn-primary"
-                :disabled="taskLoading || !packingForm.templateCode"
+                :disabled="taskLoading || !selectedPackingTemplate"
                 :title="!packingForm.templateCode ? '请先选择打包模板' : '创建打包任务'"
                 @click="submitPackingTask"
               >

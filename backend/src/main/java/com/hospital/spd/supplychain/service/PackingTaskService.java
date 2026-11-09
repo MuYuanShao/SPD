@@ -155,11 +155,20 @@ public class PackingTaskService {
         permissionGuard.require("quota-packing-task:create");
 
         BigDecimal packageCount = positiveWholeNumber(request.packageCount(), "packing package count must be a whole number greater than zero");
-        Map<String, Object> template = findTemplate(request.templateCode());
+        Map<String, Object> discoveredTemplate = findTemplate(request.templateCode(), false);
+        Long productId = ((Number) discoveredTemplate.get("productId")).longValue();
+        quotaPricing.lockProduct(productId);
+        Map<String, Object> template = findTemplate(request.templateCode(), true);
+        long templateId = ((Number) template.get("templateId")).longValue();
+        if (request.expectedTemplateId() != null && request.expectedTemplateId() != templateId) {
+            return Map.of("created", false, "requiresConfirmation", true,
+                    "requestedPackageCount", packageCount, "latestTemplate", template);
+        }
+        if (productId != ((Number) template.get("productId")).longValue()) {
+            throw new IllegalArgumentException("打包模板关联商品已变化，请重新提交");
+        }
         Long warehouseId = findWarehouseId(request.warehouseName());
         BigDecimal packageQuantity = com.hospital.spd.common.QuantityRules.positive((BigDecimal) template.get("quantity"), "包内数量");
-        Long productId = ((Number) template.get("productId")).longValue();
-        quotaPricing.lockProduct(productId);
         new com.hospital.spd.masterdata.service.ProductTraceabilityPolicy(jdbcTemplate).requirePackageProduct(productId);
         BigDecimal availableQty = availableLoose(warehouseId, productId);
         BigDecimal packableCount = availableQty
@@ -193,7 +202,7 @@ public class PackingTaskService {
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending_confirm', ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, taskNo);
-            ps.setLong(2, ((Number) template.get("templateId")).longValue());
+            ps.setLong(2, templateId);
             ps.setLong(3, warehouseId);
             ps.setLong(4, productId);
             ps.setBigDecimal(5, packableCount);
@@ -675,17 +684,21 @@ public class PackingTaskService {
                 """, task.get("taskId"));
     }
 
-    private Map<String, Object> findTemplate(String templateCode) {
+    private Map<String, Object> findTemplate(String templateCode, boolean lock) {
         List<Map<String, Object>> templates = jdbcTemplate.queryForList("""
                 SELECT t.template_id AS templateId, t.template_code AS templateCode, t.template_name AS templateName,
-                       ti.product_id AS productId, ti.quantity, ti.unit
+                       t.version_no AS versionNo, ti.product_id AS productId, ti.quantity, ti.unit,
+                       p.product_code AS productCode, p.product_name AS productName,
+                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName
                   FROM quota_package_template t
                   JOIN quota_package_template_item ti ON ti.template_id = t.template_id
                   JOIN product p ON p.product_id = ti.product_id AND p.deleted = 0 AND p.status = 1
                     AND p.is_high_value = 0 AND p.is_cold_chain = 0
+                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                  WHERE t.template_code = ? AND t.status = 1 AND t.deleted = 0
                    AND t.is_current = 1 AND ti.deleted = 0
-                """, templateCode.trim());
+                 ORDER BY ti.item_id DESC LIMIT 1
+                """ + (lock ? " FOR SHARE OF t, ti" : ""), templateCode.trim());
         if (templates.isEmpty()) {
             throw new IllegalArgumentException("定数包模板 " + templateCode + " 不存在或已停用");
         }

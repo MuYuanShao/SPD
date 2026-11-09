@@ -34,6 +34,7 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
       currentPassword: 'current-test-password',
       newPassword: 'new-test-password'
     })
+    if (attempts === 2) return route.fulfill({ status: 429, body: 'Too Many Requests' })
     await route.fulfill({
       json: attempts === 1 ? { code: 400, message: '当前密码不正确' } : { code: 0, data: null }
     })
@@ -56,8 +57,10 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
   await save.click()
   await expect(dialog.getByRole('alert')).toContainText('当前密码不正确')
   await save.click()
+  await expect(dialog.getByRole('alert')).toContainText('修改密码请求过于频繁，请稍后再试')
+  await save.click()
   await expect(page).toHaveURL(/\/login$/)
-  expect(attempts).toBe(2)
+  expect(attempts).toBe(3)
 })
 
 test('新增院区时留空自动生成的编码也能提交', async ({ page }) => {
@@ -88,10 +91,11 @@ test('定数包模板的打包按钮跳转并保留第二页选中的模板', as
     status: '启用', versionNo: 1, currentVersion: 1
   }
   const ok = (data: unknown) => ({ code: 0, data })
-  let taskWrites = 0
+  const submittedVersions: number[] = []
   const templates = [
     ...Array.from({ length: 20 }, (_, index) => ({
-      ...template, templateId: index + 1, templateCode: `TPL-SMOKE-${String(index + 1).padStart(3, '0')}`
+      ...template, templateId: index + 1, templateCode: `TPL-SMOKE-${String(index + 1).padStart(3, '0')}`,
+      status: index === 0 ? '禁用' : '启用'
     })),
     template
   ]
@@ -106,19 +110,61 @@ test('定数包模板的打包按钮跳转并保留第二页选中的模板', as
     json: ok({ warehouses: [{ warehouseName: '测试中心库', warehouseType: 'central' }], candidates: [] })
   }))
   await page.route(url => url.pathname === '/api/quota-packages/packing-tasks', route => {
-    if (route.request().method() !== 'GET') taskWrites += 1
-    return route.fulfill({ json: ok({ rows: [], page: 1, size: 20, total: 0 }) })
+    if (route.request().method() === 'POST') {
+      const id = route.request().postDataJSON().expectedTemplateId
+      submittedVersions.push(id)
+      if (id === 21 || id === 22) {
+        return route.fulfill({ json: ok({
+          created: false, requiresConfirmation: true,
+          latestTemplate: { ...template, templateId: id + 1, versionNo: id - 19, quantity: id - 15 }
+        }) })
+      }
+      return route.fulfill({ json: ok({
+        created: true, requiresConfirmation: false, requestedPackageCount: 1,
+        packageCount: 1, taskNo: 'PT-SMOKE-CREATED', reservedLooseQty: 7
+      }) })
+    }
+    return route.fulfill({ json: ok({
+      rows: [{ taskNo: 'PT-SMOKE-READY', templateName: '任务列表已加载', status: 'pending_confirm' }],
+      page: 1, size: 20, total: 1
+    }) })
   })
 
   await page.goto('/features/quota-template-maintenance')
   await login(page)
+  const disabledPack = page.getByRole('row').filter({ hasText: 'TPL-SMOKE-001' })
+    .getByRole('button', { name: '打包', exact: true })
+  await expect(disabledPack).toBeDisabled()
+  await disabledPack.evaluate((button: HTMLButtonElement) => button.click())
+  await expect(page).toHaveURL(/\/features\/quota-template-maintenance$/)
+  expect(submittedVersions).toEqual([])
   await page.getByRole('button', { name: '下一页' }).click()
   const row = page.getByRole('row').filter({ hasText: template.templateCode })
   await row.getByRole('button', { name: '打包', exact: true }).click()
   await expect(page).toHaveURL(/\/features\/packing-task-confirmation$/)
+  await expect(page.getByRole('row').filter({ hasText: 'PT-SMOKE-READY' })).toBeVisible()
   await expect(page.locator('.pt-selected-template')).toContainText(template.templateCode)
-  await expect(page.getByRole('button', { name: '新建任务', exact: true })).toBeEnabled()
-  expect(taskWrites).toBe(0)
+  const create = page.getByRole('button', { name: '新建任务', exact: true })
+  await expect(create).toBeEnabled()
+  expect(submittedVersions).toEqual([])
+
+  await create.click()
+  const changes = page.getByRole('dialog', { name: '打包模板已更新' })
+  await expect(changes).toContainText('每包：5 支')
+  await expect(changes).toContainText('每包：6 支')
+  await changes.getByRole('button', { name: '返回' }).click()
+  await expect(changes).toBeHidden()
+  await expect(create).toBeEnabled()
+  expect(submittedVersions).toEqual([21])
+
+  await create.click()
+  await changes.getByRole('button', { name: '确认使用新版本' }).click()
+  const nextChanges = changes.filter({ hasText: '每包：7 支' })
+  await expect(nextChanges).toContainText('每包：6 支')
+  expect(submittedVersions).toEqual([21, 21, 22])
+  await nextChanges.getByRole('button', { name: '确认使用新版本' }).click()
+  await expect(page.getByText(/打包任务创建成功：PT-SMOKE-CREATED/)).toBeVisible()
+  expect(submittedVersions).toEqual([21, 21, 22, 23])
 })
 
 test('采购订单提交期间禁止重复发送并刷新订单状态', async ({ page }) => {

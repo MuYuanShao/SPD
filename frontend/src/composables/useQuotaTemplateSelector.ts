@@ -15,8 +15,9 @@ export function useQuotaTemplateSelector(options: {
   const lastSelectedTemplate = ref<QuotaTemplateRow>()
   const selectedPackingTemplate = computed(() => {
     const code = options.packingForm.templateCode
+    const selected = lastSelectedTemplate.value
+    if (selected?.templateCode === code) return selected
     return options.templates.value.find(row => row.templateCode === code)
-      ?? (lastSelectedTemplate.value?.templateCode === code ? lastSelectedTemplate.value : undefined)
   })
 
   const filteredPackingTemplates = computed(() =>

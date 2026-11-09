@@ -53,6 +53,8 @@ const DISPLAY_TEXT: Record<string, string> = {
   no: '否',
   manual: '手工维护',
   system: '系统生成',
+  user: '用户账户',
+  change_password: '修改密码',
   created: '已创建',
   submitted: '已提交',
   planned: '已计划',

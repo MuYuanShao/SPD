@@ -37,6 +37,9 @@ requireText(
 );
 requireText('frontend-exposes-80', content.frontendDockerfile, 'EXPOSE 80', 'Frontend image exposes Nginx port.');
 requireText('nginx-proxies-api', content.nginx, 'proxy_pass http://backend:1818/api/;', 'Nginx proxies /api/ to backend service.');
+requireText('nginx-password-change-rate-key', content.nginx, '~^PUT:/api/auth/password/?$ $binary_remote_addr;', 'Nginx limits password changes by client IP.');
+requireText('nginx-password-change-rate-zone', content.nginx, 'zone=spd_password_change:1m rate=5r/m;', 'Password changes have a dedicated request limit.');
+requireText('nginx-password-change-rate-status', content.nginx, 'limit_req_status 429;', 'Requests over the rate limit receive HTTP 429.');
 requireText('nginx-preserves-host-port', content.nginx, 'proxy_set_header X-Forwarded-Host $http_host;', 'Proxy retains the public host and port for same-origin API requests.');
 requireText('compose-handles-forwarded-headers', content.compose, 'SERVER_FORWARD_HEADERS_STRATEGY: framework', 'Backend uses trusted container proxy headers to restore the public request origin.');
 requireText('nginx-spa-fallback', content.nginx, 'try_files $uri $uri/ /index.html;', 'Nginx serves SPA fallback.');

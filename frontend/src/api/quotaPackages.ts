@@ -252,6 +252,10 @@ export async function fetchPackingTasks(params: Record<string, string> = {}) {
  * @param payload - 任务信息（模板、库房、包数等）
  * @returns 创建的任务编号及计划散件数量
  */
+export type PackingTemplateVersion = Pick<QuotaTemplateRow,
+  'templateId' | 'templateCode' | 'templateName' | 'versionNo' | 'productCode' | 'productName' |
+  'quantity' | 'unit' | 'specModel' | 'manufacturerName'>
+
 export async function createPackingTask(payload: {
   templateCode: string
   warehouseName: string
@@ -259,10 +263,12 @@ export async function createPackingTask(payload: {
   remark?: string
   allowPartial?: boolean
   expectedPackableCount?: number
+  expectedTemplateId?: number
 }) {
   return postData<{
     created: boolean
     requiresConfirmation: boolean
+    latestTemplate?: PackingTemplateVersion
     taskNo?: string
     requestedPackageCount: number
     packageCount?: number

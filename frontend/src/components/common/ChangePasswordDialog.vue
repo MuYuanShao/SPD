@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { putData } from '../../api/http'
 import StatusMessage from './StatusMessage.vue'
 
@@ -22,6 +23,8 @@ async function save() {
     error.value = '请输入当前密码'
   } else if (!form.newPassword.trim() || [...form.newPassword].length < 8) {
     error.value = '新密码至少需要 8 个字符'
+  } else if (/[\u0000-\u001f\u007f-\u009f]/u.test(form.newPassword)) {
+    error.value = '新密码不能包含换行或其他控制字符'
   } else if (new TextEncoder().encode(form.newPassword).length > 72) {
     error.value = '新密码不能超过 72 个 UTF-8 字节'
   } else if (form.newPassword === form.currentPassword) {
@@ -41,7 +44,9 @@ async function save() {
     open.value = false
     emit('changed')
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '密码修改失败，请重试'
+    error.value = isAxiosError(err) && err.response?.status === 429
+      ? '修改密码请求过于频繁，请稍后再试'
+      : err instanceof Error ? err.message : '密码修改失败，请重试'
   } finally {
     saving.value = false
   }

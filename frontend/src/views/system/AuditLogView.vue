@@ -362,7 +362,7 @@ watch(() => query.value.bizType, (v) => {
               </article>
               <article>
                 <i class="sys-detail-icon"><Database :size="14" /></i>
-                <div><span>业务类型</span><strong>{{ detailRow.bizType }}</strong></div>
+                <div><span>业务类型</span><strong>{{ formatBusinessText(detailRow.bizType) }}</strong></div>
               </article>
               <article>
                 <i class="sys-detail-icon"><Hash :size="14" /></i>

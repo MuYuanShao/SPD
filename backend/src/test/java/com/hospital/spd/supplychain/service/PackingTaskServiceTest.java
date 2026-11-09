@@ -85,6 +85,22 @@ class PackingTaskServiceTest {
     }
 
     @Test
+    void previewsNewTemplateWithoutReservingStockUntilVersionIsConfirmed() {
+        mockTemplate();
+
+        var result = service.createTask(new PackingTaskRequest(
+                "TP001", "MAIN", BigDecimal.valueOf(3), null, true, BigDecimal.ONE, 9L));
+
+        assertThat(result).containsEntry("created", false).containsEntry("requiresConfirmation", true);
+        assertThat(result.get("latestTemplate")).isInstanceOfSatisfying(Map.class,
+                latest -> assertThat(latest).containsEntry("templateId", 10L).containsEntry("quantity", BigDecimal.TEN));
+        verify(jdbcTemplate).queryForList(contains("FOR SHARE OF t"), eq("TP001"));
+        verify(support, never()).nextNo(any(DocumentKind.class));
+        verify(support, never()).reserveAvailableFifo(anyLong(), anyLong(), any(BigDecimal.class));
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+    }
+
+    @Test
     void previewsPartialPackingTaskWithoutWritingUntilOperatorConfirms() {
         mockTemplate();
         mockWarehouse();

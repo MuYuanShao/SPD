@@ -55,6 +55,7 @@ const {
   showDemandModal,
   demandSubmitting,
   orderSubmitting,
+  orderActionPending,
   closeTarget,
   closeReason,
   detail,
@@ -290,10 +291,10 @@ async function handleOrderAttachmentUpload(event: Event) {
           新增订单
         </button>
         <template v-if="activeTab === 'orders'">
-          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn md-btn" type="button" :disabled="selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
+          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn md-btn" type="button" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
             <Send :size="16" /> 提交
           </button>
-          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn md-btn" type="button" :disabled="selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
+          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn md-btn" type="button" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
             <CheckCircle2 :size="16" /> 审批
           </button>
           <button
@@ -519,7 +520,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td class="row-actions">
                 <button class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
                 <button class="btn-text" @click="openTracking(row)"><List :size="15" /> 跟踪</button>
-                <button v-if="row.orderStatus === 'approved' && authStore.hasPermission('purchase-order:send')" class="btn-text" @click="runOrderAction(row, 'send')">
+                <button v-if="row.orderStatus === 'approved' && authStore.hasPermission('purchase-order:send')" class="btn-text" :disabled="orderActionPending" @click="runOrderAction(row, 'send')">
                   <Send :size="15" /> 发送
                 </button>
                 <button

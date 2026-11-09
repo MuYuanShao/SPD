@@ -12,6 +12,55 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /^登\s*录$/ }).click()
 }
 
+test('Vite 代理保留局域网同源登录的 Host', async ({ request }) => {
+  const host = '192.0.2.1:1820'
+  const response = await request.post('/api/auth/login', {
+    headers: { Host: host, Origin: `http://${host}` },
+    data: { username, password }
+  })
+  expect(response.ok()).toBeTruthy()
+  const body = await response.json()
+  expect(body.code).toBe(0)
+  expect(Boolean(body.data?.token)).toBe(true)
+})
+
+test('采购订单提交期间禁止重复发送并刷新订单状态', async ({ page }) => {
+  const orderNo = 'CG-SMOKE-DRAFT'
+  let orderStatus = 'draft'
+  let calls = 0
+  let releaseSubmit!: () => void
+  const submitted = new Promise<void>(resolve => { releaseSubmit = resolve })
+  await page.route(url => url.pathname === '/api/purchase-orders', route => route.fulfill({
+    json: { code: 0, data: { rows: [{ orderNo, orderStatus, totalAmount: 12 }], total: 1, page: 1, size: 20 } }
+  }))
+  await page.route(`**/api/purchase-orders/${orderNo}/action`, async route => {
+    calls += 1
+    expect(route.request().method()).toBe('PUT')
+    expect(route.request().postDataJSON().action).toBe('submit')
+    await submitted
+    orderStatus = 'pending_approval'
+    await route.fulfill({ json: { code: 0, data: { orderNo, status: orderStatus } } })
+  })
+
+  await page.goto('/features/purchase-management')
+  await login(page)
+  await page.getByRole('button', { name: '采购订单', exact: true }).click()
+  const row = page.locator('tbody tr').filter({ hasText: orderNo })
+  await row.click()
+  const submit = page.getByRole('button', { name: '提交', exact: true })
+  try {
+    await submit.click()
+    await expect(submit).toBeDisabled()
+    await submit.evaluate((button: HTMLButtonElement) => button.click())
+    await expect.poll(() => calls).toBe(1)
+  } finally {
+    releaseSubmit()
+  }
+  await expect(row).toContainText('待审批')
+  await expect(submit).toBeDisabled()
+  expect(calls).toBe(1)
+})
+
 test('收费耗材明细支持筛选、分页、空状态和横向表格操作', async ({ page }) => {
   await page.goto('/features/high-value-consumables')
   await login(page)

@@ -218,6 +218,27 @@ class ProductApprovalServiceTest {
     @DisplayName("申请单详情 getDetail()")
     class GetDetailTest {
 
+        @ParameterizedTest
+        @CsvSource({
+                "returned,9,ROLE_OPERATOR,true",
+                "returned,42,ROLE_ADMIN,true",
+                "returned,42,ROLE_OPERATOR,false",
+                "approved,9,ROLE_OPERATOR,false"
+        })
+        void exposesResubmitPermissionOnlyForAllowedReturnedApplications(
+                String status, long operatorId, String role, boolean expected) throws Exception {
+            service = new ProductApprovalService(jdbcTemplate, () ->
+                    new OperatorContext(operatorId, "operator", "127.0.0.1",
+                            List.of(role), 8L, OperatorContext.DATA_SCOPE_ALL));
+            var rs = mock(java.sql.ResultSet.class);
+            when(rs.getString("approval_status")).thenReturn(status);
+            when(rs.getLong("submit_by")).thenReturn(9L);
+            when(jdbcTemplate.queryForObject(contains("a.application_id"), any(RowMapper.class), eq("APP001")))
+                    .thenAnswer(call -> ((RowMapper<PendingProductApplicationDetail>) call.getArgument(1)).mapRow(rs, 0));
+
+            assertThat(service.getDetail("APP001").canResubmit()).isEqualTo(expected);
+        }
+
         @Test
         @DisplayName("待初审状态返回正确时间线")
         void should_return_detail_with_pending_initial_timeline() {

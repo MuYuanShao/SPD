@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 
 const envelope = (data: unknown) => ({ code: 0, message: '成功', data, timestamp: new Date().toISOString() })
 
-async function setupApproval(page: Page, options: { final?: boolean; fail?: boolean; count?: number; delay?: number; returned?: boolean } = {}) {
+async function setupApproval(page: Page, options: { final?: boolean; fail?: boolean; count?: number; delay?: number; returned?: boolean; canResubmit?: boolean } = {}) {
   let approved = false
   let completedNo = ''
   let actions = 0
@@ -21,6 +21,7 @@ async function setupApproval(page: Page, options: { final?: boolean; fail?: bool
     chargeable: true, tenderSubCode: '', qualificationAttachmentCount: 0, highValue: false, coldChain: false, quotaManaged: false,
     keyMonitored: false, storageCondition: '常温', applicant: '申请人', submitTime: '2026-10-22 09:00:00', changeItems: [],
     timeline: [{ title: '初审', operator: '审批人', time: '', status: 'active' }], canApprove: !options.returned && (!approved || no !== completedNo),
+    canResubmit: Boolean(options.returned && !approved && options.canResubmit !== false),
   })
   await page.addInitScript(() => localStorage.setItem('spd.token', 'approval-regression-fixture'))
   await page.route(url => url.pathname.startsWith('/api/'), async route => {
@@ -148,6 +149,14 @@ for (const successCount of [0, 1, 2]) {
     else expect(state.hospitalReads()).toBe(initial)
   })
 }
+
+test('无重提权限的退回单隐藏按钮且编辑链接不能打开表单', async ({ page }) => {
+  await setupApproval(page, { returned: true, canResubmit: false })
+  await page.goto('/features/pending-product-catalog/SP-APP-001?edit=1')
+  await expect(page.locator('.approval-detail-header h2')).toContainText('SP-APP-001')
+  await expect(page.getByRole('button', { name: '修改后重新提交' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '重新提交', exact: true })).toHaveCount(0)
+})
 
 test('重新提交阻止重复请求并刷新列表而不刷新医院目录', async ({ page }) => {
   const state = await setupApproval(page, { returned: true })

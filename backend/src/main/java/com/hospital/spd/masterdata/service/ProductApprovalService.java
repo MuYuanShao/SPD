@@ -190,7 +190,9 @@ public class ProductApprovalService {
                             toStatusLabel(status, approvalSteps),
                             changeItems.load(rs),
                             timeline,
-                            canApprove
+                            canApprove,
+                            "returned".equals(status) && hasResubmitAccess(
+                                    nullableLong(rs, "submit_by"), operatorContextProvider.current())
                     );
                 },
                 applicationNo
@@ -696,7 +698,7 @@ public class ProductApprovalService {
         }
         OperatorContext operator = operatorContextProvider.current();
         Long originalApplicant = findApplicationSubmitBy(applicationNo);
-        if (!Objects.equals(originalApplicant, operator.userId()) && !isGlobalAdmin(operator)) {
+        if (!hasResubmitAccess(originalApplicant, operator)) {
             throw new IllegalArgumentException("只有原申请人或全局管理员可以重新提交");
         }
         validateRequest(request);
@@ -926,6 +928,11 @@ public class ProductApprovalService {
     }
 
     // ======================== Private helpers ========================
+
+    private static boolean hasResubmitAccess(Long originalApplicant, OperatorContext operator) {
+        return operator != null && (isGlobalAdmin(operator)
+                || (originalApplicant != null && originalApplicant.equals(operator.userId())));
+    }
 
     private Long findApplicationSubmitBy(String applicationNo) {
         return jdbcTemplate.queryForObject(

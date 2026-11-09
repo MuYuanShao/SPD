@@ -74,6 +74,7 @@ export function usePurchaseManagement() {
   const showDemandModal = ref(false)
   const demandSubmitting = ref(false)
   const orderSubmitting = ref(false)
+  const orderActionPending = ref(false)
   const closeTarget = ref<PurchaseOrderRow | null>(null)
   const closeReason = ref('')
   const detail = ref<PurchaseOrderDetail | null>(null)
@@ -579,12 +580,16 @@ export function usePurchaseManagement() {
   }
 
   async function runOrderAction(row: PurchaseOrderRow, action: string) {
+    if (orderActionPending.value) return
+    orderActionPending.value = true
     try {
       const result = await updatePurchaseOrderAction(row.orderNo, action, `${statusLabel(row.orderStatus)} -> ${action}`)
       notify.success(`${row.orderNo} 已更新为 ${statusLabel(result.status)}`)
       await loadData()
     } catch (error) {
       notify.error(errorMessage(error))
+    } finally {
+      orderActionPending.value = false
     }
   }
 
@@ -826,6 +831,7 @@ export function usePurchaseManagement() {
     showDemandModal,
     demandSubmitting,
     orderSubmitting,
+    orderActionPending,
     closeTarget,
     closeReason,
     detail,

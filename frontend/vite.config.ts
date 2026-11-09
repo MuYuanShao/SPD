@@ -61,7 +61,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://localhost:1818',
-        changeOrigin: true
+        // 保留浏览器访问的 Host，让后端正确识别局域网同源请求。
+        changeOrigin: false
       }
     }
   }

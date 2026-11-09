@@ -360,7 +360,7 @@ function returnToCatalog() {
 }
 
 function openReturnedEditFromRoute() {
-  if (route.query.edit === '1' && detail.value?.approvalStatus === 'returned') {
+  if (route.query.edit === '1' && detail.value?.canResubmit) {
     openResubmitModal()
   }
 }
@@ -409,7 +409,7 @@ function isPendingApprovalStatus(status?: string) {
 }
 
 function openResubmitModal() {
-  if (!detail.value) return
+  if (!detail.value?.canResubmit) return
   loadPartnerOptions()
   Object.assign(resubmitForm, {
     applicationType: detail.value.applicationType,
@@ -472,7 +472,7 @@ function closeResubmitModal() {
 }
 
 async function submitResubmitForm() {
-  if (!detail.value || submitting.value || saving.value) return
+  if (!detail.value?.canResubmit || submitting.value || saving.value) return
   actionError.value = ''
   if (resubmitForm.quotaManaged && (resubmitForm.highValue || resubmitForm.coldChain)) {
     actionError.value = '高值耗材或冷链耗材不能设置为定数管理'
@@ -560,7 +560,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <h2>{{ detail.productName }}</h2>
           </div>
           <div class="approval-actions">
-            <button v-if="detail.approvalStatus === 'returned'" type="button" class="btn btn-warning" @click="openResubmitModal">
+            <button v-if="detail.canResubmit" type="button" class="btn btn-warning" @click="openResubmitModal">
               修改后重新提交
             </button>
             <button

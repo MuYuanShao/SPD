@@ -128,6 +128,7 @@ export interface PendingProductApplicationDetail {
   changeItems: PendingProductChangeItem[]
   timeline: ApprovalTimelineNode[]
   canApprove: boolean
+  canResubmit: boolean
 }
 
 export interface PendingProductApplicationPayload {

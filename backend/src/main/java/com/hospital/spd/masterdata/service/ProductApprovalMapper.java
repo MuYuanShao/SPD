@@ -61,7 +61,8 @@ final class ProductApprovalMapper {
                                                      String statusLabel,
                                                      List<PendingProductChangeItem> changeItems,
                                                      List<ApprovalTimelineNode> timeline,
-                                                     boolean canApprove) throws SQLException {
+                                                     boolean canApprove,
+                                                     boolean canResubmit) throws SQLException {
         return new PendingProductApplicationDetail(
                 rs.getString("application_no"),
                 rs.getString("application_type"),
@@ -109,7 +110,8 @@ final class ProductApprovalMapper {
                 rs.getString("reject_reason"),
                 changeItems,
                 timeline,
-                canApprove
+                canApprove,
+                canResubmit
         );
     }
 

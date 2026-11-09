@@ -35,6 +35,9 @@ public class RbacAuthorizationService {
         if ("/auth/me".equals(path)) {
             return true;
         }
+        if ("/auth/password".equals(path)) {
+            return userId != null && "PUT".equalsIgnoreCase(method);
+        }
         if ("OPTIONS".equalsIgnoreCase(method)) {
             return true;
         }

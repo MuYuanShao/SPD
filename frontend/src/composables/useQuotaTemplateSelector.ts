@@ -12,6 +12,12 @@ export function useQuotaTemplateSelector(options: {
   const templateSelectorOpen = ref(false)
   const templateSelectorQuery = reactive({ templateCode: '', templateName: '' })
   const showAllTemplates = ref(false)
+  const lastSelectedTemplate = ref<QuotaTemplateRow>()
+  const selectedPackingTemplate = computed(() => {
+    const code = options.packingForm.templateCode
+    return options.templates.value.find(row => row.templateCode === code)
+      ?? (lastSelectedTemplate.value?.templateCode === code ? lastSelectedTemplate.value : undefined)
+  })
 
   const filteredPackingTemplates = computed(() =>
     options.templates.value.filter((template) => {
@@ -30,6 +36,7 @@ export function useQuotaTemplateSelector(options: {
   }
 
   function selectPackingTemplate(row: QuotaTemplateRow) {
+    lastSelectedTemplate.value = row
     options.packingForm.templateCode = row.templateCode
     if (!options.packingForm.warehouseName && options.warehouses.value.length) {
       options.packingForm.warehouseName = options.warehouses.value[0].warehouseName
@@ -39,13 +46,7 @@ export function useQuotaTemplateSelector(options: {
 
   function clearPackingTemplate() {
     options.packingForm.templateCode = ''
-  }
-
-  function fillPacking(row: QuotaTemplateRow) {
-    options.packingForm.templateCode = row.templateCode
-    if (!options.packingForm.warehouseName && options.warehouses.value.length) {
-      options.packingForm.warehouseName = options.warehouses.value[0].warehouseName
-    }
+    lastSelectedTemplate.value = undefined
   }
 
   return {
@@ -53,9 +54,9 @@ export function useQuotaTemplateSelector(options: {
     templateSelectorQuery,
     showAllTemplates,
     filteredPackingTemplates,
+    selectedPackingTemplate,
     openTemplateSelector,
     selectPackingTemplate,
-    clearPackingTemplate,
-    fillPacking
+    clearPackingTemplate
   }
 }

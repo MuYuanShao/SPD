@@ -1,9 +1,9 @@
 package com.hospital.spd.common;
 
+import com.hospital.spd.common.service.AccountPasswordService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Exposes login and current-user endpoints for the authentication boundary.
+ * Exposes authentication and self-service account endpoints.
  */
 @RestController
 @RequestMapping("/auth")
@@ -20,12 +20,12 @@ public class AuthController {
     private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private final JdbcTemplate jdbcTemplate;
-    private final PasswordEncoder passwordEncoder;
+    private final AccountPasswordService accountPasswordService;
     private final JwtUtil jwtUtil;
 
-    public AuthController(JdbcTemplate jdbcTemplate, PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthController(JdbcTemplate jdbcTemplate, AccountPasswordService accountPasswordService, JwtUtil jwtUtil) {
         this.jdbcTemplate = jdbcTemplate;
-        this.passwordEncoder = passwordEncoder;
+        this.accountPasswordService = accountPasswordService;
         this.jwtUtil = jwtUtil;
     }
 
@@ -63,17 +63,7 @@ public class AuthController {
             return ApiResponse.error(403, "账号已禁用，请联系管理员");
         }
 
-        // 验证密码（兼容旧版明文密码 + BCrypt 加密密码）
-        boolean passwordMatch = false;
-        if (storedPassword != null) {
-            if (storedPassword.startsWith("$2a$") || storedPassword.startsWith("$2b$")) {
-                passwordMatch = passwordEncoder.matches(request.password(), storedPassword);
-            } else {
-                passwordMatch = storedPassword.equals(request.password());
-            }
-        }
-
-        if (!passwordMatch) {
+        if (!accountPasswordService.matches(request.password(), storedPassword)) {
             return ApiResponse.error(401, "用户名或密码错误");
         }
 
@@ -89,6 +79,17 @@ public class AuthController {
         log.info("User '{}' logged in successfully", username);
         return ApiResponse.ok(new LoginResponse(token, userId, username));
     }
+
+    @PutMapping("/password")
+    public ApiResponse<Void> changePassword(@RequestBody ChangePasswordRequest body, HttpServletRequest request) {
+        if (!(request.getAttribute("currentUserId") instanceof Long userId)) {
+            return ApiResponse.error(401, "登录已失效，请重新登录");
+        }
+        accountPasswordService.changePassword(userId, body.currentPassword(), body.newPassword());
+        return ApiResponse.ok(null);
+    }
+
+    public record ChangePasswordRequest(String currentPassword, String newPassword) {}
 
     /**
      * 获取当前登录用户信息

@@ -60,6 +60,8 @@ import {
   LogOut
 } from '@lucide/vue'
 import ThemeSwitcher from '../components/common/ThemeSwitcher.vue'
+import ChangePasswordDialog from '../components/common/ChangePasswordDialog.vue'
+import { useNotify } from '../composables/useNotify'
 import { useAuthStore } from '../stores/auth'
 import { menuGroups } from '../config/menu'
 
@@ -90,6 +92,8 @@ interface MenuUIChild {
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+const notify = useNotify()
+const changePasswordOpen = ref(false)
 
 const refreshing = ref(false)
 const activeModule = ref('dashboard')
@@ -316,10 +320,17 @@ async function handleTabAction(command: string) {
 }
 
 function handleUserCommand(command: string) {
+  if (command === 'change-password') changePasswordOpen.value = true
   if (command === 'logout') {
     auth.logout()
     router.push('/login')
   }
+}
+
+function handlePasswordChanged() {
+  auth.logout()
+  notify.success('密码已修改，请使用新密码重新登录')
+  void router.replace('/login')
 }
 
 function titleForRoute(path: string): string {
@@ -519,6 +530,9 @@ watch(
                 </div>
               </div>
               <el-dropdown-menu>
+                <el-dropdown-item command="change-password">
+                  <Key :size="14" /> 修改密码
+                </el-dropdown-item>
                 <el-dropdown-item command="logout">
                   <LogOut :size="14" /> 退出登录
                 </el-dropdown-item>
@@ -528,6 +542,7 @@ watch(
         </el-dropdown>
       </div>
     </header>
+    <ChangePasswordDialog v-model="changePasswordOpen" @changed="handlePasswordChanged" />
 
     <!-- 页面主体 -->
     <div class="spd-body">

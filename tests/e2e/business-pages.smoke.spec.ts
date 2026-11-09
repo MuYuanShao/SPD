@@ -24,6 +24,103 @@ test('Vite 代理保留局域网同源登录的 Host', async ({ request }) => {
   expect(Boolean(body.data?.token)).toBe(true)
 })
 
+test('账户菜单修改密码支持校验、失败重试和重新登录', async ({ page }) => {
+  let attempts = 0
+  await page.route(url => url.pathname === '/api/auth/password', async route => {
+    attempts += 1
+    expect(route.request().method()).toBe('PUT')
+    expect(route.request().headers().authorization).toMatch(/^Bearer /)
+    expect(route.request().postDataJSON()).toEqual({
+      currentPassword: 'current-test-password',
+      newPassword: 'new-test-password'
+    })
+    await route.fulfill({
+      json: attempts === 1 ? { code: 400, message: '当前密码不正确' } : { code: 0, data: null }
+    })
+  })
+
+  await page.goto('/')
+  await login(page)
+  await page.locator('.spd-user-btn').click()
+  await page.getByText('修改密码', { exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '修改密码' })
+  await dialog.getByLabel('当前密码', { exact: true }).fill('current-test-password')
+  await dialog.getByLabel('新密码', { exact: true }).fill('new-test-password')
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('different-password')
+  const save = dialog.getByRole('button', { name: '保存修改' })
+  await save.click()
+  await expect(dialog.getByRole('alert')).toContainText('两次输入的新密码不一致')
+  expect(attempts).toBe(0)
+
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('new-test-password')
+  await save.click()
+  await expect(dialog.getByRole('alert')).toContainText('当前密码不正确')
+  await save.click()
+  await expect(page).toHaveURL(/\/login$/)
+  expect(attempts).toBe(2)
+})
+
+test('新增院区时留空自动生成的编码也能提交', async ({ page }) => {
+  let payload: Record<string, unknown> | undefined
+  await page.route(url => url.pathname === '/api/master-data/campuses', async route => {
+    if (route.request().method() !== 'POST') return route.continue()
+    payload = route.request().postDataJSON()
+    await route.fulfill({ json: { code: 0, data: { campusCode: 'XQ999' } } })
+  })
+
+  await page.goto('/features/campus-management')
+  await login(page)
+  await page.getByRole('button', { name: '新增院区', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '新增院区' })
+  const code = dialog.locator('input[name="campusCode"]')
+  await expect(code).toBeDisabled()
+  await expect(code).toHaveValue('')
+  await dialog.getByRole('textbox', { name: '院区名称' }).fill('院区回归测试')
+  await dialog.getByRole('button', { name: '创建院区' }).click()
+  await expect(dialog).toBeHidden()
+  expect(payload).toMatchObject({ campusCode: '', campusName: '院区回归测试' })
+})
+
+test('定数包模板的打包按钮跳转并保留第二页选中的模板', async ({ page }) => {
+  const template = {
+    templateId: 21, templateCode: 'TPL-SMOKE-021', templateName: '第二页测试模板',
+    productCode: 'SMOKE-021', productName: '测试耗材', quantity: 5, unit: '支',
+    status: '启用', versionNo: 1, currentVersion: 1
+  }
+  const ok = (data: unknown) => ({ code: 0, data })
+  let taskWrites = 0
+  const templates = [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      ...template, templateId: index + 1, templateCode: `TPL-SMOKE-${String(index + 1).padStart(3, '0')}`
+    })),
+    template
+  ]
+  await page.route(url => url.pathname === '/api/quota-packages/templates', route => {
+    const params = new URL(route.request().url()).searchParams
+    const pageNo = Number(params.get('page'))
+    const size = Number(params.get('size'))
+    const rows = templates.slice((pageNo - 1) * size, pageNo * size)
+    return route.fulfill({ json: ok({ rows, page: pageNo, size, total: templates.length }) })
+  })
+  await page.route(url => url.pathname === '/api/quota-packages/packing-options', route => route.fulfill({
+    json: ok({ warehouses: [{ warehouseName: '测试中心库', warehouseType: 'central' }], candidates: [] })
+  }))
+  await page.route(url => url.pathname === '/api/quota-packages/packing-tasks', route => {
+    if (route.request().method() !== 'GET') taskWrites += 1
+    return route.fulfill({ json: ok({ rows: [], page: 1, size: 20, total: 0 }) })
+  })
+
+  await page.goto('/features/quota-template-maintenance')
+  await login(page)
+  await page.getByRole('button', { name: '下一页' }).click()
+  const row = page.getByRole('row').filter({ hasText: template.templateCode })
+  await row.getByRole('button', { name: '打包', exact: true }).click()
+  await expect(page).toHaveURL(/\/features\/packing-task-confirmation$/)
+  await expect(page.locator('.pt-selected-template')).toContainText(template.templateCode)
+  await expect(page.getByRole('button', { name: '新建任务', exact: true })).toBeEnabled()
+  expect(taskWrites).toBe(0)
+})
+
 test('采购订单提交期间禁止重复发送并刷新订单状态', async ({ page }) => {
   const orderNo = 'CG-SMOKE-DRAFT'
   let orderStatus = 'draft'

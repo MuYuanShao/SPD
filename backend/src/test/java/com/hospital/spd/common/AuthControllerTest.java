@@ -1,9 +1,9 @@
 package com.hospital.spd.common;
 
+import com.hospital.spd.common.service.AccountPasswordService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.List;
 import java.util.Map;
@@ -19,7 +19,7 @@ class AuthControllerTest {
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final AuthController controller = new AuthController(
             jdbcTemplate,
-            mock(PasswordEncoder.class),
+            mock(AccountPasswordService.class),
             mock(JwtUtil.class)
     );
 

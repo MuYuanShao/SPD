@@ -236,10 +236,10 @@ const {
   templateSelectorQuery,
   showAllTemplates,
   filteredPackingTemplates,
+  selectedPackingTemplate,
   openTemplateSelector,
   selectPackingTemplate,
-  clearPackingTemplate,
-  fillPacking
+  clearPackingTemplate
 } = useQuotaTemplateSelector({ templates, warehouses, packingForm })
 const {
   safetyCatalogQuery,
@@ -275,10 +275,6 @@ watch(safetyDialogOpen, (open) => {
 })
 const selectedTemplates = computed(() =>
   templates.value.filter((item) => selectedTemplateCodes.value.includes(item.templateCode))
-)
-
-const selectedPackingTemplate = computed(() =>
-  templates.value.find((t) => t.templateCode === packingForm.templateCode)
 )
 
 const { mode, packageSection, title, subtitle } = useQuotaPackageViewState({
@@ -338,6 +334,13 @@ async function showGeneratedLabels() {
   query.labelNo = ''
   quotaPagination.labels.page = 1
   await router.push('/features/quota-label-unpack')
+}
+
+async function openPackingTaskForTemplate(row: QuotaTemplateRow) {
+  const failure = await router.push({ name: 'quota-package', params: { code: 'packing-task-confirmation' } })
+  if (!failure && route.params.code === 'packing-task-confirmation') {
+    selectPackingTemplate(row)
+  }
 }
 
 /* ===== 定数包标签与解包：工具条概览 + 查询辅助 ===== */
@@ -995,10 +998,11 @@ watch(
                       启用
                     </button>
                     <button
-                      v-if="authStore.hasPermission('quota-packing-task:create')"
+                      v-if="authStore.hasPermission('quota-packing-task:create') && authStore.canAccessMenu('packing-task-confirmation')"
                       class="tpl-act tpl-act-primary"
                       type="button"
-                      @click="fillPacking(row)"
+                      :disabled="row.status !== '启用' && row.status !== 'enabled'"
+                      @click="openPackingTaskForTemplate(row)"
                     >
                       <PackageCheck :size="14" />
                       打包

@@ -154,8 +154,12 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
   async function saveCampus() {
     deps.clearActionState()
     const payload = normalizeCampusPayload(campusForm.value)
-    if (!payload.campusCode || !payload.campusName) {
-      deps.actionError.value = '院区编码、院区名称为必填项'
+    if (!payload.campusName) {
+      deps.actionError.value = '院区名称为必填项'
+      return
+    }
+    if (deps.campusDialogMode.value === 'edit' && !payload.campusCode) {
+      deps.actionError.value = '缺少院区编码，无法保存修改'
       return
     }
     campusForm.value = payload

@@ -160,6 +160,12 @@ class DepartmentServiceTest {
     @DisplayName("创建/更新科室 upsertDepartment()")
     class UpsertDepartmentTest {
 
+        @BeforeEach
+        void enableCampus() {
+            lenient().when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM campus"),
+                    eq(Long.class), eq("主院区"))).thenReturn(1L);
+        }
+
         private DepartmentUpsertRequest validCreateRequest() {
             return new DepartmentUpsertRequest(
                     "DEPT001", "内科", "F001", "财务一部",
@@ -231,11 +237,19 @@ class DepartmentServiceTest {
         }
 
         @Test
+        void rejectsDepartmentWithoutCampus() {
+            DepartmentUpsertRequest request = new DepartmentUpsertRequest(
+                    "DEPT002", "外科", null, null, null, null, null, null, null, null);
+            assertThatThrownBy(() -> service.createDepartment(request))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("请选择所属院区");
+        }
+
+        @Test
         @DisplayName("创建科室时sortOrder和status使用默认值")
         void should_use_default_values_for_sort_order_and_status() {
             DepartmentUpsertRequest request = new DepartmentUpsertRequest(
                     "DEPT002", "外科", null, null,
-                    null, null, null, null,
+                    "主院区", null, null, null,
                     null, null
             );
 
@@ -246,7 +260,7 @@ class DepartmentServiceTest {
             assertThat(result.get("deptCode")).isEqualTo("DEPT002");
             verify(jdbcTemplate).update(anyString(),
                     eq("DEPT002"), eq("外科"), isNull(), isNull(),
-                    isNull(), isNull(), isNull(), isNull(),
+                    eq("主院区"), isNull(), isNull(), isNull(),
                     eq(0), eq(1));
         }
     }

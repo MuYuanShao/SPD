@@ -65,6 +65,34 @@ public class WarehouseDepartmentPolicy {
         return type.contains("二级") || type.contains("三级") || type.contains("科室库");
     }
 
+    static void requireActiveCampus(JdbcTemplate jdbcTemplate, String campusName) {
+        if (isBlank(campusName)) throw new IllegalArgumentException("请选择所属院区");
+        Long count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM campus WHERE campus_name = ? AND deleted = 0 AND status = 1
+                """, Long.class, campusName.trim());
+        if (count == null || count != 1) throw new IllegalArgumentException("所属院区不存在、已停用或名称不唯一");
+    }
+
+    static void requireReceivingWarehouseSetup(JdbcTemplate jdbcTemplate, Long deptId, String campusName,
+                                               String warehouseCode) {
+        if (deptId == null) throw new IllegalArgumentException("二级库、三级库和科室库必须关联有效科室");
+        Long departmentCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM sys_dept
+                 WHERE dept_id = ? AND campus_name = ? AND deleted = 0 AND status = 1
+                """, Long.class, deptId, campusName);
+        if (departmentCount == null || departmentCount != 1) {
+            throw new IllegalArgumentException("收货库房必须与关联科室属于同一院区，请先维护科室所属院区");
+        }
+        Long supplyCount = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM warehouse
+                 WHERE campus_name = ? AND warehouse_code <> ? AND deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
+                """, Long.class, campusName, warehouseCode);
+        if (supplyCount == null || supplyCount == 0) {
+            throw new IllegalArgumentException("请先在所属院区建立并启用一级库或中心库，再配置科室收货库");
+        }
+    }
+
     private static String trimToNull(String value) {
         return isBlank(value) ? null : value.trim();
     }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { AlertTriangle, ArrowLeft, Eye, History, Info, Minus, Plus, RotateCcw, Search, ShoppingCart, UserPlus, X } from '@lucide/vue'
 import { ElDialog } from 'element-plus'
 import 'element-plus/theme-chalk/el-dialog.css'
@@ -43,7 +43,8 @@ const filters = reactive({
   specModel: '',
   manufacturerName: '',
   targetDeptCode: '',
-  warehouseName: '',
+  warehouseId: '' as number | '',
+  sourceWarehouseId: '' as number | '',
   mode: ''
 })
 
@@ -57,6 +58,7 @@ const products = ref<RequisitionCatalogItem[]>([])
 const quantityDrafts = new Map<string, Pick<RequisitionCatalogItem, 'quantity' | 'mode' | 'selected'>>()
 let draftScope = ''
 let catalogRequestVersion = 0
+let warehouseRequestVersion = 0
 
 function draftKey(row: DepartmentRequisitionCatalogRow) {
   return JSON.stringify([row.productCode, row.sourceWarehouseId, row.templateCode])
@@ -99,7 +101,17 @@ const authStore = useAuthStore()
 
 const filteredProducts = computed(() => products.value)
 const selectedDepartment = computed(() => options.value.departments.find((item) => item.deptCode === filters.targetDeptCode))
-const selectedWarehouseLabel = computed(() => filters.warehouseName || '全部关联库房')
+const selectedWarehouse = computed(() => linkedWarehouses.value.find(warehouse => warehouse.warehouseId === filters.warehouseId))
+const selectedWarehouseLabel = computed(() => selectedWarehouse.value?.name || '请选择收货库房')
+const sourceWarehouses = computed(() => selectedWarehouse.value?.sourceWarehouses ?? [])
+const warehouseSetupMessage = computed(() => {
+  if (!filters.targetDeptCode) return '请先选择科室'
+  if (!linkedWarehouses.value.length) return '当前科室暂无启用的收货库房，请先在科室管理中关联库房'
+  if (!selectedWarehouse.value) return '请选择收货库房'
+  if (!sourceWarehouses.value.length) return '收货库房所在院区暂无启用的一级库或中心库，请先维护供货库房'
+  if (!filters.sourceWarehouseId) return '当前院区有多个供货库房，请选择本次从哪个库房发货'
+  return ''
+})
 const selectedItems = computed(() => products.value.filter((item) => item.selected))
 const canCreateRequisition = computed(() => authStore.hasPermission('department-requisition:create'))
 const canSmartAnalyze = computed(() => authStore.hasPermission('department-requisition:smart-analysis'))
@@ -143,31 +155,50 @@ async function loadOptions() {
 }
 
 async function loadLinkedWarehouses() {
+  const request = ++warehouseRequestVersion
+  clearQuantityDrafts()
+  loading.value = false
+  totalItems.value = 0
+  error.value = ''
   linkedWarehouses.value = []
-  filters.warehouseName = ''
+  filters.warehouseId = ''
+  filters.sourceWarehouseId = ''
   const deptCode = selectedDepartment.value?.deptCode
-  if (!deptCode) return
-  const warehouses = await fetchDepartmentRequisitionWarehouses(deptCode)
-  linkedWarehouses.value = warehouses.filter((item) => Number(item.selected ?? 0) === 1)
-  // 选择科室时默认带出科室所关联的库房
-  filters.warehouseName = linkedWarehouses.value[0]?.name || ''
+  if (!deptCode) {
+    optionsLoading.value = false
+    return
+  }
+  optionsLoading.value = true
+  try {
+    const warehouses = await fetchDepartmentRequisitionWarehouses(deptCode)
+    if (request !== warehouseRequestVersion) return
+    linkedWarehouses.value = warehouses.filter((item) => Number(item.selected ?? 0) === 1)
+    filters.warehouseId = linkedWarehouses.value[0]?.warehouseId ?? ''
+    selectDefaultSourceWarehouse()
+  } catch (err) {
+    if (request === warehouseRequestVersion) error.value = err instanceof Error ? err.message : '收货库房加载失败'
+  } finally {
+    if (request === warehouseRequestVersion) optionsLoading.value = false
+  }
+}
+
+function selectDefaultSourceWarehouse() {
+  filters.sourceWarehouseId = sourceWarehouses.value.length === 1 ? sourceWarehouses.value[0].warehouseId : ''
 }
 
 async function loadCatalog() {
-  if (!requisitionStarted.value) return
-  if (!filters.targetDeptCode) {
-    clearQuantityDrafts()
-    totalItems.value = 0
-    loading.value = false
-    error.value = '请先选择科室'
-    return
-  }
+  if (!requisitionStarted.value || optionsLoading.value) return
   const requestVersion = ++catalogRequestVersion
-  const scope = JSON.stringify([filters.targetDeptCode, filters.warehouseName])
+  const scope = JSON.stringify([filters.targetDeptCode, filters.warehouseId, filters.sourceWarehouseId])
   if (scope !== draftScope) {
     quantityDrafts.clear()
     products.value = []
+    totalItems.value = 0
     draftScope = scope
+  }
+  if (warehouseSetupMessage.value) {
+    loading.value = false
+    return
   }
   loading.value = true
   error.value = ''
@@ -175,7 +206,9 @@ async function loadCatalog() {
     const result = await fetchDepartmentRequisitionCatalog({
       deptCode: selectedDepartment.value?.deptCode || '',
       deptName: selectedDepartment.value?.deptName || '',
-      warehouseName: filters.warehouseName,
+      warehouseName: selectedWarehouse.value?.name || '',
+      destinationWarehouseId: String(filters.warehouseId),
+      sourceWarehouseId: String(filters.sourceWarehouseId),
       productCode: filters.productCode,
       productName: filters.productName,
       specModel: filters.specModel,
@@ -211,6 +244,7 @@ async function loadCatalog() {
 }
 
 async function startRequisition() {
+  if (optionsLoading.value) return
   clearQuantityDrafts()
   notify.success('')
   error.value = ''
@@ -225,6 +259,8 @@ async function startRequisition() {
 }
 
 function leaveRequisition() {
+  warehouseRequestVersion++
+  optionsLoading.value = false
   clearQuantityDrafts()
   requisitionStarted.value = false
   products.value = []
@@ -368,8 +404,9 @@ async function submitSelectedRequisitions() {
     const result = await createRequisition({
       deptCode: selectedDepartment.value?.deptCode,
       deptName: selectedDepartment.value?.deptName,
-      warehouseName: filters.warehouseName,
-      sourceWarehouseId: submittedItems[0]?.sourceWarehouseId,
+      warehouseName: selectedWarehouse.value?.name,
+      destinationWarehouseId: filters.warehouseId,
+      sourceWarehouseId: filters.sourceWarehouseId,
       items
     })
     submittedCount.value += submittedItems.length
@@ -400,8 +437,8 @@ function removeFromSelection(item: RequisitionCatalogItem) {
 }
 
 async function openSmartReplenishment() {
-  if (!filters.targetDeptCode) {
-    notify.warning('请先选择科室')
+  if (warehouseSetupMessage.value) {
+    notify.warning(warehouseSetupMessage.value)
     return
   }
   const deptCode = selectedDepartment.value?.deptCode
@@ -414,7 +451,9 @@ async function openSmartReplenishment() {
     const result = await analyzeDepartmentRequisition({
       deptCode,
       deptName: selectedDepartment.value?.deptName,
-      destinationWarehouseName: filters.warehouseName || undefined,
+      destinationWarehouseId: selectedWarehouse.value?.warehouseId,
+      destinationWarehouseName: selectedWarehouse.value?.name,
+      sourceWarehouseId: Number(filters.sourceWarehouseId),
       selectedPeriodDays: smartPeriodDays.value
     })
     smartAnalysisId.value = result.analysisId
@@ -461,7 +500,6 @@ async function resetFilters() {
     specModel: '',
     manufacturerName: '',
     targetDeptCode: options.value.departments[0]?.deptCode || '',
-    warehouseName: '',
     mode: ''
   })
   currentPage.value = 1
@@ -473,18 +511,17 @@ onMounted(async () => {
   await loadRequisitionOrders()
 })
 
-watch(() => filters.targetDeptCode, async () => {
-  if (!requisitionStarted.value) return
+async function changeDepartment() {
   await loadLinkedWarehouses()
   currentPage.value = 1
   await loadCatalog()
-})
+}
 
-watch(() => filters.warehouseName, async () => {
-  if (!requisitionStarted.value) return
+async function changeWarehouse() {
+  error.value = ''
   currentPage.value = 1
   await loadCatalog()
-})
+}
 </script>
 
 <template>
@@ -581,7 +618,7 @@ watch(() => filters.warehouseName, async () => {
               <ShoppingCart :size="14" />
               已选 <strong>{{ selectedItems.length }}</strong> 条
             </span>
-            <button class="btn md-btn" type="button" :disabled="loading || submitting" @click="openSmartReplenishment">
+            <button class="btn md-btn" type="button" :disabled="loading || optionsLoading || submitting || !!warehouseSetupMessage" @click="openSmartReplenishment">
               <AlertTriangle :size="14" />
               智能补货
             </button>
@@ -597,16 +634,23 @@ watch(() => filters.warehouseName, async () => {
       <div class="dept-req-filterbar">
         <label class="dept-req-filterbar-item">
           <span>科室</span>
-          <select v-model="filters.targetDeptCode">
+          <select v-model="filters.targetDeptCode" :disabled="submitting" @change="changeDepartment">
             <option value="">请选择科室</option>
             <option v-for="dept in options.departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
           </select>
         </label>
         <label class="dept-req-filterbar-item">
-          <span>库房</span>
-          <select v-model="filters.warehouseName">
-            <option value="">全部关联库房</option>
-            <option v-for="warehouse in linkedWarehouses" :key="warehouse.code" :value="warehouse.name">{{ warehouse.name }}</option>
+          <span>收货库房</span>
+          <select v-model="filters.warehouseId" aria-label="收货库房" :disabled="submitting" @change="selectDefaultSourceWarehouse(); changeWarehouse()">
+            <option value="">请选择收货库房</option>
+            <option v-for="warehouse in linkedWarehouses" :key="warehouse.code" :value="warehouse.warehouseId">{{ warehouse.name }}</option>
+          </select>
+        </label>
+        <label class="dept-req-filterbar-item">
+          <span>供货库房</span>
+          <select v-model="filters.sourceWarehouseId" aria-label="供货库房" :disabled="submitting || !sourceWarehouses.length" @change="changeWarehouse">
+            <option value="">请选择供货库房</option>
+            <option v-for="warehouse in sourceWarehouses" :key="warehouse.code" :value="warehouse.warehouseId">{{ warehouse.code }} · {{ warehouse.name }}</option>
           </select>
         </label>
         <label class="dept-req-filterbar-item">
@@ -721,8 +765,8 @@ watch(() => filters.warehouseName, async () => {
               <tr v-if="loading || optionsLoading">
                 <td colspan="16"><EmptyState message="正在加载科室申领目录..." /></td>
               </tr>
-              <tr v-else-if="error">
-                <td colspan="16"><EmptyState message="科室申领目录加载失败" /></td>
+              <tr v-else-if="error || warehouseSetupMessage">
+                <td colspan="16"><EmptyState :message="error || warehouseSetupMessage" /></td>
               </tr>
               <template v-else>
                 <tr

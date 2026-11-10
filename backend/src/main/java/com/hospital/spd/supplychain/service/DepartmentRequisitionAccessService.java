@@ -89,10 +89,15 @@ public class DepartmentRequisitionAccessService {
 
     public void requireDestinationWarehouse(Long deptId, Long warehouseId) {
         Long count = jdbcTemplate.queryForObject("""
-                SELECT COUNT(*) FROM warehouse
-                 WHERE warehouse_id = ? AND dept_id = ? AND deleted = 0 AND status = 1
+                SELECT COUNT(*) FROM warehouse w
+                JOIN sys_dept d ON d.dept_id = w.dept_id AND d.campus_name = w.campus_name
+                 WHERE w.warehouse_id = ? AND w.dept_id = ? AND w.deleted = 0 AND w.status = 1
+                   AND EXISTS (SELECT 1 FROM campus c WHERE c.campus_name = w.campus_name
+                                AND c.deleted = 0 AND c.status = 1)
                 """, Long.class, warehouseId, deptId);
-        if (count == null || count != 1) throw new IllegalArgumentException("目标库房未关联所选科室或已停用");
+        if (count == null || count != 1) {
+            throw new IllegalArgumentException("请选择当前科室已关联且同属启用院区的收货库房");
+        }
     }
 
     public void appendScope(StringBuilder where, List<Object> args, String deptColumn, String ownerColumn) {

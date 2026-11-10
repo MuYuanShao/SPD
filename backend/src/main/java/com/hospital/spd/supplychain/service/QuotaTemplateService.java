@@ -225,8 +225,7 @@ public class QuotaTemplateService {
         requisitionAccess.requireDestinationWarehouse(deptId, destinationWarehouseId);
         assertNoRequisitionTemplateConflicts(deptName);
         List<Object> args = new ArrayList<>();
-        Long sourceWarehouseId = sourceWarehouseId(
-                params.get("sourceWarehouseId"), deptName, warehouseName);
+        Long sourceWarehouseId = sourceWarehouseId(params.get("sourceWarehouseId"), destinationWarehouseId);
         StringBuilder sql = new StringBuilder("""
                 SELECT p.product_id AS productId, p.product_code AS productCode, p.product_name AS productName,
                        catalog_warehouse.warehouse_name AS warehouseName,
@@ -380,23 +379,22 @@ public class QuotaTemplateService {
         return ids.get(0);
     }
 
-    private Long sourceWarehouseId(String rawValue, String deptName, String warehouseName) {
+    private Long sourceWarehouseId(String rawValue, Long destinationWarehouseId) {
         if (isBlank(rawValue)) {
-            if (isBlank(deptName) && isBlank(warehouseName)) return null;
             List<Long> candidates = jdbcTemplate.queryForList("""
-                    SELECT DISTINCT source.warehouse_id
+                    SELECT source.warehouse_id
                       FROM warehouse source
                       JOIN warehouse target ON source.campus_name = target.campus_name
-                      LEFT JOIN sys_dept target_dept ON target_dept.dept_id = target.dept_id
                      WHERE source.deleted = 0 AND source.status = 1
-                       AND target.deleted = 0 AND target.status = 1
+                       AND target.warehouse_id = ?
                        AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
-                       AND ((? <> '' AND target.warehouse_name = ?)
-                            OR (? <> '' AND target_dept.dept_name = ?))
                      ORDER BY source.warehouse_id
-                    """, Long.class, warehouseName.trim(), warehouseName.trim(), deptName.trim(), deptName.trim());
+                    """, Long.class, destinationWarehouseId);
+            if (candidates.isEmpty()) {
+                throw new IllegalArgumentException("收货库房所在院区暂无启用的一级库或中心库，请先维护供货库房");
+            }
             if (candidates.size() != 1) {
-                throw new IllegalArgumentException("当前院区无法唯一确定中心库，请明确提供 sourceWarehouseId");
+                throw new IllegalArgumentException("当前院区有多个供货库房，请选择供货库房（sourceWarehouseId）");
             }
             return candidates.get(0);
         }
@@ -407,11 +405,13 @@ public class QuotaTemplateService {
             throw new IllegalArgumentException("sourceWarehouseId must be a number");
         }
         List<Long> ids = jdbcTemplate.queryForList("""
-                SELECT warehouse_id FROM warehouse
-                 WHERE warehouse_id = ? AND deleted = 0 AND status = 1
-                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
-                """, Long.class, sourceId);
-        if (ids.size() != 1) throw new IllegalArgumentException("source warehouse must be an enabled central warehouse");
+                SELECT source.warehouse_id FROM warehouse source
+                JOIN warehouse target ON source.campus_name = target.campus_name
+                 WHERE source.warehouse_id = ? AND source.deleted = 0 AND source.status = 1
+                   AND target.warehouse_id = ?
+                   AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
+                """, Long.class, sourceId, destinationWarehouseId);
+        if (ids.size() != 1) throw new IllegalArgumentException("请选择与收货库房同院区且已启用的一级库或中心库");
         return ids.get(0);
     }
 

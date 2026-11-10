@@ -38,6 +38,9 @@ class BusinessPersistenceMysqlAuditTest {
         return code;
     }
     private DepartmentUpsertRequest department(String code, String name) { return new DepartmentUpsertRequest(code,name,"F-"+code,name,"核查院区","地址","负责人","123",0,1); }
+    private void createAuditCampus(JdbcTemplate jdbc) {
+        new CampusService(jdbc).createCampus(new CampusUpsertRequest(code(), "核查院区", null, null, null, 0, 1));
+    }
     private SupplyChainSupport support(JdbcTemplate jdbc) {
         var numbers = new DocumentNumberService(jdbc);
         return new SupplyChainSupport(numbers,new AuditLogService(jdbc),new InventoryMovementService(jdbc,new InventoryEventService(jdbc,numbers,OperatorContext::system)));
@@ -62,6 +65,7 @@ class BusinessPersistenceMysqlAuditTest {
         assertThat(jdbc.queryForObject("SELECT status FROM manufacturer WHERE manufacturer_code=?",Integer.class,code)).isZero();
     }); }
     @Test void departments() throws Exception { check("科室新增修改删除", jdbc -> {
+        createAuditCampus(jdbc);
         var service=new DepartmentService(jdbc);String code=code();service.createDepartment(department(code,"核查科室"+code));
         service.updateDepartment(code,department(code,"修改科室"+code));
         assertThat(jdbc.queryForObject("SELECT dept_name FROM sys_dept WHERE dept_code=?",String.class,code)).isEqualTo("修改科室"+code);
@@ -69,8 +73,10 @@ class BusinessPersistenceMysqlAuditTest {
         assertThat(jdbc.queryForObject("SELECT deleted FROM sys_dept WHERE dept_code=?",Integer.class,code)).isEqualTo(1);
     }); }
     @Test void warehouses() throws Exception { check("库房货位与绑定", jdbc -> {
+        createAuditCampus(jdbc);
         String deptCode=code(), deptName="核查科室"+deptCode;new DepartmentService(jdbc).createDepartment(department(deptCode,deptName));
         String code=code(), product=product(jdbc);var service=new WarehouseService(jdbc);
+        service.createWarehouse(new WarehouseUpsertRequest(code(), "核查一级库", "一级库", "核查院区", null, null, true, "[]", 1, List.of()));
         service.createWarehouse(new WarehouseUpsertRequest(code,"核查库房"+code,"二级库","核查院区",deptCode,deptName,true,"[]",1,List.of(product)));
         service.updateWarehouse(code,new WarehouseUpsertRequest(code,"修改库房"+code,"二级库","核查院区",deptCode,deptName,true,"[]",1,List.of(product)));
         assertThat(jdbc.queryForObject("SELECT warehouse_name FROM warehouse WHERE warehouse_code=?",String.class,code)).isEqualTo("修改库房"+code);
@@ -84,6 +90,7 @@ class BusinessPersistenceMysqlAuditTest {
         assertThat(jdbc.queryForObject("SELECT deleted FROM warehouse_location WHERE location_id=?",Integer.class,location)).isEqualTo(1);
     }); }
     @Test void quotaPackages() throws Exception { check("定数模板安全量打包打印解包", jdbc -> {
+        createAuditCampus(jdbc);
         String product=product(jdbc), code=code(), dept=code();var support=support(jdbc);
         new DepartmentService(jdbc).createDepartment(department(dept,dept));
         new WarehouseService(jdbc).createWarehouse(new WarehouseUpsertRequest(code,code,"一级库","核查院区",null,null,true,"[]",1,List.of(product)));

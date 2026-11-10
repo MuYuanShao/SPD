@@ -1866,7 +1866,9 @@ const {
             <template #default="{ row }">
                 <div class="catalog-scope-cell">
                   <strong>{{ row.deptName || '-' }}</strong>
-                  <span>{{ row.warehouseName || '未关联库房' }}</span>
+                  <span v-if="row.warehouseName">库房名称：{{ row.warehouseName }}</span>
+                  <span v-else>未关联库房</span>
+                  <span v-if="row.warehouseType">库房等级：{{ row.warehouseType }}</span>
                 </div>
             </template>
           </el-table-column>

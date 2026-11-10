@@ -56,7 +56,13 @@ class WarehouseDepartmentAssignmentServiceTest {
         when(jdbcTemplate.queryForList(contains("dept_id = ?"), eq(7L))).thenReturn(List.of(
                 Map.of("warehouse_id", 10L, "warehouse_code", "OLD", "dept_id", 7L)));
         when(jdbcTemplate.queryForList(contains("warehouse_code IN"), any(Object[].class))).thenReturn(List.of(
-                Map.of("warehouse_id", 11L, "warehouse_code", "NEW", "warehouse_type", "科室库")));
+                Map.of("warehouse_id", 11L, "warehouse_code", "NEW", "warehouse_type", "科室库", "campus_name", "主院区")));
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM campus"), eq(Long.class), eq("主院区")))
+                .thenReturn(1L);
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM sys_dept"), eq(Long.class), eq(7L), eq("主院区")))
+                .thenReturn(1L);
+        when(jdbcTemplate.queryForObject(contains("warehouse_code <> ?"), eq(Long.class), eq("主院区"), eq("NEW")))
+                .thenReturn(1L);
         when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
 
         Map<String, Object> result = service.replace(7L,

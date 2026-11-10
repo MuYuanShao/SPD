@@ -128,6 +128,7 @@ public class WarehouseService {
     public Map<String, Object> createWarehouse(WarehouseUpsertRequest request) {
         validateWarehouse(request, true);
         Long deptId = warehouseDepartmentPolicy.resolveDepartmentId(request);
+        validateWarehouseSetup(request.warehouseCode(), request.warehouseType(), request.campusName(), deptId);
         jdbcTemplate.update("""
                 INSERT INTO warehouse (
                   warehouse_code, warehouse_name, warehouse_type, parent_id, campus_name,
@@ -160,6 +161,7 @@ public class WarehouseService {
         Long warehouseId = findWarehouseId(warehouseCode);
         validateWarehouse(request, false);
         Long deptId = warehouseDepartmentPolicy.resolveDepartmentId(request);
+        validateWarehouseSetup(warehouseCode, request.warehouseType(), request.campusName(), deptId);
         int updatedRows = jdbcTemplate.update("""
                 UPDATE warehouse
                 SET warehouse_name = ?, warehouse_type = ?, campus_name = ?, dept_id = ?,
@@ -210,7 +212,7 @@ public class WarehouseService {
     }
 
     /** 导入库房 */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> importWarehouses(java.io.BufferedReader reader) throws Exception {
         int importedRows = 0;
         int importedLocations = 0;
@@ -228,7 +230,10 @@ public class WarehouseService {
             if (cells.length < 4 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;
             }
+            String warehouseType = defaultText(cells, 2, "中心库");
+            String campusName = defaultText(cells, 3, "");
             Long deptId = findIdByName("sys_dept", "dept_id", "dept_name", defaultText(cells, 4, ""));
+            validateWarehouseSetup(cells[0], warehouseType, campusName, deptId);
             jdbcTemplate.update("""
                     INSERT INTO warehouse (
                       warehouse_code, warehouse_name, warehouse_type, parent_id, campus_name,
@@ -239,8 +244,7 @@ public class WarehouseService {
                       dept_id = VALUES(dept_id), participate_stats = VALUES(participate_stats),
                       stats_categories = VALUES(stats_categories), deleted = 0
                     """,
-                    cells[0].trim(), cells[1].trim(), defaultText(cells, 2, "中心库"),
-                    defaultText(cells, 3, "主院区"), deptId,
+                    cells[0].trim(), cells[1].trim(), warehouseType, campusName.trim(), deptId,
                     "不参与".equals(defaultText(cells, 5, "参与")) ? 0 : 1,
                     jsonText(defaultText(cells, 6, ""))
             );
@@ -613,6 +617,13 @@ public class WarehouseService {
         if ((requireCode && isBlank(request.warehouseCode())) || isBlank(request.warehouseName()) ||
                 isBlank(request.warehouseType()) || isBlank(request.campusName())) {
             throw new IllegalArgumentException("库房编码、库房名称、库房类型、所属院区为必填项");
+        }
+    }
+
+    private void validateWarehouseSetup(String code, String type, String campusName, Long deptId) {
+        WarehouseDepartmentPolicy.requireActiveCampus(jdbcTemplate, campusName);
+        if (WarehouseDepartmentPolicy.requiresDepartment(type)) {
+            WarehouseDepartmentPolicy.requireReceivingWarehouseSetup(jdbcTemplate, deptId, campusName.trim(), code.trim());
         }
     }
 

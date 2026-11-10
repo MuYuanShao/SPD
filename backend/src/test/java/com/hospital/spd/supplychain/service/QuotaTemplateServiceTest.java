@@ -50,7 +50,7 @@ class QuotaTemplateServiceTest {
         lenient().when(requisitionAccess.resolveDepartment(any(), any()))
                 .thenReturn(Map.of("deptId", 10L, "deptCode", "SURG", "deptName", "AI测试科室"));
         lenient().when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"),
-                eq(Long.class), eq(30L))).thenReturn(List.of(30L));
+                eq(Long.class), eq(30L), eq(20L))).thenReturn(List.of(30L));
         lenient().when(support.nextNo(any(DocumentKind.class)))
                 .thenAnswer(invocation -> ((DocumentKind) invocation.getArgument(0)).prefix() + "20260601001");
         lenient().when(jdbcTemplate.queryForObject(contains("template_conflicts"), eq(Integer.class)))
@@ -460,7 +460,7 @@ class QuotaTemplateServiceTest {
 
     @Test
     void requisitionAvailabilityUsesExplicitSourceWarehouseInsteadOfDestinationWarehouse() {
-        when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L)))
+        when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L), eq(20L)))
                 .thenReturn(List.of(30L));
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(0L);
         when(jdbcTemplate.queryForList(anyString(), any(Object[].class))).thenReturn(List.of());
@@ -476,7 +476,7 @@ class QuotaTemplateServiceTest {
     @Test
     void requisitionCatalogRequiresExplicitSourceWhenCampusHasMultipleCentralWarehouses() {
         when(jdbcTemplate.queryForList(contains("source.campus_name = target.campus_name"), eq(Long.class),
-                any(Object[].class))).thenReturn(List.of(30L, 31L));
+                eq(20L))).thenReturn(List.of(30L, 31L));
 
         assertThatThrownBy(() -> service.requisitionCatalog(Map.of(
                 "deptCode", "SURG", "destinationWarehouseId", "20")))

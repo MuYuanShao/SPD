@@ -78,7 +78,7 @@ const emit = defineEmits<{
           </label>
           <label>
             <span>所属院区</span>
-            <select v-model.trim="form.campusName" name="campusName">
+            <select v-model.trim="form.campusName" name="campusName" required>
               <option value="">请选择院区</option>
               <option v-for="campus in campusOptions" :key="campus.code" :value="campus.name">
                 {{ campus.name }}

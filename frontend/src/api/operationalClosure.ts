@@ -38,6 +38,7 @@ export interface RequisitionWarehouseOption {
   status: string
   relatedDepartment: string
   selected: boolean | number
+  sourceWarehouses: Array<{ warehouseId: number; code: string; name: string }>
 }
 
 export async function fetchDepartmentRequisitionWarehouses(deptCode: string) {

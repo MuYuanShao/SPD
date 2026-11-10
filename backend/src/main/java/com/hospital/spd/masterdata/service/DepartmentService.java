@@ -98,6 +98,7 @@ public class DepartmentService {
     /** 创建科室 */
     public Map<String, Object> createDepartment(DepartmentUpsertRequest request) {
         validateDepartment(request, true);
+        WarehouseDepartmentPolicy.requireActiveCampus(jdbcTemplate, request.campusName());
         try {
             jdbcTemplate.update("""
                     INSERT INTO sys_dept (
@@ -125,6 +126,7 @@ public class DepartmentService {
     /** 更新科室 */
     public Map<String, Object> updateDepartment(String deptCode, DepartmentUpsertRequest request) {
         validateDepartment(request, false);
+        validateDepartmentCampus(deptCode, request.campusName());
         int updatedRows = jdbcTemplate.update("""
                 UPDATE sys_dept
                 SET dept_name = ?, finance_dept_code = ?, finance_dept_name = ?, campus_name = ?,
@@ -192,6 +194,7 @@ public class DepartmentService {
     }
 
     /** 导入科室 */
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> importDepartments(java.io.BufferedReader reader) throws Exception {
         int importedRows = 0;
         String line;
@@ -208,6 +211,8 @@ public class DepartmentService {
             if (cells.length < 2 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;
             }
+            String campusName = defaultText(cells, 4, "");
+            validateDepartmentCampus(cells[0].trim(), campusName);
             jdbcTemplate.update("""
                     INSERT INTO sys_dept (
                       parent_id, dept_code, dept_name, finance_dept_code, finance_dept_name,
@@ -220,7 +225,7 @@ public class DepartmentService {
                       manager_name = VALUES(manager_name), phone = VALUES(phone), deleted = 0
                     """,
                     cells[0].trim(), cells[1].trim(), nullIfBlank(defaultText(cells, 2, "")),
-                    nullIfBlank(defaultText(cells, 3, "")), nullIfBlank(defaultText(cells, 4, "")),
+                    nullIfBlank(defaultText(cells, 3, "")), campusName.trim(),
                     nullIfBlank(defaultText(cells, 5, "")), nullIfBlank(defaultText(cells, 6, "")),
                     nullIfBlank(defaultText(cells, 7, ""))
             );
@@ -230,6 +235,18 @@ public class DepartmentService {
     }
 
     // ==================== 私有辅助方法 ====================
+
+    private void validateDepartmentCampus(String deptCode, String campusName) {
+        WarehouseDepartmentPolicy.requireActiveCampus(jdbcTemplate, campusName);
+        Long conflicts = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM warehouse w JOIN sys_dept d ON d.dept_id = w.dept_id
+                 WHERE d.dept_code = ? AND w.deleted = 0 AND COALESCE(w.campus_name, '') <> ?
+                   AND (w.warehouse_type LIKE '%二级%' OR w.warehouse_type LIKE '%三级%' OR w.warehouse_type LIKE '%科室库%')
+                """, Long.class, deptCode, campusName.trim());
+        if (conflicts != null && conflicts > 0) {
+            throw new IllegalArgumentException("关联收货库房与所选院区不一致，请先调整库房关联");
+        }
+    }
 
     private static void validateDepartment(DepartmentUpsertRequest request, boolean requireCode) {
         if ((requireCode && isBlank(request.deptCode())) || isBlank(request.deptName())) {

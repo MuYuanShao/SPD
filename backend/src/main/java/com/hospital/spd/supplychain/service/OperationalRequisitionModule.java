@@ -76,8 +76,8 @@ public class OperationalRequisitionModule {
         String deptName = String.valueOf(department.get("deptName"));
         Long deptId = ((Number) department.get("deptId")).longValue();
         Long warehouseId = resolveDestinationWarehouse(body);
-        Long sourceWarehouseId = resolveSourceWarehouse(body, warehouseId);
         accessService.requireDestinationWarehouse(deptId, warehouseId);
+        Long sourceWarehouseId = resolveSourceWarehouse(body, warehouseId);
         List<PreparedRequisitionItem> items = new ArrayList<>();
         for (Map<String, Object> itemBody : requisitionItems(body)) {
             String productCode = requireText(itemBody, "productCode");
@@ -303,11 +303,13 @@ public class OperationalRequisitionModule {
         Long explicitId = optionalLong(body.get("sourceWarehouseId"), "sourceWarehouseId");
         if (explicitId != null) {
             List<Long> ids = jdbcTemplate.queryForList("""
-                    SELECT warehouse_id FROM warehouse
-                     WHERE warehouse_id = ? AND deleted = 0 AND status = 1
-                       AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%')
-                    """, Long.class, explicitId);
-            if (ids.size() != 1) throw new IllegalArgumentException("source warehouse must be an enabled central warehouse");
+                    SELECT source.warehouse_id FROM warehouse source
+                    JOIN warehouse target ON source.campus_name = target.campus_name
+                     WHERE source.warehouse_id = ? AND source.deleted = 0 AND source.status = 1
+                       AND target.warehouse_id = ?
+                       AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
+                    """, Long.class, explicitId, destinationWarehouseId);
+            if (ids.size() != 1) throw new IllegalArgumentException("请选择与收货库房同院区且已启用的一级库或中心库");
             return ids.get(0);
         }
         List<Long> ids = jdbcTemplate.queryForList("""

@@ -35,6 +35,8 @@ class WarehouseServiceTest {
     @BeforeEach
     void setUp() {
         service = new WarehouseService(jdbcTemplate);
+        when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM campus"),
+                eq(Long.class), eq("主院区"))).thenReturn(1L);
     }
 
     @Test
@@ -227,6 +229,21 @@ class WarehouseServiceTest {
             assertThatThrownBy(() -> service.createWarehouse(request))
                     .isInstanceOf(IllegalArgumentException.class);
             verify(jdbcTemplate, never()).update(contains("INSERT INTO warehouse"), any(Object[].class));
+        }
+
+        @Test
+        void rejectsReceivingWarehouseUntilCampusHasSupplyWarehouse() {
+            WarehouseUpsertRequest request = new WarehouseUpsertRequest(
+                    "WH002", "内科二级库", "二级库", "主院区", "内科", false, null, 1, null);
+            when(jdbcTemplate.queryForList(contains("dept_id FROM sys_dept"), eq(Long.class), eq("内科")))
+                    .thenReturn(List.of(100L));
+            when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM sys_dept"),
+                    eq(Long.class), eq(100L), eq("主院区"))).thenReturn(1L);
+            when(jdbcTemplate.queryForObject(contains("warehouse_code <> ?"),
+                    eq(Long.class), eq("主院区"), eq("WH002"))).thenReturn(0L);
+
+            assertThatThrownBy(() -> service.createWarehouse(request))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("先在所属院区建立并启用一级库");
         }
 
         @Test

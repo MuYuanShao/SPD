@@ -84,6 +84,51 @@ test('新增院区时留空自动生成的编码也能提交', async ({ page }) 
   expect(payload).toMatchObject({ campusCode: '', campusName: '院区回归测试' })
 })
 
+test('新增定数包模板时可查询并选择商品', async ({ page }) => {
+  const product = { code: 'SMOKE-QP-001', name: '定数包测试耗材', unit: '支', conversionRate: 5 }
+  await page.route(url => url.pathname === '/api/master-data/hospital-products', route => {
+    const matches = new URL(route.request().url()).searchParams.get('productCode') === product.code
+    return route.fulfill({ json: { code: 0, data: { rows: matches ? [product] : [], total: matches ? 1 : 0 } } })
+  })
+
+  await page.goto('/features/quota-template-maintenance')
+  await login(page)
+  await page.getByRole('button', { name: '新增定数包模板' }).click()
+  const templateDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '新增定数包模板' }) })
+  await templateDialog.getByTitle('选择商品').click()
+  const productDialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '选择商品' }) })
+  await productDialog.getByPlaceholder('商品编码', { exact: true }).fill(product.code, { timeout: 5000 })
+  await productDialog.getByRole('button', { name: '查询', exact: true }).click({ timeout: 5000 })
+  await productDialog.getByRole('row').filter({ hasText: product.code })
+    .getByRole('button', { name: '选择', exact: true }).click({ timeout: 5000 })
+  await expect(productDialog).toBeHidden()
+  await expect(templateDialog.getByLabel('商品编码', { exact: true })).toHaveValue(product.code)
+  await expect(templateDialog.getByLabel('商品名称', { exact: true })).toHaveValue(product.name)
+  await expect(templateDialog.getByRole('spinbutton', { name: '包内数量' })).toHaveValue('5')
+})
+
+test('科室库房目录显示切回页面后的当前库房等级', async ({ page }) => {
+  let warehouseType = '一级库'
+  await page.route('**/api/master-data/department-warehouse-catalogs?*', route => route.fulfill({
+    json: { code: 0, data: {
+      rows: [{ code: 1, sequenceNo: 1, deptName: '设备科', warehouseName: '虚拟一级库',
+        warehouseType, productCode: 'SMOKE-WH-001', productName: '测试耗材', status: '启用' }],
+      page: 1, size: 20, total: 1
+    } }
+  }))
+
+  await page.goto('/features/department-warehouse-catalog')
+  await login(page)
+  const row = page.getByRole('row').filter({ hasText: 'SMOKE-WH-001' })
+  await expect(row.getByText('库房等级：一级库', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: '库房 / 货位管理' }).click()
+  await expect(page).toHaveURL(/\/features\/warehouse-location-management$/)
+  warehouseType = '二级库'
+  await page.locator('.spd-tabbar-tab-label').getByText('科室库房目录', { exact: true }).click()
+  await expect(row.getByText('库房名称：虚拟一级库', { exact: true })).toBeVisible()
+  await expect(row.getByText('库房等级：二级库', { exact: true })).toBeVisible()
+})
+
 test('定数包模板的打包按钮跳转并保留第二页选中的模板', async ({ page }) => {
   const template = {
     templateId: 21, templateCode: 'TPL-SMOKE-021', templateName: '第二页测试模板',
@@ -360,7 +405,10 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   }))
   await page.route('**/api/operational-closure/requisitions/departments/SURG/warehouses', route => route.fulfill({
     contentType: 'application/json',
-    body: ok([{ warehouseId: 20, code: 'WH-SURG', name: '手术室二级库', selected: 1 }])
+    body: ok([{ warehouseId: 20, code: 'WH-SURG', name: '手术室二级库', selected: 1, sourceWarehouses: [
+      { warehouseId: 30, code: 'WH-30', name: '中心库' },
+      { warehouseId: 31, code: 'WH-31', name: '另一个一级库' }
+    ] }])
   }))
   await page.route('**/api/quota-packages/requisition-catalog**', route => {
     catalogCallCount += 1
@@ -504,12 +552,17 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await expect(page.getByText('SL-HISTORY-001')).toBeVisible()
   expect(catalogCallCount).toBe(0)
   await page.getByRole('button', { name: '新增申领' }).click()
+  await expect(page.getByText('当前院区有多个供货库房，请选择本次从哪个库房发货')).toBeVisible()
+  expect(catalogCallCount).toBe(0)
+  await page.getByLabel('供货库房', { exact: true }).selectOption('30')
   await expect(page.getByText('LOW-001')).toBeVisible()
   expect(catalogCallCount).toBeGreaterThan(0)
   const catalogUrl = new URL(catalogRequestUrl)
   expect(catalogUrl.searchParams.get('deptName')).toBe('手术室')
   expect(catalogUrl.searchParams.get('deptCode')).toBe('SURG')
   expect(catalogUrl.searchParams.get('warehouseName')).toBe('手术室二级库')
+  expect(catalogUrl.searchParams.get('destinationWarehouseId')).toBe('20')
+  expect(catalogUrl.searchParams.get('sourceWarehouseId')).toBe('30')
   expect(catalogUrl.searchParams.get('page')).toBe('1')
   expect(catalogUrl.searchParams.get('size')).toBe('20')
 
@@ -560,6 +613,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     deptCode: 'SURG',
     deptName: '手术室',
     warehouseName: '手术室二级库',
+    destinationWarehouseId: 20,
     sourceWarehouseId: 30,
     items: [
       {

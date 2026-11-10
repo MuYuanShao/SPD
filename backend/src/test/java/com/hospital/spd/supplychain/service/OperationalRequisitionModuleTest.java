@@ -48,7 +48,7 @@ class OperationalRequisitionModuleTest {
                 .thenReturn(Map.of("deptId", 10L, "deptCode", "SURG", "deptName", "Surgery"));
         lenient().when(jdbcTemplate.queryForList(contains("WHERE warehouse_id = ?"), eq(Long.class), eq(20L)))
                 .thenReturn(List.of(20L));
-        lenient().when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L)))
+        lenient().when(jdbcTemplate.queryForList(contains("warehouse_type LIKE '%中心%'"), eq(Long.class), eq(30L), eq(20L)))
                 .thenReturn(List.of(30L));
     }
 

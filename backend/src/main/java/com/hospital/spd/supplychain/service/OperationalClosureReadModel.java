@@ -114,14 +114,33 @@ public class OperationalClosureReadModel {
         requisitionAccess.requirePermission("department-requisition:read");
         Map<String, Object> department = requisitionAccess.resolveDepartment(deptCode, null);
         Long deptId = ((Number) department.get("deptId")).longValue();
-        return jdbcTemplate.queryForList("""
+        List<Map<String, Object>> destinations = jdbcTemplate.queryForList("""
                 SELECT warehouse_id AS warehouseId, warehouse_code AS code, warehouse_name AS name,
                        warehouse_type AS type, campus_name AS campus, '启用' AS status,
                        ? AS relatedDepartment, 1 AS selected
                   FROM warehouse
                  WHERE dept_id = ? AND deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%二级%' OR warehouse_type LIKE '%三级%' OR warehouse_type LIKE '%科室库%')
                  ORDER BY warehouse_id
                 """, department.get("deptName"), deptId);
+        if (destinations.isEmpty()) return destinations;
+        List<Map<String, Object>> sources = jdbcTemplate.queryForList("""
+                SELECT DISTINCT source.warehouse_id AS warehouseId, source.warehouse_code AS code,
+                       source.warehouse_name AS name, source.campus_name AS campus
+                  FROM warehouse source
+                  JOIN warehouse target ON target.campus_name = source.campus_name
+                 WHERE target.dept_id = ? AND target.deleted = 0 AND target.status = 1
+                   AND source.deleted = 0 AND source.status = 1
+                   AND (source.warehouse_type LIKE '%一级%' OR source.warehouse_type LIKE '%中心%')
+                 ORDER BY source.warehouse_id
+                """, deptId);
+        return destinations.stream().map(destination -> {
+            Map<String, Object> row = new java.util.LinkedHashMap<>(destination);
+            row.put("sourceWarehouses", sources.stream()
+                    .filter(source -> java.util.Objects.equals(source.get("campus"), destination.get("campus")))
+                    .toList());
+            return row;
+        }).toList();
     }
 
     public Map<String, Object> list(String type, Map<String, String> params) {

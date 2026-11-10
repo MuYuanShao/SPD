@@ -30,7 +30,7 @@ public class WarehouseDepartmentAssignmentService {
                  WHERE deleted = 0 AND dept_id = ?
                 """, deptId);
         List<Map<String, Object>> selected = codes.isEmpty() ? List.of() : jdbcTemplate.queryForList(("""
-                SELECT warehouse_id, warehouse_code, warehouse_type, dept_id FROM warehouse
+                SELECT warehouse_id, warehouse_code, warehouse_type, dept_id, campus_name FROM warehouse
                  WHERE deleted = 0 AND status = 1 AND warehouse_code IN (%s)
                 """).formatted(placeholders(codes.size())), codes.toArray());
         if (selected.size() != codes.size()) {
@@ -45,6 +45,10 @@ public class WarehouseDepartmentAssignmentService {
             if (owner instanceof Number number && number.longValue() != deptId) {
                 throw new IllegalArgumentException("库房“" + row.get("warehouse_code") + "”已归属其他科室");
             }
+            String campusName = (String) row.get("campus_name");
+            WarehouseDepartmentPolicy.requireActiveCampus(jdbcTemplate, campusName);
+            WarehouseDepartmentPolicy.requireReceivingWarehouseSetup(jdbcTemplate, deptId, campusName,
+                    String.valueOf(row.get("warehouse_code")));
         }
         int updated = 0;
         for (Map<String, Object> row : current) {

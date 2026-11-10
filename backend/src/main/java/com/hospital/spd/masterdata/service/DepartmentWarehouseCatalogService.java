@@ -60,6 +60,7 @@ public class DepartmentWarehouseCatalogService {
                 SELECT dwc.catalog_id AS code,
                        d.dept_name AS deptName,
                        w.warehouse_name AS warehouseName,
+                       w.warehouse_type AS warehouseType,
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        COALESCE(p.spec_model, '-') AS specModel,
@@ -74,7 +75,7 @@ public class DepartmentWarehouseCatalogService {
         return new MasterDataPage(
                 "科室库房目录",
                 "维护科室关联库房可申领商品范围，科室申领只读取这里配置的目录。",
-                List.of("序号", "科室", "库房", "商品编码", "商品名称", "规格型号", "生产厂家", "来源", "状态", "更新时间"),
+                List.of("序号", "科室", "库房", "库房等级", "商品编码", "商品名称", "规格型号", "生产厂家", "来源", "状态", "更新时间"),
                 rows,
                 total == null ? 0 : total,
                 pageReq.page(),

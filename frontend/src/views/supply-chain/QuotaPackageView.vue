@@ -2256,6 +2256,15 @@ watch(
         </div>
       </section>
     </div>
+      <QuotaProductSelectorDialog
+        v-model:open="productSelectorOpen"
+        :loading="productLoading"
+        :product-query="productQuery"
+        :products="quotaProducts" :page="productPage" :size="productSize" :total="productTotal"
+        @change-page="searchQuotaProducts($event)" @change-size="productSize = $event; searchQuotaProducts()"
+        @search="searchQuotaProducts()"
+        @select="selectProduct"
+      />
     </Teleport>
 
     <QuotaTemplateSelectorDialog
@@ -2264,16 +2273,6 @@ watch(
       :template-query="templateSelectorQuery"
       :templates="filteredPackingTemplates"
       @select="selectPackingTemplate"
-    />
-
-    <QuotaProductSelectorDialog
-      v-model:open="productSelectorOpen"
-      :loading="productLoading"
-      :product-query="productQuery"
-      :products="quotaProducts" :page="productPage" :size="productSize" :total="productTotal"
-      @change-page="searchQuotaProducts($event)" @change-size="productSize = $event; searchQuotaProducts()"
-      @search="searchQuotaProducts()"
-      @select="selectProduct"
     />
 
     <SpdConfirmHost />

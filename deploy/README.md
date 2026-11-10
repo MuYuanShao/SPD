@@ -21,8 +21,10 @@ The command uses the Maven 3.9.9 Wrapper and runs the Flyway history check, full
 frontend production build, production dependency audit, JAR content gate, package secret scan,
 and per-file SHA-256 validation. It creates:
 
-- `output/offline-bundle/spd-server/`
-- `output/offline-bundle/spd-server-offline-<version>.zip`
+- `output/offline-bundle/spd-server-offline-windows-x64-<version>-<revision>-<build-time>/`
+- 同名 `.zip` 和 `.zip.sha256`，包内包含 `VERSION.txt`、`BUILD_REVISION.txt` 和 `MIGRATION_VERSION.txt`
+
+同一产品版本可以多次构建。发布目录和 ZIP 以构建时间区分。工作区含未提交改动时，修订号带 `-dirty`。跳过构建、复用本地产物时，修订号带 `-reused`。正式交付应从干净的提交完整构建。使用 `SPD_OFFLINE_BUNDLE_DIR` 可以指定验收目录。
 - the matching `.zip.sha256`
 
 The ZIP contains the executable JAR, the frontend mounted at `/api/app/`, JDK 17, pinned WinSW,

@@ -46,11 +46,21 @@ backup 持有运维锁，暂停原本运行的应用服务，完成备份和校�
 安装日志、`data/data-manifest.json`、镜像清单及校验文件用于核对恢复结果。
 HTTP 访问不等于已配置 HTTPS；正式 HTTPS 由院内网关或反向代理提供。
 
+## 升级
+
+在维护窗口解压新版发行包，运行 `sudo bash install.sh --upgrade`。升级会检查原数据库卷和附件卷，暂停写入并备份数据库、附件和私有配置，然后在原卷上执行 Flyway 和健康检查。升级使用已安装的 Docker 运行时。只有健康检查通过后才记录新版镜像标签。
+
+使用 `bash build-package.sh --upgrade-only CONTEXT VENDOR OUTPUT` 可以生成不携带业务快照的升级包。
+
+升级失败时，保留备份和待完成标记。修复故障后使用同一发行包重跑升级。若需要恢复旧版本，应从升级前备份恢复数据库、附件和配置。已有安装需要原 `.env` 和卷身份记录。
+
 ## 构建和验证
+
+`bash deploy/kylin-arm64/prepare-context.sh /path/to/new-context` 从干净提交构建后端、管理端和移动 H5，并写入 `source-revision`。构建机需要 JDK 17、Maven 3.9.9、Node.js 22 和 npm。
 
 `Dockerfile` 的 context 包含同一源码版本构建的 `app.jar`、`web/`、`mobile/`、`mysql-init-runtime.sh`、`mysql-ensure-accounts.sh`、`mysql.cnf`、`nginx.conf` 和 `backend-entrypoint.sh`。构建端把该版本的完整 Git SHA 写入 context 中的 `source-revision`。镜像标签由该 SHA 与实际镜像 ID 生成。
 构建机使用 ARM64 Docker 分别构建 mysql、web、backend 三个 target；导出全部运行镜像，目标安装不再下载或构建。
-`bash build-package.sh CONTEXT DATA VENDOR OUTPUT` 生成独立目录和压缩包。DATA 提供 `ISPD.sql`、`attachments.tar`、`data-manifest.json` 和 `restore-counts.tsv`。停止源应用写入后，从同一快照导出这些文件。
+`bash build-package.sh CONTEXT DATA VENDOR OUTPUT` 生成独立目录和压缩包。DATA 提供 `ISPD.sql`、`attachments.tar`、`data-manifest.json` 和 `restore-counts.tsv`。可使用新版 `manage.sh backup` 生成这些文件，也可在停止源应用写入后从同一快照导出。
 
 - 使用 `mysqldump` 指定数据库名生成 SQL，省略 `--databases`，使转储可导入目标库名。已有包含 `USE` 或建库语句的转储需要重新导出。
 - `attachments.tar` 的归档根为后端应用数据卷的内容。

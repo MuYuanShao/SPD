@@ -58,6 +58,16 @@ function Get-VerifiedVendorFile([string]$Path, [string]$Url, [string]$ExpectedHa
 }
 
 $releaseVersion = (Get-Content -LiteralPath (Join-Path $repoRoot 'package.json') -Raw -Encoding UTF8 | ConvertFrom-Json).version
+if ($releaseVersion -notmatch '^\d+\.\d+\.\d+$') { throw '发布版本必须使用三段数字。' }
+$revision = (& git rev-parse HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or $revision -notmatch '^[0-9a-f]{40,64}$') { throw '无法读取构建源提交。' }
+$changes = @(& git status --porcelain)
+if ($LASTEXITCODE -ne 0) { throw '无法检查构建源状态。' }
+$revisionSuffix = $(if ($changes.Count) { '-dirty' } else { '' }) + $(if ($SkipBuild) { '-reused' } else { '' })
+$buildRevision = $revision + $revisionSuffix
+$shortRevision = $revision.Substring(0, 12) + $revisionSuffix
+$buildId = [DateTime]::UtcNow.ToString("yyyyMMdd'T'HHmmssfff'Z'")
+$bundleName = "spd-server-offline-windows-x64-$releaseVersion-$shortRevision-$buildId"
 $jdkHome = Resolve-Jdk17Home
 $mavenWrapper = Join-Path $repoRoot 'backend\mvnw.cmd'
 $env:JAVA_HOME = $jdkHome
@@ -109,9 +119,9 @@ foreach ($artifact in $artifacts) {
 
 Write-Host '[5/6] 组装 Windows 零数据服务包' -ForegroundColor Cyan
 $bundleRoot = [IO.Path]::GetFullPath((Join-Path $repoRoot 'output\offline-bundle'))
-$bundleDir = [IO.Path]::GetFullPath((Join-Path $bundleRoot 'spd-server'))
+$bundleDir = [IO.Path]::GetFullPath((Join-Path $bundleRoot $bundleName))
 if ((Split-Path -Parent $bundleDir) -ne $bundleRoot) { throw '离线包目标目录校验失败。' }
-if (Test-Path -LiteralPath $bundleDir) { Remove-Item -LiteralPath $bundleDir -Recurse -Force }
+if (Test-Path -LiteralPath $bundleDir) { throw '同名发布目录已存在，请重新打包。' }
 New-Item -ItemType Directory -Force -Path (Join-Path $bundleDir 'app\web'), (Join-Path $bundleDir 'runtime\jdk-17'), (Join-Path $bundleDir 'licenses') | Out-Null
 
 Copy-Item -LiteralPath $jarPath -Destination (Join-Path $bundleDir 'app\app.jar')
@@ -136,6 +146,7 @@ try {
 } finally { $mysqlArchive.Dispose() }
 $releaseVersion | Set-Content -LiteralPath (Join-Path $bundleDir 'VERSION.txt') -Encoding ASCII
 $migrationVersion | Set-Content -LiteralPath (Join-Path $bundleDir 'MIGRATION_VERSION.txt') -Encoding ASCII
+$buildRevision | Set-Content -LiteralPath (Join-Path $bundleDir 'BUILD_REVISION.txt') -Encoding ASCII
 
 $forbidden = @(Get-ChildItem -LiteralPath $bundleDir -Recurse -File | Where-Object Extension -in @('.sql', '.java', '.class'))
 if ($forbidden.Count -gt 0) { throw "安全检查失败：发布包发现禁止文件：$($forbidden[0].FullName)" }
@@ -155,10 +166,9 @@ Invoke-Checked '离线包结构与敏感信息契约校验' { & node.exe scripts
 
 Write-Host '[6/6] 生成 ZIP 与交付哈希' -ForegroundColor Cyan
 if (-not $SkipZip) {
-    $zipPath = Join-Path $bundleRoot "spd-server-offline-$releaseVersion.zip"
+    $zipPath = Join-Path $bundleRoot "$bundleName.zip"
     $zipHashPath = "$zipPath.sha256"
-    if (Test-Path -LiteralPath $zipPath) { Remove-Item -LiteralPath $zipPath -Force }
-    if (Test-Path -LiteralPath $zipHashPath) { Remove-Item -LiteralPath $zipHashPath -Force }
+    if ((Test-Path -LiteralPath $zipPath) -or (Test-Path -LiteralPath $zipHashPath)) { throw '同名发布包已存在，请重新打包。' }
     Compress-Archive -Path (Join-Path $bundleDir '*') -DestinationPath $zipPath -CompressionLevel Optimal
     "$((Get-Sha256 $zipPath).ToLowerInvariant())  $(Split-Path -Leaf $zipPath)" |
         Set-Content -LiteralPath $zipHashPath -Encoding ASCII

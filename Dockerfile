@@ -53,7 +53,8 @@ FROM ${MYSQL_IMAGE} AS mysql
 COPY deploy/docker/mysql-init-runtime.sh /docker-entrypoint-initdb.d/10-spd-runtime.sh
 COPY deploy/docker/mysql-ensure-accounts.sh /usr/local/bin/spd-ensure-accounts.sh
 COPY deploy/docker/mysql.cnf /etc/mysql/conf.d/spd.cnf
-RUN chmod 0444 /etc/mysql/conf.d/spd.cnf && chmod 0555 /docker-entrypoint-initdb.d/10-spd-runtime.sh /usr/local/bin/spd-ensure-accounts.sh
+RUN sed -i 's/\r$//' /docker-entrypoint-initdb.d/10-spd-runtime.sh /usr/local/bin/spd-ensure-accounts.sh \
+    && chmod 0444 /etc/mysql/conf.d/spd.cnf && chmod 0555 /docker-entrypoint-initdb.d/10-spd-runtime.sh /usr/local/bin/spd-ensure-accounts.sh
 EXPOSE 3306
 
 FROM ${JAVA_IMAGE} AS backend
@@ -69,6 +70,7 @@ ENV TZ=Asia/Shanghai \
     JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -Dfile.encoding=UTF-8 -Djava.awt.headless=true -Duser.timezone=Asia/Shanghai"
 COPY --from=backend-build --chown=spd:spd /workspace/backend/target/app.jar app.jar
 COPY --chmod=0555 deploy/docker/backend-entrypoint.sh /app/docker-entrypoint.sh
+RUN sed -i 's/\r$//' /app/docker-entrypoint.sh && chmod 0555 /app/docker-entrypoint.sh
 USER spd
 EXPOSE 1818
 HEALTHCHECK --interval=15s --timeout=5s --start-period=40s --retries=12 CMD curl -fsS http://127.0.0.1:1818/api/health || exit 1

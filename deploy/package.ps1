@@ -21,6 +21,10 @@ if (Test-Path -LiteralPath $OutputDirectory) { throw 'Output directory already e
 [IO.Directory]::CreateDirectory((Join-Path $OutputDirectory 'docker')) | Out-Null
 foreach ($name in @('start.ps1','start.sh','start.bat','upgrade-legacy-env.ps1','upgrade-legacy-env.sh','docker-compose.yml','.env.production.example','README.docker.md')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot $name) -Destination $OutputDirectory }
 foreach ($common in @('common.ps1','common.sh')) { Copy-Item -LiteralPath (Join-Path $PSScriptRoot "docker/$common") -Destination (Join-Path $OutputDirectory 'docker') }
+foreach ($script in Get-ChildItem -LiteralPath $OutputDirectory -Recurse -File -Filter '*.sh') {
+    $lf = [IO.File]::ReadAllText($script.FullName).Replace("`r`n", "`n")
+    [IO.File]::WriteAllText($script.FullName, $lf, [Text.UTF8Encoding]::new($false))
+}
 $images=@(& docker @composeArgs config --images | Sort-Object -Unique)
 if ($LASTEXITCODE -ne 0 -or $images.Count -eq 0) { throw 'Cannot resolve image list.' }
 Invoke-SpdDocker image save --output (Join-Path $OutputDirectory 'images.tar') @images

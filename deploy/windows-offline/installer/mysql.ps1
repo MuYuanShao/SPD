@@ -70,6 +70,20 @@ function Wait-SpdMysqlReady([string]$MysqlExe, [int]$Port, [string]$RootPassword
     throw '内置 MySQL 启动或账号验证超时。'
 }
 
+function Test-SpdMysqlPortOccupied([int]$Port) {
+    $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, $Port)
+    try {
+        $listener.ExclusiveAddressUse = $true
+        $listener.Start()
+        return $false
+    } catch [Net.Sockets.SocketException] {
+        if ($_.Exception.SocketErrorCode -in @('AddressAlreadyInUse', 'AccessDenied')) { return $true }
+        throw
+    } finally {
+        $listener.Stop()
+    }
+}
+
 function Initialize-SpdEmbeddedMysql {
     param([string]$BundleRoot, [string]$DataDir, [int]$Port, [string]$DbName,
           [switch]$SkipServiceInstall, [switch]$SkipPrerequisiteInstall)
@@ -94,7 +108,7 @@ function Initialize-SpdEmbeddedMysql {
     if (-not $SkipServiceInstall) { $service = Assert-SpdMysqlServiceOwnership -OptionsPath $optionsPath -MysqldExe $mysqld }
     if ($newDatabase -and $service) { throw '数据库服务已存在但没有对应凭据，已中止。' }
     if (($newDatabase -or -not $service -or $service.State -ne 'Running') -and
-            (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) {
+            (Test-SpdMysqlPortOccupied $Port)) {
         throw "内置数据库端口 $Port 已被占用，请选择其他端口或连接已有 MySQL。"
     }
     if (-not $SkipPrerequisiteInstall) {

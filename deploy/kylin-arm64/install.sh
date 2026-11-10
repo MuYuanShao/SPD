@@ -2,6 +2,13 @@
 set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")" && pwd)
 [[ $EUID == 0 ]] || { echo '请使用 root 或 sudo 运行'; exit 1; }
+upgrade=false
+if [[ $# == 1 && $1 == --upgrade ]]; then
+  upgrade=true
+elif [[ $# != 0 ]]; then
+  echo '用法：bash install.sh [--upgrade]' >&2
+  exit 2
+fi
 umask 077
 app=/opt/spd-kylin/app
 deploy_root=$root
@@ -11,17 +18,27 @@ source "$root/kylin-common.sh"
 lock_deployment
 [[ -s $root/SHA256SUMS && -s $root/images.tar ]] || fail '安装包不完整：缺少校验清单或运行镜像'
 (cd "$root" && sha256sum -c SHA256SUMS)
-bash "$root/validate-snapshot.sh" "$root/data"
 package_tag=$(cat "$root/image-tag")
 [[ $package_tag =~ ^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$ ]] || fail '安装包镜像标签不合法'
 require_restore_retry_safe "$app/state"
+pending="$app/state/upgrade-pending"
+if [[ $upgrade == true ]]; then
+  [[ -f $app/state/restore-complete && -f $env_file && -f $app/docker-compose.yml ]] ||
+    fail '请先完成首次安装，升级需要原私有配置和卷身份记录'
+  unset COMPOSE_PROJECT_NAME COMPOSE_PROFILES SPD_IMAGE_TAG SPD_HTTP_PORT SPD_MYSQL_VOLUME SPD_DB_NAME
+  require_upgrade_retry_safe "$pending" "$package_tag"
+else
+  deploy_root=$app require_no_pending_upgrade
+  bash "$root/validate-snapshot.sh" "$root/data"
+fi
 if [[ -f $app/state/restore-complete ]]; then
   [[ -f $env_file && -f $app/state/restore-volumes ]] ||
     fail '缺少原 .env 或卷身份记录，请在升级前核对原数据库卷和附件卷'
 fi
 if [[ -f $env_file ]]; then
   load_deployment_settings
-  [[ $SPD_IMAGE_TAG == "$package_tag" ]] || fail '安装包与当前配置的镜像标签不同，请使用匹配的发行包'
+  [[ $upgrade == true || $SPD_IMAGE_TAG == "$package_tag" ]] ||
+    fail '安装包与当前版本不同，请从新版发行包运行 install.sh --upgrade'
 fi
 
 port=$(setting SPD_HTTP_PORT 1820)
@@ -30,13 +47,13 @@ if [[ ! -f $app/state/restore-complete ]] && [[ -n $(ss -lntH "sport = :$port") 
   fail "$port 端口已被占用，已停止首次安装"
 fi
 firewall_zone=$(setting SPD_FIREWALL_ZONE '')
-if [[ -n $firewall_zone ]]; then
+if [[ $upgrade == false && -n $firewall_zone ]]; then
   [[ $firewall_zone =~ ^[a-zA-Z0-9_-]+$ ]] || fail '防火墙区域名称不合法'
   systemctl is-active --quiet firewalld || fail '指定防火墙区域时 firewalld 必须运行'
   firewall-cmd --zone="$firewall_zone" --list-ports >/dev/null
 fi
 
-bash "$root/install-runtime.sh"
+if [[ $upgrade == false ]]; then bash "$root/install-runtime.sh"; fi
 export PATH=/opt/spd-kylin/runtime/docker:$PATH
 export DOCKER_HOST=unix:///run/spd-docker.sock DOCKER_CONFIG=/opt/spd-kylin/runtime
 unset DOCKER_CONTEXT
@@ -65,7 +82,6 @@ if [[ ! -f $env_file ]]; then
   env_file="$app/.env"
 fi
 load_deployment_settings
-[[ $SPD_IMAGE_TAG == "$package_tag" ]] || fail '安装包与当前配置的镜像标签不同，请使用匹配的发行包'
 validate_settings
 if [[ -f $app/state/restore-complete ]]; then
   deploy_root=$app require_restored
@@ -73,9 +89,43 @@ fi
 
 docker load -i "$root/images.tar"
 for image in mysql backend web; do
-  [[ $(docker image inspect --format '{{.Architecture}}' "spd-kylin/$image:$SPD_IMAGE_TAG") == arm64 ]] ||
+  [[ $(docker image inspect --format '{{.Architecture}}' "spd-kylin/$image:$package_tag") == arm64 ]] ||
     fail "镜像架构错误：$image"
 done
+
+if [[ $upgrade == true ]]; then
+  if [[ ! -f $pending ]]; then
+    [[ $SPD_IMAGE_TAG != "$package_tag" ]] || fail '当前已是此发行包，无需升级'
+    deploy_root=$app compose up -d --wait --wait-timeout 300 --no-build --pull never mysql
+    deploy_root=$app backup_deployment true
+    cp "$root/kylin-common.sh" "$root/manage.sh" "$app/"
+    pending_tmp=$(mktemp "$app/state/.upgrade-pending.XXXXXX")
+    printf '%s\n' "$package_tag" > "$pending_tmp"
+    mv -T -- "$pending_tmp" "$pending"
+  fi
+
+  export SPD_IMAGE_TAG="$package_tag"
+  finish_upgrade() {
+    local result=$?
+    if (( result )); then
+      compose stop frontend backend || true
+      printf '%s\n' '升级未完成。请检查迁移与服务日志，修复后重跑同一发行包。' >&2
+    fi
+    exit "$result"
+  }
+  trap finish_upgrade EXIT
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  compose up -d --wait --wait-timeout 600 --no-build --pull never
+  check_web_health
+  cp "$root/docker-compose.yml" "$app/docker-compose.yml"
+  cp "$root/docker/common.sh" "$app/docker/common.sh"
+  sed -i "s/^SPD_IMAGE_TAG=.*/SPD_IMAGE_TAG=$package_tag/" "$env_file"
+  rm -- "$pending"
+  trap - EXIT INT TERM
+  printf '\n升级成功。当前镜像标签：%s，Web 端口：%s\n' "$package_tag" "$SPD_HTTP_PORT"
+  exit 0
+fi
 
 compose up -d --wait --wait-timeout 300 --no-build --pull never mysql
 if [[ ! -f $app/state/restore-complete ]]; then

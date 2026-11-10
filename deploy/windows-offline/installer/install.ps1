@@ -135,24 +135,17 @@ if (Test-Path -LiteralPath (Join-Path $installDir 'app\app.jar')) {
     Copy-Item -LiteralPath (Join-Path $installDir 'app') -Destination $backupApp -Recurse -Force
 }
 
-foreach ($name in @('app', 'runtime', 'service', 'installer', 'licenses')) {
-    $destination = Join-Path $installDir $name
-    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
-    Copy-Item -LiteralPath (Join-Path $bundleRoot $name) -Destination $destination -Recurse -Force
-}
-Copy-Item -LiteralPath (Join-Path $bundleRoot 'VERSION.txt') -Destination (Join-Path $installDir 'VERSION.txt') -Force
-Get-ChildItem -LiteralPath $bundleRoot -Filter '*.bat' | Copy-Item -Destination $installDir -Force
-
-$javaExe = Join-Path $installDir 'runtime\jdk-17\bin\java.exe'; $jarPath = Join-Path $installDir 'app\app.jar'
+$bundleJava = Join-Path $bundleRoot 'runtime\jdk-17\bin\java.exe'
+$bundleJar = Join-Path $bundleRoot 'app\app.jar'
 $migrationEnvironment = @{
     SPD_DB_URL = $dbUrl; SPD_FLYWAY_USERNAME = $config.FlywayUser; SPD_FLYWAY_PASSWORD = $config.FlywayPassword
     SPD_AUDIT_DIR = $auditDir
 }
-$migration = Invoke-SpdDatabaseCommand -JavaExe $javaExe -JarPath $jarPath -Command migrate -Environment $migrationEnvironment
+$migration = Invoke-SpdDatabaseCommand -JavaExe $bundleJava -JarPath $bundleJar -Command migrate -Environment $migrationEnvironment
 if ($migration.ExitCode -ne 0) { throw "数据库迁移失败。$([Environment]::NewLine)$($migration.Output)$([Environment]::NewLine)如为 V48-V53 历史校验问题，请先运行数据库兼容升级工具。" }
 if ($embedded) {
     $migrationEnvironment.SPD_INITIAL_ADMIN_PASSWORD = $embeddedDb.InitialAdminPassword
-    $admin = Invoke-SpdDatabaseCommand -JavaExe $javaExe -JarPath $jarPath -Command bootstrap-admin -Environment $migrationEnvironment
+    $admin = Invoke-SpdDatabaseCommand -JavaExe $bundleJava -JarPath $bundleJar -Command bootstrap-admin -Environment $migrationEnvironment
     $migrationEnvironment.SPD_INITIAL_ADMIN_PASSWORD = $null
     if ($admin.ExitCode -ne 0) { throw "管理员初始化失败：$($admin.Output)" }
 }
@@ -161,10 +154,18 @@ $runtimeValidationEnvironment = @{
     SPD_DB_URL = $dbUrl; SPD_FLYWAY_USERNAME = $config.RuntimeUser; SPD_FLYWAY_PASSWORD = $config.RuntimePassword
     SPD_REQUIRE_NO_DDL = 'true'
 }
-$runtimeValidation = Invoke-SpdDatabaseCommand -JavaExe $javaExe -JarPath $jarPath -Command validate -Environment $runtimeValidationEnvironment
+$runtimeValidation = Invoke-SpdDatabaseCommand -JavaExe $bundleJava -JarPath $bundleJar -Command validate -Environment $runtimeValidationEnvironment
 if ($runtimeValidation.ExitCode -ne 0) {
     throw "运行账号校验失败。请使用可读写业务表、但不含 CREATE/ALTER/DROP 的独立账号。$([Environment]::NewLine)$($runtimeValidation.Output)"
 }
+
+foreach ($name in @('app', 'runtime', 'service', 'installer', 'licenses')) {
+    $destination = Join-Path $installDir $name
+    if (Test-Path -LiteralPath $destination) { Remove-Item -LiteralPath $destination -Recurse -Force }
+    Copy-Item -LiteralPath (Join-Path $bundleRoot $name) -Destination $destination -Recurse -Force
+}
+Get-ChildItem -LiteralPath $bundleRoot -Filter '*.bat' | Copy-Item -Destination $installDir -Force
+$javaExe = Join-Path $installDir 'runtime\jdk-17\bin\java.exe'; $jarPath = Join-Path $installDir 'app\app.jar'
 
 $jwtSecret = if ($existingJwtSecret) { $existingJwtSecret } else { New-SpdJwtSecret }
 $properties = @(
@@ -212,6 +213,14 @@ if (-not $SkipServiceInstall) {
         }
         throw "服务未在 90 秒内健康启动，请检查 $logsDir。数据库迁移不会自动回滚。"
     }
+}
+
+foreach ($name in @('MIGRATION_VERSION.txt', 'BUILD_REVISION.txt', 'VERSION.txt')) {
+    $source = Join-Path $bundleRoot $name
+    if (Test-Path -LiteralPath $source) { Copy-Item -LiteralPath $source -Destination (Join-Path $installDir $name) -Force }
+}
+
+if (-not $SkipServiceInstall) {
     $localUrl = "http://localhost:$servicePort/api/"
     if (-not $NonInteractive) { Start-Process $localUrl }
     $lanUrls = Get-SpdLanAddresses -Port $servicePort
@@ -220,7 +229,8 @@ if (-not $SkipServiceInstall) {
     if ($NonInteractive) { Write-Host $completion } else { [Windows.Forms.MessageBox]::Show($completion, '院内 SPD') | Out-Null }
 }
 
-[pscustomobject]@{ version = (Get-Content (Join-Path $installDir 'VERSION.txt') -Raw).Trim(); installedAt = (Get-Date).ToString('o'); servicePort = $servicePort; migration = 'completed'; secretsRecorded = $false } |
+$release = Get-SpdReleaseMetadata $installDir
+[pscustomobject]@{ version = $release.Version; buildRevision = $release.BuildRevision; migrationVersion = $release.MigrationVersion; installedAt = (Get-Date).ToString('o'); servicePort = $servicePort; migration = 'completed'; secretsRecorded = $false } |
     ConvertTo-Json | Set-Content -LiteralPath (Join-Path $logsDir 'installation-report.json') -Encoding UTF8
 $config.FlywayPassword = $null; $migrationEnvironment.SPD_FLYWAY_PASSWORD = $null
 $runtimeValidationEnvironment.SPD_FLYWAY_PASSWORD = $null

@@ -1,9 +1,17 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, stat } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 
-const bundleRoot = resolve(process.env.SPD_OFFLINE_BUNDLE_DIR || 'output/offline-bundle/spd-server');
+const releaseRoot = resolve('output/offline-bundle');
+const releaseName = /^spd-server-offline-windows-x64-(\d+\.\d+\.\d+)-([0-9a-f]{12})((?:-dirty)?(?:-reused)?)-(\d{8}T\d{9}Z)$/;
+const releases = process.env.SPD_OFFLINE_BUNDLE_DIR ? [] :
+  (await readdir(releaseRoot, { withFileTypes: true }).catch(error => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  })).filter(entry => entry.isDirectory() && releaseName.test(entry.name))
+    .map(entry => entry.name).sort((a, b) => b.slice(-19).localeCompare(a.slice(-19)));
+const bundleRoot = resolve(process.env.SPD_OFFLINE_BUNDLE_DIR || join(releaseRoot, releases[0] || 'spd-server'));
 const required = [
   'app/app.jar',
   'app/web/index.html',
@@ -39,6 +47,14 @@ const required = [
 ];
 
 const findings = [];
+const release = basename(bundleRoot).match(releaseName);
+if (release) {
+  const version = await readFile(join(bundleRoot, 'VERSION.txt'), 'utf8').catch(() => '');
+  const revision = await readFile(join(bundleRoot, 'BUILD_REVISION.txt'), 'utf8').catch(() => '');
+  if (version.trim() !== release[1]) findings.push('release-version-mismatch');
+  const expectedRevision = new RegExp(`^${release[2]}(?:[0-9a-f]{28}|[0-9a-f]{52})${release[3] || ''}$`);
+  if (!expectedRevision.test(revision.trim())) findings.push('build-revision-mismatch');
+}
 const forbiddenSecrets = [
   'admin' + '123',
   'root' + '123',

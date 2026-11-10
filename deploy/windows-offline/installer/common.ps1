@@ -158,3 +158,11 @@ function Invoke-SpdService([ValidateSet('install', 'uninstall', 'start', 'stop',
         (Get-Service -Name $script:SpdServiceName).WaitForStatus('Stopped', [TimeSpan]::FromSeconds(30))
     }
 }
+function Get-SpdReleaseMetadata([string]$InstallDir) {
+    $metadata = [ordered]@{}
+    foreach ($entry in ([ordered]@{ Version='VERSION.txt'; BuildRevision='BUILD_REVISION.txt'; MigrationVersion='MIGRATION_VERSION.txt' }).GetEnumerator()) {
+        $path = Join-Path $InstallDir $entry.Value
+        $metadata[$entry.Key] = if (Test-Path -LiteralPath $path -PathType Leaf) { (Get-Content -LiteralPath $path -Raw).Trim() } else { 'unknown' }
+    }
+    return [pscustomobject]$metadata
+}

@@ -1,8 +1,14 @@
-param([string]$BundleRoot = 'output/offline-bundle/spd-server', [switch]$ReviewRegression)
+param([string]$BundleRoot = '', [switch]$ReviewRegression)
 $ErrorActionPreference = 'Stop'
 $ReviewRegression = $ReviewRegression -or $env:SPD_REVIEW_REGRESSION -eq '1'
 $sourceScriptPath = if ($env:SPD_INVOKED_SCRIPT_PATH) { $env:SPD_INVOKED_SCRIPT_PATH } else { $MyInvocation.MyCommand.Path }
 $repoRoot = Split-Path -Parent (Split-Path -Parent $sourceScriptPath)
+if (!$BundleRoot) { $BundleRoot = $env:SPD_OFFLINE_BUNDLE_DIR }
+if (!$BundleRoot) {
+    $latest = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'output/offline-bundle') -Directory -Filter 'spd-server-offline-windows-x64-*' -ErrorAction SilentlyContinue |
+        Where-Object Name -Match '-\d{8}T\d{9}Z$' | Sort-Object { $_.Name.Substring($_.Name.Length - 19) } -Descending | Select-Object -First 1
+    $BundleRoot = if ($latest) { $latest.FullName } else { 'output/offline-bundle/spd-server' }
+}
 $BundleRoot = if ([IO.Path]::IsPathRooted($BundleRoot)) { [IO.Path]::GetFullPath($BundleRoot) } else { [IO.Path]::GetFullPath((Join-Path $repoRoot $BundleRoot)) }
 . ([scriptblock]::Create((Get-Content (Join-Path $BundleRoot 'installer/common.ps1') -Raw -Encoding UTF8)))
 . ([scriptblock]::Create((Get-Content (Join-Path $BundleRoot 'installer/mysql.ps1') -Raw -Encoding UTF8)))

@@ -3,7 +3,7 @@ set -euo pipefail
 root=$(cd -- "$(dirname -- "$0")" && pwd)
 deploy_root=$(mktemp -d)
 cleanup() {
-  rm -f -- "$deploy_root"/docker/common.sh "$deploy_root"/state/restore-{started,complete,volumes} \
+  rm -f -- "$deploy_root"/docker/common.sh "$deploy_root"/state/restore-{started,complete,volumes} "$deploy_root/state/upgrade-pending" \
     "$deploy_root"/data/{ISPD.sql,attachments.tar,data-manifest.json,restore-counts.tsv} \
     "$deploy_root"/{files,restored}/certificate.pdf
   rmdir -- "$deploy_root"/{docker,state,data,files,restored} "$deploy_root"
@@ -35,6 +35,13 @@ printf '%s\n' "$SPD_DB_NAME" "$(volume_identity "$SPD_MYSQL_VOLUME")" \
 touch "$state/restore-complete"
 require_restore_retry_safe "$state"
 require_restored
+pending="$state/upgrade-pending"
+require_no_pending_upgrade
+require_upgrade_retry_safe "$pending" next-build
+printf '%s\n' next-build > "$pending"
+expect_failure require_no_pending_upgrade
+expect_failure require_upgrade_retry_safe "$pending" other-build
+require_upgrade_retry_safe "$pending" next-build
 ( SPD_MYSQL_VOLUME=replacement-volume; expect_failure require_restored )
 ( SPD_DB_NAME=other_database; expect_failure require_restored )
 ( volume_identity() { [[ $1 != "$attachments_volume" ]] && printf '%s|fixture\n' "$1"; }
@@ -55,4 +62,4 @@ printf 'USE `ispd`;\n' >> "$data/ISPD.sql"
 expect_failure bash "$root/validate-snapshot.sh" "$data"
 : > "$data/ISPD.sql"
 expect_failure bash "$root/validate-snapshot.sh" "$data"
-echo '恢复保护与快照校验测试通过'
+echo '恢复、升级保护与快照校验测试通过'

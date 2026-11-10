@@ -42,10 +42,10 @@ switch ($Action) {
     'diagnose' {
         $service = Get-Service -Name $script:SpdServiceName -ErrorAction SilentlyContinue
         $health = 'DOWN'; try { if (Wait-SpdHealth -Port $port -TimeoutSeconds 3) { $health = 'UP' } } catch { }
-        $version = if (Test-Path (Join-Path $installDir 'VERSION.txt')) { (Get-Content (Join-Path $installDir 'VERSION.txt') -Raw).Trim() } else { 'unknown' }
+        $release = Get-SpdReleaseMetadata $installDir
         $serviceStatus = if ($service) { [string]$service.Status } else { 'NOT_INSTALLED' }
         $databaseService = if ($embedded) { Get-Service -Name 'HospitalSPDMySQL' -ErrorAction SilentlyContinue } else { $null }
-        [pscustomobject]@{ Service = $serviceStatus; Health = $health; Port = $port; Version = $version; DataDir = $dataDir; DatabaseMode = $(if ($embedded) { 'embedded' } else { 'external' }); DatabaseService = $(if ($databaseService) { [string]$databaseService.Status } else { 'not-managed' }); Database = $(if ($health -eq 'UP') { 'application-connected' } else { 'unavailable' }); Flyway = 'packaged' } | Format-List
+        [pscustomobject]@{ Service = $serviceStatus; Health = $health; Port = $port; Version = $release.Version; BuildRevision = $release.BuildRevision; MigrationVersion = $release.MigrationVersion; DataDir = $dataDir; DatabaseMode = $(if ($embedded) { 'embedded' } else { 'external' }); DatabaseService = $(if ($databaseService) { [string]$databaseService.Status } else { 'not-managed' }); Database = $(if ($health -eq 'UP') { 'application-connected' } else { 'unavailable' }); Flyway = 'packaged' } | Format-List
     }
     'uninstall' {
         Assert-SpdAdministrator
@@ -71,7 +71,7 @@ switch ($Action) {
             $target = Join-Path $installDir $name
             if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Recurse -Force }
         }
-        foreach ($name in @('VERSION.txt', '安装SPD.bat', '启动SPD.bat', '停止SPD.bat', '重启SPD.bat', '打开SPD系统.bat', 'SPD诊断.bat', '升级SPD.bat', '卸载SPD.bat', '数据库兼容升级.bat', '部署说明.txt')) {
+        foreach ($name in @('VERSION.txt', 'BUILD_REVISION.txt', 'MIGRATION_VERSION.txt', '安装SPD.bat', '启动SPD.bat', '停止SPD.bat', '重启SPD.bat', '打开SPD系统.bat', 'SPD诊断.bat', '升级SPD.bat', '卸载SPD.bat', '数据库兼容升级.bat', '部署说明.txt')) {
             $target = Join-Path $installDir $name
             if (Test-Path -LiteralPath $target) { Remove-Item -LiteralPath $target -Force }
         }

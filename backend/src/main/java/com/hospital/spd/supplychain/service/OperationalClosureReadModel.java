@@ -9,6 +9,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -320,38 +323,63 @@ public class OperationalClosureReadModel {
         appendLike(where, args, "d.dept_name", params.get("deptName"));
         appendLike(where, args, "d.warehouse_name", params.get("warehouseName"));
         appendAnyLike(where, args, List.of("d.product_code", "d.product_name"), params.get("productKeyword"));
-        appendLike(where, args, "qpl.label_no", params.get("labelNo"));
+        String labelNo = params.get("labelNo");
+        if (labelNo != null && !labelNo.isBlank()) {
+            where.append("""
+                     AND EXISTS (
+                       SELECT 1 FROM spd_delivery_package_binding b
+                       JOIN quota_package_label qpl ON qpl.label_id = b.label_id
+                       WHERE b.delivery_id = d.delivery_id AND b.recalled = 0 AND qpl.label_no LIKE ?
+                     )
+                    """);
+            args.add("%" + labelNo.trim() + "%");
+        }
         appendEquals(where, args, "d.status", params.get("status"));
         appendDateBoundary(where, args, "d.create_time", params.get("dateFrom"), false);
         appendDateBoundary(where, args, "d.create_time", params.get("dateTo"), true);
 
-        Object[] countArgs = args.toArray();
-        Long total = jdbcTemplate.queryForObject("""
-                SELECT COUNT(DISTINCT d.delivery_id)
-                  FROM spd_delivery_order d
-                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id AND b.recalled = 0
-                  LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
-                """ + where, Long.class, countArgs);
+        String from = " FROM spd_delivery_order d" + where;
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
 
         List<Object> queryArgs = new ArrayList<>(args);
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT d.delivery_no AS bizNo, d.requisition_no AS sourceNo, d.dept_name AS deptName,
+                SELECT d.delivery_id AS deliveryId, d.delivery_no AS bizNo,
+                       d.requisition_no AS sourceNo, d.dept_name AS deptName,
                        d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
-                       d.quantity, d.status, COUNT(b.binding_id) AS packageCount,
-                       GROUP_CONCAT(qpl.label_no ORDER BY qpl.label_no SEPARATOR ', ') AS labelNos,
+                       d.quantity, d.status,
                        DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
                        DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
-                  FROM spd_delivery_order d
-                  LEFT JOIN spd_delivery_package_binding b ON b.delivery_id = d.delivery_id AND b.recalled = 0
-                  LEFT JOIN quota_package_label qpl ON qpl.label_id = b.label_id
-                """ + where + """
-                 GROUP BY d.delivery_id, d.delivery_no, d.requisition_no, d.dept_name, d.warehouse_name,
-                          d.product_code, d.product_name, d.quantity, d.status, d.sign_time, d.create_time
-                 ORDER BY d.create_time DESC LIMIT ? OFFSET ?
+                """ + from + """
+                 ORDER BY d.create_time DESC, d.delivery_id DESC LIMIT ? OFFSET ?
                 """, queryArgs.toArray());
-        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
+        return PageResponse.of(withDeliveryLabelCodes(rows), total == null ? 0L : total, pageReq);
+    }
+
+    private List<Map<String, Object>> withDeliveryLabelCodes(List<Map<String, Object>> rows) {
+        if (rows.isEmpty()) return rows;
+        List<Long> deliveryIds = rows.stream().map(row -> ((Number) row.get("deliveryId")).longValue()).toList();
+        String placeholders = String.join(", ", Collections.nCopies(deliveryIds.size(), "?"));
+        Map<Long, List<String>> labelsByDelivery = new HashMap<>();
+        for (Map<String, Object> label : jdbcTemplate.queryForList("""
+                SELECT b.delivery_id AS deliveryId, qpl.label_no AS labelNo
+                  FROM spd_delivery_package_binding b
+                  JOIN quota_package_label qpl ON qpl.label_id = b.label_id
+                 WHERE b.recalled = 0 AND b.delivery_id IN (%s)
+                 ORDER BY b.delivery_id, qpl.label_no
+                """.formatted(placeholders), deliveryIds.toArray())) {
+            long deliveryId = ((Number) label.get("deliveryId")).longValue();
+            labelsByDelivery.computeIfAbsent(deliveryId, id -> new ArrayList<>()).add((String) label.get("labelNo"));
+        }
+        return rows.stream().<Map<String, Object>>map(row -> {
+            List<String> codes = labelsByDelivery.getOrDefault(((Number) row.get("deliveryId")).longValue(), List.of());
+            Map<String, Object> result = new LinkedHashMap<>(row);
+            result.put("labelCodes", codes);
+            result.put("labelNos", codes.isEmpty() ? null : String.join(", ", codes));
+            result.put("packageCount", (long) codes.size());
+            return result;
+        }).toList();
     }
 
     private Map<String, Object> settlementDetails(Map<String, String> params, PageRequest pageReq) {

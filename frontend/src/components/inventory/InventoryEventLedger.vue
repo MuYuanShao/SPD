@@ -36,6 +36,13 @@ const summary = ref<InventoryEventSummary>()
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detail = ref<InventoryEventDetail>()
+const detailRemark = computed(() => {
+  const remark = detail.value?.remark
+  if (detail.value?.eventType === 'quota_unpack_in' && (
+    remark === 'unpack package label back to loose stock' || remark === '页面操作解包回散货'
+  )) return ''
+  return remark
+})
 
 const query = reactive({
   startTime: '', endTime: '', transactionTypeCode: '', warehouseName: '', productName: '',
@@ -223,7 +230,7 @@ onMounted(async () => {
         <SectionTitle title="追溯对象" :level="3" />
         <div v-if="detail.traceCodes?.length" class="trace-list"><div v-for="trace in detail.traceCodes" :key="trace.traceCodeId"><strong>{{ trace.packageLabelNo || trace.udiCode || trace.uniqueCode || trace.traceCodeId }}</strong><span>{{ trace.traceType }} · 数量 {{ trace.linkedQuantity }}</span></div></div>
         <EmptyState v-else message="该事件未关联唯一码或定数包标签" align="left" />
-        <SectionTitle title="备注" :level="3" /><p class="detail-remark">{{ detail.remark || '无' }}</p>
+        <SectionTitle title="备注" :level="3" /><p class="detail-remark">{{ detailRemark || '无' }}</p>
       </div>
     </el-drawer>
   </section>
@@ -626,6 +633,8 @@ onMounted(async () => {
   border-radius: var(--md-radius, 6px);
   color: var(--md-text, var(--spd-text-primary));
   font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- 响应式 ---------- */

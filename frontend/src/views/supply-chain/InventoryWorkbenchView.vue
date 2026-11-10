@@ -442,18 +442,18 @@ watch(mode, () => {
                 <td colspan="12" class="inventory-state-cell">正在加载库存...</td>
               </tr>
               <tr v-for="row in balances" v-else :key="`${row.warehouseName}|${row.productCode}`">
-                <td>{{ row.warehouseName }}</td>
-                <td>{{ row.deptName || '-' }}</td>
-                <td class="inventory-code-cell">{{ row.productCode }}</td>
-                <td class="inventory-product-cell">{{ row.productName }}</td>
-                <td>{{ row.specModel || '-' }}</td>
-                <td>{{ row.registrationNo || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
+                <td class="inventory-wrap-cell">{{ row.deptName || '-' }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode }}</td>
+                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName }}</td>
+                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
                 <td>{{ row.unit || '-' }}</td>
                 <td class="inventory-qty-cell">{{ row.qty }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td>{{ row.manufacturerName || '-' }}</td>
-                <td>{{ row.supplierName || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.manufacturerName || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.supplierName || '-' }}</td>
               </tr>
               <tr v-if="!balances.length && !loading">
                 <td colspan="12" class="inventory-state-cell">暂无库存汇总数据</td>
@@ -484,7 +484,7 @@ watch(mode, () => {
           </button>
         </form>
 
-        <div class="table-scroll inventory-list-scroll">
+        <div class="table-scroll inventory-list-scroll" role="region" aria-label="定数包库存结果" tabindex="0">
           <table class="master-table inventory-table">
             <thead>
               <tr>
@@ -492,11 +492,15 @@ watch(mode, () => {
                 <th>科室</th>
                 <th>定数包编码</th>
                 <th>定数包名称</th>
+                <th>模板版本</th>
+                <th>商品编码</th>
+                <th>商品名称</th>
                 <th>规格型号</th>
                 <th>注册证号</th>
-                <th>单价</th>
-                <th>单位</th>
+                <th>基本单位单价</th>
+                <th>基本单位</th>
                 <th>定数包数量</th>
+                <th>包内数量合计</th>
                 <th>散货数量</th>
                 <th>金额</th>
                 <th>厂家</th>
@@ -505,25 +509,29 @@ watch(mode, () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="13" class="inventory-state-cell">正在加载定数包库存...</td>
+                <td colspan="17" class="inventory-state-cell">正在加载定数包库存...</td>
               </tr>
               <tr v-for="(row, index) in quotaStockRows" v-else :key="index">
-                <td>{{ row.warehouseName }}</td>
-                <td>{{ row.deptName }}</td>
-                <td class="inventory-code-cell">{{ row.packageCode }}</td>
-                <td class="inventory-product-cell">{{ row.packageName }}</td>
-                <td>{{ row.specModel || '-' }}</td>
-                <td>{{ row.registrationNo || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
+                <td class="inventory-wrap-cell">{{ row.deptName }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.packageCode }}</td>
+                <td class="inventory-product-cell inventory-wrap-cell">{{ row.packageName }}</td>
+                <td>{{ row.templateVersion ?? '-' }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode || '-' }}</td>
+                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
                 <td>{{ row.unit || '-' }}</td>
                 <td class="inventory-qty-cell">{{ row.packageCount }}</td>
+                <td class="inventory-qty-cell">{{ row.packageQty ?? '-' }}</td>
                 <td class="inventory-qty-cell">{{ row.looseQty }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td>{{ row.manufacturerName }}</td>
-                <td>{{ row.supplierName }}</td>
+                <td class="inventory-wrap-cell">{{ row.manufacturerName }}</td>
+                <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
               </tr>
               <tr v-if="!quotaStockRows.length && !loading">
-                <td colspan="13" class="inventory-state-cell">暂无定数包库存数据</td>
+                <td colspan="17" class="inventory-state-cell">暂无定数包库存数据</td>
               </tr>
             </tbody>
           </table>
@@ -581,22 +589,22 @@ watch(mode, () => {
                 <td colspan="16" class="inventory-state-cell">正在加载唯一码库存...</td>
               </tr>
               <tr v-for="(row, index) in codeStockRows" v-else :key="index">
-                <td>{{ row.deptName }}</td>
-                <td>{{ row.warehouseName }}</td>
-                <td class="inventory-code-cell">{{ row.productCode }}</td>
-                <td class="inventory-product-cell">{{ row.productName }}</td>
-                <td>{{ row.specModel || '-' }}</td>
-                <td>{{ row.registrationNo || '-' }}</td>
-                <td class="inventory-code-cell">{{ row.batchNo }}</td>
-                <td class="inventory-code-cell">{{ row.productionBatchNo }}</td>
+                <td class="inventory-wrap-cell">{{ row.deptName }}</td>
+                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode }}</td>
+                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName }}</td>
+                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
+                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.batchNo }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productionBatchNo }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
                 <td>{{ row.unit || '-' }}</td>
                 <td class="inventory-qty-cell">{{ row.qty }}</td>
                 <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td>{{ row.manufacturerName }}</td>
-                <td>{{ row.supplierName }}</td>
-                <td class="inventory-code-cell">{{ row.uniqueCode }}</td>
-                <td class="inventory-code-cell">{{ row.udiCode }}</td>
+                <td class="inventory-wrap-cell">{{ row.manufacturerName }}</td>
+                <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.uniqueCode }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">{{ row.udiCode }}</td>
               </tr>
               <tr v-if="!codeStockRows.length && !loading">
                 <td colspan="16" class="inventory-state-cell">暂无唯一码库存数据</td>
@@ -1141,6 +1149,15 @@ watch(mode, () => {
   white-space: nowrap;
   color: var(--md-text-heading) !important;
   font-weight: 500;
+}
+
+/* ---------- 库存查询长文本 ---------- */
+.inventory-page .inventory-table .inventory-wrap-cell {
+  min-width: 140px;
+  max-width: 220px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
 }
 
 /* ---------- 数量 / 金额列 ---------- */

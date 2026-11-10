@@ -91,9 +91,12 @@ class OperationalClosureServiceTest {
     @DisplayName("按类型查询日清列表——每种类型返回正确结构")
     void shouldListByType(String type, String expectedTable) {
         Map<String, String> params = Map.of("page", "1", "size", "20");
+        Map<String, Object> row = "delivery".equals(type)
+                ? Map.of("deliveryId", 1L, "bizNo", "001")
+                : Map.of("bizNo", "001");
 
         when(jdbcTemplate.queryForList(contains(expectedTable), eq(20), eq(0)))
-                .thenReturn(List.of(Map.of("bizNo", "001")));
+                .thenReturn(List.of(row));
         when(jdbcTemplate.queryForObject(anyString(), eq(Long.class)))
                 .thenReturn(1L);
 

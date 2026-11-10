@@ -225,6 +225,31 @@ onMounted(loadDashboard)
 
     <p v-if="error || homeError" class="wb-banner-error">{{ error || homeError }}</p>
 
+    <section class="wb-card wb-card--shortcut" aria-labelledby="wb-shortcut-title">
+      <div class="wb-shortcut-profile">
+        <span class="wb-shortcut-avatar"><UserRound :size="20" /></span>
+        <div>
+          <strong>{{ auth.currentUser?.realName || auth.username }}</strong>
+          <span>医用耗材精益管理平台</span>
+        </div>
+      </div>
+      <div class="wb-shortcut-list">
+        <div class="wb-shortcut-head">
+          <h2 id="wb-shortcut-title">常用功能</h2>
+          <button type="button" class="wb-link" @click="configuring = true">设置</button>
+        </div>
+        <ul>
+          <li v-for="item in shortcuts" :key="item.code">
+            <RouterLink :to="featureRouteTarget(item.code)">
+              <span>{{ item.title }}</span>
+              <ChevronRight :size="14" />
+            </RouterLink>
+          </li>
+          <li v-if="!shortcuts.length" class="wb-empty-inline">暂无已选功能</li>
+        </ul>
+      </div>
+    </section>
+
     <!-- =================================================
          R2 · 业务链路 + 7 日趋势 + 科室 TOP5
          ================================================= -->
@@ -362,7 +387,7 @@ onMounted(loadDashboard)
     </section>
 
     <!-- =================================================
-         R4 · 待办 / 公告 / 异常 / 常用功能（4 个色块单元）
+         R4 · 待办 / 公告 / 异常
          ================================================= -->
     <section class="wb-grid wb-grid-r4">
       <!-- 待办 -->
@@ -418,32 +443,6 @@ onMounted(loadDashboard)
         </header>
         <div class="wb-card-body">
           <NoticeList :items="notices" @select="showNotice" />
-        </div>
-      </article>
-
-      <!-- 常用功能（个人中心合并） -->
-      <article class="wb-card wb-card--shortcut">
-        <div class="wb-shortcut-profile">
-          <span class="wb-shortcut-avatar"><UserRound :size="20" /></span>
-          <div>
-            <strong>{{ auth.currentUser?.realName || auth.username }}</strong>
-            <span>医用耗材精益管理平台</span>
-          </div>
-        </div>
-        <div class="wb-shortcut-list">
-          <div class="wb-shortcut-head">
-            <h3>常用功能</h3>
-            <button type="button" class="wb-link" @click="configuring = true">设置</button>
-          </div>
-          <ul>
-            <li v-for="item in shortcuts" :key="item.code">
-              <RouterLink :to="featureRouteTarget(item.code)">
-                <span>{{ item.title }}</span>
-                <ChevronRight :size="14" />
-              </RouterLink>
-            </li>
-            <li v-if="!shortcuts.length" class="wb-empty-inline">暂无已选功能</li>
-          </ul>
         </div>
       </article>
     </section>
@@ -784,7 +783,7 @@ onMounted(loadDashboard)
 .wb-grid-r2 .wb-card--rank    { grid-column: 2 / 3; grid-row: 2 / 3; }
 
 .wb-grid-r3 { grid-template-columns: 1fr 1fr; }
-.wb-grid-r4 { grid-template-columns: 1.1fr 1fr 1fr 1.1fr; }
+.wb-grid-r4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
 /* ================================================================
  * 业务链路 · 美化样式
@@ -1122,13 +1121,16 @@ onMounted(loadDashboard)
  * 常用功能 + 个人中心
  * ================================================================ */
 .wb-card--shortcut {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
   background: linear-gradient(160deg, var(--violet-50) 0%, #fff 65%);
   border-color: #ede9fe;
 }
 .wb-shortcut-profile {
   display: flex; align-items: center; gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-5);
-  border-bottom: 1px solid #ede9fe;
+  border-inline-end: 1px solid #ede9fe;
+  min-width: 0;
 }
 .wb-shortcut-avatar {
   display: inline-flex; align-items: center; justify-content: center;
@@ -1146,14 +1148,14 @@ onMounted(loadDashboard)
   font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.wb-shortcut-profile span { color: var(--slate-400); font-size: 12px; }
+.wb-shortcut-profile > div > span { color: var(--slate-400); font-size: 12px; }
 
-.wb-shortcut-list { padding: var(--sp-3) var(--sp-5) var(--sp-4); }
+.wb-shortcut-list { min-width: 0; padding: var(--sp-3) var(--sp-5) var(--sp-4); }
 .wb-shortcut-head {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: var(--sp-2);
 }
-.wb-shortcut-head h3 {
+.wb-shortcut-head h2 {
   margin: 0;
   color: var(--slate-800);
   font-size: 13px;
@@ -1169,7 +1171,7 @@ onMounted(loadDashboard)
 
 .wb-shortcut-list ul {
   list-style: none; margin: 0; padding: 0;
-  display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: var(--sp-2);
 }
 .wb-shortcut-list a {
   display: flex; align-items: center; justify-content: space-between;
@@ -1262,7 +1264,6 @@ onMounted(loadDashboard)
   .wb-grid-r2 .wb-card--process { grid-column: 1 / -1; grid-row: 1 / 2; }
   .wb-grid-r2 .wb-card--trend7  { grid-column: 1 / 2; grid-row: 2 / 3; }
   .wb-grid-r2 .wb-card--rank    { grid-column: 2 / 3; grid-row: 2 / 3; }
-  .wb-grid-r4 { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 1100px) {
@@ -1283,7 +1284,8 @@ onMounted(loadDashboard)
   .wb-hero-metrics { grid-template-columns: 1fr; }
   .wb-process-row { grid-template-columns: 1fr; gap: var(--sp-2); }
   .wb-process-step { max-width: none; }
-  .wb-shortcut-list ul { grid-template-columns: 1fr; }
+  .wb-card--shortcut { grid-template-columns: 1fr; }
+  .wb-shortcut-profile { border-inline-end: 0; border-bottom: 1px solid #ede9fe; }
   .wb-shortcut-options { grid-template-columns: 1fr; }
 }
 </style>

@@ -293,6 +293,31 @@ test('拣配配送在没有历史记录时显示明确空状态', async ({ page 
   await expect(page.getByText('暂无拣配记录')).toBeVisible()
 })
 
+test('拣配记录弹窗逐条显示完整定数包码', async ({ page }) => {
+  const labelCodes = Array.from({ length: 80 }, (_, index) => `D2026102300${String(index + 1).padStart(4, '0')}`)
+  const order = { deliveryId: 1, bizNo: 'PS-DETAIL-001', status: 'signed', productName: '测试耗材' }
+  await page.route('**/api/operational-closure/lists/delivery**', route => route.fulfill({
+    json: { code: 0, data: {
+      rows: [{ ...order, labelCodes }, { ...order, deliveryId: 2, bizNo: 'PS-DETAIL-002', labelCodes: [] }],
+      total: 2, page: 1, size: 20
+    } }
+  }))
+  await page.goto('/features/picking-records')
+  await login(page)
+  const withoutCodes = page.getByRole('row').filter({ hasText: 'PS-DETAIL-002' })
+  await expect(withoutCodes).toBeVisible()
+  await expect(withoutCodes.getByRole('button', { name: /查看详情/ })).toHaveCount(0)
+  await page.getByRole('button', { name: '查看详情（80）' }).click()
+  const dialog = page.getByRole('dialog', { name: '定数包码详情' })
+  await expect(dialog).toContainText('PS-DETAIL-001')
+  const codes = dialog.getByRole('region', { name: '完整定数包码列表' })
+  await expect(codes.getByRole('listitem')).toHaveText(labelCodes)
+  await codes.getByRole('listitem').last().scrollIntoViewIfNeeded()
+  await expect(codes.getByRole('listitem').last()).toBeInViewport()
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(dialog).toBeHidden()
+})
+
 test('科室申领从历史列表进入当前科室目录并按申领模式折算提交', async ({ page }) => {
   let catalogCallCount = 0
   let requisitionPostCount = 0

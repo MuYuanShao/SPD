@@ -161,6 +161,7 @@ public class InventoryService {
         String groupedSql = """
                 SELECT w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
                        qpt.template_code AS packageCode, qpt.template_name AS packageName,
+                       qpt.version_no AS templateVersion, p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
                        COALESCE(p.purchase_price, 0) AS unitPrice, p.unit AS unit,
                        COUNT(qpl.label_id) AS packageCount,
@@ -191,7 +192,8 @@ public class InventoryService {
                   ) lo ON lo.warehouse_id = qpl.warehouse_id AND lo.product_id = qpl.product_id
                 """.formatted(looseQuantity, looseQuantity) + where + """
                  GROUP BY qpl.warehouse_id, qpl.template_id, d.dept_name, w.warehouse_name,
-                          qpt.template_code, qpt.template_name, p.product_id, p.spec_model,
+                          qpt.template_code, qpt.template_name, qpt.version_no, p.product_id,
+                          p.product_code, p.product_name, p.spec_model,
                           p.registration_no, p.purchase_price, p.unit, m.manufacturer_name,
                           s.supplier_name, lo.loose_qty, qpl.signed_qty
                 """;

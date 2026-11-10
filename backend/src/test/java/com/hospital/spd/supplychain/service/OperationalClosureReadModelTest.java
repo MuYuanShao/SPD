@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -85,7 +86,7 @@ class OperationalClosureReadModelTest {
     @DisplayName("delivery list applies record filters to rows and total")
     void shouldFilterDeliveryRecords() {
         when(jdbcTemplate.queryForObject(
-                argThat(sql -> sql.contains("COUNT(DISTINCT d.delivery_id)")
+                argThat(sql -> sql.contains("COUNT(*)")
                         && sql.contains("d.delivery_no LIKE ?")
                         && sql.contains("d.status = ?")
                         && sql.contains("d.create_time >= ?")
@@ -97,10 +98,10 @@ class OperationalClosureReadModelTest {
                 argThat(sql -> sql.contains("FROM spd_delivery_order d")
                         && sql.contains("d.delivery_no LIKE ?")
                         && sql.contains("d.status = ?")
-                        && sql.contains("GROUP BY d.delivery_id")),
+                        && sql.contains("d.delivery_id AS deliveryId")),
                 eq("%PS001%"), eq("picked"),
                 eq("2026-08-01 00:00:00"), eq("2026-08-26 23:59:59"), eq(20), eq(0)))
-                .thenReturn(List.of(Map.of("bizNo", "PS001", "status", "picked")));
+                .thenReturn(List.of(Map.of("deliveryId", 7L, "bizNo", "PS001", "status", "picked")));
 
         Map<String, Object> page = readModel.list("delivery", Map.of(
                 "deliveryNo", "PS001",
@@ -111,8 +112,26 @@ class OperationalClosureReadModelTest {
                 "size", "20"
         ));
 
-        assertThat(rows(page)).containsExactly(Map.of("bizNo", "PS001", "status", "picked"));
+        assertThat(rows(page)).singleElement().satisfies(row -> assertThat(row)
+                .containsEntry("bizNo", "PS001").containsEntry("status", "picked")
+                .containsEntry("labelCodes", List.of()).containsEntry("packageCount", 0L));
         assertThat(page).containsEntry("total", 1L);
+    }
+
+    @Test
+    void labelFilterKeepsEveryCodeOnTheMatchingDelivery() {
+        List<String> codes = IntStream.rangeClosed(1, 80)
+                .mapToObj(index -> "D2026102300%04d".formatted(index)).toList();
+        when(jdbcTemplate.queryForObject(contains("qpl.label_no LIKE ?"), eq(Long.class), eq("%0001%")))
+                .thenReturn(1L);
+        when(jdbcTemplate.queryForList(contains("AND EXISTS"), eq("%0001%"), eq(20), eq(0)))
+                .thenReturn(List.of(Map.of("deliveryId", 7L, "bizNo", "PS001")));
+        when(jdbcTemplate.queryForList(contains("b.recalled = 0 AND b.delivery_id IN (?)"), eq(7L)))
+                .thenReturn(codes.stream().<Map<String, Object>>map(code -> Map.of("deliveryId", 7L, "labelNo", code)).toList());
+
+        assertThat(rows(readModel.list("delivery", Map.of("labelNo", "0001")))).singleElement()
+                .satisfies(row -> assertThat(row).containsEntry("labelCodes", codes)
+                        .containsEntry("labelNos", String.join(", ", codes)).containsEntry("packageCount", 80L));
     }
 
     @Test

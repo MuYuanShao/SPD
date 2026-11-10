@@ -465,6 +465,10 @@ public class PackingTaskService {
     @Transactional
     public Map<String, Object> unpack(String labelNo, PackageActionRequest request) {
         permissionGuard.require("quota-label-unpack:write");
+        String reason = nullIfBlank(request == null ? null : request.reason());
+        if (reason != null && reason.codePointCount(0, reason.length()) > 500) {
+            throw new IllegalArgumentException("备注不能超过 500 字");
+        }
 
         Map<String, Object> label = jdbcTemplate.queryForMap("""
                 SELECT label_id AS labelId, label_no AS labelNo, status, warehouse_id AS warehouseId,
@@ -485,9 +489,6 @@ public class PackingTaskService {
         if (sources.isEmpty()) {
             throw new IllegalStateException("定数包标签缺少来源批次，不能解包");
         }
-        String reason = isBlank(request == null ? null : request.reason())
-                ? "unpack package label back to loose stock"
-                : request.reason().trim();
         BigDecimal restoredLooseQty = BigDecimal.ZERO;
         for (Map<String, Object> source : sources) {
             Long warehouseId = ((Number) source.get("warehouseId")).longValue();

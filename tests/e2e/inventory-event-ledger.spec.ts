@@ -62,3 +62,46 @@ test('库存流水一事件一行并在详情展示稳定追溯关系', async ({
   await page.keyboard.press('Escape')
   await expect(page.getByText('UDI-001')).toBeHidden()
 })
+
+for (const [remark, displayed] of [
+  ['unpack package label back to loose stock', '无'],
+  ['页面操作解包回散货', '无'],
+  ['包装破损\nQC checked', '包装破损\nQC checked']
+]) {
+  test(`解包流水备注显示人工原文：${JSON.stringify(remark)}`, async ({ page }) => {
+    await page.route('**/api/inventory/events/IE-001', route => route.fulfill({
+      json: envelope({ eventNo: 'IE-001', eventType: 'quota_unpack_in', traceCodes: [], remark })
+    }))
+    await page.goto('/features/inventory-events')
+    await page.getByRole('button', { name: /详情.*2/ }).click()
+    await expect(page.getByRole('dialog').locator('.detail-remark')).toHaveText(displayed)
+  })
+}
+
+test('解包确认提交人工备注，未填写时发送空备注', async ({ page }) => {
+  const remarks: string[] = []
+  await page.route(url => url.pathname === '/api/quota-packages/labels', route => route.fulfill({
+    json: envelope({
+      rows: [{ labelNo: 'PK-REMARK-001', templateCode: 'TP-001', templateName: '测试定数包',
+        status: 'available', packageQuantity: 5, warehouseName: 'SPD中心库', printCount: 1 }],
+      page: 1, size: 20, total: 1
+    })
+  }))
+  await page.route('**/api/quota-packages/labels/PK-REMARK-001/unpack', route => {
+    expect(route.request().method()).toBe('PUT')
+    remarks.push(route.request().postDataJSON().reason)
+    return route.fulfill({ json: envelope({ labelNo: 'PK-REMARK-001', status: 'void', restoredLooseQty: 5 }) })
+  })
+  await page.goto('/features/quota-label-unpack')
+  const unpack = page.getByRole('button', { name: '解包', exact: true })
+  const dialog = page.getByRole('dialog', { name: '定数包解包' })
+  for (const remark of ['包装破损\nQC checked', '']) {
+    await unpack.click()
+    const input = dialog.getByPlaceholder('填写备注（选填）')
+    await expect(input).toHaveValue('')
+    await input.fill(remark)
+    await dialog.getByRole('button', { name: '确认解包' }).click()
+    await expect(dialog).toBeHidden()
+  }
+  expect(remarks).toEqual(['包装破损\nQC checked', ''])
+})

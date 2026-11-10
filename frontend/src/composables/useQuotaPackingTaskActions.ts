@@ -174,9 +174,25 @@ export function useQuotaPackingTaskActions(options: {
   }
 
   async function unpackLabel(row: PackageLabelRow) {
-    if (!await confirmAction(`确认将定数包标签 ${row.labelNo} 解包成散货？解包后原标签不可继续使用。`, '定数包解包', '确认解包')) return
+    let remark: string
     try {
-      const result = await unpackPackageLabel(row.labelNo, '页面操作解包回散货')
+      const { value } = await ElMessageBox.prompt(
+        `确认将定数包标签 ${row.labelNo} 解包成散货？解包后原标签不可继续使用。`,
+        '定数包解包',
+        {
+          confirmButtonText: '确认解包',
+          cancelButtonText: '返回',
+          inputType: 'textarea',
+          inputPlaceholder: '填写备注（选填）',
+          inputValidator: (text) => [...(text ?? '').trim()].length <= 500 || '备注不能超过 500 字'
+        }
+      )
+      remark = (value ?? '').trim()
+    } catch {
+      return
+    }
+    try {
+      const result = await unpackPackageLabel(row.labelNo, remark)
       setResult(`${result.labelNo} 已解包，恢复散货 ${result.restoredLooseQty}`)
       await options.reload()
     } catch (error: any) {

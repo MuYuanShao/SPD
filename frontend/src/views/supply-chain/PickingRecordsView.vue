@@ -14,7 +14,11 @@ const notify = useNotify()
 
 const loading = ref(false)
 const message = ref('')
-const rows = ref<Record<string, unknown>[]>([])
+type PickingRecord = Record<string, unknown> & { labelCodes: string[] }
+
+const rows = ref<PickingRecord[]>([])
+const labelDetailOpen = ref(false)
+const labelDetail = ref<PickingRecord>()
 const page = ref(1)
 const size = ref(20)
 const total = ref(0)
@@ -52,7 +56,12 @@ async function loadRecords() {
       page: String(page.value),
       size: String(size.value)
     })
-    rows.value = result.rows
+    rows.value = result.rows.map(row => ({
+      ...row,
+      labelCodes: Array.isArray(row.labelCodes)
+        ? row.labelCodes.filter((code): code is string => typeof code === 'string' && Boolean(code))
+        : typeof row.labelNos === 'string' ? row.labelNos.split(',').map(code => code.trim()).filter(Boolean) : []
+    }))
     total.value = result.total
   } catch (error) {
     rows.value = []
@@ -98,6 +107,11 @@ function changeSize(nextSize: number) {
 function quantityText(value: unknown) {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed.toLocaleString('zh-CN') : '-'
+}
+
+function showLabelDetail(row: PickingRecord) {
+  labelDetail.value = row
+  labelDetailOpen.value = true
 }
 
 onMounted(loadRecords)
@@ -161,14 +175,19 @@ onMounted(loadRecords)
             <tr v-else-if="!rows.length">
               <td colspan="10" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
             </tr>
-            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
+            <tr v-for="row in rows" v-else :key="String(row.deliveryId ?? row.bizNo)">
               <td class="primary-cell">{{ row.bizNo || '-' }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
               <td>{{ row.deptName || '-' }}</td>
               <td>{{ row.warehouseName || '-' }}</td>
               <td><strong>{{ row.productName || '-' }}</strong><small>{{ row.productCode || '-' }}</small></td>
               <td class="numeric-cell">{{ quantityText(row.quantity) }}</td>
-              <td class="label-cell" :title="String(row.labelNos || '-')">{{ row.labelNos || '-' }}</td>
+              <td>
+                <button v-if="row.labelCodes.length" class="btn btn-sm" type="button" @click="showLabelDetail(row)">
+                  查看详情（{{ row.labelCodes.length }}）
+                </button>
+                <span v-else>-</span>
+              </td>
               <td><span class="status-badge" :class="row.status === 'signed' ? 'enabled' : 'pending'">{{ formatStatusText(row.status) }}</span></td>
               <td>{{ row.createTime || '-' }}</td>
               <td>{{ row.finishTime || '-' }}</td>
@@ -181,6 +200,18 @@ onMounted(loadRecords)
         @change-page="changePage" @change-size="changeSize"
       />
     </section>
+
+    <el-dialog v-model="labelDetailOpen" title="定数包码详情" width="min(560px, 92vw)" append-to-body destroy-on-close>
+      <template v-if="labelDetail">
+        <p class="label-detail-summary">配送单号 {{ labelDetail.bizNo || '-' }} · 共 {{ labelDetail.labelCodes.length }} 个</p>
+        <div class="label-detail-scroll" role="region" aria-label="完整定数包码列表" tabindex="0">
+          <ol class="label-detail-list">
+            <li v-for="code in labelDetail.labelCodes" :key="code"><code>{{ code }}</code></li>
+          </ol>
+        </div>
+      </template>
+      <template #footer><el-button @click="labelDetailOpen = false">关闭</el-button></template>
+    </el-dialog>
   </section>
 </template>
 
@@ -374,10 +405,26 @@ onMounted(loadRecords)
   font-variant-numeric: tabular-nums;
 }
 
-.record-table .label-cell {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.label-detail-summary {
+  margin: 0 0 10px;
+  color: var(--spd-text-secondary);
+}
+
+.label-detail-scroll {
+  max-height: min(50vh, 420px);
+  overflow: auto;
+  border: 1px solid var(--spd-border-subtle);
+  border-radius: var(--spd-radius-md, 8px);
+}
+
+.label-detail-list {
+  margin: 0;
+  padding: 6px 12px 6px 40px;
+}
+
+.label-detail-list li {
+  padding: 6px 0;
+  overflow-wrap: anywhere;
 }
 
 .record-empty {

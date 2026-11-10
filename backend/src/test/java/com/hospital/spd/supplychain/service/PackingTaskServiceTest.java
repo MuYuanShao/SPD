@@ -7,6 +7,9 @@ import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -362,27 +365,32 @@ class PackingTaskServiceTest {
                 .allMatch(sql -> sql.contains("qpl.status NOT IN ('consumed', 'settled')"));
     }
 
-    @Test
-    void unpacksAvailableLabelBackToLooseStock() throws Exception {
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "  包装破损\nQC checked  "})
+    void unpacksAvailableLabelBackToLooseStock(String inputRemark) {
+        String expectedRemark = inputRemark == null || inputRemark.isBlank() ? null : inputRemark.trim();
         when(jdbcTemplate.queryForMap(contains("WHERE label_no = ?"), anyString()))
                 .thenReturn(Map.of("labelId", 10L, "status", "available", "warehouseId", 1L,
                         "productId", 100L, "packageQuantity", BigDecimal.TEN));
         when(jdbcTemplate.queryForList(contains("FROM quota_package_label_source"), anyLong()))
                 .thenReturn(List.of(Map.of("batchId", 200L, "sourceQty", BigDecimal.TEN, "warehouseId", 1L)));
         when(support.receiveAvailable(anyLong(), anyLong(), anyLong(), any(BigDecimal.class),
-                anyString(), anyString(), anyLong(), anyString())).thenReturn(99L);
+                anyString(), anyString(), anyLong(), nullable(String.class))).thenReturn(99L);
         when(support.nextNo(eq(DocumentKind.QUOTA_PACKAGE_EVENT))).thenReturn("EVT001");
 
-        Map<String, Object> result = service.unpack("D000001", null);
+        Map<String, Object> result = service.unpack("D000001", inputRemark == null ? null : new PackageActionRequest(inputRemark));
 
         assertThat(result)
                 .containsEntry("status", "void")
                 .containsEntry("restoredLooseQty", BigDecimal.TEN);
         verify(jdbcTemplate).queryForMap(contains("FOR UPDATE"), eq("D000001"));
         verify(support).receiveAvailable(eq(1L), eq(100L), eq(200L), eq(BigDecimal.TEN),
-                eq("quota_unpack_in"), eq("quota_package_label"), eq(10L), anyString());
+                eq("quota_unpack_in"), eq("quota_package_label"), eq(10L), eq(expectedRemark));
+        verify(jdbcTemplate).update(contains("INSERT INTO quota_package_event"), eq("EVT001"), eq(10L),
+                eq("unpack_to_loose"), eq("available"), eq("void"), eq(BigDecimal.TEN), eq(expectedRemark));
         verify(jdbcTemplate).update(contains("status = 'available'"), eq(10L));
-        verify(support).writeAudit(eq("quota_package"), eq("unpack_quota_label"), anyLong(), anyString(), anyString());
+        verify(support).writeAudit(eq("quota_package"), eq("unpack_quota_label"), eq(10L), eq("D000001"), eq(expectedRemark));
     }
 
     @Test

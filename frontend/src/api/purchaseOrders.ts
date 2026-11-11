@@ -255,7 +255,7 @@ export async function fetchPurchaseSmartReplenishmentAnalysis(periodDays = 30) {
  * @returns 采购需求列表
  */
 export async function fetchPurchaseDemands(params: Record<string, string>) {
-  return getPage<PurchaseDemandRow>('/purchase-orders/demands', { params })
+  return getPage<PurchaseDemandRow>('/purchase-orders/demands', { params }, 'demandNo')
 }
 
 /**

@@ -103,7 +103,7 @@ export function normalizePageResult<T>(data: PageResult<T> | T[]): PageResult<T>
   }
 }
 
-export async function getData<T>(url: string, config?: AxiosRequestConfig) {
+export async function getData<T>(url: string, config?: AxiosRequestConfig, groupBy?: string) {
   const data = unwrapData(await http.get<ApiResponse<T>>(url, config))
   if (!isSortablePage(data)) return sortBusinessData(data)
   const params = { ...(config?.params ?? {}) }
@@ -111,7 +111,7 @@ export async function getData<T>(url: string, config?: AxiosRequestConfig) {
   const size = Math.max(1, Number(data.size ?? params.size ?? data.rows.length ?? 20))
   delete params.page
   delete params.size
-  const key = JSON.stringify([getSessionAdapter().getToken(), url, Object.entries(params).sort()])
+  const key = JSON.stringify([getSessionAdapter().getToken(), url, groupBy, Object.entries(params).sort()])
   const cached = sortedPageCache.get(key)
   let rows: unknown[]
   if (page > 1 && cached && Date.now() - cached.time < 15000 && cached.rows.length === data.total) {
@@ -123,11 +123,12 @@ export async function getData<T>(url: string, config?: AxiosRequestConfig) {
       }))
       if (!isSortablePage(next)) throw new Error('列表接口未返回完整分页信息')
       return next
-    })
+    }, groupBy)
     if (sortedPageCache.size >= 12) sortedPageCache.delete(sortedPageCache.keys().next().value!)
     sortedPageCache.set(key, { time: Date.now(), rows })
   }
-  return { ...data, total: rows.length, rows: rows.slice((page - 1) * size, page * size) } as T
+  const pageRows = rows.slice((page - 1) * size, page * size)
+  return { ...data, total: rows.length, rows: groupBy ? pageRows.flat() : pageRows } as T
 }
 
 export async function postData<T>(url: string, data?: unknown, config?: AxiosRequestConfig) {
@@ -142,6 +143,6 @@ export async function deleteData<T>(url: string, config?: AxiosRequestConfig) {
   return unwrapData(await http.delete<ApiResponse<T>>(url, config))
 }
 
-export async function getPage<T>(url: string, config?: AxiosRequestConfig) {
-  return normalizePageResult(await getData<PageResult<T> | T[]>(url, config))
+export async function getPage<T>(url: string, config?: AxiosRequestConfig, groupBy?: keyof T & string) {
+  return normalizePageResult(await getData<PageResult<T> | T[]>(url, config, groupBy))
 }

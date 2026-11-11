@@ -70,9 +70,27 @@ export function isSortablePage(value: unknown): value is SortablePage {
     && Number.isFinite((value as SortablePage).total))
 }
 
-/** Read the filtered result through bounded API pages, then sort before taking the UI page. */
-export async function collectSortedRows(first: SortablePage, read: (page: number, size: number) => Promise<SortablePage>): Promise<unknown[]> {
-  if (first.total <= first.rows.length && Number(first.page ?? 1) === 1) return sortBusinessRows(first.rows)
+/** Group already-sorted detail rows in order of their first occurrence. */
+function groupRows(rows: unknown[], groupBy: string): unknown[][] {
+  const groups = new Map<unknown, unknown[]>()
+  for (const row of rows) {
+    const key = (row as ListRecord | null)?.[groupBy]
+    if (key == null || key === '') throw new Error('列表分页数据不完整，请刷新重试')
+    const group = groups.get(key)
+    if (group) group.push(row)
+    else groups.set(key, [row])
+  }
+  return [...groups.values()]
+}
+
+/** Read bounded API pages and sort by detail fields while keeping each document together. */
+export async function collectSortedRows(first: SortablePage,
+  read: (page: number, size: number) => Promise<SortablePage>, groupBy?: string): Promise<unknown[]> {
+  const complete = groupBy ? first.total === groupRows(first.rows, groupBy).length : first.total <= first.rows.length
+  if (complete && Number(first.page ?? 1) === 1) {
+    const sorted = sortBusinessRows(first.rows)
+    return groupBy ? groupRows(sorted, groupBy) : sorted
+  }
   const start = await read(1, 200)
   const size = Number(start.size ?? start.rows.length)
   if (size <= 0 && start.total > 0) throw new Error('列表分页数据不完整，请刷新重试')
@@ -80,11 +98,13 @@ export async function collectSortedRows(first: SortablePage, read: (page: number
   const pages = Math.ceil(start.total / Math.max(size, 1))
   for (let page = 2; page <= pages; page++) {
     const next = await read(page, size)
-    if (next.total !== start.total || (!next.rows.length && rows.length < start.total)) {
+    if (next.total !== start.total || (!next.rows.length && (groupBy || rows.length < start.total))) {
       throw new Error('列表数据已变化，请刷新重试')
     }
     rows.push(...next.rows)
   }
-  if (rows.length !== start.total) throw new Error('列表分页数据不完整，请刷新重试')
-  return sortBusinessRows(rows)
+  const sorted = sortBusinessRows(rows)
+  const result = groupBy ? groupRows(sorted, groupBy) : sorted
+  if (result.length !== start.total) throw new Error('列表分页数据不完整，请刷新重试')
+  return result
 }

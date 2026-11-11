@@ -32,4 +32,13 @@ assert.equal(all.length, 405)
 assert.equal(all[0].productName, '采血管')
 assert.equal(calls, 3)
 await assert.rejects(() => collectSortedRows({ rows: [], total: 3 }, async () => ({ rows: [], total: 3, size: 20 })), /分页数据不完整/)
+const demandA = [
+  { demandNo: 'A', productName: '医用手套' },
+  { demandNo: 'A', productName: '棉签' }
+]
+const demandB = [{ demandNo: 'B', productName: '采血管' }]
+const demandPages = [demandA, demandB]
+const grouped = await collectSortedRows({ rows: demandA, total: 2, page: 1, size: 1 },
+  async (page) => ({ rows: demandPages[page - 1], total: 2, page, size: 1 }), 'demandNo')
+assert.deepEqual(grouped, [demandB, [demandA[1], demandA[0]]])
 console.log('PASS: pinyin initials, duplicates, exact whitespace/punctuation, stable fields, and cross-page ordering')

@@ -3,7 +3,7 @@
  * 打印模板调整
  * ---------------------------------------------------------------------
  * 维护定数包标签打印模板的字段、顺序与纸张设置。
- * 视觉沿用主数据模块（MdPageHeader / MdDataTableCard / MdFormDialog）
+ * 视觉沿用主数据模块（MdDataTableCard / MdFormDialog）
  * 的 md-* 设计语言，与其他菜单保持一致。
  */
 import { computed, onMounted, ref } from 'vue'
@@ -19,7 +19,6 @@ import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import MdFormDialog from '../../components/master-data/MdFormDialog.vue'
 import MdFormSection from '../../components/master-data/MdFormSection.vue'
-import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdStatus from '../../components/master-data/MdStatus.vue'
 
 const rows = ref<PrintTemplateRow[]>([])
@@ -152,14 +151,6 @@ onMounted(loadList)
 
 <template>
   <section class="md-page md-print-template-page">
-    <MdPageHeader
-      crumb="定数包管理"
-      title="打印模板调整"
-      description="调整定数包标签打印模板的字段、顺序与纸张设置，保存后打印时生效。"
-      :loading="loading"
-      @refresh="loadList"
-    />
-
     <p v-if="error" class="md-error">{{ error }}</p>
 
     <MdDataTableCard :meta-count="`共 ${rows.length} 个模板`" :loading="loading">

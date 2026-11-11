@@ -25,14 +25,6 @@ export function useQuotaPackageViewState(options: {
     const code = options.routeCode()
     return code in quotaPackageSections ? (code as QuotaPackageSectionCode) : 'quota-template-maintenance'
   })
-  const title = computed(() =>
-    mode.value === 'safety' ? '定数安全量' : quotaPackageSections[packageSection.value].title
-  )
-  const subtitle = computed(() =>
-    mode.value === 'safety'
-      ? '按科室、商品和定数包模板维护安全上下限，用于请补货和库存预警。'
-      : quotaPackageSections[packageSection.value].subtitle
-  )
   const pendingTaskCount = computed(
     () => options.tasks.value.filter((item) => item.status === 'pending_confirm').length
   )
@@ -71,8 +63,6 @@ export function useQuotaPackageViewState(options: {
   return {
     mode,
     packageSection,
-    title,
-    subtitle,
     stats
   }
 }

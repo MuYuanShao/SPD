@@ -6,6 +6,8 @@ import type { QuotaTemplateRow } from '../../api/quotaPackages'
 
 const props = defineProps<{
   open: boolean
+  loading: boolean
+  error: string
   templateQuery: {
     templateCode: string
     templateName: string
@@ -18,6 +20,7 @@ const emit = defineEmits<{
   (event: 'update:open', value: boolean): void
   (event: 'update:showAll', value: boolean): void
   (event: 'select', row: QuotaTemplateRow): void
+  (event: 'retry'): void
 }>()
 
 const isOpen = computed({
@@ -111,7 +114,16 @@ function closeDialog() {
                   </button>
                 </td>
               </tr>
-              <tr v-if="!templates.length">
+              <tr v-if="loading">
+                <td colspan="8" class="qts-empty">正在加载打包模板…</td>
+              </tr>
+              <tr v-else-if="error">
+                <td colspan="8" class="qts-empty" role="alert">
+                  {{ error }}
+                  <button class="qts-btn qts-btn-sm" type="button" @click="emit('retry')">重试</button>
+                </td>
+              </tr>
+              <tr v-else-if="!templates.length">
                 <td colspan="8" class="qts-empty">没有找到匹配的定数包模板</td>
               </tr>
             </tbody>

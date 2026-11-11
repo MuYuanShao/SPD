@@ -136,6 +136,89 @@ test('科室库房目录显示切回页面后的当前库房等级', async ({ pa
   await expect(row.getByText('库房等级：二级库', { exact: true })).toBeVisible()
 })
 
+test('新增库房按所属院区筛选关联科室并清除原选择', async ({ page }) => {
+  await page.route('**/api/master-data/campuses/options', route => route.fulfill({
+    json: { code: 0, data: [{ code: 'MAIN', name: '主院区' }, { code: 'EAST', name: '东院区' }] }
+  }))
+  await page.route('**/api/master-data/warehouses/department-options', route => route.fulfill({
+    json: { code: 0, data: [
+      { deptCode: 'MAIN-01', deptName: '主院区内科', campusName: '主院区' },
+      { deptCode: 'EAST-01', deptName: '东院区内科', campusName: '东院区' }
+    ] }
+  }))
+  await page.goto('/features/warehouse-location-management')
+  await login(page)
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '新增库房' }) })
+  const campus = dialog.getByRole('combobox').filter({ has: page.getByRole('option', { name: '请选择院区' }) })
+  await expect(dialog.getByPlaceholder('请先选择所属院区')).toBeDisabled()
+  await campus.selectOption('主院区')
+  await dialog.getByRole('button', { name: '搜索科室' }).click()
+  await expect(dialog.getByRole('button', { name: /主院区内科/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /东院区内科/ })).toBeHidden()
+  await dialog.getByRole('button', { name: /主院区内科/ }).click()
+  await campus.selectOption('东院区')
+  await expect(dialog.getByPlaceholder('输入科室名称或编码')).toHaveValue('')
+  await dialog.getByRole('button', { name: '搜索科室' }).click()
+  await expect(dialog.getByRole('button', { name: /东院区内科/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /主院区内科/ })).toBeHidden()
+})
+
+test('打开打包模板弹窗时能选到页面打开后新增的模板', async ({ page }) => {
+  let available = false
+  const template = { templateId: 301, templateCode: 'TPL-NEW', templateName: '刚新增的模板', status: '启用',
+    productName: '测试耗材', specModel: 'TEST-01', manufacturerName: '测试厂家', quantity: 5, unit: '支' }
+  const original = { ...template, templateId: 300, templateCode: 'TPL-ORIGINAL', templateName: '原模板' }
+  await page.route('**/api/quota-packages/templates?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const size = Number(params.get('size'))
+    const rows = available ? [original, template] : [original]
+    return route.fulfill({ json: { code: 0, data: { rows, page: 1, size, total: rows.length } } })
+  })
+  await page.route('**/api/quota-packages/packing-options', route => route.fulfill({
+    json: { code: 0, data: { warehouses: [
+      { warehouseName: '主院区中心库', warehouseType: '中心库' },
+      { warehouseName: '东院区中心库', warehouseType: '中心库' }
+    ], candidates: [] } }
+  }))
+  await page.route('**/api/quota-packages/packing-tasks?*', route => route.fulfill({
+    json: { code: 0, data: { rows: [], page: 1, size: 20, total: 0 } }
+  }))
+  await page.goto('/features/quota-template-maintenance')
+  await login(page)
+  const originalRow = page.getByRole('row').filter({ hasText: 'TPL-ORIGINAL' })
+  await expect(originalRow).toBeVisible()
+  const initialTemplates = page.waitForResponse(response => new URL(response.url()).pathname === '/api/quota-packages/templates')
+  await originalRow.getByRole('button', { name: '打包', exact: true }).click()
+  await initialTemplates
+  available = true
+  const topCard = page.locator('.pt-page > .pt-card').first()
+  await expect(topCard.getByRole('heading', { name: '按验收单分配散货' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建任务', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '终止任务', exact: true })).toHaveCount(0)
+  const dialog = page.getByRole('dialog', { name: '新建打包任务' })
+  const warehouse = dialog.getByRole('combobox', { name: '库房' })
+  await warehouse.click()
+  await expect(page.getByRole('option', { name: '主院区中心库' })).toBeVisible()
+  await expect(page.getByRole('option', { name: '东院区中心库' })).toBeVisible()
+  await warehouse.fill('东院区')
+  await expect(page.getByRole('option', { name: '主院区中心库' })).toBeHidden()
+  await page.getByRole('option', { name: '东院区中心库' }).click()
+  await expect(page.locator('.pt-warehouse-select')).toContainText('东院区中心库')
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('TPL-ORIGINAL')
+  await dialog.getByRole('button', { name: '清除', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('')
+  await expect(dialog.getByLabel('每包数量')).toHaveValue('')
+  await dialog.getByRole('button', { name: '选择打包模板', exact: true }).click()
+  await page.getByRole('row').filter({ hasText: 'TPL-NEW' }).getByRole('button', { name: '选择', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('TPL-NEW')
+  await expect(dialog.getByLabel('模板名称')).toHaveValue('测试耗材')
+  await expect(dialog.getByLabel('商品名称')).toHaveValue('测试耗材')
+  await expect(dialog.getByLabel('每包数量')).toHaveValue('5 支/包')
+  await dialog.getByRole('button', { name: '清除', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('')
+})
+
 test('定数包模板的打包按钮跳转并保留第二页选中的模板', async ({ page }) => {
   const template = {
     templateId: 21, templateCode: 'TPL-SMOKE-021', templateName: '第二页测试模板',
@@ -195,8 +278,8 @@ test('定数包模板的打包按钮跳转并保留第二页选中的模板', as
   await row.getByRole('button', { name: '打包', exact: true }).click()
   await expect(page).toHaveURL(/\/features\/packing-task-confirmation$/)
   await expect(page.getByRole('row').filter({ hasText: 'PT-SMOKE-READY' })).toBeVisible()
-  await expect(page.locator('.pt-selected-template')).toContainText(template.templateCode)
-  const create = page.getByRole('button', { name: '新建任务', exact: true })
+  await expect(page.getByRole('dialog', { name: '新建打包任务' }).getByLabel('模板编码')).toHaveValue(template.templateCode)
+  const create = page.getByRole('dialog', { name: '新建打包任务' }).getByRole('button', { name: '确认创建' })
   await expect(create).toBeEnabled()
   expect(submittedVersions).toEqual([])
 

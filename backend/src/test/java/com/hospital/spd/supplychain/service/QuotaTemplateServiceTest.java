@@ -81,7 +81,7 @@ class QuotaTemplateServiceTest {
         List<Map<String, Object>> result = rows(service.templates(Map.of("page", "1")));
 
         assertThat(result).hasSize(2);
-        verify(jdbcTemplate).queryForList(contains("LIMIT ? OFFSET ?"), any(Object[].class));
+        verify(jdbcTemplate).queryForList(contains("p.product_name AS templateName"), any(Object[].class));
     }
 
     @Test
@@ -247,8 +247,8 @@ class QuotaTemplateServiceTest {
     }
 
     @Test
-    @DisplayName("创建模板——模板名称为空时自动生成定数包名称（商品名称+定数包）")
-    void shouldAutoGenerateTemplateNameWhenBlank() throws Exception {
+    @DisplayName("创建模板——模板名称取商品名称")
+    void shouldUseProductNameAsTemplateName() throws Exception {
         QuotaTemplateRequest request = new QuotaTemplateRequest(
                 "TP001", "", null, "PC001",
                 BigDecimal.valueOf(5), "包"
@@ -281,8 +281,13 @@ class QuotaTemplateServiceTest {
         Map<String, Object> result = service.createTemplate(request);
 
         assertThat(result).containsEntry("templateCode", "TP001");
-        // 模板名称自动生成：商品名称 + 定数包
-        verify(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+        var creator = org.mockito.ArgumentCaptor.forClass(PreparedStatementCreator.class);
+        verify(jdbcTemplate).update(creator.capture(), any(KeyHolder.class));
+        var connection = mock(java.sql.Connection.class);
+        var statement = mock(java.sql.PreparedStatement.class);
+        when(connection.prepareStatement(anyString(), eq(java.sql.Statement.RETURN_GENERATED_KEYS))).thenReturn(statement);
+        creator.getValue().createPreparedStatement(connection);
+        verify(statement).setString(2, "注射器");
     }
 
     @Test

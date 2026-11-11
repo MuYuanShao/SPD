@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Check, CheckSquare, Layers3, Search, Square, X } from '@lucide/vue'
 import type {
   CampusOption,
+  WarehouseDepartmentOption,
   WarehousePayload,
   WarehouseProductOption
 } from '../../api/masterData'
@@ -12,7 +13,7 @@ const props = defineProps<{
   mode: 'create' | 'edit'
   form: WarehousePayload
   campusOptions: CampusOption[]
-  departmentOptions: Array<{ deptCode: string; deptName: string }>
+  departmentOptions: WarehouseDepartmentOption[]
   productOptions: WarehouseProductOption[]
   productsLoading: boolean
 }>()
@@ -31,12 +32,10 @@ const warehouseTypeOptions = computed(() => {
 })
 
 const filteredDepartments = computed(() => {
+  if (!props.form.campusName) return []
   const keyword = String(props.form.deptName ?? '').trim().toLowerCase()
-  if (!keyword) return props.departmentOptions
-  return props.departmentOptions.filter((dept) =>
-    String(dept.deptName ?? '').toLowerCase().includes(keyword) ||
-    String(dept.deptCode ?? '').toLowerCase().includes(keyword)
-  )
+  return props.departmentOptions.filter(dept => dept.campusName === props.form.campusName &&
+    (dept.deptName.toLowerCase().includes(keyword) || dept.deptCode.toLowerCase().includes(keyword)))
 })
 
 const filteredProducts = computed(() => {
@@ -56,7 +55,13 @@ watch(() => props.open, (open) => {
 })
 
 function searchDepartments() {
-  deptResultsOpen.value = true
+  deptResultsOpen.value = Boolean(props.form.campusName)
+}
+
+function changeCampus() {
+  props.form.deptCode = ''
+  props.form.deptName = ''
+  deptResultsOpen.value = false
 }
 
 function handleDepartmentInput() {
@@ -139,7 +144,7 @@ const emit = defineEmits<{
           </label>
           <label class="field-cell">
             <span>所属院区</span>
-            <select v-model.trim="form.campusName" required>
+            <select v-model.trim="form.campusName" required @change="changeCampus">
               <option value="">请选择院区</option>
               <option v-for="campus in campusOptions" :key="campus.code" :value="campus.name">
                 {{ campus.name }}
@@ -152,12 +157,14 @@ const emit = defineEmits<{
               <div class="dept-search-input">
                 <input
                   v-model.trim="form.deptName"
-                  placeholder="输入科室名称，回车或点击放大镜搜索"
+                  :placeholder="form.campusName ? '输入科室名称或编码' : '请先选择所属院区'"
+                  :disabled="!form.campusName"
                   @keyup.enter="searchDepartments"
                   @input="handleDepartmentInput"
                   @focus="searchDepartments"
                 />
-                <button class="wdb-btn wdb-btn-info wdb-btn-icon" type="button" aria-label="搜索科室" @click="searchDepartments">
+                <button class="wdb-btn wdb-btn-info wdb-btn-icon" type="button" aria-label="搜索科室"
+                  :disabled="!form.campusName" @click="searchDepartments">
                   <Search :size="16" />
                 </button>
               </div>

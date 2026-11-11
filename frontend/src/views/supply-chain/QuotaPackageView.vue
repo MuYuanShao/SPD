@@ -3,13 +3,12 @@ import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch }
 import { Teleport } from 'vue'
 import { packageReferencePrice } from '../../utils/quotaPackagePricing'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElDialog, ElMessage, ElOption, ElSelect } from 'element-plus'
 import {
   AlertCircle,
   ArchiveRestore,
   ArrowRight,
   Ban,
-  Boxes,
   CheckCircle2,
   ClipboardList,
   Columns3,
@@ -19,7 +18,6 @@ import {
   History,
   PackageCheck,
   Plus,
-  PlusCircle,
   Printer,
   RefreshCw,
   Save,
@@ -29,7 +27,6 @@ import {
   X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
-import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import TableStateRow from '../../components/common/TableStateRow.vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchMasterDataPage } from '../../api/masterData'
@@ -98,6 +95,7 @@ const visibleSnapshotColumns = computed(() => snapshotColumns.value.filter(colum
 const selectedTaskNo = ref('')
 const taskReservations = ref<Record<string, unknown>[]>([])
 const taskLoading = ref(false)
+const packingCreateOpen = ref(false)
 const safetyImporting = ref(false)
 
 const query = reactive({
@@ -114,7 +112,6 @@ const query = reactive({
 })
 const templateForm = reactive({
   templateCode: '',
-  templateName: '',
   productCode: '',
   quantity: 1,
   unit: ''
@@ -238,6 +235,9 @@ const {
   filteredPackingTemplates,
   selectedPackingTemplate,
   openTemplateSelector,
+  templateSelectorLoading,
+  templateSelectorError,
+  loadTemplateChoices,
   selectPackingTemplate,
   clearPackingTemplate
 } = useQuotaTemplateSelector({ templates, warehouses, packingForm })
@@ -277,7 +277,7 @@ const selectedTemplates = computed(() =>
   templates.value.filter((item) => selectedTemplateCodes.value.includes(item.templateCode))
 )
 
-const { mode, packageSection, title, subtitle } = useQuotaPackageViewState({
+const { mode, packageSection } = useQuotaPackageViewState({
   routeCode: () => String(route.params.code),
   templates,
   safetyRows,
@@ -340,6 +340,7 @@ async function openPackingTaskForTemplate(row: QuotaTemplateRow) {
   const failure = await router.push({ name: 'quota-package', params: { code: 'packing-task-confirmation' } })
   if (!failure && route.params.code === 'packing-task-confirmation') {
     selectPackingTemplate(row)
+    packingCreateOpen.value = true
   }
 }
 
@@ -668,7 +669,6 @@ const {
   approveTask,
   cancelTask,
   terminateTask,
-  terminateTaskByTaskNo: terminateTaskByTaskNoRaw,
   recalculateTask,
   viewTaskReservations,
   unpackLabel,
@@ -719,16 +719,7 @@ async function submitPackingTask() {
     return
   }
   packingFeedback.value = ''
-  await submitPackingTaskRaw(selectedPackingTemplate.value)
-}
-
-async function terminateTaskByTaskNo() {
-  if (tasks.value.length === 0) {
-    notifyError('当前没有可终止的打包任务', 'warning')
-    return
-  }
-  packingFeedback.value = ''
-  await terminateTaskByTaskNoRaw()
+  if (await submitPackingTaskRaw(selectedPackingTemplate.value)) packingCreateOpen.value = false
 }
 
 // 选中模板后清空旧的成功提示
@@ -757,6 +748,7 @@ onMounted(loadData)
 onDeactivated(invalidateLoad)
 watch(() => route.params.code, () => {
   if (route.name !== 'quota-package') return
+  if (route.params.code !== 'packing-task-confirmation') packingCreateOpen.value = false
   // 切换子菜单时清空反馈，避免上一菜单的提示显示在当前菜单
   packingFeedback.value = ''
   actionResult.value = { text: '', tone: 'success' }
@@ -779,14 +771,6 @@ watch(
 
 <template>
   <section class="md-partner-page quota-package-page">
-    <MdPageHeader
-      crumb="定数包管理"
-      :title="title"
-      :description="subtitle"
-      :loading="loading"
-      @refresh="loadData"
-    />
-
     <!-- 全局横幅已移除：所有操作反馈统一走 ElMessage（失败/警告）
          或当前子菜单的就地提示条（成功），不会跨菜单残留。 -->
     <div v-if="loadError" class="pt-load-error">
@@ -1036,91 +1020,212 @@ watch(
         v-if="packageSection === 'packing-task-confirmation'"
         class="pt-page"
       >
-        <!-- 主卡片：新建任务 -->
-        <div class="pt-card">
+        <!-- 分配卡片 -->
+        <div class="pt-card receiving-allocate-panel">
           <div class="pt-card-header">
             <div class="pt-card-header-left">
               <span class="pt-card-header-icon">
-                <PlusCircle :size="14" />
+                <PackageCheck :size="14" />
               </span>
-              <span class="pt-card-header-title">新建打包任务</span>
+              <h3 class="pt-card-header-title">按验收单分配散货</h3>
+            </div>
+            <div class="pt-card-header-desc-inline">
+              分配数量需为每包数量的整数倍（自动增加打包数量）；部分分配后验收单剩余量保持散货库存
             </div>
           </div>
-          <div class="pt-form-grid">
+          <div v-if="authStore.hasPermission('quota-packing-task:create')" class="pt-form-grid pt-form-grid-3">
             <label class="pt-form-field">
-              <span class="pt-form-label">打包模板 <em class="pt-form-required">*</em></span>
+              <span class="pt-form-label">打包任务</span>
+              <select v-model="allocateTaskNo" class="pt-select">
+                <option value="">请选择待确认打包任务</option>
+                <option
+                  v-for="task in tasks"
+                  :key="task.taskNo"
+                  :value="task.taskNo"
+                >
+                  {{ task.taskNo }}（{{ task.productName }}，已预占 {{ task.reservedLooseQty }}）
+                </option>
+              </select>
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">验收单号</span>
+              <input
+                v-model.trim="receivingNo"
+                placeholder="输入验收单号"
+                class="pt-input"
+                @keydown.enter.prevent="searchReceivingLooseStock"
+              />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">分配数量</span>
+              <input v-integer-quantity
+                v-model.number="allocateQty"
+                type="number"
+                min="0"
+                placeholder="留空为全部"
+                class="pt-input"
+              />
+            </label>
+            <div class="pt-form-actions">
               <button
-                v-if="!selectedPackingTemplate"
+                class="pt-btn pt-btn-ghost"
                 type="button"
-                class="pt-template-picker is-empty"
-                :disabled="taskLoading"
-                @click="openTemplateSelector"
+                @click="searchReceivingLooseStock"
               >
                 <Search :size="14" />
-                <span class="pt-template-picker-text">点击选择打包模板</span>
-                <span class="pt-template-picker-code">未选择</span>
+                <span>查询散货</span>
               </button>
-              <div v-else class="pt-selected-template">
-                <div class="pt-selected-template-head">
-                  <div class="pt-selected-template-title">
-                    <Boxes :size="14" />
-                    <strong class="pt-selected-template-name">{{ selectedPackingTemplate.templateName }}</strong>
-                    <span class="pt-selected-template-code">{{ selectedPackingTemplate.templateCode }}</span>
-                  </div>
-                  <div class="pt-selected-template-actions">
-                    <button
-                      type="button"
-                      class="pt-btn-text"
-                      :title="'更换打包模板'"
-                      :disabled="taskLoading"
-                      @click="openTemplateSelector"
-                    >
-                      <RefreshCw :size="13" />
-                      <span>更换</span>
-                    </button>
-                    <button
-                      type="button"
-                      class="pt-btn-text pt-btn-text-danger"
-                      :title="'清除已选模板'"
-                      :disabled="taskLoading"
-                      @click="clearPackingTemplate"
-                    >
-                      <X :size="13" />
-                      <span>清除</span>
-                    </button>
-                  </div>
-                </div>
-                <dl class="pt-selected-template-meta">
-                  <div class="pt-selected-template-meta-item">
-                    <dt>商品</dt>
-                    <dd>{{ selectedPackingTemplate.productName || '-' }}</dd>
-                  </div>
-                  <div class="pt-selected-template-meta-item">
-                    <dt>规格</dt>
-                    <dd>{{ selectedPackingTemplate.specModel || '-' }}</dd>
-                  </div>
-                  <div class="pt-selected-template-meta-item">
-                    <dt>厂家</dt>
-                    <dd>{{ selectedPackingTemplate.manufacturerName || '-' }}</dd>
-                  </div>
-                  <div class="pt-selected-template-meta-item">
-                    <dt>每包数量</dt>
-                    <dd>{{ selectedPackingTemplate.quantity }} {{ selectedPackingTemplate.unit }}/包</dd>
-                  </div>
-                </dl>
+              <button
+                class="pt-btn"
+                type="button"
+                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
+                @click="doAllocateFromReceiving(false)"
+              >
+                分配
+              </button>
+              <button
+                class="pt-btn pt-btn-primary"
+                type="button"
+                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
+                @click="doAllocateFromReceiving(true)"
+              >
+                全部打包分配
+              </button>
+            </div>
+          </div>
+
+          <!-- 散货批次 -->
+          <div v-if="looseStockRows.length" class="pt-sub-group">
+            <div class="pt-sub-group-header">
+              <span class="pt-sub-group-title">
+                <ClipboardList :size="13" />
+                散货批次
+              </span>
+              <span class="pt-chip">共 {{ looseStockRows.length }} 条</span>
+            </div>
+            <div class="pt-table-scroll">
+              <table class="pt-table pt-table-compact">
+                <thead>
+                  <tr>
+                    <th>商品</th>
+                    <th>系统批号</th>
+                    <th>生产批次</th>
+                    <th>可用散货</th>
+                    <th>批次单价</th>
+                    <th>单位</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="(row, index) in looseStockRows"
+                    :key="index"
+                  >
+                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
+                    <td>{{ row.systemBatchNo }}</td>
+                    <td>{{ row.productionBatchNo || '-' }}</td>
+                    <td>{{ row.availableQty }}</td>
+                    <td>{{ row.unitPrice }}</td>
+                    <td>{{ row.unit }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- 已分配记录 -->
+          <div v-if="receivingAllocations.length" class="pt-sub-group">
+            <div class="pt-sub-group-header">
+              <span class="pt-sub-group-title">
+                <ClipboardList :size="13" />
+                已分配记录
+              </span>
+              <span class="pt-chip">共 {{ receivingAllocations.length }} 条</span>
+            </div>
+            <div class="pt-table-scroll">
+              <table class="pt-table pt-table-compact">
+                <thead>
+                  <tr>
+                    <th>验收单号</th>
+                    <th>系统批号</th>
+                    <th>生产批次</th>
+                    <th>商品</th>
+                    <th>已分配</th>
+                    <th>单价</th>
+                    <th>状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="row in receivingAllocations"
+                    :key="String(row.reservationId)"
+                  >
+                    <td>{{ row.receivingNo }}</td>
+                    <td>{{ row.systemBatchNo }}</td>
+                    <td>{{ row.productionBatchNo || '-' }}</td>
+                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
+                    <td>{{ row.reservedQty }}</td>
+                    <td>{{ row.unitPrice }}</td>
+                    <td>{{ row.status }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+          <ElDialog v-model="packingCreateOpen" title="新建打包任务" width="min(760px, 94vw)" append-to-body
+            :close-on-click-modal="false" :close-on-press-escape="!taskLoading" :show-close="!taskLoading">
+          <div class="pt-page pt-create-form">
+          <div class="pt-form-grid">
+            <div class="pt-form-field pt-template-controls">
+              <span class="pt-form-label">打包模板 <em class="pt-form-required">*</em></span>
+              <div class="pt-template-controls-actions">
+                <button type="button" class="pt-btn pt-btn-ghost" :disabled="taskLoading" @click="openTemplateSelector">
+                  <Search :size="14" />
+                  {{ selectedPackingTemplate ? '更换打包模板' : '选择打包模板' }}
+                </button>
+                <button v-if="selectedPackingTemplate" type="button" class="pt-btn pt-btn-ghost"
+                  :disabled="taskLoading" @click="clearPackingTemplate">
+                  <X :size="14" /> 清除
+                </button>
               </div>
+            </div>
+            <label class="pt-form-field">
+              <span class="pt-form-label">模板编码</span>
+              <input class="pt-input pt-template-readonly" :value="selectedPackingTemplate?.templateCode" readonly placeholder="—" />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">模板名称</span>
+              <input class="pt-input pt-template-readonly" :value="selectedPackingTemplate?.productName" readonly placeholder="—" />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">商品名称</span>
+              <input class="pt-input pt-template-readonly" :value="selectedPackingTemplate?.productName" readonly placeholder="—" />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">规格型号</span>
+              <input class="pt-input pt-template-readonly" :value="selectedPackingTemplate?.specModel" readonly placeholder="—" />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">生产厂家</span>
+              <input class="pt-input pt-template-readonly" :value="selectedPackingTemplate?.manufacturerName" readonly placeholder="—" />
+            </label>
+            <label class="pt-form-field">
+              <span class="pt-form-label">每包数量</span>
+              <input class="pt-input pt-template-readonly" readonly placeholder="—"
+                :value="selectedPackingTemplate ? `${selectedPackingTemplate.quantity} ${selectedPackingTemplate.unit}/包` : ''" />
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">库房</span>
-              <select v-model="packingForm.warehouseName" class="pt-select" :disabled="taskLoading">
-                <option
+              <ElSelect v-model="packingForm.warehouseName" class="pt-warehouse-select"
+                aria-label="库房" placeholder="搜索或选择库房" filterable :disabled="taskLoading">
+                <ElOption
                   v-for="item in warehouses"
                   :key="item.warehouseName"
+                  :label="item.warehouseName"
                   :value="item.warehouseName"
-                >
-                  {{ item.warehouseName }}
-                </option>
-              </select>
+                />
+              </ElSelect>
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">打包数量</span>
@@ -1141,31 +1246,25 @@ watch(
                 class="pt-input"
               />
             </label>
-            <div class="pt-form-actions">
-              <button
-                v-if="authStore.hasPermission('quota-packing-task:terminate')"
-                type="button"
-                class="pt-btn pt-btn-ghost"
-                :disabled="tasks.length === 0"
-                :title="tasks.length === 0 ? '当前没有可终止的打包任务' : '按任务号终止打包任务'"
-                @click="terminateTaskByTaskNo"
-              >
-                <Ban :size="14" />
-                <span>终止任务</span>
-              </button>
+          </div>
+          <div class="pt-form-actions">
+              <button type="button" class="pt-btn pt-btn-ghost" :disabled="taskLoading" @click="packingCreateOpen = false">取消</button>
               <button
                 v-if="authStore.hasPermission('quota-packing-task:create')"
                 type="button"
                 class="pt-btn pt-btn-primary"
-                :disabled="taskLoading || !selectedPackingTemplate"
+                :disabled="taskLoading || !selectedPackingTemplate || !packingForm.warehouseName"
                 :title="!packingForm.templateCode ? '请先选择打包模板' : '创建打包任务'"
                 @click="submitPackingTask"
               >
                 <Save :size="14" />
-                <span>{{ taskLoading ? '创建中...' : '新建任务' }}</span>
+                <span>{{ taskLoading ? '创建中...' : '确认创建' }}</span>
               </button>
             </div>
           </div>
+          </ElDialog>
+
+        <div class="pt-card">
 
           <!-- 成功提示就地显示；失败统一用 ElMessage 弹出，不占用页面版面 -->
           <div
@@ -1324,159 +1423,6 @@ watch(
             @change-page="changeQuotaPage('tasks', $event)"
             @change-size="changeQuotaPageSize('tasks', $event)"
           />
-        </div>
-
-        <!-- 分配卡片 -->
-        <div class="pt-card">
-          <div class="pt-card-header">
-            <div class="pt-card-header-left">
-              <span class="pt-card-header-icon">
-                <PackageCheck :size="14" />
-              </span>
-              <span class="pt-card-header-title">按验收单分配散货</span>
-            </div>
-            <div class="pt-card-header-desc-inline">
-              分配数量需为每包数量的整数倍（自动增加打包数量）；部分分配后验收单剩余量保持散货库存
-            </div>
-          </div>
-          <div v-if="authStore.hasPermission('quota-packing-task:create')" class="pt-form-grid pt-form-grid-3">
-            <label class="pt-form-field">
-              <span class="pt-form-label">打包任务</span>
-              <select v-model="allocateTaskNo" class="pt-select">
-                <option value="">请选择待确认打包任务</option>
-                <option
-                  v-for="task in tasks"
-                  :key="task.taskNo"
-                  :value="task.taskNo"
-                >
-                  {{ task.taskNo }}（{{ task.productName }}，已预占 {{ task.reservedLooseQty }}）
-                </option>
-              </select>
-            </label>
-            <label class="pt-form-field">
-              <span class="pt-form-label">验收单号</span>
-              <input
-                v-model.trim="receivingNo"
-                placeholder="输入验收单号"
-                class="pt-input"
-                @keydown.enter.prevent="searchReceivingLooseStock"
-              />
-            </label>
-            <label class="pt-form-field">
-              <span class="pt-form-label">分配数量</span>
-              <input v-integer-quantity
-                v-model.number="allocateQty"
-                type="number"
-                min="0"
-                placeholder="留空为全部"
-                class="pt-input"
-              />
-            </label>
-            <div class="pt-form-actions">
-              <button
-                class="pt-btn pt-btn-ghost"
-                type="button"
-                @click="searchReceivingLooseStock"
-              >
-                <Search :size="14" />
-                <span>查询散货</span>
-              </button>
-              <button
-                class="pt-btn"
-                type="button"
-                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
-                @click="doAllocateFromReceiving(false)"
-              >
-                分配
-              </button>
-              <button
-                class="pt-btn pt-btn-primary"
-                type="button"
-                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
-                @click="doAllocateFromReceiving(true)"
-              >
-                全部打包分配
-              </button>
-            </div>
-          </div>
-
-          <!-- 散货批次 -->
-          <div v-if="looseStockRows.length" class="pt-sub-group">
-            <div class="pt-sub-group-header">
-              <span class="pt-sub-group-title">
-                <ClipboardList :size="13" />
-                散货批次
-              </span>
-              <span class="pt-chip">共 {{ looseStockRows.length }} 条</span>
-            </div>
-            <div class="pt-table-scroll">
-              <table class="pt-table pt-table-compact">
-                <thead>
-                  <tr>
-                    <th>商品</th>
-                    <th>系统批号</th>
-                    <th>生产批次</th>
-                    <th>可用散货</th>
-                    <th>批次单价</th>
-                    <th>单位</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(row, index) in looseStockRows"
-                    :key="index"
-                  >
-                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
-                    <td>{{ row.systemBatchNo }}</td>
-                    <td>{{ row.productionBatchNo || '-' }}</td>
-                    <td>{{ row.availableQty }}</td>
-                    <td>{{ row.unitPrice }}</td>
-                    <td>{{ row.unit }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <!-- 已分配记录 -->
-          <div v-if="receivingAllocations.length" class="pt-sub-group">
-            <div class="pt-sub-group-header">
-              <span class="pt-sub-group-title">
-                <ClipboardList :size="13" />
-                已分配记录
-              </span>
-              <span class="pt-chip">共 {{ receivingAllocations.length }} 条</span>
-            </div>
-            <div class="pt-table-scroll">
-              <table class="pt-table pt-table-compact">
-                <thead>
-                  <tr>
-                    <th>验收单号</th>
-                    <th>系统批号</th>
-                    <th>生产批次</th>
-                    <th>商品</th>
-                    <th>已分配</th>
-                    <th>单价</th>
-                    <th>状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="row in receivingAllocations"
-                    :key="String(row.reservationId)"
-                  >
-                    <td>{{ row.receivingNo }}</td>
-                    <td>{{ row.systemBatchNo }}</td>
-                    <td>{{ row.productionBatchNo || '-' }}</td>
-                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
-                    <td>{{ row.reservedQty }}</td>
-                    <td>{{ row.unitPrice }}</td>
-                    <td>{{ row.status }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
 
         <!-- 预占明细弹窗 -->
@@ -2187,11 +2133,11 @@ watch(
               />
             </label>
             <label class="qtd-field qtd-field-wide">
-              <span>定数包名称</span>
+              <span>模板名称</span>
               <input
                 readonly
-                :value="templateForm.templateName || ((selectedProductInfo?.productName || '') + '定数包')"
-                placeholder="选择商品后自动生成：商品名称 + 定数包"
+                :value="selectedProductInfo?.productName || ''"
+                placeholder="选择商品后自动回填"
               />
             </label>
             <label class="qtd-field qtd-field-wide">
@@ -2265,15 +2211,17 @@ watch(
         @search="searchQuotaProducts()"
         @select="selectProduct"
       />
-    </Teleport>
-
     <QuotaTemplateSelectorDialog
       v-model:open="templateSelectorOpen"
       v-model:show-all="showAllTemplates"
       :template-query="templateSelectorQuery"
       :templates="filteredPackingTemplates"
+      :loading="templateSelectorLoading"
+      :error="templateSelectorError"
+      @retry="loadTemplateChoices"
       @select="selectPackingTemplate"
     />
+    </Teleport>
 
     <SpdConfirmHost />
   </section>
@@ -2347,6 +2295,14 @@ watch(
   min-width: 0;
 }
 
+.pt-create-form .pt-form-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}
+
+.pt-create-form > .pt-form-actions {
+  justify-content: flex-end;
+}
+
 .pt-card-header-icon {
   display: inline-flex;
   align-items: center;
@@ -2360,6 +2316,7 @@ watch(
 }
 
 .pt-card-header-title {
+  margin: 0;
   font-size: 14px;
   font-weight: 600;
   color: var(--pt-text);
@@ -2426,81 +2383,18 @@ watch(
   font-weight: 700;
 }
 
-/* ===== 模板选择器（整块可点击，明显入口）===== */
-.pt-template-picker {
+.pt-template-controls {
+  grid-column: 1 / -1;
+}
+
+.pt-template-controls-actions {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  width: 100%;
-  min-width: 0;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px dashed var(--pt-border);
-  border-radius: var(--pt-radius-sm);
-  background: var(--pt-bg-card);
-  color: var(--pt-text-secondary);
-  font-size: 13px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  text-align: left;
 }
 
-.pt-template-picker > svg {
-  flex: 0 0 14px;
-  color: var(--pt-primary);
-}
-
-.pt-template-picker-text {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--pt-text-tertiary);
-  font-weight: 500;
-}
-
-.pt-template-picker-code {
-  flex: 0 0 auto;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: var(--pt-text-tertiary);
+.pt-input.pt-template-readonly {
   background: var(--pt-bg-muted);
-  border: 1px solid var(--pt-border-subtle);
-  border-radius: 3px;
-  padding: 1px 6px;
-}
-
-.pt-template-picker.is-empty {
-  border-color: var(--pt-primary);
-  background: var(--pt-primary-soft);
-}
-
-.pt-template-picker.is-empty .pt-template-picker-text {
-  color: var(--pt-primary);
-  font-weight: 600;
-}
-
-.pt-template-picker:hover {
-  border-color: var(--pt-primary);
-  border-style: solid;
-  background: var(--pt-primary-soft);
-}
-
-.pt-template-picker:not(.is-empty) {
-  border-style: solid;
-}
-
-.pt-template-picker:not(.is-empty) .pt-template-picker-text {
-  color: var(--pt-text);
-  font-weight: 600;
-}
-
-.pt-template-picker:not(.is-empty) .pt-template-picker-code {
-  color: var(--pt-primary);
-  background: var(--pt-primary-soft);
-  border-color: var(--pt-primary-glow);
 }
 
 /* ===== 加载失败（保留重试入口）===== */
@@ -2589,6 +2483,12 @@ watch(
   outline: none;
   border-color: var(--pt-primary);
   box-shadow: 0 0 0 3px var(--pt-primary-glow);
+}
+
+.pt-warehouse-select {
+  width: 100%;
+  --el-border-color: var(--pt-border);
+  --el-border-radius-base: var(--pt-radius-sm);
 }
 
 .pt-input-icon-wrap {
@@ -2703,104 +2603,6 @@ watch(
 
 .pt-template-row-sep {
   display: none;
-}
-
-/* ===== 已选模板卡片（替代原散落的 .pt-template-row 单行） ===== */
-.pt-selected-template {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--pt-primary-glow);
-  background: var(--pt-primary-soft);
-  border-radius: var(--pt-radius-md);
-  box-sizing: border-box;
-}
-
-.pt-selected-template-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pt-selected-template-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pt-selected-template-title > svg {
-  color: var(--pt-primary);
-  flex-shrink: 0;
-}
-
-.pt-selected-template-name {
-  color: var(--pt-text);
-  font-size: 14px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 360px;
-}
-
-.pt-selected-template-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 11px;
-  color: var(--pt-text-tertiary);
-  background: var(--pt-bg);
-  border: 1px solid var(--pt-border-subtle);
-  border-radius: var(--pt-radius-sm);
-  padding: 1px 6px;
-}
-
-.pt-selected-template-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.pt-selected-template-meta {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 8px 18px;
-  margin: 0;
-  padding: 8px 10px;
-  background: var(--pt-bg);
-  border-radius: var(--pt-radius-sm);
-  border: 1px dashed var(--pt-border-subtle);
-}
-
-.pt-selected-template-meta-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.pt-selected-template-meta-item dt {
-  color: var(--pt-text-tertiary);
-  font-size: 11px;
-  font-weight: 500;
-  flex: 0 0 auto;
-  margin: 0;
-}
-
-.pt-selected-template-meta-item dd {
-  color: var(--pt-text);
-  font-size: 12px;
-  font-weight: 500;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 /* ===== Chip ===== */

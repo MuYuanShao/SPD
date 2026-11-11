@@ -12,7 +12,6 @@ export type QuotaActionResult = { text: string; tone: 'success' | 'error' | 'war
 
 type TemplateForm = {
   templateCode: string
-  templateName: string
   deptName?: string
   productCode: string
   quantity: number
@@ -81,7 +80,6 @@ export function useQuotaTemplateActions(options: {
   }
   function fillTemplate(row: QuotaTemplateRow) {
     options.templateForm.templateCode = row.templateCode
-    options.templateForm.templateName = row.templateName
     options.templateForm.productCode = row.productCode
     options.templateForm.quantity = Number(row.quantity)
     options.templateForm.unit = row.unit
@@ -99,7 +97,6 @@ export function useQuotaTemplateActions(options: {
 
   function resetTemplateForm() {
     options.templateForm.templateCode = ''
-    options.templateForm.templateName = ''
     options.templateForm.productCode = ''
     options.templateForm.quantity = 1
     options.templateForm.unit = ''

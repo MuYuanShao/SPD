@@ -1,4 +1,5 @@
-import { getData, getPage, postData, putData } from './http'
+import { getData, getPage, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
+import { collectSortedRows } from '../utils/businessListSort'
 
 export interface QuotaTemplateRow {
   baseUnitPrice?: number
@@ -110,6 +111,16 @@ export interface DepartmentRequisitionCatalogRow {
  */
 export async function fetchQuotaTemplates(params: Record<string, string>) {
   return getPage<QuotaTemplateRow>('/quota-packages/templates', { params })
+}
+
+export async function fetchQuotaTemplateChoices() {
+  const read = async (page: number, size: number) => ({
+    ...unwrapData(await http.get<ApiResponse<PageResult<QuotaTemplateRow>>>(
+      '/quota-packages/templates', { params: { page, size } }
+    ))
+  })
+  const first = await read(1, 200)
+  return await collectSortedRows(first, read) as QuotaTemplateRow[]
 }
 
 /**

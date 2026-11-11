@@ -583,7 +583,7 @@ export function usePurchaseManagement() {
     if (orderActionPending.value) return
     orderActionPending.value = true
     try {
-      const result = await updatePurchaseOrderAction(row.orderNo, action, `${statusLabel(row.orderStatus)} -> ${action}`)
+      const result = await updatePurchaseOrderAction(row.orderNo, action, `${statusLabel(row.orderStatus)}→${action}`)
       notify.success(`${row.orderNo} 已更新为 ${statusLabel(result.status)}`)
       await loadData()
     } catch (error) {
@@ -619,7 +619,7 @@ export function usePurchaseManagement() {
 
   async function runDemandAction(row: { demandNo: string; demandStatus: string }, action: string) {
     try {
-      const result = await updatePurchaseDemandAction(row.demandNo, action, `${statusLabel(row.demandStatus)} -> ${action}`)
+      const result = await updatePurchaseDemandAction(row.demandNo, action, `${statusLabel(row.demandStatus)}→${action}`)
       notify.success(`${row.demandNo} 已更新为 ${statusLabel(result.status)}`)
       await loadData()
     } catch (error) {
@@ -629,7 +629,7 @@ export function usePurchaseManagement() {
 
   async function runPlanAction(row: PurchasePlanRow, action: string) {
     try {
-      const result = await updatePurchasePlanAction(row.planNo, action, `${statusLabel(row.planStatus)} -> ${action}`)
+      const result = await updatePurchasePlanAction(row.planNo, action, `${statusLabel(row.planStatus)}→${action}`)
       notify.success(
         result.orderNos?.length
           ? `${row.planNo} 已生成 ${result.orderNos.length} 张采购订单：${result.orderNos.join('、')}`

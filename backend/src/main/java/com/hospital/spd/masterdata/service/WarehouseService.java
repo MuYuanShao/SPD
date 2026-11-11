@@ -226,6 +226,7 @@ public class WarehouseService {
             if (line.isBlank()) {
                 continue;
             }
+            com.hospital.spd.common.WriteFieldWhitespace.requireCsvRecord(line);
             String[] cells = parseCsvLine(line);
             if (cells.length < 4 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;

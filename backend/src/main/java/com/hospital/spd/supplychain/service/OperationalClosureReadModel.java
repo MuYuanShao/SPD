@@ -220,7 +220,7 @@ public class OperationalClosureReadModel {
         args.add(requisitionNo);
         requisitionAccess.appendScope(where, args, "dr.dept_id", "dr.applicant_id");
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT p.product_code AS productCode,
+                SELECT dri.item_id AS itemId, dri.unit AS unit, p.product_code AS productCode,
                        p.product_name AS productName,
                        p.spec_model AS specModel,
                        p.spec_model AS model,

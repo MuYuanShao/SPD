@@ -53,6 +53,13 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
   await expect(dialog.getByRole('alert')).toContainText('两次输入的新密码不一致')
   expect(attempts).toBe(0)
 
+  await dialog.getByLabel('新密码', { exact: true }).fill('new test password')
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('new test password')
+  await save.click()
+  await expect(dialog.getByRole('alert')).toContainText('不支持空格及换行符存在！')
+  expect(attempts).toBe(0)
+
+  await dialog.getByLabel('新密码', { exact: true }).fill('new-test-password')
   await dialog.getByLabel('确认新密码', { exact: true }).fill('new-test-password')
   await save.click()
   await expect(dialog.getByRole('alert')).toContainText('当前密码不正确')
@@ -361,6 +368,46 @@ test('拣配记录弹窗逐条显示完整定数包码', async ({ page }) => {
   await expect(codes.getByRole('listitem').last()).toBeInViewport()
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('待审批科室申领单可在历史列表审批通过', async ({ page }) => {
+  const no = 'SL-SMOKE-APPROVAL'
+  let status = 'pending_approval'
+  await page.route('**/api/operational-closure/lists/requisition**', route => route.fulfill({
+    json: { code: 0, data: { rows: [{ bizNo: no, status }], total: 1, page: 1, size: 20 } }
+  }))
+  await page.route(`**/api/operational-closure/requisitions/${no}/items`, route => route.fulfill({
+    json: { code: 0, data: { rows: [
+      { itemId: 1, productCode: 'P001', productName: '散货', applyQuantity: 10 },
+      { itemId: 2, productCode: 'P002', productName: '定数包商品', itemType: 'quota_package',
+        packageQuantity: 5, packageCount: 2, applyQuantity: 10 }
+    ], total: 2, requisitionNo: no } }
+  }))
+  await page.route(`**/api/operational-closure/requisitions/${no}/action`, route => {
+    expect(route.request().method()).toBe('PUT')
+    const { action, edits } = route.request().postDataJSON()
+    expect(action).toBe('approve')
+    expect(edits.sort((a: { itemId: number }, b: { itemId: number }) => a.itemId - b.itemId)).toEqual([
+      { itemId: 1, originalQuantity: 10 }, { itemId: 2, originalQuantity: 10, quantity: 3 }
+    ])
+    status = 'approved'
+    return route.fulfill({ json: { code: 0, data: { requisitionNo: no, status } } })
+  })
+
+  await page.goto('/features/department-requisition')
+  await login(page)
+  const row = page.getByRole('row').filter({ hasText: no })
+  const approve = row.getByRole('button', { name: '审批通过' })
+  await approve.click()
+  await expect(page.getByRole('spinbutton', { name: 'P001 审批数量' })).toHaveValue('10')
+  const packs = page.getByRole('spinbutton', { name: 'P002 审批数量' })
+  await expect(packs).toHaveValue('2')
+  const firstInput = page.getByRole('dialog', { name: '科室申领审批' }).getByRole('spinbutton').first()
+  await firstInput.click({ trial: true, timeout: 5000 })
+  await packs.fill('3')
+  await page.getByRole('button', { name: '确认通过' }).click()
+  await expect(row.getByText('已通过', { exact: true })).toBeVisible()
+  await expect(approve).toBeHidden()
 })
 
 test('科室申领从历史列表进入当前科室目录并按申领模式折算提交', async ({ page }) => {

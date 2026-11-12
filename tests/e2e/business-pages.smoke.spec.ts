@@ -70,6 +70,38 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
   expect(attempts).toBe(3)
 })
 
+test('医院目录停用商品显示启用并提交审批', async ({ page }) => {
+  const code = 'SMOKE-DISABLED-PRODUCT'
+  let submitted: unknown
+  let attempts = 0
+  await page.route('**/api/master-data/hospital-products?*', route => route.fulfill({
+    json: { code: 0, data: { columns: ['商品编码', '商品名称', '状态'],
+      rows: [{ code, name: '测试停用商品', status: '停用' }], total: 1, page: 1, size: 20 } }
+  }))
+  await page.route('**/api/master-data/hospital-products/status', route => {
+    submitted = route.request().postDataJSON()
+    if (++attempts === 1) return route.fulfill({ json: { code: 400, message: '该商品已有进行中的目录申请，请勿重复提交' } })
+    return route.fulfill({ json: { code: 0, data: { updatedRows: 1 } } })
+  })
+  await page.goto('/features/hospital-product-catalog')
+  await login(page)
+  const menu = page.locator('.spd-mini-nav')
+  for (const name of ['待审批目录', '医院目录', '供应商厂家管理']) {
+    await expect(menu.locator('.spd-mini-nav-item').getByText(name, { exact: true })).toBeVisible()
+  }
+  await expect(menu.getByText('商品目录', { exact: true })).toHaveCount(0)
+  const row = page.getByRole('row').filter({ hasText: code })
+  await expect(row.getByRole('button', { name: '停用', exact: true })).toBeHidden()
+  await row.getByRole('button', { name: '启用', exact: true }).click()
+  const confirm = page.getByRole('dialog', { name: '启用医院目录商品' })
+  const submit = confirm.getByRole('button', { name: '提交启用申请' })
+  await submit.click()
+  await expect(confirm.getByRole('alert')).toHaveText('该商品已有进行中的目录申请，请勿重复提交')
+  await submit.click()
+  await expect(page.getByText('已提交商品状态变更申请，审批通过后生效', { exact: true })).toBeVisible()
+  expect(submitted).toEqual({ productCodes: [code], status: 1 })
+})
+
 test('新增院区时留空自动生成的编码也能提交', async ({ page }) => {
   let payload: Record<string, unknown> | undefined
   await page.route(url => url.pathname === '/api/master-data/campuses', async route => {

@@ -124,7 +124,8 @@ export const featureCatalog = [
     viewFamily: 'feature',
     nodeKind: 'navigation',
     children: [
-      'product-catalog',
+      'pending-product-catalog',
+      'hospital-product-catalog',
       'supplier-manufacturer-management',
       'campus-management',
       'department-management',
@@ -132,15 +133,6 @@ export const featureCatalog = [
       'warehouse-location-management',
       'license-management'
     ]
-  },
-  {
-    code: 'product-catalog',
-    title: '商品目录',
-    icon: 'package-search',
-    routeTarget: '/',
-    viewFamily: 'feature',
-    nodeKind: 'navigation',
-    children: ['pending-product-catalog', 'hospital-product-catalog']
   },
   {
     code: 'pending-product-catalog',
@@ -702,7 +694,6 @@ export const featureViewNodeGroups = {
   navigation: [
     'master-data-quota',
     'quota-package-template',
-    'product-catalog',
     'supply-chain',
     'special-compliance',
     'settlement-finance',

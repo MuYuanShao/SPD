@@ -543,11 +543,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 
 <template>
   <section class="approval-page">
-    <header class="approval-page-title">
-      <h2>待审批目录</h2>
-      <p>多字段模式：固定核心列与操作列，中间字段横向滚动，避免字段换行挤压。</p>
-    </header>
-
     <section class="approval-metric-grid">
       <article
         v-for="metric in approvalMetricCards"

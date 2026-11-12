@@ -1002,6 +1002,20 @@ class ProductApprovalServiceTest {
         }
 
         @Test
+        @DisplayName("终审通过（启用申请）：只更新目录状态")
+        void should_enable_product_without_synchronizing_catalog_fields() {
+            var enableDetail = spy(detail("pending_final", "信息变更"));
+            doReturn(true).when(enableDetail).enableOnly();
+            when(jdbcTemplate.queryForObject(anyString(), any(RowMapper.class), eq("APP001")))
+                    .thenReturn(enableDetail);
+            when(jdbcTemplate.update(contains("SET p.status = 1"), eq("APP001"))).thenReturn(1);
+
+            assertThat(service.processAction("APP001", action("approve", null))).containsEntry("status", "approved");
+            verify(jdbcTemplate).update(contains("SET p.status = 1"), eq("APP001"));
+            verify(jdbcTemplate, never()).update(contains("ON DUPLICATE KEY UPDATE product_name"), any(Object[].class));
+        }
+
+        @Test
         @DisplayName("终审通过（停用申请）：禁用商品到目录")
         void should_disable_product_when_final_approve_disable_application() {
             PendingProductApplicationDetail detail = detail("pending_final", "停用申请");

@@ -70,7 +70,7 @@ const resubmitForm = reactive({
 
 /* ── Edit mode state ── */
 const isEditing = computed(() =>
-  isPendingApprovalStatus(detail.value?.approvalStatus) && detail.value?.canApprove === true
+  isPendingApprovalStatus(detail.value?.approvalStatus) && detail.value?.canApprove === true && !detail.value.enableOnly
 )
 
 const currentApprovalNode = computed(() =>
@@ -474,13 +474,14 @@ function closeResubmitModal() {
 async function submitResubmitForm() {
   if (!detail.value?.canResubmit || submitting.value || saving.value) return
   actionError.value = ''
-  if (resubmitForm.quotaManaged && (resubmitForm.highValue || resubmitForm.coldChain)) {
+  if (!detail.value.enableOnly && resubmitForm.quotaManaged && (resubmitForm.highValue || resubmitForm.coldChain)) {
     actionError.value = '高值耗材或冷链耗材不能设置为定数管理'
     return
   }
   submitting.value = true
   try {
-    await resubmitPendingProductApplication(detail.value.applicationNo, resubmitForm)
+    await resubmitPendingProductApplication(detail.value.applicationNo,
+      detail.value.enableOnly ? { changeReason: resubmitForm.changeReason } : resubmitForm)
     refreshStore.changed()
     actionMessage.value = '已重新提交，按最新审批流从第一步开始审批'
     resubmitModalOpen.value = false
@@ -561,7 +562,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
           </div>
           <div class="approval-actions">
             <button v-if="detail.canResubmit" type="button" class="btn btn-warning" @click="openResubmitModal">
-              修改后重新提交
+              {{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}
             </button>
             <button
               v-if="isPendingApprovalStatus(detail.approvalStatus)"
@@ -810,13 +811,14 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
           <header>
             <div>
               <p>{{ detail.applicationNo }}</p>
-              <h3>修改后重新提交</h3>
+              <h3>{{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}</h3>
             </div>
             <button class="btn-icon" type="button" aria-label="关闭" :disabled="submitting || saving" @click="closeResubmitModal">
               <X :size="18" />
             </button>
           </header>
           <form class="supplier-form-grid" @submit.prevent="submitResubmitForm">
+            <template v-if="!detail.enableOnly">
             <label><span>申请类型</span><input :disabled="submitting || saving" v-model="resubmitForm.applicationType" readonly /></label>
             <label><span>商品编码</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productCode" required /></label>
             <label><span>商品名称</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productName" required /></label>
@@ -859,7 +861,6 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <label><span>二级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.secondCategory" /></label>
             <label><span>三级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.thirdCategory" /></label>
             <label><span>附件数量</span><input :disabled="submitting || saving" v-model.number="resubmitForm.qualificationAttachmentCount" type="number" min="0" /></label>
-            <label class="wide"><span>修改说明</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填，可填写本次修改说明" /></label>
             <div class="dialog-toggle-row">
               <label><input :disabled="submitting || saving" v-model="resubmitForm.volumeBased" type="checkbox" /> 是否带量</label>
               <label><input :disabled="submitting || saving" v-model="resubmitForm.domestic" type="checkbox" /> 是否国产</label>
@@ -869,6 +870,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <label><input :disabled="submitting || saving" v-model="resubmitForm.quotaManaged" type="checkbox" /> 定数管理</label>
               <label><input :disabled="submitting || saving" v-model="resubmitForm.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
+            </template>
+            <label class="wide"><span>{{ detail.enableOnly ? '重新提交说明' : '修改说明' }}</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填" /></label>
             <div class="dialog-actions">
               <button class="btn" type="button" :disabled="submitting || saving" @click="closeResubmitModal">取消</button>
               <button class="btn btn-primary" type="submit" :disabled="submitting || saving">重新提交</button>

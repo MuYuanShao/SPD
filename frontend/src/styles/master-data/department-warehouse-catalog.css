@@ -202,6 +202,11 @@
   color: #536b78;
 }
 
+.catalog-manufacturer-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .catalog-source-chip,
 .catalog-status-chip {
   display: inline-flex;

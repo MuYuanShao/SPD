@@ -1,19 +1,14 @@
 <script setup lang="ts">
 import {
   Ban,
-  Building2,
-  CheckSquare,
   Columns3,
   Download,
   Edit3,
   Factory,
   FileDown,
   FileUp,
-  Flag,
-  Layers,
   Link2,
   ListPlus,
-  PackageCheck,
   Pencil,
   Plus,
   RefreshCw,
@@ -43,7 +38,6 @@ import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import MdStatus from '../../components/master-data/MdStatus.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
-import MdStatsRow from '../../components/master-data/MdStatsRow.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import SpdConfirmDialog from '../../components/common/ConfirmDialog.vue'
@@ -160,8 +154,6 @@ const {
   resetWarehouseQuery,
   toggleAllRows,
   clearActionState,
-  hospitalStats,
-  partnerStats
 } = useMasterDataWorkbench()
 
 const {
@@ -325,6 +317,9 @@ const {
   batchEditSelectedProducts,
   saveBatchProductEdit,
   disableProducts,
+  enableProducts,
+  productStatusAction,
+  productStatusError,
   confirmDisableProducts,
   cancelDisableProducts,
   disableConfirmOpen,
@@ -353,30 +348,6 @@ const {
       'master-page--aligned': isHospitalCatalog || isSupplierManagement || isManufacturerManagement || isCampusManagement || isDepartmentManagement || isDepartmentWarehouseCatalog || isWarehouseManagement
     }"
   >
-    <header v-if="isPartnerCombined" class="md-header md-header--partner">
-      <div class="md-header-inner">
-        <div class="md-header-text">
-          <div class="md-header-crumbs">
-            <strong>基础数据管理</strong>
-          </div>
-          <h2 class="md-header-title">供应商厂家管理</h2>
-          <p class="md-header-sub">统一维护供应商与生产厂家档案，切换页签可分别查看供应商、厂家信息。</p>
-        </div>
-        <div class="md-header-actions">
-          <button
-            type="button"
-            class="md-btn"
-            :disabled="loading"
-            aria-label="刷新"
-            @click="loadPage"
-          >
-            <RefreshCw :size="16" :class="{ 'md-spin': loading }" />
-            <span>刷新</span>
-          </button>
-        </div>
-      </div>
-    </header>
-
     <nav v-if="isPartnerCombined" class="md-tabs sys-master-tabs" aria-label="供应商厂家页签">
       <button
         type="button"
@@ -397,22 +368,6 @@ const {
     </nav>
 
     <section v-if="isHospitalCatalog" class="md-hospital-page">
-      <MdPageHeader
-        title="医院商品目录"
-        description="维护本院商品目录、字段可见性与分页。"
-        :loading="loading"
-        @refresh="loadPage"
-      />
-
-      <MdStatsRow
-        :items="[
-          { label: '医院商品总数', value: Number(hospitalStats.scopeTotal ?? 0), tone: 'primary', hint: '条', icon: PackageCheck },
-          { label: '集采商品', value: Number(hospitalStats.centralizedTotal ?? 0), tone: 'success', hint: '条', icon: Layers },
-          { label: '国产商品', value: Number(hospitalStats.domesticTotal ?? 0), tone: 'warning', hint: '条', icon: Flag },
-          { label: '已停用商品', value: Number(hospitalStats.disabledTotal ?? 0), tone: 'danger', hint: '条', icon: Ban }
-        ]"
-      />
-
       <form class="md-hospital-filter" @submit.prevent="submitHospitalQuery">
         <label>
           <span>商品编码</span>
@@ -511,6 +466,10 @@ const {
           />
         </label>
         <div class="md-hospital-filter-actions">
+          <button type="button" class="md-btn" :disabled="loading" @click="loadPage">
+            <RefreshCw :size="14" />
+            <span>刷新</span>
+          </button>
           <button type="button" class="md-btn" @click="resetHospitalQuery">
             <RefreshCw :size="14" />
             <span>重置</span>
@@ -523,27 +482,9 @@ const {
       </form>
 
       <p v-if="actionError" class="md-error">{{ actionError }}</p>
-      <p v-if="actionMessage" class="md-message">{{ actionMessage }}</p>
     </section>
 
     <section v-else-if="isSupplierManagement" class="md-partner-page">
-      <MdPageHeader
-        v-if="!isPartnerCombined"
-        title="供应商管理"
-        description="维护供应商档案，统一管理名称、类型、联系人、信用代码与启停状态。"
-        :loading="loading"
-        @refresh="loadPage"
-      />
-
-      <MdStatsRow
-        :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条', icon: ListPlus },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条', icon: ShieldCheck },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条', icon: Ban },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条', icon: CheckSquare }
-        ]"
-      />
-
       <form class="md-hospital-filter" @submit.prevent="loadPage">
         <label>
           <span>供应商名称</span>
@@ -589,23 +530,6 @@ const {
     </section>
 
     <section v-else-if="isManufacturerManagement" class="md-partner-page">
-      <MdPageHeader
-        v-if="!isPartnerCombined"
-        title="厂家管理"
-        description="维护生产厂家档案，统一管理名称、生产许可证号、联系人与启停状态。"
-        :loading="loading"
-        @refresh="loadPage"
-      />
-
-      <MdStatsRow
-        :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '条', icon: ListPlus },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '条', icon: ShieldCheck },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '条', icon: Ban },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '条', icon: CheckSquare }
-        ]"
-      />
-
       <form class="md-hospital-filter" @submit.prevent="loadPage">
         <label>
           <span>厂家名称</span>
@@ -651,22 +575,6 @@ const {
     </section>
 
     <section v-else-if="isCampusManagement" class="md-partner-page">
-      <MdPageHeader
-        title="院区管理"
-        description="维护医院院区档案，统一管理编码、名称、地址与启停状态。"
-        :loading="loading"
-        @refresh="loadPage"
-      />
-
-      <MdStatsRow
-        :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个', icon: Building2 },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个', icon: ShieldCheck },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个', icon: Ban },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个', icon: CheckSquare }
-        ]"
-      />
-
       <form class="md-hospital-filter" @submit.prevent="loadPage">
         <label>
           <span>院区编码</span>
@@ -712,22 +620,6 @@ const {
     </section>
 
     <section v-else-if="isDepartmentManagement" class="md-partner-page">
-      <MdPageHeader
-        title="科室管理"
-        description="维护医院科室档案，统一管理编码、类型、关联库房与状态。"
-        :loading="loading"
-        @refresh="loadPage"
-      />
-
-      <MdStatsRow
-        :items="[
-          { label: '当前页记录', value: partnerStats.total, tone: 'primary', hint: '个', icon: Building2 },
-          { label: '启用', value: partnerStats.enabled, tone: 'success', hint: '个', icon: ShieldCheck },
-          { label: '停用', value: partnerStats.disabled, tone: 'danger', hint: '个', icon: Ban },
-          { label: '已选', value: partnerStats.selected, tone: 'warning', hint: '个', icon: CheckSquare }
-        ]"
-      />
-
       <form class="md-hospital-filter" @submit.prevent="loadPage">
         <label>
           <span>科室名称 / 编码</span>
@@ -1121,11 +1013,13 @@ const {
                     <button
                       v-if="authStore.canWrite(code)"
                       type="button"
-                      class="md-btn-text md-btn-text-danger"
-                      @click="disableProducts([String(row.code)])"
+                      class="md-btn-text"
+                      :class="{ 'md-btn-text-danger': row.status !== '停用' }"
+                      @click="row.status === '停用' ? enableProducts([String(row.code)]) : disableProducts([String(row.code)])"
                     >
-                      <Ban :size="13" />
-                      <span>停用</span>
+                      <ShieldCheck v-if="row.status === '停用'" :size="13" />
+                      <Ban v-else :size="13" />
+                      <span>{{ row.status === '停用' ? '启用' : '停用' }}</span>
                     </button>
                   </div>
                 </td>
@@ -1886,7 +1780,7 @@ const {
           <el-table-column prop="specModel" label="规格型号" min-width="130" show-overflow-tooltip>
             <template #default="{ row }"><span class="catalog-spec-cell">{{ row.specModel || '-' }}</span></template>
           </el-table-column>
-          <el-table-column prop="manufacturerName" label="生产厂家" min-width="150" show-overflow-tooltip>
+          <el-table-column prop="manufacturerName" label="生产厂家" min-width="150">
             <template #default="{ row }"><span class="catalog-manufacturer-cell">{{ row.manufacturerName || '-' }}</span></template>
           </el-table-column>
           <el-table-column label="维护来源" min-width="100">
@@ -2168,10 +2062,11 @@ const {
               <button
                 v-if="code === 'hospital-product-catalog'"
                 type="button"
-                class="btn-text btn-text-danger"
-                @click="disableProducts([String(row.code)])"
+                class="btn-text"
+                :class="{ 'btn-text-danger': row.status !== '停用' }"
+                @click="row.status === '停用' ? enableProducts([String(row.code)]) : disableProducts([String(row.code)])"
               >
-                停用
+                {{ row.status === '停用' ? '启用' : '停用' }}
               </button>
               <template v-else-if="code === 'supplier-management'">
                 <button type="button" class="btn-text" @click="openEditSupplier(row, false)">修改</button>
@@ -2365,21 +2260,22 @@ const {
     <!-- 医院商品目录：停用确认弹窗 -->
     <SpdConfirmDialog
       v-model:open="disableConfirmOpen"
-      title="停用医院目录商品"
-      tone="danger"
-      confirm-text="确认停用"
+      :title="productStatusAction === 1 ? '启用医院目录商品' : '停用医院目录商品'"
+      :tone="productStatusAction === 1 ? 'primary' : 'danger'"
+      :confirm-text="productStatusAction === 1 ? '提交启用申请' : '确认停用'"
       :loading="disableConfirmLoading"
-      :description="[
+      :description="productStatusAction === 1 ? '启用申请审批通过后生效。' : [
         '停用后该商品将不可用于新订单、新建定数包、收费消耗与领用。',
         '历史库存、流水、UDI 追溯记录不会被删除，仍可查询。'
       ]"
-      :details="[
-        `本次操作将停用 ${disableConfirmCount} 个商品`,
-        '如需重新启用，请联系目录管理员'
-      ]"
+      :details="[`本次提交 ${disableConfirmCount} 个商品的${productStatusAction === 1 ? '启用' : '停用'}申请`]"
       @confirm="confirmDisableProducts"
       @cancel="cancelDisableProducts"
-    />
+    >
+      <template #extra>
+        <p v-if="productStatusError" class="md-error" role="alert">{{ productStatusError }}</p>
+      </template>
+    </SpdConfirmDialog>
 
     <!-- 供应商 / 厂家：停用确认弹窗 -->
     <SpdConfirmDialog

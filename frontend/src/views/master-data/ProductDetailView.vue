@@ -11,7 +11,6 @@ import {
   type ProductDetail
 } from '../../api/masterData'
 import { useAuthStore } from '../../stores/auth'
-import PageHeader from '../../components/common/PageHeader.vue'
 
 interface DetailField {
   label: string
@@ -196,11 +195,6 @@ watch(productCode, () => { if (active) void loadDetail() })
     </div>
 
     <template v-else-if="detail">
-      <PageHeader
-        eyebrow="医院目录商品"
-        :title="detail.productName"
-        :description="`${detail.productCode} · ${detail.specModel || '暂无规格'}`"
-      />
       <div class="product-detail-toolbar">
         <span
           class="product-detail-status"

@@ -522,6 +522,25 @@ class ProductServiceTest {
     class UpdateHospitalProductStatusTest {
 
         @Test
+        void enableRequestUsesExistingCategoryIdInsteadOfResolvingCategoryName() {
+            ProductDetail detail = mock(ProductDetail.class);
+            when(detail.productCode()).thenReturn("P001");
+            when(detail.statusLabel()).thenReturn("停用");
+            when(detail.productName()).thenReturn("测试商品");
+            when(detail.specModel()).thenReturn("规格A");
+            when(detail.unit()).thenReturn("支");
+            when(jdbcTemplate.queryForObject(anyString(), any(org.springframework.jdbc.core.RowMapper.class), eq("P001")))
+                    .thenReturn(detail);
+            when(jdbcTemplate.queryForObject(contains("SELECT category_id FROM product WHERE"), eq(Long.class), eq("P001")))
+                    .thenReturn(5L);
+
+            assertThat(service.updateHospitalProductStatus(new ProductStatusUpdateRequest(List.of("P001"), 1)))
+                    .containsEntry("updatedRows", 1);
+            verify(jdbcTemplate).queryForObject(contains("SELECT category_id FROM product WHERE"), eq(Long.class), eq("P001"));
+            verify(jdbcTemplate, never()).queryForList(contains("FROM product_category"), eq(Long.class), anyString());
+        }
+
+        @Test
         @DisplayName("停用多个商品成功")
         void should_update_status_when_valid_request() {
             // Arrange

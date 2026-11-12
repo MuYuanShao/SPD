@@ -129,6 +129,7 @@ export interface PendingProductApplicationDetail {
   timeline: ApprovalTimelineNode[]
   canApprove: boolean
   canResubmit: boolean
+  enableOnly?: boolean
 }
 
 export interface PendingProductApplicationPayload {
@@ -294,7 +295,7 @@ export async function updatePendingProductApplication(applicationNo: string, pay
 
 export async function resubmitPendingProductApplication(
   applicationNo: string,
-  payload: PendingProductApplicationPayload
+  payload: PendingProductApplicationPayload | Pick<PendingProductApplicationPayload, 'changeReason'>
 ) {
   return putData<{ applicationNo: string; status: string }>(
     `/pending-product-applications/${applicationNo}/resubmit`,

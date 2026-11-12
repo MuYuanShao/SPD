@@ -248,8 +248,12 @@ public class ProductService {
         int submittedRows = 0;
         for (String productCode : request.productCodes()) {
             ProductDetail detail = hospitalProductDetail(productCode.trim());
-            createPendingApplication(request.status() != null && request.status() == 1 ? "信息变更" : "停用申请",
-                    toRequest(detail), detail.productCode(), "医院目录启停提交审批");
+            boolean enable = Integer.valueOf(1).equals(request.status());
+            if (enable && !"停用".equals(detail.statusLabel())) {
+                throw new IllegalArgumentException("只能对停用状态的商品发起启用申请");
+            }
+            createPendingApplication(enable ? "信息变更" : "停用申请",
+                    toRequest(detail), detail.productCode(), CatalogApplicationSnapshotService.STATUS_CHANGE_REASON);
             submittedRows++;
         }
 
@@ -429,7 +433,11 @@ public class ProductService {
             new com.hospital.spd.licenses.LicenseEligibilityService(jdbcTemplate)
                     .requireEligible(productCode, supplierId, manufacturerId, request.contractCode(), request.registrationExpireDate());
         }
-        Long categoryId = ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
+        boolean enableOnly = "信息变更".equals(normalizedType)
+                && CatalogApplicationSnapshotService.STATUS_CHANGE_REASON.equals(reason);
+        Long categoryId = enableOnly ? jdbcTemplate.queryForObject("""
+                SELECT category_id FROM product WHERE product_code = ? AND deleted = 0 FOR SHARE
+                """, Long.class, productCode) : ensureCategory(request.firstCategory(), request.secondCategory(), request.thirdCategory());
 
         jdbcTemplate.update("""
                 INSERT INTO pending_product_application (
@@ -493,7 +501,7 @@ public class ProductService {
                 Long.class, applicationNo);
         Integer explicitTargetStatus = reason != null && reason.contains("启停")
                 ? ("停用申请".equals(normalizedType) ? 0 : 1) : null;
-        snapshotService.write(applicationId, normalizedType, reason, explicitTargetStatus);
+        snapshotService.write(applicationId, normalizedType, reason, explicitTargetStatus, enableOnly);
         if (catalogApprovalRouteService != null) {
             String status = catalogApprovalRouteService.snapshotRoute(
                     applicationId, 1, normalizedType, operator.deptId());

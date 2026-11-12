@@ -216,14 +216,6 @@ onMounted(() => {
 
     <p v-if="loading" class="approval-empty">正在加载耗材信息...</p>
 
-    <header v-else class="approval-detail-header">
-      <div>
-        <p>医院目录</p>
-        <h2>{{ editMode ? '修改耗材' : '新增耗材' }}</h2>
-        <span>{{ editMode ? '调整耗材字段后点击保存。' : '填写耗材基础资料、价格采购、分类和资质属性。' }}</span>
-      </div>
-    </header>
-
     <form v-if="!loading" class="product-form-card" @submit.prevent="submitForm">
       <section>
         <div class="section-title">

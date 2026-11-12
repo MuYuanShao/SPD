@@ -70,7 +70,7 @@ public class DepartmentService {
                        CASE d.status WHEN 1 THEN '正常' ELSE '停用' END AS status,
                        COALESCE(d.address, '-') AS address,
                        COALESCE(d.campus_name, '-') AS campus,
-                       DATE_FORMAT(d.update_time, '%Y-%m-%d %H:%i') AS updateTime,
+                       DATE_FORMAT(d.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        COALESCE(d.manager_name, '-') AS manager,
                        COALESCE(d.phone, '-') AS phone,
                        d.dept_code AS sourceFlag,

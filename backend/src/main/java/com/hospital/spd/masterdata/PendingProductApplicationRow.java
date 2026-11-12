@@ -13,6 +13,7 @@ public record PendingProductApplicationRow(
         String statusTone,
         boolean warning,
         String productCode,
+        String specModel,
         String changeSummary,
         String manufacturerName,
         String registrationNo,
@@ -40,7 +41,7 @@ public record PendingProductApplicationRow(
             Boolean quotaManaged
     ) {
         this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode,
-                changeSummary, manufacturerName, registrationNo, contractCode, firstCategory,
+                null, changeSummary, manufacturerName, registrationNo, contractCode, firstCategory,
                 secondCategory, thirdCategory, volumeBased, centralizedProcurement, domestic,
                 chargeable, purchasePrice, purchaseUnit, udiCode, quotaManaged, false);
     }
@@ -58,7 +59,7 @@ public record PendingProductApplicationRow(
             String productCode,
             String changeSummary
     ) {
-        this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode, changeSummary,
+        this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode, null, changeSummary,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

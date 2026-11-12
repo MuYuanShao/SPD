@@ -23,18 +23,24 @@ final class ProductApprovalMapper {
 
     static PendingProductApplicationRow mapRow(ResultSet rs) throws SQLException {
         String status = rs.getString("approval_status");
+        String submitName = columnExists(rs, "submit_name") ? rs.getString("submit_name") : null;
+        if (submitName == null || submitName.isBlank()) {
+            submitName = "申请人" + rs.getLong("submit_by");
+        }
+        String specModel = columnExists(rs, "spec_model") ? rs.getString("spec_model") : null;
         return new PendingProductApplicationRow(
                 rs.getString("application_no"),
                 rs.getString("application_type"),
                 rs.getString("product_name"),
                 rs.getString("supplier_name"),
-                "申请人" + rs.getLong("submit_by"),
+                submitName,
                 rs.getTimestamp("submit_time").toLocalDateTime().format(FORMATTER),
                 rs.getString("current_step_name") != null && status != null && status.startsWith("pending")
                         ? rs.getString("current_step_name") + "待审批" : toStatusLabel(status),
                 toStatusTone(status),
                 "pending_initial".equals(status),
                 rs.getString("product_code"),
+                specModel,
                 "",
                 rs.getString("manufacturer_name"),
                 rs.getString("registration_no"),
@@ -127,5 +133,14 @@ final class ProductApprovalMapper {
     private static BigDecimal getBigDecimal(ResultSet rs, String column) throws SQLException {
         BigDecimal value = rs.getBigDecimal(column);
         return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private static boolean columnExists(ResultSet rs, String column) {
+        try {
+            rs.findColumn(column);
+            return true;
+        } catch (SQLException e) {
+            return false;
+        }
     }
 }

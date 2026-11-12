@@ -522,17 +522,74 @@
 
 .catalog-dialog-actions .btn.btn-primary,
 .batch-catalog-actions .btn.btn-primary {
-  background: #16838d !important;
-  border-color: #16838d !important;
+  background: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
   color: #fff !important;
-  font-weight: 500 !important;
-  box-shadow: 0 2px 4px rgba(22, 131, 141, 0.18) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px -2px color-mix(in srgb, var(--spd-primary) 45%, transparent) !important;
 }
 
 .catalog-dialog-actions .btn.btn-primary:hover,
 .batch-catalog-actions .btn.btn-primary:hover {
-  background: #0f6c75 !important;
-  border-color: #0f6c75 !important;
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #fff !important;
+}
+
+/* 批量维护弹窗底部按钮：取消 / 保存都必须有背景色。
+   弹窗挂在 .master-page 内，会被 master-data-list.override.css 的
+   .master-page .btn:not(...) 白底 !important 规则压住（特异性同为 0,4,0），
+   这里多一层容器提高特异性到 0,5,0，保证主题色生效。 */
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn,
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn.btn-secondary {
+  min-height: 36px !important;
+  height: 36px !important;
+  padding: 0 18px !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+}
+
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn.btn-secondary {
+  background: #fff !important;
+  border: 1px solid var(--spd-primary-border, #c8d8dc) !important;
+  color: var(--spd-primary) !important;
+}
+
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn.btn-secondary:hover:not(:disabled) {
+  background: var(--spd-primary-bg, #eef7f7) !important;
+  border-color: var(--spd-primary) !important;
+  color: var(--spd-primary) !important;
+}
+
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border: 1px solid var(--spd-primary) !important;
+  color: #fff !important;
+}
+
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn.btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-dark) !important;
+  border-color: var(--spd-primary-dark) !important;
+  color: #fff !important;
+}
+
+.master-page .batch-catalog-dialog .batch-catalog-actions .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* 批量维护弹窗工具栏「全选」按钮同样使用主题色 */
+.master-page .batch-catalog-dialog .product-picker-toolbar .btn.btn-primary {
+  background: var(--spd-primary) !important;
+  border: 1px solid var(--spd-primary) !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+  font-weight: 700 !important;
+}
+
+.master-page .batch-catalog-dialog .product-picker-toolbar .btn.btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-dark) !important;
   color: #fff !important;
 }
 

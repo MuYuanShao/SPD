@@ -67,10 +67,12 @@ export function useMasterDataWorkbench() {
     specModel: '',
     model: '',
     manufacturerName: '',
+    vendorKeyword: '',
     supplierName: '',
     price: '',
     isCentralized: '',
     isDomestic: '',
+    status: '',
     tenderCode: ''
   })
 

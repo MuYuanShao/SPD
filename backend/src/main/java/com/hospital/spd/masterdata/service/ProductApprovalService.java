@@ -256,7 +256,7 @@ public class ProductApprovalService {
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<PendingProductApplicationRow> rows = jdbcTemplate.query("""
-                        SELECT a.application_no, a.application_type, a.product_name, a.product_code,
+                        SELECT a.application_no, a.application_type, a.product_name, a.product_code, a.spec_model,
                                a.registration_no, a.registration_expire_date,
                                a.production_license_no, a.business_license_no,
                                a.manufacturer_name,
@@ -265,12 +265,15 @@ public class ProductApprovalService {
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
                                a.is_quota_managed, a.is_key_monitored,
-                               a.approval_status, a.submit_by, a.submit_time,
+                               a.approval_status, a.submit_by,
+                               COALESCE(submitter.real_name, submitter.username, CAST(a.submit_by AS CHAR)) AS submit_name,
+                               a.submit_time,
                                (SELECT r.step_name FROM pending_product_approval_route_step r
                                  WHERE r.application_id=a.application_id AND r.approval_round=a.approval_round
                                    AND r.route_status='pending' ORDER BY r.route_order LIMIT 1) AS current_step_name
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
+                        LEFT JOIN sys_user submitter ON submitter.user_id = a.submit_by
                         %s
                         ORDER BY a.submit_time DESC, a.application_id DESC
                         LIMIT ? OFFSET ?
@@ -1130,7 +1133,7 @@ public class ProductApprovalService {
             enriched.add(new PendingProductApplicationRow(
                     row.no(), row.type(), row.product(), row.supplier(),
                     row.applicant(), row.time(), row.status(), row.statusTone(), row.warning(),
-                    row.productCode(), summary,
+                    row.productCode(), row.specModel(), summary,
                     row.manufacturerName(), row.registrationNo(), row.contractCode(),
                     row.firstCategory(), row.secondCategory(), row.thirdCategory(),
                     row.volumeBased(), row.centralizedProcurement(), row.domestic(),

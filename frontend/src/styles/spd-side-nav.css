@@ -1,0 +1,365 @@
+/* ==========================================================================
+   SPD 左侧导航栏（Element Plus el-menu 垂直导航树）
+   --------------------------------------------------------------------------
+   设计目标：
+   - 采用 Element Plus el-menu 的视觉语言：分组可折叠、激活项高亮、图标统一
+   - 每个菜单项使用语义化独立图标，避免大量重复图形
+   - 整体使用主题色背景（深色侧栏），与浅色内容区形成层次
+   - 一级分组之间留出间距，避免菜单挤成一长条
+   - 支持整栏折叠（collapse），折叠后仅保留图标并以浮层提示名称
+   ========================================================================== */
+
+.spd-side-nav {
+  width: 236px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  /* 主题色深色背景 */
+  background: var(--primary);
+  color: #ffffff;
+  border-right: none;
+  overflow: hidden;
+  transition: width 0.22s ease;
+  box-shadow: 2px 0 12px rgba(15, 23, 42, 0.08);
+}
+
+.spd-side-nav.is-collapsed {
+  width: 64px;
+}
+
+/* ---------- 品牌区（SPD 院内供应链） ---------- */
+.spd-side-brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  flex-shrink: 0;
+  height: 64px;
+  padding: 0 14px;
+  text-decoration: none;
+  color: #ffffff;
+  background: linear-gradient(135deg, var(--primary-strong, var(--primary)) 0%, var(--primary) 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  box-sizing: border-box;
+  overflow: hidden;
+  transition: background 0.15s ease;
+}
+
+/* 右上角柔光，突出主标题区域 */
+.spd-side-brand::after {
+  content: '';
+  position: absolute;
+  top: -34px;
+  right: -26px;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 70%);
+  pointer-events: none;
+}
+
+.spd-side-brand:hover {
+  background: linear-gradient(135deg, var(--primary-strong, var(--primary)) 0%, var(--primary) 100%);
+}
+
+/* 图标块：放大 + 渐变底 + 投影 */
+.spd-side-brand-mark {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.12) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.22);
+  color: #ffffff;
+}
+
+.spd-side-brand-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* 主标题：放大加粗，作为系统名称突出显示 */
+.spd-side-brand-text strong {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  line-height: 1.2;
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+  white-space: nowrap;
+}
+
+.spd-side-brand-text small {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  color: rgba(255, 255, 255, 0.72);
+  text-transform: uppercase;
+}
+
+/* 折叠态：品牌区只留图标 */
+.spd-side-nav.is-collapsed .spd-side-brand {
+  padding: 0;
+  justify-content: center;
+}
+
+.spd-side-nav.is-collapsed .spd-side-brand-text {
+  display: none;
+}
+
+/* ---------- 当前模块标题栏 ---------- */
+.spd-side-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 12px;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.spd-side-nav-header-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spd-side-nav-collapse {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.spd-side-nav-collapse:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* 折叠态：标题隐藏，只保留折叠按钮 */
+.spd-side-nav.is-collapsed .spd-side-nav-header {
+  padding: 0;
+  justify-content: center;
+}
+
+.spd-side-nav.is-collapsed .spd-side-nav-header > svg {
+  display: none;
+}
+
+.spd-side-nav.is-collapsed .spd-side-nav-header-text {
+  display: none;
+}
+
+/* ---------- el-menu 主体 ---------- */
+.spd-side-menu {
+  flex: 1;
+  min-height: 0;
+  border-right: none !important;
+  background: transparent;
+  padding: 10px 8px 20px;
+  /* 菜单项较多（48 项 + 9 个分组），超出高度时必须可滚动，否则底部项会被裁切 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+}
+
+.spd-side-menu::-webkit-scrollbar {
+  width: 5px;
+}
+
+.spd-side-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 3px;
+}
+
+.spd-side-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spd-side-menu .el-menu--inline {
+  background-color: transparent !important;
+}
+
+/* ---------- 菜单项基础样式（深色侧栏） ---------- */
+.spd-side-menu .el-menu-item,
+.spd-side-menu .el-sub-menu__title {
+  height: 38px;
+  line-height: 38px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  margin-bottom: 2px;
+  color: rgba(255, 255, 255, 0.82);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.spd-side-menu .el-menu-item:hover,
+.spd-side-menu .el-sub-menu__title:hover {
+  background-color: rgba(255, 255, 255, 0.14) !important;
+  color: #ffffff !important;
+}
+
+/* 一级模块（工作台 / 业务模块）：加粗 + 独立分组底色 + 上下间距 */
+.spd-side-menu > .el-menu-item,
+.spd-side-menu > .el-sub-menu {
+  margin-bottom: 8px;
+}
+
+/* 分组标题：半透明白底，比纯黑叠加更清爽通透 */
+.spd-side-menu > .el-sub-menu > .el-sub-menu__title {
+  font-weight: 700;
+  font-size: 13.5px;
+  color: #ffffff;
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.spd-side-menu > .el-sub-menu > .el-sub-menu__title:hover {
+  background-color: rgba(255, 255, 255, 0.26) !important;
+}
+
+/* "工作台"是直接入口，不是可展开分组：用更深的底色与分组区分 */
+.spd-side-menu > .el-menu-item {
+  font-weight: 700;
+  color: #ffffff;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.spd-side-menu > .el-menu-item:hover {
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+/* 一级分组的展开箭头更醒目 */
+.spd-side-menu > .el-sub-menu > .el-sub-menu__title .el-sub-menu__icon-arrow {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* 激活项：白色实底 + 主题色字，深色侧栏上的高亮更清晰 */
+.spd-side-menu .el-menu-item.is-active {
+  background-color: #ffffff !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.spd-side-menu .el-menu-item.is-active .el-icon {
+  color: var(--primary) !important;
+}
+
+/* 父级分组处于激活路径：标题变亮 */
+.spd-side-menu .el-sub-menu.is-active > .el-sub-menu__title {
+  color: #ffffff !important;
+  font-weight: 700;
+}
+
+/* 层级缩进收敛：一级 0 / 二级 12px / 三级 30px */
+.spd-side-menu .el-sub-menu .el-menu-item,
+.spd-side-menu .el-sub-menu .el-sub-menu__title {
+  padding-left: 26px !important;
+}
+
+.spd-side-menu .el-sub-menu .el-sub-menu .el-menu-item,
+.spd-side-menu .el-sub-menu .el-sub-menu .el-sub-menu__title {
+  padding-left: 44px !important;
+}
+
+/* ---------- 图标规格 ---------- */
+/* Element Plus 的 .el-icon 使用 font-size 驱动内部 SVG 的 1em 缩放，
+   必须显式指定 font-size，否则 SVG 会以 24px 原始尺寸溢出菜单项。 */
+.spd-side-menu .el-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.72);
+  transition: color 0.15s ease;
+}
+
+.spd-side-menu .el-icon > svg {
+  width: 1em;
+  height: 1em;
+}
+
+.spd-side-menu .el-menu-item:hover .el-icon,
+.spd-side-menu .el-sub-menu__title:hover .el-icon {
+  color: #ffffff !important;
+}
+
+/* 三级子分组（二级分组下面的分组）：浅一档的底块 + 稍小字号，层级更清晰 */
+.spd-side-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title {
+  height: 32px;
+  line-height: 32px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.88);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+}
+
+.spd-side-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+
+/* 三级子分组展开箭头更小，贴合 32px 行高 */
+.spd-side-menu .el-sub-menu .el-sub-menu > .el-sub-menu__title .el-sub-menu__icon-arrow {
+  font-size: 10px;
+}
+
+/* ---------- 折叠态 ---------- */
+.spd-side-menu.el-menu--collapse {
+  width: 100%;
+  padding: 10px 6px 20px;
+}
+
+.spd-side-menu.el-menu--collapse .el-menu-item,
+.spd-side-menu.el-menu--collapse .el-sub-menu__title {
+  padding: 0 !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spd-side-menu.el-menu--collapse .el-icon {
+  margin-right: 0 !important;
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.spd-side-menu.el-menu--collapse .el-menu-item.is-active .el-icon {
+  color: var(--primary) !important;
+}
+
+/* 折叠态浮层提示 */
+.spd-side-menu.el-menu--collapse .el-menu-tooltip__popper .el-popper,
+.spd-side-menu.el-menu--collapse .el-tooltip__popper {
+  font-size: 13px;
+}

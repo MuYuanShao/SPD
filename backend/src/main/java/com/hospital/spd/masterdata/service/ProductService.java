@@ -77,6 +77,8 @@ public class ProductService {
         appendLike(where, args, "p.spec_model", params.get("model"));
         appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
         appendLike(where, args, "s.supplier_name", params.get("supplierName"));
+        appendVendorKeyword(where, args, params.get("vendorKeyword"));
+        appendCatalogStatus(where, args, params.get("status"));
         appendLike(where, args, "p.purchase_price", params.get("price"));
         appendBoolean(where, args, "p.is_centralized_procurement", params.get("isCentralized"));
         appendBoolean(where, args, "p.is_domestic", params.get("isDomestic"));
@@ -729,5 +731,24 @@ public class ProductService {
         if (quotaManaged && (highValue || coldChain)) {
             throw new IllegalArgumentException("高值耗材或冷链耗材不能设置为定数管理");
         }
+    }
+
+    /** 精简筛选：厂家 / 供应商合并关键字（任一命中即可）。 */
+    private static void appendVendorKeyword(StringBuilder sql, List<Object> args, String value) {
+        if (isBlank(value)) {
+            return;
+        }
+        sql.append(" AND (m.manufacturer_name LIKE ? OR s.supplier_name LIKE ?)");
+        args.add("%" + value.trim() + "%");
+        args.add("%" + value.trim() + "%");
+    }
+
+    /** 精简筛选：启用 / 停用状态。 */
+    private static void appendCatalogStatus(StringBuilder sql, List<Object> args, String value) {
+        if (isBlank(value)) {
+            return;
+        }
+        sql.append(" AND p.status = ?");
+        args.add("停用".equals(value.trim()) ? 0 : 1);
     }
 }

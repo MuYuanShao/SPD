@@ -7,7 +7,7 @@
  * - 主菜单项点击展开下拉分组（多级菜单可折叠）
  * - 自动根据当前路由激活对应模块
  */
-import { computed, ref, watch, onMounted, onUnmounted, reactive } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, reactive, nextTick } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { X, Minus, Trash2, MoreHorizontal } from '@lucide/vue'
 import { findFeature, featureRouteTarget } from '../config/featureCatalog'
@@ -57,6 +57,8 @@ import {
   Receipt,
   Grid,
   HelpCircle,
+  PanelRightOpen,
+  PanelRightClose,
   LogOut
 } from '@lucide/vue'
 import ThemeSwitcher from '../components/common/ThemeSwitcher.vue'
@@ -74,6 +76,7 @@ interface TabItem {
 interface MenuLeaf {
   path: string
   name: string
+  icon?: any
 }
 
 interface MenuGroupUI {
@@ -98,6 +101,10 @@ const changePasswordOpen = ref(false)
 const refreshing = ref(false)
 const activeModule = ref('dashboard')
 const hoverSubmenu = ref(false)
+// 左侧导航栏折叠状态（Element Plus el-menu collapse 模式）
+const sideNavCollapsed = ref(false)
+// el-menu 实例：路由变化时同步激活项（default-active 本身不是响应式的）
+const sideMenuRef = ref<any>(null)
 const HOME_TAB: TabItem = { key: '/', label: '工作台', fullPath: '/' }
 const tabs = ref<TabItem[]>([HOME_TAB])
 const activeTab = ref('/')
@@ -198,7 +205,8 @@ const uiMenuGroups = computed<MenuGroupUI[]>(() => {
           children: child.children
             .map((sub) => ({
               path: featureRouteTarget(sub.code),
-              name: sub.title
+              name: sub.title,
+              icon: sub.icon
             }))
         }
       } else {
@@ -229,7 +237,19 @@ const visibleMenu = computed(() => {
 })
 
 const activeModuleName = computed(() => {
+  if (activeModule.value === 'dashboard') return '工作台'
   return visibleMenu.value.find((g) => g.key === activeModule.value)?.name || ''
+})
+
+/** 当前路由对应的左侧菜单路径，用于 el-menu 的 active 项高亮 */
+const activeSidePath = computed(() => {
+  const path = typeof route.meta.tabPath === 'string' ? route.meta.tabPath : route.path
+  if (path === '/' || path === '/dashboard/realtime') return '/'
+  const matched = visibleMenu.value
+    .flatMap((group) => group.children)
+    .flatMap((child) => (child.children?.length ? child.children : [child]))
+    .find((leaf) => leaf.path === path)
+  return matched?.path || path
 })
 
 const currentGroupChildren = computed(() => {
@@ -378,6 +398,12 @@ watch(
       }
     }
     hoverSubmenu.value = false
+
+    // 同步左侧 el-menu 的激活项与展开状态
+    // el-menu 的 default-active 不是响应式的，必须显式调用 updateActiveIndex。
+    void nextTick(() => {
+      sideMenuRef.value?.updateActiveIndex?.(activeSidePath.value)
+    })
   },
   { immediate: true }
 )
@@ -385,16 +411,84 @@ watch(
 
 <template>
   <div class="spd-layout">
-    <!-- 顶部水平导航栏 -->
-    <header class="spd-topnav">
-      <!-- Logo -->
-      <RouterLink to="/" class="spd-topnav-logo">
-        <div class="spd-logo-icon">
-          <Box :size="20" />
-        </div>
-        <span class="spd-logo-name">SPD 院内供应链</span>
+    <!-- 左侧导航栏：Element Plus el-menu 垂直导航树（与顶部导航栏齐平通栏） -->
+    <aside
+      class="spd-side-nav"
+      :class="{ 'is-collapsed': sideNavCollapsed }"
+    >
+      <!-- 品牌区：SPD 院内供应链（原顶栏 Logo 下沉到左侧导航栏） -->
+      <RouterLink to="/" class="spd-side-brand">
+        <span class="spd-side-brand-mark">
+          <Box :size="21" />
+        </span>
+        <span class="spd-side-brand-text">
+          <strong>SPD 院内供应链</strong>
+          <small>Hospital Supply Chain</small>
+        </span>
       </RouterLink>
 
+      <div class="spd-side-nav-header">
+        <component :is="getGroupIcon(activeModule)" :size="16" />
+        <span class="spd-side-nav-header-text">{{ activeModuleName }}</span>
+        <button
+          type="button"
+          class="spd-side-nav-collapse"
+          :aria-label="sideNavCollapsed ? '展开导航栏' : '收起导航栏'"
+          @click="sideNavCollapsed = !sideNavCollapsed"
+        >
+          <component :is="sideNavCollapsed ? PanelRightOpen : PanelRightClose" :size="15" />
+        </button>
+      </div>
+
+      <el-menu
+        class="spd-side-menu"
+        mode="vertical"
+        ref="sideMenuRef"
+        :default-active="activeSidePath"
+        :collapse="sideNavCollapsed"
+        :collapse-transition="false"
+        router
+      >
+        <!-- 工作台 -->
+        <el-menu-item index="/">
+          <el-icon><Home /></el-icon>
+          <template #title>工作台</template>
+        </el-menu-item>
+
+        <!-- 业务模块 -->
+        <el-sub-menu v-for="group in visibleMenu" :key="group.key" :index="group.key">
+          <template #title>
+            <el-icon><component :is="getGroupIcon(group.key)" /></el-icon>
+            <span>{{ group.name }}</span>
+          </template>
+
+          <template v-for="child in group.children" :key="child.name">
+            <!-- 模块内含分组：再嵌套一层 el-sub-menu -->
+            <el-sub-menu v-if="child.children" :index="child.name">
+              <template #title>
+                <el-icon v-if="child.icon"><component :is="child.icon" /></el-icon>
+                <span>{{ child.name }}</span>
+              </template>
+              <el-menu-item v-for="sub in child.children" :key="sub.path" :index="sub.path || '/'">
+                <el-icon v-if="sub.icon"><component :is="sub.icon" /></el-icon>
+                <template #title>{{ sub.name }}</template>
+              </el-menu-item>
+            </el-sub-menu>
+
+            <!-- 模块内直接叶子功能 -->
+            <el-menu-item v-else :index="child.path || '/'">
+              <el-icon v-if="child.icon"><component :is="child.icon" /></el-icon>
+              <template #title>{{ child.name }}</template>
+            </el-menu-item>
+          </template>
+        </el-sub-menu>
+      </el-menu>
+    </aside>
+
+    <!-- 右侧主区域：顶部导航栏 + 页面主体 -->
+    <div class="spd-shell">
+    <!-- 顶部水平导航栏 -->
+    <header class="spd-topnav">
       <!-- 主菜单 -->
       <nav class="spd-topnav-menu">
         <!-- 工作台（直接跳转） -->
@@ -546,65 +640,10 @@ watch(
 
     <!-- 页面主体 -->
     <div class="spd-body">
-      <!-- 迷你侧边栏（仅在主内容区有可展开菜单时显示） -->
-      <aside
-        class="spd-mini-sidebar"
-        v-if="currentGroupChildren.length > 0 && activeModule !== 'dashboard'"
-      >
-        <div class="spd-mini-sidebar-title">
-          <component :is="getGroupIcon(activeModule)" :size="13" />
-          {{ activeModuleName }}
-        </div>
-        <div class="spd-mini-nav">
-          <template v-for="child in currentGroupChildren" :key="child.name">
-            <!-- 二级分组：可展开/收起 -->
-            <div v-if="child.children" class="spd-mini-nav-group">
-              <div class="spd-mini-nav-group-title" @click="toggleGroup(child)">
-                <ChevronRight
-                  :size="11"
-                  class="spd-mini-nav-group-caret"
-                  :class="{ 'is-expanded': expandedGroups.has(child.name) }"
-                />
-                <span class="spd-mini-nav-group-text">{{ child.name }}</span>
-                <span class="spd-mini-nav-group-count">{{ child.children.length }}</span>
-              </div>
-              <Transition name="spd-submenu">
-                <div
-                  v-show="expandedGroups.has(child.name)"
-                  class="spd-mini-nav-sublist"
-                >
-                  <RouterLink
-                    v-for="sub in child.children"
-                    :key="sub.path"
-                    :to="sub.path || '/'"
-                    class="spd-mini-nav-sub"
-                    :class="{ active: isActive(sub.path || '/') }"
-                  >
-                    <span class="spd-mini-nav-sub-dot"></span>
-                    <span class="spd-mini-nav-sub-text">{{ sub.name }}</span>
-                  </RouterLink>
-                </div>
-              </Transition>
-            </div>
-
-            <!-- 直接叶子节点（无分组） -->
-            <RouterLink
-              v-else-if="child.path"
-              :to="child.path"
-              class="spd-mini-nav-item"
-              :class="{ active: isActive(child.path) }"
-            >
-              <component :is="iconFor(child.name)" :size="15" />
-              <span>{{ child.name }}</span>
-            </RouterLink>
-          </template>
-        </div>
-      </aside>
-
       <!-- 主内容区 -->
       <div
         class="spd-main"
-        :class="{ 'has-mini-sidebar': currentGroupChildren.length > 0 && activeModule !== 'dashboard' }"
+        :class="{ 'has-mini-sidebar': true }"
       >
         <!-- Tab Bar -->
         <div class="spd-tabbar">
@@ -658,6 +697,7 @@ watch(
           </div>
         </main>
       </div>
+    </div>
     </div>
   </div>
 </template>

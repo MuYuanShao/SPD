@@ -2,19 +2,20 @@
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Download, FileDown, FileUp, Plus, Search, Send, Settings2, Upload, UserRound, X, XCircle } from '@lucide/vue'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Columns3, Download, FileDown, FileUp, Plus, RefreshCw, Search, Send, Upload, UserRound, X, XCircle } from '@lucide/vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { useApprovalTableScroll } from '../../composables/useApprovalTableScroll'
 import { usePendingProductBatchApproval } from '../../composables/usePendingProductBatchApproval'
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
 import { usePendingProductImportExport } from '../../composables/usePendingProductImportExport'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { formatDateTime } from '../../utils/dateTime'
 import {
   approvalRiskLabels,
-  approvalRiskTone,
-  approvalTypeClass,
   approvalWideField
 } from '../../composables/usePendingProductCatalogDisplay'
 import { usePendingProductCatalogNavigation } from '../../composables/usePendingProductCatalogNavigation'
@@ -129,6 +130,10 @@ const typeCounts = ref<PendingProductTypeCount[]>([])
 const loading = ref(false)
 const error = ref('')
 const keyword = ref('')
+/** 申请类型筛选：与左侧审批队列联动 */
+const approvalTypeFilter = ref('')
+/** 审批状态筛选：后端暂不支持该维度，改为前端本地过滤 */
+const approvalStatusFilter = ref('')
 const message = ref('')
 const showCreateModal = ref(false)
 const totalItems = ref(0)
@@ -337,31 +342,20 @@ const allVisibleSelected = computed(() => {
   return rows.value.length > 0 && rows.value.every((row) => selectedNos.value.includes(row.no))
 })
 
-const approvalMetricCards = computed(() => {
-  const totalTodo = approvalTypes.reduce((total, item) => total + (typeCountMap.value.get(item.key) ?? 0), 0)
-  return [
-    { label: '待我审批', value: totalTodo, hint: '按风险与时效排序', tone: 'primary' },
-    { label: '新品准入', value: typeCountMap.value.get('new') ?? 0, hint: '重点核验准入资料' },
-    { label: '信息变更', value: typeCountMap.value.get('change') ?? 0, hint: '关注价格与供应商' },
-    { label: '已展示字段', value: 18, hint: '可通过列设置调整' },
-    { label: '风险提醒', value: rows.value.filter((row) => row.warning).length, hint: '含临期 / 冷链 / 高值', tone: 'alert' }
-  ]
-})
-
 const {
   approvalTableShellRef,
   approvalScrollTrackRef,
   approvalScrollDragging,
   approvalScrollState,
-  approvalScrollThumbStyle,
   updateApprovalScrollState,
+  handleApprovalScroll,
   jumpApprovalTableScroll,
   startApprovalScrollDrag,
   moveApprovalScrollDrag,
   endApprovalScrollDrag
 } = useApprovalTableScroll()
 
-const { currentPage, pageSize, totalPages, visiblePages, changePage, changePageSize, resetPage } =
+const { currentPage, pageSize, changePage, changePageSize, resetPage } =
   usePendingProductCatalogPagination({
     totalItems,
     reload: loadApplications
@@ -386,63 +380,117 @@ const {
   reload: loadApplications
 })
 
-// 列设置
-const showColumnSettings = ref(false)
-const columnSettingsVisible = ref(false)
-// 固定列（不允许隐藏）
-const fixedColumns = ['审批单号', '商品名称 / 规格', '操作']
-const columnOptions = [
-  { key: 'type', label: '申请类型' },
-  { key: 'applicant', label: '申请人' },
-  { key: 'supplier', label: '供应商' },
-  { key: 'manufacturer', label: '厂家' },
-  { key: 'registrationNo', label: '注册证号' },
-  { key: 'contractCode', label: '合同编码' },
-  { key: 'firstCategory', label: '一级分类' },
-  { key: 'secondCategory', label: '二级分类' },
-  { key: 'thirdCategory', label: '三级分类' },
-  { key: 'volumeBased', label: '是否带量' },
-  { key: 'centralized', label: '是否集采' },
-  { key: 'domestic', label: '是否国产' },
-  { key: 'chargeable', label: '是否收费' },
-  { key: 'keyMonitored', label: '重点监控' },
-  { key: 'purchasePrice', label: '采购价' },
-  { key: 'udiCode', label: 'UDI 编码' },
-  { key: 'risk', label: '风险标签' },
-  { key: 'wait', label: '节点 / 等待' },
-  { key: 'changeSummary', label: '变更记录' },
+// ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+// 固定列（不允许隐藏）：审批单号、商品名称 / 规格、操作
+const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'type', label: '申请类型', width: 120, visible: true },
+  { key: 'applicant', label: '申请人', width: 110, visible: true },
+  { key: 'time', label: '提交时间', width: 180, visible: true },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true },
+  { key: 'specModel', label: '规格型号', width: 150, visible: true },
+  { key: 'supplier', label: '供应商', width: 180, visible: true },
+  { key: 'manufacturer', label: '厂家', width: 180, visible: true },
+  { key: 'registrationNo', label: '注册证号', width: 160, visible: true },
+  { key: 'contractCode', label: '合同编码', width: 150, visible: true },
+  { key: 'firstCategory', label: '一级分类', width: 130, visible: true },
+  { key: 'secondCategory', label: '二级分类', width: 130, visible: true },
+  { key: 'thirdCategory', label: '三级分类', width: 130, visible: true },
+  { key: 'volumeBased', label: '是否带量', width: 110, visible: true },
+  { key: 'centralized', label: '是否集采', width: 110, visible: true },
+  { key: 'domestic', label: '是否国产', width: 110, visible: true },
+  { key: 'chargeable', label: '是否收费', width: 110, visible: true },
+  { key: 'keyMonitored', label: '重点监控', width: 120, visible: true },
+  { key: 'purchasePrice', label: '采购价', width: 120, visible: true },
+  { key: 'udiCode', label: 'UDI 编码', width: 180, visible: true },
+  { key: 'risk', label: '风险标签', width: 180, visible: true },
+  { key: 'wait', label: '节点 / 等待', width: 150, visible: true },
+  { key: 'changeSummary', label: '变更记录', width: 200, visible: true }
 ]
 
-function openColumnSettings() {
-  columnSettingsVisible.value = true
+const approvalCols = useListColumns({
+  storageKey: 'spd-pending-product-approval-cols-v1',
+  defaults: APPROVAL_COL_DEFAULTS
+})
+
+const isColVisible = (key: string) => approvalCols.isColumnVisible(key)
+const approvalColWidth = (key: string) => approvalCols.columnWidth(key)
+const startApprovalColDrag = (key: string, event: MouseEvent) => approvalCols.startColumnDrag(key, event)
+const visibleDataColumnCount = computed(() => approvalCols.visibleColumnCount.value)
+const approvalTableSpan = computed(() => visibleDataColumnCount.value + 4)
+
+/** 提交时间统一输出 YYYY-MM-DD HH:MM:SS */
+function approvalTimeText(row: PendingProductApplicationRow) {
+  return formatDateTime(row.time)
 }
 
-function closeColumnSettings() {
-  columnSettingsVisible.value = false
+/** 申请类型筛选：与左侧审批队列保持同步 */
+function onApprovalTypeFilterChange(value: string) {
+  if (value && value !== activeTypeKey.value) {
+    selectType(value)
+  } else if (!value && activeScope.value === 'todo') {
+    selectType('new')
+  }
 }
 
-function resetColumns() {
-  // 重置为默认全部显示
-  columnOptions.forEach(col => {
-    localStorage.setItem(`pp-col-${col.key}`, 'true')
-  })
-  columnOptions.forEach(col => { columnVisibility.value[col.key] = true })
+/** 重置筛选条件 */
+function resetApprovalFilter() {
+  keyword.value = ''
+  approvalStatusFilter.value = ''
+  approvalTypeFilter.value = activeScope.value === 'todo' ? activeTypeKey.value : ''
+  currentPage.value = 1
+  void loadApplications()
 }
 
-// 列可见性状态（从 localStorage 恢复）
-const columnVisibility = ref<Record<string, boolean>>({})
-function loadColumnVisibility() {
-  const v: Record<string, boolean> = {}
-  columnOptions.forEach(col => {
-    const stored = localStorage.getItem(`pp-col-${col.key}`)
-    v[col.key] = stored !== 'false'
-  })
-  columnVisibility.value = v
+/** 申请类型状态条配色 */
+function approvalTypeChipClass(type: string): string {
+  const map: Record<string, string> = {
+    新品准入: 'is-primary',
+    信息变更: 'is-info',
+    资质更新: 'is-warning',
+    价格调整: 'is-success',
+    停用申请: 'is-danger'
+  }
+  return map[type] ?? 'is-neutral'
 }
-function toggleColumn(key: string) {
-  columnVisibility.value[key] = !columnVisibility.value[key]
-  localStorage.setItem(`pp-col-${key}`, String(columnVisibility.value[key]))
+
+/** 风险标签状态条配色 */
+function approvalRiskChipClass(label: string): string {
+  if (label.includes('临期') || label.includes('价格') || label.includes('库房') || label.includes('重点')) return 'is-warning'
+  if (label.includes('冷链') || label.includes('高值')) return 'is-danger'
+  if (label.includes('变更')) return 'is-info'
+  return 'is-success'
 }
+
+/** 审批节点状态条配色 */
+function approvalStatusChipClass(tone?: string): string {
+  const map: Record<string, string> = {
+    orange: 'is-warning',
+    blue: 'is-info',
+    red: 'is-danger',
+    green: 'is-success'
+  }
+  return map[tone ?? ''] ?? 'is-neutral'
+}
+
+/** 审批状态本地过滤：仅保留匹配状态的行 */
+const filteredRows = computed(() => {
+  const status = approvalStatusFilter.value
+  if (!status) return rows.value
+  return rows.value.filter((row) => row.status === status)
+})
+
+/** 本地过滤后的总数（状态筛选不改变分页总数口径） */
+const displayTotal = computed(() => {
+  if (!approvalStatusFilter.value) return totalItems.value
+  return filteredRows.value.length
+})
+
+/** 表格最小宽度 = 固定列（勾选 48 + 审批单号 170 + 商品 250 + 操作 250）+ 各可见数据列宽之和 */
+const FIXED_COL_WIDTH = 48 + 170 + 250 + 250
+const approvalTableMinWidth = computed(() => {
+  const dynamicWidth = approvalCols.visibleColumns.value.reduce((sum, col) => sum + col.width, 0)
+  return FIXED_COL_WIDTH + dynamicWidth
+})
 
 async function loadApplications() {
   if (!active.value || route.name !== 'pending-product-catalog') { needsReload = true; return }
@@ -507,12 +555,17 @@ function rowEditRoute(row: PendingProductApplicationRow) {
 
 onMounted(() => {
   void loadApplications()
-  void loadColumnVisibility()
   requestAnimationFrame(updateApprovalScrollState)
   document.addEventListener('click', handleOutsideClick)
 })
 watch([activeTypeKey, activeScope, activeMineStatus], () => {
   resetPage()
+  // 侧边栏切换类型时，同步顶部申请类型筛选框
+  if (activeScope.value === 'todo') {
+    approvalTypeFilter.value = activeTypeKey.value
+  } else {
+    approvalTypeFilter.value = ''
+  }
   void loadApplications()
 })
 watch(() => refreshStore.applicationsVersion, () => {
@@ -542,24 +595,13 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 </script>
 
 <template>
-  <section class="approval-page">
-    <header class="approval-page-title">
-      <h2>待审批目录</h2>
-      <p>多字段模式：固定核心列与操作列，中间字段横向滚动，避免字段换行挤压。</p>
-    </header>
-
-    <section class="approval-metric-grid">
-      <article
-        v-for="metric in approvalMetricCards"
-        :key="metric.label"
-        class="approval-metric-card"
-        :class="metric.tone"
-      >
-        <span>{{ metric.label }}</span>
-        <strong>{{ metric.value }}</strong>
-        <small>{{ metric.hint }}</small>
-      </article>
-    </section>
+  <section class="approval-page spd-unified-list">
+    <MdPageHeader
+      title="待审批目录"
+      description="审核商品准入、信息变更、资质更新与价格调整申请。"
+      :loading="loading"
+      @refresh="loadApplications"
+    />
 
     <div class="approval-workspace">
       <aside class="approval-sidebar-card">
@@ -612,178 +654,285 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 
       <main class="approval-list-card">
         <StatusMessage :message="message" tone="info" />
-        <div class="approval-context">
-          <div>
-            <h3>{{ activeScope === 'mine' ? activeMineOption.label : activeScope === 'handled' ? '已处理/抄送' : `${activeType.label} · 多字段列表` }}</h3>
-            <p>
-              {{
-                activeScope === 'mine'
-                  ? activeMineOption.description
-                  : activeScope === 'handled'
-                    ? '查看当前用户已处理、参与或被抄送的审批单据。'
-                    : activeType.description
-              }}
-            </p>
-          </div>
-          <div v-if="activeScope === 'todo'" class="approval-action-row">
-            <button type="button" class="btn btn-primary" @click="openCreateModal">
-              <Plus :size="16" />
-              新增
-            </button>
-            <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
-              <summary class="btn" tabindex="0">
-                <FileUp :size="16" />
-                <span>导入</span>
-                <ChevronDown :size="14" />
-              </summary>
-              <div>
-                <button class="btn-text" type="button" @click="downloadTemplate">
-                  <FileDown :size="15" />
-                  模板导出
-                </button>
-                <button class="btn-text" type="button" @click="importInput?.click()">
-                  <FileUp :size="15" />
-                  按模板导入
-                </button>
+
+        <!-- 筛选区：与统一列表其他页面保持一致（字段 + 重置/查询） -->
+        <form class="approval-filter-row md-hospital-filter ulc-filter" @submit.prevent="currentPage = 1; loadApplications()">
+          <div class="ulc-filter-fields">
+            <label>
+              <span>审批单号 / 商品名称</span>
+              <div class="approval-search">
+                <Search :size="16" />
+                <input v-model="keyword" type="search" placeholder="输入审批单号、商品名称" autocomplete="off" />
               </div>
-            </details>
-            <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
-            <button type="button" class="btn" @click="exportRows">
+            </label>
+            <label>
+              <span>申请类型</span>
+              <el-select
+                v-model="approvalTypeFilter"
+                placeholder="全部类型"
+                clearable
+                class="ulc-filter-select"
+                aria-label="申请类型"
+                @change="onApprovalTypeFilterChange"
+              >
+                <el-option label="全部类型" value="" />
+                <el-option
+                  v-for="item in approvalTypes"
+                  :key="item.key"
+                  :label="item.label"
+                  :value="item.key"
+                />
+              </el-select>
+            </label>
+            <label>
+              <span>审批状态</span>
+              <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable class="ulc-filter-select" aria-label="审批状态">
+                <el-option label="全部状态" value="" />
+                <el-option label="初审中" value="初审中" />
+                <el-option label="复审中" value="复审中" />
+              </el-select>
+            </label>
+          </div>
+          <div class="md-hospital-filter-actions ulc-filter-actions">
+            <button type="button" class="md-btn" @click="resetApprovalFilter">
+              <RefreshCw :size="16" />
+              <span>重置</span>
+            </button>
+            <button type="submit" class="md-btn md-btn-primary">
+              <Search :size="16" />
+              <span>查询</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 工具栏按钮：与统一列表其他页面保持一致 -->
+        <div class="approval-action-row md-table-toolbar">
+          <div class="md-table-toolbar-main">
+            <template v-if="activeScope === 'todo'">
+              <button type="button" class="md-btn md-btn-primary" @click="openCreateModal">
+                <Plus :size="16" />
+                新增
+              </button>
+              <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
+                <summary class="md-btn md-btn-primary" tabindex="0">
+                  <FileUp :size="16" />
+                  <span>导入</span>
+                  <ChevronDown :size="14" />
+                </summary>
+                <div>
+                  <button class="btn-text" type="button" @click="downloadTemplate">
+                    <FileDown :size="15" />
+                    模板导出
+                  </button>
+                  <button class="btn-text" type="button" @click="importInput?.click()">
+                    <FileUp :size="15" />
+                    按模板导入
+                  </button>
+                </div>
+              </details>
+              <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
+            </template>
+            <button type="button" class="md-btn md-btn-primary" @click="exportRows">
               <Download :size="16" />
               <span>导出</span>
             </button>
-            <button type="button" class="btn" @click="openColumnSettings">
-              <Settings2 :size="16" />
-              <span>列设置</span>
-            </button>
+            <div class="ulc-col-settings">
+              <button type="button" class="md-btn md-btn-primary" @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value">
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: approvalCols.settingsOpen.value }" />
+              </button>
+              <div v-if="approvalCols.settingsOpen.value" class="ulc-col-settings-pop">
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="approvalCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in approvalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && approvalCols.visibleColumnCount.value <= 1"
+                      @change="approvalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="approvalCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
           </div>
         </div>
-        <!-- 消息：操作反馈统一走顶部 ElMessage 弹层 -->
 
-        <div class="approval-filter-row">
-          <div class="approval-search">
-            <Search :size="20" />
-            <input v-model="keyword" type="text" placeholder="搜索审批单号、申请供应商、商品名称..." @keyup.enter="currentPage = 1; loadApplications()" />
-          </div>
-          <select class="filter-select" aria-label="申请类型">
-            <option>全部类型</option>
-            <option>{{ activeType.label }}</option>
-          </select>
-          <select class="filter-select" aria-label="审批状态">
-            <option>全部状态</option>
-            <option>初审中</option>
-            <option>复审中</option>
-          </select>
-          <button class="filter-button" type="button" @click="currentPage = 1; loadApplications()">查询</button>
-        </div>
-
-        <div ref="approvalTableShellRef" class="approval-wide-table-shell" @scroll="updateApprovalScrollState">
-          <table class="approval-wide-table">
+        <div ref="approvalTableShellRef" class="approval-wide-table-shell" @scroll="handleApprovalScroll">
+          <table class="approval-wide-table" :style="{ minWidth: approvalTableMinWidth + 'px' }">
             <thead>
               <tr>
-                <th class="approval-sticky-check">
+                <th class="approval-col-check">
                   <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllRows" />
                 </th>
-                <th class="approval-sticky-no">审批单号</th>
-                <th class="approval-sticky-product">商品名称 / 规格</th>
-                <th>申请类型</th>
-                <th>申请人</th>
-                <th>供应商</th>
-                <th>厂家</th>
-                <th>注册证号</th>
-                <th>合同编码</th>
-                <th>一级分类</th>
-                <th>二级分类</th>
-                <th>三级分类</th>
-                <th>是否带量</th>
-                <th>是否集采</th>
-                <th>是否国产</th>
-                <th>是否收费</th>
-                <th>重点监控</th>
-                <th>采购价</th>
-                <th>UDI 编码</th>
-                <th>风险标签</th>
-                <th>节点 / 等待</th>
-                <th>变更记录</th>
+                <th class="approval-col-no">审批单号</th>
+                <th class="approval-col-product">商品名称 / 规格</th>
+                <th v-if="isColVisible('type')" :style="{ width: approvalColWidth('type') + 'px' }">
+                  <span class="ulc-th-text">申请类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('type', $event)" />
+                </th>
+                <th v-if="isColVisible('applicant')" :style="{ width: approvalColWidth('applicant') + 'px' }">
+                  <span class="ulc-th-text">申请人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('applicant', $event)" />
+                </th>
+                <th v-if="isColVisible('time')" :style="{ width: approvalColWidth('time') + 'px' }">
+                  <span class="ulc-th-text">提交时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
+                </th>
+                <th v-if="isColVisible('productCode')" :style="{ width: approvalColWidth('productCode') + 'px' }">
+                  <span class="ulc-th-text">商品编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('productCode', $event)" />
+                </th>
+                <th v-if="isColVisible('specModel')" :style="{ width: approvalColWidth('specModel') + 'px' }">
+                  <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('specModel', $event)" />
+                </th>
+                <th v-if="isColVisible('supplier')" :style="{ width: approvalColWidth('supplier') + 'px' }">
+                  <span class="ulc-th-text">供应商</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('supplier', $event)" />
+                </th>
+                <th v-if="isColVisible('manufacturer')" :style="{ width: approvalColWidth('manufacturer') + 'px' }">
+                  <span class="ulc-th-text">厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('manufacturer', $event)" />
+                </th>
+                <th v-if="isColVisible('registrationNo')" :style="{ width: approvalColWidth('registrationNo') + 'px' }">
+                  <span class="ulc-th-text">注册证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('registrationNo', $event)" />
+                </th>
+                <th v-if="isColVisible('contractCode')" :style="{ width: approvalColWidth('contractCode') + 'px' }">
+                  <span class="ulc-th-text">合同编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('contractCode', $event)" />
+                </th>
+                <th v-if="isColVisible('firstCategory')" :style="{ width: approvalColWidth('firstCategory') + 'px' }">
+                  <span class="ulc-th-text">一级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('firstCategory', $event)" />
+                </th>
+                <th v-if="isColVisible('secondCategory')" :style="{ width: approvalColWidth('secondCategory') + 'px' }">
+                  <span class="ulc-th-text">二级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('secondCategory', $event)" />
+                </th>
+                <th v-if="isColVisible('thirdCategory')" :style="{ width: approvalColWidth('thirdCategory') + 'px' }">
+                  <span class="ulc-th-text">三级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('thirdCategory', $event)" />
+                </th>
+                <th v-if="isColVisible('volumeBased')" :style="{ width: approvalColWidth('volumeBased') + 'px' }">
+                  <span class="ulc-th-text">是否带量</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('volumeBased', $event)" />
+                </th>
+                <th v-if="isColVisible('centralized')" :style="{ width: approvalColWidth('centralized') + 'px' }">
+                  <span class="ulc-th-text">是否集采</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('centralized', $event)" />
+                </th>
+                <th v-if="isColVisible('domestic')" :style="{ width: approvalColWidth('domestic') + 'px' }">
+                  <span class="ulc-th-text">是否国产</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('domestic', $event)" />
+                </th>
+                <th v-if="isColVisible('chargeable')" :style="{ width: approvalColWidth('chargeable') + 'px' }">
+                  <span class="ulc-th-text">是否收费</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('chargeable', $event)" />
+                </th>
+                <th v-if="isColVisible('keyMonitored')" :style="{ width: approvalColWidth('keyMonitored') + 'px' }">
+                  <span class="ulc-th-text">重点监控</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('keyMonitored', $event)" />
+                </th>
+                <th v-if="isColVisible('purchasePrice')" :style="{ width: approvalColWidth('purchasePrice') + 'px' }">
+                  <span class="ulc-th-text">采购价</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('purchasePrice', $event)" />
+                </th>
+                <th v-if="isColVisible('udiCode')" :style="{ width: approvalColWidth('udiCode') + 'px' }">
+                  <span class="ulc-th-text">UDI 编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('udiCode', $event)" />
+                </th>
+                <th v-if="isColVisible('risk')" :style="{ width: approvalColWidth('risk') + 'px' }">
+                  <span class="ulc-th-text">风险标签</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('risk', $event)" />
+                </th>
+                <th v-if="isColVisible('wait')" :style="{ width: approvalColWidth('wait') + 'px' }">
+                  <span class="ulc-th-text">节点 / 等待</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('wait', $event)" />
+                </th>
+                <th v-if="isColVisible('changeSummary')" :style="{ width: approvalColWidth('changeSummary') + 'px' }">
+                  <span class="ulc-th-text">变更记录</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('changeSummary', $event)" />
+                </th>
                 <th class="approval-sticky-action">操作</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="23"><StatusMessage message="正在加载待审批任务..." tone="info" /></td>
+                <td :colspan="approvalTableSpan"><StatusMessage message="正在加载待审批任务..." tone="info" /></td>
               </tr>
               <tr v-else-if="error">
-                <td colspan="23"><StatusMessage :message="error" tone="error" /></td>
+                <td :colspan="approvalTableSpan"><StatusMessage :message="error" tone="error" /></td>
               </tr>
-              <tr v-for="row in rows" v-else :key="row.no">
-                <td class="approval-sticky-check">
+              <tr v-for="row in filteredRows" v-else :key="row.no">
+                <td class="approval-col-check">
                   <input v-model="selectedNos" type="checkbox" :value="row.no" />
                 </td>
-                <td class="approval-sticky-no">
+                <td class="approval-col-no">
                   <div class="approval-no">
                     <AlertTriangle v-if="row.warning" :size="15" />
                     <span>{{ row.no }}</span>
                   </div>
                 </td>
-                <td class="approval-sticky-product approval-product-cell">
-                  <strong>{{ row.product }}</strong>
-                  <small>{{ row.supplier }}</small>
+                <td class="approval-col-product approval-product-cell">
+                  <strong :title="row.product">{{ row.product }}</strong>
+                  <small :title="row.specModel || row.supplier">{{ row.specModel || '-' }} · {{ row.supplier }}</small>
                 </td>
-                <td><span class="approval-type" :class="approvalTypeClass(row.type)">{{ row.type }}</span></td>
-                <td>{{ approvalWideField(row, 'applicant') }}</td>
-                <td>{{ approvalWideField(row, 'supplier') }}</td>
-                <td>{{ approvalWideField(row, 'manufacturer') }}</td>
-                <td>{{ approvalWideField(row, 'registrationNo') }}</td>
-                <td>{{ approvalWideField(row, 'contractCode') }}</td>
-                <td>{{ approvalWideField(row, 'firstCategory') }}</td>
-                <td>{{ approvalWideField(row, 'secondCategory') }}</td>
-                <td>{{ approvalWideField(row, 'thirdCategory') }}</td>
-                <td>{{ approvalWideField(row, 'volumeBased') }}</td>
-                <td>{{ approvalWideField(row, 'centralized') }}</td>
-                <td>{{ approvalWideField(row, 'domestic') }}</td>
-                <td>{{ approvalWideField(row, 'chargeable') }}</td>
-                <td>{{ approvalWideField(row, 'keyMonitored') }}</td>
-                <td class="approval-money">{{ approvalWideField(row, 'purchasePrice') }}</td>
-                <td>{{ approvalWideField(row, 'udiCode') }}</td>
-                <td>
+                <td v-if="isColVisible('type')"><span class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span></td>
+                <td v-if="isColVisible('applicant')"><span class="ulc-strong">{{ approvalWideField(row, 'applicant') }}</span></td>
+                <td v-if="isColVisible('time')" class="approval-time"><span class="ulc-time">{{ approvalTimeText(row) }}</span></td>
+                <td v-if="isColVisible('productCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'productCode') }}</span></td>
+                <td v-if="isColVisible('specModel')"><span class="ulc-strong">{{ approvalWideField(row, 'specModel') }}</span></td>
+                <td v-if="isColVisible('supplier')"><span class="ulc-strong">{{ approvalWideField(row, 'supplier') }}</span></td>
+                <td v-if="isColVisible('manufacturer')"><span class="ulc-strong">{{ approvalWideField(row, 'manufacturer') }}</span></td>
+                <td v-if="isColVisible('registrationNo')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'registrationNo') }}</span></td>
+                <td v-if="isColVisible('contractCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'contractCode') }}</span></td>
+                <td v-if="isColVisible('firstCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'firstCategory') }}</span></td>
+                <td v-if="isColVisible('secondCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'secondCategory') }}</span></td>
+                <td v-if="isColVisible('thirdCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'thirdCategory') }}</span></td>
+                <td v-if="isColVisible('volumeBased')"><span class="ulc-tag">{{ approvalWideField(row, 'volumeBased') }}</span></td>
+                <td v-if="isColVisible('centralized')"><span class="ulc-tag">{{ approvalWideField(row, 'centralized') }}</span></td>
+                <td v-if="isColVisible('domestic')"><span class="ulc-tag">{{ approvalWideField(row, 'domestic') }}</span></td>
+                <td v-if="isColVisible('chargeable')"><span class="ulc-tag">{{ approvalWideField(row, 'chargeable') }}</span></td>
+                <td v-if="isColVisible('keyMonitored')"><span class="ulc-tag">{{ approvalWideField(row, 'keyMonitored') }}</span></td>
+                <td v-if="isColVisible('purchasePrice')" class="approval-money"><span class="ulc-strong">{{ approvalWideField(row, 'purchasePrice') }}</span></td>
+                <td v-if="isColVisible('udiCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'udiCode') }}</span></td>
+                <td v-if="isColVisible('risk')">
                   <span
                     v-for="label in approvalRiskLabels(row)"
                     :key="label"
-                    class="approval-risk-chip"
-                    :class="approvalRiskTone(label)"
+                    class="ulc-chip"
+                    :class="approvalRiskChipClass(label)"
                   >
                     {{ label }}
                   </span>
                 </td>
-                <td>
-                  <span class="approval-status" :class="row.statusTone">
-                    <Clock3 v-if="row.statusTone === 'orange'" :size="14" />
-                    <Send v-else-if="row.statusTone === 'blue'" :size="14" />
-                    <XCircle v-else :size="14" />
+                <td v-if="isColVisible('wait')">
+                  <span class="ulc-chip" :class="approvalStatusChipClass(row.statusTone)">
+                    <Clock3 v-if="row.statusTone === 'orange'" :size="12" />
+                    <Send v-else-if="row.statusTone === 'blue'" :size="12" />
+                    <XCircle v-else :size="12" />
                     {{ approvalWideField(row, 'wait') }}
                   </span>
                 </td>
-                <td class="approval-change-summary">{{ row.changeSummary || '-' }}</td>
+                <td v-if="isColVisible('changeSummary')" class="approval-change-summary"><span class="ulc-strong">{{ row.changeSummary || '-' }}</span></td>
                 <td class="approval-sticky-action">
-                  <div class="approval-row-actions">
-                    <button class="btn btn-sm" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
+                  <div class="ulc-actions">
+                    <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
                     <RouterLink
-                      class="btn btn-sm"
+                      v-if="activeScope !== 'todo' && !isReturnedMineDirectory"
+                      class="ulc-action"
                       :to="rowDetailRoute(row)"
                     >
                       查看
                     </RouterLink>
-                    <RouterLink
-                      class="btn btn-sm btn-primary"
-                      :to="rowEditRoute(row)"
-                    >
-                      {{ rowPrimaryActionLabel() }}
-                    </RouterLink>
+                    <template v-else>
+                      <RouterLink
+                        class="ulc-action"
+                        :to="rowDetailRoute(row)"
+                      >
+                        查看
+                      </RouterLink>
+                      <RouterLink
+                        class="ulc-action"
+                        :to="rowEditRoute(row)"
+                      >
+                        {{ rowPrimaryActionLabel() }}
+                      </RouterLink>
+                    </template>
                   </div>
                 </td>
               </tr>
               <tr v-if="!loading && !error && rows.length === 0">
-                <td colspan="22">
+                <td :colspan="approvalTableSpan">
                   <div class="approval-empty-state">
                     <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
@@ -812,7 +961,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         >
           <span
             class="approval-wide-scroll-thumb"
-            :style="approvalScrollThumbStyle"
             @pointerdown.stop="startApprovalScrollDrag"
             @pointermove="moveApprovalScrollDrag"
             @pointerup="endApprovalScrollDrag"
@@ -822,45 +970,29 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 
         <div v-if="selectedNos.length" class="approval-batch-bar">
           <span>已选择 {{ selectedNos.length }} 条</span>
-          <button type="button" class="btn btn-sm" :disabled="batchApproveLoading" @click="openBatchApprove('approve')">
-            <CheckCircle2 :size="16" /> 批量通过
+          <button type="button" class="ulc-action" :disabled="batchApproveLoading" @click="openBatchApprove('approve')">
+            <CheckCircle2 :size="14" /> 批量通过
           </button>
-          <button type="button" class="btn btn-sm" :disabled="batchApproveLoading" @click="openBatchApprove('return')">
-            <XCircle :size="16" /> 批量退回
+          <button type="button" class="ulc-action" :disabled="batchApproveLoading" @click="openBatchApprove('return')">
+            <XCircle :size="14" /> 批量退回
           </button>
-          <button type="button" class="btn btn-sm" :disabled="batchApproveLoading" @click="openBatchApprove('reject')">
-            <XCircle :size="16" /> 批量驳回
+          <button type="button" class="ulc-action is-danger" :disabled="batchApproveLoading" @click="openBatchApprove('reject')">
+            <XCircle :size="14" /> 批量驳回
           </button>
-          <button type="button" class="btn btn-sm" style="margin-left:auto" :disabled="batchApproveLoading" @click="selectedNos = []">
+          <button type="button" class="ulc-action is-neutral" style="margin-left:auto" :disabled="batchApproveLoading" @click="selectedNos = []">
             清除选择
           </button>
         </div>
 
-        <PaginationControls
+        <MdPagination
           :page="currentPage"
-          :size="pageSize"
+          :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
           :total="totalItems"
+          :size="pageSize"
           :loading="loading"
-          :page-size-options="[10, 20, 25, 50, 100]"
-          @change-page="changePage"
-          @change-size="changePageSize"
+          @update:page="changePage"
+          @update:size="changePageSize"
         />
-        <footer v-if="false && totalItems > 0" class="approval-pagination">
-          <span class="approval-pagination-info">显示 {{ (currentPage - 1) * pageSize + 1 }}-{{ Math.min(currentPage * pageSize, totalItems) }} 条，共 {{ totalItems }} 条</span>
-          <div class="approval-pagination-pages">
-            <button class="btn btn-sm" type="button" :disabled="currentPage <= 1 || loading" @click="changePage(currentPage - 1)">上一页</button>
-            <button
-              v-for="p in visiblePages"
-              :key="p"
-              class="btn btn-sm page-num"
-              :class="{ 'btn-primary': p === currentPage }"
-              type="button"
-              :disabled="loading"
-              @click="changePage(p)"
-            >{{ p }}</button>
-            <button class="btn btn-sm" type="button" :disabled="currentPage >= totalPages || loading" @click="changePage(currentPage + 1)">下一页</button>
-          </div>
-        </footer>
       </main>
     </div>
 
@@ -959,8 +1091,8 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             <h4>商品基础信息</h4>
             <div class="supplier-form-grid compact">
               <label><span>商品编码</span><input v-model="createForm.productCode" :readonly="!isNewApplication" placeholder="选填，留空取招采子编码" /></label>
-              <label><span>商品名称</span><input v-model="createForm.productName" :readonly="!canEditInformation" required /></label>
-              <label><span>规格型号</span><input v-model="createForm.specModel" :readonly="!canEditInformation" required /></label>
+              <label><span>商品名称 <i class="req-mark">*</i></span><input v-model="createForm.productName" :readonly="!canEditInformation" required /></label>
+              <label><span>规格型号 <i class="req-mark">*</i></span><input v-model="createForm.specModel" :readonly="!canEditInformation" required /></label>
               <label><span>品牌</span><input v-model="createForm.brand" :readonly="!canEditInformation" /></label>
               <label>
                 <span>生产厂家</span>
@@ -990,7 +1122,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   </option>
                 </select>
               </label>
-              <label><span>单位</span><input v-model="createForm.unit" :readonly="!canEditInformation" required /></label>
+              <label><span>单位 <i class="req-mark">*</i></span><input v-model="createForm.unit" :readonly="!canEditInformation" required /></label>
               <label><span>储存条件</span><input v-model="createForm.storageCondition" :readonly="!canEditInformation" /></label>
             </div>
           </section>
@@ -1083,43 +1215,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </button>
           </div>
         </form>
-      </section>
-    </div>
-    </Teleport>
-
-    <Teleport to="body">
-    <div v-if="columnSettingsVisible" class="attachment-preview-mask" @click.self="closeColumnSettings">
-      <section class="approval-create-dialog column-settings-dialog" role="dialog" aria-modal="true" aria-labelledby="col-settings-title">
-        <header class="approval-create-head">
-          <div>
-            <p>待审批目录</p>
-            <h3 id="col-settings-title">列设置</h3>
-          </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="closeColumnSettings">
-            <X :size="18" />
-          </button>
-        </header>
-        <div class="column-settings-body">
-          <p class="col-settings-tip">选择要在表格中显示的列。固定列（审批单号、商品名称、操作）始终显示。</p>
-          <div class="col-settings-grid">
-            <label
-              v-for="col in columnOptions"
-              :key="col.key"
-              class="col-settings-item"
-            >
-              <input
-                type="checkbox"
-                :checked="columnVisibility[col.key] !== false"
-                @change="toggleColumn(col.key)"
-              />
-              <span>{{ col.label }}</span>
-            </label>
-          </div>
-        </div>
-        <div class="approval-create-actions">
-          <button class="btn" type="button" @click="resetColumns">恢复默认</button>
-          <button class="btn btn-primary" type="button" @click="closeColumnSettings">确定</button>
-        </div>
       </section>
     </div>
     </Teleport>

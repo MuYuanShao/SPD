@@ -40,6 +40,7 @@ export interface PendingProductApplicationRow {
   statusTone: string
   warning: boolean
   productCode?: string
+  specModel?: string
   changeSummary?: string
   manufacturerName?: string
   registrationNo?: string

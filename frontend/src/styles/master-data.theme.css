@@ -1000,16 +1000,25 @@
 }
 
 /* ===== 分页 ===== */
+/* 使用 Element Plus el-pagination 原生组件。
+   容器只负责右对齐与留白，不对内部 select / 按钮做外观覆盖，
+   仅补充「整体靠右」这一条布局要求。 */
 .md-pagination {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
   padding: 12px 18px;
   background: var(--md-bg-card);
   font-size: 13px;
   color: var(--md-text-secondary);
   flex-shrink: 0;
+}
+
+.md-pagination > .el-pagination {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  row-gap: 8px;
 }
 
 .md-pagination-info {
@@ -1048,27 +1057,6 @@
   padding: 0 10px;
   font-size: 12px;
   font-weight: 500;
-}
-
-.md-pagination .md-select {
-  min-height: 26px !important;
-  padding: 0 24px 0 8px !important;
-  font-size: 12px !important;
-  background-size: 10px 10px !important;
-}
-
-.md-pagination .md-page-jump {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: 8px;
-  color: var(--md-text-secondary);
-  font-size: 12px;
-}
-
-.md-pagination .md-page-jump input {
-  width: 56px;
-  text-align: center;
 }
 
 .md-page-indicator {

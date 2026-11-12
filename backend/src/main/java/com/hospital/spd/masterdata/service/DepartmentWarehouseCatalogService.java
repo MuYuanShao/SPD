@@ -67,7 +67,7 @@ public class DepartmentWarehouseCatalogService {
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        CASE dwc.source_type WHEN 'manual' THEN '手工维护' ELSE '系统生成' END AS sourceType,
                        CASE dwc.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
-                       DATE_FORMAT(dwc.update_time, '%Y-%m-%d %H:%i') AS updateTime
+                       DATE_FORMAT(dwc.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                 """ + fromClause + where + " ORDER BY dwc.catalog_id ASC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         List<Map<String, Object>> rows = withSequenceNumbers(rawRows, pageReq.offset());
@@ -249,7 +249,11 @@ public class DepartmentWarehouseCatalogService {
 
     /**
      * 科室库房目录弹窗商品搜索：范围限医院目录内已绑定当前库房的商品，
-     * 排除该科室库房已维护的目录，支持按编码/名称/规格/厂家模糊搜索。
+     * 支持按编码/名称/规格/厂家模糊搜索。
+     *
+     * selectable 恒为 1（候选列表只包含已绑定当前库房的商品，均可加入目录）；
+     * maintained 表示该科室库房是否已存在该商品目录，
+     * 已维护的仍可选，批量维护会更新其状态。
      */
     public List<Map<String, Object>> catalogProductOptions(String deptName, String warehouseName, String keyword) {
         if (isBlank(deptName) || isBlank(warehouseName)) {
@@ -273,12 +277,13 @@ public class DepartmentWarehouseCatalogService {
                        COALESCE(p.spec_model, '-') AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        p.unit,
-                       CASE WHEN b.binding_id IS NOT NULL AND NOT EXISTS (
+                       1 AS selectable,
+                       CASE WHEN EXISTS (
                          SELECT 1 FROM department_warehouse_catalog dwc
                           WHERE dwc.dept_id = ? AND dwc.warehouse_id = ? AND dwc.product_id = p.product_id AND dwc.deleted = 0
-                       ) THEN 1 ELSE 0 END AS selectable
+                       ) THEN 1 ELSE 0 END AS maintained
                   FROM product p
-                  LEFT JOIN warehouse_product_binding b ON b.product_id = p.product_id
+                  JOIN warehouse_product_binding b ON b.product_id = p.product_id
                      AND b.warehouse_id = ? AND b.deleted = 0 AND b.status = 1
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id AND m.deleted = 0
                  WHERE p.deleted = 0 AND p.status = 1

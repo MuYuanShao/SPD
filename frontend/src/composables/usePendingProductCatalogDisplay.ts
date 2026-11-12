@@ -43,6 +43,9 @@ export function approvalWideField(row: PendingProductApplicationRow, field: stri
     purchasePrice: money(row.purchasePrice),
     udiCode: row.udiCode || '-',
     quotaManaged: yesNo(row.quotaManaged),
+    specModel: row.specModel || '-',
+    productCode: row.productCode || '-',
+    time: row.time || '-',
     wait: row.status || '-'
   }
   return values[field] ?? '-'

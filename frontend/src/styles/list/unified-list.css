@@ -1,0 +1,685 @@
+/* ================================================================
+ * 统一列表样式（基础数据 / 通用业务列表）
+ * 目标：
+ *   1. 表格统一使用「斑马纹 + 带边框」的 el-table
+ *   2. 表头列分隔线可拖拽调节列宽
+ *   3. 状态条 / 按钮 / 文本统一 4px 圆角 + 边框 + 背景色
+ *   4. 所有列内容居中
+ *   5. 普通字号 14px 起步，加粗内容 ≥ 15px
+ * ================================================================ */
+
+.spd-unified-list {
+  --ulc-radius: 4px;
+  --ulc-border: #d5e3e8;
+  --ulc-head-bg: #eef5f6;
+  --ulc-head-text: #23414c;
+  --ulc-row-stripe: #f6fafb;
+  --ulc-row-hover: #eaf4f6;
+  --ulc-text: #2c4753;
+  --ulc-muted: #6c818c;
+  --ulc-primary: var(--primary, #0f766e);
+  --ulc-danger: #c0392b;
+  --ulc-info: #0e7490;
+  --ulc-warning: #c2690c;
+  --ulc-neutral: #5b7371;
+  min-width: 0;
+}
+
+/* ===== 统一列表卡片间距 =====
+   表格卡片（工具栏 / 表格 / 分页）之间的统一间距，
+   各统一列表页保持一致的呼吸感。 */
+.spd-unified-list.master-table-card,
+.master-table-card.department-warehouse-catalog-list-card,
+.master-table-card.department-management-list-card,
+.master-table-card.warehouse-location-list-card,
+.master-table-card.campus-management-list-card,
+.master-table-card.supplier-management-list-card,
+.master-table-card.manufacturer-management-list-card {
+  gap: 18px;
+}
+
+/* ===== 表格容器 ===== */
+.spd-unified-list .ulc-table-wrap {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--ulc-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.spd-unified-list .ulc-table {
+  width: 100%;
+  font-size: 15px;
+}
+
+/* 表头：主题色实底 + 加粗白字 + 居中 */
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell {
+  background: var(--ulc-primary) !important;
+  border-color: var(--ulc-primary) !important;
+  padding: 10px 6px;
+  color: #fff;
+  font-weight: 700;
+}
+
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell .cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #fff;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+/* 表头拖拽手柄：仅在 hover 时显示，视觉克制 */
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell .cell:has(.ulc-col-grip) {
+  overflow: visible;
+  padding-right: 12px;
+}
+
+.spd-unified-list .ulc-col-grip {
+  flex: none;
+  width: 8px;
+  height: 18px;
+  margin-right: -10px;
+  border-radius: 3px;
+  cursor: col-resize;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.spd-unified-list .ulc-col-grip::after {
+  content: "";
+  display: block;
+  width: 2px;
+  height: 100%;
+  margin: 0 auto;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.7;
+}
+
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell:hover .ulc-col-grip {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* 单元格：全部居中 */
+.spd-unified-list .ulc-table td.el-table__cell {
+  border-color: var(--ulc-border) !important;
+  padding: 9px 6px;
+  text-align: center;
+  vertical-align: middle;
+  color: var(--ulc-text);
+  font-size: 15px;
+}
+
+.spd-unified-list .ulc-table td.el-table__cell .cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  line-height: 1.45;
+}
+
+/* 操作列：单元格内容强制单行，按钮不折行 */
+.spd-unified-list .ulc-table td.el-table__cell:has(.ulc-actions) .cell {
+  white-space: nowrap;
+  overflow: visible;
+}
+
+/* 斑马纹 */
+.spd-unified-list .ulc-table .el-table__row--striped td.el-table__cell {
+  background: var(--ulc-row-stripe);
+}
+
+.spd-unified-list .ulc-table .el-table__row--striped:hover td.el-table__cell {
+  background: var(--ulc-row-hover);
+}
+
+.spd-unified-list .ulc-table .el-table__row:hover > td.el-table__cell {
+  background: var(--ulc-row-hover);
+}
+
+/* 空态 */
+.spd-unified-list .ulc-table .el-table__empty-text {
+  color: var(--ulc-muted);
+  font-size: 14px;
+}
+
+/* ===== 加粗文本（≥ 16px） ===== */
+.spd-unified-list .ulc-th-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-unified-list .ulc-cell-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+}
+
+.spd-unified-list .ulc-inline-tags {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.spd-unified-list .ulc-strong {
+  color: var(--ulc-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.spd-unified-list .ulc-sub {
+  color: var(--ulc-muted);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.spd-unified-list .ulc-mono {
+  color: #31515e;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 状态条：4px 圆角 + 边框 + 背景色 ===== */
+.spd-unified-list .ulc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: var(--ulc-radius);
+  background: #f1f5f6;
+  color: var(--ulc-text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.spd-unified-list .ulc-chip::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+}
+
+.spd-unified-list .ulc-chip.is-success {
+  border-color: #a9d8c2;
+  background: #edf8f2;
+  color: #176844;
+}
+
+.spd-unified-list .ulc-chip.is-danger {
+  border-color: #e4c8c8;
+  background: #fbf2f2;
+  color: #9b3e3e;
+}
+
+.spd-unified-list .ulc-chip.is-info {
+  border-color: #b9d9e2;
+  background: #eef7fa;
+  color: #0e6273;
+}
+
+.spd-unified-list .ulc-chip.is-neutral {
+  border-color: #d4e2e7;
+  background: #f5f8fa;
+  color: #526b78;
+}
+
+.spd-unified-list .ulc-chip.is-primary {
+  border-color: transparent;
+  background: var(--ulc-primary);
+  color: #fff;
+}
+
+.spd-unified-list .ulc-chip.is-warning {
+  border-color: #f3d5a8;
+  background: #fdf6e8;
+  color: #96591b;
+}
+
+/* 无点标记的文本标签 */
+.spd-unified-list .ulc-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid #d4e2e7;
+  border-radius: var(--ulc-radius);
+  background: #f5f8fa;
+  color: #526b78;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ===== 行内操作按钮：4px 圆角 + 边框 + 背景色 ===== */
+.spd-unified-list .ulc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 操作列不换行：宽度不足时横向压缩间距而非折行 */
+  flex-wrap: nowrap;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.spd-unified-list .ulc-actions .ulc-action,
+.spd-unified-list button.ulc-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: var(--ulc-radius);
+  background: var(--ulc-primary);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  /* 操作按钮不被压缩，始终单行完整显示 */
+  flex-shrink: 0;
+  cursor: pointer;
+  text-decoration: none;
+  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.spd-unified-list .ulc-action:hover:not(:disabled) {
+  filter: brightness(0.93);
+  box-shadow: 0 2px 6px rgba(16, 40, 40, 0.18);
+}
+
+.spd-unified-list .ulc-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.spd-unified-list .ulc-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.spd-unified-list .ulc-action.is-info {
+  background: var(--ulc-info);
+}
+
+.spd-unified-list .ulc-action.is-danger {
+  background: var(--ulc-danger);
+}
+
+.spd-unified-list .ulc-action.is-neutral {
+  background: var(--ulc-neutral);
+}
+
+.spd-unified-list .ulc-action.is-outline {
+  border-color: #b9d3da;
+  background: #fff;
+  color: #26505c;
+}
+
+.spd-unified-list .ulc-action.is-outline:hover:not(:disabled) {
+  border-color: var(--ulc-primary);
+  background: #eef7f6;
+  color: var(--ulc-primary);
+  filter: none;
+}
+
+/* ===== 工具栏按钮统一：4px 圆角 + 实色背景 ===== */
+.spd-unified-list .md-table-toolbar .md-btn,
+.spd-unified-list .md-table-toolbar-main .md-btn {
+  min-height: 34px;
+  border-radius: var(--ulc-radius);
+  background: var(--ulc-neutral);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
+}
+
+.spd-unified-list .md-table-toolbar .md-btn:hover:not(:disabled) {
+  background: #4a5f5e;
+  color: #fff;
+  box-shadow: 0 6px 14px -4px rgba(16, 40, 40, 0.32);
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-primary {
+  background: var(--ulc-primary);
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-primary:hover:not(:disabled) {
+  background: var(--ulc-primary);
+  filter: brightness(0.93);
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-danger {
+  background: var(--ulc-danger);
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-danger:hover:not(:disabled) {
+  background: #a93226;
+  color: #fff;
+}
+
+/* 工具栏语义变体：大部分操作用主题色，停用 / 批量维护用其他颜色区分 */
+.spd-unified-list .md-table-toolbar .md-btn-warning {
+  background: var(--ulc-warning);
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-warning:hover:not(:disabled) {
+  background: #b45309;
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-info {
+  background: var(--ulc-info);
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-info:hover:not(:disabled) {
+  background: #0a5f75;
+  color: #fff;
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-outline {
+  background: #fff;
+  color: var(--ulc-primary);
+  border-color: var(--ulc-primary);
+}
+
+.spd-unified-list .md-table-toolbar .md-btn-outline:hover:not(:disabled) {
+  background: #eef7f6;
+  color: var(--ulc-primary);
+}
+
+.spd-unified-list .md-table-toolbar .md-btn:disabled {
+  opacity: 0.5;
+}
+
+/* 列设置按钮旋转箭头 */
+.spd-unified-list .ulc-col-settings .rotated {
+  transform: rotate(180deg);
+}
+
+/* ===== 列设置弹层 ===== */
+.spd-unified-list .ulc-col-settings {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 工具栏需要让列设置浮层溢出显示，不能被卡片裁剪 */
+.spd-unified-list .md-table-card,
+.spd-unified-list .md-table-toolbar,
+.spd-unified-list .md-table-toolbar-main {
+  overflow: visible;
+}
+
+.spd-unified-list .ulc-col-settings-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  width: 268px;
+  /* flex 列布局：header / footer 固定，中间列项列表独立滚动 */
+  display: flex;
+  flex-direction: column;
+  max-height: min(60vh, 420px);
+  padding: 12px 12px 10px;
+  border: 1px solid var(--ulc-border);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 12px 32px rgba(9, 45, 43, 0.22);
+  text-align: left;
+}
+
+/* 列项列表：可滚动区域，避免弹层整体超出视口 */
+.spd-unified-list .ulc-col-settings-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.spd-unified-list .ulc-col-settings-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.spd-unified-list .ulc-col-settings-list::-webkit-scrollbar-thumb {
+  border-radius: 3px;
+  background: rgba(9, 45, 43, 0.22);
+}
+
+.spd-unified-list .ulc-col-settings-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.spd-unified-list .ulc-col-settings-pop header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edf2f3;
+}
+
+.spd-unified-list .ulc-col-settings-pop header strong {
+  color: var(--ulc-head-text);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.spd-unified-list .ulc-col-settings-pop .ulc-link {
+  border: 0;
+  background: transparent;
+  color: var(--ulc-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.spd-unified-list .ulc-col-settings-pop .ulc-link:hover {
+  text-decoration: underline;
+}
+
+.spd-unified-list .ulc-col-settings-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 4px;
+  border-radius: var(--ulc-radius);
+  color: var(--ulc-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.spd-unified-list .ulc-col-settings-item:hover {
+  background: #f3f8f9;
+}
+
+.spd-unified-list .ulc-col-settings-item span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-unified-list .ulc-col-settings-item small {
+  color: var(--ulc-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.spd-unified-list .ulc-col-settings-pop footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #edf2f3;
+}
+
+.spd-unified-list .ulc-col-settings-pop footer .ulc-action {
+  min-height: 30px;
+  padding: 0 16px;
+}
+
+/* ===== 筛选区 el-select 统一风格 ===== */
+/* 筛选框与「重置 / 查询」按钮保持同一行：
+   筛选框组用 grid 自适应列数，按钮区固定在最右侧，筛选框增减都不会换行 */
+.spd-unified-list .ulc-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--ulc-border);
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* 筛选框组：占用除按钮区外的剩余宽度。
+   auto-fit + minmax 让空间不足时自动减少列数，而不是把按钮挤到下一行 */
+.spd-unified-list .ulc-filter-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.spd-unified-list .ulc-filter label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.spd-unified-list .ulc-filter label > span {
+  color: #405564;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.spd-unified-list .ulc-filter .el-select {
+  width: 100%;
+}
+
+.spd-unified-list .ulc-filter .el-select__wrapper {
+  min-height: 38px;
+  border-radius: var(--ulc-radius);
+  box-shadow: 0 0 0 1px var(--ulc-border) inset;
+}
+
+.spd-unified-list .ulc-filter .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px #9fc4c9 inset;
+}
+
+.spd-unified-list .ulc-filter .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--ulc-primary) inset, 0 0 0 3px rgba(15, 118, 110, 0.14);
+}
+
+.spd-unified-list .ulc-filter .el-input__wrapper,
+.spd-unified-list .ulc-filter .md-input {
+  min-height: 38px;
+  border-radius: var(--ulc-radius);
+}
+
+.spd-unified-list .ulc-filter-actions,
+.spd-unified-list .md-hospital-filter-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  align-self: end;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+/* 筛选区按钮与工具栏按钮保持一致：4px 圆角 + 实色背景 */
+.spd-unified-list .ulc-filter-actions .md-btn,
+.spd-unified-list .md-hospital-filter-actions .md-btn {
+  min-height: 38px;
+  border-radius: var(--ulc-radius);
+  background: var(--ulc-neutral);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
+}
+
+.spd-unified-list .ulc-filter-actions .md-btn:hover:not(:disabled),
+.spd-unified-list .md-hospital-filter-actions .md-btn:hover:not(:disabled) {
+  background: #4a5f5e;
+  color: #fff;
+  box-shadow: 0 6px 14px -4px rgba(16, 40, 40, 0.32);
+}
+
+.spd-unified-list .ulc-filter-actions .md-btn-primary,
+.spd-unified-list .md-hospital-filter-actions .md-btn-primary {
+  background: var(--ulc-primary);
+  color: #fff;
+}
+
+.spd-unified-list .ulc-filter-actions .md-btn-primary:hover:not(:disabled),
+.spd-unified-list .md-hospital-filter-actions .md-btn-primary:hover:not(:disabled) {
+  background: var(--ulc-primary);
+  filter: brightness(0.93);
+  color: #fff;
+}
+
+/* ===== 时间列 ===== */
+.spd-unified-list .ulc-time {
+  color: var(--ulc-muted);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (max-width: 1400px) {
+  .spd-unified-list .ulc-filter-fields {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .spd-unified-list .ulc-filter-fields {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .spd-unified-list .ulc-filter-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .spd-unified-list .ulc-filter-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

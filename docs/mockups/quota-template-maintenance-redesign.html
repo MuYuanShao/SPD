@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>定数包模板维护</title>
+  <style>
+    :root {
+      /* 主题色：墨绿（系统供应链模块） */
+      --primary: #0f766e;
+      --primary-deep: #0b5750;
+      --primary-dark: #094944;
+      --primary-mid: #14867d;
+      --primary-soft: #e7f4f2;
+      --primary-soft2: #d2eae7;
+      --primary-line: #a9d6d1;
+
+      --danger: #c0392b;
+      --danger-soft: #fdefee;
+      --danger-line: #f0c5c1;
+      --danger-deep: #9e2b20;
+
+      --amber: #b45309;
+      --amber-soft: #fef4e6;
+      --amber-line: #f2d3a4;
+
+      --text: #10201f;
+      --text-2: #3d5654;
+      --text-3: #4e6361;
+
+      --page-bg: #eef2f2;
+      --card: #ffffff;
+      --line: #dbe6e5;
+      --line-soft: #eaf0ef;
+
+      --r-lg: 12px;
+      --r: 8px;
+      --r-sm: 6px;
+      --shadow: 0 2px 6px rgba(16, 40, 40, .09);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--page-bg); color: var(--text);
+      font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+      font-size: 14px; line-height: 1.5;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; border: 0; background: none; }
+    svg { flex-shrink: 0; }
+
+    /* ═════ 顶部条：主题色 ═════ */
+    .topnav {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; height: 58px; padding: 0 20px;
+      background: linear-gradient(90deg, var(--primary-dark) 0%, var(--primary) 55%, var(--primary-mid) 100%);
+      box-shadow: 0 2px 10px rgba(9, 73, 68, .28);
+    }
+    .topnav-logo { display: flex; align-items: center; gap: 10px; margin-right: 30px; }
+    .topnav-logo .mark {
+      display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px;
+      background: rgba(255, 255, 255, .18); color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32);
+    }
+    .topnav-logo b { font-size: 16px; font-weight: 700; color: #fff; letter-spacing: .3px; }
+    .topnav-menu { display: flex; align-items: center; gap: 3px; }
+    .topnav-item {
+      display: inline-flex; align-items: center; height: 36px; padding: 0 15px;
+      border-radius: var(--r-sm);
+      color: rgba(255, 255, 255, .82); font-size: 14px; font-weight: 500; white-space: nowrap;
+    }
+    .topnav-item:hover { background: rgba(255, 255, 255, .16); color: #fff; }
+    .topnav-item.active {
+      background: rgba(255, 255, 255, .94); color: var(--primary-dark);
+      font-weight: 700; box-shadow: 0 2px 8px rgba(9, 73, 68, .22);
+    }
+    .topnav-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .icon-btn {
+      display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm);
+      background: rgba(255, 255, 255, .15); color: #fff;
+    }
+    .icon-btn:hover { background: rgba(255, 255, 255, .3); }
+    .topnav-user {
+      display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px 0 4px;
+      border-radius: 17px; background: rgba(255, 255, 255, .16);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .28);
+    }
+    .topnav-user:hover { background: rgba(255, 255, 255, .28); }
+    .topnav-user .avatar {
+      display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+      background: #fff; color: var(--primary-dark); font-size: 13px; font-weight: 700;
+    }
+    .topnav-user span { font-weight: 600; color: #fff; }
+
+    .crumb { display: flex; align-items: center; gap: 8px; padding: 14px 20px 0; color: var(--text-3); font-size: 13px; }
+    .crumb i { font-style: normal; color: #b6c5c4; }
+    .crumb b { color: var(--text); font-weight: 600; }
+
+    .page { display: flex; flex-direction: column; gap: 14px; padding: 12px 20px 32px; }
+
+    /* ═════ 标题栏：主题色 ═════ */
+    .page-head {
+      padding: 18px 24px;
+      border-radius: var(--r-lg);
+      background: linear-gradient(115deg, var(--primary-dark) 0%, var(--primary) 62%, var(--primary-mid) 100%);
+      box-shadow: 0 4px 16px rgba(9, 73, 68, .26);
+      position: relative; overflow: hidden;
+    }
+    .page-head::before {
+      content: ""; position: absolute; inset: 0;
+      background:
+        radial-gradient(circle at 10% 0%, rgba(255,255,255,.14) 0%, transparent 38%),
+        radial-gradient(circle at 90% 110%, rgba(255,255,255,.1) 0%, transparent 34%);
+      pointer-events: none;
+    }
+    .page-head h1 {
+      position: relative; margin: 0; font-size: 21px; font-weight: 700;
+      color: #fff; letter-spacing: -.2px;
+    }
+    .page-head p { position: relative; margin: 6px 0 0; font-size: 13.5px; color: rgba(255, 255, 255, .86); }
+
+    /* ═════ 业务面板 ═════ */
+    .panel {
+      display: flex; flex-direction: column; min-width: 0;
+      padding: 14px 16px 16px;
+      border-radius: var(--r-lg);
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+
+    /* ── 筛选区 ── */
+    .filter {
+      display: grid; grid-template-columns: repeat(4, minmax(130px, 1fr)) auto;
+      gap: 10px; align-items: end;
+      padding: 12px;
+      border-radius: var(--r);
+      background: linear-gradient(135deg, var(--primary-soft) 0%, var(--primary-soft2) 100%);
+      box-shadow: inset 0 0 0 1px var(--primary-line);
+    }
+    .field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+    .field > span { color: var(--primary-dark); font-size: 13px; font-weight: 700; line-height: 1.3; }
+    .field input, .field select {
+      height: 34px; padding: 0 11px;
+      border: 1px solid var(--primary-line); border-radius: var(--r-sm);
+      background: #fff; color: var(--text); font-size: 14px;
+    }
+    .field input { width: 100%; }
+    .field select {
+      padding-right: 28px; cursor: pointer; appearance: none;
+      background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%230f766e' stroke-width='2.6'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 9px center;
+    }
+    .field input:hover, .field select:hover { border-color: var(--primary); }
+    .field input:focus, .field select:focus {
+      outline: 0; border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, .18);
+    }
+    .field input::placeholder { color: #93a8a7; }
+    .filter-actions { display: flex; align-items: center; gap: 8px; padding-bottom: 1px; }
+
+    /* ── 按钮：每个操作都有自己的背景色 + 圆角 ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      height: 34px; padding: 0 15px;
+      border: 1px solid transparent; border-radius: var(--r-sm);
+      background: #eef4f4; color: #334e4d;
+      font-size: 14px; font-weight: 600; white-space: nowrap;
+      transition: filter .15s, box-shadow .15s, transform .05s;
+    }
+    .btn:hover:not(:disabled) { filter: brightness(.93); box-shadow: 0 2px 8px rgba(16, 40, 40, .18); }
+    .btn:active:not(:disabled) { transform: translateY(1px); }
+    .btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+    .btn-add { background: var(--primary); color: #fff; }
+    .btn-edit { background: #0958d9; color: #fff; }
+    .btn-stop { background: var(--danger); color: #fff; }
+    .btn-start { background: #1a7f37; color: #fff; }
+    .btn-import { background: #b45309; color: #fff; }
+    .btn-export { background: #0e7490; color: #fff; }
+    .btn-cols { background: #334e4d; color: #fff; }
+    .btn-reset { background: #5b7371; color: #fff; }
+    .btn-query { background: var(--primary); color: #fff; }
+
+    /* ── 工具条 ── */
+    .toolbar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 12px 2px; flex-wrap: wrap;
+    }
+    .toolbar-main { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .toolbar-info { display: flex; align-items: center; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px; padding: 4px 13px;
+      border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap;
+    }
+    .chip.is-primary { background: var(--primary); color: #fff; }
+    .chip.is-green { background: #e6f6ef; color: #046b4c; box-shadow: inset 0 0 0 1px #b6e2d0; }
+    .chip.is-grey { background: #eef2f2; color: var(--text-2); box-shadow: inset 0 0 0 1px #dbe4e3; }
+    .spacer { flex: 1; }
+
+    /* ── 批量条 ── */
+    .batch { display: none; align-items: center; gap: 10px; padding: 10px 14px; margin-bottom: 10px;
+      border-radius: var(--r);
+      background: linear-gradient(90deg, var(--primary-soft) 0%, var(--primary-soft2) 100%);
+      box-shadow: inset 0 0 0 1px var(--primary-line); }
+    .batch.on { display: flex; }
+    .batch b { color: var(--primary-dark); font-weight: 700; font-size: 14px; }
+
+    /* ── 表格：主题色表头 ── */
+    .table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: #fff; }
+    table.grid { display: block; width: 100%; border-collapse: separate; border-spacing: 0;
+      --cols: 48px minmax(0,2.1fr) minmax(0,.85fr) minmax(0,1fr) minmax(0,.72fr) minmax(0,.8fr) 272px; }
+    .grid thead, .grid tbody { display: block; }
+    .grid tr { display: grid; grid-template-columns: var(--cols); align-items: stretch; }
+    .grid thead th {
+      position: sticky; top: 0; z-index: 3;
+      display: flex; align-items: center;
+      padding: 11px 13px;
+      background: linear-gradient(180deg, var(--primary-mid) 0%, var(--primary) 100%);
+      color: #fff; font-size: 13.5px; font-weight: 700;
+      text-align: left; white-space: nowrap;
+      box-shadow: inset 0 -1px 0 rgba(255,255,255,.22);
+    }
+    .grid thead th.c-act { justify-content: center; text-align: center; }
+    .grid tbody td {
+      display: flex; align-items: center;
+      padding: 11px 13px; min-width: 0;
+      background: #fff; border-bottom: 1px solid var(--line-soft); vertical-align: middle;
+    }
+    .grid tbody tr { transition: background .12s; }
+    .grid tbody tr:hover td { background: #fff; }
+    .grid tbody tr.sel td { background: #fff; }
+    .grid tbody tr.sel:hover td { background: #fff; }
+    .grid tbody tr:last-child td { border-bottom: 0; }
+    .grid td.c-act { justify-content: center; text-align: center; }
+
+    .col-sel { justify-content: center; text-align: center; }
+    .col-sel input { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; vertical-align: middle; }
+
+    .tpl-cell { display: flex; align-items: center; gap: 11px; min-width: 0; }
+    .tpl-badge {
+      display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-sm);
+      background: #eef1f1; color: #334e4d;
+      font-weight: 700; font-size: 15px; flex-shrink: 0;
+      box-shadow: inset 0 0 0 1px var(--line);
+    }
+    .tpl-txt { min-width: 0; }
+    .tpl-name { font-weight: 700; font-size: 14.5px; color: var(--text); line-height: 1.35;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tpl-meta { margin-top: 2px; color: var(--text-3); font-size: 12.5px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .tpl-meta code {
+      font-family: ui-monospace, Consolas, monospace; padding: 1px 7px; border-radius: 4px;
+      background: #eef1f1; color: var(--text-2);
+      font-size: 12px; font-weight: 700;
+    }
+
+    .qty { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .qty b { font-size: 16px; font-weight: 700; color: var(--text); }
+    .qty span { margin-left: 4px; color: var(--text-3); font-size: 13px; }
+
+    /* 版本：纯文本，不单独配底色 */
+    .ver { font-size: 13.5px; color: var(--text-2); white-space: nowrap; }
+    .ver.cur { color: var(--primary-deep); font-weight: 700; }
+
+    /* 状态：文字 + 圆点，不单独配底色 */
+    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+    .status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex: 0 0 7px; }
+    .status.on { color: #046b4c; }
+    .status.off { color: #5f6d73; }
+
+    /* ── 行内操作：每个按钮有自己的背景色 + 圆角 ── */
+    .row-act { display: flex; align-items: center; justify-content: center; gap: 6px; }
+    .act {
+      display: inline-flex; align-items: center; gap: 4px;
+      height: 29px; padding: 0 12px;
+      border: 1px solid transparent; border-radius: var(--r-sm);
+      font-size: 13px; font-weight: 600; white-space: nowrap;
+      transition: filter .15s, box-shadow .15s, transform .05s;
+    }
+    .act:hover { filter: brightness(.93); box-shadow: 0 2px 7px rgba(16, 40, 40, .2); }
+    .act:active { transform: translateY(1px); }
+    .act-detail { background: #0e7490; color: #fff; }
+    .act-edit { background: #0958d9; color: #fff; }
+    .act-pack { background: var(--primary); color: #fff; }
+    .act-stop { background: var(--danger); color: #fff; }
+    .act-start { background: #1a7f37; color: #fff; }
+
+    /* ── 分页 ── */
+    .pager { display: flex; align-items: center; gap: 8px; padding: 12px 2px 0; color: var(--text-2); font-size: 13.5px; }
+    .pg { min-width: 30px; height: 30px; padding: 0 7px; border-radius: var(--r-sm);
+      background: #fff; border: 1px solid var(--line); color: var(--text-2); font-weight: 700; font-size: 13.5px; }
+    .pg:hover:not(.on):not([disabled]) { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-dark); }
+    .pg.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .pg[disabled] { opacity: .45; cursor: not-allowed; }
+    .page-size {
+      height: 30px; padding: 0 28px 0 11px; cursor: pointer; appearance: none;
+      border: 1px solid var(--line); border-radius: var(--r-sm);
+      background: #fff url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%230f766e' stroke-width='2.6'><polyline points='6 9 12 15 18 9'/></svg>") no-repeat right 8px center;
+      color: var(--text-2); font-size: 13.5px;
+    }
+    .page-size:hover { border-color: var(--primary); color: var(--primary-dark); }
+
+    /* ═════ 抽屉 ═════ */
+    .drawer-mask { position: fixed; inset: 0; background: rgba(9, 45, 43, .45); z-index: 90; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 470px; max-width: 94vw;
+      background: #fff; z-index: 91; display: flex; flex-direction: column;
+      box-shadow: -10px 0 32px rgba(9, 45, 43, .24); animation: slide-in .22s ease; }
+    @keyframes slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+    .drawer-head { display: flex; align-items: flex-start; gap: 10px; padding: 16px 20px;
+      background: linear-gradient(115deg, var(--primary-dark) 0%, var(--primary) 100%);
+      color: #fff; }
+    .drawer-head h3 { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+    .drawer-head p { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,.85);
+      font-family: ui-monospace, Consolas, monospace; }
+    .drawer-close { margin-left: auto; width: 30px; height: 30px; border-radius: var(--r-sm);
+      background: rgba(255,255,255,.18); color: #fff; font-size: 17px; line-height: 1; }
+    .drawer-close:hover { background: rgba(255,255,255,.34); }
+    .drawer-body { flex: 1; overflow-y: auto; padding: 16px 20px 20px; }
+    .d-section { margin-bottom: 18px; }
+    .d-section > h5 {
+      display: flex; align-items: center; gap: 8px; margin: 0 0 10px;
+      font-size: 14px; font-weight: 700; color: var(--primary-dark);
+    }
+    .d-section > h5::before { content: ""; width: 4px; height: 15px; border-radius: 2px; background: var(--primary); }
+    .d-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px;
+      padding: 13px 15px; border-radius: var(--r);
+      background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary-line); }
+    .d-item > span { display: block; color: var(--primary-deep); font-size: 12.5px; margin-bottom: 3px; font-weight: 600; }
+    .d-item > strong { display: block; font-size: 14px; font-weight: 700; color: var(--text); word-break: break-all; }
+    .d-item > strong.mono { font-family: ui-monospace, Consolas, monospace; }
+    .d-item.full { grid-column: 1 / -1; }
+    .d-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag { padding: 4px 13px; border-radius: 999px; font-size: 13px; font-weight: 600;
+      background: #fff; color: var(--text-2); box-shadow: inset 0 0 0 1px var(--line); }
+    .tag.hl { background: var(--primary); color: #fff; box-shadow: none; }
+
+    /* ═════ 弹窗 ═════ */
+    .modal-mask { position: fixed; inset: 0; z-index: 95; display: flex;
+      align-items: center; justify-content: center; padding: 24px; background: rgba(9, 45, 43, .48); }
+    .modal { width: 700px; max-width: 100%; background: #fff; border-radius: var(--r-lg);
+      overflow: hidden; box-shadow: 0 16px 48px rgba(9, 45, 43, .3); animation: pop .18s ease; }
+    @keyframes pop { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+    .modal-head { padding: 16px 20px;
+      background: linear-gradient(115deg, var(--primary-dark) 0%, var(--primary) 100%); color: #fff; }
+    .modal-head h3 { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+    .modal-head p { margin: 4px 0 0; font-size: 13px; color: rgba(255,255,255,.86); }
+    .modal-body { padding: 18px 20px; max-height: 60vh; overflow-y: auto; }
+    .modal-foot { display: flex; justify-content: flex-end; gap: 9px; padding: 13px 20px;
+      background: var(--primary-soft); box-shadow: inset 0 1px 0 var(--primary-line); }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 13px 15px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .f-title { grid-column: 1 / -1; font-size: 13.5px; font-weight: 700; color: var(--primary-dark);
+      padding-bottom: 7px; box-shadow: inset 0 -1px 0 var(--primary-line); margin-top: 4px; }
+    .f-item { display: flex; flex-direction: column; gap: 5px; }
+    .f-item > span { font-size: 13.5px; font-weight: 700; color: var(--text-2); }
+    .f-item .req { color: var(--danger); margin-left: 2px; }
+    .f-item input, .f-item select, .f-item textarea {
+      height: 34px; padding: 0 11px; border: 1px solid var(--primary-line);
+      border-radius: var(--r-sm); background: #fff; color: var(--text); font-size: 14px;
+    }
+    .f-item textarea { height: 66px; padding: 8px 11px; resize: vertical; }
+    .f-item input:hover, .f-item select:hover, .f-item textarea:hover { border-color: var(--primary); }
+    .f-item input:focus, .f-item select:focus, .f-item textarea:focus {
+      outline: 0; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(15,118,110,.16); }
+    .f-item input[readonly] { background: var(--primary-soft); color: var(--text-2); }
+    .f-hint { color: var(--text-3); font-size: 12.5px; }
+    .f-product { display: flex; align-items: center; gap: 11px; padding: 10px 13px;
+      border-radius: var(--r);
+      background: linear-gradient(135deg, var(--primary-soft) 0%, var(--primary-soft2) 100%);
+      box-shadow: inset 0 0 0 1px var(--primary-line); }
+    .f-product .ico { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--r-sm);
+      background: var(--primary); color: #fff; font-weight: 700; font-size: 14px; }
+    .f-product b { display: block; font-size: 14px; color: var(--text); }
+    .f-product small { color: var(--text-2); font-size: 12.5px; }
+    .f-product .btn { margin-left: auto; height: 30px; }
+
+    .toast { position: fixed; left: 50%; top: 22px; transform: translateX(-50%); z-index: 200;
+      display: flex; align-items: center; gap: 9px; padding: 11px 20px;
+      border-radius: var(--r-sm); background: var(--primary); color: #fff;
+      box-shadow: 0 10px 28px rgba(9, 73, 68, .35); font-size: 14px; font-weight: 600; }
+    .toast .dot { width: 9px; height: 9px; border-radius: 50%; background: #fff; }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部条：主题色 -->
+  <header class="topnav">
+    <div class="topnav-logo">
+      <div class="mark">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg>
+      </div>
+      <b>SPD 院内供应链</b>
+    </div>
+    <nav class="topnav-menu">
+      <a class="topnav-item">工作台</a>
+      <a class="topnav-item active">供应链管理</a>
+      <a class="topnav-item">基础数据管理</a>
+      <a class="topnav-item">运营与决策</a>
+      <a class="topnav-item">系统管理</a>
+    </nav>
+    <div class="topnav-right">
+      <button class="icon-btn" title="刷新">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg>
+      </button>
+      <button class="icon-btn" title="消息通知">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+      </button>
+      <button class="topnav-user">
+        <span class="avatar">管</span>
+        <span>管理员</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="crumb"><span>供应链管理</span><i>/</i><span>定数包管理</span><i>/</i><b>定数包模板维护</b></div>
+
+  <div class="page">
+
+    <!-- 标题栏：主题色 -->
+    <header class="page-head">
+      <h1>定数包模板维护</h1>
+      <p>维护商品、包内数量与启用状态，是打包任务的口径来源</p>
+    </header>
+
+    <!-- 业务面板 -->
+    <section class="panel">
+
+      <form class="filter" onsubmit="return false;">
+        <label class="field">
+          <span>模板编码</span>
+          <input type="search" placeholder="模糊查询模板编码" />
+        </label>
+        <label class="field">
+          <span>模板名称</span>
+          <input type="search" placeholder="模糊查询模板名称" />
+        </label>
+        <label class="field">
+          <span>商品编码</span>
+          <input type="search" placeholder="模糊查询商品编码" />
+        </label>
+        <label class="field">
+          <span>商品名称</span>
+          <input type="search" placeholder="模糊查询商品名称" />
+        </label>
+        <div class="filter-actions">
+          <button class="btn btn-reset">重置</button>
+          <button class="btn btn-query">查询</button>
+        </div>
+      </form>
+
+      <div class="toolbar">
+        <div class="toolbar-main">
+          <button class="btn btn-add">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M12 5v14M5 12h14"/></svg>
+            新增
+          </button>
+          <button class="btn btn-edit">修改</button>
+          <button class="btn btn-stop">停用</button>
+          <button class="btn btn-start">启用</button>
+          <button class="btn btn-import">导入</button>
+          <button class="btn btn-export">导出</button>
+          <span class="spacer"></span>
+          <span class="chip is-primary">模板总数 3</span>
+          <span class="chip is-green">启用 2</span>
+          <span class="chip is-grey">禁用 1</span>
+        </div>
+      </div>
+
+      <div class="batch on">
+        <b>已选择 2 项</b>
+        <span class="spacer"></span>
+        <button class="btn btn-start">批量启用</button>
+        <button class="btn btn-stop">批量停用</button>
+        <button class="btn btn-reset">取消选择</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="grid">
+          <thead>
+            <tr>
+              <th class="col-sel"><input type="checkbox" /></th>
+              <th>模板 / 关联商品</th>
+              <th>规格型号</th>
+              <th>包内数量</th>
+              <th>版本</th>
+              <th>状态</th>
+              <th class="c-act">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="sel">
+              <td class="col-sel"><input type="checkbox" checked /></td>
+              <td>
+                <div class="tpl-cell">
+                  <div class="tpl-badge">留</div>
+                  <div class="tpl-txt">
+                    <div class="tpl-name">静脉留置针定数包</div>
+                    <div class="tpl-meta"><code>PROD-002001</code> · PROD-002 · 留置针</div>
+                  </div>
+                </div>
+              </td>
+              <td>22G</td>
+              <td><span class="qty"><b>1</b><span>支</span></span></td>
+              <td><span class="ver cur">V1 当前</span></td>
+              <td><span class="status on"><i></i>启用</span></td>
+              <td class="c-act">
+                <div class="row-act">
+                  <button class="act act-detail">详情</button>
+                  <button class="act act-edit">修改</button>
+                  <button class="act act-pack">打包</button>
+                  <button class="act act-stop">停用</button>
+                </div>
+              </td>
+            </tr>
+            <tr class="sel">
+              <td class="col-sel"><input type="checkbox" checked /></td>
+              <td>
+                <div class="tpl-cell">
+                  <div class="tpl-badge">导</div>
+                  <div class="tpl-txt">
+                    <div class="tpl-name">联调测试导管定数包</div>
+                    <div class="tpl-meta"><code>SEED-TPL-002</code> · SEED-P-002 · 导管</div>
+                  </div>
+                </div>
+              </td>
+              <td>22G</td>
+              <td><span class="qty"><b>5</b><span>支</span></span></td>
+              <td><span class="ver cur">V1 当前</span></td>
+              <td><span class="status on"><i></i>启用</span></td>
+              <td class="c-act">
+                <div class="row-act">
+                  <button class="act act-detail">详情</button>
+                  <button class="act act-edit">修改</button>
+                  <button class="act act-pack">打包</button>
+                  <button class="act act-stop">停用</button>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td class="col-sel"><input type="checkbox" /></td>
+              <td>
+                <div class="tpl-cell">
+                  <div class="tpl-badge">敷</div>
+                  <div class="tpl-txt">
+                    <div class="tpl-name">联调测试敷料定数包</div>
+                    <div class="tpl-meta"><code>SEED-TPL-001</code> · SEED-P-001 · 敷料</div>
+                  </div>
+                </div>
+              </td>
+              <td>10cm*10cm</td>
+              <td><span class="qty"><b>10</b><span>包</span></span></td>
+              <td><span class="ver">V2</span></td>
+              <td><span class="status off"><i></i>禁用</span></td>
+              <td class="c-act">
+                <div class="row-act">
+                  <button class="act act-detail">详情</button>
+                  <button class="act act-edit">修改</button>
+                  <button class="act act-pack">打包</button>
+                  <button class="act act-start">启用</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pager">
+        <span>共 3 条</span>
+        <span class="spacer"></span>
+        <select class="page-size"><option>20 条/页</option><option>50 条/页</option></select>
+        <button class="pg" disabled>‹</button>
+        <button class="pg on">1</button>
+        <button class="pg" disabled>›</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- ═════════ 详情抽屉 ═════════ -->
+  <div id="drawerMask" class="drawer-mask" style="display:none;"></div>
+  <aside id="drawer" class="drawer" role="dialog" aria-label="模板详情" style="display:none;">
+    <header class="drawer-head">
+      <div>
+        <h3>静脉留置针定数包</h3>
+        <p>PROD-002001 · V1</p>
+      </div>
+      <button class="drawer-close" aria-label="关闭">×</button>
+    </header>
+    <div class="drawer-body">
+      <section class="d-section">
+        <h5>模板信息</h5>
+        <div class="d-grid">
+          <div class="d-item"><span>模板编码</span><strong class="mono">PROD-002001</strong></div>
+          <div class="d-item"><span>模板名称</span><strong>静脉留置针定数包</strong></div>
+          <div class="d-item"><span>版本号</span><strong>V1（当前版本）</strong></div>
+          <div class="d-item"><span>状态</span><strong style="color:#046b4c;">● 启用</strong></div>
+          <div class="d-item"><span>最后更新</span><strong>2026-10-10 14:24</strong></div>
+          <div class="d-item"><span>更新人</span><strong>admin</strong></div>
+        </div>
+      </section>
+      <section class="d-section">
+        <h5>关联商品</h5>
+        <div class="d-grid">
+          <div class="d-item"><span>商品编码</span><strong class="mono">PROD-002</strong></div>
+          <div class="d-item"><span>商品名称</span><strong>静脉留置针 22G</strong></div>
+          <div class="d-item"><span>规格型号</span><strong>22G</strong></div>
+          <div class="d-item"><span>品牌</span><strong>康德莱</strong></div>
+          <div class="d-item"><span>生产厂家</span><strong>康德莱器械</strong></div>
+          <div class="d-item"><span>供应商</span><strong>九州通</strong></div>
+          <div class="d-item"><span>基本单位</span><strong>支</strong></div>
+          <div class="d-item"><span>单价</span><strong>¥ 12.80</strong></div>
+        </div>
+      </section>
+      <section class="d-section">
+        <h5>数量口径</h5>
+        <div class="d-grid">
+          <div class="d-item"><span>包内数量</span><strong>1 支 / 包</strong></div>
+          <div class="d-item"><span>套包单位</span><strong>包</strong></div>
+          <div class="d-item"><span>中包装数量</span><strong>1</strong></div>
+          <div class="d-item"><span>采购包装数量</span><strong>—</strong></div>
+        </div>
+      </section>
+      <section class="d-section">
+        <h5>属性标签</h5>
+        <div class="d-tags">
+          <span class="tag hl">定数管理</span>
+          <span class="tag">带量商品</span>
+          <span class="tag">重点监控</span>
+          <span class="tag">国产</span>
+          <span class="tag">高值耗材</span>
+        </div>
+      </section>
+      <section class="d-section">
+        <h5>适用范围</h5>
+        <div class="d-grid">
+          <div class="d-item full"><span>适用科室</span><strong>全部科室</strong></div>
+          <div class="d-item full"><span>备注说明</span><strong>按科室定数包常规口径，1 支 1 包</strong></div>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <!-- ═════════ 新增弹窗 ═════════ -->
+  <div id="modalMask" class="modal-mask" style="display:none;">
+    <div class="modal">
+      <header class="modal-head">
+        <h3>新增定数包模板</h3>
+        <p>选择商品并维护包内数量口径</p>
+      </header>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="f-title">基本信息</div>
+          <div class="f-item full">
+            <span>来源商品 <em class="req">*</em></span>
+            <div class="f-product">
+              <div class="ico">留</div>
+              <div><b>PROD-002 · 静脉留置针 22G</b><small>康德莱器械 · 支 · ¥12.80</small></div>
+              <button class="btn btn-add">重新选择</button>
+            </div>
+            <span class="f-hint">仅可选已启用「定数管理」的商品目录</span>
+          </div>
+          <label class="f-item">
+            <span>模板编码 <em class="req">*</em></span>
+            <input type="text" value="PROD-002001" readonly />
+            <span class="f-hint">默认取商品编码 + 序号自动生成</span>
+          </label>
+          <label class="f-item">
+            <span>模板名称 <em class="req">*</em></span>
+            <input type="text" value="静脉留置针定数包" />
+          </label>
+          <div class="f-title">数量口径</div>
+          <label class="f-item">
+            <span>包内数量 <em class="req">*</em></span>
+            <input type="number" value="1" min="1" />
+          </label>
+          <label class="f-item">
+            <span>套包单位 <em class="req">*</em></span>
+            <select><option>包</option></select>
+          </label>
+          <label class="f-item">
+            <span>中包装数量</span>
+            <input type="number" value="1" />
+            <span class="f-hint">选填，来自商品目录</span>
+          </label>
+          <label class="f-item">
+            <span>采购包装数量</span>
+            <input type="number" placeholder="选填" />
+          </label>
+          <div class="f-title">生效范围</div>
+          <label class="f-item">
+            <span>适用科室</span>
+            <select><option>全部科室</option><option>指定科室…</option></select>
+          </label>
+          <label class="f-item">
+            <span>初始状态</span>
+            <select><option>启用</option><option>禁用</option></select>
+          </label>
+          <label class="f-item full">
+            <span>备注说明</span>
+            <textarea placeholder="选填，说明该模板的适用场景或口径约定"></textarea>
+          </label>
+        </div>
+      </div>
+      <footer class="modal-foot">
+        <button class="btn btn-reset">取消</button>
+        <button class="btn btn-add">保存并启用</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" style="display:none;"><span class="dot"></span>模板已保存并启用</div>
+
+  <script>
+    function toggle(id, show) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = show ? '' : 'none';
+    }
+    document.querySelectorAll('.act').forEach(function (btn) {
+      if (btn.textContent.trim() === '详情') {
+        btn.addEventListener('click', function () { toggle('drawerMask', true); toggle('drawer', true); });
+      }
+    });
+    document.querySelector('.drawer-close').addEventListener('click', function () { toggle('drawerMask', false); toggle('drawer', false); });
+    document.getElementById('drawerMask').addEventListener('click', function () { toggle('drawerMask', false); toggle('drawer', false); });
+    document.querySelector('.toolbar .btn-add').addEventListener('click', function () { toggle('modalMask', true); });
+    document.getElementById('modalMask').addEventListener('click', function (event) {
+      if (event.target === event.currentTarget) toggle('modalMask', false);
+    });
+    document.querySelectorAll('.modal-foot .btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { toggle('modalMask', false); });
+    });
+    document.querySelectorAll('.modal-foot .btn-add').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        toggle('modalMask', false); toggle('toast', true);
+        setTimeout(function () { toggle('toast', false); }, 2600);
+      });
+    });
+  </script>
+</body>
+</html>

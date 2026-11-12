@@ -180,10 +180,11 @@ export async function createRequisition(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/requisitions', payload)
 }
 
-export async function processRequisition(requisitionNo: string, action: 'approve' | 'reject') {
+export async function processRequisition(requisitionNo: string, action: 'approve' | 'reject',
+  edits?: Array<{ itemId: number; originalQuantity: number; quantity?: number }>) {
   return putData<Record<string, unknown>>(
     `/operational-closure/requisitions/${encodeURIComponent(requisitionNo)}/action`,
-    { action }
+    { action, edits }
   )
 }
 

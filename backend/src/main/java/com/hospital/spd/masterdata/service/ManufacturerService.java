@@ -137,6 +137,7 @@ public class ManufacturerService {
     }
 
     /** 导入厂家 */
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> importManufacturers(java.io.BufferedReader reader) throws Exception {
         int importedRows = 0;
         String line;
@@ -149,6 +150,7 @@ public class ManufacturerService {
             if (line.isBlank()) {
                 continue;
             }
+            com.hospital.spd.common.WriteFieldWhitespace.requireCsvRecord(line);
             String[] cells = line.split(",", -1);
             if (cells.length < 2 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;

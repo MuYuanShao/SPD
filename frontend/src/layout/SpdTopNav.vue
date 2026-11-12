@@ -50,7 +50,6 @@ import {
   PackageOpen,
   Bell as BellIcon,
   Package2,
-  PackageSearch,
   PackageCheck,
   ClipboardList,
   FileSearch,
@@ -133,7 +132,6 @@ const MODULE_ICONS: Record<string, any> = {
 const MENU_ICONS: Record<string, any> = {
   'pending-product-catalog': ClipboardList,
   'hospital-product-catalog': PackageCheck,
-  'product-catalog': PackageSearch,
   'supplier-manufacturer-management': Truck,
   'campus-management': Landmark,
   'department-management': Settings,

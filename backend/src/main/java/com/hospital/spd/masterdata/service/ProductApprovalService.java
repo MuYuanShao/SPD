@@ -192,7 +192,8 @@ public class ProductApprovalService {
                             timeline,
                             canApprove,
                             "returned".equals(status) && hasResubmitAccess(
-                                    nullableLong(rs, "submit_by"), operatorContextProvider.current())
+                                    nullableLong(rs, "submit_by"), operatorContextProvider.current()),
+                            "信息变更".equals(rs.getString("application_type")) && snapshotService.isEnableOnly(applicationNo)
                     );
                 },
                 applicationNo
@@ -668,6 +669,8 @@ public class ProductApprovalService {
                 assertCatalogSnapshotUnchanged(applicationNo);
                 if ("停用申请".equals(detail.applicationType())) {
                     disableHospitalCatalogProduct(applicationNo);
+                } else if (detail.enableOnly()) {
+                    enableHospitalCatalogProduct(applicationNo);
                 } else {
                     new ProductTraceabilityPolicy(jdbcTemplate).requireSafeTransition(detail.productCode(), detail.highValue());
                     syncToHospitalCatalog(applicationNo);
@@ -703,6 +706,9 @@ public class ProductApprovalService {
         Long originalApplicant = findApplicationSubmitBy(applicationNo);
         if (!hasResubmitAccess(originalApplicant, operator)) {
             throw new IllegalArgumentException("只有原申请人或全局管理员可以重新提交");
+        }
+        if (detail.enableOnly()) {
+            return resubmitEnableOnly(applicationNo, request.changeReason(), operator);
         }
         validateRequest(request);
         validateQuotaEligibility(request.highValue(), request.coldChain(), request.quotaManaged());
@@ -830,6 +836,9 @@ public class ProductApprovalService {
         String status = detail.approvalStatus();
         if (!isPendingStatus(status)) {
             throw new IllegalArgumentException("只有待审批状态的申请可以修改");
+        }
+        if (detail.enableOnly()) {
+            throw new IllegalArgumentException("启用申请只变更商品状态，请直接审批");
         }
         if (catalogApprovalRouteService != null) {
             Map<String, Object> identity = jdbcTemplate.queryForMap("""
@@ -1393,6 +1402,42 @@ public class ProductApprovalService {
                  WHERE application.application_no = ? AND promoted.attachment_id IS NULL
                 """, applicationNo);
         new com.hospital.spd.integration.McpLicenseLifecycleService(jdbcTemplate).publishApproval(applicationNo,operatorContextProvider);
+    }
+
+    private void enableHospitalCatalogProduct(String applicationNo) {
+        int updated = jdbcTemplate.update("""
+                UPDATE product p
+                JOIN pending_product_application a ON a.product_code = p.product_code
+                   SET p.status = 1
+                 WHERE a.application_no = ? AND p.deleted = 0 AND p.status = 0
+                """, applicationNo);
+        if (updated != 1) throw new IllegalArgumentException("商品已启用或不存在，请刷新后重试");
+    }
+
+    private Map<String, Object> resubmitEnableOnly(String applicationNo, String reason, OperatorContext operator) {
+        String status = catalogApprovalRouteService == null ? firstPendingStatus() : "routing";
+        jdbcTemplate.update("""
+                UPDATE pending_product_application
+                   SET approval_status = ?, submit_time = NOW(), approval_round = approval_round + 1,
+                       approve_by = NULL, approve_time = NULL, approve_opinion = NULL,
+                       initial_review_by = NULL, initial_review_time = NULL, initial_review_opinion = NULL,
+                       final_review_by = NULL, final_review_time = NULL, final_review_opinion = NULL,
+                       return_reason = NULL, reject_reason = NULL
+                 WHERE application_no = ?
+                """, status, applicationNo);
+        Map<String, Object> identity = jdbcTemplate.queryForMap("""
+                SELECT application_id AS applicationId, approval_round AS approvalRound
+                  FROM pending_product_application WHERE application_no = ?
+                """, applicationNo);
+        Long applicationId = number(identity.get("applicationId"));
+        snapshotService.write(applicationId, "信息变更", nullIfBlank(reason), 1, true);
+        if (catalogApprovalRouteService != null) {
+            status = catalogApprovalRouteService.snapshotRoute(applicationId, integer(identity.get("approvalRound")),
+                    "信息变更", operator.deptId());
+            jdbcTemplate.update("UPDATE pending_product_application SET approval_status = ? WHERE application_id = ?", status, applicationId);
+        }
+        writeAudit("resubmit", applicationNo, nullIfBlank(reason));
+        return Map.of("applicationNo", applicationNo, "status", status);
     }
 
     private void disableHospitalCatalogProduct(String applicationNo) {

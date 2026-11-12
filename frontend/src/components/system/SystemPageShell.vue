@@ -2,7 +2,7 @@
      SystemPageShell — 系统管理统一页面布局
      ---------------------------------------------------------------------
      造型与证照管理 / 主数据模块一致：
-       md-page (深绿渐变顶栏)
+       md-page (页面布局)
        md-tabs (标签切换)
        md-toolbar (搜索 + 操作按钮)
        slot: content (表格 / 内容区)
@@ -11,6 +11,7 @@
 <script setup lang="ts">
 import { Search } from '@lucide/vue'
 import { ElInput } from 'element-plus'
+import MdPageHeader from '../master-data/MdPageHeader.vue'
 
 interface Props {
   title: string
@@ -53,23 +54,9 @@ function onTab(key: string) { emit('update:modelValue', key) }
 
 <template>
   <div class="md-page sys-page">
-    <!-- 顶栏 -->
-    <header class="md-header">
-      <div class="md-header-inner">
-        <div class="md-header-text">
-          <p class="md-header-crumbs">
-            <strong>{{ crumb }}</strong>
-          </p>
-          <h1 class="md-header-title">
-            <span>{{ title }}</span>
-            <small v-if="subtitle">{{ subtitle }}</small>
-          </h1>
-        </div>
-        <div class="md-header-actions">
-          <slot name="header-actions" />
-        </div>
-      </div>
-    </header>
+    <MdPageHeader :title="title" :show-refresh="false">
+      <template v-if="$slots['header-actions']" #actions><slot name="header-actions" /></template>
+    </MdPageHeader>
 
     <!-- 标签栏（可选） -->
     <div v-if="tabs.length" class="md-tabs sys-tabs">
@@ -131,7 +118,6 @@ function onTab(key: string) { emit('update:modelValue', key) }
    =================================================================== */
 
 /* 顶栏内间距略收窄（与证照管理一致） */
-.sys-page .md-header { padding: 16px 24px 16px; }
 
 /* Tab bar */
 .sys-tabs {

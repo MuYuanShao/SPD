@@ -3,6 +3,8 @@ import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import com.hospital.spd.supplychain.RequisitionItemMode;
+import com.hospital.spd.supplychain.OperationalCommandRequests.RequisitionQuantityEdit;
+import com.hospital.spd.common.QuantityRules;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
@@ -20,6 +22,7 @@ import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -191,10 +194,17 @@ public class OperationalRequisitionModule {
         if (!"approve".equals(action) && !"reject".equals(action)) {
             throw new IllegalArgumentException("requisition action is invalid");
         }
-        if (!approvalFlowGuard.recordDecision("department-requisition", "requisition-approval", requisitionNo,
+        boolean approved = "approve".equals(action);
+        boolean completed = approvalFlowGuard.recordDecision("department-requisition", "requisition-approval", requisitionNo,
                 ((Number) requisition.get("deptId")).longValue(), requisition.get("applicantId") instanceof Number owner ? owner.longValue() : null,
-                "approve".equals(action))) return Map.of("requisitionNo", requisitionNo, "status", "pending_approval", "approvalRecorded", true);
-        String nextStatus = "approve".equals(action) ? "approved" : "rejected";
+                approved);
+        long requisitionId = ((Number) requisition.get("requisitionId")).longValue();
+        if (body.get("edits") instanceof List<?> edits && !edits.isEmpty()) {
+            if (!approved) throw new IllegalArgumentException("仅审批通过时可以调整申领数量");
+            applyApprovalEdits(requisitionId, requisitionNo, edits);
+        }
+        if (!completed) return Map.of("requisitionNo", requisitionNo, "status", "pending_approval", "approvalRecorded", true);
+        String nextStatus = approved ? "approved" : "rejected";
         OperatorContext operator = operatorContextProvider.current();
         int updated = jdbcTemplate.update("""
                 UPDATE department_requisition
@@ -207,6 +217,48 @@ public class OperationalRequisitionModule {
                     ((Number) requisition.get("requisitionId")).longValue(), requisitionNo);
         }
         return Map.of("requisitionNo", requisitionNo, "status", nextStatus);
+    }
+
+    private void applyApprovalEdits(long requisitionId, String requisitionNo, List<?> edits) {
+        var seen = new HashSet<Long>();
+        for (Object entry : edits) {
+            if (!(entry instanceof RequisitionQuantityEdit edit) || edit.itemId() == null || !seen.add(edit.itemId())) {
+                throw new IllegalArgumentException("审批明细无效或重复");
+            }
+            List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                    SELECT i.quantity, i.item_type, i.quota_package_quantity, i.picked_quantity,
+                           COALESCE(NULLIF(i.unit_price, 0), p.purchase_price, 0) AS price
+                      FROM department_requisition_item i JOIN product p ON p.product_id = i.product_id
+                     WHERE i.requisition_id = ? AND i.item_id = ? FOR UPDATE
+                    """, requisitionId, edit.itemId());
+            if (rows.isEmpty()) throw new IllegalArgumentException("审批明细不属于当前申领单");
+            Map<String, Object> row = rows.get(0);
+            BigDecimal original = (BigDecimal) row.get("quantity");
+            if (edit.originalQuantity() == null || original.compareTo(edit.originalQuantity()) != 0) {
+                throw new IllegalArgumentException("申领数量已被调整，请重新打开审批弹窗");
+            }
+            if (edit.quantity() == null) continue;
+            BigDecimal quantity = QuantityRules.positive(edit.quantity(), "审批数量");
+            BigDecimal packageCount = null;
+            if ("quota_package".equals(row.get("item_type"))) {
+                BigDecimal packageQuantity = QuantityRules.positive((BigDecimal) row.get("quota_package_quantity"), "定数包换算数量");
+                packageCount = quantity;
+                quantity = QuantityRules.positive(packageCount.multiply(packageQuantity), "折算数量");
+            }
+            if (quantity.compareTo(original) == 0) continue;
+            if (((BigDecimal) row.get("picked_quantity")).signum() > 0) {
+                throw new IllegalArgumentException("已有拣配记录的明细无法调整数量");
+            }
+            BigDecimal price = (BigDecimal) row.get("price");
+            int updated = jdbcTemplate.update("""
+                    UPDATE department_requisition_item
+                       SET quantity = ?, requested_package_count = ?, unit_price = ?, amount = ?
+                     WHERE requisition_id = ? AND item_id = ?
+                    """, quantity, packageCount, price, quantity.multiply(price), requisitionId, edit.itemId());
+            if (updated != 1) throw new IllegalArgumentException("申领明细已变化，请重新打开审批弹窗");
+            support.writeAudit("department_requisition", "approve_quantity", requisitionId, requisitionNo,
+                    "明细 " + edit.itemId() + " 基础数量由 " + original.toPlainString() + " 调整为 " + quantity.toPlainString());
+        }
     }
 
     private static RequisitionItemMode resolveItemMode(Map<String, Object> body, Map<String, Object> product) {

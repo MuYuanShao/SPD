@@ -207,6 +207,7 @@ public class DepartmentService {
             if (line.isBlank()) {
                 continue;
             }
+            com.hospital.spd.common.WriteFieldWhitespace.requireCsvRecord(line);
             String[] cells = line.split(",", -1);
             if (cells.length < 2 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;

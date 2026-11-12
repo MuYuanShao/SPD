@@ -20,36 +20,43 @@ defineEmits<{
 </script>
 
 <template>
-  <header class="md-header">
-    <div class="md-header-inner">
-      <div class="md-header-text">
-        <div v-if="crumb" class="md-header-crumbs">
-          <strong>{{ crumb }}</strong>
-        </div>
-        <h2 class="md-header-title">
-          {{ title }}
-        </h2>
-        <p v-if="description" class="md-header-sub">{{ description }}</p>
-      </div>
-      <div class="md-header-actions">
-        <button
-          v-if="showRefresh !== false"
-          type="button"
-          class="md-btn"
-          :disabled="loading"
-          aria-label="刷新"
-          @click="$emit('refresh')"
-        >
-          <RefreshCw :size="16" :class="{ 'md-spin': loading }" />
-          <span>刷新</span>
-        </button>
-        <slot name="actions" />
-      </div>
-    </div>
-  </header>
+  <h2 class="md-page-accessible-title">{{ title }}</h2>
+  <div v-if="showRefresh !== false || $slots.actions" class="md-page-actions">
+    <button
+      v-if="showRefresh !== false"
+      type="button"
+      class="md-btn"
+      :disabled="loading"
+      aria-label="刷新"
+      @click="$emit('refresh')"
+    >
+      <RefreshCw :size="16" :class="{ 'md-spin': loading }" />
+      <span>刷新</span>
+    </button>
+    <slot name="actions" />
+  </div>
 </template>
 
 <style scoped>
+.md-page-accessible-title {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.md-page-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .md-spin {
   animation: md-spin 1s linear infinite;
 }

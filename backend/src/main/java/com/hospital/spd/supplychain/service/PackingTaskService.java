@@ -687,7 +687,7 @@ public class PackingTaskService {
 
     private Map<String, Object> findTemplate(String templateCode, boolean lock) {
         List<Map<String, Object>> templates = jdbcTemplate.queryForList("""
-                SELECT t.template_id AS templateId, t.template_code AS templateCode, t.template_name AS templateName,
+                SELECT t.template_id AS templateId, t.template_code AS templateCode, p.product_name AS templateName,
                        t.version_no AS versionNo, ti.product_id AS productId, ti.quantity, ti.unit,
                        p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName

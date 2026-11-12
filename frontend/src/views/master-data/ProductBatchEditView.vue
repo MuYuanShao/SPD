@@ -80,19 +80,12 @@ async function submitBatchEdit() {
       返回医院目录
     </button>
 
-    <header class="approval-detail-header">
-      <div>
-        <p>医院目录</p>
-        <h2>批量修改</h2>
-        <span>对已选择的 {{ productCodes.length }} 条耗材统一更新字段。</span>
-      </div>
-    </header>
-
     <form class="product-form-card" @submit.prevent="submitBatchEdit">
       <section>
         <div class="section-title">
           <CheckCircle2 :size="20" />
           <h3>批量修改字段</h3>
+          <span>已选 {{ productCodes.length }} 条耗材</span>
         </div>
         <div class="product-form-grid batch-edit-fields">
           <label>

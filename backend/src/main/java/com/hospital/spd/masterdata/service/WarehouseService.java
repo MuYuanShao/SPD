@@ -97,6 +97,14 @@ public class WarehouseService {
         );
     }
 
+    public List<Map<String, Object>> warehouseDepartmentOptions() {
+        return jdbcTemplate.queryForList("""
+                SELECT dept_code AS deptCode, dept_name AS deptName, campus_name AS campusName
+                  FROM sys_dept WHERE deleted = 0 AND status = 1 AND campus_name IS NOT NULL
+                 ORDER BY sort_order, dept_id
+                """);
+    }
+
     public List<Map<String, Object>> warehouseProductOptions() {
         return jdbcTemplate.queryForList("""
                 SELECT product_code AS productCode,
@@ -226,6 +234,7 @@ public class WarehouseService {
             if (line.isBlank()) {
                 continue;
             }
+            com.hospital.spd.common.WriteFieldWhitespace.requireCsvRecord(line);
             String[] cells = parseCsvLine(line);
             if (cells.length < 4 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;

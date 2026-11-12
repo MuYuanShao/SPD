@@ -146,6 +146,7 @@ public class SupplierService {
     }
 
     /** 导入供应商 */
+    @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> importSuppliers(java.io.BufferedReader reader) throws Exception {
         int importedRows = 0;
         String line;
@@ -158,6 +159,7 @@ public class SupplierService {
             if (line.isBlank()) {
                 continue;
             }
+            com.hospital.spd.common.WriteFieldWhitespace.requireCsvRecord(line);
             String[] cells = line.split(",", -1);
             if (cells.length < 7 || isBlank(cells[0]) || isBlank(cells[1])) {
                 continue;

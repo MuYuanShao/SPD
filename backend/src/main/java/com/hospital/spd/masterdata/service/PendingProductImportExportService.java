@@ -58,6 +58,16 @@ public class PendingProductImportExportService {
         try (var workbook = new XSSFWorkbook(file.getInputStream())) {
             Sheet sheet = workbook.getSheetAt(0);
             Map<String, Integer> columns = readHeaderIndexes(sheet.getRow(0));
+            for (Row row : sheet) {
+                if (row.getRowNum() == 0) continue;
+                for (Cell cell : row) {
+                    switch (cell.getCellType()) {
+                        case STRING -> com.hospital.spd.common.WriteFieldWhitespace.requireValid(cell.getStringCellValue());
+                        case FORMULA -> com.hospital.spd.common.WriteFieldWhitespace.requireValid(cell.getCellFormula());
+                        default -> { }
+                    }
+                }
+            }
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null) continue;

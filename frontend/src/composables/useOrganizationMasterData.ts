@@ -17,6 +17,8 @@ import {
   fetchDepartmentWarehouses,
   fetchWarehouseLocations,
   fetchWarehouseProductOptions,
+  fetchWarehouseDepartmentOptions,
+  type WarehouseDepartmentOption,
   fetchWarehouseProducts,
   updateCampus,
   updateDepartment,
@@ -91,7 +93,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
   const warehouseForm = ref<WarehousePayload>(emptyWarehouseForm())
   const warehouseProductOptions = ref<WarehouseProductOption[]>([])
   const warehouseProductOptionsLoading = ref(false)
-  const departmentOptions = ref<Array<{ deptCode: string; deptName: string }>>([])
+  const departmentOptions = ref<WarehouseDepartmentOption[]>([])
   const departmentWarehouseDialogOpen = ref(false)
   const departmentWarehouseLoading = ref(false)
   const departmentWarehouseSaving = ref(false)
@@ -668,8 +670,7 @@ export function useOrganizationMasterData(deps: OrganizationMasterDataDeps) {
 
   async function loadDepartmentOptions() {
     try {
-      const options = await fetchClosureOptions()
-      departmentOptions.value = options.departments
+      departmentOptions.value = await fetchWarehouseDepartmentOptions()
     } catch {
       departmentOptions.value = []
     }

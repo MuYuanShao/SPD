@@ -64,7 +64,7 @@ public class QuotaTemplateService {
                  WHERE 1 = 1 AND qpt.deleted = 0 AND qpt.is_current = 1 AND qpti.deleted = 0
                 """);
         appendLike(where, args, "qpt.template_code", params.get("templateCode"));
-        appendLike(where, args, "qpt.template_name", params.get("templateName"));
+        appendLike(where, args, "p.product_name", params.get("templateName"));
         appendLike(where, args, "p.product_code", params.get("productCode"));
         appendLike(where, args, "p.product_name", params.get("productName"));
 
@@ -88,6 +88,7 @@ public class QuotaTemplateService {
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT qpt.template_id AS templateId, qpt.template_code AS templateCode,
+                       p.product_name AS templateName,
                        qpt.version_no AS versionNo, qpt.is_current AS currentVersion,
                        p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
@@ -125,8 +126,7 @@ public class QuotaTemplateService {
         Map<String, Object> product = findEligibleProduct(request.productCode());
         BigDecimal normalizedQuantity = com.hospital.spd.common.QuantityRules.positive(normalizeTemplateQuantity(request.quantity(), request.unit(), product), "包内基本数量");
         String baseUnit = String.valueOf(product.get("unit"));
-        // 定数包名称由系统自动生成：商品名称 + 定数包；不再维护适用科室
-        String templateName = String.valueOf(product.get("productName")).trim() + "定数包";
+        String templateName = (String) product.get("productName");
         String productCode = String.valueOf(product.get("productCode")).trim();
         String templateCode = isBlank(request.templateCode())
                 ? nextTemplateCode(productCode)

@@ -53,6 +53,13 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
   await expect(dialog.getByRole('alert')).toContainText('两次输入的新密码不一致')
   expect(attempts).toBe(0)
 
+  await dialog.getByLabel('新密码', { exact: true }).fill('new test password')
+  await dialog.getByLabel('确认新密码', { exact: true }).fill('new test password')
+  await save.click()
+  await expect(dialog.getByRole('alert')).toContainText('不支持空格及换行符存在！')
+  expect(attempts).toBe(0)
+
+  await dialog.getByLabel('新密码', { exact: true }).fill('new-test-password')
   await dialog.getByLabel('确认新密码', { exact: true }).fill('new-test-password')
   await save.click()
   await expect(dialog.getByRole('alert')).toContainText('当前密码不正确')
@@ -61,6 +68,38 @@ test('账户菜单修改密码支持校验、失败重试和重新登录', async
   await save.click()
   await expect(page).toHaveURL(/\/login$/)
   expect(attempts).toBe(3)
+})
+
+test('医院目录停用商品显示启用并提交审批', async ({ page }) => {
+  const code = 'SMOKE-DISABLED-PRODUCT'
+  let submitted: unknown
+  let attempts = 0
+  await page.route('**/api/master-data/hospital-products?*', route => route.fulfill({
+    json: { code: 0, data: { columns: ['商品编码', '商品名称', '状态'],
+      rows: [{ code, name: '测试停用商品', status: '停用' }], total: 1, page: 1, size: 20 } }
+  }))
+  await page.route('**/api/master-data/hospital-products/status', route => {
+    submitted = route.request().postDataJSON()
+    if (++attempts === 1) return route.fulfill({ json: { code: 400, message: '该商品已有进行中的目录申请，请勿重复提交' } })
+    return route.fulfill({ json: { code: 0, data: { updatedRows: 1 } } })
+  })
+  await page.goto('/features/hospital-product-catalog')
+  await login(page)
+  const menu = page.locator('.spd-mini-nav')
+  for (const name of ['待审批目录', '医院目录', '供应商厂家管理']) {
+    await expect(menu.locator('.spd-mini-nav-item').getByText(name, { exact: true })).toBeVisible()
+  }
+  await expect(menu.getByText('商品目录', { exact: true })).toHaveCount(0)
+  const row = page.getByRole('row').filter({ hasText: code })
+  await expect(row.getByRole('button', { name: '停用', exact: true })).toBeHidden()
+  await row.getByRole('button', { name: '启用', exact: true }).click()
+  const confirm = page.getByRole('dialog', { name: '启用医院目录商品' })
+  const submit = confirm.getByRole('button', { name: '提交启用申请' })
+  await submit.click()
+  await expect(confirm.getByRole('alert')).toHaveText('该商品已有进行中的目录申请，请勿重复提交')
+  await submit.click()
+  await expect(page.getByText('已提交商品状态变更申请，审批通过后生效', { exact: true })).toBeVisible()
+  expect(submitted).toEqual({ productCodes: [code], status: 1 })
 })
 
 test('新增院区时留空自动生成的编码也能提交', async ({ page }) => {
@@ -129,6 +168,89 @@ test('科室库房目录显示切回页面后的当前库房等级', async ({ pa
   await expect(row.getByText('库房等级：二级库', { exact: true })).toBeVisible()
 })
 
+test('新增库房按所属院区筛选关联科室并清除原选择', async ({ page }) => {
+  await page.route('**/api/master-data/campuses/options', route => route.fulfill({
+    json: { code: 0, data: [{ code: 'MAIN', name: '主院区' }, { code: 'EAST', name: '东院区' }] }
+  }))
+  await page.route('**/api/master-data/warehouses/department-options', route => route.fulfill({
+    json: { code: 0, data: [
+      { deptCode: 'MAIN-01', deptName: '主院区内科', campusName: '主院区' },
+      { deptCode: 'EAST-01', deptName: '东院区内科', campusName: '东院区' }
+    ] }
+  }))
+  await page.goto('/features/warehouse-location-management')
+  await login(page)
+  await page.getByRole('button', { name: '新增', exact: true }).click()
+  const dialog = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: '新增库房' }) })
+  const campus = dialog.getByRole('combobox').filter({ has: page.getByRole('option', { name: '请选择院区' }) })
+  await expect(dialog.getByPlaceholder('请先选择所属院区')).toBeDisabled()
+  await campus.selectOption('主院区')
+  await dialog.getByRole('button', { name: '搜索科室' }).click()
+  await expect(dialog.getByRole('button', { name: /主院区内科/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /东院区内科/ })).toBeHidden()
+  await dialog.getByRole('button', { name: /主院区内科/ }).click()
+  await campus.selectOption('东院区')
+  await expect(dialog.getByPlaceholder('输入科室名称或编码')).toHaveValue('')
+  await dialog.getByRole('button', { name: '搜索科室' }).click()
+  await expect(dialog.getByRole('button', { name: /东院区内科/ })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: /主院区内科/ })).toBeHidden()
+})
+
+test('打开打包模板弹窗时能选到页面打开后新增的模板', async ({ page }) => {
+  let available = false
+  const template = { templateId: 301, templateCode: 'TPL-NEW', templateName: '刚新增的模板', status: '启用',
+    productName: '测试耗材', specModel: 'TEST-01', manufacturerName: '测试厂家', quantity: 5, unit: '支' }
+  const original = { ...template, templateId: 300, templateCode: 'TPL-ORIGINAL', templateName: '原模板' }
+  await page.route('**/api/quota-packages/templates?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const size = Number(params.get('size'))
+    const rows = available ? [original, template] : [original]
+    return route.fulfill({ json: { code: 0, data: { rows, page: 1, size, total: rows.length } } })
+  })
+  await page.route('**/api/quota-packages/packing-options', route => route.fulfill({
+    json: { code: 0, data: { warehouses: [
+      { warehouseName: '主院区中心库', warehouseType: '中心库' },
+      { warehouseName: '东院区中心库', warehouseType: '中心库' }
+    ], candidates: [] } }
+  }))
+  await page.route('**/api/quota-packages/packing-tasks?*', route => route.fulfill({
+    json: { code: 0, data: { rows: [], page: 1, size: 20, total: 0 } }
+  }))
+  await page.goto('/features/quota-template-maintenance')
+  await login(page)
+  const originalRow = page.getByRole('row').filter({ hasText: 'TPL-ORIGINAL' })
+  await expect(originalRow).toBeVisible()
+  const initialTemplates = page.waitForResponse(response => new URL(response.url()).pathname === '/api/quota-packages/templates')
+  await originalRow.getByRole('button', { name: '打包', exact: true }).click()
+  await initialTemplates
+  available = true
+  const topCard = page.locator('.pt-page > .pt-card').first()
+  await expect(topCard.getByRole('heading', { name: '按验收单分配散货' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '新建任务', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '终止任务', exact: true })).toHaveCount(0)
+  const dialog = page.getByRole('dialog', { name: '新建打包任务' })
+  const warehouse = dialog.getByRole('combobox', { name: '库房' })
+  await warehouse.click()
+  await expect(page.getByRole('option', { name: '主院区中心库' })).toBeVisible()
+  await expect(page.getByRole('option', { name: '东院区中心库' })).toBeVisible()
+  await warehouse.fill('东院区')
+  await expect(page.getByRole('option', { name: '主院区中心库' })).toBeHidden()
+  await page.getByRole('option', { name: '东院区中心库' }).click()
+  await expect(page.locator('.pt-warehouse-select')).toContainText('东院区中心库')
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('TPL-ORIGINAL')
+  await dialog.getByRole('button', { name: '清除', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('')
+  await expect(dialog.getByLabel('每包数量')).toHaveValue('')
+  await dialog.getByRole('button', { name: '选择打包模板', exact: true }).click()
+  await page.getByRole('row').filter({ hasText: 'TPL-NEW' }).getByRole('button', { name: '选择', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('TPL-NEW')
+  await expect(dialog.getByLabel('模板名称')).toHaveValue('测试耗材')
+  await expect(dialog.getByLabel('商品名称')).toHaveValue('测试耗材')
+  await expect(dialog.getByLabel('每包数量')).toHaveValue('5 支/包')
+  await dialog.getByRole('button', { name: '清除', exact: true }).click()
+  await expect(dialog.getByLabel('模板编码')).toHaveValue('')
+})
+
 test('定数包模板的打包按钮跳转并保留第二页选中的模板', async ({ page }) => {
   const template = {
     templateId: 21, templateCode: 'TPL-SMOKE-021', templateName: '第二页测试模板',
@@ -188,8 +310,8 @@ test('定数包模板的打包按钮跳转并保留第二页选中的模板', as
   await row.getByRole('button', { name: '打包', exact: true }).click()
   await expect(page).toHaveURL(/\/features\/packing-task-confirmation$/)
   await expect(page.getByRole('row').filter({ hasText: 'PT-SMOKE-READY' })).toBeVisible()
-  await expect(page.locator('.pt-selected-template')).toContainText(template.templateCode)
-  const create = page.getByRole('button', { name: '新建任务', exact: true })
+  await expect(page.getByRole('dialog', { name: '新建打包任务' }).getByLabel('模板编码')).toHaveValue(template.templateCode)
+  const create = page.getByRole('dialog', { name: '新建打包任务' }).getByRole('button', { name: '确认创建' })
   await expect(create).toBeEnabled()
   expect(submittedVersions).toEqual([])
 
@@ -361,6 +483,46 @@ test('拣配记录弹窗逐条显示完整定数包码', async ({ page }) => {
   await expect(codes.getByRole('listitem').last()).toBeInViewport()
   await dialog.getByRole('button', { name: '关闭', exact: true }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('待审批科室申领单可在历史列表审批通过', async ({ page }) => {
+  const no = 'SL-SMOKE-APPROVAL'
+  let status = 'pending_approval'
+  await page.route('**/api/operational-closure/lists/requisition**', route => route.fulfill({
+    json: { code: 0, data: { rows: [{ bizNo: no, status }], total: 1, page: 1, size: 20 } }
+  }))
+  await page.route(`**/api/operational-closure/requisitions/${no}/items`, route => route.fulfill({
+    json: { code: 0, data: { rows: [
+      { itemId: 1, productCode: 'P001', productName: '散货', applyQuantity: 10 },
+      { itemId: 2, productCode: 'P002', productName: '定数包商品', itemType: 'quota_package',
+        packageQuantity: 5, packageCount: 2, applyQuantity: 10 }
+    ], total: 2, requisitionNo: no } }
+  }))
+  await page.route(`**/api/operational-closure/requisitions/${no}/action`, route => {
+    expect(route.request().method()).toBe('PUT')
+    const { action, edits } = route.request().postDataJSON()
+    expect(action).toBe('approve')
+    expect(edits.sort((a: { itemId: number }, b: { itemId: number }) => a.itemId - b.itemId)).toEqual([
+      { itemId: 1, originalQuantity: 10 }, { itemId: 2, originalQuantity: 10, quantity: 3 }
+    ])
+    status = 'approved'
+    return route.fulfill({ json: { code: 0, data: { requisitionNo: no, status } } })
+  })
+
+  await page.goto('/features/department-requisition')
+  await login(page)
+  const row = page.getByRole('row').filter({ hasText: no })
+  const approve = row.getByRole('button', { name: '审批通过' })
+  await approve.click()
+  await expect(page.getByRole('spinbutton', { name: 'P001 审批数量' })).toHaveValue('10')
+  const packs = page.getByRole('spinbutton', { name: 'P002 审批数量' })
+  await expect(packs).toHaveValue('2')
+  const firstInput = page.getByRole('dialog', { name: '科室申领审批' }).getByRole('spinbutton').first()
+  await firstInput.click({ trial: true, timeout: 5000 })
+  await packs.fill('3')
+  await page.getByRole('button', { name: '确认通过' }).click()
+  await expect(row.getByText('已通过', { exact: true })).toBeVisible()
+  await expect(approve).toBeHidden()
 })
 
 test('科室申领从历史列表进入当前科室目录并按申领模式折算提交', async ({ page }) => {

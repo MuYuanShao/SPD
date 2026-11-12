@@ -39,9 +39,15 @@ public final class OperationalCommandRequests {
         public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "selectedPeriodDays", selectedPeriodDays); }
     }
 
-    public record RequisitionActionRequest(@NotBlank @Pattern(regexp = "approve|reject") String action)
+    public record RequisitionQuantityEdit(@NotNull @Positive Long itemId,
+                                          @NotNull @Positive BigDecimal originalQuantity,
+                                          @Positive @com.hospital.spd.common.WholeQuantity BigDecimal quantity) {}
+
+    public record RequisitionActionRequest(@NotBlank @Pattern(regexp = "approve|reject") String action,
+                                           List<@NotNull @jakarta.validation.Valid RequisitionQuantityEdit> edits)
             implements CompatibleRequest {
-        public Map<String, Object> toCompatibilityMap() { return map("action", action); }
+        public RequisitionActionRequest(String action) { this(action, null); }
+        public Map<String, Object> toCompatibilityMap() { return map("action", action, "edits", edits); }
     }
 
     public record DeliveryRequest(String requisitionNo, @NotBlank String deptName, @NotBlank String warehouseName,

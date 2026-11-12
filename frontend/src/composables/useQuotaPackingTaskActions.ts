@@ -107,6 +107,7 @@ export function useQuotaPackingTaskActions(options: {
           : `打包任务创建成功：${result.taskNo}，已锁定散货 ${reservedLooseQty}`
       )
       await options.reload()
+      return true
     } catch (error: any) {
       setResult(error?.response?.data?.message || error?.message || '创建打包任务失败，请重试', 'error')
     } finally {
@@ -133,22 +134,6 @@ export function useQuotaPackingTaskActions(options: {
   async function terminateTask(row: PackingTaskRow) {
     if (!await confirmAction(`确认终止打包任务 ${row.taskNo}？仅未进入配送、签收、消耗或结算的标签可回退。`, '终止打包任务', '确认终止')) return
     const result = await terminatePackingTask(row.taskNo, '页面终止打包任务并退回散货库存')
-    setResult(`${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`)
-    options.selectedTaskNo.value = ''
-    options.taskReservations.value = []
-    await options.reload()
-  }
-
-  async function terminateTaskByTaskNo() {
-    const { value } = await ElMessageBox.prompt('请输入需要终止的打包任务号', '终止打包任务', {
-      inputValue: options.selectedTaskNo.value,
-      inputPattern: /\S+/,
-      inputErrorMessage: '任务号不能为空',
-      confirmButtonText: '下一步',
-      cancelButtonText: '取消'
-    })
-    if (!await confirmAction(`确认终止打包任务 ${value.trim()}？仅可逆标签会退回散货。`, '确认终止', '确认终止')) return
-    const result = await terminatePackingTask(value.trim(), '页面终止打包任务并退回散货库存')
     setResult(`${result.taskNo} 已终止，退回散货 ${result.restoredLooseQty}`)
     options.selectedTaskNo.value = ''
     options.taskReservations.value = []
@@ -216,7 +201,6 @@ export function useQuotaPackingTaskActions(options: {
     approveTask,
     cancelTask,
     terminateTask,
-    terminateTaskByTaskNo,
     recalculateTask,
     viewTaskReservations,
     unpackLabel,

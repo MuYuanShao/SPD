@@ -22,8 +22,29 @@ export const http = axios.create({
   timeout: 10000,
 })
 
+const writeMethods = new Set(['post', 'put', 'patch', 'delete'])
+const fieldWhitespace = /[\s\u0085]/u
+
+function validateWriteFields(value: unknown): void {
+  if (typeof value === 'string') {
+    if (fieldWhitespace.test(value)) throw new Error('不支持空格及换行符存在！')
+  } else if (value instanceof File) {
+    validateWriteFields(value.name)
+  } else if (value instanceof FormData || value instanceof URLSearchParams) {
+    value.forEach(entry => validateWriteFields(entry))
+  } else if (Array.isArray(value)) {
+    value.forEach(validateWriteFields)
+  } else if (value && Object.getPrototypeOf(value) === Object.prototype) {
+    Object.values(value).forEach(validateWriteFields)
+  }
+}
+
 http.interceptors.request.use(
   (config) => {
+    if (writeMethods.has(config.method ?? '')) {
+      validateWriteFields(config.data)
+      validateWriteFields(config.params)
+    }
     const token = getSessionAdapter().getToken()
     if (token) {
       config.headers.Authorization = `Bearer ${token}`

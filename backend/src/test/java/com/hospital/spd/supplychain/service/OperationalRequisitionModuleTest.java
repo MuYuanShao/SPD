@@ -5,6 +5,8 @@ import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.common.service.DocumentKind;
 import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.supplychain.OperationalCommandRequests.RequisitionActionRequest;
+import com.hospital.spd.supplychain.OperationalCommandRequests.RequisitionQuantityEdit;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -242,6 +244,33 @@ class OperationalRequisitionModuleTest {
 
         verifyNoInteractions(support);
         verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
+    }
+
+    @Test
+    void finalApprovalPersistsEditedPackageCountAndBaseQuantityBeforeMarkingApproved() {
+        String no = "SL-TEST";
+        when(jdbcTemplate.queryForMap(contains("FROM department_requisition"), eq(no)))
+                .thenReturn(Map.of("requisitionId", 15L, "deptId", 10L, "applicantId", 9L, "status", "pending_approval"));
+        when(approvalFlowGuard.recordDecision("department-requisition", "requisition-approval", no, 10L, 9L, true))
+                .thenReturn(true);
+        when(jdbcTemplate.queryForList(contains("FROM department_requisition_item i"), eq(15L), eq(8L)))
+                .thenReturn(List.of(Map.of("quantity", BigDecimal.TEN, "item_type", "quota_package",
+                        "quota_package_quantity", BigDecimal.valueOf(5), "picked_quantity", BigDecimal.ZERO,
+                        "price", BigDecimal.valueOf(2))));
+        when(jdbcTemplate.update(contains("SET status = ?, approve_by"), eq("approved"), any(), eq(no)))
+                .thenReturn(1);
+        doReturn(1).when(jdbcTemplate).update(contains("SET quantity = ?, requested_package_count"),
+                any(), any(), any(), any(), eq(15L), eq(8L));
+
+        var request = new RequisitionActionRequest("approve", List.of(
+                new RequisitionQuantityEdit(8L, BigDecimal.TEN, BigDecimal.valueOf(3))));
+        assertThat(module.action(no, request.toCompatibilityMap())).containsEntry("status", "approved");
+
+        var writes = inOrder(jdbcTemplate);
+        writes.verify(jdbcTemplate).update(contains("SET quantity = ?, requested_package_count"),
+                eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(3)), eq(BigDecimal.valueOf(2)),
+                eq(BigDecimal.valueOf(30)), eq(15L), eq(8L));
+        writes.verify(jdbcTemplate).update(contains("SET status = ?, approve_by"), eq("approved"), any(), eq(no));
     }
 
     private void allowCatalog(Long productId) {

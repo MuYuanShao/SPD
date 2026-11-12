@@ -14,6 +14,7 @@ import java.util.Objects;
 /** Writes immutable server-side catalog snapshots and field-level changes at submission time. */
 @Service
 public class CatalogApplicationSnapshotService {
+    static final String STATUS_CHANGE_REASON = "医院目录启停提交审批";
     private static final Map<String, String> FIELDS = new LinkedHashMap<>();
     static {
         FIELDS.put("product_name", "商品名称"); FIELDS.put("spec_model", "规格型号");
@@ -43,6 +44,10 @@ public class CatalogApplicationSnapshotService {
     }
 
     public void write(Long applicationId, String applicationType, String reason, Integer explicitTargetStatus) {
+        write(applicationId, applicationType, reason, explicitTargetStatus, false);
+    }
+
+    void write(Long applicationId, String applicationType, String reason, Integer explicitTargetStatus, boolean statusOnly) {
         Map<String, Object> application = jdbcTemplate.queryForMap(
                 "SELECT * FROM pending_product_application WHERE application_id = ?", applicationId);
         List<Map<String, Object>> products = jdbcTemplate.queryForList(
@@ -54,7 +59,7 @@ public class CatalogApplicationSnapshotService {
                 : "停用申请".equals(applicationType) ? 0 : originalStatus == null ? 1 : originalStatus;
         List<Map<String, Object>> items = new ArrayList<>();
         if (!old.isEmpty()) {
-            FIELDS.forEach((key, label) -> {
+            if (!statusOnly) FIELDS.forEach((key, label) -> {
                 Object before = old.get(key);
                 Object after = application.get(key);
                 if (!equalValue(before, after)) {
@@ -79,6 +84,7 @@ public class CatalogApplicationSnapshotService {
         snapshot.put("categoryId", old.get("category_id"));
         snapshot.put("status", originalStatus);
         snapshot.put("targetStatus", targetStatus);
+        if (statusOnly) snapshot.put("statusOnly", true);
         snapshot.put("before", old);
         Map<String, Object> diff = new LinkedHashMap<>();
         diff.put("changeReason", reason);
@@ -88,6 +94,16 @@ public class CatalogApplicationSnapshotService {
                    SET product_snapshot = CAST(? AS JSON), change_diff = CAST(? AS JSON)
                  WHERE application_id = ?
                 """, json(snapshot), json(diff), applicationId);
+    }
+
+    boolean isEnableOnly(String applicationNo) {
+        return !jdbcTemplate.queryForList("""
+                SELECT application_id FROM pending_product_application
+                 WHERE application_no = ? AND application_type = '信息变更'
+                   AND JSON_UNQUOTE(JSON_EXTRACT(product_snapshot, '$.targetStatus')) = '1'
+                   AND (JSON_UNQUOTE(JSON_EXTRACT(product_snapshot, '$.statusOnly')) = 'true'
+                        OR JSON_UNQUOTE(JSON_EXTRACT(change_diff, '$.changeReason')) = ?)
+                """, Long.class, applicationNo, STATUS_CHANGE_REASON).isEmpty();
     }
 
     private String json(Object value) {

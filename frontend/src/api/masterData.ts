@@ -609,6 +609,16 @@ export async function fetchWarehouseProductOptions() {
   return getData<WarehouseProductOption[]>('/master-data/warehouses/product-options')
 }
 
+export interface WarehouseDepartmentOption {
+  deptCode: string
+  deptName: string
+  campusName: string
+}
+
+export async function fetchWarehouseDepartmentOptions() {
+  return getData<WarehouseDepartmentOption[]>('/master-data/warehouses/department-options')
+}
+
 export async function fetchWarehouseProducts(warehouseCode: string) {
   return getData<WarehouseProductOption[]>(
     `/master-data/warehouses/${encodeURIComponent(warehouseCode)}/products`

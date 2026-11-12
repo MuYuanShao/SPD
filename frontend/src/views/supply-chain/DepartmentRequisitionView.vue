@@ -15,6 +15,7 @@ import {
   fetchDepartmentRequisitionWarehouses,
   fetchRequisitionItems,
   generateRequisitionsFromAnalysis,
+  processRequisition,
   type DepartmentSmartSuggestion,
   type RequisitionMode,
   type ClosureOptions
@@ -78,8 +79,13 @@ function clearQuantityDrafts() {
 }
 
 const requisitionOrders = ref<Record<string, unknown>[]>([])
+const approvingRequisitionNo = ref('')
+const approvalMode = ref(false)
+const approvalError = ref('')
+const approvalQuantities = ref<Record<number, number | string>>({})
 const detailRows = ref<Record<string, unknown>[]>([])
 const detailOpen = ref(false)
+let detailRequestVersion = 0
 const detailLoading = ref(false)
 const activeRequisitionNo = ref('')
 const requisitionStarted = ref(false)
@@ -114,6 +120,7 @@ const warehouseSetupMessage = computed(() => {
 })
 const selectedItems = computed(() => products.value.filter((item) => item.selected))
 const canCreateRequisition = computed(() => authStore.hasPermission('department-requisition:create'))
+const canApproveRequisition = computed(() => authStore.hasPermission('department-requisition:approve'))
 const canSmartAnalyze = computed(() => authStore.hasPermission('department-requisition:smart-analysis'))
 
 function money(value: unknown) {
@@ -136,6 +143,46 @@ async function loadRequisitionOrders() {
     error.value = err instanceof Error ? err.message : '科室请购记录加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function approveRequisition(order: Record<string, unknown>) {
+  const no = String(order.bizNo || '')
+  if (!no || approvingRequisitionNo.value || !canApproveRequisition.value || order.status !== 'pending_approval') return
+  await openDetails(no, true)
+}
+
+function approvalFactor(item: Record<string, unknown>) {
+  return item.itemType === 'quota_package' ? Number(item.packageQuantity || 0) : 1
+}
+
+async function confirmApproval() {
+  const no = activeRequisitionNo.value
+  if (!approvalMode.value || !no || detailLoading.value || approvingRequisitionNo.value || !detailRows.value.length) return
+  const edits = detailRows.value.map(item => {
+    const itemId = Number(item.itemId)
+    const originalQuantity = Number(item.applyQuantity)
+    const quantity = Number(approvalQuantities.value[itemId])
+    const changed = approvalFactor(item) > 0 && !Number(item.pickedQuantity)
+      && quantity !== originalQuantity / approvalFactor(item)
+    return { itemId, originalQuantity, quantity: changed ? quantity : undefined }
+  })
+  if (edits.some(edit => edit.quantity !== undefined && (!Number.isSafeInteger(edit.quantity) || edit.quantity <= 0))) {
+    approvalError.value = '审批数量和包数必须为正整数'
+    return
+  }
+  approvingRequisitionNo.value = no
+  approvalError.value = ''
+  try {
+    const result = await processRequisition(no, 'approve', edits)
+    notify.success(result.status === 'approved' ? '审批通过，已进入待拣配' : '本级审批已记录，等待后续审批')
+    approvingRequisitionNo.value = ''
+    closeDetails()
+    await loadRequisitionOrders()
+  } catch (err) {
+    approvalError.value = err instanceof Error ? err.message : '科室申领审批失败'
+  } finally {
+    approvingRequisitionNo.value = ''
   }
 }
 
@@ -302,24 +349,38 @@ async function changeHistorySize(size: number) {
   await loadRequisitionOrders()
 }
 
-async function openDetails(requisitionNo: unknown) {
+async function openDetails(requisitionNo: unknown, approving = false) {
   const no = String(requisitionNo || '')
   if (!no) return
+  const request = ++detailRequestVersion
   activeRequisitionNo.value = no
+  approvalMode.value = approving
+  approvalError.value = ''
+  approvalQuantities.value = {}
   detailOpen.value = true
   detailLoading.value = true
   detailRows.value = []
   try {
     const result = await fetchRequisitionItems(no)
+    if (request !== detailRequestVersion) return
     detailRows.value = result.rows
+    if (approving) {
+      approvalQuantities.value = Object.fromEntries(result.rows.map(item => [
+        Number(item.itemId), Number(item.applyQuantity) / approvalFactor(item)
+      ]))
+    }
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '科室请购明细加载失败'
+    if (request === detailRequestVersion) {
+      approvalError.value = err instanceof Error ? err.message : '科室申领明细加载失败'
+    }
   } finally {
-    detailLoading.value = false
+    if (request === detailRequestVersion) detailLoading.value = false
   }
 }
 
 function closeDetails() {
+  if (approvingRequisitionNo.value) return
+  detailRequestVersion++
   detailOpen.value = false
   activeRequisitionNo.value = ''
   detailRows.value = []
@@ -582,6 +643,11 @@ async function changeWarehouse() {
                     <Eye :size="15" />
                     查看明细
                   </button>
+                  <button v-if="canApproveRequisition && order.status === 'pending_approval'"
+                    class="btn btn-sm btn-primary" type="button" :disabled="!!approvingRequisitionNo"
+                    @click="approveRequisition(order)">
+                    {{ approvingRequisitionNo === order.bizNo ? '审批中…' : '审批通过' }}
+                  </button>
                 </td>
               </tr>
             </template>
@@ -834,17 +900,18 @@ async function changeWarehouse() {
     </ElDialog>
 
     <div v-if="detailOpen" class="dept-req-modal-backdrop" @click.self="closeDetails">
-      <section class="dept-req-modal">
+      <section class="dept-req-modal" role="dialog" aria-modal="true" aria-labelledby="requisition-detail-title">
         <header>
           <div>
-            <span>科室请购明细</span>
+            <span id="requisition-detail-title">{{ approvalMode ? '科室申领审批' : '科室请购明细' }}</span>
             <strong>{{ activeRequisitionNo }}</strong>
           </div>
-          <button class="btn btn-sm" type="button" @click="closeDetails">
+          <button class="btn btn-sm" type="button" :disabled="!!approvingRequisitionNo" @click="closeDetails">
             <X :size="16" />
             关闭
           </button>
         </header>
+        <StatusMessage :message="approvalError" tone="error" />
         <div class="dept-req-table-wrap">
           <table class="dept-req-table requisition-detail-table">
             <thead>
@@ -852,10 +919,12 @@ async function changeWarehouse() {
                 <th>商品编码</th>
                 <th>商品名称</th>
                 <th>申领模式</th>
-                <th>模板 / 换算</th>
+                <th>模板</th>
+                <th>换算</th>
                 <th>厂家</th>
                 <th>单价</th>
                 <th>申请数量</th>
+                <th v-if="approvalMode">审批数量</th>
                 <th>履约进度</th>
                 <th>唯一码</th>
                 <th>申请金额</th>
@@ -864,24 +933,36 @@ async function changeWarehouse() {
             </thead>
             <tbody>
               <tr v-if="detailLoading">
-                <td colspan="11"><EmptyState message="正在加载申领明细..." /></td>
+                <td :colspan="approvalMode ? 13 : 12"><EmptyState message="正在加载申领明细..." /></td>
               </tr>
               <tr v-else-if="detailRows.length === 0">
-                <td colspan="11"><EmptyState message="暂无申领明细" /></td>
+                <td :colspan="approvalMode ? 13 : 12"><EmptyState message="暂无申领明细" /></td>
               </tr>
               <template v-else>
-                <tr v-for="item in detailRows" :key="`${item.productCode}-${item.registrationNo}`">
+                <tr v-for="item in detailRows" :key="Number(item.itemId)">
                   <td>{{ item.productCode || '-' }}</td>
-                  <td>{{ item.productName || '-' }}</td>
+                  <td>{{ item.productName || '-' }}<small v-if="item.specModel">{{ item.specModel }}</small></td>
                   <td>{{ item.itemType === 'quota_package' ? '定数包' : item.itemType === 'high_value' ? '高值耗材' : '散货' }}</td>
                   <td>
                     <strong v-if="item.templateCode">{{ item.templateCode }} v{{ item.templateVersion }}</strong>
-                    <small v-if="item.packageCount">{{ item.packageCount }} 包 × {{ item.packageQuantity }} {{ item.packageUnit }}</small>
-                    <span v-if="!item.templateCode">-</span>
+                    <span v-else>-</span>
+                  </td>
+                  <td>
+                    <span v-if="item.packageCount">{{ item.packageCount }} 包 × {{ item.packageQuantity }} {{ item.packageUnit }}</span>
+                    <span v-else>-</span>
                   </td>
                   <td>{{ item.manufacturerName || '-' }}</td>
                   <td>{{ money(item.unitPrice) }}</td>
                   <td>{{ item.applyQuantity || 0 }}</td>
+                  <td v-if="approvalMode">
+                    <template v-if="approvalFactor(item) > 0 && !Number(item.pickedQuantity)">
+                      <input v-model.number="approvalQuantities[Number(item.itemId)]" class="dept-req-approval-quantity"
+                        type="number" inputmode="numeric" min="1" step="1" :aria-label="`${item.productCode} 审批数量`"
+                        :disabled="!!approvingRequisitionNo" />
+                      <small>{{ item.itemType === 'quota_package' ? '包' : item.unit }}</small>
+                    </template>
+                    <span v-else>沿用申请数量</span>
+                  </td>
                   <td>{{ item.pickedQuantity || 0 }} / {{ item.applyQuantity || 0 }}，剩余 {{ item.remainingQuantity || 0 }}</td>
                   <td>{{ item.uniqueCodes || (item.itemType === 'high_value' ? '待拣配绑定' : '-') }}</td>
                   <td>{{ money(item.applyAmount) }}</td>
@@ -891,6 +972,11 @@ async function changeWarehouse() {
             </tbody>
           </table>
         </div>
+        <footer v-if="approvalMode" class="dept-req-approval-actions">
+          <button class="btn" type="button" :disabled="!!approvingRequisitionNo" @click="closeDetails">取消</button>
+          <button class="btn btn-primary" type="button" :disabled="detailLoading || !detailRows.length || !!approvingRequisitionNo"
+            @click="confirmApproval">{{ approvingRequisitionNo ? '审批中…' : '确认通过' }}</button>
+        </footer>
       </section>
     </div>
 
@@ -1379,27 +1465,34 @@ async function changeWarehouse() {
 }
 
 .dept-req-modal {
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  max-width: min(1180px, 94vw);
+  max-width: min(1320px, 94vw);
   max-height: 82vh;
   overflow: hidden;
   background: #ffffff;
   border: 1px solid #dbe5ec;
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
 }
 
 .dept-req-modal > header {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 18px;
+  gap: 16px;
+  background: #f5f9fd;
   border-bottom: 1px solid #e6edf3;
 }
 
 .dept-req-modal > header div {
   display: grid;
   gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .dept-req-modal > header span {
@@ -1413,14 +1506,67 @@ async function changeWarehouse() {
 }
 
 .dept-req-modal .dept-req-table-wrap {
+  min-height: 0;
   max-height: calc(82vh - 70px);
   border: 0;
   border-radius: 0;
   box-shadow: none;
 }
 
+.dept-req-approval-quantity {
+  box-sizing: border-box;
+  width: 3.25rem;
+  min-height: 30px;
+  margin-inline-end: 4px;
+  padding: 3px 5px;
+  border: 1px solid #b7c8d8;
+  border-radius: 6px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  appearance: textfield;
+}
+
+.dept-req-approval-quantity::-webkit-inner-spin-button,
+.dept-req-approval-quantity::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.dept-req-approval-quantity:focus-visible {
+  outline: 2px solid var(--primary, #1677df);
+  outline-offset: 2px;
+}
+
+.dept-req-approval-actions {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid #e6edf3;
+  background: #f5f9fd;
+}
+
 .requisition-detail-table {
-  min-width: 1120px;
+  min-width: 820px;
+}
+
+.requisition-detail-table th,
+.requisition-detail-table td {
+  padding-inline: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+.requisition-detail-table td small {
+  color: #52677a;
+}
+
+.requisition-detail-table th {
+  top: 0;
 }
 
 /* ---------- 智能补货弹窗 ---------- */

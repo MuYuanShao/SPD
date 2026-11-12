@@ -1492,7 +1492,7 @@ function warehouseFlagChipClass(enabled: unknown) {
       <StatusMessage v-if="loading" message="正在加载..." tone="info" />
       <StatusMessage v-else-if="error" :message="error" tone="error" />
 
-      
+
 
       <MdDataTableCard
         v-if="isSupplierManagement && page"

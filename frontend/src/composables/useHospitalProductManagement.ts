@@ -166,6 +166,8 @@ export function useHospitalProductManagement(options: {
   const disableConfirmLoading = ref(false)
   const disableConfirmCodes = ref<string[]>([])
   const disableConfirmCount = ref(0)
+  const productStatusAction = ref<0 | 1>(0)
+  const productStatusError = ref('')
 
   async function loadPartnerOptions() {
     const partnerOptions = await fetchHospitalProductPartnerOptions()
@@ -337,28 +339,40 @@ export function useHospitalProductManagement(options: {
     }
   }
 
-  async function disableProducts(productCodes = options.selectedCodes.value) {
+  function prepareProductStatus(productCodes: string[], status: 0 | 1) {
     options.clearActionState()
     if (!productCodes.length) {
-      options.actionError.value = '请选择需要停用的商品'
+      options.actionError.value = status === 1 ? '请选择需要启用的商品' : '请选择需要停用的商品'
       return
     }
-    // 准备确认弹窗所需的数据，确认动作由 view 层调用 confirmDisableProducts 执行
+    productStatusAction.value = status
+    productStatusError.value = ''
     disableConfirmOpen.value = true
     disableConfirmCount.value = productCodes.length
     disableConfirmCodes.value = [...productCodes]
   }
 
+  function disableProducts(productCodes = options.selectedCodes.value) {
+    prepareProductStatus(productCodes, 0)
+  }
+
+  function enableProducts(productCodes: string[]) {
+    prepareProductStatus(productCodes, 1)
+  }
+
   async function confirmDisableProducts() {
+    if (disableConfirmLoading.value) return
     const productCodes = disableConfirmCodes.value
+    productStatusError.value = ''
     disableConfirmLoading.value = true
     try {
-      await updateHospitalProductStatus({ productCodes, status: 0 })
+      await updateHospitalProductStatus({ productCodes, status: productStatusAction.value })
       disableConfirmOpen.value = false
       disableConfirmCodes.value = []
       await options.loadPage()
+      options.actionMessage.value = '已提交商品状态变更申请，审批通过后生效'
     } catch (err) {
-      options.actionError.value = err instanceof Error ? err.message : '停用失败'
+      productStatusError.value = err instanceof Error ? err.message : '商品状态变更提交失败'
     } finally {
       disableConfirmLoading.value = false
     }
@@ -412,6 +426,9 @@ export function useHospitalProductManagement(options: {
     batchEditSelectedProducts,
     saveBatchProductEdit,
     disableProducts,
+    enableProducts,
+    productStatusAction,
+    productStatusError,
     confirmDisableProducts,
     cancelDisableProducts,
     disableConfirmOpen,

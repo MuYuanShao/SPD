@@ -310,6 +310,11 @@ public class MasterDataController {
         return ApiResponse.ok(warehouseService.warehouseProductOptions());
     }
 
+    @GetMapping("/warehouses/department-options")
+    public ApiResponse<List<Map<String, Object>>> warehouseDepartmentOptions() {
+        return ApiResponse.ok(warehouseService.warehouseDepartmentOptions());
+    }
+
     @GetMapping("/warehouses/{warehouseCode}/products")
     public ApiResponse<List<Map<String, Object>>> warehouseProducts(@PathVariable String warehouseCode) {
         return ApiResponse.ok(warehouseService.warehouseProducts(warehouseCode));

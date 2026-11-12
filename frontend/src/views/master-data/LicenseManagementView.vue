@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Teleport } from 'vue'
-import { Check, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
+import { Check, Columns3, ChevronDown, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import { useNotify } from '../../composables/useNotify'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { formatDateTime } from '../../utils/dateTime'
 import {
   createLicense,
   fetchLicenseDetail,
@@ -367,12 +370,71 @@ async function downloadAttachment(attachment: LicenseAttachment) {
 
 const isContract = computed(() => activeTab.value === 'contract')
 
+// ===== 统一列表：列宽拖拽 + 列设置 + 统一斑马纹表格 =====
+const LICENSE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'licenseName', label: '证照名称', width: 220, visible: true },
+  { key: 'licenseNo', label: '证照编号', width: 180, visible: true },
+  { key: 'owner', label: '所属主体', width: 200, visible: true },
+  { key: 'issueDate', label: '签发日期', width: 150, visible: true },
+  { key: 'expireDate', label: '有效期至', width: 150, visible: true },
+  { key: 'status', label: '状态', width: 120, visible: true },
+  { key: 'attachmentCount', label: '附件', width: 110, visible: true }
+]
+
+const licenseCols = useListColumns({
+  storageKey: 'spd-license-cols-v1',
+  defaults: LICENSE_COL_DEFAULTS
+})
+const licenseTableRef = licenseCols.tableRef
+
+const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
+const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
+const startLicenseColDrag = (key: string, event: MouseEvent) => licenseCols.startColumnDrag(key, event)
+
+/** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
+function licenseStatusChipClass(row: LicenseRow) {
+  return statusText(row) === '有效' ? 'is-success' : 'is-warning'
+}
+
+/** 所属主体展示文案：合同展示双方，其余展示名称 + 编码 */
+function licenseOwnerText(row: LicenseRow) {
+  if (isContract.value) {
+    return [row.partyA, row.partyB].filter(Boolean).join(' / ') || '-'
+  }
+  return [row.ownerName, row.ownerCode].filter(Boolean).join(' / ') || '-'
+}
+
+/** 所属主体副标题：合同展示所属主体，其余展示主体编码 */
+function licenseOwnerSubText(row: LicenseRow) {
+  if (isContract.value) {
+    return `所属：${row.ownerName || '未关联'} / ${row.ownerCode || '-'}`
+  }
+  return row.ownerCode || ''
+}
+
+/** 签发日期 / 合同金额列的动态表头与内容 */
+function licenseIssueHeader() {
+  return isContract.value ? '合同金额' : '签发日期'
+}
+
+function licenseIssueValue(row: LicenseRow) {
+  if (isContract.value) {
+    return row.contractAmount != null ? `¥${row.contractAmount}` : '-'
+  }
+  return row.issueDate || '-'
+}
+
+/** 日期统一为 YYYY-MM-DD HH:MM:SS */
+function formatListDateTime(value: unknown) {
+  return formatDateTime(value)
+}
+
 onMounted(loadList)
 onUnmounted(closePreview)
 </script>
 
 <template>
-  <div class="license-page">
+  <div class="license-page spd-unified-list">
     <MdPageHeader
       crumb="基础数据管理"
       title="证照管理"
@@ -391,67 +453,204 @@ onUnmounted(closePreview)
       </button>
     </div>
 
-    <div class="license-toolbar">
-      <div class="license-search">
+    <div class="license-toolbar md-table-toolbar">
+      <div class="license-search md-table-toolbar-main">
         <input
           v-model.trim="keyword"
           :placeholder="`搜索证照名称、编号、${activeTabInfo.ownerLabel}名称或编码`"
           @keyup.enter="onSearch"
         />
-        <button class="btn" type="button" @click="onSearch"><Search :size="16" /> 查询</button>
+        <button class="md-btn md-btn-primary" type="button" @click="onSearch"><Search :size="16" /> 查询</button>
       </div>
-      <button class="btn btn-primary" type="button" @click="openCreateModal">
-        <Plus :size="16" /> 新增{{ activeTabInfo.label }}
-      </button>
+      <div class="md-table-toolbar-main">
+        <button class="md-btn md-btn-primary" type="button" @click="openCreateModal">
+          <Plus :size="16" /> 新增{{ activeTabInfo.label }}
+        </button>
+        <div class="ulc-col-settings">
+          <button type="button" class="md-btn md-btn-primary" @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value">
+            <Columns3 :size="16" /> 列设置
+            <ChevronDown :size="14" :class="{ rotated: licenseCols.settingsOpen.value }" />
+          </button>
+          <div v-if="licenseCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="licenseCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in licenseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && licenseCols.visibleColumnCount.value <= 1"
+                  @change="licenseCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="licenseCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </div>
     </div>
 
     <p v-if="error" class="license-error">{{ error }}</p>
 
-    <div class="license-table-wrap">
-      <table class="license-table">
-        <thead>
-          <tr>
-            <th>证照名称</th>
-            <th>证照编号</th>
-            <th>{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</th>
-            <th>{{ isContract ? '合同金额' : '签发日期' }}</th>
-            <th>有效期至</th>
-            <th>状态</th>
-            <th>附件</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="loading">
-            <td colspan="8" class="approval-empty">正在加载{{ activeTabInfo.label }}...</td>
-          </tr>
-          <tr v-else-if="!rows.length">
-            <td colspan="8" class="approval-empty">暂无{{ activeTabInfo.label }}数据，点击右上角新增</td>
-          </tr>
-          <tr v-for="row in rows" v-else :key="row.id">
-            <td>{{ row.licenseName }}<small v-if="row.sourceSystem === 'MCP-UI'"> · MCP审批同步</small></td>
-            <td>{{ row.licenseNo || '-' }}</td>
-            <td v-if="isContract">{{ [row.partyA, row.partyB].filter(Boolean).join(' / ') || '-' }}<small>所属：{{ row.ownerName || '未关联' }} / {{ row.ownerCode || '-' }}</small></td>
-            <td v-else>{{ [row.ownerName, row.ownerCode].filter(Boolean).join(' / ') || '-' }}</td>
-            <td v-if="isContract">{{ row.contractAmount != null ? `¥${row.contractAmount}` : '-' }}</td>
-            <td v-else>{{ row.issueDate || '-' }}</td>
-            <td>{{ row.expireDate || '-' }}</td>
-            <td>
-              <span :class="['license-status', statusText(row) === '有效' ? 'ok' : 'warn']">
-                {{ statusText(row) }}
-              </span>
-            </td>
-            <td>{{ row.attachmentCount ?? 0 }}</td>
-            <td class="license-actions">
-              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row)"><Pencil :size="14" /> 编辑</button>
-              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text" type="button" :disabled="formLoading" @click="openEditModal(row, true)">续证</button>
-              <button class="btn-text" type="button" @click="openHistory(row)">历史</button>
-              <button class="btn-text" type="button" @click="openAttachments(row)"><FileText :size="14" /> 附件</button>
-              <button v-if="row.sourceSystem !== 'MCP-UI'" class="btn-text btn-text-danger" type="button" @click="confirmRemove(row)"><Trash2 :size="14" /> 删除</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div class="ulc-table-wrap">
+      <el-table
+        ref="licenseTableRef"
+        v-loading="loading"
+        class="ulc-table"
+        :data="rows"
+        row-key="id"
+        border
+        stripe
+        style="width: 100%"
+        :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
+      >
+        <el-table-column
+          v-if="isLicenseColVisible('licenseName')"
+          label="证照名称"
+          :min-width="licenseColWidth('licenseName')"
+          show-overflow-tooltip
+        >
+          <template #header>
+            <span class="ulc-th-text">证照名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseName', $event)" />
+          </template>
+          <template #default="{ row }">
+            <div class="ulc-cell-stack">
+              <span class="ulc-strong">{{ row.licenseName }}</span>
+              <span v-if="row.sourceSystem === 'MCP-UI'" class="ulc-sub">MCP审批同步</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('licenseNo')"
+          :label="isContract ? '合同编号' : '证照编号'"
+          :min-width="licenseColWidth('licenseNo')"
+          show-overflow-tooltip
+        >
+          <template #header>
+            <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseNo', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('owner')"
+          :label="isContract ? '合同双方' : activeTabInfo.ownerLabel"
+          :min-width="licenseColWidth('owner')"
+          show-overflow-tooltip
+        >
+          <template #header>
+            <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('owner', $event)" />
+          </template>
+          <template #default="{ row }">
+            <div class="ulc-cell-stack">
+              <span class="ulc-strong">{{ licenseOwnerText(row) }}</span>
+              <span v-if="licenseOwnerSubText(row)" class="ulc-sub">{{ licenseOwnerSubText(row) }}</span>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('issueDate')"
+          :label="licenseIssueHeader()"
+          :min-width="licenseColWidth('issueDate')"
+          align="center"
+        >
+          <template #header>
+            <span class="ulc-th-text">{{ licenseIssueHeader() }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('issueDate', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-strong">{{ licenseIssueValue(row) }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('expireDate')"
+          label="有效期至"
+          :min-width="licenseColWidth('expireDate')"
+          align="center"
+        >
+          <template #header>
+            <span class="ulc-th-text">有效期至</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('expireDate', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-time">{{ row.expireDate || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('status')"
+          label="状态"
+          :min-width="licenseColWidth('status')"
+          align="center"
+        >
+          <template #header>
+            <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('status', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-chip" :class="licenseStatusChipClass(row)">
+              {{ statusText(row) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column
+          v-if="isLicenseColVisible('attachmentCount')"
+          label="附件"
+          :min-width="licenseColWidth('attachmentCount')"
+          align="center"
+        >
+          <template #header>
+            <span class="ulc-th-text">附件</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('attachmentCount', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-tag">{{ row.attachmentCount ?? 0 }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" :min-width="300" align="center" fixed="right">
+          <template #default="{ row }">
+            <div class="ulc-actions">
+              <button
+                v-if="row.sourceSystem !== 'MCP-UI'"
+                type="button"
+                class="ulc-action"
+                :disabled="formLoading"
+                @click="openEditModal(row)"
+              >
+                <Pencil :size="14" /> 编辑
+              </button>
+              <button
+                v-if="row.sourceSystem !== 'MCP-UI'"
+                type="button"
+                class="ulc-action"
+                :disabled="formLoading"
+                @click="openEditModal(row, true)"
+              >
+                续证
+              </button>
+              <button type="button" class="ulc-action" @click="openHistory(row)">
+                历史
+              </button>
+              <button type="button" class="ulc-action" @click="openAttachments(row)">
+                <FileText :size="14" /> 附件
+              </button>
+              <button
+                v-if="row.sourceSystem !== 'MCP-UI'"
+                type="button"
+                class="ulc-action is-danger"
+                @click="confirmRemove(row)"
+              >
+                <Trash2 :size="14" /> 删除
+              </button>
+            </div>
+          </template>
+        </el-table-column>
+        <template #empty>
+          <MdEmptyState :text="`暂无${activeTabInfo.label}数据`" hint="点击右上角新增" />
+        </template>
+      </el-table>
       <div v-if="total > size" class="license-pagination">
         <button class="btn" type="button" :disabled="page <= 1" @click="page--; loadList()">上一页</button>
         <span>第 {{ page }} 页 / 共 {{ Math.ceil(total / size) }} 页（{{ total }} 条）</span>
@@ -892,8 +1091,16 @@ onUnmounted(closePreview)
   font-weight: 500;
   transition: color 0.18s ease, background 0.18s ease;
 }
-.license-tab:hover { color: var(--primary); background: #edf7f5; }
-.license-tab.active { color: #0f766e; background: #edf7f5; font-weight: 600; }
+/* 页签高亮使用系统主题色，不再使用绿色 */
+.license-tab:hover {
+  color: var(--primary, #1677ff);
+  background: color-mix(in srgb, var(--primary, #1677ff) 10%, transparent);
+}
+.license-tab.active {
+  color: var(--primary, #1677ff);
+  background: color-mix(in srgb, var(--primary, #1677ff) 12%, transparent);
+  font-weight: 700;
+}
 
 .license-toolbar {
   display: flex;
@@ -908,50 +1115,30 @@ onUnmounted(closePreview)
   flex-wrap: wrap;
 }
 
+/* 搜索区：与统一列表工具栏保持一致的输入框样式 */
 .license-search {
   display: flex;
   gap: 8px;
+  align-items: center;
   flex: 1;
   max-width: 520px;
 }
 .license-search input {
   flex: 1;
+  min-width: 0;
   padding: 8px 12px;
   border: 1px solid #cbd5e1;
-  border-radius: 6px;
+  border-radius: 4px;
   font-size: 14px;
+}
+.license-search input:focus {
+  outline: none;
+  border-color: var(--primary, #1677ff);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1677ff) 15%, transparent);
 }
 
 .license-message { color: #047857; font-size: 13px; margin: 0 0 8px; }
 .license-error { color: #b91c1c; font-size: 13px; margin: 0 0 8px; }
-
-.license-table-wrap {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.license-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.license-table th, .license-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #eef2f7;
-  text-align: left;
-  white-space: nowrap;
-}
-.license-table th { background: #f8fafc; color: #475569; font-weight: 600; }
-.license-table tbody tr:hover { background: #f8fafc; }
-
-.license-status {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-size: 12px;
-}
-.license-status.ok { color: #047857; background: #ecfdf5; }
-.license-status.warn { color: #b45309; background: #fffbeb; }
-
-.license-actions { display: flex; gap: 10px; }
 
 .license-pagination {
   display: flex;

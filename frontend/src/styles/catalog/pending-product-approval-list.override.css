@@ -170,12 +170,15 @@
   opacity: 0.8 !important;
 }
 
-/* ===== Workspace（左右布局） ===== */
+/* ===== Workspace（左右布局） =====
+   align-items: start 让主区按内容高度自适应，
+   避免侧边栏的 min-height 把主区一起撑高，
+   从而导致分页器下方出现大片空白。 */
 .approval-workspace {
   display: grid !important;
   grid-template-columns: 180px minmax(0, 1fr) !important;
   gap: 16px !important;
-  min-height: 540px;
+  align-items: start;
 }
 
 /* ===== 侧边栏 ===== */
@@ -363,11 +366,13 @@
   font-weight: 600;
 }
 
-/* ===== 主列表卡片 ===== */
+/* ===== 主列表卡片 =====
+   overflow: visible —— 让「列设置」浮层可以溢出卡片不被裁切；
+   表格自身的圆角由 .approval-wide-table-shell 处理。 */
 .approval-list-card {
   padding: 0 !important;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 /* ===== 上下文标题区 ===== */
@@ -614,16 +619,16 @@
 
 .approval-wide-table {
   width: 100%;
-  min-width: 2060px;
+  /* min-width 由组件按可见列宽动态计算（inline style） */
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--spd-text-primary);
 }
 
 .approval-wide-table thead {
-  background: #fafafa;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%);
 }
 
 .approval-wide-table th,
@@ -639,21 +644,25 @@
 }
 
 .approval-wide-table th {
-  background: #fafafa !important;
-  color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
-  font-weight: 600 !important;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
   font-family: var(--spd-font-family-display) !important;
   letter-spacing: 0;
+  border-right-color: rgba(255, 255, 255, 0.22) !important;
+  border-bottom: 0 !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+  white-space: nowrap;
 }
 
 .approval-wide-table td {
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: #fafbfc;
+  background: #ffffff;
 }
 
 .approval-wide-table tbody tr:hover td {
@@ -665,48 +674,46 @@
   border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
 }
 
-/* ===== Sticky 列 ===== */
-.approval-sticky-check,
-.approval-sticky-no,
-.approval-sticky-product,
+/* ===== Sticky 列：仅操作列固定，其余列随横向滚动 =====
+   阴影改为一次性伪元素绘制，避免横向滚动时每帧重算 box-shadow */
 .approval-sticky-action {
   position: sticky;
+  right: 0;
   z-index: 2;
+  width: 250px;
+  min-width: 250px;
   background: var(--spd-bg-container) !important;
 }
 
-thead .approval-sticky-check,
-thead .approval-sticky-no,
-thead .approval-sticky-product,
+.approval-sticky-action::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 100%;
+  bottom: 0;
+  width: 10px;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.06) 100%);
+}
+
 thead .approval-sticky-action {
   z-index: 3;
-  background: #fafafa !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
 }
 
-.approval-sticky-check {
-  left: 0;
+/* 非固定列：宽度与对齐 */
+.approval-col-check {
   width: 48px;
   text-align: center !important;
-  box-shadow: 4px 0 6px rgba(0, 0, 0, 0.04) !important;
 }
 
-.approval-sticky-no {
-  left: 48px;
-  width: 150px;
+.approval-col-no {
+  width: 170px;
 }
 
-.approval-sticky-product {
-  left: 198px;
-  width: 230px;
-  box-shadow: 6px 0 12px rgba(0, 0, 0, 0.04) !important;
-}
-
-.approval-sticky-action {
-  right: 0;
+.approval-col-product {
   width: 250px;
-  min-width: 250px;
-  text-align: right !important;
-  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.04) !important;
 }
 
 /* ===== 单元格内容 ===== */
@@ -715,17 +722,18 @@ thead .approval-sticky-action {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-align: center;
 }
 
 .approval-product-cell strong {
   color: var(--spd-text-heading) !important;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .approval-product-cell small {
   margin-top: 4px;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .approval-money {
@@ -736,11 +744,12 @@ thead .approval-sticky-action {
 }
 
 .approval-no {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   color: var(--primary) !important;
-  font-weight: 500;
+  font-weight: 700;
   font-family: var(--spd-font-family-mono);
 }
 
@@ -929,13 +938,43 @@ thead .approval-sticky-action {
   accent-color: var(--primary);
 }
 
-/* ===== 横向滚动条（自定义） ===== */
+/* ===== 横向滚动条（自定义） =====
+   与统一列表其他页面一致：表格容器与分页之间不留多余空隙 */
+.approval-wide-table-shell {
+  position: relative;
+  /* 层级低于工具栏（z-index: 30），避免「列设置」浮层被表格容器裁切/遮挡 */
+  z-index: 1;
+  max-height: 480px;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-width: none;
+  background: var(--spd-bg-container);
+  margin-bottom: 0 !important;
+  /* 避免滚动到页面外时触发父级滚动 */
+  overscroll-behavior-x: contain;
+}
+
+/* 卡片不再裁切溢出内容，圆角由表格容器/分页条自行处理 */
+.approval-list-card {
+  border-radius: 0 !important;
+}
+
+/* 表格容器圆角：配合 overflow auto 生效，滚动条不受影响 */
+.approval-wide-table-shell {
+  border-radius: var(--spd-radius-md, 8px) var(--spd-radius-md, 8px) 0 0;
+}
+
+.approval-list-card .md-pagination {
+  border-radius: 0 0 var(--spd-radius-md, 8px) var(--spd-radius-md, 8px);
+  overflow: hidden;
+}
+
 .approval-wide-scroll-rail {
   position: relative;
   height: 8px;
   border-radius: 999px;
   background: var(--spd-bg-page, #f0f2f5);
-  margin: 8px 24px 12px;
+  margin: 0 18px !important;
   cursor: pointer;
 }
 
@@ -1178,48 +1217,36 @@ thead .approval-sticky-action {
   white-space: nowrap;
 }
 
-.approval-action-row .btn,
+.approval-action-row .md-btn,
 .approval-action-row .import-menu > summary,
 .approval-action-row .import-menu[open] > summary {
   /* 关键：覆盖 .main-area .btn 的 min-height: 40px !important */
-  min-height: 32px !important;
-  height: 32px !important;
+  min-height: 34px !important;
+  height: 34px !important;
   line-height: 1 !important;
-  padding: 0 12px !important;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
+  padding: 0 14px !important;
+  border: 1px solid transparent !important;
+  border-radius: 4px !important;
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  gap: 5px !important;
+  gap: 6px !important;
   cursor: pointer;
   transition: all 0.18s ease;
   box-shadow: none !important;
   box-sizing: border-box;
 }
 
-.approval-action-row .btn:hover,
+.approval-action-row .md-btn:hover,
 .approval-action-row .import-menu > summary:hover {
-  border-color: var(--primary) !important;
-  color: var(--primary) !important;
-  background: var(--spd-primary-bg) !important;
-}
-
-.approval-action-row .btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
   color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
-}
-
-.approval-action-row .btn-primary:hover {
-  background: var(--primary-strong) !important;
-  border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  filter: brightness(0.93);
 }
 
 /* 让导入 <details> summary 内部的小箭头与文字在同一行 */
@@ -1784,6 +1811,343 @@ body .column-settings-dialog.column-settings-dialog {
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--primary);
+}
+
+/* 新增表单必填星标：跟随主题错误色，清晰且不刺眼 */
+.req-mark {
+  color: #dc2626;
+  font-style: normal;
+  font-weight: 700;
+  margin-left: 2px;
+}
+.approval-create-section .supplier-form-grid label > span .req-mark {
+  color: #dc2626;
+}
+
+/* 新增字段：商品编码 / 提交时间 —— 主题单色系、等宽对齐 */
+.approval-mono {
+  font-family: var(--spd-font-family-mono) !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px !important;
+}
+
+.approval-time {
+  font-family: var(--spd-font-family-mono) !important;
+  font-variant-numeric: tabular-nums;
+  color: var(--spd-text-secondary) !important;
+  font-size: 13px !important;
+  white-space: nowrap !important;
+}
+
+/* =====================================================================
+   统一列表标准（与科室管理 / 科室库房目录 / 证照管理保持一致）
+   1. 表头主题色实底 + 加粗白字
+   2. 斑马纹 + 带边框
+   3. 所有列内容居中
+   4. 状态条 / 按钮 4px 圆角 + 边框 + 背景色
+   5. 顶部概览卡片已移除
+   ===================================================================== */
+
+/* ===== 表头：主题色实底（去掉渐变） ===== */
+.approval-wide-table thead {
+  background: var(--primary) !important;
+}
+
+.approval-wide-table th {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  border-right-color: rgba(255, 255, 255, 0.22) !important;
+  border-bottom: 0 !important;
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+  white-space: nowrap;
+}
+
+/* 表头内容：文字与列宽拖拽手柄
+   手柄使用普通 inline 元素（非绝对定位），保证鼠标命中区域可靠 */
+.approval-wide-table th:has(> .ulc-col-grip) {
+  padding-right: 18px !important;
+}
+
+.approval-wide-table th > .ulc-th-text {
+  display: inline-block;
+  vertical-align: middle;
+  max-width: calc(100% - 14px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.approval-wide-table th > .ulc-col-grip {
+  display: inline-block;
+  vertical-align: middle;
+  width: 8px;
+  height: 18px;
+  margin-left: 6px;
+  border-radius: 3px;
+  cursor: col-resize;
+  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.32);
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.approval-wide-table th > .ulc-col-grip:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+thead .approval-sticky-check,
+thead .approval-sticky-no,
+thead .approval-sticky-product,
+thead .approval-sticky-action {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* ===== 单元格：全部居中 ===== */
+.approval-wide-table th,
+.approval-wide-table td {
+  text-align: center !important;
+}
+
+.approval-wide-table td {
+  color: var(--spd-text-primary) !important;
+  font-size: 15px;
+}
+
+/* 左侧固定列内部文字仍保持左对齐，避免长文本难读 */
+.approval-sticky-no,
+.approval-sticky-product {
+  text-align: left !important;
+}
+
+/* ===== 斑马纹：奇数行浅色底 ===== */
+.approval-wide-table tbody tr:nth-child(odd) td {
+  background: #f6fafb;
+}
+
+.approval-wide-table tbody tr:nth-child(even) td {
+  background: #ffffff;
+}
+
+/* 固定列（仅操作列）同样跟随斑马纹，否则会出现白底断层 */
+.approval-wide-table tbody tr:nth-child(odd) td.approval-sticky-action {
+  background: #f6fafb !important;
+}
+
+.approval-wide-table tbody tr:nth-child(even) td.approval-sticky-action {
+  background: #ffffff !important;
+}
+
+.approval-wide-table tbody tr:hover td,
+.approval-wide-table tbody tr:hover td.approval-sticky-action {
+  background: #eaf4f6 !important;
+}
+
+.approval-wide-table tbody tr:has(input:checked) td,
+.approval-wide-table tbody tr:has(input:checked) td.approval-sticky-action {
+  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
+  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+}
+
+/* ===== 顶部概览卡片已移除 ===== */
+.approval-metric-grid {
+  display: none !important;
+}
+
+/* ===== 筛选区：与统一列表其他页面一致（ulc-filter flex 布局） =====
+   旧实现为 grid，这里交回 unified-list.css 的 flex 规则统一控制 */
+.approval-filter-row {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 16px;
+  border: 0 !important;
+  margin-bottom: 0 !important;
+  padding: 16px 18px !important;
+  background: #fff !important;
+}
+
+.approval-filter-row .ulc-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.6fr) minmax(150px, 1fr) minmax(150px, 1fr);
+  gap: 12px 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.approval-filter-row .ulc-filter-fields label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.approval-filter-row .ulc-filter-fields label > span {
+  color: #405564;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* 搜索框：与统一列表的 md-input 观感一致 */
+.approval-filter-row .approval-search {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px !important;
+  padding: 0 12px;
+  border: 1px solid var(--ulc-border, #d5e3e8) !important;
+  border-radius: 4px;
+  background: #fff !important;
+  color: var(--spd-text-primary) !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.approval-filter-row .approval-search:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent) !important;
+}
+
+.approval-filter-row .approval-search svg {
+  color: var(--spd-text-tertiary) !important;
+  flex-shrink: 0;
+}
+
+.approval-filter-row .approval-search input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  font: inherit;
+  font-size: 14px;
+  background: transparent;
+  color: var(--spd-text-primary);
+}
+
+.approval-filter-row .approval-search input::placeholder {
+  color: var(--spd-text-placeholder);
+}
+
+/* ===== 工具栏行：与统一列表其他页面一致 =====
+   position/z-index 建立独立层叠上下文，
+   让「列设置」浮层可以盖住下方表格（表格容器有 overflow/position 会裁切浮层） */
+.approval-action-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  gap: 8px;
+  white-space: nowrap;
+  margin-bottom: 0 !important;
+  padding: 10px 18px !important;
+  border-top: 1px solid var(--ulc-border, #d5e3e8) !important;
+  border-bottom: 1px solid var(--ulc-border, #d5e3e8) !important;
+  background: #fff !important;
+  overflow: visible;
+  position: relative;
+  z-index: 30;
+}
+
+.approval-action-row .md-table-toolbar-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ===== 筛选区：el-select 与统一列表一致 ===== */
+.approval-filter-row .ulc-filter-select {
+  width: 100%;
+  min-width: 0;
+}
+
+.approval-filter-row .ulc-filter-select .el-select__wrapper {
+  min-height: 34px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--spd-border-default) inset;
+}
+
+.approval-filter-row .ulc-filter-select .el-select__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--primary) inset;
+}
+
+.approval-filter-row .ulc-filter-select .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px var(--primary) inset, 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.approval-filter-row .ulc-filter-select .el-select__placeholder,
+.approval-filter-row .ulc-filter-select .el-select__selected-item {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ===== 操作列按钮：4px 圆角 + 实色背景 ===== */
+.approval-sticky-action .ulc-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.approval-sticky-action .ulc-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.18s, box-shadow 0.18s;
+}
+
+.approval-sticky-action .ulc-action:hover {
+  filter: brightness(0.93);
+  box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
+}
+
+.approval-sticky-action .ulc-action.is-danger {
+  background: #c0392b;
+}
+
+/* ===== 批量操作条：按钮统一 4px 圆角 ===== */
+.approval-batch-bar .ulc-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.approval-batch-bar .ulc-action.is-danger {
+  background: #c0392b;
+}
+
+.approval-batch-bar .ulc-action.is-neutral {
+  background: #5b7371;
+}
+
+.approval-batch-bar .ulc-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 

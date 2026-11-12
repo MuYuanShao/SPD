@@ -704,15 +704,26 @@
   border-radius: var(--spd-radius-xl) !important;
 }
 
+/* 下拉容器：只保留圆角与阴影，padding / 列表间距沿用 Element Plus 原生 */
 .el-select-dropdown {
   border-radius: var(--spd-radius-lg) !important;
   border: 1px solid var(--spd-color-border-light) !important;
   box-shadow: var(--spd-shadow-lg) !important;
 }
 
+/* 下拉列表：去掉 Element Plus 原生的上下 6px 内边距，
+   让第一个选项紧贴容器顶部，不留多余空隙 */
+.el-select-dropdown__list {
+  padding: 0;
+}
+
+/* 选项：保持 Element Plus 原生的固定高度 + 等高行高，
+   文字才能垂直居中；这里不要改 padding，否则会撑偏文字 */
 .el-select-dropdown__item {
   font-size: var(--spd-font-size-sm);
-  padding: 8px 12px;
+  height: 34px;
+  line-height: 34px;
+  padding: 0 32px 0 20px;
 }
 
 .el-select-dropdown__item.is-selected {

@@ -10,6 +10,7 @@ import { ElPopover } from 'element-plus/es/components/popover/index.mjs'
 import { ElTable, ElTableColumn } from 'element-plus/es/components/table/index.mjs'
 import { ElContainer, ElHeader, ElMain } from 'element-plus/es/components/container/index.mjs'
 import { ElMenu, ElMenuItem, ElSubMenu } from 'element-plus/es/components/menu/index.mjs'
+import { ElIcon } from 'element-plus/es/components/icon/index.mjs'
 import { ElDropdown, ElDropdownMenu, ElDropdownItem } from 'element-plus/es/components/dropdown/index.mjs'
 import { ElBreadcrumb, ElBreadcrumbItem } from 'element-plus/es/components/breadcrumb/index.mjs'
 import { ElCard } from 'element-plus/es/components/card/index.mjs'
@@ -24,12 +25,14 @@ import { ElPagination } from 'element-plus/es/components/pagination/index.mjs'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import { ElCheckboxGroup } from 'element-plus/es/components/checkbox/index.mjs'
 import { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
+import { ElSelect, ElOption } from 'element-plus/es/components/select/index.mjs'
 import 'element-plus/theme-chalk/el-container.css'
 import 'element-plus/theme-chalk/el-header.css'
 import 'element-plus/theme-chalk/el-main.css'
 import 'element-plus/theme-chalk/el-menu.css'
 import 'element-plus/theme-chalk/el-menu-item.css'
 import 'element-plus/theme-chalk/el-sub-menu.css'
+import 'element-plus/theme-chalk/el-icon.css'
 import 'element-plus/theme-chalk/el-dropdown.css'
 import 'element-plus/theme-chalk/el-dropdown-menu.css'
 import 'element-plus/theme-chalk/el-dropdown-item.css'
@@ -74,7 +77,7 @@ const app = createApp(App)
   .use(ElTable)
   .use(ElTableColumn)
 
-for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty]) {
+for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElIcon, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty, ElSelect, ElOption]) {
   app.use(component)
 }
 setSessionAdapter({

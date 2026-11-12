@@ -963,6 +963,8 @@
 }
 
 /* ===== 通用按钮主题化（覆盖 .btn） ===== */
+/* 注意：.master-page 下的按钮统一白底，但批量维护弹窗等浮层有自己的主题色规则。
+   弹窗挂载在 .master-page 内，这里通过提高浮层规则优先级来保留其主题色。 */
 .master-page .btn:not(.btn-icon):not(.btn-text):not(.btn-link),
 .hospital-catalog-panel .btn:not(.btn-icon):not(.btn-text):not(.btn-link),
 .master-toolbar .btn:not(.btn-icon):not(.btn-text):not(.btn-link),

@@ -1,6 +1,7 @@
 @import "./theme.css";
 @import "./spd-theme.css";
 @import "./spd-layout.css";
+@import "./spd-side-nav.css";
 @import "./spd-dashboard.css";
 @import "./system/approval-flow-settings.css";
 @import "./system/system-config.css";
@@ -29,6 +30,9 @@
 @import "./catalog/pending-product-approval-list.override.css";
 @import "./master-data/master-data-all.override.css";
 @import "./master-data/master-data-list.override.css";
+/* 统一列表样式（斑马纹带边框表格 / 列设置 / 状态条 / 4px 圆角按钮）
+   全局引入，保证所有采用 .spd-unified-list 的页面样式一致 */
+@import "./list/unified-list.css";
 
 :root {
   color-scheme: light;

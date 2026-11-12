@@ -24,6 +24,9 @@ perf/results/
 .playwright-cli/
 /output/playwright/
 
+# Local toolchains (JDK used by backend-control.ps1)
+/.tools/
+
 # Local IDE/agent settings
 .agents/
 .claude/

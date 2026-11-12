@@ -218,3 +218,19 @@ export async function fetchPermissions() {
 export async function fetchDepartmentOptions() {
   return getData<DepartmentOption[]>('/users/departments/options')
 }
+
+/**
+ * 当前登录用户修改自己的登录密码
+ * 后端口径：PUT /auth/password { currentPassword, newPassword }
+ */
+export async function changeOwnPassword(payload: {
+  oldPassword: string
+  newPassword: string
+  confirmPassword: string
+}) {
+  const { data } = await http.put<ApiResponse<null>>('/auth/password', {
+    currentPassword: payload.oldPassword,
+    newPassword: payload.newPassword,
+  })
+  return data.data
+}

@@ -535,6 +535,39 @@ a.el-link {
   box-shadow: inset 3px 0 0 var(--primary);
 }
 
+/* 叶子项图标容器：hover 铺浅底、激活铺主题色底 + 白图标 */
+.spd-mini-nav-item-icon {
+  color: var(--spd-text-tertiary) !important;
+  background: transparent !important;
+}
+
+.spd-mini-nav-item:hover .spd-mini-nav-item-icon {
+  background: var(--spd-bg-container) !important;
+  color: var(--primary) !important;
+}
+
+.spd-mini-nav-item.active .spd-mini-nav-item-icon {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* 分组图标：主题色 */
+.spd-mini-nav-group-icon {
+  color: var(--primary) !important;
+}
+
+.spd-mini-nav-sub-icon {
+  color: var(--spd-text-tertiary) !important;
+}
+
+.spd-mini-nav-sub:hover .spd-mini-nav-sub-icon {
+  color: var(--primary) !important;
+}
+
+.spd-mini-nav-sub.active .spd-mini-nav-sub-icon {
+  color: var(--primary) !important;
+}
+
 .spd-mini-nav-group-title {
   color: var(--spd-text-secondary) !important;
   font-weight: 600;

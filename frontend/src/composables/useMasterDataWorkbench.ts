@@ -11,7 +11,19 @@ import {
 
 const PARTNER_COMBINED_CODE = 'supplier-manufacturer-management'
 
-export function useMasterDataWorkbench() {
+/**
+ * 暗夜黑配色方案（科室库房目录）的独立路由。
+ *
+ * 该方案与浅色原版共用同一份数据与同一套后端接口，
+ * 但使用独立视图组件与独立路由名，因此主数据工作台需要额外识别它。
+ */
+export const NIGHT_CATALOG_ROUTE_NAME = 'department-warehouse-catalog-night'
+/** 暗夜黑方案在功能目录中的编码（与浅色原版区分，便于顶部页签显示中文名） */
+export const NIGHT_CATALOG_CODE = 'department-warehouse-catalog-night'
+/** 暗夜黑方案实际访问的主数据类型（与浅色原版完全一致） */
+const NIGHT_CATALOG_MASTER_CODE = 'department-warehouse-catalog'
+
+export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) {
   const route = useRoute()
   const router = useRouter()
   const refreshStore = useCatalogApprovalRefreshStore()
@@ -117,8 +129,9 @@ export function useMasterDataWorkbench() {
     status: ''
   })
 
-  const routeCode = ref(String(route.params.code ?? ''))
+  const routeCode = ref(options.codeOverride ?? String(route.params.code ?? ''))
   watch(() => route.fullPath, () => {
+    if (options.codeOverride) return
     if (route.name === 'master-data-list') routeCode.value = String(route.params.code ?? '')
   })
   const partnerTab = ref<'supplier' | 'manufacturer'>(route.query.tab === 'manufacturer' ? 'manufacturer' : 'supplier')
@@ -134,7 +147,11 @@ export function useMasterDataWorkbench() {
   const isManufacturerManagement = computed(() => code.value === 'manufacturer-management')
   const isCampusManagement = computed(() => code.value === 'campus-management')
   const isDepartmentManagement = computed(() => code.value === 'department-management')
-  const isDepartmentWarehouseCatalog = computed(() => code.value === 'department-warehouse-catalog')
+  const isDepartmentWarehouseCatalog = computed(
+    () =>
+      code.value === NIGHT_CATALOG_MASTER_CODE ||
+      code.value === NIGHT_CATALOG_CODE
+  )
   const isWarehouseManagement = computed(() => code.value === 'warehouse-location-management')
   const selectableRows = computed(
     () =>
@@ -267,8 +284,20 @@ export function useMasterDataWorkbench() {
     状态: 'status'
   }
 
+  /**
+   * 当前组件是否处于「允许加载主数据」的路由上。
+   *
+   * 浅色原版走 `master-data-list` 路由；
+   * 暗夜黑配色方案页走独立路由 `department-warehouse-catalog-night`，
+   * 它通过 codeOverride 复用同一份工作台逻辑。
+   */
+  function isWorkbenchRoute() {
+    if (route.name === 'master-data-list') return true
+    return Boolean(options.codeOverride) && route.name === NIGHT_CATALOG_ROUTE_NAME
+  }
+
   async function loadPage() {
-    if (!active.value || route.name !== 'master-data-list') { needsReload = true; return }
+    if (!active.value || !isWorkbenchRoute()) { needsReload = true; return }
     const request = ++pageRequestVersion
     const expectedCode = code.value
     const hospitalVersion = refreshStore.hospitalCatalogVersion
@@ -488,7 +517,7 @@ export function useMasterDataWorkbench() {
     active.value = true
     if (!loading.value && (needsReload || (isHospitalCatalog.value && loadedHospitalVersion < refreshStore.hospitalCatalogVersion))) await loadPage()
     await nextTick()
-    if (!active.value || route.name !== 'master-data-list' || !isHospitalCatalog.value) return
+    if (!active.value || !isWorkbenchRoute() || !isHospitalCatalog.value) return
     const content = document.querySelector('.spd-content')
     const table = document.querySelector('.md-hospital-table-wrap')
     if (content) content.scrollTop = hospitalScrollTop
@@ -503,7 +532,7 @@ export function useMasterDataWorkbench() {
   watch(() => refreshStore.hospitalCatalogVersion, () => {
     if (!isHospitalCatalog.value) return
     needsReload = true
-    if (active.value && route.name === 'master-data-list') void loadPage()
+    if (active.value && isWorkbenchRoute()) void loadPage()
   })
   watch(code, () => {
     hospitalCurrentPage.value = 1

@@ -1,0 +1,783 @@
+/* =====================================================================
+   暗夜黑（Night Black）主题 —— 科室库房目录页专用配色方案
+   ---------------------------------------------------------------------
+   设计目标：
+   1. 以「暗夜黑」为基底：内容区用近黑的深灰蓝，避免纯黑造成的
+      边框糊成一片、同时降低大面积高亮的刺眼感；
+   2. 搭配「琥珀金」作为强调色 —— 金色在暗底上对比强但不刺眼，
+      与医疗场景常见的冷白/蓝绿形成暖冷对冲，长时间阅读不疲劳；
+   3. 语义色（启用 / 停用 / 警告 / 危险 / 信息）整体提亮，
+      在暗底上仍能一眼分辨，但保持低饱和，不破坏整体调性；
+   4. 文字反转为「浅字暗底」：主文字用接近纯白的高对比灰白，
+      次级文字降到 60% 左右，保证层次又不喧宾夺主。
+
+   作用域说明：
+   - 本文件只在 <html data-spd-theme="night-black"> 下生效，
+     与用户主题切换器使用的 data-theme 完全隔离，
+     不会污染用户在顶栏选择的主题，也不会被主题切换器覆盖；
+   - 配色全部使用**字面色值**，不引用 --theme-primary 等会被
+     主题切换器以内联样式覆盖的变量，确保暗夜黑方案始终是琥珀金。
+   ===================================================================== */
+
+/* =====================================================================
+   1. 基础色板（暗夜黑 + 琥珀金）
+   ===================================================================== */
+:root[data-spd-theme='night-black'] {
+  color-scheme: dark;
+
+  /* —— 暗夜黑基底：带一点冷灰蓝，避免纯黑发闷 —— */
+  --night-bg: #0b0f14; /* 页面底 */
+  --night-surface: #131920; /* 卡片 / 表格底 */
+  --night-elevated: #18202a; /* 浮层 / 表头 */
+  --night-line: #26303c; /* 常规边框 */
+  --night-text: #e8edf3; /* 主文字 */
+  --night-text-muted: #8d9aa8; /* 次级文字 */
+
+  /* —— 琥珀金强调色：暗底上对比强、但不刺眼 —— */
+  --night-primary: #d8a24a;
+  --night-primary-strong: #e8bc6b;
+  --night-primary-deep: #b8862f;
+
+  /* —— 布局表面 —— */
+  --sidebar-bg: #10161d;
+  --topbar-bg: #10161d;
+
+  --card-bg: #131920;
+  --header-bg: #18202a; /* 表头 */
+  --row-hover: #1d2732; /* 行悬浮 */
+  --row-stripe: #151c24; /* 斑马纹 */
+  --shadow-soft: 0 16px 48px rgba(0, 0, 0, 0.55);
+
+  /* fli-layout 直接引用这些变量 */
+  --fli-brand: var(--night-primary);
+  --fli-brand-strong: var(--night-primary-deep);
+  --fli-accent: var(--night-primary-strong);
+  --fli-background: var(--night-bg);
+  --fli-surface: var(--night-surface);
+  --fli-text: var(--night-text);
+  --fli-muted: var(--night-text-muted);
+  --fli-line: var(--night-line);
+
+  /* 通用别名（main.css / tokens.scss / master-data.theme.css 都引用） */
+  --primary: var(--night-primary);
+  --primary-strong: var(--night-primary-deep);
+  --accent: var(--night-primary-strong);
+  --surface: var(--night-surface);
+  --line: var(--night-line);
+  --text: var(--night-text);
+  --text-muted: var(--night-text-muted);
+}
+
+/* =====================================================================
+   2. Element Plus 暗色变量
+   Element Plus 的暗色变量定义在 html.dark 上，这里手动对齐一份，
+   避免引入整包 dark/css-vars.css 带来的全站影响。
+   ===================================================================== */
+:root[data-spd-theme='night-black'] {
+  --el-bg-color: #131920;
+  --el-bg-color-page: #0b0f14;
+  --el-bg-color-overlay: #18202a;
+  --el-text-color-primary: #e8edf3;
+  --el-text-color-regular: #c3ccd6;
+  --el-text-color-secondary: #8d9aa8;
+  --el-text-color-placeholder: #5d6875;
+  --el-text-color-disabled: #4a5561;
+  --el-border-color: #26303c;
+  --el-border-color-light: #202934;
+  --el-border-color-lighter: #1b232d;
+  --el-border-color-extra-light: #18202a;
+  --el-border-color-dark: #33404e;
+  --el-border-color-darker: #3d4b5a;
+  --el-fill-color: #18202a;
+  --el-fill-color-light: #161d26;
+  --el-fill-color-lighter: #141b23;
+  --el-fill-color-extra-light: #121920;
+  --el-fill-color-blank: #131920;
+  --el-fill-color-dark: #1d2732;
+  --el-fill-color-darker: #222d39;
+  --el-mask-color: rgba(6, 9, 13, 0.8);
+  --el-disabled-bg-color: #1a222c;
+  --el-disabled-text-color: #4a5561;
+  --el-disabled-border-color: #26303c;
+
+  /* 品牌色派生：暗底上需要更亮的浅色阶 */
+  --el-color-primary: var(--night-primary);
+  --el-color-primary-dark-2: var(--night-primary-deep);
+  --el-color-primary-light-3: color-mix(in srgb, var(--night-primary) 82%, black);
+  --el-color-primary-light-5: color-mix(in srgb, var(--night-primary) 62%, black);
+  --el-color-primary-light-7: color-mix(in srgb, var(--night-primary) 44%, black);
+  --el-color-primary-light-8: color-mix(in srgb, var(--night-primary) 32%, black);
+  --el-color-primary-light-9: color-mix(in srgb, var(--night-primary) 20%, black);
+  --el-color-success: #4ec08c;
+  --el-color-warning: #e0a951;
+  --el-color-danger: #e06c5c;
+  --el-color-error: #e06c5c;
+  --el-color-info: #6ba7d4;
+  --el-box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --el-box-shadow-light: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --el-box-shadow-lighter: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+/* =====================================================================
+   3. SPD 业务令牌（spd- 前缀）暗色版
+   ===================================================================== */
+:root[data-spd-theme='night-black'] {
+  /* —— 表面层级：page < container < elevated —— */
+  --spd-bg-page: #0b0f14;
+  --spd-bg-container: #131920;
+  --spd-bg-elevated: #18202a;
+  --spd-bg-surface: #131920;
+  --spd-bg-hover: #1d2732;
+  --spd-bg-active: #26313e;
+  --spd-surface: #131920;
+
+  /* —— 边框 —— */
+  --spd-border-default: #26303c;
+  --spd-border-subtle: #1e2732;
+  --spd-border-strong: #3a4756;
+  --spd-color-border: #26303c;
+  --spd-color-border-light: #202934;
+  --spd-color-divider: #1e2732;
+
+  /* —— 文字：暗底反转为浅字 —— */
+  --spd-text-primary: #e8edf3;
+  --spd-text-secondary: #a7b3c0;
+  --spd-text-tertiary: #78838f;
+  --spd-text-quaternary: #5a6572;
+  --spd-text-placeholder: #5a6572;
+  --spd-text-link: var(--night-primary-strong);
+  --spd-text-heading: #f2f6fa;
+
+  /* —— 主色（琥珀金） —— */
+  --spd-primary: var(--night-primary);
+  --spd-primary-dark: var(--night-primary-deep);
+  --spd-primary-light: color-mix(in srgb, var(--spd-primary) 82%, white);
+  --spd-primary-bg: color-mix(in srgb, var(--spd-primary) 14%, #0b0f14);
+  --spd-primary-border: color-mix(in srgb, var(--spd-primary) 38%, #0b0f14);
+  --spd-primary-text: var(--night-primary-strong);
+  --spd-primary-glow: color-mix(in srgb, var(--spd-primary) 26%, transparent);
+
+  /* —— 语义色：暗底上整体提亮 —— */
+  --spd-success: #4ec08c;
+  --spd-success-bg: #14251d;
+  --spd-success-text: #7ed4ac;
+  --spd-success-border: #2a4a3a;
+
+  --spd-warning: #e0a951;
+  --spd-warning-bg: #251e12;
+  --spd-warning-text: #eec27e;
+  --spd-warning-border: #4a3a1e;
+
+  --spd-danger: #e06c5c;
+  --spd-danger-bg: #261614;
+  --spd-danger-text: #f09384;
+  --spd-danger-border: #4d2a26;
+
+  --spd-info: #6ba7d4;
+  --spd-info-bg: #14212c;
+  --spd-info-text: #93c3e4;
+  --spd-info-border: #26404f;
+
+  /* —— 灰阶：暗底专用（由浅到深反向） —— */
+  --spd-gray-50: #131920;
+  --spd-gray-100: #18202a;
+  --spd-gray-200: #1e2732;
+  --spd-gray-300: #2a3542;
+  --spd-gray-400: #475463;
+  --spd-gray-500: #6b7885;
+  --spd-gray-600: #8d9aa8;
+  --spd-gray-700: #a7b3c0;
+  --spd-gray-800: #c3ccd6;
+  --spd-gray-900: #e8edf3;
+  --spd-gray-950: #f2f6fa;
+
+  /* —— 内容区整体渐变：暗夜黑 —— */
+  --spd-bg-page-gradient: linear-gradient(
+    180deg,
+    #0b0f14 0%,
+    #10151c 42%,
+    #0d1319 74%,
+    #0b0f14 100%
+  );
+
+  /* —— 阴影：暗底上需要更重的阴影来撑起层次 —— */
+  --spd-shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.4), 0 1px 6px -1px rgba(0, 0, 0, 0.3);
+  --spd-shadow-2: 0 6px 16px 0 rgba(0, 0, 0, 0.5), 0 9px 28px 8px rgba(0, 0, 0, 0.35);
+  --spd-shadow-3: 0 12px 32px 0 rgba(0, 0, 0, 0.55), 0 2px 8px 0 rgba(0, 0, 0, 0.4);
+  --spd-shadow-color: rgba(0, 0, 0, 0.4);
+  --spd-shadow-focus: 0 0 0 2px color-mix(in srgb, var(--spd-primary) 32%, transparent);
+
+  /* —— 卡片强调条：琥珀金渐隐 —— */
+  --spd-card-accent-bar: linear-gradient(90deg, var(--spd-primary), transparent);
+
+  /* —— 主数据主题（master-data.theme.css）令牌暗色版 —— */
+  --md-bg-page: #0b0f14;
+  --md-bg-card: #131920;
+  --md-bg-elevated: #18202a;
+  --md-bg-soft: #18202a;
+  --md-bg-muted: #151c24;
+  --md-border: #26303c;
+  --md-border-strong: #3a4756;
+  --md-border-soft: #1e2732;
+  --md-text: #e8edf3;
+  --md-text-secondary: #a7b3c0;
+  --md-text-muted: #78838f;
+  --md-text-inverse: #10161d;
+  --md-text-heading: #f2f6fa;
+  --md-primary: var(--night-primary);
+  --md-primary-strong: var(--night-primary-strong);
+  --md-primary-soft: color-mix(in srgb, var(--night-primary) 14%, #131920);
+  --md-primary-border: color-mix(in srgb, var(--night-primary) 36%, #131920);
+  --md-success: #4ec08c;
+  --md-success-soft: #14251d;
+  --md-success-border: #2a4a3a;
+  --md-success-text: #7ed4ac;
+  --md-warning: #e0a951;
+  --md-warning-soft: #251e12;
+  --md-warning-border: #4a3a1e;
+  --md-warning-text: #eec27e;
+  --md-danger: #e06c5c;
+  --md-danger-soft: #261614;
+  --md-danger-border: #4d2a26;
+  --md-danger-text: #f09384;
+  --md-info: #6ba7d4;
+  --md-info-soft: #14212c;
+  --md-info-border: #26404f;
+  --md-info-text: #93c3e4;
+}
+
+/* =====================================================================
+   4. 统一色彩令牌（tokens/colors.css）暗色版
+   状态条继续保持「4px 圆角 + 1px 边框 + 0.4 透明度底色」规格，
+   只是底色改为「与暗底混合」而不是「与白色混合」。
+   ===================================================================== */
+:root[data-spd-theme='night-black'] {
+  --spd-c-text: #e8edf3;
+  --spd-c-text-strong: #f2f6fa;
+  --spd-c-text-secondary: #a7b3c0;
+  --spd-c-text-muted: #78838f;
+  --spd-c-text-on-primary: #16110a;
+
+  --spd-c-bg: #131920;
+  --spd-c-bg-subtle: #18202a;
+  --spd-c-bg-muted: #1e2732;
+  --spd-c-bg-page: #0b0f14;
+
+  --spd-c-border: #26303c;
+  --spd-c-border-strong: #3a4756;
+  --spd-c-border-subtle: #1e2732;
+
+  /* —— 琥珀金主色 —— */
+  --spd-c-primary: var(--night-primary);
+  --spd-c-primary-strong: var(--night-primary-strong);
+  --spd-c-primary-soft: #241d12;
+  --spd-c-primary-hover: var(--night-primary-strong);
+
+  /* —— 语义色（暗底提亮版） —— */
+  --spd-c-success: #4ec08c;
+  --spd-c-success-soft: #14251d;
+  --spd-c-success-border: #2a4a3a;
+
+  --spd-c-disabled: #7a8794;
+  --spd-c-disabled-soft: #1b232d;
+  --spd-c-disabled-border: #2c3744;
+
+  --spd-c-warning: #e0a951;
+  --spd-c-warning-soft: #251e12;
+  --spd-c-warning-border: #4a3a1e;
+
+  --spd-c-danger: #e06c5c;
+  --spd-c-danger-soft: #261614;
+  --spd-c-danger-border: #4d2a26;
+
+  --spd-c-info: #6ba7d4;
+  --spd-c-info-soft: #14212c;
+  --spd-c-info-border: #26404f;
+
+  /* —— 状态条底色：改为与暗底混合，透明度仍为 0.4 —— */
+  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 40%, #131920);
+  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 40%, #131920);
+  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 40%, #131920);
+  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 40%, #131920);
+  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 40%, #131920);
+  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 40%, #131920);
+  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 40%, #131920);
+}
+
+/* =====================================================================
+   5. 科室库房目录页 —— 暗夜黑作用域
+   ===================================================================== */
+
+/* 内容区背景：暗夜黑渐变 */
+:root[data-spd-theme='night-black'] .spd-content {
+  background: var(--spd-bg-page-gradient) !important;
+}
+
+/* 顶栏：深色 + 底部琥珀金细线 */
+:root[data-spd-theme='night-black'] .spd-topnav {
+  background: var(--topbar-bg) !important;
+  color: var(--spd-text-primary) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--spd-primary) 26%, transparent);
+}
+
+:root[data-spd-theme='night-black'] .spd-topnav-brand-text,
+:root[data-spd-theme='night-black'] .spd-topnav-logo,
+:root[data-spd-theme='night-black'] .spd-topnav-logo .spd-logo-name {
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-logo-icon {
+  background: linear-gradient(135deg, var(--spd-primary), var(--spd-primary-dark)) !important;
+  color: #16110a !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--spd-primary) 28%, transparent);
+}
+
+:root[data-spd-theme='night-black'] .spd-menu-label {
+  color: var(--spd-text-secondary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-menu-item:hover .spd-menu-label,
+:root[data-spd-theme='night-black'] .spd-menu-item.active .spd-menu-label {
+  color: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-menu-item.active .spd-menu-label::after {
+  background: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-menu-dropdown {
+  background: var(--spd-bg-elevated) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-dropdown-link {
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-dropdown-link:hover,
+:root[data-spd-theme='night-black'] .spd-dropdown-link.active {
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-dropdown-link-icon {
+  background: var(--spd-bg-hover) !important;
+  color: var(--spd-text-secondary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-dropdown-group-title {
+  color: var(--spd-text-tertiary) !important;
+}
+
+/* 页签条 */
+:root[data-spd-theme='night-black'] .spd-tabbar {
+  background: var(--spd-bg-surface) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-tabbar-tab {
+  background: var(--spd-bg-page) !important;
+  border-color: var(--spd-border-default) !important;
+  color: var(--spd-text-secondary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-tabbar-tab.active {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-primary) !important;
+  border-color: var(--spd-primary) !important;
+}
+
+/* 业务页面容器 */
+:root[data-spd-theme='night-black'] .master-page,
+:root[data-spd-theme='night-black'] .standard-page,
+:root[data-spd-theme='night-black'] .workflow-page,
+:root[data-spd-theme='night-black'] .report-page,
+:root[data-spd-theme='night-black'] .dashboard-page,
+:root[data-spd-theme='night-black'] .md-partner-page {
+  background: transparent !important;
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .master-table-card,
+:root[data-spd-theme='night-black'] .standard-page-card,
+:root[data-spd-theme='night-black'] .metric-panel,
+:root[data-spd-theme='night-black'] .module-board,
+:root[data-spd-theme='night-black'] .module-detail,
+:root[data-spd-theme='night-black'] .workflow-band,
+:root[data-spd-theme='night-black'] .hospital-catalog-panel,
+:root[data-spd-theme='night-black'] .master-toolbar,
+:root[data-spd-theme='night-black'] .md-table-card {
+  background: var(--spd-bg-surface) !important;
+  color: var(--spd-text-primary) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  border-radius: 12px !important;
+}
+
+/* 筛选区 */
+:root[data-spd-theme='night-black'] .ulc-filter,
+:root[data-spd-theme='night-black'] .md-hospital-filter,
+:root[data-spd-theme='night-black'] .catalog-filter-panel {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-default) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-filter label > span,
+:root[data-spd-theme='night-black'] .md-hospital-filter label > span {
+  color: var(--spd-text-secondary) !important;
+}
+
+/* 输入框 / 下拉：暗底 */
+:root[data-spd-theme='night-black'] .md-input,
+:root[data-spd-theme='night-black'] .ulc-filter input,
+:root[data-spd-theme='night-black'] .ulc-filter select,
+:root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid input,
+:root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid select {
+  background: var(--spd-bg-page) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .md-input::placeholder,
+:root[data-spd-theme='night-black'] .ulc-filter input::placeholder {
+  color: var(--spd-text-placeholder) !important;
+}
+
+:root[data-spd-theme='night-black'] .md-input:focus,
+:root[data-spd-theme='night-black'] .ulc-filter input:focus,
+:root[data-spd-theme='night-black'] .ulc-filter select:focus,
+:root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid input:focus,
+:root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid select:focus {
+  border-color: var(--spd-primary) !important;
+  box-shadow: 0 0 0 3px var(--spd-primary-glow) !important;
+}
+
+:root[data-spd-theme='night-black'] .el-input__wrapper,
+:root[data-spd-theme='night-black'] .el-select__wrapper {
+  background-color: var(--spd-bg-page) !important;
+  box-shadow: 0 0 0 1px var(--spd-border-default) inset !important;
+}
+
+:root[data-spd-theme='night-black'] .el-select-dropdown {
+  background: var(--spd-bg-elevated) !important;
+  border: 1px solid var(--spd-border-default) !important;
+}
+
+:root[data-spd-theme='night-black'] .el-select-dropdown__item {
+  color: var(--spd-text-regular, #c3ccd6) !important;
+}
+
+:root[data-spd-theme='night-black'] .el-select-dropdown__item.is-hovering {
+  background: var(--spd-bg-hover) !important;
+}
+
+:root[data-spd-theme='night-black'] .el-select-dropdown__item.is-selected {
+  color: var(--spd-primary) !important;
+}
+
+/* 表格外壳 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table-wrap {
+  background: var(--spd-bg-surface) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+}
+
+/* 表头：深色底 + 琥珀金分隔线（拖拽提示线必须清晰） */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__header th.el-table__cell {
+  background: var(--header-bg) !important;
+  border-color: color-mix(in srgb, var(--spd-primary) 34%, var(--spd-border-default)) !important;
+  color: var(--spd-text-heading) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__header th.el-table__cell .cell {
+  color: var(--spd-text-heading) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__header th.el-table__cell:hover {
+  border-right-color: color-mix(in srgb, var(--spd-primary) 68%, var(--spd-border-default)) !important;
+}
+
+/* 拖拽代理线：琥珀金加粗，暗底上清晰可见 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__column-resize-proxy {
+  border-left: 2px solid var(--spd-primary) !important;
+}
+
+/* 表格单元格 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table td.el-table__cell {
+  background: transparent;
+  border-color: var(--ulc-border) !important;
+  color: var(--ulc-text) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__row--striped td.el-table__cell {
+  background: var(--ulc-row-stripe) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__row:hover td.el-table__cell,
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__row--striped:hover td.el-table__cell {
+  background: var(--ulc-row-hover) !important;
+}
+
+/* 表格内文字层级 */
+:root[data-spd-theme='night-black'] .ulc-strong {
+  color: var(--spd-text-heading) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-sub {
+  color: var(--spd-text-tertiary) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-code,
+:root[data-spd-theme='night-black'] .catalog-code-cell {
+  color: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-time,
+:root[data-spd-theme='night-black'] .catalog-update-time {
+  color: var(--spd-text-secondary) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-wrap-text {
+  color: var(--spd-text-secondary) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-mono {
+  color: var(--spd-text-secondary) !important;
+}
+
+/* 工具栏按钮：琥珀金主色 */
+:root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar .md-btn,
+:root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar-main .md-btn {
+  border-color: var(--spd-c-primary-strong) !important;
+  background: var(--spd-c-chip-bg-primary) !important;
+  color: var(--spd-c-primary-strong) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar .md-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--spd-c-primary) 26%, #131920) !important;
+  color: var(--spd-c-primary-strong) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar .md-btn-danger {
+  border-color: var(--spd-c-danger-border) !important;
+  background: var(--spd-c-chip-bg-danger) !important;
+  color: var(--spd-c-danger-text) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar .md-btn-warning {
+  border-color: var(--spd-c-warning-border) !important;
+  background: var(--spd-c-chip-bg-warning) !important;
+  color: var(--spd-c-warning-text) !important;
+}
+
+/* 筛选区按钮 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn,
+:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn {
+  background: var(--spd-c-disabled-soft) !important;
+  color: var(--spd-c-text-secondary) !important;
+  border: 1px solid var(--spd-c-border) !important;
+  box-shadow: none !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn-primary,
+:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary {
+  background: var(--spd-primary) !important;
+  color: #16110a !important;
+  border-color: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn-primary:hover:not(:disabled),
+:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary:hover:not(:disabled) {
+  background: var(--spd-primary-strong) !important;
+  color: #16110a !important;
+}
+
+/* 行内操作按钮 / 状态条：沿用令牌规格（4px 圆角 + 1px 边框 + 0.4 底色） */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-action,
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-chip {
+  box-shadow: none;
+}
+
+/* 空态 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-table .el-table__empty-text,
+:root[data-spd-theme='night-black'] .md-empty {
+  color: var(--spd-text-tertiary) !important;
+  background: transparent !important;
+}
+
+/* 列设置弹层 */
+:root[data-spd-theme='night-black'] .ulc-col-settings-pop {
+  background: var(--spd-bg-elevated) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-col-settings-pop header {
+  border-bottom-color: var(--spd-border-default) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-col-settings-pop footer {
+  border-top-color: var(--spd-border-default) !important;
+}
+
+:root[data-spd-theme='night-black'] .ulc-col-settings-item small {
+  color: var(--spd-text-tertiary) !important;
+}
+
+/* 分页 */
+:root[data-spd-theme='night-black'] .el-pagination {
+  --el-pagination-bg-color: transparent;
+  --el-pagination-button-bg-color: transparent;
+  --el-pagination-button-color: var(--spd-text-secondary);
+  --el-pagination-hover-color: var(--spd-primary);
+  --el-pagination-text-color: var(--spd-text-secondary);
+}
+
+:root[data-spd-theme='night-black'] .el-pager li {
+  background: transparent !important;
+  color: var(--spd-text-secondary) !important;
+  border-radius: var(--spd-radius, 4px);
+}
+
+:root[data-spd-theme='night-black'] .el-pager li:hover {
+  color: var(--spd-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .el-pager li.is-active {
+  background: var(--spd-primary) !important;
+  color: #16110a !important;
+}
+
+:root[data-spd-theme='night-black'] .el-pagination .btn-prev,
+:root[data-spd-theme='night-black'] .el-pagination .btn-next {
+  background: transparent !important;
+  color: var(--spd-text-secondary) !important;
+  border-radius: var(--spd-radius, 4px);
+}
+
+:root[data-spd-theme='night-black'] .el-pagination .btn-prev:hover,
+:root[data-spd-theme='night-black'] .el-pagination .btn-next:hover {
+  color: var(--spd-primary) !important;
+}
+
+/* 主题切换器（顶栏右侧）：暗底 */
+:root[data-spd-theme='night-black'] .spd-theme-trigger {
+  background: var(--spd-bg-container) !important;
+  border-color: var(--spd-border-default) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-panel {
+  background: var(--spd-bg-elevated) !important;
+  border-color: var(--spd-border-default) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-panel-title {
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-panel-sub,
+:root[data-spd-theme='night-black'] .spd-fontsize-hint {
+  color: var(--spd-text-tertiary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-card,
+:root[data-spd-theme='night-black'] .spd-fontsize-card {
+  background: var(--spd-bg-container) !important;
+  border-color: var(--spd-border-default) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-card:hover,
+:root[data-spd-theme='night-black'] .spd-fontsize-card:hover {
+  background: var(--spd-primary-bg) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-card-name,
+:root[data-spd-theme='night-black'] .spd-fontsize-name {
+  color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-fontsize-sample {
+  color: var(--spd-text-heading) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-palette-current code {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-secondary) !important;
+}
+
+/* 滚动条 */
+:root[data-spd-theme='night-black'] ::-webkit-scrollbar-thumb {
+  background: #303b47;
+}
+
+:root[data-spd-theme='night-black'] ::-webkit-scrollbar-thumb:hover {
+  background: var(--spd-primary);
+}
+
+:root[data-spd-theme='night-black'] ::-webkit-scrollbar-track {
+  background: var(--spd-bg-page);
+}
+
+/* =====================================================================
+   6. 暗夜黑方案专属标记条
+   在页面顶部标注当前配色方案，便于评审时一眼区分。
+   ===================================================================== */
+.spd-night-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  border: 1px solid color-mix(in srgb, var(--spd-primary, #d8a24a) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--spd-primary, #d8a24a) 12%, transparent);
+  color: var(--spd-primary, #d8a24a);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.spd-night-badge::before {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  content: '';
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* 方案切换条：暗夜黑 / 浅色原版 二选一 */
+.spd-night-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--spd-border-default, #26303c);
+  border-radius: 8px;
+  background: var(--spd-bg-page, #0b0f14);
+}
+
+.spd-night-switch a {
+  padding: 6px 14px;
+  border-radius: 6px;
+  color: var(--spd-text-secondary, #a7b3c0);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.16s ease, color 0.16s ease;
+}
+
+.spd-night-switch a:hover {
+  color: var(--spd-primary, #d8a24a);
+}
+
+.spd-night-switch a.is-active {
+  background: var(--spd-primary, #d8a24a);
+  color: #16110a;
+}

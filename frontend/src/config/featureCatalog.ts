@@ -63,6 +63,7 @@ export type FeatureIcon =
   | 'user-round-check'
   | 'wrench'
   | 'zap'
+  | 'moon-star'
 
 export type FeatureViewFamily =
   | 'dashboard'
@@ -101,6 +102,22 @@ export interface FeatureCatalogEntry {
   chunkFamily?: FeatureChunkFamily
   aliases?: readonly string[]
   children?: readonly string[]
+}
+
+/**
+ * 菜单权限别名。
+ *
+ * 「科室库房目录（暗夜黑）」是同一功能的配色方案页，
+ * 不新增独立权限点：拥有原「科室库房目录」菜单权限的用户即可访问，
+ * 避免为配色方案单独配置一套角色权限。
+ */
+export const featureMenuPermissionAliases: Record<string, string> = {
+  'department-warehouse-catalog-night': 'department-warehouse-catalog'
+}
+
+/** 取该功能码实际对应的菜单权限码（无别名时返回自身） */
+export function featureMenuPermissionCode(code: string): string {
+  return featureMenuPermissionAliases[code] ?? code
 }
 
 export interface FeatureChunkRule {
@@ -246,6 +263,16 @@ export const featureCatalog = [
     title: '科室库房目录',
     icon: 'layers-3',
     routeTarget: '/features/department-warehouse-catalog',
+    viewFamily: 'master-data-list',
+    chunkFamily: 'master-data'
+  },
+  {
+    // 暗夜黑配色方案页：功能与「科室库房目录」一致，仅配色不同。
+    // 不进主菜单（避免污染正式导航），通过顶部页签 / 直达链接进入。
+    code: 'department-warehouse-catalog-night',
+    title: '科室库房目录（暗夜黑）',
+    icon: 'moon-star',
+    routeTarget: '/features/department-warehouse-catalog-night',
     viewFamily: 'master-data-list',
     chunkFamily: 'master-data'
   },

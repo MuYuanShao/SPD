@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vu
 import {
   featureCatalogRedirects,
   featureCodesByViewFamily,
+  featureMenuPermissionCode,
   featureRouteTarget,
   type FeatureViewFamily
 } from '../config/featureCatalog'
@@ -14,6 +15,8 @@ const AccessDeniedView = () => import('../views/AccessDeniedView.vue')
 const PendingProductCatalogView = () => import('../views/catalog/PendingProductCatalogView.vue')
 const PendingProductApprovalDetailView = () => import('../views/catalog/PendingProductApprovalDetailView.vue')
 const MasterDataListView = () => import('../views/master-data/MasterDataListView.vue')
+const DepartmentWarehouseCatalogNightView = () =>
+  import('../views/master-data/DepartmentWarehouseCatalogNightView.vue')
 const ProductDetailView = () => import('../views/master-data/ProductDetailView.vue')
 const DepartmentRequisitionView = () => import('../views/supply-chain/DepartmentRequisitionView.vue')
 const PurchaseManagementView = () => import('../views/supply-chain/PurchaseManagementView.vue')
@@ -216,6 +219,15 @@ export const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
+      // 科室库房目录 · 暗夜黑配色方案
+      // 与浅色原版共用同一后端接口与业务逻辑，仅配色不同，独立路由独立视图。
+      // 必须声明在 master-data-list 通配路由之前，否则会被通配路由先匹配。
+      path: '/features/department-warehouse-catalog-night',
+      name: 'department-warehouse-catalog-night',
+      component: DepartmentWarehouseCatalogNightView,
+      meta: { requiresAuth: true, featureCode: 'department-warehouse-catalog-night' }
+    },
+    {
       path: `/features/:code(${featureCodePattern('master-data-list')})`,
       name: 'master-data-list',
       component: MasterDataListView,
@@ -295,9 +307,9 @@ function permissionCodeForRoute(to: RouteLocationNormalized) {
   if (to.name === 'dashboard' || to.name === 'dashboard-realtime') return 'dashboard'
   if (String(to.name).startsWith('hospital-product-')) return 'hospital-product-catalog'
   if (to.name === 'pending-product-approval-detail') return 'pending-product-catalog'
-  if (to.params.code) return String(to.params.code)
+  if (to.params.code) return featureMenuPermissionCode(String(to.params.code))
   const featureMatch = to.path.match(/^\/features\/([^/]+)/)
-  return featureMatch?.[1] ?? null
+  return featureMatch ? featureMenuPermissionCode(featureMatch[1]) : null
 }
 
 router.beforeEach(async (to) => {

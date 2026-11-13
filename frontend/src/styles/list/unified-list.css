@@ -59,13 +59,29 @@
   font-size: var(--spd-font-size-md, 15px);
 }
 
-/* 表头：主题色实底 + 加粗白字 + 居中 */
+/* 表头：主题色实底 + 加粗白字 + 居中
+   分隔线：底色与边框同为主色时，列分隔线会完全隐形、难以发现可拖拽。
+   这里把表头单元格边框改为「主色 + 32% 白」的提亮色，
+   分隔线清晰可见，且仍落在标准边框位置，
+   与下方各行的列分隔线保持完全对齐（delta = 0）。 */
 .spd-unified-list .ulc-table .el-table__header th.el-table__cell {
   background: var(--ulc-primary) !important;
-  border-color: var(--ulc-primary) !important;
+  border-color: color-mix(in srgb, #ffffff 32%, var(--ulc-primary)) !important;
   padding: var(--spd-table-cell-padding-y, 10px) 6px;
   color: var(--spd-c-text-on-primary);
   font-weight: 700;
+}
+
+/* 悬停时右侧分隔线进一步提亮，明确提示「此处可拖拽调列宽」 */
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell:hover {
+  border-right-color: color-mix(in srgb, #ffffff 65%, var(--ulc-primary)) !important;
+}
+
+/* 拖拽过程中显示的竖线（Element Plus 原生代理线）
+   默认取 --el-table-border（浅灰），在深色表头上几乎不可见，
+   这里改为纯白加粗，保证拖拽时始终能看清当前落点。 */
+.spd-unified-list .ulc-table .el-table__column-resize-proxy {
+  border-left: 2px solid #ffffff !important;
 }
 
 .spd-unified-list .ulc-table .el-table__header th.el-table__cell .cell {

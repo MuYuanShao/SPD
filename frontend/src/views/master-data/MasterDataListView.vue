@@ -427,26 +427,29 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义 —— 方案 B：自适应填充（依赖 Element Plus 原生 fit）
+ * 科室库房目录列定义 —— 基准宽度 + 弹性上限
  * ---------------------------------------------------------------------
- * 原理：所有列使用 min-width 且基准宽度合计（1052 + 选择列 48 + 操作列 200
- * = 1300）小于 1366 宽屏的内容区（1330px）。
- * Element Plus 在 fit 模式下会把多出来的空间按各列 min-width 比例分配回去，
- * 因此：
- *   - 宽屏：表格恰好铺满容器，长文本列自动获得更多空间
- *   - 窄屏：列宽压缩到 min-width，长文本换行，信息不丢失
+ * 设计原则：
+ *   - 基准宽度按「表头文案 + 典型内容」定，不追求填满宽屏；
+ *     列宽过大反而会把相邻列挤扁，短字段列（状态 / 维护来源）尤其明显
+ *   - 文字过多时由「商品名称 / 生产厂家」两列换行承载，
+ *     换行是预期行为，不应靠把列拉宽来避免
+ *   - flexible 列设 maxWidth：宽屏下最多涨到上限，
+ *     避免长文本列吃掉全部富余、把短字段列压成一条缝
  *
- * 注意：基准宽度之和必须小于最小目标容器宽度，否则 EP 会触发横向滚动。
+ * 基准宽度合计 1245 + 选择列 48 + 操作列 200 = 1493，
+ * 在 1600px 内容区（1564px）内可完整铺开；1280px 内容区（1244px）下
+ * 弹性列被压缩换行，表格不出现横向滚动。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 115, visible: true },
-  { key: 'productCode', label: '商品编码', width: 105, visible: true },
-  { key: 'productName', label: '商品名称', width: 215, visible: true, flexible: true },
-  { key: 'spec', label: '规格型号', width: 110, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 205, visible: true, flexible: true },
-  { key: 'source', label: '维护来源', width: 90, visible: true },
-  { key: 'status', label: '状态', width: 80, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 132, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 150, visible: true },
+  { key: 'productCode', label: '商品编码', width: 125, visible: true },
+  { key: 'productName', label: '商品名称', width: 200, visible: true, flexible: true, maxWidth: 300, minFlexibleWidth: 140 },
+  { key: 'spec', label: '规格型号', width: 120, visible: true },
+  { key: 'manufacturer', label: '生产厂家', width: 190, visible: true, flexible: true, maxWidth: 280, minFlexibleWidth: 130 },
+  { key: 'source', label: '维护来源', width: 100, visible: true },
+  { key: 'status', label: '状态', width: 85, visible: true },
+  { key: 'updateTime', label: '更新时间', width: 130, visible: true }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -501,11 +504,12 @@ const departmentCols = useListColumns({
   defaults: DEPARTMENT_COL_DEFAULTS
 })
 const catalogCols = useListColumns({
-  storageKey: 'spd-department-warehouse-catalog-cols-v1',
+  storageKey: 'spd-department-warehouse-catalog-cols-v2',
   defaults: CATALOG_COL_DEFAULTS,
-  // 方案 B：自适应填充 —— 依赖 Element Plus 原生 fit，列宽由浏览器计算
-  fitMode: 'fit',
-  reservedWidth: 288 // 选择列 48 + 操作列 240
+  // 混合策略 —— 弹性列（商品名称 / 生产厂家）优先吸收富余但受 maxWidth 上限约束，
+  // 富余用完后剩余量才补给短字段列，避免短字段列被撑得过宽
+  fitMode: 'hybrid',
+  reservedWidth: 248 // 选择列 48 + 操作列 200
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',
@@ -536,6 +540,8 @@ const departmentColWidth = (key: string) => departmentCols.columnWidth(key)
 
 const isCatalogColVisible = (key: string) => catalogCols.isColumnVisible(key)
 const catalogColWidth = (key: string) => catalogCols.columnWidth(key)
+/** 目录列宽绑定：使用计算后的最终列宽（弹性列受上限约束，短字段不被挤压） */
+const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
 
 const isWarehouseColVisible = (key: string) => warehouseCols.isColumnVisible(key)
 const warehouseColWidth = (key: string) => warehouseCols.columnWidth(key)
@@ -2604,7 +2610,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="scope"
             v-if="isCatalogColVisible('scope')"
             label="科室 / 库房"
-            :min-width="catalogColWidth('scope')"
+            v-bind="catalogColBinding('scope')"
           >
             <template #header>
               <span class="ulc-th-text">科室 / 库房</span>
@@ -2621,7 +2627,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="productCode"
             v-if="isCatalogColVisible('productCode')"
             label="商品编码"
-            :min-width="catalogColWidth('productCode')"
+            v-bind="catalogColBinding('productCode')"
           >
             <template #header>
               <span class="ulc-th-text">商品编码</span>
@@ -2634,7 +2640,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="productName"
             v-if="isCatalogColVisible('productName')"
             label="商品名称"
-            :min-width="catalogColWidth('productName')"
+            v-bind="catalogColBinding('productName')"
           >
             <template #header>
               <span class="ulc-th-text">商品名称</span>
@@ -2650,7 +2656,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="spec"
             v-if="isCatalogColVisible('spec')"
             label="规格型号"
-            :min-width="catalogColWidth('spec')"
+            v-bind="catalogColBinding('spec')"
             show-overflow-tooltip
           >
             <template #header>
@@ -2664,7 +2670,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="manufacturer"
             v-if="isCatalogColVisible('manufacturer')"
             label="生产厂家"
-            :min-width="catalogColWidth('manufacturer')"
+            v-bind="catalogColBinding('manufacturer')"
           >
             <template #header>
               <span class="ulc-th-text">生产厂家</span>
@@ -2677,7 +2683,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="source"
             v-if="isCatalogColVisible('source')"
             label="维护来源"
-            :min-width="catalogColWidth('source')"
+            v-bind="catalogColBinding('source')"
             align="center"
           >
             <template #header>
@@ -2693,7 +2699,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="status"
             v-if="isCatalogColVisible('status')"
             label="状态"
-            :min-width="catalogColWidth('status')"
+            v-bind="catalogColBinding('status')"
             align="center"
           >
             <template #header>
@@ -2709,7 +2715,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="updateTime"
             v-if="isCatalogColVisible('updateTime')"
             label="更新时间"
-            :min-width="catalogColWidth('updateTime')"
+            v-bind="catalogColBinding('updateTime')"
             align="center"
           >
             <template #header>

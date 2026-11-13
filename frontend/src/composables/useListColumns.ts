@@ -18,6 +18,12 @@ export interface ListColumnConfig {
   flexible?: boolean
   /** 弹性列的最小宽度 */
   minFlexibleWidth?: number
+  /**
+   * 弹性列的最大宽度。
+   * 限制弹性列的膨胀上限，避免长文本列吃掉全部剩余空间，
+   * 把短字段列（状态 / 来源 / 时间）挤压变形。
+   */
+  maxWidth?: number
 }
 
 export interface UseListColumnsOptions {
@@ -60,7 +66,8 @@ export function useListColumns(options: UseListColumnsOptions) {
         visible: previous?.visible !== false,
         fixed: fallback?.fixed ?? false,
         flexible: fallback.flexible ?? false,
-        minFlexibleWidth: fallback.minFlexibleWidth ?? (fallback.flexible ? 160 : undefined)
+        minFlexibleWidth: fallback.minFlexibleWidth ?? (fallback.flexible ? 160 : undefined),
+        maxWidth: fallback.maxWidth
       }
     })
   }
@@ -85,19 +92,129 @@ export function useListColumns(options: UseListColumnsOptions) {
   const visibleColumnCount = computed(() => visibleColumns.value.length)
 
   /**
-  /**
-   * 计算最终生效的列宽（作为 el-table-column 的 min-width 传入）。
-   * fit 模式：直接返回基准宽度，由 Element Plus 原生 fit 机制
-   * 把容器剩余空间按各列 min-width 比例分配回去，
-   * 避免 JS 测量容器宽度的时序问题，同时保证表格恰好铺满容器。
+   * 计算最终生效的列宽。
+   * ---------------------------------------------------------------------
+   * 自适应模式下自行分配剩余空间，而不是完全交给 Element Plus 原生 fit：
+   *   - 原生 fit 会把**全部**剩余宽度按 min-width 比例喂给弹性列，
+   *     1920px 下长文本列能涨到 446px，把「状态 / 维护来源」等短字段挤成一条缝
+   *   - 这里改为「弹性列优先吸收，但受 maxWidth 上限约束；
+   *     弹性列吃满后仍有余量，再按比例补给所有列」，
+   *     保证短字段列不会被压缩变形
+   *   - 容器变窄时，优先压缩弹性列（长文本换行即可），
+   *     而不是压缩短字段列
+   *
+   * 模式差异：
+   *   - fit    ：所有列都参与弹性分配（等同原生 fit 语义）
+   *   - hybrid ：仅 flexible 列优先吸收，其余按比例补给
    */
   const effectiveWidths = computed<Record<string, number>>(() => {
     const result: Record<string, number> = {}
-    visibleColumns.value.forEach((column) => {
-      result[column.key] = column.width
+    const cols = visibleColumns.value
+    if (!cols.length) return result
+
+    const reserved = options.reservedWidth ?? 0
+    const available = containerWidth.value > 0 ? containerWidth.value - reserved : 0
+    const base = cols.reduce((sum, column) => sum + column.width, 0)
+
+    // 容器尚未测量出来时，先用基准宽度，避免首帧抖动
+    if (available <= 0) {
+      cols.forEach((column) => {
+        result[column.key] = column.width
+      })
+      return result
+    }
+
+    // fit 模式下所有列都参与弹性分配；hybrid 模式下只有 flexible 列优先吸收
+    const flexibleCols = fitMode === 'fit' ? cols : cols.filter((column) => column.flexible)
+
+    const widths: Record<string, number> = {}
+    cols.forEach((column) => {
+      widths[column.key] = column.width
     })
+
+    /** 按比例把 amount 分配到给定列上，剩余量记在最后���列 */
+    function distribute(
+      target: ListColumnConfig[],
+      amount: number,
+      getWeight: (column: ListColumnConfig) => number,
+      apply: (column: ListColumnConfig, delta: number) => void
+    ) {
+      const weights = target.map(getWeight)
+      const total = weights.reduce((sum, w) => sum + w, 0)
+      if (total <= 0 || amount <= 0) return 0
+      let used = 0
+      target.forEach((column, index) => {
+        const delta = index === target.length - 1 ? amount - used : Math.floor((amount * weights[index]) / total)
+        used += delta
+        apply(column, delta)
+      })
+      return amount
+    }
+
+    if (available >= base) {
+      // —— 容器有余量：弹性列优先吸收（受上限约束），其余按比例补给所有列 ——
+      let surplus = available - base
+      const growRoom = new Map<string, number>()
+      flexibleCols.forEach((column) => {
+        const cap = column.maxWidth ?? Infinity
+        growRoom.set(column.key, Math.max(0, cap - column.width))
+      })
+      const totalRoom = flexibleCols.reduce((sum, column) => sum + (growRoom.get(column.key) ?? 0), 0)
+      if (totalRoom > 0 && surplus > 0) {
+        const used = Math.min(surplus, totalRoom)
+        flexibleCols.forEach((column) => {
+          const room = growRoom.get(column.key) ?? 0
+          widths[column.key] += totalRoom > 0 ? Math.floor((used * room) / totalRoom) : 0
+        })
+        surplus -= used
+      }
+      if (surplus > 0) {
+        // 弹性列已到上限：余量补给其余列，弹性列保持上限不变
+        const others = cols.filter((column) => !column.flexible)
+        distribute(others, surplus, (column) => widths[column.key], (column, delta) => {
+          widths[column.key] += delta
+        })
+      }
+    } else {
+      // —— 容器偏窄：先压缩弹性列（长文本换行），压缩到位后再压缩全部列 ——
+      let deficit = base - available
+      const shrinkRoom = new Map<string, number>()
+      flexibleCols.forEach((column) => {
+        const floor = Math.min(column.width, column.minFlexibleWidth ?? 120)
+        shrinkRoom.set(column.key, Math.max(0, column.width - floor))
+      })
+      const totalRoom = flexibleCols.reduce((sum, column) => sum + (shrinkRoom.get(column.key) ?? 0), 0)
+      if (totalRoom > 0 && deficit > 0) {
+        const used = Math.min(deficit, totalRoom)
+        flexibleCols.forEach((column) => {
+          const room = shrinkRoom.get(column.key) ?? 0
+          widths[column.key] -= totalRoom > 0 ? Math.floor((used * room) / totalRoom) : 0
+        })
+        deficit -= used
+      }
+      if (deficit > 0) {
+        // 弹性列已压到下限仍有缺口：按比例压缩所有列
+        distribute(cols, deficit, (column) => widths[column.key], (column, delta) => {
+          widths[column.key] = Math.max(minWidth, widths[column.key] - delta)
+        })
+      }
+    }
+
+    Object.assign(result, widths)
     return result
   })
+
+  /**
+   * 列宽绑定。
+   * ---------------------------------------------------------------------
+   * 统一返回固定 width —— 剩余空间已在 effectiveWidths 中
+   * 按「弹性列优先吸收 + 上限约束 + 其余按比例补给」分配完毕，
+   * 再交给 Element Plus 原生 fit 会把空间重新吞回弹性列，
+   * 导致短字段列再次被挤压，因此统一使用 width。
+   */
+  function columnBinding(key: string): { width?: number; minWidth?: number } {
+    return { width: columnWidth(key) }
+  }
   function persist() {
     try {
       localStorage.setItem(options.storageKey, JSON.stringify(columns.value))
@@ -150,7 +267,10 @@ export function useListColumns(options: UseListColumnsOptions) {
     }
     // 兜底：表格尚未挂载时，先用文档中的容器
     try {
-      return document.querySelector('.ulc-table-wrap') as HTMLElement | null
+      const wrap = document.querySelector('.ulc-table-wrap') as HTMLElement | null
+      if (wrap) return wrap
+      const table = document.querySelector('.el-table') as HTMLElement | null
+      return table
     } catch {
       return null
     }
@@ -165,6 +285,7 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   let resizeObserver: ResizeObserver | null = null
+  let mutationObserver: MutationObserver | null = null
   let dragState: { key: string; startX: number; startWidth: number } | null = null
 
   /**
@@ -246,8 +367,27 @@ export function useListColumns(options: UseListColumnsOptions) {
         measureContainer()
         syncLayout()
       })
-      const el = resolveContainerEl()
-      if (el) resizeObserver.observe(el)
+      // 表格常在数据加载后才渲染，onMounted 时可能还没有容器元素，
+      // 因此这里除了观察当前元素，还要在下一轮 tick 再观察一次。
+      const observe = () => {
+        const el = resolveContainerEl()
+        if (el) resizeObserver?.observe(el)
+      }
+      observe()
+      nextTick(() => {
+        observe()
+        measureContainer()
+        syncLayout()
+      })
+      // 数据异步到达后表格才出现，用 MutationObserver 兜底重新挂载观察
+      if (typeof MutationObserver !== 'undefined') {
+        mutationObserver = new MutationObserver(() => {
+          observe()
+          measureContainer()
+          syncLayout()
+        })
+        mutationObserver.observe(document.body, { childList: true, subtree: true })
+      }
     }
     window.addEventListener('resize', handleWindowResize)
   })
@@ -255,6 +395,8 @@ export function useListColumns(options: UseListColumnsOptions) {
   onBeforeUnmount(() => {
     resizeObserver?.disconnect()
     resizeObserver = null
+    mutationObserver?.disconnect()
+    mutationObserver = null
     window.removeEventListener('resize', handleWindowResize)
   })
 
@@ -265,6 +407,7 @@ export function useListColumns(options: UseListColumnsOptions) {
     visibleColumns,
     visibleColumnCount,
     columnWidth,
+    columnBinding,
     isColumnVisible,
     setColumnVisible,
     resetColumns,

@@ -252,6 +252,24 @@ export function useListColumns(options: UseListColumnsOptions) {
         pending -= used
         if (used < 0.5) break
       }
+
+      // —— 兜底：所有列都触到 maxWidth 上限后，剩余宽度必须**无上限地**
+      //    按权重比例分给各列，否则超宽屏（≥2560px）会出现右侧留白。
+      //    这里解除上限约束再分一次，保证 100% 铺满内容区。
+      if (pending > 0.5) {
+        const wSum =
+          cols.reduce((sum, column) => sum + weightOf(column), 0) +
+          fixedCols.reduce((sum, column) => sum + fixedWeight(column), 0)
+        if (wSum > 0) {
+          for (const column of cols) {
+            widths[column.key] += (pending * weightOf(column)) / wSum
+          }
+          for (const column of fixedCols) {
+            widths[column.key] += (pending * fixedWeight(column)) / wSum
+          }
+          pending = 0
+        }
+      }
     } else if (baseTotal > available) {
       // —— 不足：按权重比例压缩（受 minWidth 下限约束）——
       let need = baseTotal - available

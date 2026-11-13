@@ -1,0 +1,99 @@
+/* =====================================================================
+   SPD 统一色彩令牌（唯一颜色来源）
+   ---------------------------------------------------------------------
+   设计目标（面向 30 岁以上中长期使用者）：
+   1. 颜色尽可能少：全站只用「1 个主色 + 4 个语义色 + 中性灰阶」；
+   2. 文字恒为深色（接近黑），背景恒为浅色（接近白），
+      通过「深字浅底 + 低饱和底色」保证长时间阅读不疲劳；
+   3. 主色在青玉色基础上继续降低明艳程度（低饱和、低明度），
+      不再使用高饱和亮青；
+   4. 状态色（启用 / 停用 / 警告 / 信息 / 中性）语义固定，不随页面变化；
+   5. 状态条统一为：4px 圆角 + 1px 边框 + 0.4 透明度底色 + 深色文字。
+
+   任何新增颜色都必须先在本文件登记，禁止在业务样式里直接写死 hex。
+   ===================================================================== */
+
+:root {
+  /* ============== 文字：恒为深色 ============== */
+  --spd-c-text: #1f2933;          /* 主文字（接近黑，不使用纯黑） */
+  --spd-c-text-strong: #101820;   /* 强调文字 */
+  --spd-c-text-secondary: #4a5a66; /* 次级文字 */
+  --spd-c-text-muted: #6b7c88;    /* 弱化文字 / 占位 */
+  --spd-c-text-on-primary: #ffffff; /* 主色按钮上的文字 */
+
+  /* ============== 背景：恒为浅色 ============== */
+  --spd-c-bg: #ffffff;            /* 卡片 / 表格底 */
+  --spd-c-bg-subtle: #f5f8f9;     /* 表头 / 次级区块 */
+  --spd-c-bg-muted: #eef3f5;      /* 三级区块 */
+  --spd-c-bg-page: #f7fafb;       /* 页面底 */
+
+  /* ============== 边框：低对比浅灰 ============== */
+  --spd-c-border: #d5e0e5;        /* 常规边框 */
+  --spd-c-border-strong: #b9c8ce; /* 强调边框 */
+  --spd-c-border-subtle: #e8eef1; /* 分隔线 */
+
+  /* ============== 主色：青玉（降明艳） ==============
+     原 rgb(3,179,178) 明艳度偏高，长期注视刺眼。
+     这里改为同色系低明度版本 #1f6f6d，并给出浓 / 淡 / 焦点派生色。 */
+  --spd-c-primary: #1f6f6d;
+  --spd-c-primary-strong: #175a58;
+  --spd-c-primary-soft: #e8f1f1;  /* 主色 4% 淡底 */
+  --spd-c-primary-hover: #2b827f;
+
+  /* ============== 语义状态色（固定） ============== */
+  /* 启用 / 正常：低饱和绿 */
+  --spd-c-success: #2f7d5b;
+  --spd-c-success-soft: #e6f1ec;
+  --spd-c-success-border: #b6d6c6;
+
+  /* 停用 / 禁用：中性灰蓝（不刺眼，且明确区别于危险） */
+  --spd-c-disabled: #5b6b76;
+  --spd-c-disabled-soft: #eef1f3;
+  --spd-c-disabled-border: #cdd7dc;
+
+  /* 警告 / 待办：低饱和橙 */
+  --spd-c-warning: #9a6114;
+  --spd-c-warning-soft: #fbf1e2;
+  --spd-c-warning-border: #e6cfa4;
+
+  /* 危险 / 删除 / 异常：低饱和红 */
+  --spd-c-danger: #a33a30;
+  --spd-c-danger-soft: #f8ebe9;
+  --spd-c-danger-border: #e0b8b2;
+
+  /* 信息 / 提示：低饱和蓝 */
+  --spd-c-info: #1f5f7d;
+  --spd-c-info-soft: #e9f1f5;
+  --spd-c-info-border: #b5ccd9;
+
+  /* ============== 状态条统一规格 ==============
+     4px 圆角 / 1px 边框 / 0.4 透明度底色 / 深色文字 */
+  --spd-c-chip-radius: 4px;
+  --spd-c-chip-border-width: 1px;
+  --spd-c-chip-bg-alpha: 0.4;
+  --spd-c-chip-font-weight: 600;
+
+  /* ============== 字体与控件尺寸 ============== */
+  --spd-c-control-radius: 4px;
+  --spd-c-control-border: 1px;
+  --spd-c-focus-width: 2px;
+
+  /* ============== 圆角 ============== */
+  --spd-c-radius-sm: 4px;
+  --spd-c-radius-md: 6px;
+  --spd-c-radius-lg: 12px;
+}
+
+/* =====================================================================
+   语义色 → 状态条统一样式
+   规则：4px 圆角 + 1px 边框 + 0.4 透明度底色 + 深色文字
+   ===================================================================== */
+:root {
+  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 40%, #ffffff);
+  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 40%, #ffffff);
+  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 40%, #ffffff);
+  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 40%, #ffffff);
+  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 40%, #ffffff);
+  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 40%, #ffffff);
+  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 40%, #ffffff);
+}

@@ -22,17 +22,21 @@ export interface PaletteColor {
   color: string
 }
 
-/** 默认主色：rgb(3, 179, 178) */
-export const DEFAULT_PRIMARY_COLOR = 'rgb(3, 179, 178)'
+/**
+ * 默认主色：低明艳青玉色。
+ * 在原 rgb(3,179,178) 青玉基础上继续降低明艳度（明度 70% → 43%），
+ * 降低长时间注视的刺眼感；文字仍保持深色，不使用高饱和色。
+ */
+export const DEFAULT_PRIMARY_COLOR = 'rgb(31, 111, 109)'
 
 export const PALETTE_COLORS: PaletteColor[] = [
   { id: 'teal', name: '青玉', color: DEFAULT_PRIMARY_COLOR },
-  { id: 'medical-blue', name: '医疗蓝', color: 'rgb(24, 144, 255)' },
-  { id: 'forest-green', name: '森林绿', color: 'rgb(82, 196, 26)' },
-  { id: 'sunset-orange', name: '暖阳橙', color: 'rgb(250, 140, 22)' },
-  { id: 'rose', name: '玫瑰粉', color: 'rgb(235, 47, 150)' },
-  { id: 'indigo', name: '靛青蓝', color: 'rgb(79, 70, 229)' },
-  { id: 'slate', name: '岩板灰', color: 'rgb(71, 85, 105)' }
+  { id: 'medical-blue', name: '医疗蓝', color: 'rgb(31, 95, 125)' },
+  { id: 'forest-green', name: '森林绿', color: 'rgb(47, 125, 91)' },
+  { id: 'sunset-orange', name: '暖阳橙', color: 'rgb(154, 97, 20)' },
+  { id: 'rose', name: '玫瑰粉', color: 'rgb(163, 58, 48)' },
+  { id: 'indigo', name: '靛青蓝', color: 'rgb(63, 77, 129)' },
+  { id: 'slate', name: '岩板灰', color: 'rgb(91, 107, 118)' }
 ]
 
 export const THEMES: ThemeDefinition[] = [
@@ -58,7 +62,29 @@ export const THEMES: ThemeDefinition[] = [
 
 const STORAGE_KEY = 'spd.theme'
 const PRIMARY_STORAGE_KEY = 'spd.theme.primary'
+const FONT_SIZE_STORAGE_KEY = 'spd.theme.fontSize'
 const DEFAULT_THEME: ThemeId = 'medical-blue'
+
+/* ============== 字号档位 ==============
+   面向 30 岁以上用户，提供标准 / 大 / 特大三档。
+   通过 <html data-font-size="..."> 驱动整站字号体系。 */
+export type FontSizeId = 'standard' | 'large' | 'xlarge'
+
+export interface FontSizeDefinition {
+  id: FontSizeId
+  name: string
+  /** 基准字号 */
+  base: string
+  hint: string
+}
+
+export const FONT_SIZES: FontSizeDefinition[] = [
+  { id: 'standard', name: '标准', base: '14px', hint: '常规显示器 · 密度优先' },
+  { id: 'large', name: '大', base: '16px', hint: '27 寸以上屏幕 · 轻度老花' },
+  { id: 'xlarge', name: '特大', base: '18px', hint: '视力偏弱 · 高分辨率远距' }
+]
+
+export const DEFAULT_FONT_SIZE: FontSizeId = 'standard'
 
 /** 把 hex / rgb 颜色与目标色混合，ratio = 0 返回原色，1 返回目标色 */
 function mixColor(color: string, target: [number, number, number], ratio: number): string {
@@ -99,6 +125,17 @@ export function applyPrimaryColor(color: string) {
   root.style.setProperty('--theme-focus', mixColor(color, [255, 255, 255], 0.3))
 }
 
+/** 将字号档位写入 <html data-font-size>，驱动整站字号体系 */
+export function applyFontSize(id: FontSizeId) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  if (id === DEFAULT_FONT_SIZE) {
+    root.removeAttribute('data-font-size')
+  } else {
+    root.setAttribute('data-font-size', id)
+  }
+}
+
 function readStoredTheme(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME
   try {
@@ -125,6 +162,19 @@ function readStoredPrimaryColor(): string {
   return DEFAULT_PRIMARY_COLOR
 }
 
+function readStoredFontSize(): FontSizeId {
+  if (typeof window === 'undefined') return DEFAULT_FONT_SIZE
+  try {
+    const raw = window.localStorage.getItem(FONT_SIZE_STORAGE_KEY)
+    if (raw && FONT_SIZES.some((f) => f.id === raw)) {
+      return raw as FontSizeId
+    }
+  } catch {
+    // 忽略 localStorage 异常
+  }
+  return DEFAULT_FONT_SIZE
+}
+
 function applyTheme(theme: ThemeId) {
   if (typeof document === 'undefined') return
   if (theme === DEFAULT_THEME) {
@@ -134,23 +184,30 @@ function applyTheme(theme: ThemeId) {
   }
 }
 
-// 启动时立刻应用持久化主题与主色，避免出现「无主题→主题」闪烁
+// 启动时立刻应用持久化主题、主色与字号，避免出现「无主题→主题」闪烁
 applyTheme(readStoredTheme())
 applyPrimaryColor(readStoredPrimaryColor())
+applyFontSize(readStoredFontSize())
 
 export const useThemeStore = defineStore('theme', {
   state: () => ({
     current: readStoredTheme(),
     /** 当前业务主色（来自调色板） */
-    primaryColor: readStoredPrimaryColor()
+    primaryColor: readStoredPrimaryColor(),
+    /** 当前字号档位 */
+    fontSize: readStoredFontSize()
   }),
   getters: {
     palette: () => PALETTE_COLORS,
+    fontSizes: () => FONT_SIZES,
     currentPaletteColor(state): PaletteColor {
       return (
         PALETTE_COLORS.find((c) => c.color === state.primaryColor) ??
         PALETTE_COLORS[0]
       )
+    },
+    currentFontSize(state): FontSizeDefinition {
+      return FONT_SIZES.find((f) => f.id === state.fontSize) ?? FONT_SIZES[0]
     }
   },
   actions: {
@@ -173,9 +230,20 @@ export const useThemeStore = defineStore('theme', {
         // 忽略写入失败
       }
     },
+    /** 切换字号档位（标准 / 大 / 特大） */
+    setFontSize(id: FontSizeId) {
+      this.fontSize = id
+      applyFontSize(id)
+      try {
+        window.localStorage.setItem(FONT_SIZE_STORAGE_KEY, id)
+      } catch {
+        // 忽略写入失败
+      }
+    },
     init() {
       applyTheme(this.current)
       applyPrimaryColor(this.primaryColor)
+      applyFontSize(this.fontSize)
     }
   }
 })

@@ -1,5 +1,8 @@
 @import "./theme.css";
 @import "./spd-theme.css";
+/* 设计令牌：颜色（唯一颜色来源）与字号（三档） */
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
 @import "./spd-layout.css";
 @import "./spd-dashboard.css";
 @import "./system/approval-flow-settings.css";

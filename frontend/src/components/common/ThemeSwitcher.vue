@@ -4,9 +4,12 @@ import { Check, Palette } from '@lucide/vue'
 import {
   THEMES,
   PALETTE_COLORS,
+  FONT_SIZES,
   DEFAULT_PRIMARY_COLOR,
+  DEFAULT_FONT_SIZE,
   useThemeStore,
-  type ThemeId
+  type ThemeId,
+  type FontSizeId
 } from '../../stores/theme'
 
 const themeStore = useThemeStore()
@@ -17,6 +20,9 @@ const panelRef = ref<HTMLElement | null>(null)
 const active = computed(() => THEMES.find((t) => t.id === themeStore.current) ?? THEMES[0])
 const activePalette = computed(
   () => PALETTE_COLORS.find((c) => c.color === themeStore.primaryColor) ?? PALETTE_COLORS[0]
+)
+const activeFontSize = computed(
+  () => FONT_SIZES.find((f) => f.id === themeStore.fontSize) ?? FONT_SIZES[0]
 )
 
 function pickTheme(id: ThemeId) {
@@ -31,8 +37,18 @@ function pickColor(color: string) {
   }
 }
 
+function pickFontSize(id: FontSizeId) {
+  if (themeStore.fontSize !== id) {
+    themeStore.setFontSize(id)
+  }
+}
+
 function resetPrimary() {
   pickColor(DEFAULT_PRIMARY_COLOR)
+}
+
+function resetFontSize() {
+  pickFontSize(DEFAULT_FONT_SIZE)
 }
 
 function toggle() {
@@ -127,6 +143,46 @@ onBeforeUnmount(() => {
         <div class="spd-theme-panel-sub spd-palette-current">
           当前主色：<strong>{{ activePalette.name }}</strong>
           <code>{{ themeStore.primaryColor }}</code>
+        </div>
+
+        <!-- 字号档位：标准 / 大 / 特大 -->
+        <div class="spd-theme-panel-header spd-theme-panel-header--second">
+          <span class="spd-theme-panel-title">界面字号</span>
+          <button
+            type="button"
+            class="spd-theme-reset"
+            :disabled="themeStore.fontSize === DEFAULT_FONT_SIZE"
+            @click="resetFontSize"
+          >
+            恢复默认
+          </button>
+        </div>
+
+        <div class="spd-fontsize-grid" role="radiogroup" aria-label="界面字号">
+          <button
+            v-for="f in FONT_SIZES"
+            :key="f.id"
+            type="button"
+            role="radio"
+            :aria-checked="f.id === themeStore.fontSize"
+            :class="['spd-fontsize-card', { 'is-active': f.id === themeStore.fontSize }]"
+            @click="pickFontSize(f.id)"
+          >
+            <span class="spd-fontsize-sample" :style="{ fontSize: f.base }">Aa</span>
+            <span class="spd-fontsize-meta">
+              <span class="spd-fontsize-name">
+                {{ f.name }}
+                <small>{{ f.base }}</small>
+              </span>
+              <span class="spd-fontsize-hint">{{ f.hint }}</span>
+            </span>
+            <Check v-if="f.id === themeStore.fontSize" :size="16" class="spd-fontsize-check" />
+          </button>
+        </div>
+
+        <div class="spd-theme-panel-sub spd-palette-current">
+          当前字号：<strong>{{ activeFontSize.name }}</strong>
+          <code>{{ activeFontSize.base }}</code>
         </div>
 
         <!-- 主题风格 -->
@@ -406,6 +462,86 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 字号档位卡片 */
+.spd-fontsize-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.spd-fontsize-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--fli-line, #e5e7eb);
+  border-radius: 10px;
+  background: var(--fli-surface, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  font: inherit;
+  color: inherit;
+  position: relative;
+}
+
+.spd-fontsize-card:hover {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
+}
+
+.spd-fontsize-card.is-active {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
+  box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
+}
+
+/* 字号样张：用真实基准字号预览，方便用户直接判断 */
+.spd-fontsize-sample {
+  width: 44px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--fli-text, #1f2937);
+}
+
+.spd-fontsize-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spd-fontsize-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fli-text, #1f2937);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.spd-fontsize-name small {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fli-muted, #6b7280);
+}
+
+.spd-fontsize-hint {
+  font-size: 11px;
+  color: var(--fli-muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spd-fontsize-check {
+  color: var(--fli-brand, #0f766e);
+  flex-shrink: 0;
 }
 
 /* 弹出动画 */

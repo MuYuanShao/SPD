@@ -1,0 +1,66 @@
+/* =====================================================================
+   SPD 字号系统（三档：标准 / 大 / 特大）
+   ---------------------------------------------------------------------
+   面向 30 岁以上中长期使用者：
+   - 标准（standard）：14px 基准，适合视力正常的桌面显示器
+   - 大（large）：16px 基准，约放大 114%，适合 27" 及以上屏幕或轻度老花
+   - 特大（xlarge）：18px 基准，约放大 129%，适合视力偏弱或高分辨率远距使用
+
+   切换方式：在 <html> 上写入 data-font-size="standard|large|xlarge"，
+   所有字号均由此处的基准推导，整站等比缩放。
+
+   本文件在 spd-theme.css 之后引入，因此这里的 --spd-font-size-* 定义
+   会覆盖 spd-theme.css 中的同名固定值，从而让既有样式自动跟随档位。
+   ===================================================================== */
+
+:root {
+  /* 基准字号 */
+  --spd-fs-base: 14px;
+
+  /* 行高随字号放大而略微收紧，避免大字号下版面松散 */
+  --spd-lh-tight: 1.35;
+  --spd-lh-base: 1.5;
+  --spd-lh-loose: 1.65;
+
+  /* 表格单元格上下留白（大字号下略微放大，保持呼吸感） */
+  --spd-table-cell-padding-y: 10px;
+}
+
+:root[data-font-size='large'] {
+  --spd-fs-base: 16px;
+  --spd-table-cell-padding-y: 12px;
+}
+
+:root[data-font-size='xlarge'] {
+  --spd-fs-base: 18px;
+  --spd-table-cell-padding-y: 13px;
+}
+
+/* =====================================================================
+   覆盖 spd-theme.css 的固定字号，使其跟随基准字号等比缩放
+   ===================================================================== */
+:root {
+  --spd-font-size-xs: calc(var(--spd-fs-base) - 3px);
+  --spd-font-size-sm: calc(var(--spd-fs-base) - 1px);
+  --spd-font-size-base: var(--spd-fs-base);
+  --spd-font-size-md: calc(var(--spd-fs-base) + 1px);
+  --spd-font-size-lg: calc(var(--spd-fs-base) + 2px);
+  --spd-font-size-xl: calc(var(--spd-fs-base) + 4px);
+  --spd-font-size-2xl: calc(var(--spd-fs-base) + 6px);
+  --spd-font-size-3xl: calc(var(--spd-fs-base) + 10px);
+  --spd-font-size-4xl: calc(var(--spd-fs-base) + 16px);
+  --spd-font-size-5xl: calc(var(--spd-fs-base) + 24px);
+}
+
+/* =====================================================================
+   字号档位对「根字号」的落地
+   html 的 font-size 直接跟随基准，整站 rem 体系等比放大。
+   ===================================================================== */
+html {
+  font-size: var(--spd-fs-base);
+}
+
+body {
+  font-size: var(--spd-fs-base);
+  line-height: var(--spd-lh-base);
+}

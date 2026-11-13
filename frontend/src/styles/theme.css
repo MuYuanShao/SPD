@@ -23,10 +23,13 @@
 :root[data-theme="medical-blue"] {
   color-scheme: light;
 
-  /* 基础调色板 — 对齐 web-vue 医疗蓝 (Ant Design 蓝) */
-  --theme-primary: #1890ff;
-  --theme-primary-strong: #096dd9;
-  --theme-accent: #40a9ff;
+  /* 基础调色板 — 医疗蓝（低明艳版本）
+     说明：设计要求「在青玉色基础上继续降低明艳程度」，
+     因此默认主题主色改为低明度青玉 #1f6f6d，
+     仅保留少量辅助蓝作为语义色（信息 / 链接）。 */
+  --theme-primary: #1f6f6d;
+  --theme-primary-strong: #175a58;
+  --theme-accent: #2b827f;
   --theme-bg: #f0f2f5;
   --theme-surface: #ffffff;
   --theme-line: #e8eaec;

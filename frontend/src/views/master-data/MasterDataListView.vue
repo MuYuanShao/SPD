@@ -427,15 +427,21 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'updateTime', label: '修改时间', width: 190, visible: true }
 ]
 
+/**
+ * 科室库房目录列定义（标准默认版本）
+ * - 列宽为「标准档位」下的默认宽度，用户可拖拽调整并持久化
+ * - productName / manufacturer 等长文本列默认宽度更充裕，
+ *   单元格内容自动换行，不做截断，保证长名称可读
+ */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 230, visible: true },
-  { key: 'productCode', label: '商品编码', width: 160, visible: true },
-  { key: 'productName', label: '商品名称', width: 200, visible: true },
-  { key: 'spec', label: '规格型号', width: 160, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 200, visible: true },
+  { key: 'scope', label: '科室 / 库房', width: 220, visible: true },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true },
+  { key: 'productName', label: '商品名称', width: 280, visible: true },
+  { key: 'spec', label: '规格型号', width: 170, visible: true },
+  { key: 'manufacturer', label: '生产厂家', width: 260, visible: true },
   { key: 'source', label: '维护来源', width: 130, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 190, visible: true }
+  { key: 'updateTime', label: '更新时间', width: 180, visible: true }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -2579,15 +2585,14 @@ function warehouseFlagChipClass(enabled: unknown) {
             v-if="isCatalogColVisible('productName')"
             label="商品名称"
             :min-width="catalogColWidth('productName')"
-            show-overflow-tooltip
           >
             <template #header>
               <span class="ulc-th-text">商品名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('productName', $event)" />
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
-                <span class="ulc-strong">{{ row.productName || '-' }}</span>
-                <span class="ulc-sub">科室可申领商品</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.productName || '-' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">科室可申领商品</span>
               </div>
             </template>
           </el-table-column>
@@ -2608,13 +2613,12 @@ function warehouseFlagChipClass(enabled: unknown) {
             v-if="isCatalogColVisible('manufacturer')"
             label="生产厂家"
             :min-width="catalogColWidth('manufacturer')"
-            show-overflow-tooltip
           >
             <template #header>
               <span class="ulc-th-text">生产厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('manufacturer', $event)" />
             </template>
             <template #default="{ row }">
-              <span class="ulc-strong">{{ row.manufacturerName || '-' }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column

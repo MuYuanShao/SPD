@@ -37,6 +37,8 @@
 @import "./list/unified-list.css";
 /* 内容区整体渐变背景 + 卡片圆角规范（放在最后，收口所有 override） */
 @import "./layout/content-surface.css";
+/* 列宽策略：方案 B（自适应填充），由 feature/ui-col-b-auto-fit 分支引入 */
+@import "./layout/column-strategy-b.css";
 
 :root {
   color-scheme: light;

@@ -428,20 +428,21 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义（标准默认版本）
- * - 列宽为「标准档位」下的默认宽度，用户可拖拽调整并持久化
- * - productName / manufacturer 等长文本列默认宽度更充裕，
- *   单元格内容自动换行，不做截断，保证长名称可读
+ * 科室库房目录列定义 —— 方案 B：自适应填充
+ * - 使用 min-width：表格总宽不足容器时，列按 min-width 比例分配剩余空间
+ * - 长文本列给更大的 min-width，使商品名 / 厂家名在宽屏上充分展开
+ * - 窄屏时列宽自动压缩，长文本换行，信息不丢失
+ * - 优点：始终铺满容器，无横向滚动；缺点：列宽随视口变化，不完全可控
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 220, visible: true },
-  { key: 'productCode', label: '商品编码', width: 150, visible: true },
-  { key: 'productName', label: '商品名称', width: 280, visible: true },
-  { key: 'spec', label: '规格型号', width: 170, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 260, visible: true },
-  { key: 'source', label: '维护来源', width: 130, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 180, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 200, visible: true },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true },
+  { key: 'productName', label: '商品名称', width: 320, visible: true, flexible: true },
+  { key: 'spec', label: '规格型号', width: 160, visible: true },
+  { key: 'manufacturer', label: '生产厂家', width: 300, visible: true, flexible: true },
+  { key: 'source', label: '维护来源', width: 120, visible: true },
+  { key: 'status', label: '状态', width: 110, visible: true },
+  { key: 'updateTime', label: '更新时间', width: 170, visible: true }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -497,7 +498,10 @@ const departmentCols = useListColumns({
 })
 const catalogCols = useListColumns({
   storageKey: 'spd-department-warehouse-catalog-cols-v1',
-  defaults: CATALOG_COL_DEFAULTS
+  defaults: CATALOG_COL_DEFAULTS,
+  // 方案 B：自适应填充 —— 长文本列按基准宽度比例分配容器剩余空间
+  fitMode: 'fit',
+  reservedWidth: 288 // 选择列 48 + 操作列 240
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',

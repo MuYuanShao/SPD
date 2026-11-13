@@ -299,7 +299,9 @@
   color: var(--spd-c-primary-strong);
 }
 
-/* ===== 行内操作按钮：4px 圆角 + 边框 + 背景色 ===== */
+/* ===== 行内操作按钮：4px 圆角 + 1px 边框 + 0.4 透明度底色 + 深色文字 =====
+   与状态条（.ulc-chip）保持完全一致的视觉规格，
+   两者只在色相语义上不同（主色 / 信息 / 危险）。 */
 .spd-unified-list .ulc-actions {
   display: flex;
   align-items: center;
@@ -318,10 +320,10 @@
   gap: 4px;
   min-height: 30px;
   padding: 0 12px;
-  border: var(--spd-c-control-border, 1px) solid transparent;
+  border: var(--spd-c-chip-border-width, 1px) solid var(--spd-c-primary-strong);
   border-radius: var(--spd-c-control-radius, 4px);
-  background: var(--ulc-primary);
-  color: var(--spd-c-text-on-primary);
+  background: var(--spd-c-chip-bg-primary);
+  color: var(--spd-c-primary-strong);
   font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
   line-height: 1;
@@ -330,12 +332,12 @@
   flex-shrink: 0;
   cursor: pointer;
   text-decoration: none;
-  transition: filter 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
 }
 
 .spd-unified-list .ulc-action:hover:not(:disabled) {
-  filter: brightness(0.93);
-  box-shadow: 0 2px 6px rgba(16, 40, 40, 0.18);
+  background: color-mix(in srgb, var(--spd-c-primary) 26%, #ffffff);
+  border-color: var(--spd-c-primary-strong);
 }
 
 .spd-unified-list .ulc-action:active:not(:disabled) {
@@ -348,15 +350,29 @@
 }
 
 .spd-unified-list .ulc-action.is-info {
-  background: var(--ulc-info);
+  border-color: var(--spd-c-info-border);
+  background: var(--spd-c-chip-bg-info);
+  color: var(--spd-c-info);
+}
+
+.spd-unified-list .ulc-action.is-info:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--spd-c-info) 26%, #ffffff);
 }
 
 .spd-unified-list .ulc-action.is-danger {
-  background: var(--ulc-danger);
+  border-color: var(--spd-c-danger-border);
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
+}
+
+.spd-unified-list .ulc-action.is-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--spd-c-danger) 26%, #ffffff);
 }
 
 .spd-unified-list .ulc-action.is-neutral {
-  background: var(--ulc-neutral);
+  border-color: var(--spd-c-disabled-border);
+  background: var(--spd-c-chip-bg-disabled);
+  color: var(--spd-c-disabled);
 }
 
 .spd-unified-list .ulc-action.is-outline {
@@ -372,73 +388,77 @@
   filter: none;
 }
 
-/* ===== 工具栏按钮统一：4px 圆角 + 实色背景 ===== */
+/* ===== 工具栏按钮统一：4px 圆角 + 1px 边框 + 0.4 透明度底色 + 深色文字 =====
+   与状态条、行内按钮保持同一套视觉规格。 */
 .spd-unified-list .md-table-toolbar .md-btn,
 .spd-unified-list .md-table-toolbar-main .md-btn {
   min-height: 34px;
+  border: var(--spd-c-chip-border-width, 1px) solid var(--spd-c-primary-strong);
   border-radius: var(--ulc-radius);
-  background: var(--ulc-neutral);
-  color: var(--spd-c-text-on-primary);
+  background: var(--spd-c-chip-bg-primary);
+  color: var(--spd-c-primary-strong);
   font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
-  box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn:hover:not(:disabled) {
-  filter: brightness(0.92);
-  color: var(--spd-c-text-on-primary);
-  box-shadow: 0 6px 14px -4px rgba(16, 40, 40, 0.32);
+  background: color-mix(in srgb, var(--spd-c-primary) 26%, #ffffff);
+  color: var(--spd-c-primary-strong);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-primary {
-  background: var(--ulc-primary);
-  color: var(--spd-c-text-on-primary);
+  border-color: var(--spd-c-primary-strong);
+  background: var(--spd-c-chip-bg-primary);
+  color: var(--spd-c-primary-strong);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-primary:hover:not(:disabled) {
-  background: var(--spd-c-primary-hover);
-  color: var(--spd-c-text-on-primary);
+  background: color-mix(in srgb, var(--spd-c-primary) 26%, #ffffff);
+  color: var(--spd-c-primary-strong);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-danger {
-  background: var(--ulc-danger);
-  color: var(--spd-c-text-on-primary);
+  border-color: var(--spd-c-danger-border);
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-danger:hover:not(:disabled) {
-  filter: brightness(0.92);
-  color: var(--spd-c-text-on-primary);
+  background: color-mix(in srgb, var(--spd-c-danger) 26%, #ffffff);
+  color: var(--spd-c-danger);
 }
 
 /* 工具栏语义变体：大部分操作用主题色，停用 / 批量维护用其他颜色区分 */
 .spd-unified-list .md-table-toolbar .md-btn-warning {
-  background: var(--ulc-warning);
-  color: var(--spd-c-text-on-primary);
+  border-color: var(--spd-c-warning-border);
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-warning:hover:not(:disabled) {
-  filter: brightness(0.92);
-  color: var(--spd-c-text-on-primary);
+  background: color-mix(in srgb, var(--spd-c-warning) 26%, #ffffff);
+  color: var(--spd-c-warning);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-info {
-  background: var(--ulc-info);
-  color: var(--spd-c-text-on-primary);
+  border-color: var(--spd-c-info-border);
+  background: var(--spd-c-chip-bg-info);
+  color: var(--spd-c-info);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-info:hover:not(:disabled) {
-  filter: brightness(0.92);
-  color: var(--spd-c-text-on-primary);
+  background: color-mix(in srgb, var(--spd-c-info) 26%, #ffffff);
+  color: var(--spd-c-info);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-outline {
-  background: #fff;
-  color: var(--ulc-primary);
   border-color: var(--ulc-primary);
+  background: var(--spd-c-bg);
+  color: var(--ulc-primary);
 }
 
 .spd-unified-list .md-table-toolbar .md-btn-outline:hover:not(:disabled) {
-  background: #eef7f6;
+  background: var(--spd-c-primary-soft);
   color: var(--ulc-primary);
 }
 

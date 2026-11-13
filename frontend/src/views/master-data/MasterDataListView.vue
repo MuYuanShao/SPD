@@ -427,37 +427,48 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义 —— 宽度由实测内容反推，而非拍脑袋
+ * 科室库房目录列定义 —— 由实测内容宽度求解得出，而非拍脑袋
  * ---------------------------------------------------------------------
- * 用 canvas 按真实字体量出每列内容的自然宽度后，再定基准与上限：
+ * 求解过程（脚本 output/solve-all.cjs）：
+ *   1) 用 canvas 按真实字体量出每一行内容的自然宽度；
+ *   2) 以「给定内容区宽度下，换行最少」为目标做局部搜索，
+ *      优先级为 商品名称 > 规格型号 > 生产厂家 > 其余；
+ *   3) 取 1280px 的解作基准，各视口解的最大值作上限。
  *
- *   列            实测自然宽   base   max    min
- *   科室 / 库房      156        148    165   120
- *   商品编码         132        122    140   105
- *   商品名称         858        168    470   150
- *   规格型号         188        106    130    98
- *   生产厂家         592        158    430   140
- *   维护来源          56         88    104    84
- *   状态             28         70     84    66
- *   更新时间         158        158    172   148
+ *   列            内容P90   base   ideal   max    min
+ *   科室 / 库房       156    156    —      160   118
+ *   商品编码          132    132    —      136    96
+ *   商品名称          789    162    300    482   130   ← 弹性
+ *   规格型号          188    122    188    188   108   ← 弹性
+ *   生产厂家          464    136    280    296   110   ← 弹性
+ *   维护来源           56     78    —      88    76
+ *   状态              28     62    —      70    60
+ *   更新时间          148    148    —      158   146
  *
- * 规则：**字少的列不占大块，字多的列给足空间**。
- *   - 状态 / 维护来源：上限贴近实际内容（84 / 104），
- *     无论屏幕多宽都保持紧凑，不会出现大片空白。
- *   - 商品名称 / 生产厂家：上限放宽到 470 / 430，
- *     在 1920px 下能完整展开长名称，窄屏则换行承载。
- *   - 基准合计 1018（+ 选择列 48 + 操作列 200 = 1266），
- *     1280px 内容区（1244px）也基本铺满且不出现横向滚动。
+ * 三个宽度概念：
+ *   - base        窄屏起点（合计 996，+ 固定列 248 = 1244，恰好铺满 1280 内容区）
+ *   - idealWidth  内容单行放下所需的宽度（实测得出），弹性列用
+ *   - maxWidth    可增长到的上限
+ *
+ * 分配顺序：**先补齐 idealWidth，再按剩余上限比例分配**。
+ *   这是「规格型号」不再被挤压的关键 ——
+ *   它的实测 P90 是 188px（"500ml 棕色瓶装" 这类 15 字符规格），
+ *   之前压到 116px 会触发 show-overflow-tooltip 省略号截断。
+ *   先补齐理想宽度后它能完整显示，多余空间再由商品名/厂家分走。
+ *
+ * 规则仍是：**字多的列给足空间，字少的列保持紧凑**。
+ *   状态 / 维护来源 的上限贴近实际内容（70 / 88），
+ *   任何视口下都不留大片空白。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 148, visible: true, maxWidth: 165, minFlexibleWidth: 120 },
-  { key: 'productCode', label: '商品编码', width: 122, visible: true, maxWidth: 140, minFlexibleWidth: 105 },
-  { key: 'productName', label: '商品名称', width: 168, visible: true, flexible: true, maxWidth: 470, minFlexibleWidth: 150 },
-  { key: 'spec', label: '规格型号', width: 106, visible: true, maxWidth: 130, minFlexibleWidth: 98 },
-  { key: 'manufacturer', label: '生产厂家', width: 158, visible: true, flexible: true, maxWidth: 430, minFlexibleWidth: 140 },
-  { key: 'source', label: '维护来源', width: 88, visible: true, maxWidth: 104, minFlexibleWidth: 84 },
-  { key: 'status', label: '状态', width: 70, visible: true, maxWidth: 84, minFlexibleWidth: 66 },
-  { key: 'updateTime', label: '更新时间', width: 158, visible: true, maxWidth: 172, minFlexibleWidth: 148 }
+  { key: 'scope', label: '科室 / 库房', width: 156, visible: true, maxWidth: 160, minFlexibleWidth: 118 },
+  { key: 'productCode', label: '商品编码', width: 132, visible: true, maxWidth: 136, minFlexibleWidth: 96 },
+  { key: 'productName', label: '商品名称', width: 162, visible: true, flexible: true, idealWidth: 300, maxWidth: 482, minFlexibleWidth: 130 },
+  { key: 'spec', label: '规格型号', width: 122, visible: true, flexible: true, idealWidth: 188, maxWidth: 188, minFlexibleWidth: 108 },
+  { key: 'manufacturer', label: '生产厂家', width: 136, visible: true, flexible: true, idealWidth: 280, maxWidth: 296, minFlexibleWidth: 110 },
+  { key: 'source', label: '维护来源', width: 78, visible: true, maxWidth: 88, minFlexibleWidth: 76 },
+  { key: 'status', label: '状态', width: 62, visible: true, maxWidth: 70, minFlexibleWidth: 60 },
+  { key: 'updateTime', label: '更新时间', width: 148, visible: true, maxWidth: 158, minFlexibleWidth: 146 }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -512,9 +523,9 @@ const departmentCols = useListColumns({
   defaults: DEPARTMENT_COL_DEFAULTS
 })
 const catalogCols = useListColumns({
-  storageKey: 'spd-department-warehouse-catalog-cols-v3',
+  storageKey: 'spd-department-warehouse-catalog-cols-v4',
   defaults: CATALOG_COL_DEFAULTS,
-  // 方案 C：混合策略 —— 字多的列（商品名称 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
+  // 方案 C：混合策略 —— 字多的列（商品名称 / 规格型号 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
   fitMode: 'hybrid',
   reservedWidth: 248 // 选择列 48 + 操作列 200
 })
@@ -2640,7 +2651,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               <span class="ulc-th-text">商品编码</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-mono">{{ row.productCode || '-' }}</span>
+              <span class="ulc-mono ulc-wrap-text">{{ row.productCode || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -2664,13 +2675,12 @@ function warehouseFlagChipClass(enabled: unknown) {
             v-if="isCatalogColVisible('spec')"
             label="规格型号"
             v-bind="catalogColBinding('spec')"
-            show-overflow-tooltip
           >
             <template #header>
               <span class="ulc-th-text">规格型号</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-strong">{{ row.specModel || '-' }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ row.specModel || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column

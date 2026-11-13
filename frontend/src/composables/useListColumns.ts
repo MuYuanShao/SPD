@@ -24,6 +24,17 @@ export interface ListColumnConfig {
    * 把短字段列（状态 / 来源 / 时间）挤压变形。
    */
   maxWidth?: number
+  /**
+   * 该列「内容单行放下」的理想宽度（px）。
+   *
+   * 由实测内容自然宽度得到（canvas 按真实字体量得），
+   * 代表该列不需要换行就能完整显示的宽度。
+   *
+   * 分配剩余空间时，列会**先涨到 idealWidth**，再继续按比例分配；
+   * 这样「规格型号」这类理想宽度不大但内容确实很长的列，
+   * 不会被上限更大的列（商品名称）一直挤压而始终放不下内容。
+   */
+  idealWidth?: number
 }
 
 export interface UseListColumnsOptions {
@@ -67,7 +78,8 @@ export function useListColumns(options: UseListColumnsOptions) {
         fixed: fallback?.fixed ?? false,
         flexible: fallback.flexible ?? false,
         minFlexibleWidth: fallback.minFlexibleWidth ?? (fallback.flexible ? 160 : undefined),
-        maxWidth: fallback.maxWidth
+        maxWidth: fallback.maxWidth,
+        idealWidth: fallback.idealWidth
       }
     })
   }
@@ -139,12 +151,32 @@ export function useListColumns(options: UseListColumnsOptions) {
       Math.min(column.width, column.minFlexibleWidth ?? 100)
 
     /**
-     * 把 amount 分配给候选列，按「各自剩余上限」的比例分配。
-     * 先到上限的列自动让出份额，因此长文本列能自然占到大头。
+     * 把 amount 分配给候选列。
+     *
+     * 两阶段：
+     *   1) **先补齐理想宽度** —— 还没到 idealWidth 的列先按需补足，
+     *      让内容能单行放下（这一步保证「规格型号」这类列不会
+     *      被上限更大的列一直挤压而始终放不下内容）；
+     *   2) **再按剩余上限比例分配** —— 都达标后，多余空间按各列
+     *      剩余可涨空间的比例分，先到上限者让出份额给其他列。
      */
     function grow(candidates: ListColumnConfig[], amount: number) {
       let rest = amount
-      // 多轮收敛：一轮分完则结束，未分完（全部触顶）则不再继续
+
+      // 阶段 1：补齐理想宽度
+      for (const column of candidates) {
+        if (rest <= 0.5) break
+        const ideal = column.idealWidth
+        if (!ideal) continue
+        const target = Math.min(ideal, capOf(column))
+        const need = target - widths[column.key]
+        if (need <= 0.5) continue
+        const give = Math.min(need, rest)
+        widths[column.key] += give
+        rest -= give
+      }
+
+      // 阶段 2：按剩余上限比例分配
       for (let round = 0; round < 8 && rest > 0.5; round++) {
         const active = candidates.filter((column) => capOf(column) - widths[column.key] > 0.5)
         if (!active.length) break

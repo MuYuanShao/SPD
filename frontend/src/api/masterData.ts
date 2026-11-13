@@ -321,6 +321,8 @@ const endpointMap: Record<string, string> = {
   'department-warehouse-catalog': '/master-data/department-warehouse-catalogs',
   // 暗夜黑配色方案页与浅色原版共用同一后端接口
   'department-warehouse-catalog-night': '/master-data/department-warehouse-catalogs',
+  // 方案 E「静墨宣纸」与浅色原版共用同一后端接口
+  'department-warehouse-catalog-calm': '/master-data/department-warehouse-catalogs',
   'warehouse-location-management': '/master-data/warehouses'
 }
 

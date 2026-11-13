@@ -12,16 +12,32 @@ import {
 const PARTNER_COMBINED_CODE = 'supplier-manufacturer-management'
 
 /**
- * 暗夜黑配色方案（科室库房目录）的独立路由。
+ * 主数据工作台支持的「配色方案独立路由」。
  *
- * 该方案与浅色原版共用同一份数据与同一套后端接口，
- * 但使用独立视图组件与独立路由名，因此主数据工作台需要额外识别它。
+ * 每个方案页与浅色原版共用同一份数据与同一套后端接口，
+ * 但使用独立视图组件与独立路由名，因此主数据工作台需要额外识别它们。
+ *
+ * - routeName：路由名（与 router/index.ts 中的 name 一致）
+ * - code：方案在功能目录中的编码（用于顶部页签显示中文名）
+ * - masterCode：方案实际访问的主数据类型（与浅色原版一致）
  */
-export const NIGHT_CATALOG_ROUTE_NAME = 'department-warehouse-catalog-night'
-/** 暗夜黑方案在功能目录中的编码（与浅色原版区分，便于顶部页签显示中文名） */
-export const NIGHT_CATALOG_CODE = 'department-warehouse-catalog-night'
-/** 暗夜黑方案实际访问的主数据类型（与浅色原版完全一致） */
-const NIGHT_CATALOG_MASTER_CODE = 'department-warehouse-catalog'
+export const MASTER_DATA_SCHEME_ROUTES = [
+  {
+    routeName: 'department-warehouse-catalog-night',
+    code: 'department-warehouse-catalog-night',
+    masterCode: 'department-warehouse-catalog'
+  },
+  {
+    routeName: 'department-warehouse-catalog-calm',
+    code: 'department-warehouse-catalog-calm',
+    masterCode: 'department-warehouse-catalog'
+  }
+] as const
+
+/** 按路由名查找方案配置 */
+export function masterDataSchemeByRouteName(routeName: string) {
+  return MASTER_DATA_SCHEME_ROUTES.find((scheme) => scheme.routeName === routeName)
+}
 
 export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) {
   const route = useRoute()
@@ -149,8 +165,8 @@ export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) 
   const isDepartmentManagement = computed(() => code.value === 'department-management')
   const isDepartmentWarehouseCatalog = computed(
     () =>
-      code.value === NIGHT_CATALOG_MASTER_CODE ||
-      code.value === NIGHT_CATALOG_CODE
+      code.value === 'department-warehouse-catalog' ||
+      MASTER_DATA_SCHEME_ROUTES.some((scheme) => scheme.code === code.value)
   )
   const isWarehouseManagement = computed(() => code.value === 'warehouse-location-management')
   const selectableRows = computed(
@@ -288,12 +304,12 @@ export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) 
    * 当前组件是否处于「允许加载主数据」的路由上。
    *
    * 浅色原版走 `master-data-list` 路由；
-   * 暗夜黑配色方案页走独立路由 `department-warehouse-catalog-night`，
-   * 它通过 codeOverride 复用同一份工作台逻辑。
+   * 配色方案页走各自的独立路由，通过 codeOverride 复用同一份工作台逻辑。
    */
   function isWorkbenchRoute() {
     if (route.name === 'master-data-list') return true
-    return Boolean(options.codeOverride) && route.name === NIGHT_CATALOG_ROUTE_NAME
+    if (!options.codeOverride) return false
+    return MASTER_DATA_SCHEME_ROUTES.some((scheme) => scheme.routeName === route.name)
   }
 
   async function loadPage() {

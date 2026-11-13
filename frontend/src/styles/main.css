@@ -42,6 +42,9 @@
 /* 暗夜黑配色方案（科室库房目录独立页面）
    仅在 <html data-theme="night-black"> 下生效，不影响其它页面配色。 */
 @import "./theme/night-black.css";
+/* 方案 E「静墨宣纸」（科室库房目录独立页面）
+   仅在 <html data-spd-theme="calm-paper"> 下生效，不影响其它页面配色。 */
+@import "./theme/calm-paper.css";
 
 :root {
   color-scheme: light;

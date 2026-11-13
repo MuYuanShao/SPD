@@ -107,12 +107,13 @@ export interface FeatureCatalogEntry {
 /**
  * 菜单权限别名。
  *
- * 「科室库房目录（暗夜黑）」是同一功能的配色方案页，
- * 不新增独立权限点：拥有原「科室库房目录」菜单权限的用户即可访问，
+ * 「科室库房目录（暗夜黑）」与「科室库房目录（静墨宣纸）」是同一功能的
+ * 设计方案页，不新增独立权限点：拥有原「科室库房目录」菜单权限的用户即可访问，
  * 避免为配色方案单独配置一套角色权限。
  */
 export const featureMenuPermissionAliases: Record<string, string> = {
-  'department-warehouse-catalog-night': 'department-warehouse-catalog'
+  'department-warehouse-catalog-night': 'department-warehouse-catalog',
+  'department-warehouse-catalog-calm': 'department-warehouse-catalog'
 }
 
 /** 取该功能码实际对应的菜单权限码（无别名时返回自身） */
@@ -273,6 +274,16 @@ export const featureCatalog = [
     title: '科室库房目录（暗夜黑）',
     icon: 'moon-star',
     routeTarget: '/features/department-warehouse-catalog-night',
+    viewFamily: 'master-data-list',
+    chunkFamily: 'master-data'
+  },
+  {
+    // 方案 E「静墨宣纸」：功能与「科室库房目录」一致，仅视觉表现不同。
+    // 不进主菜单（避免污染正式导航），通过顶部页签 / 直达链接进入。
+    code: 'department-warehouse-catalog-calm',
+    title: '科室库房目录（静墨宣纸）',
+    icon: 'scroll-text',
+    routeTarget: '/features/department-warehouse-catalog-calm',
     viewFamily: 'master-data-list',
     chunkFamily: 'master-data'
   },

@@ -19,7 +19,6 @@ import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted } from
 import { Ban, ChevronDown, Columns3, ListPlus, Pencil, Plus, RefreshCw, Search, Trash2 } from '@lucide/vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import {
-  NIGHT_CATALOG_CODE,
   useMasterDataWorkbench
 } from '../../composables/useMasterDataWorkbench'
 import { useOrganizationMasterData } from '../../composables/useOrganizationMasterData'
@@ -109,7 +108,7 @@ const {
   resetDepartmentWarehouseCatalogQuery,
   submitDepartmentWarehouseCatalogQuery,
   clearActionState
-} = useMasterDataWorkbench({ codeOverride: NIGHT_CATALOG_CODE })
+} = useMasterDataWorkbench({ codeOverride: 'department-warehouse-catalog-night' })
 
 const {
   departmentWarehouseCatalogForm,

@@ -38,7 +38,7 @@ export interface UseListColumnsOptions {
   /**
    * 自适应模式：
    * - 'fixed'（默认）：列宽固定，用户拖拽后保持
-   * - 'fit'：列宽随容器宽度自动伸缩，容器可用宽度按各列基准宽度比例分配
+   * - 'fit'：列宽随容器宽度自动伸缩，所有列按「各自剩余上限」的比例同步增长
    */
   fitMode?: 'fixed' | 'fit' | 'hybrid'
   /** 自适应模式下，固定列（选择 / 操作）占用的宽度合计，用于计算可用宽度 */
@@ -192,8 +192,15 @@ export function useListColumns(options: UseListColumnsOptions) {
       let surplus = available - base
       const flexibleCols = cols.filter((column) => column.flexible)
       if (fitMode === 'hybrid') {
-        // 弹性列优先，按剩余上限比例分配
+        // 混合策略：弹性列（字多的列）绝对优先，先吃满上限，
+        // 富余用完后才轮到其余列 —— 字少的列拿到的是「残羹」。
         surplus -= grow(flexibleCols, surplus)
+      } else {
+        // 自适应填充：所有列一起按「各自剩余上限」的比例增长。
+        // 由于字多的列上限本来就大，它自然拿到更多，
+        // 但没有优先级之分，因此短列也会同步变宽。
+        grow(cols, surplus)
+        surplus = 0
       }
       if (surplus > 0.5) {
         // 弹性列到上限后，富余补给其余列（同样受各自上限约束）
@@ -204,7 +211,13 @@ export function useListColumns(options: UseListColumnsOptions) {
       // —— 容器偏窄：先压弹性列（长文本换行），再压其余列 ——
       let deficit = base - available
       const flexibleCols = cols.filter((column) => column.flexible)
-      deficit -= shrink(flexibleCols, deficit)
+      if (fitMode === 'hybrid') {
+        // 混合策略：优先牺牲字多的列（换行即可），短列尽量保持原宽
+        deficit -= shrink(flexibleCols, deficit)
+      } else {
+        // 自适应填充：所有列一起压缩
+        deficit -= shrink(cols, deficit)
+      }
       if (deficit > 0.5) {
         shrink(
           cols.filter((column) => !column.flexible),

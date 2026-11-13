@@ -68,11 +68,35 @@ export interface UseListColumnsOptions {
   /**
    * 自适应模式：
    * - 'fixed'（默认）：列宽固定，用户拖拽后保持
-   * - 'fit'：列宽随容器宽度自动伸缩，所有列按「各自剩余上限」的比例同步增长
+   * - 'fit'：列宽随容器宽度自动伸缩，所有列按权重比例同步增长
+   * - 'hybrid'：在 fit 基础上，长文本列额外享有「理想宽度优先」调剂
    */
   fitMode?: 'fixed' | 'fit' | 'hybrid'
   /** 自适应模式下，固定列（选择 / 操作）占用的宽度合计，用于计算可用宽度 */
   reservedWidth?: number
+  /**
+   * 参与比例分配、但**不进入列设置面板**的固定列（如「操作」列）。
+   *
+   * 为什么要纳入分配：
+   *   若把操作列排除在分配之外，它的宽度会被硬扣掉，
+   *   剩余宽度再按比例分给数据列 —— 这会让「商品名称」这类
+   *   字最多的列拿到的比例被无谓压低。
+   *   把它纳入同一个权重池，表格才能真正做到
+   *   **铺满内容区 + 剩余宽度按比例分配给所有列**。
+   *
+   * 这些列不提供显隐开关与拖拽手柄（保持 fixed 定位与操作区稳定）。
+   */
+  fixedColumns?: Array<{
+    key: string
+    label: string
+    width: number
+    /** 权重，参与比例分配 */
+    weight?: number
+    /** 比例分配时的保底宽度 */
+    minWidth?: number
+    /** 比例分配时的上限 */
+    maxWidth?: number
+  }>
 }
 
 /**
@@ -167,6 +191,9 @@ export function useListColumns(options: UseListColumnsOptions) {
       cols.forEach((column) => {
         result[column.key] = column.width
       })
+      ;(options.fixedColumns ?? []).forEach((column) => {
+        result[column.key] = column.width
+      })
       return result
     }
 
@@ -175,25 +202,50 @@ export function useListColumns(options: UseListColumnsOptions) {
       Math.max(0, Math.min(column.minWidth ?? 56, capOf(column)))
     const weightOf = (column: ListColumnConfig) => Math.max(0.01, column.weight ?? 1)
 
+    // —— 参与比例分配的固定列（如「操作」列）——
+    //    它们与数据列在同一个权重池里竞争剩余宽度，
+    //    这样表格才能真正做到「铺满 + 按比例分配」。
+    const fixedCols = options.fixedColumns ?? []
+    const fixedCap = (c: (typeof fixedCols)[number]) => c.maxWidth ?? Infinity
+    const fixedFloor = (c: (typeof fixedCols)[number]) =>
+      Math.max(0, Math.min(c.minWidth ?? c.width, fixedCap(c)))
+    const fixedWeight = (c: (typeof fixedCols)[number]) => Math.max(0.01, c.weight ?? 1)
+
     // —— 基准：用户设定值（拖拽结果优先）——
     const widths: Record<string, number> = {}
     cols.forEach((column) => {
       widths[column.key] = column.width
     })
-    const baseTotal = cols.reduce((sum, column) => sum + column.width, 0)
+    fixedCols.forEach((column) => {
+      widths[column.key] = column.width
+    })
+    const baseTotal =
+      cols.reduce((sum, column) => sum + column.width, 0) +
+      fixedCols.reduce((sum, column) => sum + column.width, 0)
 
     if (baseTotal < available) {
       // —— 富余：按权重比例分配（受 maxWidth 上限约束）——
       let pending = available - baseTotal
       for (let round = 0; round < 8 && pending > 0.5; round++) {
         const active = cols.filter((column) => capOf(column) - widths[column.key] > 0.5)
-        if (!active.length) break
-        const wSum = active.reduce((sum, column) => sum + weightOf(column), 0)
+        const activeFixed = fixedCols.filter(
+          (column) => fixedCap(column) - widths[column.key] > 0.5
+        )
+        if (!active.length && !activeFixed.length) break
+        const wSum =
+          active.reduce((sum, column) => sum + weightOf(column), 0) +
+          activeFixed.reduce((sum, column) => sum + fixedWeight(column), 0)
         if (wSum <= 0) break
         let used = 0
         for (const column of active) {
           const room = capOf(column) - widths[column.key]
           const give = Math.min(room, (pending * weightOf(column)) / wSum)
+          widths[column.key] += give
+          used += give
+        }
+        for (const column of activeFixed) {
+          const room = fixedCap(column) - widths[column.key]
+          const give = Math.min(room, (pending * fixedWeight(column)) / wSum)
           widths[column.key] += give
           used += give
         }
@@ -205,13 +257,24 @@ export function useListColumns(options: UseListColumnsOptions) {
       let need = baseTotal - available
       for (let round = 0; round < 8 && need > 0.5; round++) {
         const active = cols.filter((column) => widths[column.key] - floorOf(column) > 0.5)
-        if (!active.length) break
-        const wSum = active.reduce((sum, column) => sum + weightOf(column), 0)
+        const activeFixed = fixedCols.filter(
+          (column) => widths[column.key] - fixedFloor(column) > 0.5
+        )
+        if (!active.length && !activeFixed.length) break
+        const wSum =
+          active.reduce((sum, column) => sum + weightOf(column), 0) +
+          activeFixed.reduce((sum, column) => sum + fixedWeight(column), 0)
         if (wSum <= 0) break
         let used = 0
         for (const column of active) {
           const room = widths[column.key] - floorOf(column)
           const take = Math.min(room, (need * weightOf(column)) / wSum)
+          widths[column.key] -= take
+          used += take
+        }
+        for (const column of activeFixed) {
+          const room = widths[column.key] - fixedFloor(column)
+          const take = Math.min(room, (need * fixedWeight(column)) / wSum)
           widths[column.key] -= take
           used += take
         }
@@ -283,7 +346,12 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   function columnWidth(key: string) {
-    return effectiveWidths.value[key] ?? 150
+    const computed = effectiveWidths.value[key]
+    if (typeof computed === 'number') return computed
+    // 固定列（如「操作」列）不在 columns 中，回退到其自身基准宽度
+    const fixed = (options.fixedColumns ?? []).find((column) => column.key === key)
+    if (fixed) return fixed.width
+    return 150
   }
 
   function isColumnVisible(key: string) {

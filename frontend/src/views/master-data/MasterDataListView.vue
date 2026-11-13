@@ -521,7 +521,16 @@ const catalogCols = useListColumns({
   defaults: CATALOG_COL_DEFAULTS,
   // 方案 C：混合策略 —— 字多的列（商品名称 / 规格型号 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
   fitMode: 'hybrid',
-  reservedWidth: 248 // 选择列 48 + 操作列 200
+  // 只扣除选择列 48px；「操作」列参与比例分配，宽度由权重决定
+  reservedWidth: 48,
+  // 「操作」列与数据列在同一个权重池里竞争剩余宽度，
+  // 这样表格才能真正做到「铺满内容区 + 剩余宽度按比例分配给所有列」。
+  // 权重 3 —— 操作区只有 3 个按钮（编辑 / 启用 / 删除），
+  // 实际所需约 150px，因此权重应低于「商品名称 / 生产厂家」，
+  // 避免把字多的列的空间抢走。
+  fixedColumns: [
+    { key: 'actions', label: '操作', width: 170, weight: 3, minWidth: 150, maxWidth: 210 }
+  ]
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',
@@ -2736,7 +2745,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="200" align="center" fixed="right">
+          <el-table-column label="操作" align="center" fixed="right" v-bind="catalogCols.columnBinding('actions')">
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>

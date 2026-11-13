@@ -94,18 +94,19 @@ export function useListColumns(options: UseListColumnsOptions) {
   /**
    * 计算最终生效的列宽。
    * ---------------------------------------------------------------------
-   * 自适应模式下自行分配剩余空间，而不是完全交给 Element Plus 原生 fit：
-   *   - 原生 fit 会把**全部**剩余宽度按 min-width 比例喂给弹性列，
-   *     1920px 下长文本列能涨到 446px，把「状态 / 维护来源」等短字段挤成一条缝
-   *   - 这里改为「弹性列优先吸收，但受 maxWidth 上限约束；
-   *     弹性列吃满后仍有余量，再按比例补给所有列」，
-   *     保证短字段列不会被压缩变形
-   *   - 容器变窄时，优先压缩弹性列（长文本换行即可），
-   *     而不是压缩短字段列
+   * 三种模式的语义（互斥且明确）：
    *
-   * 模式差异：
-   *   - fit    ：所有列都参与弹性分配（等同原生 fit 语义）
-   *   - hybrid ：仅 flexible 列优先吸收，其余按比例补给
+   * - fixed  ：列宽完全等于用户设定的基准值，不随视口变化。
+   *             拖拽后列宽被永久锁定，窄屏可能出现横向滚动。
+   *             「列宽完全可控」是本模式唯一的卖点。
+   *
+   * - fit    ：所有列按各自权重均分容器剩余空间，表格始终恰好铺满容器。
+   *             语义等同 Element Plus 原生 fit，但额外支持 maxWidth 上限，
+   *             可避免某个列独占富余宽度。
+   *
+   * - hybrid ：弹性列（flexible: true）优先吸收富余，但受 maxWidth 上限约束；
+   *             弹性列吃满后，剩余富余才补给其余列。
+   *             窄屏时优先压缩弹性列（长文本换行即可），短字段列保持稳定。
    */
   const effectiveWidths = computed<Record<string, number>>(() => {
     const result: Record<string, number> = {}
@@ -117,83 +118,117 @@ export function useListColumns(options: UseListColumnsOptions) {
     const base = cols.reduce((sum, column) => sum + column.width, 0)
 
     // 容器尚未测量出来时，先用基准宽度，避免首帧抖动
-    if (available <= 0) {
+    if (available <= 0 || fitMode === 'fixed') {
       cols.forEach((column) => {
         result[column.key] = column.width
       })
       return result
     }
 
-    // fit 模式下所有列都参与弹性分配；hybrid 模式下只有 flexible 列优先吸收
-    const flexibleCols = fitMode === 'fit' ? cols : cols.filter((column) => column.flexible)
-
     const widths: Record<string, number> = {}
     cols.forEach((column) => {
       widths[column.key] = column.width
     })
 
-    /** 按比例把 amount 分配到给定列上，剩余量记在最后���列 */
+    /** 按权重把 amount 分配到目标列，零头记在最后一列，保证总和精确 */
     function distribute(
       target: ListColumnConfig[],
       amount: number,
       getWeight: (column: ListColumnConfig) => number,
       apply: (column: ListColumnConfig, delta: number) => void
     ) {
+      if (!target.length || amount <= 0) return
       const weights = target.map(getWeight)
       const total = weights.reduce((sum, w) => sum + w, 0)
-      if (total <= 0 || amount <= 0) return 0
+      if (total <= 0) return
       let used = 0
       target.forEach((column, index) => {
-        const delta = index === target.length - 1 ? amount - used : Math.floor((amount * weights[index]) / total)
+        const delta =
+          index === target.length - 1 ? amount - used : Math.floor((amount * weights[index]) / total)
         used += delta
         apply(column, delta)
       })
-      return amount
+    }
+
+    /** 弹性列（hybrid 模式）或全部列（fit 模式）的可增长余量，受 maxWidth 约束 */
+    function growRoom(column: ListColumnConfig): number {
+      const cap = column.maxWidth ?? Infinity
+      return Math.max(0, cap - column.width)
     }
 
     if (available >= base) {
-      // —— 容器有余量：弹性列优先吸收（受上限约束），其余按比例补给所有列 ——
+      // —— 容器有余量 ——
       let surplus = available - base
-      const growRoom = new Map<string, number>()
-      flexibleCols.forEach((column) => {
-        const cap = column.maxWidth ?? Infinity
-        growRoom.set(column.key, Math.max(0, cap - column.width))
-      })
-      const totalRoom = flexibleCols.reduce((sum, column) => sum + (growRoom.get(column.key) ?? 0), 0)
-      if (totalRoom > 0 && surplus > 0) {
-        const used = Math.min(surplus, totalRoom)
-        flexibleCols.forEach((column) => {
-          const room = growRoom.get(column.key) ?? 0
-          widths[column.key] += totalRoom > 0 ? Math.floor((used * room) / totalRoom) : 0
-        })
-        surplus -= used
-      }
-      if (surplus > 0) {
-        // 弹性列已到上限：余量补给其余列，弹性列保持上限不变
-        const others = cols.filter((column) => !column.flexible)
-        distribute(others, surplus, (column) => widths[column.key], (column, delta) => {
-          widths[column.key] += delta
-        })
+
+      if (fitMode === 'hybrid') {
+        // 弹性列优先吸收（受上限约束）
+        const flexibleCols = cols.filter((column) => column.flexible)
+        const rooms = flexibleCols.map(growRoom)
+        const totalRoom = rooms.reduce((sum, r) => sum + r, 0)
+        if (totalRoom > 0 && surplus > 0) {
+          const used = Math.min(surplus, totalRoom)
+          flexibleCols.forEach((column, index) => {
+            widths[column.key] += totalRoom > 0 ? Math.floor((used * rooms[index]) / totalRoom) : 0
+          })
+          surplus -= used
+        }
+        if (surplus > 0) {
+          // 弹性列已到上限：富余补给其余列，弹性列保持上限不变
+          const others = cols.filter((column) => !column.flexible)
+          distribute(others, surplus, (column) => widths[column.key], (column, delta) => {
+            widths[column.key] += delta
+          })
+        }
+      } else {
+        // fit：全部列按基准宽度比例均分富余，同样受各自 maxWidth 约束
+        const capped = cols.filter((column) => column.maxWidth !== undefined)
+        const uncapped = cols.filter((column) => column.maxWidth === undefined)
+
+        // 1. 无上限的列按基准宽度比例均分
+        const uncappedBase = uncapped.reduce((sum, column) => sum + column.width, 0)
+        if (uncappedBase > 0 && surplus > 0) {
+          const used = Math.min(surplus, Math.floor((surplus * uncappedBase) / base))
+          distribute(uncapped, used, (column) => column.width, (column, delta) => {
+            widths[column.key] += delta
+          })
+          surplus -= used
+        }
+
+        // 2. 有上限的列吸收剩余富余（各自不超 maxWidth）
+        const rooms = capped.map(growRoom)
+        const totalRoom = rooms.reduce((sum, r) => sum + r, 0)
+        if (totalRoom > 0 && surplus > 0) {
+          const used = Math.min(surplus, totalRoom)
+          capped.forEach((column, index) => {
+            widths[column.key] += totalRoom > 0 ? Math.floor((used * rooms[index]) / totalRoom) : 0
+          })
+          surplus -= used
+        }
+
+        if (surplus > 0) {
+          // 全部列均已达上限：不再拉伸，表格右侧留白
+          Object.assign(result, widths)
+          return result
+        }
       }
     } else {
-      // —— 容器偏窄：先压缩弹性列（长文本换行），压缩到位后再压缩全部列 ——
+      // —— 容器偏窄：优先压缩弹性列（长文本换行即可），压缩到位后再压缩全部列 ——
       let deficit = base - available
-      const shrinkRoom = new Map<string, number>()
-      flexibleCols.forEach((column) => {
-        const floor = Math.min(column.width, column.minFlexibleWidth ?? 120)
-        shrinkRoom.set(column.key, Math.max(0, column.width - floor))
-      })
-      const totalRoom = flexibleCols.reduce((sum, column) => sum + (shrinkRoom.get(column.key) ?? 0), 0)
+      const shrinkTargets = fitMode === 'hybrid' ? cols.filter((column) => column.flexible) : cols
+      const floors = shrinkTargets.map((column) =>
+        Math.min(column.width, column.minFlexibleWidth ?? 120)
+      )
+      const rooms = shrinkTargets.map((column, index) => Math.max(0, column.width - floors[index]))
+      const totalRoom = rooms.reduce((sum, r) => sum + r, 0)
       if (totalRoom > 0 && deficit > 0) {
         const used = Math.min(deficit, totalRoom)
-        flexibleCols.forEach((column) => {
-          const room = shrinkRoom.get(column.key) ?? 0
-          widths[column.key] -= totalRoom > 0 ? Math.floor((used * room) / totalRoom) : 0
+        shrinkTargets.forEach((column, index) => {
+          widths[column.key] -= totalRoom > 0 ? Math.floor((used * rooms[index]) / totalRoom) : 0
         })
         deficit -= used
       }
       if (deficit > 0) {
-        // 弹性列已压到下限仍有缺口：按比例压缩所有列
+        // 已压到下限仍有缺口：按比例压缩所有列
         distribute(cols, deficit, (column) => widths[column.key], (column, delta) => {
           widths[column.key] = Math.max(minWidth, widths[column.key] - delta)
         })

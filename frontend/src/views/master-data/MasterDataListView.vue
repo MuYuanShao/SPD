@@ -430,26 +430,25 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
  * 科室库房目录列定义 —— 基准宽度 + 弹性上限
  * ---------------------------------------------------------------------
  * 设计原则：
- *   - 基准宽度按「表头文案 + 典型内容」定，不追求填满宽屏；
- *     列宽过大反而会把相邻列挤扁，短字段列（状态 / 维护来源）尤其明显
+ *   - 基准宽度按「表头文案 + 典型内容」定，不追求填满宽屏。
+ *     列宽过大会把相邻列挤扁，短字段列（状态 / 维护来源）尤其明显
  *   - 文字过多时由「商品名称 / 生产厂家」两列换行承载，
- *     换行是预期行为，不应靠把列拉宽来避免
+ *     换行是预期行为，不应靠拉宽列来避免
  *   - flexible 列设 maxWidth：宽屏下最多涨到上限，
  *     避免长文本列吃掉全部富余、把短字段列压成一条缝
  *
- * 基准宽度合计 1245 + 选择列 48 + 操作列 200 = 1493，
- * 在 1600px 内容区（1564px）内可完整铺开；1280px 内容区（1244px）下
- * 弹性列被压缩换行，表格不出现横向滚动。
+ * 基准宽度合计 991 + 选择列 48 + 操作列 200 = 1239，
+ * 在 1280px 内容区（1244px）内可完整铺开，无横向滚动。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 150, visible: true },
-  { key: 'productCode', label: '商品编码', width: 125, visible: true },
-  { key: 'productName', label: '商品名称', width: 200, visible: true, flexible: true, maxWidth: 300, minFlexibleWidth: 140 },
-  { key: 'spec', label: '规格型号', width: 120, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 190, visible: true, flexible: true, maxWidth: 280, minFlexibleWidth: 130 },
-  { key: 'source', label: '维护来源', width: 100, visible: true },
-  { key: 'status', label: '状态', width: 85, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 130, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 135, visible: true },
+  { key: 'productCode', label: '商品编码', width: 110, visible: true },
+  { key: 'productName', label: '商品名称', width: 185, visible: true, flexible: true, maxWidth: 260, minFlexibleWidth: 130 },
+  { key: 'spec', label: '规格型号', width: 105, visible: true },
+  { key: 'manufacturer', label: '生产厂家', width: 170, visible: true, flexible: true, maxWidth: 240, minFlexibleWidth: 120 },
+  { key: 'source', label: '维护来源', width: 90, visible: true },
+  { key: 'status', label: '状态', width: 78, visible: true },
+  { key: 'updateTime', label: '更新时间', width: 118, visible: true }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -506,8 +505,7 @@ const departmentCols = useListColumns({
 const catalogCols = useListColumns({
   storageKey: 'spd-department-warehouse-catalog-cols-v2',
   defaults: CATALOG_COL_DEFAULTS,
-  // 混合策略 —— 弹性列（商品名称 / 生产厂家）优先吸收富余但受 maxWidth 上限约束，
-  // 富余用完后剩余量才补给短字段列，避免短字段列被撑得过宽
+  // 方案 C：混合策略 —— 弹性列（商品名称 / 生产厂家）优先吸收富余但受 maxWidth 上限约束，富余用完后剩余量才补给短字段列，短字段列不会被撑得过宽。
   fitMode: 'hybrid',
   reservedWidth: 248 // 选择列 48 + 操作列 200
 })

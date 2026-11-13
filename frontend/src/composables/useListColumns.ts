@@ -35,6 +35,25 @@ export interface ListColumnConfig {
    * 不会被上限更大的列（商品名称）一直挤压而始终放不下内容。
    */
   idealWidth?: number
+  /**
+   * 该列的**宽度权重**（用于按比例铺满容器）。
+   *
+   * 权重由实测内容自然宽度排名得出（字越多权重越大），
+   * 分配可用宽度时按权重比例分配，保证表格始终铺满内容区，
+   * 且字多的列自然获得更大的份额。
+   *
+   * 权重示例（科室库房目录）：
+   *   商品名称 9 > 生产厂家 7 > 规格型号 5 > 科室/库房 3
+   *   > 更新时间 3 > 商品编码 2 > 维护来源 2 > 状态 2
+   */
+  weight?: number
+  /**
+   * 该列的**保底宽度**（px）。
+   *
+   * 按比例分配前先给每列发到保底宽度，保证短列也不会被压到
+   * 连表头都放不下的程度；剩余空间再按 weight 比例分配。
+   */
+  minWidth?: number
 }
 
 export interface UseListColumnsOptions {
@@ -79,7 +98,9 @@ export function useListColumns(options: UseListColumnsOptions) {
         flexible: fallback.flexible ?? false,
         minFlexibleWidth: fallback.minFlexibleWidth ?? (fallback.flexible ? 160 : undefined),
         maxWidth: fallback.maxWidth,
-        idealWidth: fallback.idealWidth
+        idealWidth: fallback.idealWidth,
+        weight: fallback.weight,
+        minWidth: fallback.minWidth
       }
     })
   }
@@ -104,25 +125,34 @@ export function useListColumns(options: UseListColumnsOptions) {
   const visibleColumnCount = computed(() => visibleColumns.value.length)
 
   /**
-   * 计算最终生效的列宽。
+   * 计算最终生效的列宽 —— **按权重比例铺满内容区**。
    * ---------------------------------------------------------------------
-   * 设计目标：**字少的列保持紧凑，字多的列充分展开**。
+   * 设计目标：表格默认恰好铺满内容区，不留右侧空白，也不出现横向滚动。
    *
-   * 每列都声明两个边界：
-   *   - maxWidth        ：该列可增长到的上限
-   *                       字少的列（状态 / 维护来源 / 更新时间）上限贴近实际内容，
-   *                       因此永远不会被富余空间撑成空旷的大块；
-   *                       字多的列（商品名称 / 生产厂家）上限放宽，可充分展开。
-   *   - minFlexibleWidth ：窄屏压缩时的下限
+   * 三个宽度来源，优先级从高到低：
    *
-   * 剩余空间分配：
-   *   1) 弹性列（flexible）优先吸收，按「各自剩余上限」的比例分配，
-   *      谁先到上限谁让出份额给另一个，因此长文本列自然占大头；
-   *   2) 弹性列全部到上限后，富余才补给其余列，且同样受各自上限约束。
+   * 1) **用户设定值 width** —— 用户拖拽表头调整后的宽度，最高优先级。
+   *    拖拽结果会被持久化，且不会被按比例分配覆盖。
    *
-   * 空间不足时：
-   *   1) 先压缩弹性列（长文本换行即可，用户要求「文字太多要换行」）；
-   *   2) 仍不足再按各自可压缩余量压缩其余列，避免短字段列被压扁。
+   * 2) **保底宽度 minWidth** —— 该列的可压缩下限，
+   *    保证「状态」这类短列不会被压到连内容都放不下。
+   *
+   * 3) **权重 weight** —— 分配富余空间的比例依据。
+   *    由实测内容自然宽度排名得出，字多的列权重高、自然份额大。
+   *    例如科室库房目录：
+   *      商品名称 9 > 生产厂家 7 > 规格型号 5 > 科室/库房 3
+   *      > 更新时间 3 > 商品编码 2 > 维护来源 2 > 状态 2
+   *
+   * 分配流程：
+   *   - 基准和 ≤ 可用宽度：富余按权重比例分给各列（受 maxWidth 上限约束）；
+   *   - 基准和 > 可用宽度：按权重比例压缩各列（受 minWidth 下限约束）；
+   *   - hybrid 模式下额外为未达「理想宽度」的长文本列做调剂，
+   *     从有余量的列按比例借，借多少还多少，总量始终守恒。
+   *
+   * fitMode 说明：
+   * - 'fixed'  ：列宽恒等于用户设定值，完全不随视口变化。
+   * - 'fit'    ：按上述权重比例铺满。
+   * - 'hybrid' ：同样铺满，但长文本列额外享有「理想宽度优先」。
    */
   const effectiveWidths = computed<Record<string, number>>(() => {
     const result: Record<string, number> = {}
@@ -131,7 +161,6 @@ export function useListColumns(options: UseListColumnsOptions) {
 
     const reserved = options.reservedWidth ?? 0
     const available = containerWidth.value > 0 ? containerWidth.value - reserved : 0
-    const base = cols.reduce((sum, column) => sum + column.width, 0)
 
     // 容器尚未测量出来时，先用基准宽度，避免首帧抖动
     if (available <= 0 || fitMode === 'fixed') {
@@ -141,120 +170,92 @@ export function useListColumns(options: UseListColumnsOptions) {
       return result
     }
 
+    const capOf = (column: ListColumnConfig) => column.maxWidth ?? Infinity
+    const floorOf = (column: ListColumnConfig) =>
+      Math.max(0, Math.min(column.minWidth ?? 56, capOf(column)))
+    const weightOf = (column: ListColumnConfig) => Math.max(0.01, column.weight ?? 1)
+
+    // —— 基准：用户设定值（拖拽结果优先）——
     const widths: Record<string, number> = {}
     cols.forEach((column) => {
       widths[column.key] = column.width
     })
+    const baseTotal = cols.reduce((sum, column) => sum + column.width, 0)
 
-    const capOf = (column: ListColumnConfig) => column.maxWidth ?? Infinity
-    const floorOf = (column: ListColumnConfig) =>
-      Math.min(column.width, column.minFlexibleWidth ?? 100)
-
-    /**
-     * 把 amount 分配给候选列。
-     *
-     * 两阶段：
-     *   1) **先补齐理想宽度** —— 还没到 idealWidth 的列先按需补足，
-     *      让内容能单行放下（这一步保证「规格型号」这类列不会
-     *      被上限更大的列一直挤压而始终放不下内容）；
-     *   2) **再按剩余上限比例分配** —— 都达标后，多余空间按各列
-     *      剩余可涨空间的比例分，先到上限者让出份额给其他列。
-     */
-    function grow(candidates: ListColumnConfig[], amount: number) {
-      let rest = amount
-
-      // 阶段 1：补齐理想宽度
-      for (const column of candidates) {
-        if (rest <= 0.5) break
-        const ideal = column.idealWidth
-        if (!ideal) continue
-        const target = Math.min(ideal, capOf(column))
-        const need = target - widths[column.key]
-        if (need <= 0.5) continue
-        const give = Math.min(need, rest)
-        widths[column.key] += give
-        rest -= give
-      }
-
-      // 阶段 2：按剩余上限比例分配
-      for (let round = 0; round < 8 && rest > 0.5; round++) {
-        const active = candidates.filter((column) => capOf(column) - widths[column.key] > 0.5)
+    if (baseTotal < available) {
+      // —— 富余：按权重比例分配（受 maxWidth 上限约束）——
+      let pending = available - baseTotal
+      for (let round = 0; round < 8 && pending > 0.5; round++) {
+        const active = cols.filter((column) => capOf(column) - widths[column.key] > 0.5)
         if (!active.length) break
-        const totalRoom = active.reduce((sum, column) => sum + (capOf(column) - widths[column.key]), 0)
-        if (totalRoom <= 0) break
+        const wSum = active.reduce((sum, column) => sum + weightOf(column), 0)
+        if (wSum <= 0) break
         let used = 0
         for (const column of active) {
           const room = capOf(column) - widths[column.key]
-          const give = Math.min(room, (rest * room) / totalRoom)
+          const give = Math.min(room, (pending * weightOf(column)) / wSum)
           widths[column.key] += give
           used += give
         }
-        rest -= used
+        pending -= used
         if (used < 0.5) break
       }
-      return amount - rest
-    }
-
-    /**
-     * 从 candidates 压缩 amount，按「各自可压缩余量」的比例分配，
-     * 谁先到下限谁让出份额，避免某一列被压扁。
-     */
-    function shrink(candidates: ListColumnConfig[], amount: number) {
-      let rest = amount
-      for (let round = 0; round < 8 && rest > 0.5; round++) {
-        const active = candidates.filter((column) => widths[column.key] - floorOf(column) > 0.5)
+    } else if (baseTotal > available) {
+      // —— 不足：按权重比例压缩（受 minWidth 下限约束）——
+      let need = baseTotal - available
+      for (let round = 0; round < 8 && need > 0.5; round++) {
+        const active = cols.filter((column) => widths[column.key] - floorOf(column) > 0.5)
         if (!active.length) break
-        const totalRoom = active.reduce((sum, column) => sum + (widths[column.key] - floorOf(column)), 0)
-        if (totalRoom <= 0) break
+        const wSum = active.reduce((sum, column) => sum + weightOf(column), 0)
+        if (wSum <= 0) break
         let used = 0
         for (const column of active) {
           const room = widths[column.key] - floorOf(column)
-          const take = Math.min(room, (rest * room) / totalRoom)
+          const take = Math.min(room, (need * weightOf(column)) / wSum)
           widths[column.key] -= take
           used += take
         }
-        rest -= used
+        need -= used
         if (used < 0.5) break
       }
-      return amount - rest
     }
 
-    if (available >= base) {
-      // —— 容器有余量：字多的列优先吸收 ——
-      let surplus = available - base
-      const flexibleCols = cols.filter((column) => column.flexible)
-      if (fitMode === 'hybrid') {
-        // 混合策略：弹性列（字多的列）绝对优先，先吃满上限，
-        // 富余用完后才轮到其余列 —— 字少的列拿到的是「残羹」。
-        surplus -= grow(flexibleCols, surplus)
-      } else {
-        // 自适应填充：所有列一起按「各自剩余上限」的比例增长。
-        // 由于字多的列上限本来就大，它自然拿到更多，
-        // 但没有优先级之分，因此短列也会同步变宽。
-        grow(cols, surplus)
-        surplus = 0
-      }
-      if (surplus > 0.5) {
-        // 弹性列到上限后，富余补给其余列（同样受各自上限约束）
-        const others = cols.filter((column) => !column.flexible)
-        grow(others, surplus)
-      }
-    } else {
-      // —— 容器偏窄：先压弹性列（长文本换行），再压其余列 ——
-      let deficit = base - available
-      const flexibleCols = cols.filter((column) => column.flexible)
-      if (fitMode === 'hybrid') {
-        // 混合策略：优先牺牲字多的列（换行即可），短列尽量保持原宽
-        deficit -= shrink(flexibleCols, deficit)
-      } else {
-        // 自适应填充：所有列一起压缩
-        deficit -= shrink(cols, deficit)
-      }
-      if (deficit > 0.5) {
-        shrink(
-          cols.filter((column) => !column.flexible),
-          deficit
-        )
+    // —— hybrid：为未达「理想宽度」的长文本列做调剂 ——
+    //    场景：规格型号内容确实很长（P90 188px），但权重排名不是最高，
+    //    按比例分到的宽度可能仍放不下内容。
+    //    从「还有余量」的列按权重比例借给它，借多少还多少，总量守恒。
+    if (fitMode === 'hybrid') {
+      for (const column of cols) {
+        if (!column.flexible || !column.idealWidth) continue
+        const target = Math.min(column.idealWidth, capOf(column))
+        let need = target - widths[column.key]
+        if (need <= 0.5) continue
+
+        // 出借方：还有余量（超过自己的理想宽度或保底）且未到上限
+        const lenders = cols.filter((c) => {
+          if (c.key === column.key) return false
+          const lenderIdeal =
+            c.flexible && c.idealWidth ? Math.min(c.idealWidth, capOf(c)) : floorOf(c)
+          const spare = widths[c.key] - lenderIdeal
+          return spare > 0.5 && capOf(c) - widths[c.key] > 0.5
+        })
+        if (!lenders.length) continue
+
+        const lenderWeight = lenders.reduce((sum, c) => sum + weightOf(c), 0)
+        if (lenderWeight <= 0) continue
+
+        for (const lender of lenders) {
+          const lenderIdeal =
+            lender.flexible && lender.idealWidth
+              ? Math.min(lender.idealWidth, capOf(lender))
+              : floorOf(lender)
+          const spare = widths[lender.key] - lenderIdeal
+          if (spare <= 0.5) continue
+          const give = Math.min(need, spare, (need * weightOf(lender)) / lenderWeight)
+          widths[lender.key] -= give
+          widths[column.key] += give
+          need -= give
+        }
       }
     }
 

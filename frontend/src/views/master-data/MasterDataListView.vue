@@ -427,48 +427,42 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义 —— 由实测内容宽度求解得出，而非拍脑袋
+ * 科室库房目录列定义 —— 按实测内容排名得到的权重比例分配
  * ---------------------------------------------------------------------
- * 求解过程（脚本 output/solve-all.cjs）：
- *   1) 用 canvas 按真实字体量出每一行内容的自然宽度；
- *   2) 以「给定内容区宽度下，换行最少」为目标做局部搜索，
- *      优先级为 商品名称 > 规格型号 > 生产厂家 > 其余；
- *   3) 取 1280px 的解作基准，各视口解的最大值作上限。
+ * 列宽不是拍脑袋定的，而是用 canvas 按真实字体量出每列内容的自然宽度，
+ * 再据此排出名次、换算成权重，最后按权重比例铺满内容区。
  *
- *   列            内容P90   base   ideal   max    min
- *   科室 / 库房       156    156    —      160   118
- *   商品编码          132    132    —      136    96
- *   商品名称          789    162    300    482   130   ← 弹性
- *   规格型号          188    122    188    188   108   ← 弹性
- *   生产厂家          464    136    280    296   110   ← 弹性
- *   维护来源           56     78    —      88    76
- *   状态              28     62    —      70    60
- *   更新时间          148    148    —      158   146
+ *   排名  列              内容P90   权重   保底   基准   上限
+ *    1   商品名称             789     9     104     171     560
+    2   生产厂家             464     7     104     156     420
+    3   规格型号             188     5     104     141     280
+    4   科室 / 库房          156     3     119     141     175
+    5   更新时间             148     3     104     126     175
+    6   商品编码             132     2     104     119     150
+    7   维护来源              56     2      56      71     105
+    8   状态                28     2      56      71      92
  *
- * 三个宽度概念：
- *   - base        窄屏起点（合计 996，+ 固定列 248 = 1244，恰好铺满 1280 内容区）
- *   - idealWidth  内容单行放下所需的宽度（实测得出），弹性列用
- *   - maxWidth    可增长到的上限
+ * 分配机制（useListColumns.ts → effectiveWidths）：
+ *   1. 先给每列发「保底宽度」，短列不会被压到放不下表头；
+ *   2. 剩余空间按「权重」比例分配 —— 字多的列权重高，自然份额大；
+ *   3. 某列超过上限时把超出部分回收，重新分给还有空间的列。
  *
- * 分配顺序：**先补齐 idealWidth，再按剩余上限比例分配**。
- *   这是「规格型号」不再被挤压的关键 ——
- *   它的实测 P90 是 188px（"500ml 棕色瓶装" 这类 15 字符规格），
- *   之前压到 116px 会触发 show-overflow-tooltip 省略号截断。
- *   先补齐理想宽度后它能完整显示，多余空间再由商品名/厂家分走。
+ * 结果：表格默认**恰好铺满内容区**，右侧不留空白、也不出现横向滚动；
+ * 同时「状态」「维护来源」这类字少的列只拿到与其内容匹配的宽度，
+ * 不会像早期版本那样被撑成 139–241px 的空旷大块。
  *
- * 规则仍是：**字多的列给足空间，字少的列保持紧凑**。
- *   状态 / 维护来源 的上限贴近实际内容（70 / 88），
- *   任何视口下都不留大片空白。
+ * 基准合计 996（+ 选择列 48 + 操作列 200 = 1244），
+ * 恰好等于 1280px 内容区宽度。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 156, visible: true, maxWidth: 160, minFlexibleWidth: 118 },
-  { key: 'productCode', label: '商品编码', width: 132, visible: true, maxWidth: 136, minFlexibleWidth: 96 },
-  { key: 'productName', label: '商品名称', width: 162, visible: true, flexible: true, idealWidth: 300, maxWidth: 482, minFlexibleWidth: 130 },
-  { key: 'spec', label: '规格型号', width: 122, visible: true, flexible: true, idealWidth: 188, maxWidth: 188, minFlexibleWidth: 108 },
-  { key: 'manufacturer', label: '生产厂家', width: 136, visible: true, flexible: true, idealWidth: 280, maxWidth: 296, minFlexibleWidth: 110 },
-  { key: 'source', label: '维护来源', width: 78, visible: true, maxWidth: 88, minFlexibleWidth: 76 },
-  { key: 'status', label: '状态', width: 62, visible: true, maxWidth: 70, minFlexibleWidth: 60 },
-  { key: 'updateTime', label: '更新时间', width: 148, visible: true, maxWidth: 158, minFlexibleWidth: 146 }
+  { key: 'scope', label: '科室 / 库房', width: 141, visible: true, weight: 3, minWidth: 119, maxWidth: 175 },
+  { key: 'productCode', label: '商品编码', width: 119, visible: true, weight: 2, minWidth: 104, maxWidth: 150 },
+  { key: 'productName', label: '商品名称', width: 171, visible: true, flexible: true, idealWidth: 300, weight: 9, minWidth: 104, maxWidth: 560 },
+  { key: 'spec', label: '规格型号', width: 141, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'manufacturer', label: '生产厂家', width: 156, visible: true, flexible: true, idealWidth: 280, weight: 7, minWidth: 104, maxWidth: 420 },
+  { key: 'source', label: '维护来源', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 105 },
+  { key: 'status', label: '状态', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 92 },
+  { key: 'updateTime', label: '更新时间', width: 126, visible: true, weight: 3, minWidth: 104, maxWidth: 175 }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [

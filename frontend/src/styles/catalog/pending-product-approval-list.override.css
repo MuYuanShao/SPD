@@ -1868,10 +1868,11 @@ body .column-settings-dialog.column-settings-dialog {
   white-space: nowrap;
 }
 
-/* 表头内容：文字与列宽拖拽手柄
-   手柄使用普通 inline 元素（非绝对定位），保证鼠标命中区域可靠 */
-.approval-wide-table th:has(> .ulc-col-grip) {
-  padding-right: 18px !important;
+/* 表头内容：文字与列宽拖拽热区
+   热区贴在列的标准右边框上（绝对定位），拖拽时只改变列宽，
+   不新增任何可见线条，表头分割线与下方各行的列分隔线始终完全对齐。 */
+.approval-wide-table th {
+  position: relative;
 }
 
 .approval-wide-table th > .ulc-th-text {
@@ -1882,22 +1883,19 @@ body .column-settings-dialog.column-settings-dialog {
   text-overflow: ellipsis;
 }
 
-.approval-wide-table th > .ulc-col-grip {
-  display: inline-block;
-  vertical-align: middle;
+.approval-wide-table th > .ulc-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
   width: 8px;
-  height: 18px;
-  margin-left: 6px;
-  border-radius: 3px;
+  height: 100%;
   cursor: col-resize;
-  opacity: 0.6;
-  background: rgba(255, 255, 255, 0.32);
-  transition: opacity 0.15s ease, background 0.15s ease;
+  background: transparent;
+  transition: background 0.15s ease;
 }
 
-.approval-wide-table th > .ulc-col-grip:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.55);
+.approval-wide-table th > .ulc-col-resizer:hover {
+  background: rgba(255, 255, 255, 0.45);
 }
 
 thead .approval-sticky-check,

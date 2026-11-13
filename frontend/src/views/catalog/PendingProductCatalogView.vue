@@ -777,70 +777,92 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <th class="approval-col-no">审批单号</th>
                 <th class="approval-col-product">商品名称 / 规格</th>
                 <th v-if="isColVisible('type')" :style="{ width: approvalColWidth('type') + 'px' }">
-                  <span class="ulc-th-text">申请类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('type', $event)" />
+                  <span class="ulc-th-text">申请类型</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('type', $event)" />
                 </th>
                 <th v-if="isColVisible('applicant')" :style="{ width: approvalColWidth('applicant') + 'px' }">
-                  <span class="ulc-th-text">申请人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('applicant', $event)" />
+                  <span class="ulc-th-text">申请人</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('applicant', $event)" />
                 </th>
                 <th v-if="isColVisible('time')" :style="{ width: approvalColWidth('time') + 'px' }">
-                  <span class="ulc-th-text">提交时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
+                  <span class="ulc-th-text">提交时间</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
                 </th>
                 <th v-if="isColVisible('productCode')" :style="{ width: approvalColWidth('productCode') + 'px' }">
-                  <span class="ulc-th-text">商品编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('productCode', $event)" />
+                  <span class="ulc-th-text">商品编码</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('productCode', $event)" />
                 </th>
                 <th v-if="isColVisible('specModel')" :style="{ width: approvalColWidth('specModel') + 'px' }">
-                  <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('specModel', $event)" />
+                  <span class="ulc-th-text">规格型号</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('specModel', $event)" />
                 </th>
                 <th v-if="isColVisible('supplier')" :style="{ width: approvalColWidth('supplier') + 'px' }">
-                  <span class="ulc-th-text">供应商</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('supplier', $event)" />
+                  <span class="ulc-th-text">供应商</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('supplier', $event)" />
                 </th>
                 <th v-if="isColVisible('manufacturer')" :style="{ width: approvalColWidth('manufacturer') + 'px' }">
-                  <span class="ulc-th-text">厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('manufacturer', $event)" />
+                  <span class="ulc-th-text">厂家</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('manufacturer', $event)" />
                 </th>
                 <th v-if="isColVisible('registrationNo')" :style="{ width: approvalColWidth('registrationNo') + 'px' }">
-                  <span class="ulc-th-text">注册证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('registrationNo', $event)" />
+                  <span class="ulc-th-text">注册证号</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('registrationNo', $event)" />
                 </th>
                 <th v-if="isColVisible('contractCode')" :style="{ width: approvalColWidth('contractCode') + 'px' }">
-                  <span class="ulc-th-text">合同编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('contractCode', $event)" />
+                  <span class="ulc-th-text">合同编码</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('contractCode', $event)" />
                 </th>
                 <th v-if="isColVisible('firstCategory')" :style="{ width: approvalColWidth('firstCategory') + 'px' }">
-                  <span class="ulc-th-text">一级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('firstCategory', $event)" />
+                  <span class="ulc-th-text">一级分类</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('firstCategory', $event)" />
                 </th>
                 <th v-if="isColVisible('secondCategory')" :style="{ width: approvalColWidth('secondCategory') + 'px' }">
-                  <span class="ulc-th-text">二级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('secondCategory', $event)" />
+                  <span class="ulc-th-text">二级分类</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('secondCategory', $event)" />
                 </th>
                 <th v-if="isColVisible('thirdCategory')" :style="{ width: approvalColWidth('thirdCategory') + 'px' }">
-                  <span class="ulc-th-text">三级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('thirdCategory', $event)" />
+                  <span class="ulc-th-text">三级分类</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('thirdCategory', $event)" />
                 </th>
                 <th v-if="isColVisible('volumeBased')" :style="{ width: approvalColWidth('volumeBased') + 'px' }">
-                  <span class="ulc-th-text">是否带量</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('volumeBased', $event)" />
+                  <span class="ulc-th-text">是否带量</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('volumeBased', $event)" />
                 </th>
                 <th v-if="isColVisible('centralized')" :style="{ width: approvalColWidth('centralized') + 'px' }">
-                  <span class="ulc-th-text">是否集采</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('centralized', $event)" />
+                  <span class="ulc-th-text">是否集采</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('centralized', $event)" />
                 </th>
                 <th v-if="isColVisible('domestic')" :style="{ width: approvalColWidth('domestic') + 'px' }">
-                  <span class="ulc-th-text">是否国产</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('domestic', $event)" />
+                  <span class="ulc-th-text">是否国产</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('domestic', $event)" />
                 </th>
                 <th v-if="isColVisible('chargeable')" :style="{ width: approvalColWidth('chargeable') + 'px' }">
-                  <span class="ulc-th-text">是否收费</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('chargeable', $event)" />
+                  <span class="ulc-th-text">是否收费</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('chargeable', $event)" />
                 </th>
                 <th v-if="isColVisible('keyMonitored')" :style="{ width: approvalColWidth('keyMonitored') + 'px' }">
-                  <span class="ulc-th-text">重点监控</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('keyMonitored', $event)" />
+                  <span class="ulc-th-text">重点监控</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('keyMonitored', $event)" />
                 </th>
                 <th v-if="isColVisible('purchasePrice')" :style="{ width: approvalColWidth('purchasePrice') + 'px' }">
-                  <span class="ulc-th-text">采购价</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('purchasePrice', $event)" />
+                  <span class="ulc-th-text">采购价</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('purchasePrice', $event)" />
                 </th>
                 <th v-if="isColVisible('udiCode')" :style="{ width: approvalColWidth('udiCode') + 'px' }">
-                  <span class="ulc-th-text">UDI 编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('udiCode', $event)" />
+                  <span class="ulc-th-text">UDI 编码</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('udiCode', $event)" />
                 </th>
                 <th v-if="isColVisible('risk')" :style="{ width: approvalColWidth('risk') + 'px' }">
-                  <span class="ulc-th-text">风险标签</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('risk', $event)" />
+                  <span class="ulc-th-text">风险标签</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('risk', $event)" />
                 </th>
                 <th v-if="isColVisible('wait')" :style="{ width: approvalColWidth('wait') + 'px' }">
-                  <span class="ulc-th-text">节点 / 等待</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('wait', $event)" />
+                  <span class="ulc-th-text">节点 / 等待</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('wait', $event)" />
                 </th>
                 <th v-if="isColVisible('changeSummary')" :style="{ width: approvalColWidth('changeSummary') + 'px' }">
-                  <span class="ulc-th-text">变更记录</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('changeSummary', $event)" />
+                  <span class="ulc-th-text">变更记录</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('changeSummary', $event)" />
                 </th>
                 <th class="approval-sticky-action">操作</th>
               </tr>

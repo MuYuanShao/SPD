@@ -389,7 +389,6 @@ const licenseTableRef = licenseCols.tableRef
 
 const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
 const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
-const startLicenseColDrag = (key: string, event: MouseEvent) => licenseCols.startColumnDrag(key, event)
 
 /** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
 function licenseStatusChipClass(row: LicenseRow) {
@@ -509,15 +508,17 @@ onUnmounted(closePreview)
         stripe
         style="width: 100%"
         :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
-      >
+      
+        @header-dragend="(width: number, oldWidth: number, column: any) => licenseCols.handleHeaderDragEnd(width, oldWidth, column)">
         <el-table-column
+            column-key="licenseName"
           v-if="isLicenseColVisible('licenseName')"
           label="证照名称"
           :min-width="licenseColWidth('licenseName')"
           show-overflow-tooltip
         >
           <template #header>
-            <span class="ulc-th-text">证照名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseName', $event)" />
+            <span class="ulc-th-text">证照名称</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
@@ -527,26 +528,28 @@ onUnmounted(closePreview)
           </template>
         </el-table-column>
         <el-table-column
+            column-key="licenseNo"
           v-if="isLicenseColVisible('licenseNo')"
           :label="isContract ? '合同编号' : '证照编号'"
           :min-width="licenseColWidth('licenseNo')"
           show-overflow-tooltip
         >
           <template #header>
-            <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseNo', $event)" />
+            <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="owner"
           v-if="isLicenseColVisible('owner')"
           :label="isContract ? '合同双方' : activeTabInfo.ownerLabel"
           :min-width="licenseColWidth('owner')"
           show-overflow-tooltip
         >
           <template #header>
-            <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('owner', $event)" />
+            <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
@@ -556,39 +559,42 @@ onUnmounted(closePreview)
           </template>
         </el-table-column>
         <el-table-column
+            column-key="issueDate"
           v-if="isLicenseColVisible('issueDate')"
           :label="licenseIssueHeader()"
           :min-width="licenseColWidth('issueDate')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">{{ licenseIssueHeader() }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('issueDate', $event)" />
+            <span class="ulc-th-text">{{ licenseIssueHeader() }}</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-strong">{{ licenseIssueValue(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="expireDate"
           v-if="isLicenseColVisible('expireDate')"
           label="有效期至"
           :min-width="licenseColWidth('expireDate')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">有效期至</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('expireDate', $event)" />
+            <span class="ulc-th-text">有效期至</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.expireDate || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="status"
           v-if="isLicenseColVisible('status')"
           label="状态"
           :min-width="licenseColWidth('status')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('status', $event)" />
+            <span class="ulc-th-text">状态</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-chip" :class="licenseStatusChipClass(row)">
@@ -597,13 +603,14 @@ onUnmounted(closePreview)
           </template>
         </el-table-column>
         <el-table-column
+            column-key="attachmentCount"
           v-if="isLicenseColVisible('attachmentCount')"
           label="附件"
           :min-width="licenseColWidth('attachmentCount')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">附件</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('attachmentCount', $event)" />
+            <span class="ulc-th-text">附件</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-tag">{{ row.attachmentCount ?? 0 }}</span>

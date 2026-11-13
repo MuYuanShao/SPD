@@ -79,36 +79,27 @@
 }
 
 /* 表头拖拽手柄：仅在 hover 时显示，视觉克制 */
-.spd-unified-list .ulc-table .el-table__header th.el-table__cell .cell:has(.ulc-col-grip) {
-  overflow: visible;
-  padding-right: 12px;
+.spd-unified-list .ulc-table .el-table__header th.el-table__cell {
+  position: relative;
 }
 
-.spd-unified-list .ulc-col-grip {
-  flex: none;
+/* ===== 表头列宽拖拽热区 =====
+   说明：不使用额外的「可见拖拽手柄」，避免出现与表格边框错位的特殊分割线。
+   这里只在表头单元格的右侧标准边框位置放一个透明的 8px 热区，
+   鼠标悬停在标准边框上即出现 col-resize 光标，
+   拖拽调整的仍然是标准表格边框，分隔线天然与下方行的列分隔线完全对齐。 */
+.spd-unified-list .ulc-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
   width: 8px;
-  height: 18px;
-  margin-right: -10px;
-  border-radius: 3px;
-  cursor: col-resize;
-  opacity: 0.55;
-  transition: opacity 0.15s ease, background 0.15s ease;
-}
-
-.spd-unified-list .ulc-col-grip::after {
-  content: "";
-  display: block;
-  width: 2px;
   height: 100%;
-  margin: 0 auto;
-  border-radius: 2px;
-  background: currentColor;
-  opacity: 0.7;
+  cursor: col-resize;
+  z-index: 2;
 }
 
-.spd-unified-list .ulc-table .el-table__header th.el-table__cell:hover .ulc-col-grip {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.22);
+.spd-unified-list .ulc-col-resizer:hover {
+  background: color-mix(in srgb, var(--ulc-primary) 45%, #ffffff);
 }
 
 /* 单元格：全部居中 */
@@ -162,6 +153,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: center;
 }
 
 .spd-unified-list .ulc-cell-stack {

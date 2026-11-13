@@ -167,7 +167,13 @@ export function useListColumns(options: UseListColumnsOptions) {
   let resizeObserver: ResizeObserver | null = null
   let dragState: { key: string; startX: number; startWidth: number } | null = null
 
-  /** 表头列分隔线拖拽（仅表头可见拖拽手柄） */
+  /**
+   * 列宽拖拽（供原生 HTML 表格使用）。
+   * ---------------------------------------------------------------------
+   * 拖拽热区放在列的标准右边框上（透明元素覆盖在边框位置），
+   * 拖拽时只改变列宽，不新增任何可见线条，
+   * 因此表头分割线始终与下方各行的列分隔线完全对齐。
+   */
   function startColumnDrag(key: string, event: MouseEvent) {
     const column = columns.value.find((item) => item.key === key)
     if (!column) return
@@ -194,6 +200,33 @@ export function useListColumns(options: UseListColumnsOptions) {
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
+  }
+
+  /**
+   * 表头列宽拖拽结束回调（Element Plus 原生 resizable 机制）。
+   * ---------------------------------------------------------------------
+   * 使用 Element Plus 原生的表头边框拖拽，而不是自定义可见手柄：
+   * 原生拖拽的热区就在列的标准右边框上，拖拽时显示的竖线与表格
+   * 各行之间的列分隔线完全重合，不会出现错位的「特别分割线」。
+   *
+   * @param newWidth 拖拽后的新列宽（px）
+   * @param _oldWidth 拖拽前的列宽（px）
+   * @param column   被拖拽的列，通过 columnKey 映射回本地列配置
+   */
+  function handleHeaderDragEnd(
+    newWidth: number,
+    _oldWidth: number,
+    column: { columnKey?: string } | null
+  ) {
+    const key = column?.columnKey
+    if (!key) return
+    const target = columns.value.find((item) => item.key === key)
+    if (!target) return
+    const width = Math.round(Number(newWidth))
+    if (!Number.isFinite(width) || width <= 0) return
+    target.width = Math.min(maxWidth, Math.max(minWidth, width))
+    persist()
+    syncLayout()
   }
 
   function handleWindowResize() {
@@ -238,6 +271,7 @@ export function useListColumns(options: UseListColumnsOptions) {
     persist,
     syncLayout,
     measureContainer,
-    startColumnDrag
+    startColumnDrag,
+    handleHeaderDragEnd
   }
 }

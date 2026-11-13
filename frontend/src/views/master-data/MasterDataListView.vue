@@ -395,7 +395,6 @@ const hospitalColSettingsOpen = hospitalCols.settingsOpen
 const visibleHospitalCols = hospitalCols.visibleColumns
 const isHospitalColVisible = (key: string) => hospitalCols.isColumnVisible(key)
 const colWidth = (key: string) => hospitalCols.columnWidth(key)
-const startHospitalColDrag = (key: string, ev: MouseEvent) => hospitalCols.startColumnDrag(key, ev)
 function onHospitalSelectionChange(selection: Array<Record<string, unknown>>) {
   selectedCodes.value = selection.map((row) => String((row as Record<string, unknown>).code))
 }
@@ -534,27 +533,21 @@ const manufacturerTableRef = manufacturerCols.tableRef
 
 const isDepartmentColVisible = (key: string) => departmentCols.isColumnVisible(key)
 const departmentColWidth = (key: string) => departmentCols.columnWidth(key)
-const startDepartmentColDrag = (key: string, event: MouseEvent) => departmentCols.startColumnDrag(key, event)
 
 const isCatalogColVisible = (key: string) => catalogCols.isColumnVisible(key)
 const catalogColWidth = (key: string) => catalogCols.columnWidth(key)
-const startCatalogColDrag = (key: string, event: MouseEvent) => catalogCols.startColumnDrag(key, event)
 
 const isWarehouseColVisible = (key: string) => warehouseCols.isColumnVisible(key)
 const warehouseColWidth = (key: string) => warehouseCols.columnWidth(key)
-const startWarehouseColDrag = (key: string, event: MouseEvent) => warehouseCols.startColumnDrag(key, event)
 
 const isCampusColVisible = (key: string) => campusCols.isColumnVisible(key)
 const campusColWidth = (key: string) => campusCols.columnWidth(key)
-const startCampusColDrag = (key: string, event: MouseEvent) => campusCols.startColumnDrag(key, event)
 
 const isSupplierColVisible = (key: string) => supplierCols.isColumnVisible(key)
 const supplierColWidth = (key: string) => supplierCols.columnWidth(key)
-const startSupplierColDrag = (key: string, event: MouseEvent) => supplierCols.startColumnDrag(key, event)
 
 const isManufacturerColVisible = (key: string) => manufacturerCols.isColumnVisible(key)
 const manufacturerColWidth = (key: string) => manufacturerCols.columnWidth(key)
-const startManufacturerColDrag = (key: string, event: MouseEvent) => manufacturerCols.startColumnDrag(key, event)
 
 /**
  * 维护来源状态条配色：不同来源用不同颜色区分。
@@ -871,15 +864,17 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => hospitalCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="product"
               v-if="isHospitalColVisible('product')"
               label="商品 / 编码"
               :min-width="colWidth('product')"
             >
               <template #header>
-                <span class="ulc-th-text">商品 / 编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('product', $event)" />
+                <span class="ulc-th-text">商品 / 编码</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -892,6 +887,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="spec"
               v-if="isHospitalColVisible('spec')"
               label="规格型号"
               prop="spec"
@@ -899,17 +895,18 @@ function warehouseFlagChipClass(enabled: unknown) {
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('spec', $event)" />
+                <span class="ulc-th-text">规格型号</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="vendor"
               v-if="isHospitalColVisible('vendor')"
               label="厂家 / 供应商"
               :min-width="colWidth('vendor')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">厂家 / 供应商</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('vendor', $event)" />
+                <span class="ulc-th-text">厂家 / 供应商</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -919,13 +916,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="price"
               v-if="isHospitalColVisible('price')"
               label="单价"
               :min-width="colWidth('price')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">单价</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('price', $event)" />
+                <span class="ulc-th-text">单价</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -935,13 +933,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isHospitalColVisible('status')"
               label="状态"
               :min-width="colWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="String((row as Record<string, unknown>).status) === '启用' ? 'is-success' : 'is-danger'">
@@ -1523,80 +1522,87 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的供应商"
             @selection-change="onSupplierSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => supplierCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isSupplierColVisible('code')"
               label="供应商编码"
               :min-width="supplierColWidth('code')"
             >
               <template #header>
-                <span class="ulc-th-text">供应商编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('code', $event)" />
+                <span class="ulc-th-text">供应商编码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isSupplierColVisible('name')"
               label="供应商名称"
               :min-width="supplierColWidth('name')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">供应商名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('name', $event)" />
+                <span class="ulc-th-text">供应商名称</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="creditCode"
               v-if="isSupplierColVisible('creditCode')"
               label="统一社会信用代码"
               :min-width="supplierColWidth('creditCode')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">统一社会信用代码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('creditCode', $event)" />
+                <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="businessLicenseNo"
               v-if="isSupplierColVisible('businessLicenseNo')"
               label="经营许可证号"
               :min-width="supplierColWidth('businessLicenseNo')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">经营许可证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('businessLicenseNo', $event)" />
+                <span class="ulc-th-text">经营许可证号</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.businessLicenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="type"
               v-if="isSupplierColVisible('type')"
               label="类型"
               :min-width="supplierColWidth('type')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('type', $event)" />
+                <span class="ulc-th-text">类型</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.type || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="grade"
               v-if="isSupplierColVisible('grade')"
               label="等级"
               :min-width="supplierColWidth('grade')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">等级</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('grade', $event)" />
+                <span class="ulc-th-text">等级</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="row.grade && row.grade !== '-' ? 'is-primary' : 'is-neutral'">
@@ -1605,12 +1611,13 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="contact"
               v-if="isSupplierColVisible('contact')"
               label="联系人"
               :min-width="supplierColWidth('contact')"
             >
               <template #header>
-                <span class="ulc-th-text">联系人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('contact', $event)" />
+                <span class="ulc-th-text">联系人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -1620,39 +1627,42 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="email"
               v-if="isSupplierColVisible('email')"
               label="邮箱"
               :min-width="supplierColWidth('email')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">邮箱</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('email', $event)" />
+                <span class="ulc-th-text">邮箱</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.email || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isSupplierColVisible('address')"
               label="地址"
               :min-width="supplierColWidth('address')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('address', $event)" />
+                <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isSupplierColVisible('status')"
               label="状态"
               :min-width="supplierColWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -1805,66 +1815,72 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的厂家"
             @selection-change="onManufacturerSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => manufacturerCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isManufacturerColVisible('code')"
               label="厂家编码"
               :min-width="manufacturerColWidth('code')"
             >
               <template #header>
-                <span class="ulc-th-text">厂家编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('code', $event)" />
+                <span class="ulc-th-text">厂家编码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isManufacturerColVisible('name')"
               label="厂家名称"
               :min-width="manufacturerColWidth('name')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">厂家名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('name', $event)" />
+                <span class="ulc-th-text">厂家名称</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="creditCode"
               v-if="isManufacturerColVisible('creditCode')"
               label="统一社会信用代码"
               :min-width="manufacturerColWidth('creditCode')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">统一社会信用代码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('creditCode', $event)" />
+                <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="licenseNo"
               v-if="isManufacturerColVisible('licenseNo')"
               label="生产许可证号"
               :min-width="manufacturerColWidth('licenseNo')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">生产许可证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('licenseNo', $event)" />
+                <span class="ulc-th-text">生产许可证号</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="contact"
               v-if="isManufacturerColVisible('contact')"
               label="联系人"
               :min-width="manufacturerColWidth('contact')"
             >
               <template #header>
-                <span class="ulc-th-text">联系人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('contact', $event)" />
+                <span class="ulc-th-text">联系人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -1874,26 +1890,28 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isManufacturerColVisible('address')"
               label="地址"
               :min-width="manufacturerColWidth('address')"
               show-overflow-to-toololtip
             >
               <template #header>
-                <span class="ulc-th-text">地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('address', $event)" />
+                <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isManufacturerColVisible('status')"
               label="状态"
               :min-width="manufacturerColWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -2020,28 +2038,31 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的院区"
             @selection-change="onCampusSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => campusCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isCampusColVisible('code')"
               label="院区编码"
               :min-width="campusColWidth('code')"
             >
               <template #header>
-                <span class="ulc-th-text">院区编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('code', $event)" />
+                <span class="ulc-th-text">院区编码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isCampusColVisible('name')"
               label="院区名称"
               :min-width="campusColWidth('name')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">院区名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('name', $event)" />
+                <span class="ulc-th-text">院区名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2051,25 +2072,27 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isCampusColVisible('address')"
               label="院区地址"
               :min-width="campusColWidth('address')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">院区地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('address', $event)" />
+                <span class="ulc-th-text">院区地址</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="manager"
               v-if="isCampusColVisible('manager')"
               label="负责人"
               :min-width="campusColWidth('manager')"
             >
               <template #header>
-                <span class="ulc-th-text">负责人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('manager', $event)" />
+                <span class="ulc-th-text">负责人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2079,26 +2102,28 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="sortOrder"
               v-if="isCampusColVisible('sortOrder')"
               label="排序"
               :min-width="campusColWidth('sortOrder')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">排序</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('sortOrder', $event)" />
+                <span class="ulc-th-text">排序</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.sortOrder ?? 0 }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isCampusColVisible('status')"
               label="状态"
               :min-width="campusColWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -2107,13 +2132,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isCampusColVisible('updateTime')"
               label="修改时间"
               :min-width="campusColWidth('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
@@ -2276,28 +2302,31 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的科室"
             @selection-change="onDepartmentSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => departmentCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isDepartmentColVisible('code')"
               label="科室编码"
               :min-width="departmentColWidth('code')"
             >
               <template #header>
-                <span class="ulc-th-text">科室编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('code', $event)" />
+                <span class="ulc-th-text">科室编码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isDepartmentColVisible('name')"
               label="科室名称"
               :min-width="departmentColWidth('name')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">科室名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('name', $event)" />
+                <span class="ulc-th-text">科室名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2307,12 +2336,13 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="org"
               v-if="isDepartmentColVisible('org')"
               label="组织归属"
               :min-width="departmentColWidth('org')"
             >
               <template #header>
-                <span class="ulc-th-text">组织归属</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('org', $event)" />
+                <span class="ulc-th-text">组织归属</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2325,12 +2355,13 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="finance"
               v-if="isDepartmentColVisible('finance')"
               label="财务科室映射"
               :min-width="departmentColWidth('finance')"
             >
               <template #header>
-                <span class="ulc-th-text">财务科室映射</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('finance', $event)" />
+                <span class="ulc-th-text">财务科室映射</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2340,12 +2371,13 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="manager"
               v-if="isDepartmentColVisible('manager')"
               label="负责人"
               :min-width="departmentColWidth('manager')"
             >
               <template #header>
-                <span class="ulc-th-text">负责人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('manager', $event)" />
+                <span class="ulc-th-text">负责人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2355,52 +2387,56 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isDepartmentColVisible('address')"
               label="科室地址"
               :min-width="departmentColWidth('address')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">科室地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('address', $event)" />
+                <span class="ulc-th-text">科室地址</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="warehouse"
               v-if="isDepartmentColVisible('warehouse')"
               label="关联库房"
               :min-width="departmentColWidth('warehouse')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">关联库房</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('warehouse', $event)" />
+                <span class="ulc-th-text">关联库房</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.relatedWarehouse || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="source"
               v-if="isDepartmentColVisible('source')"
               label="原数据标识"
               :min-width="departmentColWidth('source')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">原数据标识</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('source', $event)" />
+                <span class="ulc-th-text">原数据标识</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.sourceFlag || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isDepartmentColVisible('status')"
               label="状态"
               :min-width="departmentColWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="String(row.status) === '正常' ? 'is-success' : 'is-danger'">
@@ -2409,13 +2445,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isDepartmentColVisible('updateTime')"
               label="修改时间"
               :min-width="departmentColWidth('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
@@ -2560,15 +2597,17 @@ function warehouseFlagChipClass(enabled: unknown) {
           style="width: 100%"
           empty-text="暂无符合条件的科室库房目录"
           @selection-change="onCatalogSelectionChange"
-        >
+        
+          @header-dragend="(width: number, oldWidth: number, column: any) => catalogCols.handleHeaderDragEnd(width, oldWidth, column)">
           <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
           <el-table-column
+            column-key="scope"
             v-if="isCatalogColVisible('scope')"
             label="科室 / 库房"
             :min-width="catalogColWidth('scope')"
           >
             <template #header>
-              <span class="ulc-th-text">科室 / 库房</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('scope', $event)" />
+              <span class="ulc-th-text">科室 / 库房</span>
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
@@ -2579,24 +2618,26 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="productCode"
             v-if="isCatalogColVisible('productCode')"
             label="商品编码"
             :min-width="catalogColWidth('productCode')"
           >
             <template #header>
-              <span class="ulc-th-text">商品编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('productCode', $event)" />
+              <span class="ulc-th-text">商品编码</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-mono">{{ row.productCode || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="productName"
             v-if="isCatalogColVisible('productName')"
             label="商品名称"
             :min-width="catalogColWidth('productName')"
           >
             <template #header>
-              <span class="ulc-th-text">商品名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('productName', $event)" />
+              <span class="ulc-th-text">商品名称</span>
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
@@ -2606,38 +2647,41 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="spec"
             v-if="isCatalogColVisible('spec')"
             label="规格型号"
             :min-width="catalogColWidth('spec')"
             show-overflow-tooltip
           >
             <template #header>
-              <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('spec', $event)" />
+              <span class="ulc-th-text">规格型号</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-strong">{{ row.specModel || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="manufacturer"
             v-if="isCatalogColVisible('manufacturer')"
             label="生产厂家"
             :min-width="catalogColWidth('manufacturer')"
           >
             <template #header>
-              <span class="ulc-th-text">生产厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('manufacturer', $event)" />
+              <span class="ulc-th-text">生产厂家</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-strong ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="source"
             v-if="isCatalogColVisible('source')"
             label="维护来源"
             :min-width="catalogColWidth('source')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">维护来源</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('source', $event)" />
+              <span class="ulc-th-text">维护来源</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-chip" :class="catalogSourceChipClass(row.sourceType)">
@@ -2646,13 +2690,14 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="status"
             v-if="isCatalogColVisible('status')"
             label="状态"
             :min-width="catalogColWidth('status')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('status', $event)" />
+              <span class="ulc-th-text">状态</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-chip" :class="String(row.status) === '启用' ? 'is-success' : 'is-danger'">
@@ -2661,13 +2706,14 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="updateTime"
             v-if="isCatalogColVisible('updateTime')"
             label="更新时间"
             :min-width="catalogColWidth('updateTime')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">更新时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('updateTime', $event)" />
+              <span class="ulc-th-text">更新时间</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
@@ -2822,28 +2868,31 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的库房"
             @selection-change="onWarehouseSelectionChange"
-          >
+          
+            @header-dragend="(width: number, oldWidth: number, column: any) => warehouseCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isWarehouseColVisible('code')"
               label="库房编码"
               :min-width="warehouseColWidth('code')"
             >
               <template #header>
-                <span class="ulc-th-text">库房编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('code', $event)" />
+                <span class="ulc-th-text">库房编码</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isWarehouseColVisible('name')"
               label="库房名称"
               :min-width="warehouseColWidth('name')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">库房名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('name', $event)" />
+                <span class="ulc-th-text">库房名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2853,37 +2902,40 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="type"
               v-if="isWarehouseColVisible('type')"
               label="库房类型"
               :min-width="warehouseColWidth('type')"
             >
               <template #header>
-                <span class="ulc-th-text">库房类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('type', $event)" />
+                <span class="ulc-th-text">库房类型</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.type || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="campus"
               v-if="isWarehouseColVisible('campus')"
               label="所属院区"
               :min-width="warehouseColWidth('campus')"
             >
               <template #header>
-                <span class="ulc-th-text">所属院区</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('campus', $event)" />
+                <span class="ulc-th-text">所属院区</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.campus || '未归属院区' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="dept"
               v-if="isWarehouseColVisible('dept')"
               label="关联科室"
               :min-width="warehouseColWidth('dept')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">关联科室</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('dept', $event)" />
+                <span class="ulc-th-text">关联科室</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
@@ -2893,13 +2945,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="participateStats"
               v-if="isWarehouseColVisible('participateStats')"
               label="统计"
               :min-width="warehouseColWidth('participateStats')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">统计</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('participateStats', $event)" />
+                <span class="ulc-th-text">统计</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="warehouseFlagChipClass(row.participateStats === '参与')">
@@ -2908,13 +2961,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="receivingEnabled"
               v-if="isWarehouseColVisible('receivingEnabled')"
               label="允许收货"
               :min-width="warehouseColWidth('receivingEnabled')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">允许收货</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('receivingEnabled', $event)" />
+                <span class="ulc-th-text">允许收货</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="warehouseFlagChipClass(row.receivingEnabled)">
@@ -2923,26 +2977,28 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="statsCategories"
               v-if="isWarehouseColVisible('statsCategories')"
               label="统计分类"
               :min-width="warehouseColWidth('statsCategories')"
               show-overflow-tooltip
             >
               <template #header>
-                <span class="ulc-th-text">统计分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('statsCategories', $event)" />
+                <span class="ulc-th-text">统计分类</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.statsCategories || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isWarehouseColVisible('status')"
               label="状态"
               :min-width="warehouseColWidth('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -2951,26 +3007,28 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isWarehouseColVisible('updateTime')"
               label="修改时间"
               :min-width="warehouseColWidth('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="locationCount"
               v-if="isWarehouseColVisible('locationCount')"
               label="货位数量"
               :min-width="warehouseColWidth('locationCount')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">货位数量</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('locationCount', $event)" />
+                <span class="ulc-th-text">货位数量</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.locationCount ?? 0 }}</span>

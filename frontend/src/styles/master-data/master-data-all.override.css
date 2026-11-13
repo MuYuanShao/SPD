@@ -9,7 +9,7 @@
 
 /* ===== Master page 容器（所有子页面） ===== */
 .master-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -665,7 +665,7 @@
 .master-table-card {
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
+  border-radius: 12px !important;
   box-shadow: var(--spd-shadow-1) !important;
   padding: 0 !important;
   overflow: hidden;
@@ -1740,7 +1740,7 @@
 
 /* ===== Product Detail / Form / Batch Edit View ===== */
 .product-detail-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -1989,7 +1989,7 @@
 
 /* ===== Product Form / Batch Edit 表单 ===== */
 .product-form-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -2115,7 +2115,7 @@
 
 /* ===== 待审批目录（pending-product-catalog）的页面 ===== */
 .approval-detail-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -2169,7 +2169,7 @@
    - 详情字段 grid + 附件表格统一
    ===================================================================== */
 .product-form-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: var(--spd-page-padding, 24px) !important;
   min-height: 100%;

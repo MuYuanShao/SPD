@@ -39,12 +39,14 @@
 }
 
 /* ===== 表格容器 ===== */
+/* 列表边框加入一点圆角，弱化生硬直角 */
 .spd-unified-list .ulc-table-wrap {
   width: 100%;
   overflow: hidden;
   border: 1px solid var(--ulc-border);
-  border-radius: 8px;
+  border-radius: 12px;
   background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
 }
 
 .spd-unified-list .ulc-table {
@@ -270,6 +272,13 @@
   white-space: nowrap;
 }
 
+/* 强调标签（集采、重点监控等） */
+.spd-unified-list .ulc-tag.is-hot {
+  border-color: transparent;
+  background: var(--ulc-primary);
+  color: #fff;
+}
+
 /* ===== 行内操作按钮：4px 圆角 + 边框 + 背景色 ===== */
 .spd-unified-list .ulc-actions {
   display: flex;
@@ -423,6 +432,11 @@
   transform: rotate(180deg);
 }
 
+/* 筛选区「更多 / 收起」按钮的箭头旋转 */
+.spd-unified-list .ulc-filter-actions .rotated {
+  transform: rotate(180deg);
+}
+
 /* ===== 列设置弹层 ===== */
 .spd-unified-list .ulc-col-settings {
   position: relative;
@@ -561,17 +575,18 @@
   gap: 12px 16px;
   padding: 16px 18px;
   border: 1px solid var(--ulc-border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: #fff;
 }
 
 /* 筛选框组：占用除按钮区外的剩余宽度。
-   auto-fit + minmax 让空间不足时自动减少列数，而不是把按钮挤到下一行 */
+   auto-fit + minmax 让空间不足时自动减少列数，而不是把按钮挤到下一行。
+   flex 基准取 0，避免 max-content 宽度把「重置 / 查询」按钮挤到下一行。 */
 .spd-unified-list .ulc-filter-fields {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px 16px;
-  flex: 1 1 auto;
+  flex: 1 1 0%;
   min-width: 0;
 }
 

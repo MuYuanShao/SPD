@@ -270,7 +270,7 @@
 .md-panel {
   background: var(--md-bg-card);
   border: 1px solid var(--md-border);
-  border-radius: var(--md-radius-md);
+  border-radius: var(--md-radius-lg);
   box-shadow: var(--md-shadow-1);
   display: flex;
   flex-direction: column;
@@ -692,7 +692,7 @@
 .md-table-card {
   background: var(--md-bg-card);
   border: 1px solid var(--md-border);
-  border-radius: var(--md-radius-md);
+  border-radius: var(--md-radius-lg);
   box-shadow: var(--md-shadow-1);
   overflow: hidden;
   display: flex;
@@ -710,6 +710,8 @@
   flex-wrap: wrap;
   background: var(--md-bg-card);
   min-height: 48px;
+  /* 工具条是卡片首行，顶部两角随卡片圆角 */
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
 }
 
 .md-table-toolbar-main {

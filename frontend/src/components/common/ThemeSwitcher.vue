@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Check, Palette } from '@lucide/vue'
-import { THEMES, useThemeStore, type ThemeId } from '../../stores/theme'
+import {
+  THEMES,
+  PALETTE_COLORS,
+  DEFAULT_PRIMARY_COLOR,
+  useThemeStore,
+  type ThemeId
+} from '../../stores/theme'
 
 const themeStore = useThemeStore()
 const open = ref(false)
@@ -9,12 +15,24 @@ const rootRef = ref<HTMLElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
 
 const active = computed(() => THEMES.find((t) => t.id === themeStore.current) ?? THEMES[0])
+const activePalette = computed(
+  () => PALETTE_COLORS.find((c) => c.color === themeStore.primaryColor) ?? PALETTE_COLORS[0]
+)
 
-function pick(id: ThemeId) {
+function pickTheme(id: ThemeId) {
   if (themeStore.current !== id) {
     themeStore.setTheme(id)
   }
-  open.value = false
+}
+
+function pickColor(color: string) {
+  if (themeStore.primaryColor !== color) {
+    themeStore.setPrimaryColor(color)
+  }
+}
+
+function resetPrimary() {
+  pickColor(DEFAULT_PRIMARY_COLOR)
 }
 
 function toggle() {
@@ -36,12 +54,6 @@ function handleKey(event: KeyboardEvent) {
   if (!open.value) return
   if (event.key === 'Escape') {
     open.value = false
-  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    event.preventDefault()
-    const idx = THEMES.findIndex((t) => t.id === themeStore.current)
-    const dir = event.key === 'ArrowDown' ? 1 : -1
-    const next = (idx + dir + THEMES.length) % THEMES.length
-    pick(THEMES[next].id)
   }
 }
 
@@ -63,14 +75,14 @@ onBeforeUnmount(() => {
       :class="{ 'is-open': open }"
       :aria-expanded="open"
       aria-haspopup="dialog"
-      :aria-label="`当前主题：${active.name}，点击切换主题`"
-      :title="active.name"
+      :aria-label="`当前主色：${activePalette.name}，点击切换主题与主色`"
+      :title="activePalette.name"
       @click.stop="toggle"
     >
-      <span class="spd-theme-swatch" :style="{ background: active.swatch }">
+      <span class="spd-theme-swatch" :style="{ background: activePalette.color }">
         <Palette :size="14" class="spd-theme-swatch-icon" />
       </span>
-      <span class="spd-theme-trigger-label">{{ active.name }}</span>
+      <span class="spd-theme-trigger-label">{{ activePalette.name }}</span>
     </button>
 
     <Transition name="spd-theme-pop">
@@ -79,14 +91,50 @@ onBeforeUnmount(() => {
         ref="panelRef"
         class="spd-theme-panel"
         role="dialog"
-        aria-label="选择主题"
+        aria-label="选择主题与主色"
         tabindex="-1"
         @click.stop
       >
+        <!-- 主色调色板 -->
         <div class="spd-theme-panel-header">
-          <span class="spd-theme-panel-title">选择主题</span>
+          <span class="spd-theme-panel-title">主色调色板</span>
+          <button
+            type="button"
+            class="spd-theme-reset"
+            :disabled="themeStore.primaryColor === DEFAULT_PRIMARY_COLOR"
+            @click="resetPrimary"
+          >
+            恢复默认
+          </button>
+        </div>
+
+        <div class="spd-palette-grid">
+          <button
+            v-for="c in PALETTE_COLORS"
+            :key="c.id"
+            type="button"
+            role="option"
+            :aria-selected="c.color === themeStore.primaryColor"
+            :class="['spd-palette-dot', { 'is-active': c.color === themeStore.primaryColor }]"
+            :style="{ background: c.color }"
+            :title="c.name"
+            @click="pickColor(c.color)"
+          >
+            <Check v-if="c.color === themeStore.primaryColor" :size="16" class="spd-palette-check" />
+          </button>
+        </div>
+
+        <div class="spd-theme-panel-sub spd-palette-current">
+          当前主色：<strong>{{ activePalette.name }}</strong>
+          <code>{{ themeStore.primaryColor }}</code>
+        </div>
+
+        <!-- 主题风格 -->
+        <div class="spd-theme-panel-header spd-theme-panel-header--second">
+          <span class="spd-theme-panel-title">主题风格</span>
           <span class="spd-theme-panel-sub">实时预览 · 自动保存</span>
         </div>
+
         <div class="spd-theme-grid">
           <button
             v-for="t in THEMES"
@@ -95,7 +143,7 @@ onBeforeUnmount(() => {
             role="option"
             :aria-selected="t.id === themeStore.current"
             :class="['spd-theme-card', { 'is-active': t.id === themeStore.current }]"
-            @click="pick(t.id)"
+            @click="pickTheme(t.id)"
           >
             <span class="spd-theme-card-preview" :style="{ background: t.swatch }">
               <Check v-if="t.id === themeStore.current" :size="22" class="spd-theme-card-check" />
@@ -187,10 +235,16 @@ onBeforeUnmount(() => {
 
 .spd-theme-panel-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
   padding: 0 2px;
+}
+
+.spd-theme-panel-header--second {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fli-line, #e5e7eb);
 }
 
 .spd-theme-panel-title {
@@ -202,6 +256,78 @@ onBeforeUnmount(() => {
 .spd-theme-panel-sub {
   font-size: 11px;
   color: var(--fli-muted, #6b7280);
+}
+
+/* 恢复默认按钮 */
+.spd-theme-reset {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 12px;
+  color: var(--fli-brand, #0f766e);
+  cursor: pointer;
+}
+
+.spd-theme-reset:disabled {
+  color: var(--fli-muted, #6b7280);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 调色板色点网格 */
+.spd-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.spd-palette-dot {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.spd-palette-dot:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.16);
+}
+
+.spd-palette-dot.is-active {
+  box-shadow: 0 0 0 2px var(--fli-surface, #fff), 0 0 0 4px var(--fli-brand, #0f766e);
+}
+
+.spd-palette-check {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.35));
+}
+
+.spd-palette-current {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.spd-palette-current strong {
+  color: var(--fli-text, #1f2937);
+}
+
+.spd-palette-current code {
+  font-family: var(--spd-font-family-mono, monospace);
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f6;
+  color: #526b78;
 }
 
 /* 主题卡片网格 */

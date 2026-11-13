@@ -8,7 +8,7 @@
 
 /* ===== 页面壳 ===== */
 .license-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 16px !important;
   min-height: 100%;

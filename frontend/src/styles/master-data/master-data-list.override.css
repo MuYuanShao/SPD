@@ -37,7 +37,7 @@
 
 /* ===== 页面壳 ===== */
 .master-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -177,7 +177,7 @@
 .master-table-card {
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
+  border-radius: 12px !important;
   box-shadow: var(--spd-shadow-1) !important;
   padding: 0 !important;
   overflow: hidden;

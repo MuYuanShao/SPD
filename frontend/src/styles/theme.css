@@ -628,8 +628,9 @@ a.el-link {
   background: var(--spd-bg-hover) !important;
 }
 
+/* 内容区：设计稿指定的整体渐变背景 */
 .spd-content {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
 }
 
 .spd-content-inner {
@@ -642,7 +643,7 @@ a.el-link {
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -658,7 +659,7 @@ a.el-link {
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  border-radius: 8px !important;
+  border-radius: 12px !important;
 }
 
 .standard-page-title,

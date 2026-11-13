@@ -91,6 +91,11 @@
   --spd-bg-active: #e6f4ff;
   --spd-surface: #ffffff;
 
+  /* ============== 内容区整体渐变背景 ==============
+     设计稿指定：内容区（含各业务页面容器）统一使用该渐变，
+     页面容器统一引用 --spd-bg-page-gradient，不再各自设置纯色背景。 */
+  --spd-bg-page-gradient: linear-gradient(180deg, #fff, #e6f6ff 34.31%, #def6fc 69.04%, #dcf4f4);
+
   /* ============== Borders ============== */
   /* Ant Design 边框色阶 */
   --spd-border-default: #d9d9d9;

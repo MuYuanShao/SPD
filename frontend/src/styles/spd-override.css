@@ -313,8 +313,9 @@
 }
 
 /* ========== 主体区 ========== */
+/* 内容区整体渐变背景（设计稿指定） */
 .spd-content {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
 }
 
 .spd-content-inner {
@@ -327,7 +328,7 @@
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 16px;
 }
@@ -650,7 +651,7 @@ a.el-link {
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: var(--spd-page-padding) !important;
   min-height: 100%;
@@ -1133,13 +1134,13 @@ body {
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-line-height-base) !important;
   color: var(--spd-text-primary) !important;
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
   color: var(--spd-text-primary) !important;
   font-family: var(--spd-font-family) !important;
 }

@@ -13,13 +13,16 @@
    ===================================================================== */
 
 /* ===== Page 容器 ===== */
+/* 页面外边距与其他统一列表页保持一致：左/上/右/下均为 16px，区块间距 16px。
+   之前使用 --spd-page-padding(24px)，导致待审批目录的
+   左边与上边留白比其他页面明显偏大。 */
 .approval-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
-  padding: var(--spd-page-padding, 24px) !important;
+  padding: 16px !important;
   min-height: 100%;
   display: grid !important;
-  gap: 20px;
+  gap: 16px !important;
   box-sizing: border-box;
 }
 
@@ -961,11 +964,11 @@ thead .approval-sticky-action {
 
 /* 表格容器圆角：配合 overflow auto 生效，滚动条不受影响 */
 .approval-wide-table-shell {
-  border-radius: var(--spd-radius-md, 8px) var(--spd-radius-md, 8px) 0 0;
+  border-radius: 12px 12px 0 0;
 }
 
 .approval-list-card .md-pagination {
-  border-radius: 0 0 var(--spd-radius-md, 8px) var(--spd-radius-md, 8px);
+  border-radius: 0 0 12px 12px;
   overflow: hidden;
 }
 

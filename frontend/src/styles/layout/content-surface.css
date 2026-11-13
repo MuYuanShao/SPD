@@ -1,0 +1,82 @@
+/* =====================================================================
+   内容区圆角规范
+   ---------------------------------------------------------------------
+   目标：
+   1. 内容区（.spd-content）承载整体渐变背景，各业务页面容器保持透明；
+   2. 内容区内所有「卡片 / 面板 / 表格外壳 / 筛选区」统一使用 12px 圆角，
+      消除直角边框，保证视觉一致。
+   该文件在所有 override 文件之后引入，使用 !important 保证收口生效。
+   ===================================================================== */
+
+:root {
+  /* 内容区统一圆角 */
+  --spd-content-radius: 12px;
+}
+
+/* ============== 内容区整体渐变 ==============
+   设计稿：linear-gradient(180deg, #fff, #e6f6ff 34.31%, #def6fc 69.04%, #dcf4f4)
+   统一由 .spd-content 承载，页面容器保持透明以透出渐变。 */
+.spd-content {
+  background: var(--spd-bg-page-gradient) !important;
+}
+
+.spd-content-inner {
+  background: transparent !important;
+}
+
+/* 业务页面壳：透明，透出内容区渐变 */
+.master-page,
+.standard-page,
+.workflow-page,
+.report-page,
+.dashboard-page,
+.approval-page,
+.approval-detail-page,
+.license-page,
+.product-detail-page,
+.product-form-page,
+.purchase-page,
+.md-partner-page,
+.spd-dashboard {
+  background: transparent !important;
+}
+
+/* ============== 内容区卡片 / 面板圆角 ============== */
+.md-table-card,
+.md-panel,
+.md-table-card-campus,
+.md-table-card-department,
+.md-table-card-catalog,
+.md-table-card-warehouse,
+.master-table-card,
+.standard-page-card,
+.metric-panel,
+.module-board,
+.module-detail,
+.workflow-band,
+.hospital-catalog-panel,
+.master-toolbar,
+.master-page-title,
+.spd-unified-list .ulc-filter,
+.spd-unified-list .ulc-table-wrap,
+.approval-filter-card,
+.approval-wide-table-shell {
+  border-radius: var(--spd-content-radius) !important;
+}
+
+/* 卡片首行（工具条）顶部两角随卡片圆角 */
+.md-table-toolbar,
+.md-panel-header {
+  border-radius: var(--spd-content-radius) var(--spd-content-radius) 0 0 !important;
+}
+
+/* 表格外壳统一裁切，表格头部的直角被裁成圆角 */
+.spd-unified-list .ulc-table-wrap {
+  overflow: hidden !important;
+}
+
+/* ============== 顶部导航页签条 ==============
+   内容区顶部的页签条同样加入圆角，避免直角横条 */
+.spd-tabbar {
+  border-radius: var(--spd-content-radius) var(--spd-content-radius) 0 0 !important;
+}

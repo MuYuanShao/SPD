@@ -378,106 +378,26 @@ function closeHospitalDetail() {
   hospitalDetailCode.value = ''
 }
 // ===== 医院目录单表：列宽拖拽 + 列设置（localStorage 持久化） =====
-interface HospitalCatalogCol {
-  key: 'product' | 'spec' | 'vendor' | 'price' | 'status'
-  label: string
-  width: number
-  visible: boolean
-}
-const HOSPITAL_COLS_KEY = 'spd-hospital-catalog-cols-v1'
-const HOSPITAL_COL_DEFAULTS: HospitalCatalogCol[] = [
+// 与科室库房目录等其他统一列表页共用 useListColumns，保证交互与持久化行为一致。
+const HOSPITAL_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'product', label: '商品 / 编码', width: 300, visible: true },
   { key: 'spec', label: '规格型号', width: 170, visible: true },
   { key: 'vendor', label: '厂家 / 供应商', width: 250, visible: true },
   { key: 'price', label: '单价', width: 140, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true }
 ]
-function loadHospitalCols(): HospitalCatalogCol[] {
-  try {
-    const raw = localStorage.getItem(HOSPITAL_COLS_KEY)
-    if (!raw) return HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-    const saved = JSON.parse(raw) as Array<Partial<HospitalCatalogCol> & { key: HospitalCatalogCol['key'] }>
-    const map = new Map(saved.map((s) => [s.key, s]))
-    return HOSPITAL_COL_DEFAULTS.map((d) => ({
-      key: d.key,
-      label: d.label,
-      width: Math.min(560, Math.max(90, Number(map.get(d.key)?.width ?? d.width) || d.width)),
-      visible: map.get(d.key)?.visible !== false
-    }))
-  } catch {
-    return HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-  }
-}
-const hospitalCols = ref<HospitalCatalogCol[]>(loadHospitalCols())
-const hospitalColSettingsOpen = ref(false)
-const visibleHospitalCols = computed(() => hospitalCols.value.filter((c) => c.visible))
-const hospitalTableRef = ref()
-function colWidth(key: HospitalCatalogCol['key']) {
-  return hospitalCols.value.find((c) => c.key === key)?.width ?? 150
-}
-function isHospitalColVisible(key: HospitalCatalogCol['key']) {
-  return hospitalCols.value.some((c) => c.key === key && c.visible)
-}
+const hospitalCols = useListColumns({
+  storageKey: 'spd-hospital-catalog-cols-v1',
+  defaults: HOSPITAL_COL_DEFAULTS
+})
+const hospitalTableRef = hospitalCols.tableRef
+const hospitalColSettingsOpen = hospitalCols.settingsOpen
+const visibleHospitalCols = hospitalCols.visibleColumns
+const isHospitalColVisible = (key: string) => hospitalCols.isColumnVisible(key)
+const colWidth = (key: string) => hospitalCols.columnWidth(key)
+const startHospitalColDrag = (key: string, ev: MouseEvent) => hospitalCols.startColumnDrag(key, ev)
 function onHospitalSelectionChange(selection: Array<Record<string, unknown>>) {
   selectedCodes.value = selection.map((row) => String((row as Record<string, unknown>).code))
-}
-function onHospitalHeaderDragend(newWidth: number, _oldWidth: number, column: unknown) {
-  const label = String((column as { label?: unknown }).label ?? '')
-  const target = hospitalCols.value.find((c) => c.label === label)
-  if (target && Number.isFinite(newWidth)) {
-    target.width = Math.min(560, Math.max(90, Math.round(newWidth)))
-    persistHospitalCols()
-  }
-}
-let hospitalDragState: { key: HospitalCatalogCol['key']; startX: number; startWidth: number } | null = null
-function startHospitalColDrag(key: HospitalCatalogCol['key'], ev: MouseEvent) {
-  const col = hospitalCols.value.find((c) => c.key === key)
-  if (!col) return
-  ev.preventDefault()
-  ev.stopPropagation()
-  hospitalDragState = { key, startX: ev.clientX, startWidth: col.width }
-  document.body.style.userSelect = 'none'
-  document.body.style.cursor = 'col-resize'
-  const onMove = (e: MouseEvent) => {
-    if (!hospitalDragState) return
-    const delta = e.clientX - hospitalDragState.startX
-    col.width = Math.min(560, Math.max(90, hospitalDragState.startWidth + delta))
-    try {
-      hospitalTableRef.value?.doLayout?.()
-    } catch { /* 忽略 */ }
-  }
-  const onUp = () => {
-    hospitalDragState = null
-    document.body.style.userSelect = ''
-    document.body.style.cursor = ''
-    persistHospitalCols()
-    try {
-      hospitalTableRef.value?.doLayout?.()
-    } catch { /* 忽略 */ }
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
-  }
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
-}
-function clearHospitalSelection() {
-  selectedCodes.value = []
-  try {
-    hospitalTableRef.value?.clearSelection?.()
-  } catch { /* 忽略 */ }
-}
-function persistHospitalCols() {
-  try {
-    localStorage.setItem(HOSPITAL_COLS_KEY, JSON.stringify(hospitalCols.value))
-  } catch { /* 忽略持久化失败 */ }
-}
-function resetHospitalCols() {
-  hospitalCols.value = HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-  persistHospitalCols()
-}
-function hospitalInitial(value: unknown) {
-  const text = String(value ?? '').trim()
-  return text ? text.slice(0, 1) : '商'
 }
 function hospitalAttrTags(row: Record<string, unknown>) {
   const tags: Array<{ text: string; hot: boolean }> = []
@@ -681,7 +601,6 @@ function warehouseFlagChipClass(enabled: unknown) {
   <section
     class="master-page"
     :class="{
-      'master-page--hospital': isHospitalCatalog,
       'master-page--aligned': isHospitalCatalog || isSupplierManagement || isManufacturerManagement || isCampusManagement || isDepartmentManagement || isDepartmentWarehouseCatalog || isWarehouseManagement
     }"
   >
@@ -728,7 +647,7 @@ function warehouseFlagChipClass(enabled: unknown) {
       </button>
     </nav>
 
-    <section v-if="isHospitalCatalog" class="md-hospital-page catalog-redesign">
+    <section v-if="isHospitalCatalog" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="医院商品目录"
         description="维护本院正式可用商品，次要字段收进详情抽屉。"
@@ -736,232 +655,224 @@ function warehouseFlagChipClass(enabled: unknown) {
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter catalog-filter" @submit.prevent="submitHospitalQuery">
-        <label>
-          <span>商品编码</span>
-          <input
-            v-model.trim="hospitalQuery.productCode"
-            class="md-input"
-            type="search"
-            placeholder="模糊查询商品编码"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>商品名称</span>
-          <input
-            v-model.trim="hospitalQuery.productName"
-            class="md-input"
-            type="search"
-            placeholder="模糊查询商品名称"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>厂家 / 供应商</span>
-          <input
-            v-model.trim="hospitalQuery.vendorKeyword"
-            class="md-input"
-            type="search"
-            placeholder="厂家或供应商名称"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>状态</span>
-          <select v-model="hospitalQuery.status" class="md-select" aria-label="商品状态">
-            <option value="">全部状态</option>
-            <option value="启用">启用</option>
-            <option value="停用">停用</option>
-          </select>
-        </label>
-        <template v-if="hospitalShowMore">
+      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="submitHospitalQuery">
+        <div class="ulc-filter-fields">
           <label>
-            <span>规格型号</span>
+            <span>商品编码</span>
             <input
-              v-model.trim="hospitalQuery.specModel"
+              v-model.trim="hospitalQuery.productCode"
               class="md-input"
               type="search"
-              placeholder="规格或型号"
+              placeholder="模糊查询商品编码"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>供应商</span>
+            <span>商品名称</span>
             <input
-              v-model.trim="hospitalQuery.supplierName"
+              v-model.trim="hospitalQuery.productName"
               class="md-input"
               type="search"
-              placeholder="供应商名称"
+              placeholder="模糊查询商品名称"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>单价</span>
+            <span>厂家 / 供应商</span>
             <input
-              v-model.trim="hospitalQuery.price"
+              v-model.trim="hospitalQuery.vendorKeyword"
               class="md-input"
               type="search"
-              placeholder="单价"
+              placeholder="厂家或供应商名称"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>是否集采</span>
-            <select v-model="hospitalQuery.isCentralized" class="md-select">
-              <option value="">全部</option>
-              <option value="是">是</option>
-              <option value="否">否</option>
-            </select>
+            <span>状态</span>
+            <el-select v-model="hospitalQuery.status" placeholder="全部状态" clearable aria-label="筛选商品状态">
+              <el-option label="全部状态" value="" />
+              <el-option label="启用" value="启用" />
+              <el-option label="停用" value="停用" />
+            </el-select>
           </label>
-          <label>
-            <span>招采子编码</span>
-            <input
-              v-model.trim="hospitalQuery.tenderCode"
-              class="md-input"
-              type="search"
-              placeholder="招采子编码"
-              autocomplete="off"
-            />
-          </label>
-        </template>
-        <div class="filter-actions">
-          <button type="button" class="cat-btn cat-btn-more" @click="hospitalShowMore = !hospitalShowMore">
+          <template v-if="hospitalShowMore">
+            <label>
+              <span>规格型号</span>
+              <input
+                v-model.trim="hospitalQuery.specModel"
+                class="md-input"
+                type="search"
+                placeholder="规格或型号"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>供应商</span>
+              <input
+                v-model.trim="hospitalQuery.supplierName"
+                class="md-input"
+                type="search"
+                placeholder="供应商名称"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>单价</span>
+              <input
+                v-model.trim="hospitalQuery.price"
+                class="md-input"
+                type="search"
+                placeholder="单价"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>是否集采</span>
+              <el-select v-model="hospitalQuery.isCentralized" placeholder="全部" clearable aria-label="筛选是否集采">
+                <el-option label="全部" value="" />
+                <el-option label="是" value="是" />
+                <el-option label="否" value="否" />
+              </el-select>
+            </label>
+            <label>
+              <span>招采子编码</span>
+              <input
+                v-model.trim="hospitalQuery.tenderCode"
+                class="md-input"
+                type="search"
+                placeholder="招采子编码"
+                autocomplete="off"
+              />
+            </label>
+          </template>
+        </div>
+        <div class="md-hospital-filter-actions ulc-filter-actions">
+          <button type="button" class="md-btn" @click="hospitalShowMore = !hospitalShowMore">
             {{ hospitalShowMore ? '收起' : '更多' }}
-            <ChevronDown :size="14" :class="{ 'rotated': hospitalShowMore }" />
+            <ChevronDown :size="16" :class="{ rotated: hospitalShowMore }" />
           </button>
-          <button type="button" class="cat-btn cat-btn-reset" @click="resetHospitalQuery">
-            <RefreshCw :size="14" />
+          <button type="button" class="md-btn" @click="resetHospitalQuery">
+            <RefreshCw :size="16" />
             <span>重置</span>
           </button>
-          <button type="submit" class="cat-btn cat-btn-query">
-            <Search :size="14" />
+          <button type="submit" class="md-btn md-btn-primary">
+            <Search :size="16" />
             <span>查询</span>
           </button>
         </div>
       </form>
+    </section>
 
-      <div class="catalog-panel">
-        <div class="toolbar">
-          <div class="toolbar-main">
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-add"
-              @click="openCreateProduct"
-            >
-              <Plus :size="15" />
-              <span>新增</span>
+    <section
+      v-if="isHospitalCatalog"
+      class="master-table-card master-table-card-flat spd-unified-list hospital-product-list-card"
+    >
+      <MdDataTableCard :loading="loading" :meta-count="`共 ${hospitalTotal} 个`">
+        <template #toolbar>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="openCreateProduct"
+          >
+            <Plus :size="16" />
+            <span>新增</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            :disabled="selectedCodes.length !== 1"
+            @click="openEditProduct()"
+          >
+            <Pencil :size="16" />
+            <span>修改</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            :disabled="!selectedCodes.length"
+            @click="batchEditSelectedProducts"
+          >
+            <Edit3 :size="16" />
+            <span>批量修改</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-danger"
+            :disabled="!selectedCodes.length"
+            @click="disableProducts()"
+          >
+            <Ban :size="16" />
+            <span>停用</span>
+          </button>
+          <button type="button" class="md-btn md-btn-primary" @click="exportHospitalCatalog">
+            <Download :size="16" />
+            <span>导出</span>
+          </button>
+          <div class="ulc-col-settings">
+            <button type="button" class="md-btn md-btn-primary" @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: hospitalColSettingsOpen }" />
             </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-edit"
-              :disabled="selectedCodes.length !== 1"
-              @click="openEditProduct()"
-            >
-              <Pencil :size="14" />
-              <span>修改</span>
-            </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-batch"
-              :disabled="!selectedCodes.length"
-              @click="batchEditSelectedProducts"
-            >
-              <Edit3 :size="14" />
-              <span>批量修改</span>
-            </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-stop"
-              :disabled="!selectedCodes.length"
-              @click="disableProducts()"
-            >
-              <Ban :size="14" />
-              <span>停用</span>
-            </button>
-            <button type="button" class="cat-btn cat-btn-export" @click="exportHospitalCatalog">
-              <Download :size="14" />
-              <span>导出</span>
-            </button>
-            <div class="col-setting-wrap">
-              <button type="button" class="cat-btn cat-btn-cols" @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
-                <Columns3 :size="14" />
-                <span>列设置</span>
-                <ChevronDown :size="13" :class="{ rotated: hospitalColSettingsOpen }" />
-              </button>
-              <div v-if="hospitalColSettingsOpen" class="col-setting-pop">
-                <header>
-                  <strong>列展示设置</strong>
-                  <button type="button" class="link" @click="resetHospitalCols">恢复默认</button>
-                </header>
-                <label v-for="col in hospitalCols" :key="col.key" class="col-setting-item">
+            <div v-if="hospitalColSettingsOpen" class="ulc-col-settings-pop">
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="hospitalCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in hospitalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                   <input
                     type="checkbox"
                     :checked="col.visible"
                     :disabled="col.visible && visibleHospitalCols.length <= 1"
-                    @change="col.visible = ($event.target as HTMLInputElement).checked; persistHospitalCols()"
+                    @change="hospitalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
                   />
                   <span>{{ col.label }}</span>
                   <small>{{ col.width }}px</small>
                 </label>
-                <footer>
-                  <button type="button" class="cat-btn cat-btn-query cat-btn-sm" @click="hospitalColSettingsOpen = false">确定</button>
-                </footer>
               </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="hospitalColSettingsOpen = false">确定</button>
+              </footer>
             </div>
           </div>
-          <div class="toolbar-info">
-            <span class="chip is-primary">共 {{ hospitalTotal }} 条</span>
-            <span v-if="selectedCodes.length" class="chip is-green">已选 {{ selectedCodes.length }}</span>
-          </div>
-        </div>
-
-        <div v-if="selectedCodes.length" class="batch on">
-          <b>已选择 {{ selectedCodes.length }} 项</b>
-          <span class="spacer"></span>
-          <button type="button" class="cat-btn cat-btn-edit" :disabled="selectedCodes.length !== 1" @click="openEditProduct()">修改</button>
-          <button type="button" class="cat-btn cat-btn-stop" @click="disableProducts()">批量停用</button>
-          <button type="button" class="cat-btn cat-btn-reset" @click="clearHospitalSelection">取消选择</button>
-        </div>
-
-        <MdEmptyState v-if="error" :text="error" />
-        <div v-else class="hospital-table-fill">
+        </template>
+        <template #meta-extra>
+          <span v-if="selectedCodes.length" class="md-chip primary">已选 {{ selectedCodes.length }} 条</span>
+        </template>
+        <div class="ulc-table-wrap">
           <el-table
             ref="hospitalTableRef"
             v-loading="loading"
+            class="ulc-table"
             :data="page?.rows ?? []"
+            row-key="code"
             border
             stripe
-            highlight-current-row
             style="width: 100%"
-            class="hospital-el-table"
-            :row-key="(row: Record<string, unknown>) => String(row.code)"
-            :header-cell-style="{ background: 'var(--cat-primary)', color: '#fff', fontWeight: 700 }"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
-            @header-dragend="onHospitalHeaderDragend"
           >
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
               v-if="isHospitalColVisible('product')"
               label="商品 / 编码"
               :min-width="colWidth('product')"
-              show-overflow-tooltip
             >
               <template #header>
-                <span class="hospital-th-text">商品 / 编码</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('product', $event)" />
+                <span class="ulc-th-text">商品 / 编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('product', $event)" />
               </template>
               <template #default="{ row }">
-                <div class="tpl-cell">
-                  <div class="tpl-badge">{{ hospitalInitial((row as Record<string, unknown>).name) }}</div>
-                  <div class="tpl-txt">
-                    <div class="tpl-name" :title="String((row as Record<string, unknown>).name)">{{ (row as Record<string, unknown>).name ?? '-' }}</div>
-                    <div class="tpl-meta"><code>{{ (row as Record<string, unknown>).code }}</code><span v-for="tag in hospitalAttrTags(row as Record<string, unknown>)" :key="tag.text" class="mini-tag" :class="{ hot: tag.hot }">{{ tag.text }}</span></div>
-                  </div>
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong" :title="String((row as Record<string, unknown>).name)">{{ (row as Record<string, unknown>).name ?? '-' }}</span>
+                  <span class="ulc-mono">{{ (row as Record<string, unknown>).code }}</span>
+                  <span class="ulc-inline-tags">
+                    <span v-for="tag in hospitalAttrTags(row as Record<string, unknown>)" :key="tag.text" class="ulc-tag" :class="{ 'is-hot': tag.hot }">{{ tag.text }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -973,7 +884,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               show-overflow-tooltip
             >
               <template #header>
-                <span class="hospital-th-text">规格型号</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('spec', $event)" />
+                <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('spec', $event)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -983,12 +894,12 @@ function warehouseFlagChipClass(enabled: unknown) {
               show-overflow-tooltip
             >
               <template #header>
-                <span class="hospital-th-text">厂家 / 供应商</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('vendor', $event)" />
+                <span class="ulc-th-text">厂家 / 供应商</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('vendor', $event)" />
               </template>
               <template #default="{ row }">
-                <div class="vendor-cell">
-                  <strong :title="String((row as Record<string, unknown>).manufacturer ?? '-')">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</strong>
-                  <span :title="String((row as Record<string, unknown>).supplier ?? '-')">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong" :title="String((row as Record<string, unknown>).manufacturer ?? '-')">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</span>
+                  <span class="ulc-sub" :title="String((row as Record<string, unknown>).supplier ?? '-')">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
                 </div>
               </template>
             </el-table-column>
@@ -996,13 +907,16 @@ function warehouseFlagChipClass(enabled: unknown) {
               v-if="isHospitalColVisible('price')"
               label="单价"
               :min-width="colWidth('price')"
-              align="right"
+              align="center"
             >
               <template #header>
-                <span class="hospital-th-text">单价</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('price', $event)" />
+                <span class="ulc-th-text">单价</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('price', $event)" />
               </template>
               <template #default="{ row }">
-                <span class="qty"><b>{{ (row as Record<string, unknown>).price ?? '-' }}</b><span>{{ String((row as Record<string, unknown>).unit ?? '') }}</span></span>
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong">{{ (row as Record<string, unknown>).price ?? '-' }}</span>
+                  <span class="ulc-sub">{{ String((row as Record<string, unknown>).unit ?? '') }}</span>
+                </div>
               </template>
             </el-table-column>
             <el-table-column
@@ -1012,19 +926,21 @@ function warehouseFlagChipClass(enabled: unknown) {
               align="center"
             >
               <template #header>
-                <span class="hospital-th-text">状态</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('status', $event)" />
               </template>
               <template #default="{ row }">
-                <span class="status" :class="String((row as Record<string, unknown>).status) === '启用' ? 'on' : 'off'"><i></i>{{ (row as Record<string, unknown>).status ?? '-' }}</span>
+                <span class="ulc-chip" :class="String((row as Record<string, unknown>).status) === '启用' ? 'is-success' : 'is-danger'">
+                  {{ (row as Record<string, unknown>).status ?? '-' }}
+                </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="300" align="center" fixed="right">
+            <el-table-column label="操作" :min-width="280" align="center" fixed="right">
               <template #default="{ row }">
-                <div class="row-act">
-                  <button type="button" class="act act-detail" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
-                  <RouterLink class="act act-pack" :to="{ name: 'hospital-product-detail', params: { productCode: String((row as Record<string, unknown>).code) } }">查看</RouterLink>
-                  <button v-if="authStore.canWrite(code)" type="button" class="act act-edit" @click="openEditProduct(String((row as Record<string, unknown>).code), false)">修改</button>
-                  <button v-if="authStore.canWrite(code)" type="button" class="act act-stop" @click="disableProducts([String((row as Record<string, unknown>).code)])">停用</button>
+                <div class="ulc-actions">
+                  <button type="button" class="ulc-action is-outline" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
+                  <RouterLink class="ulc-action is-neutral" :to="{ name: 'hospital-product-detail', params: { productCode: String((row as Record<string, unknown>).code) } }">查看</RouterLink>
+                  <button v-if="authStore.canWrite(code)" type="button" class="ulc-action" @click="openEditProduct(String((row as Record<string, unknown>).code), false)">修改</button>
+                  <button v-if="authStore.canWrite(code)" type="button" class="ulc-action is-danger" @click="disableProducts([String((row as Record<string, unknown>).code)])">停用</button>
                 </div>
               </template>
             </el-table-column>
@@ -1033,8 +949,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table>
         </div>
-
-        <div class="pager">
+        <template #pagination>
           <MdPagination
             :page="hospitalCurrentPage"
             :total-pages="hospitalPageTotal"
@@ -1044,8 +959,8 @@ function warehouseFlagChipClass(enabled: unknown) {
             @update:page="loadHospitalPage"
             @update:size="changeHospitalPageSize"
           />
-        </div>
-      </div>
+        </template>
+      </MdDataTableCard>
 
       <div v-if="hospitalDrawerOpen" class="catalog-mask" @click="closeHospitalDetail"></div>
       <aside v-if="hospitalDrawerOpen && hospitalDetailRow" class="catalog-drawer" role="dialog" aria-label="商品详情">
@@ -3467,19 +3382,6 @@ function warehouseFlagChipClass(enabled: unknown) {
   margin: 0 !important;
 }
 
-.md-hospital-page {
-  display: grid;
-  gap: 16px;
-  padding: 0;
-  min-width: 0;
-  max-width: 100%;
-  background: var(--md-bg-page);
-  color: var(--md-text);
-  font-family: var(--md-font);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 /* ===== 筛选行（对齐待审批目录 .approval-filter-row 的视觉与行为） ===== */
 .md-hospital-filter:not(.spd-unified-list) {
   display: grid;
@@ -3918,809 +3820,6 @@ function warehouseFlagChipClass(enabled: unknown) {
   background: var(--md-primary-soft);
 }
 
-/* ============================================================
-   医院商品目录精简版（对齐定数包模板维护新版 mockup）
-   主题深青 #0f766e / 白底行 / 表头主题色 / 圆角实色按钮
-   ============================================================ */
-.catalog-redesign {
-  /* 跟随系统主题：默认墨绿，切换主题时自动跟随 --primary */
-  --cat-primary: var(--primary, var(--md-primary, #0f766e));
-  --cat-deep: var(--primary-strong, var(--md-primary-strong, #0b5750));
-  --cat-dark: color-mix(in srgb, var(--primary-strong, #0b5750) 88%, #06231f);
-  --cat-mid: color-mix(in srgb, var(--primary, #0f766e) 82%, #ffffff);
-  --cat-soft: color-mix(in srgb, var(--primary, #0f766e) 9%, #ffffff);
-  --cat-soft2: color-mix(in srgb, var(--primary, #0f766e) 15%, #ffffff);
-  --cat-line: color-mix(in srgb, var(--primary, #0f766e) 32%, #ffffff);
-  --cat-text: #10201f;
-  --cat-text2: #3d5654;
-  --cat-text3: #4e6361;
-  --cat-card: #ffffff;
-  --cat-border: color-mix(in srgb, var(--primary, #0f766e) 18%, #e2e8e8);
-  --cat-border-soft: #eaf0ef;
-  display: grid;
-  gap: 14px;
-}
-
-/* 医院商品目录筛选区。
-   注意：`.md-hospital-filter:not(.spd-unified-list)`（特异性 0,3,0）会覆盖 display，
-   所以这里用同等特异性 + 后置顺序接管该容器的布局。
-
-   布局用 grid：前 4 列为筛选字段（1fr），第 5 列用 max-content 专门放操作按钮组，
-   保证「更多 / 重置 / 查询」有足够宽度；按钮组用 grid-row:1 固定在右上角，
-   展开更多条件时也不会换行到其他行、更不会与「状态」输入框重叠。 */
-.md-hospital-filter.catalog-filter {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr)) max-content;
-  gap: 10px;
-  align-items: end;
-  padding: 12px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--cat-soft) 0%, var(--cat-soft2) 100%);
-  box-shadow: inset 0 0 0 1px var(--cat-line);
-  border: 0;
-}
-
-.md-hospital-filter.catalog-filter label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  box-shadow: none;
-}
-
-.md-hospital-filter.catalog-filter label > span {
-  color: var(--cat-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.md-hospital-filter.catalog-filter .md-input,
-.md-hospital-filter.catalog-filter .md-select,
-.md-hospital-filter.catalog-filter input,
-.md-hospital-filter.catalog-filter select {
-  height: 34px;
-  padding: 0 11px;
-  border: 1px solid var(--cat-line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--cat-text);
-  font-size: 14px;
-}
-
-.md-hospital-filter.catalog-filter input:hover,
-.md-hospital-filter.catalog-filter select:hover {
-  border-color: var(--cat-primary);
-}
-
-.md-hospital-filter.catalog-filter input:focus,
-.md-hospital-filter.catalog-filter select:focus {
-  outline: 0;
-  border-color: var(--cat-primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
-}
-
-/* 操作按钮组：固定在第一行最后一列，不再随字段数量换行。 */
-.md-hospital-filter.catalog-filter .filter-actions {
-  grid-column: 5;
-  grid-row: 1;
-  align-self: end;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  gap: 8px;
-  min-width: max-content;
-  margin: 0;
-  padding: 0 0 1px;
-  border: 0;
-}
-
-/* 筛选操作区：布局由 .md-hospital-filter.catalog-filter .filter-actions 接管，
-   这里只保留旋转图标动效。 */
-.catalog-redesign .filter-actions .rotated {
-  transform: rotate(180deg);
-}
-
-.catalog-redesign .cat-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--cat-primary);
-  color: #fff;
-  font-size: 14.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: filter 0.15s, box-shadow 0.15s, transform 0.05s;
-}
-
-.catalog-redesign .cat-btn:hover:not(:disabled) {
-  filter: brightness(0.93);
-  box-shadow: 0 2px 8px rgba(16, 40, 40, 0.18);
-}
-
-.catalog-redesign .cat-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.catalog-redesign .cat-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.catalog-redesign .cat-btn-add,
-.catalog-redesign .cat-btn-query,
-.catalog-redesign .cat-btn-edit,
-.catalog-redesign .cat-btn-batch,
-.catalog-redesign .cat-btn-cols,
-.catalog-redesign .cat-btn-more {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-stop {
-  background: #c0392b;
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-export {
-  background: #0e7490;
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-reset {
-  background: #5b7371;
-  color: #fff;
-}
-
-/* 全局 master-data-list.override.css 用 !important 把 .master-page 内按钮漂白，
-   这里用更高优先级 + !important 抢回医院目录的实色按钮 */
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .col-setting-pop footer .cat-btn {
-  background: var(--cat-primary) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(16, 40, 40, 0.18) !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-add,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-query,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-query,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-edit,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-edit,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-batch,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-cols,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-more,
-.master-page.master-page--hospital .catalog-redesign .col-setting-pop footer .cat-btn-query {
-  background: var(--cat-primary) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-stop,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-stop {
-  background: #c0392b !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-export {
-  background: #0e7490 !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-reset,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-reset {
-  background: #5b7371 !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.catalog-redesign .cat-btn-sm {
-  height: 30px;
-  padding: 0 14px;
-  font-size: 13.5px;
-}
-
-.catalog-redesign .col-setting-wrap {
-  position: relative;
-}
-
-.catalog-redesign .col-setting-wrap .rotated {
-  transform: rotate(180deg);
-}
-
-.catalog-redesign .col-setting-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 250px;
-  padding: 12px 12px 10px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid var(--cat-border);
-  box-shadow: 0 12px 32px rgba(9, 45, 43, 0.18);
-}
-
-.catalog-redesign .col-setting-pop header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  color: var(--cat-dark);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-
-.catalog-redesign .col-setting-pop header .link {
-  border: 0;
-  background: transparent;
-  color: var(--cat-primary);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 6px;
-  border-radius: 6px;
-  color: var(--cat-text);
-  font-size: 13.5px;
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item:hover {
-  background: var(--cat-soft);
-}
-
-.catalog-redesign .col-setting-item input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--cat-primary);
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item small {
-  margin-left: auto;
-  color: var(--cat-text3);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.catalog-redesign .col-setting-pop footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.catalog-panel table.catalog-resizable thead th {
-  position: relative;
-  overflow: visible;
-}
-
-.catalog-panel table.catalog-resizable .th-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel table.catalog-resizable .col-resizer {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  right: -1px;
-  width: 9px;
-  margin-right: -4px;
-  border-radius: 4px;
-  cursor: col-resize;
-  background: transparent;
-  transition: background 0.15s;
-  touch-action: none;
-}
-
-.catalog-panel table.catalog-resizable .col-resizer::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.45);
-}
-
-.catalog-panel table.catalog-resizable thead th:hover .col-resizer::after {
-  background: #fff;
-}
-
-.catalog-panel table.catalog-resizable thead th:hover .col-resizer {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.catalog-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 14px 16px 16px;
-  border-radius: 12px;
-  background: var(--cat-card);
-  box-shadow: 0 2px 6px rgba(16, 40, 40, 0.09);
-  border: 0;
-}
-
-.catalog-panel .toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 2px;
-  flex-wrap: wrap;
-}
-
-.catalog-panel .toolbar-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.catalog-panel .toolbar-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.catalog-panel .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 13px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.catalog-panel .chip.is-primary {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-panel .chip.is-green {
-  background: #e6f6ef;
-  color: #046b4c;
-  box-shadow: inset 0 0 0 1px #b6e2d0;
-}
-
-.catalog-panel .batch {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--cat-soft) 0%, var(--cat-soft2) 100%);
-  box-shadow: inset 0 0 0 1px var(--cat-line);
-}
-
-.catalog-panel .batch.on {
-  display: flex;
-}
-
-.catalog-panel .batch b {
-  color: var(--cat-dark);
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.catalog-panel .batch .spacer,
-.catalog-panel .spacer {
-  flex: 1;
-}
-
-.catalog-panel .table-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--cat-border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.catalog-panel {
-  width: 100%;
-}
-
-.catalog-redesign .hospital-table-fill {
-  width: 100%;
-  border: 1px solid var(--cat-border);
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.catalog-redesign .hospital-table-fill .hospital-el-table {
-  width: 100%;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th {
-  background: var(--cat-primary) !important;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th .cell {
-  color: #fff;
-  font-weight: 700;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th .cell:has(.hospital-col-grip) {
-  display: flex;
-  align-items: center;
-  padding-right: 14px;
-  overflow: visible;
-}
-
-.catalog-redesign .hospital-th-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.catalog-redesign .hospital-col-grip {
-  position: absolute;
-  top: 0;
-  right: -5px;
-  width: 10px;
-  height: 100%;
-  cursor: col-resize;
-  touch-action: none;
-  z-index: 5;
-}
-
-.catalog-redesign .hospital-col-grip::after {
-  content: "";
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 4px;
-  width: 1px;
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.28);
-  transition: background 0.15s, box-shadow 0.15s, width 0.15s;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th:hover .hospital-col-grip::after {
-  left: 4px;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th {
-  position: relative;
-}
-
-.catalog-redesign .hospital-el-table .el-table__body td {
-  border-right: 1px solid var(--el-table-border-color, #e5e7eb);
-}
-
-.catalog-redesign .hospital-el-table .el-table__body td .cell {
-  overflow: hidden;
-}
-
-.catalog-panel table.grid {
-  display: block;
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  --cols: 48px minmax(0, 2fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.75fr) minmax(0, 0.7fr) 320px;
-}
-
-.catalog-panel table.catalog-grid {
-  font-size: 14px;
-}
-
-.catalog-panel .grid thead,
-.catalog-panel .grid tbody {
-  display: block;
-}
-
-.catalog-panel .grid tr {
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: stretch;
-}
-
-.catalog-panel .grid thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  padding: 11px 13px;
-  background: linear-gradient(180deg, var(--cat-mid) 0%, var(--cat-primary) 100%);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  text-align: left;
-  white-space: nowrap;
-  border: 0;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.catalog-panel .grid thead th.c-act {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .grid tbody td {
-  display: flex;
-  align-items: center;
-  padding: 11px 13px;
-  min-width: 0;
-  background: #fff;
-  border: 0;
-  border-bottom: 1px solid var(--cat-border-soft);
-  vertical-align: middle;
-  color: var(--cat-text);
-  font-size: 14px;
-  white-space: normal;
-}
-
-.catalog-panel .grid tbody tr,
-.catalog-panel .grid tbody tr:nth-child(even),
-.catalog-panel .grid tbody tr:hover,
-.catalog-panel .grid tbody tr.sel,
-.catalog-panel .grid tbody tr.sel:hover {
-  background: #fff;
-}
-
-.catalog-panel .grid tbody tr:hover td,
-.catalog-panel .grid tbody tr.sel td,
-.catalog-panel .grid tbody tr.sel:hover td {
-  background: #fff;
-}
-
-.catalog-panel .grid tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.catalog-panel .grid td.c-act {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .col-sel {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .col-sel input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--cat-primary);
-  cursor: pointer;
-  vertical-align: middle;
-}
-
-.catalog-panel .tpl-cell {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-width: 0;
-}
-
-.catalog-panel .tpl-badge {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--cat-primary) 0%, var(--cat-deep) 100%);
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--cat-primary) 35%, transparent);
-}
-
-.catalog-panel .tpl-txt {
-  min-width: 0;
-}
-
-.catalog-panel .tpl-name {
-  font-weight: 700;
-  font-size: 14.5px;
-  color: var(--cat-text);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .tpl-meta {
-  margin-top: 3px;
-  color: var(--cat-text3);
-  font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.catalog-panel .tpl-meta code {
-  font-family: ui-monospace, Consolas, monospace;
-  padding: 1px 7px;
-  border-radius: 4px;
-  background: #eef1f1;
-  color: var(--cat-text2);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.catalog-panel .mini-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #eef1f1;
-  color: var(--cat-text2);
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--cat-border);
-}
-
-.catalog-panel .mini-tag.hot {
-  background: var(--cat-primary);
-  color: #fff;
-  box-shadow: none;
-}
-
-.catalog-panel .vendor-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.catalog-panel .vendor-cell strong {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--cat-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .vendor-cell span {
-  font-size: 12.5px;
-  color: var(--cat-text3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .qty {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.catalog-panel .qty b {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--cat-text);
-}
-
-.catalog-panel .qty span {
-  margin-left: 4px;
-  color: var(--cat-text3);
-  font-size: 13px;
-}
-
-.catalog-panel .status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.catalog-panel .status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: 0 0 7px;
-}
-
-.catalog-panel .status.on {
-  color: #046b4c;
-}
-
-.catalog-panel .status.off {
-  color: #5f6d73;
-}
-
-.catalog-panel .row-act {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-
-.catalog-panel .act {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 29px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  text-decoration: none;
-  transition: filter 0.15s, box-shadow 0.15s, transform 0.05s;
-}
-
-.catalog-panel .act:hover {
-  filter: brightness(0.93);
-  box-shadow: 0 2px 7px rgba(16, 40, 40, 0.2);
-}
-
-.catalog-panel .act:active {
-  transform: translateY(1px);
-}
-
-.catalog-panel .act-detail {
-  background: #0e7490;
-  color: #fff;
-}
-
-.catalog-panel .act-edit {
-  background: #0958d9;
-  color: #fff;
-}
-
-.catalog-panel .act-pack {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-panel .act-stop {
-  background: #c0392b;
-  color: #fff;
-}
-
-.catalog-panel .pager {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 2px 0;
-  color: var(--cat-text2);
-  font-size: 13.5px;
-}
-
 .catalog-mask {
   position: fixed;
   inset: 0;
@@ -4728,7 +3827,16 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 90;
 }
 
+/* 医院商品目录详情抽屉（保留原有 cat-* 主题变量，跟随系统主题色） */
 .catalog-drawer {
+  --cat-primary: var(--primary, var(--md-primary, #0f766e));
+  --cat-deep: var(--primary-strong, var(--md-primary-strong, #0b5750));
+  --cat-dark: color-mix(in srgb, var(--primary-strong, #0b5750) 88%, #06231f);
+  --cat-soft: color-mix(in srgb, var(--primary, #0f766e) 9%, #ffffff);
+  --cat-line: color-mix(in srgb, var(--primary, #0f766e) 32%, #ffffff);
+  --cat-text: #10201f;
+  --cat-text2: #3d5654;
+  --cat-border: color-mix(in srgb, var(--primary, #0f766e) 18%, #e2e8e8);
   position: fixed;
   top: 0;
   right: 0;
@@ -4876,18 +3984,4 @@ function warehouseFlagChipClass(enabled: unknown) {
   box-shadow: none;
 }
 
-@media (max-width: 1200px) {
-  /* 窄屏：字段改为 3 列，操作按钮组独占一行右对齐 */
-  .md-hospital-filter.catalog-filter {
-    grid-template-columns: repeat(3, minmax(120px, 1fr)) max-content;
-  }
-  .md-hospital-filter.catalog-filter .filter-actions {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    justify-content: flex-end;
-  }
-  .catalog-panel table.grid {
-    --cols: 48px minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.7fr) 300px;
-  }
-}
 </style>

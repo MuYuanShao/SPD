@@ -9,7 +9,7 @@
   flex-direction: row;
   height: 100vh;
   overflow: hidden;
-  background: var(--spd-bg-page);
+  background: var(--spd-bg-page-gradient);
 }
 
 /* 右侧主区域：顶部导航栏 + 页面主体，纵向排列 */
@@ -33,6 +33,37 @@
   border-bottom: 1px solid var(--spd-border-default);
   padding: 0 20px;
   flex-shrink: 0;
+}
+
+/* 顶栏品牌区（原左侧导航品牌下沉而来） */
+.spd-topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-right: 24px;
+}
+
+.spd-topnav-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  color: #ffffff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.spd-topnav-brand-text {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--spd-text-primary);
+  white-space: nowrap;
 }
 
 .spd-topnav-logo {
@@ -108,6 +139,16 @@
   color: var(--spd-primary);
 }
 
+/* 悬浮即展开：整列加浅色底，保证与下拉面板连成一体 */
+.spd-menu-item--hover:hover {
+  background: var(--spd-primary-bg);
+}
+
+.spd-menu-item--hover:hover .spd-menu-label,
+.spd-menu-item--hover.active .spd-menu-label {
+  color: var(--spd-primary);
+}
+
 .spd-menu-caret {
   font-size: 11px !important;
   color: var(--spd-text-tertiary);
@@ -135,15 +176,15 @@
 /* ============== 下拉子菜单 ============== */
 .spd-menu-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
   min-width: 200px;
   background: var(--spd-bg-surface);
   border: 1px solid var(--spd-border-default);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
   padding: 6px;
 }
 
@@ -667,7 +708,8 @@
   overflow: hidden;
   min-width: 0;
   min-height: 0;
-  background: var(--spd-bg-page);
+  /* 透出 .spd-content 的渐变背景 */
+  background: transparent;
 }
 
 /* ============== Tab Bar ============== */
@@ -758,9 +800,10 @@
 }
 
 /* ============== 内容区 ============== */
+/* 内容区整体渐变背景（设计稿指定），各业务页面容器保持透明以透出该渐变 */
 .spd-content {
   flex: 1 1 auto;
-  background: var(--spd-bg-page);
+  background: var(--spd-bg-page-gradient);
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;

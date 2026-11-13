@@ -1,7 +1,6 @@
 @import "./theme.css";
 @import "./spd-theme.css";
 @import "./spd-layout.css";
-@import "./spd-side-nav.css";
 @import "./spd-dashboard.css";
 @import "./system/approval-flow-settings.css";
 @import "./system/system-config.css";
@@ -33,6 +32,8 @@
 /* 统一列表样式（斑马纹带边框表格 / 列设置 / 状态条 / 4px 圆角按钮）
    全局引入，保证所有采用 .spd-unified-list 的页面样式一致 */
 @import "./list/unified-list.css";
+/* 内容区整体渐变背景 + 卡片圆角规范（放在最后，收口所有 override） */
+@import "./layout/content-surface.css";
 
 :root {
   color-scheme: light;

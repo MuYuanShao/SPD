@@ -428,20 +428,26 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义（标准默认版本）
- * - 列宽为「标准档位」下的默认宽度，用户可拖拽调整并持久化
- * - productName / manufacturer 等长文本列默认宽度更充裕，
- *   单元格内容自动换行，不做截断，保证长名称可读
+ * 科室库房目录列定义 —— 方案 B：自适应填充（依赖 Element Plus 原生 fit）
+ * ---------------------------------------------------------------------
+ * 原理：所有列使用 min-width 且基准宽度合计（1052 + 选择列 48 + 操作列 200
+ * = 1300）小于 1366 宽屏的内容区（1330px）。
+ * Element Plus 在 fit 模式下会把多出来的空间按各列 min-width 比例分配回去，
+ * 因此：
+ *   - 宽屏：表格恰好铺满容器，长文本列自动获得更多空间
+ *   - 窄屏：列宽压缩到 min-width，长文本换行，信息不丢失
+ *
+ * 注意：基准宽度之和必须小于最小目标容器宽度，否则 EP 会触发横向滚动。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 220, visible: true },
-  { key: 'productCode', label: '商品编码', width: 150, visible: true },
-  { key: 'productName', label: '商品名称', width: 280, visible: true },
-  { key: 'spec', label: '规格型号', width: 170, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 260, visible: true },
-  { key: 'source', label: '维护来源', width: 130, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 180, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 115, visible: true },
+  { key: 'productCode', label: '商品编码', width: 105, visible: true },
+  { key: 'productName', label: '商品名称', width: 215, visible: true, flexible: true },
+  { key: 'spec', label: '规格型号', width: 110, visible: true },
+  { key: 'manufacturer', label: '生产厂家', width: 205, visible: true, flexible: true },
+  { key: 'source', label: '维护来源', width: 90, visible: true },
+  { key: 'status', label: '状态', width: 80, visible: true },
+  { key: 'updateTime', label: '更新时间', width: 132, visible: true }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -497,7 +503,10 @@ const departmentCols = useListColumns({
 })
 const catalogCols = useListColumns({
   storageKey: 'spd-department-warehouse-catalog-cols-v1',
-  defaults: CATALOG_COL_DEFAULTS
+  defaults: CATALOG_COL_DEFAULTS,
+  // 方案 B：自适应填充 —— 依赖 Element Plus 原生 fit，列宽由浏览器计算
+  fitMode: 'fit',
+  reservedWidth: 288 // 选择列 48 + 操作列 240
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',
@@ -2664,7 +2673,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+          <el-table-column label="操作" width="200" align="center" fixed="right">
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>

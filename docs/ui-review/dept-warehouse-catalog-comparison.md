@@ -566,3 +566,126 @@ npm run dev:frontend
 - `output/scheme-{a,b,c}-report.json` —— 样式与对齐实测
 - `output/measure-{a,b,c}.json` —— 布局量化指标
 - `output/gallery-{a,b,c}.json` —— 组件 computed style
+
+---
+
+## 十二、方案 D：暗夜黑（Night Black）—— 独立页面分支
+
+> 分支：`feature/ui-dark-night`
+> 页面：`/features/department-warehouse-catalog-night`
+> 浅色原版 `/features/department-warehouse-catalog` **完全不受影响**，两条路由可随时对照切换。
+
+### 12.1 设计定位
+
+前三套方案（A 青玉 / B 蓝灰 / C 松竹绿）都是**浅底深字**，
+适合白天明亮环境下的长时间值守。方案 D 面向**夜间值班、值班室灯光偏暗、
+或大屏巡检**场景，提供一套**暗底浅字**的独立配色。
+
+它不是「把浅色模式反色」，而是重新设计的一套配色：
+
+| 维度 | 浅色三方案（A/B/C） | 方案 D 暗夜黑 |
+| --- | --- | --- |
+| 底色 | 近白 / 浅灰渐变 | `#0b0f14` 近黑冷灰蓝 |
+| 文字 | 深色 `#1f2933` / `#101820` | 浅灰白 `#e8edf3` / `#f2f6fa` |
+| 主色 | 青玉 / 蓝灰 / 松竹绿 | 琥珀金 `#d8a24a` |
+| 色温倾向 | 冷（医疗洁净感） | 冷底 + 暖金强调，暖冷对冲 |
+
+**为什么用琥珀金而不是直接反色青玉**：暗底上若沿用青玉，
+主色与背景明度差不足、按钮会「陷进」背景里；
+琥珀金在 `#0b0f14` 上对比强但不刺眼，且与冷色底形成唯一的暖点，
+让「可操作」元素在暗屏上一眼可辨。
+
+### 12.2 色板
+
+```css
+/* 基底 */
+--night-bg:        #0b0f14;  /* 页面底 */
+--night-surface:   #131920;  /* 卡片 / 表格底 */
+--night-elevated:  #18202a;  /* 浮层 / 表头 */
+--night-line:      #26303c;  /* 常规边框 */
+
+/* 文字 */
+--night-text:        #e8edf3;  /* 主文字 */
+--night-text-muted:  #8d9aa8;  /* 次级文字 */
+
+/* 琥珀金 */
+--night-primary:        #d8a24a;
+--night-primary-strong: #e8bc6b;
+--night-primary-deep:   #b8862f;
+```
+
+### 12.3 语义色（暗底提亮版）
+
+状态语义与前三方案**一一对应**，仅整体提亮以适配暗底：
+
+| 语义 | 浅色版 | 暗夜黑版 | 底色 | 边框 | 文字 |
+| --- | --- | --- | --- | --- | --- |
+| 启用 / 成功 | `#2f7d5b` | `#4ec08c` | `#14251d` | `#2a4a3a` | `#7ed4ac` |
+| 停用 / 禁用 | `#5b6b76` | `#7a8794` | `#1b232d` | `#2c3744` | `#a7b3c0` |
+| 警告 / 待审核 | `#9a6114` | `#e0a951` | `#251e12` | `#4a3a1e` | `#eec27e` |
+| 危险 / 删除 | `#a33a30` | `#e06c5c` | `#261614` | `#4d2a26` | `#f09384` |
+| 信息 / 查看 | `#1f5f7d` | `#6ba7d4` | `#14212c` | `#26404f` | `#93c3e4` |
+| 主色 / 编辑 | 随方案 | `#d8a24a` | `#241d12` | `#b8862f` | `#e8bc6b` |
+
+状态条仍遵循统一规格：**4px 圆角 · 1px 边框 · 0.4 透明度底色**，
+只是底色改为「与暗底 `#131920` 混合」而不是「与白色混合」。
+
+### 12.4 组件实测（浏览器 computed style）
+
+表头：
+
+```
+background = rgb(24, 32, 42)      /* --night-elevated */
+color      = rgb(242, 246, 250)    /* --spd-text-heading */
+```
+
+数据行：
+
+```
+background = rgb(19, 25, 32)      /* --night-surface */
+```
+
+「启用」状态条：
+
+```
+background = color(srgb 0.167 0.360 0.295)   /* 语义色 0.4 与暗底混合 */
+color      = rgb(78, 192, 140)
+border     = rgb(42, 74, 58)
+radius     = 4px
+```
+
+表格铺满（实测 1600px 视口）：
+
+```
+tableWidth    = 1673px
+containerWidth = 1676px     /* 差值 3px 为滚动条占位，无留白 */
+```
+
+### 12.5 主题隔离机制
+
+暗夜黑通过**独立属性** `data-spd-theme="night-black"` 挂在 `<html>` 上，
+与用户主题切换器使用的 `data-theme`（`medical-blue` / `warm-yellow` / `forest-green`）**完全隔离**：
+
+- 顶栏切换用户主色**不会**覆盖暗夜黑方案；
+- 离开该页面时属性被清除，浅色页面样式零污染（实测浅色页 `data-spd-theme = null`，表头底色仍为青玉 `rgb(31,111,109)`）；
+- 颜色全部使用**字面色值**，不引用会被主题切换器以内联样式覆盖的 `--theme-primary` 等变量。
+
+### 12.6 与浅色页共用的能力
+
+暗夜黑页复用同一套业务逻辑与数据源，功能与浅色版**完全对齐**：
+
+- 同一后端接口 `/api/master-data/department-warehouse-catalogs`；
+- 同一套列宽算法（`useListColumns`，`fitMode: 'hybrid'`）、列权重配置与表头分隔线样式；
+- 同一套筛选（科室 / 库房 / 商品 / 状态）、分页、列设置、批量维护、增删改停启用；
+- 同一套三档字号系统（标准 / 大 / 特大）。
+
+页面右上角提供「浅色原版 / 暗夜黑」切换条，评审时可同屏对照。
+
+### 12.7 复现
+
+```powershell
+git checkout feature/ui-dark-night
+npm --prefix frontend run build
+npm run dev:frontend
+# 打开 http://localhost:1820/features/department-warehouse-catalog-night
+```

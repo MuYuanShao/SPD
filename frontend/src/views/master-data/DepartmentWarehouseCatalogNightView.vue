@@ -212,18 +212,6 @@ const canWrite = computed(() => authStore.canWrite('department-warehouse-catalog
 
 <template>
   <section class="master-page master-page--aligned spd-night-page spd-unified-list">
-    <!-- 方案标识 + 与浅色原版互相切换 -->
-    <div class="spd-night-page-bar">
-      <span class="spd-night-badge">暗夜黑配色方案</span>
-      <span class="spd-night-page-note">
-        暗夜黑 + 琥珀金 · 功能与「科室库房目录」浅色原版完全一致，仅配色不同
-      </span>
-      <nav class="spd-night-switch" aria-label="配色方案切换">
-        <RouterLink to="/features/department-warehouse-catalog">浅色原版</RouterLink>
-        <a href="#" class="is-active" @click.prevent>暗夜黑</a>
-      </nav>
-    </div>
-
     <MdPageHeader
       title="科室库房目录"
       description="维护科室与库房的商品目录关系，按科室、库房、商品、状态快速检索。"
@@ -590,27 +578,6 @@ const canWrite = computed(() => authStore.canWrite('department-warehouse-catalog
 </template>
 
 <style scoped>
-/* 方案标识条：位于页面顶部，便于评审时一眼区分配色方案 */
-.spd-night-page-bar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 14px;
-  border: 1px solid var(--spd-border-default);
-  border-radius: 12px;
-  background: var(--spd-bg-container);
-}
-
-.spd-night-page-note {
-  color: var(--spd-text-tertiary);
-  font-size: 13px;
-}
-
-.spd-night-switch {
-  margin-left: auto;
-}
-
 /* 空态：暗底上沿用同样的「主标题 + 提示」两级结构 */
 .spd-night-empty {
   display: flex;

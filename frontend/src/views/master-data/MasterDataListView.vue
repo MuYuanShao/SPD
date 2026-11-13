@@ -427,28 +427,37 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
 ]
 
 /**
- * 科室库房目录列定义 —— 基准宽度 + 弹性上限
+ * 科室库房目录列定义 —— 宽度由实测内容反推，而非拍脑袋
  * ---------------------------------------------------------------------
- * 设计原则：
- *   - 基准宽度按「表头文案 + 典型内容」定，不追求填满宽屏。
- *     列宽过大会把相邻列挤扁，短字段列（状态 / 维护来源）尤其明显
- *   - 文字过多时由「商品名称 / 生产厂家」两列换行承载，
- *     换行是预期行为，不应靠拉宽列来避免
- *   - flexible 列设 maxWidth：宽屏下最多涨到上限，
- *     避免长文本列吃掉全部富余、把短字段列压成一条缝
+ * 用 canvas 按真实字体量出每列内容的自然宽度后，再定基准与上限：
  *
- * 基准宽度合计 991 + 选择列 48 + 操作列 200 = 1239，
- * 在 1280px 内容区（1244px）内可完整铺开，无横向滚动。
+ *   列            实测自然宽   base   max    min
+ *   科室 / 库房      156        148    165   120
+ *   商品编码         132        122    140   105
+ *   商品名称         858        168    470   150
+ *   规格型号         188        106    130    98
+ *   生产厂家         592        158    430   140
+ *   维护来源          56         88    104    84
+ *   状态             28         70     84    66
+ *   更新时间         158        158    172   148
+ *
+ * 规则：**字少的列不占大块，字多的列给足空间**。
+ *   - 状态 / 维护来源：上限贴近实际内容（84 / 104），
+ *     无论屏幕多宽都保持紧凑，不会出现大片空白。
+ *   - 商品名称 / 生产厂家：上限放宽到 470 / 430，
+ *     在 1920px 下能完整展开长名称，窄屏则换行承载。
+ *   - 基准合计 1018（+ 选择列 48 + 操作列 200 = 1266），
+ *     1280px 内容区（1244px）也基本铺满且不出现横向滚动。
  */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 135, visible: true },
-  { key: 'productCode', label: '商品编码', width: 110, visible: true },
-  { key: 'productName', label: '商品名称', width: 185, visible: true, flexible: true, maxWidth: 260, minFlexibleWidth: 130 },
-  { key: 'spec', label: '规格型号', width: 105, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 170, visible: true, flexible: true, maxWidth: 240, minFlexibleWidth: 120 },
-  { key: 'source', label: '维护来源', width: 90, visible: true },
-  { key: 'status', label: '状态', width: 78, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 118, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 148, visible: true, maxWidth: 165, minFlexibleWidth: 120 },
+  { key: 'productCode', label: '商品编码', width: 122, visible: true, maxWidth: 140, minFlexibleWidth: 105 },
+  { key: 'productName', label: '商品名称', width: 168, visible: true, flexible: true, maxWidth: 470, minFlexibleWidth: 150 },
+  { key: 'spec', label: '规格型号', width: 106, visible: true, maxWidth: 130, minFlexibleWidth: 98 },
+  { key: 'manufacturer', label: '生产厂家', width: 158, visible: true, flexible: true, maxWidth: 430, minFlexibleWidth: 140 },
+  { key: 'source', label: '维护来源', width: 88, visible: true, maxWidth: 104, minFlexibleWidth: 84 },
+  { key: 'status', label: '状态', width: 70, visible: true, maxWidth: 84, minFlexibleWidth: 66 },
+  { key: 'updateTime', label: '更新时间', width: 158, visible: true, maxWidth: 172, minFlexibleWidth: 148 }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
@@ -503,9 +512,9 @@ const departmentCols = useListColumns({
   defaults: DEPARTMENT_COL_DEFAULTS
 })
 const catalogCols = useListColumns({
-  storageKey: 'spd-department-warehouse-catalog-cols-v2',
+  storageKey: 'spd-department-warehouse-catalog-cols-v3',
   defaults: CATALOG_COL_DEFAULTS,
-  // 方案 C：混合策略 —— 弹性列（商品名称 / 生产厂家）优先吸收富余但受 maxWidth 上限约束，富余用完后剩余量才补给短字段列，短字段列不会被撑得过宽。
+  // 方案 C：混合策略 —— 字多的列（商品名称 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
   fitMode: 'hybrid',
   reservedWidth: 248 // 选择列 48 + 操作列 200
 })

@@ -398,13 +398,14 @@ watch(pageMode, () => {
                 <th>手机</th>
                 <th>邮箱</th>
                 <th>状态</th>
+                <th>创建时间</th>
                 <th>更新时间</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="10" class="text-center muted">正在加载...</td></tr>
-              <tr v-else-if="!users.length"><td colspan="10" class="text-center muted">暂无数据</td></tr>
+              <tr v-if="loading"><td colspan="11" class="text-center muted">正在加载...</td></tr>
+              <tr v-else-if="!users.length"><td colspan="11" class="text-center muted">暂无数据</td></tr>
               <tr v-else v-for="row in users" :key="row.userId">
                 <td><input type="checkbox" :checked="selectedUserIds.includes(row.userId)" @change="onUserCheckbox(row.userId, $event)" /></td>
                 <td>{{ row.username }}</td>
@@ -414,6 +415,7 @@ watch(pageMode, () => {
                 <td>{{ row.phone || '-' }}</td>
                 <td>{{ row.email || '-' }}</td>
                 <td><span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
+                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
                 <td>{{ row.updateTime || '-' }}</td>
                 <td><button class="btn-text" type="button" @click="openUserEdit(row)"><Pencil :size="13" /> 编辑</button></td>
               </tr>
@@ -440,11 +442,13 @@ watch(pageMode, () => {
                 <th>权限点</th>
                 <th>状态</th>
                 <th>说明</th>
+                <th>创建时间</th>
+                <th>修改时间</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="8" class="text-center muted">正在加载...</td></tr>
-              <tr v-else-if="!roles.length"><td colspan="8" class="text-center muted">暂无数据</td></tr>
+              <tr v-if="loading"><td colspan="10" class="text-center muted">正在加载...</td></tr>
+              <tr v-else-if="!roles.length"><td colspan="10" class="text-center muted">暂无数据</td></tr>
               <tr v-else v-for="row in roles" :key="row.roleId">
                 <td><input type="checkbox" :checked="selectedRoleIds.includes(row.roleId)" @change="onRoleCheckbox(row.roleId, $event)" /></td>
                 <td>{{ row.roleName }}</td>
@@ -454,6 +458,8 @@ watch(pageMode, () => {
                 <td>{{ row.permissionCount }}</td>
                 <td><span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
                 <td>{{ row.description || '-' }}</td>
+                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               </tr>
             </tbody>
           </table>

@@ -387,7 +387,8 @@ public class OperationalDeliveryModule {
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        qpl.package_quantity AS packageQuantity,
-                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime
+                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
+                       DATE_FORMAT(qpl.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                   FROM department_requisition dr
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN quota_package_label qpl ON qpl.product_id = dri.product_id
@@ -409,7 +410,8 @@ public class OperationalDeliveryModule {
                        p.spec_model AS specModel, p.unit,
                        qpt.template_code AS templateCode, qpt.template_name AS templateName,
                        w.warehouse_name AS warehouseName, w.warehouse_type AS warehouseType,
-                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime
+                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
+                       DATE_FORMAT(qpl.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                   FROM quota_package_label qpl
                   JOIN product p ON p.product_id = qpl.product_id
                   LEFT JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id

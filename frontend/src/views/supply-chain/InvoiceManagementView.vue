@@ -281,6 +281,7 @@ onMounted(load)
                 <div class="invoice-cell-stack">
                   <strong>{{ row.invoiceNo }}</strong>
                   <span class="invoice-cell-meta">登记：{{ row.createTime || '-' }}</span>
+                  <span class="invoice-cell-meta">修改：{{ row.updateTime || '-' }}</span>
                 </div>
               </td>
               <td class="col-supplier" :title="row.supplierName || '-'">{{ row.supplierName || '-' }}</td>

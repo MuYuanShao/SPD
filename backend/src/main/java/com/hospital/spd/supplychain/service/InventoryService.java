@@ -81,13 +81,14 @@ public class InventoryService {
                    ) stock ON stock.product_id = p.product_id
                    LEFT JOIN (
                      SELECT warehouse_id, product_id, SUM(available_qty) AS loose_qty
-                            , SUM(locked_qty) AS locked_qty, SUM(isolated_qty) AS isolated_qty
+                            , SUM(locked_qty) AS locked_qty, SUM(isolated_qty) AS isolated_qty, MAX(update_time) AS balance_update_time
                        FROM inventory_balance
                       WHERE location_id IS NULL
                       GROUP BY warehouse_id, product_id
                    ) lo ON lo.product_id = stock.product_id AND lo.warehouse_id = stock.warehouse_id
                    LEFT JOIN (
-                     SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty
+                     SELECT warehouse_id, product_id, SUM(package_quantity) AS packaged_qty,
+                            MAX(update_time) AS package_update_time
                        FROM quota_package_label
                       WHERE status IN ('pending_print', 'available')
                       GROUP BY warehouse_id, product_id
@@ -122,8 +123,21 @@ public class InventoryService {
                        ROUND(COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0), 4) AS qty,
                        ROUND((COALESCE(lo.loose_qty, 0) + COALESCE(qp.packaged_qty, 0)) * COALESCE(p.purchase_price, 0), 2) AS amount,
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       COALESCE(s.supplier_name, '-') AS supplierName
-                """ + fromClause + where + " ORDER BY w.warehouse_name, p.product_code LIMIT ? OFFSET ?",
+                       COALESCE(s.supplier_name, '-') AS supplierName,
+                       DATE_FORMAT(GREATEST(
+                           COALESCE(lo.balance_update_time, qp.package_update_time),
+                           COALESCE(qp.package_update_time, lo.balance_update_time),
+                           COALESCE(picks.picked_time, lo.balance_update_time, qp.package_update_time)
+                       ), '%Y-%m-%d %H:%i:%s') AS updateTime
+                """ + fromClause + """
+                   LEFT JOIN (
+                     SELECT dr.source_warehouse_id AS warehouse_id, binding.product_id,
+                            MAX(binding.create_time) AS picked_time
+                       FROM spd_delivery_package_binding binding
+                       JOIN department_requisition dr ON dr.requisition_id = binding.requisition_id
+                      GROUP BY dr.source_warehouse_id, binding.product_id
+                   ) picks ON picks.warehouse_id = stock.warehouse_id AND picks.product_id = stock.product_id
+                """ + where + " ORDER BY w.warehouse_name, p.product_code LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         String summarySql = """

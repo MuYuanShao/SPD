@@ -49,6 +49,7 @@ public class CampusService {
                        COALESCE(phone, '-') AS phone,
                        sort_order AS sortOrder,
                        CASE status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM campus
                 """ + where + " ORDER BY sort_order, campus_id DESC LIMIT ? OFFSET ?",

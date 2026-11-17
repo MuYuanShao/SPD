@@ -435,11 +435,12 @@ watch(mode, () => {
                 <th>金额</th>
                 <th>厂家</th>
                 <th>供应商</th>
+                <th>更新时间</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="12" class="inventory-state-cell">正在加载库存...</td>
+                <td colspan="13" class="inventory-state-cell">正在加载库存...</td>
               </tr>
               <tr v-for="row in balances" v-else :key="`${row.warehouseName}|${row.productCode}`">
                 <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
@@ -454,9 +455,10 @@ watch(mode, () => {
                 <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
                 <td class="inventory-wrap-cell">{{ row.manufacturerName || '-' }}</td>
                 <td class="inventory-wrap-cell">{{ row.supplierName || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               </tr>
               <tr v-if="!balances.length && !loading">
-                <td colspan="12" class="inventory-state-cell">暂无库存汇总数据</td>
+                <td colspan="13" class="inventory-state-cell">暂无库存汇总数据</td>
               </tr>
             </tbody>
           </table>
@@ -635,13 +637,13 @@ watch(mode, () => {
       <p class="stocktaking-hint">盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。</p>
       <div class="table-scroll stocktaking-list-scroll">
         <table class="master-table purchase-detail-table stocktaking-table">
-          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th class="numeric-cell">差异</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
+          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th class="numeric-cell">差异</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8" class="stocktaking-state-cell">正在加载盘点表...</td>
+              <td colspan="9" class="stocktaking-state-cell">正在加载盘点表...</td>
             </tr>
             <tr v-if="!stocktakingRows.length && !loading">
-              <td colspan="8" class="stocktaking-state-cell">暂无盘点表，点击右上角「新增盘点表」创建</td>
+              <td colspan="9" class="stocktaking-state-cell">暂无盘点表，点击右上角「新增盘点表」创建</td>
             </tr>
             <tr v-for="row in stocktakingRows" v-else :key="String(row.stocktakingNo)">
               <td class="stocktaking-no-cell">{{ row.stocktakingNo }}</td>
@@ -651,6 +653,7 @@ watch(mode, () => {
               <td class="stocktaking-diff-cell">{{ row.diffQty ?? '-' }}</td>
               <td><span :class="['status-badge', stocktakingTone(row.status)]">{{ formatStatusText(row.status) }}</span></td>
               <td>{{ row.reason || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
                   <button class="btn-text" type="button" @click="openStocktakingDetail(String(row.stocktakingNo))"><Eye :size="15" /> 明细</button>
@@ -687,7 +690,7 @@ watch(mode, () => {
       </div>
       <div class="table-scroll">
         <table class="master-table purchase-detail-table">
-          <thead><tr><th>调价单号</th><th>系统批次</th><th>原价</th><th>新价</th><th>影响数量</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
+          <thead><tr><th>调价单号</th><th>系统批次</th><th>原价</th><th>新价</th><th>影响数量</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in priceRows" :key="String(row.adjustmentNo)">
               <td>{{ row.adjustmentNo }}</td>
@@ -697,6 +700,7 @@ watch(mode, () => {
               <td>{{ row.affectedQty }}</td>
               <td>{{ formatStatusText(row.status) }}</td>
               <td>{{ row.reason || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td><button v-if="row.status === 'draft'" class="btn btn-primary btn-sm" type="button" @click="approvePriceRow(String(row.adjustmentNo))"><CheckCircle2 :size="16" /> 审批</button></td>
             </tr>
           </tbody>

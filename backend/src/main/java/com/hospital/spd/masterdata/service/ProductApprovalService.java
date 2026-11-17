@@ -143,7 +143,7 @@ public class ProductApprovalService {
                                a.first_category, a.second_category, a.third_category, a.is_chargeable, a.tender_sub_code,
                                a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.is_key_monitored,
                                a.storage_condition,
-                               a.change_diff, a.submit_by, submitter.dept_id AS submit_dept_id, a.submit_time,
+                               a.change_diff, a.submit_by, submitter.dept_id AS submit_dept_id, a.submit_time, a.create_time, a.update_time,
                                a.approve_opinion, a.initial_review_opinion,
                                a.final_review_opinion, a.return_reason, a.reject_reason
                         FROM pending_product_application a
@@ -266,7 +266,7 @@ public class ProductApprovalService {
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
                                a.is_quota_managed, a.is_key_monitored,
-                               a.approval_status, a.submit_by, a.submit_time,
+                               a.approval_status, a.submit_by, a.submit_time, a.create_time, a.update_time,
                                (SELECT r.step_name FROM pending_product_approval_route_step r
                                  WHERE r.application_id=a.application_id AND r.approval_round=a.approval_round
                                    AND r.route_status='pending' ORDER BY r.route_order LIMIT 1) AS current_step_name
@@ -1144,7 +1144,7 @@ public class ProductApprovalService {
                     row.firstCategory(), row.secondCategory(), row.thirdCategory(),
                     row.volumeBased(), row.centralizedProcurement(), row.domestic(),
                     row.chargeable(), row.purchasePrice(), row.purchaseUnit(), row.udiCode(),
-                    row.quotaManaged(), row.keyMonitored()
+                    row.quotaManaged(), row.keyMonitored(), row.createTime(), row.updateTime()
             ));
         }
         return enriched;

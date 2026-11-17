@@ -27,6 +27,8 @@ public class PrintTemplateService {
                 SELECT template_id AS id, template_code AS templateCode, template_name AS templateName,
                        template_type AS templateType, fields_json AS fieldsJson,
                        paper_width_mm AS paperWidthMm, paper_height_mm AS paperHeightMm,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        status, remark
                   FROM print_template
                  WHERE deleted = 0
@@ -39,6 +41,8 @@ public class PrintTemplateService {
                 SELECT template_id AS id, template_code AS templateCode, template_name AS templateName,
                        template_type AS templateType, fields_json AS fieldsJson,
                        paper_width_mm AS paperWidthMm, paper_height_mm AS paperHeightMm,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        status, remark
                   FROM print_template
                  WHERE template_type = ? AND deleted = 0

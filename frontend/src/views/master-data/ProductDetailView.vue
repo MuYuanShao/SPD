@@ -103,6 +103,8 @@ const detailSections = computed<DetailSection[]>(() => {
         { label: '一级分类', value: displayValue(item.firstCategory) },
         { label: '二级分类', value: displayValue(item.secondCategory) },
         { label: '三级分类', value: displayValue(item.thirdCategory) },
+        { label: '创建时间', value: displayValue(item.createTime) },
+        { label: '修改时间', value: displayValue(item.updateTime) },
         { label: '状态', value: displayValue(item.statusLabel), emphasis: true }
       ]
     },

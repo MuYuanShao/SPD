@@ -417,6 +417,7 @@ public class PackingTaskService {
                        qpl.settlement_unit_price AS settlementUnitPrice,
                        ROUND(qpl.package_quantity * qpl.settlement_unit_price, 4) AS settlementPackagePrice,
                        qpl.catalog_price_version AS catalogPriceVersion,
+                       DATE_FORMAT(qpl.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        GROUP_CONCAT(CONCAT(ib.system_batch_no, ':',
                             TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM qpls.source_qty + 0)))

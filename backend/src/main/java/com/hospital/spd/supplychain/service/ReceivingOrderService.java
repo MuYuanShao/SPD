@@ -144,6 +144,7 @@ public class ReceivingOrderService {
                        CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
                        ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
+                       DATE_FORMAT(ro.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(ro.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        COUNT(roi.item_id) AS itemCount,
                        COALESCE(SUM(roi.quantity), 0) AS receiveQuantity,
@@ -185,6 +186,7 @@ public class ReceivingOrderService {
                        CASE WHEN ro.purchase_order_id IS NULL THEN 'temporary' ELSE 'purchase_order' END AS sourceType,
                        ro.receiving_type AS receivingType, ro.is_agent AS isAgent,
                        ro.remark, DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS receiveTime,
+                       DATE_FORMAT(ro.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(ro.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM receiving_order ro
                   LEFT JOIN purchase_order po ON po.purchase_order_id = ro.purchase_order_id

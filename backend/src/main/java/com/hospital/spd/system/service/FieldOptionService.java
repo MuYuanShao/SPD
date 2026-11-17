@@ -28,6 +28,8 @@ public class FieldOptionService {
         return jdbcTemplate.queryForList("""
                 SELECT option_id AS optionId, field_key AS fieldKey, field_label AS fieldLabel,
                        option_value AS optionValue, option_label AS optionLabel,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        sort_order AS sortOrder, status, remark
                   FROM sys_field_option
                  WHERE field_key = ? AND deleted = 0

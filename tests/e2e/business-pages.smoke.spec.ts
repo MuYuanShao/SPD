@@ -85,11 +85,11 @@ test('医院目录停用商品显示启用并提交审批', async ({ page }) => 
   })
   await page.goto('/features/hospital-product-catalog')
   await login(page)
-  const menu = page.locator('.spd-mini-nav')
+  const menu = page.locator('.spd-side-nav')
   for (const name of ['待审批目录', '医院目录', '供应商厂家管理']) {
-    await expect(menu.locator('.spd-mini-nav-item').getByText(name, { exact: true })).toBeVisible()
+    await expect(menu.getByRole('menuitem', { name, exact: true, includeHidden: true })).toHaveCount(1)
   }
-  await expect(menu.getByText('商品目录', { exact: true })).toHaveCount(0)
+  await expect(menu.locator('.el-menu-item').getByText('商品目录', { exact: true })).toHaveCount(0)
   const row = page.getByRole('row').filter({ hasText: code })
   await expect(row.getByRole('button', { name: '停用', exact: true })).toBeHidden()
   await row.getByRole('button', { name: '启用', exact: true }).click()
@@ -160,7 +160,7 @@ test('科室库房目录显示切回页面后的当前库房等级', async ({ pa
   await login(page)
   const row = page.getByRole('row').filter({ hasText: 'SMOKE-WH-001' })
   await expect(row.getByText('库房等级：一级库', { exact: true })).toBeVisible()
-  await page.getByRole('link', { name: '库房 / 货位管理' }).click()
+  await page.getByRole('menuitem', { name: '库房 / 货位管理', exact: true }).click()
   await expect(page).toHaveURL(/\/features\/warehouse-location-management$/)
   warehouseType = '二级库'
   await page.locator('.spd-tabbar-tab-label').getByText('科室库房目录', { exact: true }).click()
@@ -408,10 +408,13 @@ test('收费耗材明细支持筛选、分页、空状态和横向表格操作',
 test('待审批目录取消字段导航后仍可设置列和横向滚动', async ({ page }) => {
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
   await login(page)
-  await expect(page.getByRole('heading', { name: '新品准入 · 多字段列表' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '待审批目录', exact: true })).toBeVisible()
   await expect(page.locator('.approval-field-nav')).toHaveCount(0)
   await expect(page.getByRole('button', { name: '列设置', exact: true })).toBeVisible()
-  await expect(page.locator('.approval-wide-table thead')).toContainText('变更记录')
+  const headers = page.locator('.approval-wide-table thead')
+  await expect(headers).toContainText('变更记录')
+  await expect(headers).toContainText('创建时间')
+  await expect(headers).toContainText('修改时间')
   const table = page.locator('.approval-wide-table-shell')
   await expect.poll(() => table.evaluate(el => {
     el.scrollLeft = el.scrollWidth

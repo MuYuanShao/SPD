@@ -67,6 +67,7 @@ public class DepartmentWarehouseCatalogService {
                        COALESCE(m.manufacturer_name, '-') AS manufacturerName,
                        CASE dwc.source_type WHEN 'manual' THEN '手工维护' ELSE '系统生成' END AS sourceType,
                        CASE dwc.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(dwc.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(dwc.update_time, '%Y-%m-%d %H:%i') AS updateTime
                 """ + fromClause + where + " ORDER BY dwc.catalog_id ASC LIMIT ? OFFSET ?",
                 queryArgs.toArray());

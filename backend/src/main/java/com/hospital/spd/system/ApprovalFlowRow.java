@@ -17,6 +17,7 @@ public record ApprovalFlowRow(
         String deptName,
         Long createBy,
         String createByName,
+        String createTime,
         String updateTime,
         List<ApprovalFlowStepRow> steps
 ) {

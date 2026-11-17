@@ -558,6 +558,8 @@ onMounted(loadAll)
         <div class="sys-flow-card-meta">
           <span><i class="sys-flow-card-meta-icon"><Layers :size="12" /></i> {{ row.steps.length }} 级审批</span>
           <span><i class="sys-flow-card-meta-icon"><Settings2 :size="12" /></i> 数据隔离 {{ dataScopeName(row.dataScope) }}</span>
+          <span>创建时间 {{ row.createTime || '-' }}</span>
+          <span>修改时间 {{ row.updateTime || '-' }}</span>
           <span v-if="row.remark"><i class="sys-flow-card-meta-icon"><FileText :size="12" /></i> {{ row.remark }}</span>
         </div>
         <ol class="sys-flow-steps">

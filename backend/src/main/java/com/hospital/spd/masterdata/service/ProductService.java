@@ -142,7 +142,9 @@ public class ProductService {
                        CASE p.is_key_monitored WHEN 1 THEN '是' ELSE '否' END AS keyMonitored,
                        COALESCE(p.tender_sub_code, '-') AS tenderSubCode,
                        p.unit AS unit, p.purchase_price AS price,
-                       CASE p.status WHEN 1 THEN '启用' ELSE '停用' END AS status
+                       CASE p.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(p.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(p.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                 FROM product p
                 LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id
                 LEFT JOIN supplier s ON p.supplier_id = s.supplier_id
@@ -303,7 +305,9 @@ public class ProductService {
                        p.tender_sub_code,
                        p.is_high_value, p.is_cold_chain, p.is_quota_managed, p.is_key_monitored,
                        p.storage_condition,
-                       p.status
+                       p.status,
+                       DATE_FORMAT(p.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(p.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                 FROM product p
                 LEFT JOIN product_category c ON p.category_id = c.category_id
                 LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id
@@ -349,7 +353,9 @@ public class ProductService {
                     rs.getInt("is_key_monitored") == 1,
                     fallback(rs.getString("storage_condition")),
                     rs.getInt("status") == 1 ? "启用" : "停用",
-                    attachments
+                    attachments,
+                    rs.getString("createTime"),
+                    rs.getString("updateTime")
             );
             }, productCode);
         } catch (org.springframework.dao.EmptyResultDataAccessException ex) {

@@ -28,7 +28,9 @@ public record PendingProductApplicationRow(
         String purchaseUnit,
         String udiCode,
         Boolean quotaManaged,
-        Boolean keyMonitored
+        Boolean keyMonitored,
+        String createTime,
+        String updateTime
 ) {
     public PendingProductApplicationRow(
             String no, String type, String product, String supplier, String applicant, String time,
@@ -42,7 +44,7 @@ public record PendingProductApplicationRow(
         this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode,
                 changeSummary, manufacturerName, registrationNo, contractCode, firstCategory,
                 secondCategory, thirdCategory, volumeBased, centralizedProcurement, domestic,
-                chargeable, purchasePrice, purchaseUnit, udiCode, quotaManaged, false);
+                chargeable, purchasePrice, purchaseUnit, udiCode, quotaManaged, false, null, null);
     }
 
     public PendingProductApplicationRow(
@@ -59,6 +61,6 @@ public record PendingProductApplicationRow(
             String changeSummary
     ) {
         this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode, changeSummary,
-                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

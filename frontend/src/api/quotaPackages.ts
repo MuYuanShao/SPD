@@ -2,6 +2,7 @@ import { getData, getPage, http, postData, putData, unwrapData, type ApiResponse
 import { collectSortedRows } from '../utils/businessListSort'
 
 export interface QuotaTemplateRow {
+  createTime?: string
   baseUnitPrice?: number
   packageUnitPrice?: number
   catalogPriceVersion?: number
@@ -26,6 +27,7 @@ export interface QuotaTemplateRow {
 }
 
 export interface QuotaSafetyRow {
+  createTime?: string
   safetyId: number
   deptCode: string
   deptName: string
@@ -60,6 +62,7 @@ export interface PackingTaskRow {
 }
 
 export interface PackageLabelRow {
+  updateTime?: string
   settlementUnitPrice?: number | null
   settlementPackagePrice?: number | null
   catalogPriceVersion?: number | null

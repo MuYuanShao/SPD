@@ -1,6 +1,7 @@
 import { getData, getPage, http, postData, putData } from './http'
 
 export interface PurchaseOrderRow {
+  updateTime?: string
   orderId: number
   orderNo: string
   supplierName: string

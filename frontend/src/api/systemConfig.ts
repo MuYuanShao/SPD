@@ -1,6 +1,7 @@
 import { getData, postData, putData } from './http'
 
 export interface SystemConfigRow {
+  createTime?: string
   configId: number
   configType: string
   configTypeName: string

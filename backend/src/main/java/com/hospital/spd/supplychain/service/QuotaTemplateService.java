@@ -98,6 +98,7 @@ public class QuotaTemplateService {
                        ROUND(p.purchase_price * qpti.quantity, 4) AS packageUnitPrice,
                        p.catalog_price_version AS catalogPriceVersion,
                        CASE qpt.status WHEN 1 THEN '启用' ELSE '禁用' END AS status,
+                       DATE_FORMAT(qpt.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(qpt.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM quota_package_template qpt
                   JOIN (

@@ -4,6 +4,8 @@ import { getData, getPage, postData, putData, deleteData, http } from './http'
 export type LicenseType = 'product' | 'supplier' | 'manufacturer' | 'contract'
 
 export interface LicenseRow {
+  createTime?: string
+  updateTime?: string
   sourceSystem?: string
   id: number
   licenseType: LicenseType

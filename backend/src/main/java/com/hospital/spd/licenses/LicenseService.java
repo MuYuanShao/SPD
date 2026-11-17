@@ -88,6 +88,8 @@ public class LicenseService {
                        CASE WHEN l.status = 0 THEN 'invalid' WHEN l.expire_date < CURRENT_DATE THEN 'expired'
                             WHEN l.issue_date > CURRENT_DATE THEN 'not_effective' ELSE 'valid' END AS effectiveStatus, l.party_a AS partyA, l.party_b AS partyB,
                        l.contract_amount AS contractAmount, l.issue_date AS issueDate,
+                       DATE_FORMAT(l.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(l.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        l.expire_date AS expireDate, l.status AS status, l.remark,
                        CASE WHEN l.source_product_id IS NOT NULL THEN 'MCP-UI' ELSE 'SPD-PR' END AS sourceSystem,
                        (SELECT COUNT(*) FROM sys_attachment a
@@ -112,6 +114,8 @@ public class LicenseService {
                        owner_code AS ownerCode, owner_name AS ownerName, party_a AS partyA,
                        party_b AS partyB, contract_amount AS contractAmount, issue_date AS issueDate,
                        expire_date AS expireDate, status AS status, remark, revision_no AS revisionNo,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        CASE WHEN source_product_id IS NOT NULL THEN 'MCP-UI' ELSE 'SPD-PR' END AS sourceSystem
                   FROM license_document
                  WHERE license_id = ? AND deleted = 0

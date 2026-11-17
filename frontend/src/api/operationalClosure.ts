@@ -83,6 +83,7 @@ export interface PackageLabelDetail {
   warehouseName: string
   warehouseType: string
   createTime: string
+  updateTime?: string
   sources: Array<{ batchId: number; systemBatchNo?: string; productionBatchNo?: string; expireDate?: string; sourceQty: number; unitPrice: number }>
   bindings: Array<{ deliveryNo: string; requisitionNo?: string; packageQuantity: number; createTime: string }>
   events: Array<{ eventNo: string; eventType: string; statusBefore?: string; statusAfter?: string; qtyChange: number; remark?: string; createTime: string }>

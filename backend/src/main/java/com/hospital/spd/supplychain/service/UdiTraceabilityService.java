@@ -78,7 +78,9 @@ public class UdiTraceabilityService {
                        tc.patient_name_masked AS patientNameMasked,
                        tc.risk_level AS riskLevel,
                        tc.last_event_name AS lastEventName,
-                       DATE_FORMAT(tc.last_event_time, '%Y-%m-%d %H:%i') AS lastEventTime
+                       DATE_FORMAT(tc.last_event_time, '%Y-%m-%d %H:%i') AS lastEventTime,
+                       DATE_FORMAT(tc.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(tc.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                   FROM udi_trace_code tc
                 """ + where + " ORDER BY tc.last_event_time DESC, tc.trace_code_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
@@ -176,7 +178,9 @@ public class UdiTraceabilityService {
                            tc.patient_name_masked AS patientNameMasked,
                            tc.risk_level AS riskLevel,
                            tc.last_event_name AS lastEventName,
-                           DATE_FORMAT(tc.last_event_time, '%Y-%m-%d %H:%i') AS lastEventTime
+                           DATE_FORMAT(tc.last_event_time, '%Y-%m-%d %H:%i') AS lastEventTime,
+                           DATE_FORMAT(tc.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                           DATE_FORMAT(tc.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                       FROM udi_trace_code tc
                      WHERE tc.unique_code = ? OR tc.udi_code = ? OR tc.package_label_no = ?
                      LIMIT 1

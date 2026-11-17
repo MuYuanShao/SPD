@@ -54,12 +54,12 @@ class SystemConfigServiceTest {
                 1L, "base", "基础配置", "hospital", "default",
                 "hospital.info", "医院信息配置",
                 "{\"hospitalName\":\"第一人民医院\"}",
-                "realtime", "2024-01-01 00:00", "-", "low", "启用", "2024-01-01 00:00");
+                "realtime", "2024-01-01 00:00", "-", "low", "启用", "2024-01-01 00:00", null);
         SystemConfigRow row2 = new SystemConfigRow(
                 2L, "workflow", "业务流程配置", "global", "product_catalog",
                 "approval.product.admission", "商品准入审批流程",
                 "{\"nodes\":\"初审->复审\"}",
-                "realtime", "2024-01-01 00:00", "-", "high", "启用", "2024-01-01 00:00");
+                "realtime", "2024-01-01 00:00", "-", "high", "启用", "2024-01-01 00:00", null);
 
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of(row1, row2));
@@ -84,7 +84,7 @@ class SystemConfigServiceTest {
                 3L, "permission", "权限配置", "global", "menu",
                 "permission.button.control", "按钮权限控制",
                 "{\"enabled\":true}",
-                "realtime", "2024-01-01 00:00", "-", "medium", "启用", "2024-01-01 00:00");
+                "realtime", "2024-01-01 00:00", "-", "medium", "启用", "2024-01-01 00:00", null);
 
         when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(Object[].class)))
                 .thenReturn(List.of(row));

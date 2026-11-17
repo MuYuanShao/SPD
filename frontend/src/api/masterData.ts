@@ -44,6 +44,8 @@ export interface ProductAttachment {
 }
 
 export interface ProductDetail {
+  createTime: string
+  updateTime: string
   productId: number
   productCode: string
   productName: string
@@ -264,6 +266,7 @@ export interface DepartmentWarehouseRelationPayload {
 }
 
 export interface WarehouseLocation {
+  createTime?: string
   locationId: number
   locationCode: string
   locationType: string

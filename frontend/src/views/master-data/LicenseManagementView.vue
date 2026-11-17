@@ -378,7 +378,9 @@ const LICENSE_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'issueDate', label: '签发日期', width: 150, visible: true },
   { key: 'expireDate', label: '有效期至', width: 150, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'attachmentCount', label: '附件', width: 110, visible: true }
+  { key: 'attachmentCount', label: '附件', width: 110, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true },
+  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
 ]
 
 const licenseCols = useListColumns({
@@ -579,6 +581,22 @@ onUnmounted(closePreview)
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.expireDate || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="isLicenseColVisible('createTime')" label="创建时间" :min-width="licenseColWidth('createTime')">
+          <template #header>
+            <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('createTime', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-time">{{ row.createTime || '-' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="isLicenseColVisible('updateTime')" label="修改时间" :min-width="licenseColWidth('updateTime')">
+          <template #header>
+            <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('updateTime', $event)" />
+          </template>
+          <template #default="{ row }">
+            <span class="ulc-time">{{ row.updateTime || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column

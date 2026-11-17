@@ -1402,11 +1402,12 @@ watch(() => form.productCode, () => {
                   <th>商品</th>
                   <th>包内数量</th>
                   <th>生成时间</th>
+                  <th>修改时间</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!pickingPackageRows.length">
-                  <td colspan="6" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
+                  <td colspan="7" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
                 </tr>
                 <tr v-for="row in pickingPackageRows" :key="String(row.labelNo)">
                   <td>
@@ -1428,6 +1429,7 @@ watch(() => form.productCode, () => {
                   </td>
                   <td>{{ row.packageQuantity }}</td>
                   <td>{{ row.createTime }}</td>
+                  <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -1848,6 +1850,7 @@ watch(() => form.productCode, () => {
             <label><span>库房</span><strong>{{ packageDetail.warehouseName }}（{{ packageDetail.warehouseType }}）</strong></label>
             <label><span>状态</span><strong>{{ formatStatusText(packageDetail.status) }} · 打印 {{ packageDetail.printCount }} 次</strong></label>
             <label><span>生成时间</span><strong>{{ packageDetail.createTime }}</strong></label>
+            <label><span>修改时间</span><strong>{{ packageDetail.updateTime || '-' }}</strong></label>
           </div>
 
           <div class="section-title compact">

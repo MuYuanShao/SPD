@@ -166,6 +166,8 @@ onMounted(loadList)
               <th>纸张（宽 × 高 mm）</th>
               <th>启用字段</th>
               <th>状态</th>
+              <th>创建时间</th>
+              <th>修改时间</th>
               <th class="md-print-template-action-cell">操作</th>
             </tr>
           </thead>
@@ -188,6 +190,8 @@ onMounted(loadList)
               <td>
                 <MdStatus :label="statusText(row)" :variant="row.status === 1 ? 'success' : 'neutral'" />
               </td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+              <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               <td class="md-print-template-action-cell">
                 <div class="md-row-actions">
                   <button class="md-btn-text" type="button" @click="openEditor(row)">
@@ -197,7 +201,7 @@ onMounted(loadList)
               </td>
             </tr>
             <tr v-if="!rows.length">
-              <td :colspan="7">
+              <td :colspan="9">
                 <MdEmptyState text="暂无打印模板" hint="打印模板由定数包标签初始化生成" />
               </td>
             </tr>

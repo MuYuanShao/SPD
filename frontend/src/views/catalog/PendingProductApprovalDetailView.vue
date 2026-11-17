@@ -612,6 +612,10 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
           <span>{{ detail.applicant }}</span>
           <span class="sep">·</span>
           <span>{{ detail.submitTime }}</span>
+          <span class="sep">·</span>
+          <span>创建时间 {{ detail.createTime || '-' }}</span>
+          <span class="sep">·</span>
+          <span>修改时间 {{ detail.updateTime || '-' }}</span>
         </div>
         <div class="approval-header-divider"></div>
         <div class="timeline-row">

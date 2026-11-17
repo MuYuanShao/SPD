@@ -16,6 +16,7 @@ import static com.hospital.spd.masterdata.service.ProductApprovalStatus.toStatus
 import static com.hospital.spd.masterdata.service.ProductApprovalStatus.toStatusTone;
 
 final class ProductApprovalMapper {
+    private static final DateTimeFormatter RECORD_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private ProductApprovalMapper() {
@@ -50,7 +51,9 @@ final class ProductApprovalMapper {
                 rs.getString("purchase_unit"),
                 rs.getString("udi_code"),
                 rs.getInt("is_quota_managed") == 1,
-                rs.getInt("is_key_monitored") == 1
+                rs.getInt("is_key_monitored") == 1,
+                formatRecordTimestamp(rs.getTimestamp("create_time")),
+                formatRecordTimestamp(rs.getTimestamp("update_time"))
         );
     }
 
@@ -113,13 +116,19 @@ final class ProductApprovalMapper {
                 timeline,
                 canApprove,
                 canResubmit,
-                enableOnly
+                enableOnly,
+                formatRecordTimestamp(rs.getTimestamp("create_time")),
+                formatRecordTimestamp(rs.getTimestamp("update_time"))
         );
     }
 
     static String getDateString(ResultSet rs, String column) throws SQLException {
         var value = rs.getDate(column);
         return value == null ? "-" : value.toString();
+    }
+
+    static String formatRecordTimestamp(Timestamp timestamp) {
+        return timestamp == null ? "-" : timestamp.toLocalDateTime().format(RECORD_TIMESTAMP_FORMATTER);
     }
 
     static String formatTimestamp(Timestamp timestamp) {

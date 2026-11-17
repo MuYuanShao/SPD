@@ -52,7 +52,9 @@ public record PendingProductApplicationDetail(
         List<ApprovalTimelineNode> timeline,
         boolean canApprove,
         boolean canResubmit,
-        boolean enableOnly
+        boolean enableOnly,
+        String createTime,
+        String updateTime
 ) {
     public PendingProductApplicationDetail(
             String applicationNo, String applicationType, String approvalStatus, String statusLabel,
@@ -78,6 +80,6 @@ public record PendingProductApplicationDetail(
                 secondCategory, thirdCategory, chargeable, tenderSubCode,
                 qualificationAttachmentCount, highValue, coldChain, quotaManaged, false,
                 storageCondition, applicant, submitTime, approveOpinion, initialReviewOpinion,
-                finalReviewOpinion, returnReason, rejectReason, changeItems, timeline, canApprove, false, false);
+                finalReviewOpinion, returnReason, rejectReason, changeItems, timeline, canApprove, false, false, null, null);
     }
 }

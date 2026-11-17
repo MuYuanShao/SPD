@@ -911,12 +911,14 @@ watch(
                 <th class="tpl-col-qty">包装数量</th>
                 <th>套包参考单价</th>
                 <th class="tpl-col-status">状态</th>
+                <th>创建时间</th>
+                <th>修改时间</th>
                 <th class="tpl-col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="13" state="loading" message="正在加载定数包模板..." />
-              <TableStateRow v-else-if="templates.length === 0" :colspan="13" message="暂无符合条件的定数包模板" />
+              <TableStateRow v-if="loading" :colspan="15" state="loading" message="正在加载定数包模板..." />
+              <TableStateRow v-else-if="templates.length === 0" :colspan="15" message="暂无符合条件的定数包模板" />
               <tr
                 v-for="row in templates"
                 v-else
@@ -957,6 +959,8 @@ watch(
                     {{ formatStatusText(row.status) }}
                   </span>
                 </td>
+                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                 <td class="tpl-col-actions">
                   <div class="tpl-actions">
                     <button
@@ -1554,11 +1558,12 @@ watch(
                 <th class="lbl-col-source">来源批次</th>
                 <th class="lbl-col-print">打印次数</th>
                 <th class="lbl-col-time">生成时间</th>
+                <th>修改时间</th>
                 <th class="lbl-col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="10" state="loading" message="正在加载定数包标签..." />
+              <TableStateRow v-if="loading" :colspan="11" state="loading" message="正在加载定数包标签..." />
               <tr v-for="row in labels" :key="row.labelNo" class="lbl-row">
                 <td class="lbl-col-no">
                   <span class="lbl-no">{{ row.labelNo }}</span>
@@ -1596,6 +1601,7 @@ watch(
                   <span class="lbl-print" :class="{ 'is-zero': !row.printCount }">{{ row.printCount ?? 0 }}</span>
                 </td>
                 <td class="lbl-col-time lbl-mono">{{ row.createTime || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                 <td class="lbl-col-actions">
                   <div class="lbl-actions">
                     <button
@@ -1626,7 +1632,7 @@ watch(
                   </div>
                 </td>
               </tr>
-              <TableStateRow v-if="!loading && labels.length === 0" :colspan="10" message="暂无已生成的定数包标签" />
+              <TableStateRow v-if="!loading && labels.length === 0" :colspan="11" message="暂无已生成的定数包标签" />
             </tbody>
           </table>
         </div>
@@ -2014,13 +2020,14 @@ watch(
                 <th class="saf-col-num">下限</th>
                 <th class="saf-col-num">上限</th>
                 <th class="saf-col-status">状态</th>
+                <th>创建时间</th>
                 <th class="saf-col-time">更新时间</th>
                 <th class="saf-col-actions">操作</th>
               </tr>
             </thead>
             <tbody>
-              <TableStateRow v-if="loading" :colspan="11" state="loading" message="正在加载安全量配置..." />
-              <TableStateRow v-else-if="safetyRows.length === 0" :colspan="11" message="暂无符合条件的安全量配置" />
+              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载安全量配置..." />
+              <TableStateRow v-else-if="safetyRows.length === 0" :colspan="12" message="暂无符合条件的安全量配置" />
               <tr v-for="row in safetyRows" :key="row.safetyId" class="saf-row">
                 <td class="saf-col-dept">
                   <span class="saf-dept">{{ row.deptName || '-' }}</span>
@@ -2060,6 +2067,7 @@ watch(
                     {{ formatStatusText(row.status) }}
                   </span>
                 </td>
+                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
                 <td class="saf-col-time saf-mono">{{ row.updateTime || '-' }}</td>
                 <td class="saf-col-actions">
                   <div class="saf-actions">

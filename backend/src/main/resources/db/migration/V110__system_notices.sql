@@ -1,0 +1,16 @@
+CREATE TABLE system_notice (
+  notice_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  title VARCHAR(120) NOT NULL,
+  content TEXT NOT NULL,
+  published_by BIGINT UNSIGNED NOT NULL,
+  published_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (notice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE system_notice_read (
+  user_id BIGINT UNSIGNED NOT NULL,
+  notice_id BIGINT UNSIGNED NOT NULL,
+  read_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, notice_id),
+  FOREIGN KEY (notice_id) REFERENCES system_notice (notice_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

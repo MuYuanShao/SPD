@@ -75,7 +75,7 @@ export function useHomeWorkbench() {
     : loading.value ? '正在加载真实数据…' : '实时数据 · ' + (data.value?.date || '—'))
   const statusDetail = computed(() => error.value ||
     '销售指标按已确认耗用统计；效期预警' + (data.value?.definitions?.expiryWarningDays ?? 30) +
-    '天，滞销90天；缺少真实公告源')
+    '天，滞销90天')
   function metric(key: 'salesAmount' | 'salesQuantity' | 'inboundQuantity' | 'outboundQuantity') {
     if (!data.value) return '—'
     return data.value.metrics[key].toLocaleString('zh-CN', { minimumFractionDigits: key === 'salesAmount' ? 2 : 0, maximumFractionDigits: key === 'salesAmount' ? 2 : 4 })

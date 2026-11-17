@@ -12,6 +12,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RbacAuthorizationServiceTest {
+    @Test void noticesAreReadableBySignedInUsersAndPublishableOnlyByAdministrators() {
+        var service = new RbacAuthorizationService(mock(JdbcTemplate.class));
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "POST", "/api/system-notices/login-delivery")).isTrue();
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "PUT", "/api/system-notices/1/read")).isTrue();
+        assertThat(service.isAllowed(null, List.of(), "POST", "/api/system-notices/login-delivery")).isFalse();
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "POST", "/api/system-notices")).isFalse();
+        assertThat(service.isAllowed(50L, List.of("ROLE_ADMIN"), "POST", "/api/system-notices")).isTrue();
+    }
     @Test
     void authenticatedUsersCanChangeTheirOwnPasswordWithoutAnAdminPermission() {
         assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "PUT", "/api/auth/password")).isTrue();

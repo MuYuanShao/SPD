@@ -28,6 +28,12 @@ public class RbacAuthorizationService {
         }
 
         String path = normalizePath(requestPath);
+        if (path.equals("/system-notices/login-delivery")) {
+            return userId != null && "POST".equalsIgnoreCase(method);
+        }
+        if (path.matches("/system-notices/[0-9]+/read")) {
+            return userId != null && "PUT".equalsIgnoreCase(method);
+        }
         if ((path.equals("/ai-assistant/models") && "GET".equalsIgnoreCase(method))
                 || (path.equals("/ai-assistant/chat") && "POST".equalsIgnoreCase(method))) {
             return userId != null;

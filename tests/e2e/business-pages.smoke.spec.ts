@@ -12,6 +12,74 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /^登\s*录$/ }).click()
 }
 
+test('公告加载失败可重试，同一公告只分配给一次登录', async ({ browser }) => {
+  const firstSession = await browser.newContext()
+  const secondSession = await browser.newContext()
+  let owner: string | null = null
+  let failures = 0
+  let acknowledged = false
+  const sample = { id: '1', title: '系统维护', content: '维护期间请保存工作。', date: '2026-11-17 09:00' }
+  const deliveryPath = '**/api/system-notices/login-delivery?*'
+  try {
+    const first = await firstSession.newPage()
+    const second = await secondSession.newPage()
+    for (const page of [first, second]) {
+      await page.route(deliveryPath, route => {
+        const loginId = new URL(route.request().url()).searchParams.get('loginId')
+        expect(loginId).toBeTruthy()
+        owner ??= loginId
+        if (page === first && failures < 2) {
+          expect(loginId).toBe(owner)
+          failures++
+          return route.fulfill({ status: 503, json: { code: 503, message: '暂时不可用' } })
+        }
+        return route.fulfill({ json: { code: 0, data: !acknowledged && loginId === owner ? sample : null } })
+      })
+    }
+    await first.route('**/api/system-notices/1/read', route => {
+      expect(route.request().method()).toBe('PUT')
+      acknowledged = true
+      return route.fulfill({ json: { code: 0, data: null } })
+    })
+    await first.goto('/')
+    await login(first)
+    const dialog = first.getByRole('dialog', { name: '系统公告', exact: true })
+    await expect(dialog.getByRole('alert')).toHaveText('系统公告加载失败，请重试')
+    await dialog.getByRole('button', { name: '重试' }).click()
+    await expect(dialog.getByText(sample.title)).toBeVisible()
+
+    await second.goto('/')
+    const delivery = second.waitForResponse(deliveryPath)
+    await login(second)
+    expect((await (await delivery).json()).data).toBeNull()
+    await expect(second.getByRole('dialog', { name: '系统公告', exact: true })).toBeHidden()
+
+    await dialog.getByRole('button', { name: '我知道了' }).click()
+    await expect(dialog).toBeHidden()
+    expect(acknowledged).toBeTruthy()
+  } finally {
+    await firstSession.close()
+    await secondSession.close()
+  }
+})
+
+test('管理员可提交含空格和换行的公告并收到发布提示', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/system-notices', route => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postDataJSON()).toEqual({ title: 'SPD 系统维护', content: '第一段内容\n第二段内容' })
+    return route.fulfill({ json: { code: 0, data: null } })
+  })
+  await page.goto('/')
+  await login(page)
+  await page.getByRole('button', { name: '新增公告', exact: true }).click()
+  const editor = page.getByRole('dialog', { name: '新增系统公告' })
+  await editor.getByLabel('公告标题').fill('SPD 系统维护')
+  await editor.getByLabel('公告正文').fill('第一段内容\n第二段内容')
+  await editor.getByRole('button', { name: '发布公告' }).click()
+  await expect(page.getByText('公告已发布', { exact: true })).toBeVisible()
+})
+
 test('Vite 代理保留局域网同源登录的 Host', async ({ request }) => {
   const host = '192.0.2.1:1820'
   const response = await request.post('/api/auth/login', {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView, useRoute } from 'vue-router'
 import AppMain from './layout/AppMain.vue'
+import LoginNoticeDialog from './components/business/LoginNoticeDialog.vue'
 import { ElConfigProvider } from 'element-plus/es/components/config-provider/index.mjs'
 import zhCn from 'element-plus/es/locale/lang/zh-cn.mjs'
 const route = useRoute()
@@ -9,5 +10,6 @@ const route = useRoute()
   <el-config-provider :locale="zhCn">
     <RouterView v-if="route.name === 'login'" />
     <AppMain v-else />
+    <LoginNoticeDialog />
   </el-config-provider>
 </template>

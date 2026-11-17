@@ -14,11 +14,11 @@ class DashboardWorkbenchServiceTest {
         when(jdbc.queryForObject("SELECT CURRENT_DATE", java.time.LocalDate.class))
                 .thenReturn(java.time.LocalDate.of(2026, 9, 10));
         var service = new DashboardWorkbenchService(jdbc, new DataScopeService(OperatorContext::system),
-                OperatorContext::system, mock(RbacAuthorizationService.class));
+                OperatorContext::system, mock(RbacAuthorizationService.class), mock(SystemNoticeService.class));
         var result = service.workbench();
         assertThat((List<?>) result.get("trend")).hasSize(30);
         assertThat((List<?>) result.get("notices")).isEmpty();
-        assertThat(result).containsEntry("noticeSourceAvailable", false).containsEntry("date", "2026-09-10");
+        assertThat(result).containsEntry("noticeSourceAvailable", true).containsEntry("date", "2026-09-10");
     }
     @Test void productsReturnDatabasePageWithRegistrationManufacturerAndBatchDistributor() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
@@ -26,7 +26,7 @@ class DashboardWorkbenchServiceTest {
         when(jdbc.queryForList(anyString(), any(Object[].class)))
                 .thenReturn(List.of(Map.of("id", 9L, "name", "真实耗材", "registrationNo", "注册证001", "quantity", 3)));
         var service = new DashboardWorkbenchService(jdbc, new DataScopeService(OperatorContext::system),
-                OperatorContext::system, mock(RbacAuthorizationService.class));
+                OperatorContext::system, mock(RbacAuthorizationService.class), mock(SystemNoticeService.class));
         var result = service.products(Map.of("page", "2", "size", "5", "keyword", "针"));
         assertThat(result).containsEntry("page", 2).containsEntry("size", 5).containsEntry("total", 12L);
         assertThat((List<?>) result.get("rows")).hasSize(1);

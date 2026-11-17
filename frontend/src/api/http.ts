@@ -2,6 +2,12 @@ import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { collectSortedRows, isSortablePage, sortBusinessData, type SortablePage } from '../utils/businessListSort'
 import { getSessionAdapter } from './session'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    freeTextFields?: readonly string[]
+  }
+}
+
 export interface ApiResponse<T> {
   code: number
   message: string
@@ -42,7 +48,14 @@ function validateWriteFields(value: unknown): void {
 http.interceptors.request.use(
   (config) => {
     if (writeMethods.has(config.method ?? '')) {
-      validateWriteFields(config.data)
+      const data = config.data
+      if (config.freeTextFields?.length && data && Object.getPrototypeOf(data) === Object.prototype) {
+        for (const [field, value] of Object.entries(data)) {
+          if (!config.freeTextFields.includes(field) || typeof value !== 'string') validateWriteFields(value)
+        }
+      } else {
+        validateWriteFields(data)
+      }
       validateWriteFields(config.params)
     }
     const token = getSessionAdapter().getToken()

@@ -16,9 +16,11 @@ public class DashboardWorkbenchService {
     private final DataScopeService scopes;
     private final OperatorContextProvider operators;
     private final RbacAuthorizationService permissions;
+    private final SystemNoticeService notices;
     public DashboardWorkbenchService(JdbcTemplate jdbc, DataScopeService scopes,
-            OperatorContextProvider operators, RbacAuthorizationService permissions) {
+            OperatorContextProvider operators, RbacAuthorizationService permissions, SystemNoticeService notices) {
         this.jdbc = jdbc; this.scopes = scopes; this.operators = operators; this.permissions = permissions;
+        this.notices = notices;
     }
 
     public Map<String, Object> workbench() {
@@ -71,8 +73,8 @@ public class DashboardWorkbenchService {
         int expiryDays = expiryWarningDays();
         result.put("alerts", alerts(expiryDays));
         result.put("todos", todos());
-        result.put("notices", List.of());
-        result.put("noticeSourceAvailable", false);
+        result.put("notices", notices.recent());
+        result.put("noticeSourceAvailable", true);
         result.put("definitions", Map.of("sales", "已确认科室耗用及高值计费；排除冲销及高值镜像消耗",
                 "expiryWarningDays", expiryDays, "stagnantDays", 90, "amountUnit", "元",
                 "holderAvailable", false, "todoProgressAvailable", false));

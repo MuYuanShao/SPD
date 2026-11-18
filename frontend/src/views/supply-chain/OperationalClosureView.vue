@@ -56,7 +56,6 @@ import {
   receiveHighValueBillingCallback,
   resolveConsumptionProduct,
   reverseConsumption,
-  signDelivery,
   smartReplenishmentAnalysis,
   uploadPdaOffline,
   type ClosureOptions,
@@ -84,7 +83,6 @@ const ACTION_FAILURE_TEXT: Record<string, string> = {
   approveRequisition: '申领审批失败，请重试',
   rejectRequisition: '申领驳回失败，请重试',
   delivery: '拣配出库失败，请重试',
-  sign: '配送签收失败，请重试',
   consumption: '消耗登记失败，请检查科室库存后重试',
   reverse: '反消耗红冲失败，请重试',
   pda: 'PDA 离线补传失败，请重试',
@@ -96,6 +94,9 @@ const ACTION_FAILURE_TEXT: Record<string, string> = {
 const rows = ref<Record<string, unknown>[]>([])
 const analysisRows = ref<Record<string, unknown>[]>([])
 const pickingRequisitionRows = ref<Record<string, unknown>[]>([])
+const pickingFilters = reactive({ deptCode: '', dateFrom: '', dateTo: '' })
+const appliedPickingFilters = ref({ ...pickingFilters })
+let pickingRequestVersion = 0
 const pickingPackageRows = ref<Record<string, unknown>[]>([])
 const selectedPickingRequisitionNo = ref('')
 const selectedPickingItemId = ref('')
@@ -139,7 +140,6 @@ const paginatedPickingRequisitions = computed(() => {
 })
 
 /** 拣配配送底部表格：history type */
-const isDeliveryHistory = computed(() => type.value === 'delivery')
 
 const form = reactive({
   deptName: '',
@@ -154,7 +154,6 @@ const form = reactive({
   replenishmentDays: 7 as number | 'custom',
   customReplenishmentDays: '' as number | '',
   requisitionNo: '',
-  deliveryNo: '',
   period: '2026-05',
   deviceNo: 'PDA-001',
   operationType: 'delivery_sign',
@@ -310,15 +309,6 @@ async function loadLinkedWarehouses(isCurrent = () => true) {
       form.warehouseName = selected?.name || ''
       return
     }
-    if (type.value === 'delivery') {
-      // 拣配配送只允许一级库：科室关联库房为一级库时直接带出，否则保持当前一级库
-      if (preferred && primaryWarehouses.value.some(item => item.warehouseName === preferred)) {
-        form.warehouseName = preferred
-      } else if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
-        form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
-      }
-      return
-    }
     if (!linkedWarehouses.value.some(item => item.name === form.warehouseName)) {
       form.warehouseName = preferred
     }
@@ -355,13 +345,14 @@ async function loadData() {
     const [overview, optionData, listData] = await Promise.all([
       fetchClosureOverview(),
       fetchClosureOptions(),
-      fetchClosureList(requestedType, { page: String(currentPage.value), size: String(pageSize.value) })
+      requestedType === 'delivery' ? null
+        : fetchClosureList(requestedType, { page: String(currentPage.value), size: String(pageSize.value) })
     ])
     if (!isCurrent()) return
     summary.value = overview.summary
     options.value = optionData
-    rows.value = listData.rows
-    totalItems.value = listData.total
+    rows.value = listData?.rows ?? []
+    totalItems.value = listData?.total ?? 0
     if (!form.deptName && optionData.departments[0]) form.deptName = optionData.departments[0].deptName
     if (type.value === 'consumption' && !form.deptCode) {
       const department = optionData.departments.find(item => item.deptName === form.deptName) || optionData.departments[0]
@@ -369,7 +360,7 @@ async function loadData() {
       form.deptName = department?.deptName || ''
     }
     applyRouteSmartDefaults()
-    if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
+    if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
       await loadLinkedWarehouses(isCurrent)
       if (!isCurrent()) return
     } else if (!form.warehouseName && optionData.warehouses[0]) {
@@ -393,8 +384,11 @@ async function loadData() {
 }
 
 async function loadPickingRequisitions(isCurrent = () => type.value === 'delivery') {
-  const result = await fetchPickingRequisitions()
-  if (!isCurrent()) return
+  const request = ++pickingRequestVersion
+  const result = await fetchPickingRequisitions(Object.fromEntries(
+    Object.entries(appliedPickingFilters.value).filter(([, value]) => value)
+  ))
+  if (!isCurrent() || request !== pickingRequestVersion) return
   pickingRequisitionRows.value = result.rows || []
   pickingTotal.value = pickingRequisitionRows.value.length
   const selectedStillPending = pickingRequisitionRows.value.some(row => String(row.itemId || '') === selectedPickingItemId.value)
@@ -408,9 +402,30 @@ async function loadPickingRequisitions(isCurrent = () => type.value === 'deliver
     pickingPackageRows.value = []
     pickingUniqueCodeRows.value = []
     pickingLooseRows.value = []
+    if (appliedPickingFilters.value.deptCode) form.warehouseName = ''
   } else if (selectedPickingItemId.value) {
     await loadPickingSources()
   }
+}
+
+async function applyPickingFilters() {
+  if (pickingFilters.dateFrom && pickingFilters.dateTo && pickingFilters.dateFrom > pickingFilters.dateTo) {
+    notifyError('开始日期不能晚于结束日期', 'warning')
+    return
+  }
+  appliedPickingFilters.value = { ...pickingFilters }
+  pickingPage.value = 1
+  selectedPickingItemId.value = ''
+  try {
+    await loadPickingRequisitions()
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '待拣配申领单查询失败'))
+  }
+}
+
+function resetPickingFilters() {
+  Object.assign(pickingFilters, { deptCode: '', dateFrom: '', dateTo: '' })
+  void applyPickingFilters()
 }
 
 /** 申请明细类型展示：唯一码/定数包/散货，与申请单申请的商品明细类型配对 */
@@ -434,6 +449,7 @@ async function selectPickingRequisition(row: Record<string, unknown>) {
   selectedPickingItemType.value = row.itemType === 'high_value' ? 'unique_code' : String(row.itemType || 'loose')
   form.requisitionNo = selectedPickingRequisitionNo.value
   form.deptName = String(row.deptName || form.deptName)
+  if (row.sourceWarehouseName) form.warehouseName = String(row.sourceWarehouseName)
   form.productCode = String(row.productCode || form.productCode)
   form.quantity = Number(row.remainingQty || row.requisitionQty || 1)
   selectedPickingLabels.value = []
@@ -454,8 +470,11 @@ async function loadPickingSources() {
     itemId: selectedPickingItemId.value,
     warehouseName: form.warehouseName
   }
+  const isCurrent = () => type.value === 'delivery' && selectedPickingItemId.value === baseParams.itemId
+    && form.warehouseName === baseParams.warehouseName
   if (itemType === 'unique_code') {
     const result = await fetchPickingUniqueCodes(baseParams)
+    if (!isCurrent()) return
     pickingUniqueCodeRows.value = result.rows || []
     pickingPackageRows.value = []
     pickingLooseRows.value = []
@@ -463,10 +482,12 @@ async function loadPickingSources() {
   }
   if (itemType === 'quota_package') {
     const labelsResult = await fetchPickingPackageLabels(baseParams)
+    if (!isCurrent()) return
     pickingPackageRows.value = labelsResult.rows || []
     pickingLooseRows.value = []
   } else {
     const looseResult = await fetchPickingLooseStock(baseParams)
+    if (!isCurrent()) return
     pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
     pickingPackageRows.value = []
   }
@@ -568,7 +589,6 @@ async function confirmSelectedPicking() {
       itemId: Number(selectedPickingItemId.value),
       traceCodeIds
     })
-    form.deliveryNo = String(result.deliveryNo || '')
     notifySuccess(`拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`)
     selectedPickingUniqueCodes.value = []
     await loadData()
@@ -593,7 +613,6 @@ async function confirmSelectedPicking() {
     const looseResult = await confirmLoosePicking({ ...basePayload, quantity: looseQty })
     done.push(`散货 ${looseQty}（${looseResult.deliveryNo}）`)
   }
-  form.deliveryNo = String(done[0]?.split('（')[1]?.replace('）', '') || '')
   notifySuccess(`拣配出库完成：${done.join('、')}`)
   selectedPickingLabels.value = []
   pickingLooseRows.value = pickingLooseRows.value.map((row) => ({ ...row, pickQty: 0 }))
@@ -852,10 +871,6 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     await confirmSelectedPicking()
     return
   }
-  if (action === 'sign') {
-    result = await signDelivery(String(row?.bizNo || form.deliveryNo))
-    notifySuccess(`配送已签收：${result.deliveryNo}`)
-  }
   if (action === 'consumption') {
     if (!Number.isInteger(Number(form.quantity)) || Number(form.quantity) <= 0) throw new Error('消耗数量必须为正整数，不支持小数')
     if (consumptionQueryCode.value.trim() && !consumptionResolved.value) throw new Error('请先查询扫码结果，再登记消耗')
@@ -976,7 +991,7 @@ watch(type, () => {
   loadData()
 })
 watch(() => form.deptName, () => {
-  if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
+  if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
     loadLinkedWarehouses()
   }
   if (type.value === 'risk') {
@@ -1189,7 +1204,11 @@ watch(() => form.productCode, () => {
         </label>
         <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
           <span>科室</span>
-          <select v-if="type === 'consumption'" v-model="form.deptCode">
+          <select v-if="type === 'delivery'" v-model="pickingFilters.deptCode" @change="applyPickingFilters">
+            <option value="">全部授权科室</option>
+            <option v-for="item in options.departments" :key="item.deptCode" :value="item.deptCode">{{ item.deptName }}</option>
+          </select>
+          <select v-else-if="type === 'consumption'" v-model="form.deptCode">
             <option v-for="item in options.departments" :key="item.deptCode" :value="item.deptCode">{{ item.deptName }}（{{ item.deptCode }}）</option>
           </select>
           <select v-else v-model="form.deptName">
@@ -1318,11 +1337,21 @@ watch(() => form.productCode, () => {
 
       <div v-if="type === 'delivery'" class="picking-workbench">
         <section class="picking-panel picking-panel--requisition">
+          <form class="settlement-filters" aria-label="待拣配申领日期查询" @submit.prevent="applyPickingFilters">
+            <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" /></label>
+            <label><span>审批结束日期</span><input v-model="pickingFilters.dateTo" class="md-input" type="date" /></label>
+            <div class="settlement-query-actions">
+              <button class="md-btn" type="button" @click="resetPickingFilters">重置</button>
+              <button class="md-btn md-btn-primary" type="submit">查询</button>
+            </div>
+          </form>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
               <thead>
                 <tr>
                   <th>申领单号</th>
+                  <th>申领单创建时间</th>
+                  <th>部分拣配完成时间</th>
                   <th>科室</th>
                   <th>商品</th>
                   <th>申请类型</th>
@@ -1334,7 +1363,7 @@ watch(() => form.productCode, () => {
               </thead>
               <tbody>
                 <tr v-if="!pickingRequisitionRows.length">
-                  <td colspan="8" class="approval-empty">暂无待拣配申领单</td>
+                  <td colspan="10" class="approval-empty">暂无待拣配申领单</td>
                 </tr>
                 <tr
                   v-for="row in paginatedPickingRequisitions"
@@ -1345,6 +1374,8 @@ watch(() => form.productCode, () => {
                     <strong>{{ row.requisitionNo }}</strong>
                     <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
                   </td>
+                  <td>{{ formatDateTime(row.requisitionCreatedAt) }}</td>
+                  <td>{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
                   <td>{{ row.deptName }}</td>
                   <td>
                     <strong>{{ row.productName }}</strong>
@@ -1526,7 +1557,7 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
-    <section v-if="type !== 'high-value'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
+    <section v-if="type !== 'high-value' && type !== 'delivery'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon is-history"><History :size="20" /></i>
@@ -1537,7 +1568,7 @@ watch(() => form.productCode, () => {
         </template>
         <template v-else>
           <History :size="20" />
-          <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
+          <h3>{{ type === 'settlement' ? '结算明细' : '业务单据' }}</h3>
         </template>
       </div>
       <div v-if="type === 'settlement'" class="settlement-query">
@@ -1731,16 +1762,13 @@ watch(() => form.productCode, () => {
             </tr>
             <tr v-else-if="!rows.length">
               <td colspan="8" class="approval-empty">
-                <EmptyState :message="type === 'delivery' ? '暂无拣配记录' : '暂无业务单据'" />
+                <EmptyState message="暂无业务单据" />
               </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
               <td>
-                <template v-if="type === 'delivery'">
-                  {{ row.deptName || '-' }}
-                </template>
-                <template v-else-if="type === 'consumption'">
+                <template v-if="type === 'consumption'">
                   <strong>{{ row.deptName || '-' }}</strong>
                   <span class="muted-cell"><Building2 :size="13" />{{ row.warehouseName || '-' }}</span>
                 </template>
@@ -1748,22 +1776,7 @@ watch(() => form.productCode, () => {
               </td>
               <td>{{ row.productCode || '-' }}</td>
               <td>
-                <template v-if="type === 'delivery'">
-                  {{ row.productName || '-' }}
-                  <div v-if="row.labelNos" class="package-label-chips">
-                    <button
-                      v-for="labelNo in String(row.labelNos).split(', ')"
-                      :key="labelNo"
-                      class="btn-link package-label-chip"
-                      type="button"
-                      :title="`查看定数包 ${labelNo} 明细`"
-                      @click="openPackageDetail(labelNo)"
-                    >
-                      {{ labelNo }}
-                    </button>
-                  </div>
-                </template>
-                <template v-else-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
+                <template v-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
                 <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
               </td>
               <td>
@@ -1787,16 +1800,6 @@ watch(() => form.productCode, () => {
               <td>{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
-                  <button
-                    v-if="type === 'delivery' && row.status === 'picked'"
-                    type="button"
-                    :disabled="deliverySubmitting || loading"
-                    @click="runAction('sign', row)"
-                  >
-                    <CheckCircle2 :size="15" />
-                    确认签收
-                  </button>
-                  <span v-else-if="type === 'delivery'">已签收</span>
                   <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
                     type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
                     <RotateCcw :size="15" />
@@ -1808,7 +1811,7 @@ watch(() => form.productCode, () => {
                   <button v-if="type === 'requisition' && row.status === 'pending_approval'" type="button" @click="runAction('rejectRequisition', row)">
                     驳回
                   </button>
-                  <span v-if="!['delivery', 'consumption'].includes(type)">已联动</span>
+                  <span v-if="type !== 'consumption'">已联动</span>
                 </div>
               </td>
             </tr>
@@ -1820,7 +1823,6 @@ watch(() => form.productCode, () => {
         :size="pageSize"
         :total="totalItems"
         :loading="loading"
-        :hide-summary="isDeliveryHistory"
         @change-page="changePage"
         @change-size="changePageSize"
       />

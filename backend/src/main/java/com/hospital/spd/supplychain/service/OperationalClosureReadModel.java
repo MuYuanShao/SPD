@@ -393,10 +393,14 @@ public class OperationalClosureReadModel {
             args.add("%" + labelNo.trim() + "%");
         }
         appendEquals(where, args, "d.status", params.get("status"));
-        appendDateBoundary(where, args, "d.create_time", params.get("dateFrom"), false);
-        appendDateBoundary(where, args, "d.create_time", params.get("dateTo"), true);
+        String dateColumn = "approval".equals(params.get("dateType")) ? "dr.approve_time" : "d.create_time";
+        appendDateBoundary(where, args, dateColumn, params.get("dateFrom"), false);
+        appendDateBoundary(where, args, dateColumn, params.get("dateTo"), true);
 
-        String from = " FROM spd_delivery_order d" + where;
+        String from = """
+                 FROM spd_delivery_order d
+                 LEFT JOIN department_requisition dr ON dr.requisition_no = d.requisition_no
+                """ + where;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
 
         List<Object> queryArgs = new ArrayList<>(args);
@@ -407,6 +411,27 @@ public class OperationalClosureReadModel {
                        d.requisition_no AS sourceNo, d.dept_name AS deptName,
                        d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
                        d.quantity, d.status,
+                       DATE_FORMAT(dr.approve_time, '%Y-%m-%d %H:%i:%s') AS requisitionCreatedAt,
+                       CASE WHEN dr.status IN ('picked', 'signed') THEN (
+                           SELECT DATE_FORMAT(MAX(outgoing.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order outgoing
+                            WHERE outgoing.requisition_no = dr.requisition_no
+                              AND outgoing.status IN ('picked', 'signed')
+                       ) END AS pickingCompletedAt,
+                       CASE
+                         WHEN dr.status = 'partial_picked' THEN (
+                           SELECT DATE_FORMAT(MAX(partial.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order partial
+                            WHERE partial.requisition_no = dr.requisition_no AND partial.status IN ('picked', 'signed')
+                         )
+                         WHEN dr.status IN ('picked', 'signed') THEN (
+                           SELECT DATE_FORMAT(previous.create_time, '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order previous
+                            WHERE previous.requisition_no = dr.requisition_no AND previous.status IN ('picked', 'signed')
+                            ORDER BY previous.create_time DESC, previous.delivery_id DESC
+                            LIMIT 1 OFFSET 1
+                         )
+                       END AS partialPickingCompletedAt,
                        DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
                        DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
                 """ + from + """

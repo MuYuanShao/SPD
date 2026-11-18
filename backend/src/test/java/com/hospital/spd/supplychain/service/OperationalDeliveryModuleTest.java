@@ -196,10 +196,22 @@ class OperationalDeliveryModuleTest {
     void aggregatesPickedQuotaPackagesByBaseQuantity() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
 
-        module.pickingRequisitions();
+        module.pickingRequisitions(Map.of());
 
         verify(jdbcTemplate).queryForList(argThat((String sql) ->
                 sql.contains("SUM(package_quantity) AS picked_qty")));
+    }
+
+    @Test
+    void pickingQueueFiltersByDepartmentAndApprovalDate() {
+        module.pickingRequisitions(Map.of("deptCode", "DEP-1", "dateFrom", "2026-11-18", "dateTo", "2026-11-18"));
+
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("sd.dept_code = ?")
+                        && sql.contains("dr.approve_time >= ? AND dr.approve_time < ?")
+                        && sql.contains("AS requisitionCreatedAt") && sql.contains("AS partialPickingCompletedAt")
+                        && sql.contains("AS sourceWarehouseName")),
+                eq("DEP-1"), eq(java.time.LocalDateTime.of(2026, 11, 18, 0, 0)),
+                eq(java.time.LocalDateTime.of(2026, 11, 19, 0, 0)));
     }
 
     @Test

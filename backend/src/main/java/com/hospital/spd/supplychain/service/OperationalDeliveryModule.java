@@ -286,15 +286,22 @@ public class OperationalDeliveryModule {
         }
     }
 
-    public Map<String, Object> pickingRequisitions() {
+    public Map<String, Object> pickingRequisitions(Map<String, String> params) {
         accessService.requirePermission("department-requisition:pick");
         StringBuilder scope = new StringBuilder(" WHERE dr.status IN ('approved', 'partial_picked')");
         List<Object> scopeArgs = new ArrayList<>();
         accessService.appendScope(scope, scopeArgs, "dr.dept_id", "dr.applicant_id");
+        String deptCode = params.getOrDefault("deptCode", "").trim();
+        if (!deptCode.isEmpty()) {
+            scope.append(" AND sd.dept_code = ?");
+            scopeArgs.add(deptCode);
+        }
+        appendPickingApprovalDates(scope, scopeArgs, params);
         String pickingSql = """
                 SELECT dr.requisition_no AS requisitionNo,
                        dr.requisition_id AS requisitionId,
                        sd.dept_name AS deptName,
+                       source.warehouse_name AS sourceWarehouseName,
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        dri.item_id AS itemId,
@@ -310,9 +317,17 @@ public class OperationalDeliveryModule {
                        COALESCE(picked.picked_qty, 0) AS pickedQty,
                        GREATEST(dri.quantity - COALESCE(picked.picked_qty, 0), 0) AS remainingQty,
                        dr.status,
+                       DATE_FORMAT(dr.approve_time, '%Y-%m-%d %H:%i:%s') AS requisitionCreatedAt,
+                       CASE WHEN dr.status = 'partial_picked' THEN (
+                           SELECT DATE_FORMAT(MAX(outgoing.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order outgoing
+                            WHERE outgoing.requisition_no = dr.requisition_no
+                              AND outgoing.status IN ('picked', 'signed')
+                       ) END AS partialPickingCompletedAt,
                        DATE_FORMAT(dr.apply_time, '%Y-%m-%d %H:%i') AS applyTime
                   FROM department_requisition dr
                   JOIN sys_dept sd ON sd.dept_id = dr.dept_id
+                  LEFT JOIN warehouse source ON source.warehouse_id = dr.source_warehouse_id
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN product p ON p.product_id = dri.product_id
                   LEFT JOIN (
@@ -336,13 +351,35 @@ public class OperationalDeliveryModule {
                   ) picked ON picked.requisition_item_id = dri.item_id
                 """ + scope + """
                  HAVING remainingQty > 0
-                 ORDER BY dr.apply_time DESC, dr.requisition_id DESC
+                 ORDER BY dr.approve_time DESC, dr.requisition_id DESC, dri.item_id
                  LIMIT 100
                 """;
         List<Map<String, Object>> rows = scopeArgs.isEmpty()
                 ? jdbcTemplate.queryForList(pickingSql)
                 : jdbcTemplate.queryForList(pickingSql, scopeArgs.toArray());
         return Map.of("rows", rows);
+    }
+
+    private void appendPickingApprovalDates(StringBuilder sql, List<Object> args, Map<String, String> params) {
+        String from = params.getOrDefault("dateFrom", "").trim();
+        String to = params.getOrDefault("dateTo", "").trim();
+        try {
+            var start = from.isEmpty() ? null : java.time.LocalDate.parse(from);
+            var end = to.isEmpty() ? null : java.time.LocalDate.parse(to);
+            if (start != null && end != null && start.isAfter(end)) {
+                throw new IllegalArgumentException("开始日期不能晚于结束日期");
+            }
+            if (start != null) {
+                sql.append(" AND dr.approve_time >= ?");
+                args.add(start.atStartOfDay());
+            }
+            if (end != null) {
+                sql.append(" AND dr.approve_time < ?");
+                args.add(end.plusDays(1).atStartOfDay());
+            }
+        } catch (java.time.DateTimeException e) {
+            throw new IllegalArgumentException("请输入有效的审批日期", e);
+        }
     }
 
     public Map<String, Object> availablePackageLabels(Map<String, String> params) {

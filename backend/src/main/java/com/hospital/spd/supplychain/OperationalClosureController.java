@@ -58,8 +58,8 @@ public class OperationalClosureController {
     }
 
     @GetMapping("/picking/requisitions")
-    public ApiResponse<Map<String, Object>> pickingRequisitions() {
-        return ApiResponse.ok(service.pickingRequisitions());
+    public ApiResponse<Map<String, Object>> pickingRequisitions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.pickingRequisitions(params));
     }
 
     @GetMapping("/picking/package-labels")

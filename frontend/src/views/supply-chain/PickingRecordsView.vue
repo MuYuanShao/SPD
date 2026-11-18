@@ -5,15 +5,19 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
-import { fetchPickingRecords } from '../../api/operationalClosure'
+import { fetchPickingRecords, signDelivery } from '../../api/operationalClosure'
 import { formatStatusText } from '../../utils/chineseDisplay'
+import { formatDateTime } from '../../utils/dateTime'
 import { useNotify } from '../../composables/useNotify'
+import { useAuthStore } from '../../stores/auth'
 
 const notify = useNotify()
+const auth = useAuthStore()
 
 
 const loading = ref(false)
 const message = ref('')
+const signingNo = ref('')
 type PickingRecord = Record<string, unknown> & { labelCodes: string[] }
 
 const rows = ref<PickingRecord[]>([])
@@ -31,6 +35,7 @@ const query = reactive({
   productKeyword: '',
   labelNo: '',
   status: '',
+  dateType: 'picking',
   dateFrom: '',
   dateTo: ''
 })
@@ -49,6 +54,7 @@ async function loadRecords() {
     return
   }
   loading.value = true
+  message.value = ''
   notify.success('')
   try {
     const result = await fetchPickingRecords({
@@ -86,6 +92,7 @@ function reset() {
     productKeyword: '',
     labelNo: '',
     status: '',
+    dateType: 'picking',
     dateFrom: '',
     dateTo: ''
   })
@@ -112,6 +119,22 @@ function quantityText(value: unknown) {
 function showLabelDetail(row: PickingRecord) {
   labelDetail.value = row
   labelDetailOpen.value = true
+}
+
+async function confirmReceipt(row: PickingRecord) {
+  const deliveryNo = String(row.bizNo || '')
+  if (!deliveryNo || row.status !== 'picked' || signingNo.value || !auth.canWrite('picking-delivery')) return
+
+  signingNo.value = deliveryNo
+  try {
+    const result = await signDelivery(deliveryNo)
+    await loadRecords()
+    notify.success(`配送已签收：${result.deliveryNo}`)
+  } catch (error) {
+    notify.error(error instanceof Error ? error.message : '配送签收失败，请重试')
+  } finally {
+    signingNo.value = ''
+  }
 }
 
 onMounted(loadRecords)
@@ -145,6 +168,13 @@ onMounted(loadRecords)
             <option value="signed">已签收</option>
           </select>
         </label>
+        <label>
+          <span>时间口径</span>
+          <select v-model="query.dateType" class="md-select">
+            <option value="picking">配送单拣配时间</option>
+            <option value="approval">申领单审批通过时间</option>
+          </select>
+        </label>
         <label><span>开始日期</span><input v-model="query.dateFrom" class="md-input" type="date" /></label>
         <label><span>结束日期</span><input v-model="query.dateTo" class="md-input" type="date" /></label>
         <div class="record-query-actions">
@@ -163,21 +193,23 @@ onMounted(loadRecords)
         <table class="master-table record-table">
           <thead>
             <tr>
-              <th>配送单号</th><th>申领单号</th><th>科室</th><th>出库库房</th>
+              <th>配送单号</th><th>申领单号</th><th>申领单创建时间</th><th>科室</th><th>出库库房</th>
               <th>商品信息</th><th class="numeric-cell">数量</th><th>定数包码</th>
-              <th>状态</th><th>拣配时间</th><th>签收时间</th>
+              <th>状态</th><th>配送单拣配时间</th><th>部分拣配完成时间</th><th>拣配完成时间</th><th>签收时间</th>
+              <th v-if="auth.canWrite('picking-delivery')">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
+              <td :colspan="auth.canWrite('picking-delivery') ? 14 : 13" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="10" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
+              <td :colspan="auth.canWrite('picking-delivery') ? 14 : 13" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.deliveryId ?? row.bizNo)">
               <td class="primary-cell">{{ row.bizNo || '-' }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
+              <td class="md-audit-time">{{ formatDateTime(row.requisitionCreatedAt) }}</td>
               <td>{{ row.deptName || '-' }}</td>
               <td>{{ row.warehouseName || '-' }}</td>
               <td><strong>{{ row.productName || '-' }}</strong><small>{{ row.productCode || '-' }}</small></td>
@@ -190,7 +222,16 @@ onMounted(loadRecords)
               </td>
               <td><span class="status-badge" :class="row.status === 'signed' ? 'enabled' : 'pending'">{{ formatStatusText(row.status) }}</span></td>
               <td>{{ row.createTime || '-' }}</td>
+              <td class="md-audit-time">{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
+              <td class="md-audit-time">{{ formatDateTime(row.pickingCompletedAt) }}</td>
               <td>{{ row.finishTime || '-' }}</td>
+              <td v-if="auth.canWrite('picking-delivery')">
+                <button v-if="row.status === 'picked'" class="btn btn-sm" type="button"
+                  :disabled="loading || Boolean(signingNo)" @click="confirmReceipt(row)">
+                  {{ signingNo === row.bizNo ? '签收中…' : '确认签收' }}
+                </button>
+                <span v-else>-</span>
+              </td>
             </tr>
           </tbody>
         </table>

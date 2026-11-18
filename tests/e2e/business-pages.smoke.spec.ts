@@ -63,6 +63,42 @@ test('公告加载失败可重试，同一公告只分配给一次登录', async
   }
 })
 
+test('供应商和厂家操作按当前状态切换启用与停用', async ({ browser }) => {
+  for (const [tab, endpoint, codeField, label] of [
+    ['supplier', 'suppliers', 'supplierCodes', '供应商'],
+    ['manufacturer', 'manufacturers', 'manufacturerCodes', '厂家']
+  ]) {
+    const page = await browser.newPage()
+    try {
+      let status = 0
+      await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+      await page.route(new RegExp(`/api/master-data/${endpoint}(?:\\?|$)`), route => route.fulfill({ json: { code: 0, data: {
+        rows: [{ code: 'PARTNER-01', name: '测试往来单位', status: status ? '启用' : '停用' }],
+        total: 1, page: 1, size: 20
+      } } }))
+      await page.route(`**/api/master-data/${endpoint}/status`, route => {
+        expect(route.request().method()).toBe('PUT')
+        const nextStatus = status ? 0 : 1
+        expect(route.request().postDataJSON()).toEqual({ [codeField]: ['PARTNER-01'], status: nextStatus })
+        status = nextStatus
+        return route.fulfill({ json: { code: 0, data: { updatedRows: 1 } } })
+      })
+      await page.goto(`/features/supplier-manufacturer-management?tab=${tab}`)
+      await login(page)
+      const row = page.getByRole('row').filter({ hasText: 'PARTNER-01' })
+      for (const [action, next] of [['启用', '停用'], ['停用', '启用']]) {
+        await row.getByRole('button', { name: action, exact: true }).click()
+        const dialog = page.getByRole('dialog', { name: `${action}${label}` })
+        await dialog.getByRole('button', { name: `确认${action}${label}` }).click()
+        await expect(row.getByRole('button', { name: next, exact: true })).toBeVisible()
+        await expect(row.getByRole('button', { name: action, exact: true })).toHaveCount(0)
+      }
+    } finally {
+      await page.close()
+    }
+  }
+})
+
 test('打印模板新增字段在按钮旁显示校验和添加结果', async ({ page }) => {
   await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
   const fixture = {
@@ -459,6 +495,37 @@ test('定数包模板的打包按钮跳转并保留第二页选中的模板', as
   expect(submittedVersions).toEqual([21, 21, 22, 23])
 })
 
+test('智能补货无默认科室时选择授权科室后才能生成采购需求', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/purchase-orders/options', route => route.fulfill({ json: { code: 0, data: {
+    products: [], suppliers: [], departments: [{ deptCode: 'TEST-DEP', deptName: '测试科室', isCurrent: false }]
+  } } }))
+  await page.route('**/api/purchase-orders/smart-replenishment-analysis?*', route => route.fulfill({ json: { code: 0, data: {
+    analysisId: 99, analysisNo: 'SMART-TEST', periodDays: [15], selectedPeriodDays: 15,
+    totalFormulaQty: 2, totalRecommendedQty: 2,
+    rows: [{ warehouseCode: 'W1', productCode: 'P1', recommendedQty: 2 }]
+  } } }))
+  let submitted = false
+  await page.route('**/api/purchase-orders/demands', route => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postDataJSON()).toMatchObject({ analysisId: 99, deptCode: 'TEST-DEP' })
+    submitted = true
+    return route.fulfill({ json: { code: 0, data: { demandNo: 'CG-TEST' } } })
+  })
+  await page.goto('/features/purchase-management')
+  await login(page)
+  await page.getByRole('button', { name: '智能补货', exact: true }).click()
+  await page.getByRole('button', { name: '智能补货分析', exact: true }).click()
+  const modal = page.locator('.purchase-smart-modal')
+  await expect(modal.getByText('SMART-TEST', { exact: true })).toBeVisible()
+  const submit = modal.getByRole('button', { name: '生成采购需求' })
+  await expect(submit).toBeDisabled()
+  await modal.getByLabel('发起科室').selectOption('TEST-DEP')
+  await submit.click()
+  await expect(modal).toBeHidden()
+  expect(submitted).toBeTruthy()
+})
+
 test('采购订单提交期间禁止重复发送并刷新订单状态', async ({ page }) => {
   const orderNo = 'CG-SMOKE-DRAFT'
   let orderStatus = 'draft'
@@ -568,40 +635,77 @@ test('AI医护助手的自定义补货问题返回补货建议入口', async ({ 
   await expect(page.getByRole('button', { name: '进入补货任务' })).toBeVisible()
 })
 
-test('拣配配送在没有历史记录时显示明确空状态', async ({ page }) => {
-  await page.route('**/api/operational-closure/lists/delivery**', async route => {
-    await route.fulfill({
-      contentType: 'application/json',
-      body: JSON.stringify({
-        code: 0,
-        message: 'success',
-        data: { rows: [], total: 0, page: 1, size: 20 },
-        timestamp: new Date().toISOString()
-      })
-    })
+test('拣配配送保留待拣配工作台并移除重复的记录列表', async ({ page }) => {
+  let historyRequested = false
+  page.on('request', request => {
+    if (request.url().includes('/api/operational-closure/lists/delivery')) historyRequested = true
   })
-
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/options', route => route.fulfill({ json: { code: 0, data: {
+    departments: [{ deptCode: 'DEP-1', deptName: '测试科室' }],
+    warehouses: [{ warehouseName: '一级测试库', warehouseType: '一级库' }], products: [], balances: []
+  } } }))
+  await page.route('**/api/operational-closure/picking/requisitions**', route => {
+    const params = new URL(route.request().url()).searchParams
+    return route.fulfill({ json: { code: 0, data: { rows: params.get('deptCode') ? [{
+      requisitionNo: 'SL-PICK-TEST', itemId: 1, deptName: '测试科室', sourceWarehouseName: '一级测试库',
+      productCode: 'P1', status: 'partial_picked', requisitionCreatedAt: '2026-11-18 10:00:00',
+      partialPickingCompletedAt: '2026-11-18 11:00:00', remainingQty: 2, itemType: 'loose'
+    }] : [] } } })
+  })
+  await page.route('**/api/operational-closure/picking/loose-stock?*', route => route.fulfill({ json: { code: 0, data: { rows: [] } } }))
+  const pending = page.waitForResponse('**/api/operational-closure/picking/requisitions')
   await page.goto('/features/picking-delivery')
   await login(page)
-
-  await expect(page.getByRole('heading', { name: '拣配记录' })).toBeVisible()
-  await expect(page.getByText('暂无拣配记录')).toBeVisible()
+  await pending
+  await expect(page.getByRole('heading', { name: '拣配出库', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '拣配记录', exact: true })).toHaveCount(0)
+  expect(historyRequested).toBeFalsy()
+  const filter = page.getByRole('form', { name: '待拣配申领日期查询' })
+  await filter.getByLabel('审批开始日期').fill('2026-11-18')
+  await filter.getByLabel('审批结束日期').fill('2026-11-18')
+  const filtered = page.waitForRequest(r => r.url().includes('/picking/requisitions?') && r.url().includes('deptCode=DEP-1'))
+  await page.getByRole('combobox', { name: '科室', exact: true }).selectOption('DEP-1')
+  expect(Object.fromEntries(new URL((await filtered).url()).searchParams)).toMatchObject({
+    deptCode: 'DEP-1', dateFrom: '2026-11-18', dateTo: '2026-11-18'
+  })
+  const req = page.getByRole('row').filter({ hasText: 'SL-PICK-TEST' })
+  await expect(req.getByText('2026-11-18 10:00:00', { exact: true })).toBeVisible()
+  await expect(req.getByText('2026-11-18 11:00:00', { exact: true })).toBeVisible()
+  await expect(page.getByRole('combobox', { name: '库房', exact: true })).toHaveValue('一级测试库')
 })
 
-test('拣配记录弹窗逐条显示完整定数包码', async ({ page }) => {
+test('拣配记录可签收并在弹窗逐条显示完整定数包码', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
   const labelCodes = Array.from({ length: 80 }, (_, index) => `D2026102300${String(index + 1).padStart(4, '0')}`)
-  const order = { deliveryId: 1, bizNo: 'PS-DETAIL-001', status: 'signed', productName: '测试耗材' }
+  const order = {
+    deliveryId: 1, bizNo: 'PS-DETAIL-001', status: 'signed', productName: '测试耗材',
+    sourceNo: 'SL-DETAIL-001', requisitionCreatedAt: '2026-11-18 09:00:00',
+    partialPickingCompletedAt: '2026-11-18 10:00:00', pickingCompletedAt: '2026-11-18 11:00:00'
+  }
+  let signed = false
+  await page.route('**/api/operational-closure/deliveries/PS-DETAIL-002/sign', route => {
+    expect(route.request().method()).toBe('PUT')
+    signed = true
+    return route.fulfill({ json: { code: 0, data: { deliveryNo: 'PS-DETAIL-002', status: 'signed' } } })
+  })
   await page.route('**/api/operational-closure/lists/delivery**', route => route.fulfill({
     json: { code: 0, data: {
-      rows: [{ ...order, labelCodes }, { ...order, deliveryId: 2, bizNo: 'PS-DETAIL-002', labelCodes: [] }],
+      rows: [{ ...order, labelCodes }, { ...order, deliveryId: 2, bizNo: 'PS-DETAIL-002', status: signed ? 'signed' : 'picked', labelCodes: [] }],
       total: 2, page: 1, size: 20
     } }
   }))
   await page.goto('/features/picking-records')
   await login(page)
+  const completed = page.getByRole('row').filter({ hasText: 'PS-DETAIL-001' })
+  for (const time of ['09:00:00', '10:00:00', '11:00:00']) {
+    await expect(completed.getByText(`2026-11-18 ${time}`, { exact: true })).toBeVisible()
+  }
   const withoutCodes = page.getByRole('row').filter({ hasText: 'PS-DETAIL-002' })
   await expect(withoutCodes).toBeVisible()
   await expect(withoutCodes.getByRole('button', { name: /查看详情/ })).toHaveCount(0)
+  await withoutCodes.getByRole('button', { name: '确认签收' }).click()
+  await expect(withoutCodes.getByText('已签收', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '查看详情（80）' }).click()
   const dialog = page.getByRole('dialog', { name: '定数包码详情' })
   await expect(dialog).toContainText('PS-DETAIL-001')

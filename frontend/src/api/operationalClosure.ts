@@ -68,8 +68,8 @@ export async function fetchPickingRecords(params: Record<string, string> = {}) {
   return fetchClosureList('delivery', params)
 }
 
-export async function fetchPickingRequisitions() {
-  return getData<{ rows: Record<string, unknown>[] }>('/operational-closure/picking/requisitions')
+export async function fetchPickingRequisitions(params: Record<string, string> = {}) {
+  return getData<{ rows: Record<string, unknown>[] }>('/operational-closure/picking/requisitions', { params })
 }
 
 export async function fetchPickingPackageLabels(params: Record<string, string> = {}) {

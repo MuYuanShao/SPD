@@ -29,10 +29,11 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
   const manufacturerForm = ref<ManufacturerPayload>(emptyManufacturerForm())
 
   // 停用确认弹窗状态（供应商 / 厂家共用一份）
-  const disableConfirmOpen = ref(false)
-  const disableConfirmLoading = ref(false)
-  const disableConfirmKind = ref<'supplier' | 'manufacturer'>('supplier')
-  const disableConfirmCodes = ref<string[]>([])
+  const statusConfirmOpen = ref(false)
+  const statusConfirmLoading = ref(false)
+  const statusConfirmKind = ref<'supplier' | 'manufacturer'>('supplier')
+  const statusConfirmTarget = ref<0 | 1>(0)
+  const statusConfirmCodes = ref<string[]>([])
 
   function openCreateSupplier() {
     deps.clearActionState()
@@ -81,53 +82,57 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
     }
   }
 
-  async function disableSuppliers(supplierCodes = deps.selectedCodes.value) {
+  function openStatusConfirm(kind: 'supplier' | 'manufacturer', codes: string[], target: 0 | 1) {
+    if (statusConfirmLoading.value) return
     deps.clearActionState()
-    if (!supplierCodes.length) {
-      deps.actionError.value = '请选择需要停用的供应商'
+    if (!codes.length) {
+      const label = kind === 'supplier' ? '供应商' : '厂家'
+      deps.actionError.value = `请选择需要${target === 1 ? '启用' : '停用'}的${label}`
       return
     }
-    disableConfirmKind.value = 'supplier'
-    disableConfirmCodes.value = [...supplierCodes]
-    disableConfirmOpen.value = true
+    statusConfirmKind.value = kind
+    statusConfirmTarget.value = target
+    statusConfirmCodes.value = [...codes]
+    statusConfirmOpen.value = true
   }
 
-  async function disableManufacturers(manufacturerCodes = deps.selectedCodes.value) {
+  function disableSuppliers(codes = deps.selectedCodes.value) {
+    openStatusConfirm('supplier', codes, 0)
+  }
+
+  function disableManufacturers(codes = deps.selectedCodes.value) {
+    openStatusConfirm('manufacturer', codes, 0)
+  }
+
+  async function confirmStatusChange() {
+    if (statusConfirmLoading.value || !statusConfirmCodes.value.length) return
+    const status = statusConfirmTarget.value
+    const action = status === 1 ? '启用' : '停用'
     deps.clearActionState()
-    if (!manufacturerCodes.length) {
-      deps.actionError.value = '请选择需要停用的厂家'
-      return
-    }
-    disableConfirmKind.value = 'manufacturer'
-    disableConfirmCodes.value = [...manufacturerCodes]
-    disableConfirmOpen.value = true
-  }
-
-  async function confirmDisable() {
-    disableConfirmLoading.value = true
+    statusConfirmLoading.value = true
     try {
-      if (disableConfirmKind.value === 'supplier') {
-        const result = await updateSupplierStatus({ supplierCodes: disableConfirmCodes.value, status: 0 })
-        deps.actionMessage.value = `已停用 ${result.updatedRows} 条供应商`
+      if (statusConfirmKind.value === 'supplier') {
+        const result = await updateSupplierStatus({ supplierCodes: statusConfirmCodes.value, status })
+        deps.actionMessage.value = `已${action} ${result.updatedRows} 条供应商`
       } else {
-        const result = await updateManufacturerStatus({ manufacturerCodes: disableConfirmCodes.value, status: 0 })
-        deps.actionMessage.value = `已停用 ${result.updatedRows} 条厂家`
+        const result = await updateManufacturerStatus({ manufacturerCodes: statusConfirmCodes.value, status })
+        deps.actionMessage.value = `已${action} ${result.updatedRows} 条厂家`
       }
-      disableConfirmOpen.value = false
-      disableConfirmCodes.value = []
+      statusConfirmOpen.value = false
+      statusConfirmCodes.value = []
       await deps.loadPage()
     } catch (err) {
-      const kindLabel = disableConfirmKind.value === 'supplier' ? '供应商' : '厂家'
-      deps.actionError.value = err instanceof Error ? err.message : `${kindLabel}停用失败`
+      const kindLabel = statusConfirmKind.value === 'supplier' ? '供应商' : '厂家'
+      deps.actionError.value = err instanceof Error ? err.message : `${kindLabel}${action}失败`
     } finally {
-      disableConfirmLoading.value = false
+      statusConfirmLoading.value = false
     }
   }
 
-  function cancelDisable() {
-    if (disableConfirmLoading.value) return
-    disableConfirmOpen.value = false
-    disableConfirmCodes.value = []
+  function cancelStatusChange() {
+    if (statusConfirmLoading.value) return
+    statusConfirmOpen.value = false
+    statusConfirmCodes.value = []
   }
 
   function openCreateManufacturer() {
@@ -186,12 +191,14 @@ export function usePartnerMasterData(deps: PartnerMasterDataDeps) {
     openEditManufacturer,
     saveManufacturer,
     disableManufacturers,
-    confirmDisable,
-    cancelDisable,
-    disableConfirmOpen,
-    disableConfirmLoading,
-    disableConfirmKind,
-    disableConfirmCodes
+    openStatusConfirm,
+    confirmStatusChange,
+    cancelStatusChange,
+    statusConfirmOpen,
+    statusConfirmLoading,
+    statusConfirmKind,
+    statusConfirmTarget,
+    statusConfirmCodes
   }
 }
 

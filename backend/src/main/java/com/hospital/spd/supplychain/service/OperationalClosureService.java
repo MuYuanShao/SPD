@@ -93,8 +93,8 @@ public class OperationalClosureService {
         return readModel.requisitionDetails(requisitionNo);
     }
 
-    public Map<String, Object> pickingRequisitions() {
-        return deliveryModule.pickingRequisitions();
+    public Map<String, Object> pickingRequisitions(Map<String, String> params) {
+        return deliveryModule.pickingRequisitions(params);
     }
 
     public Map<String, Object> availablePackageLabels(Map<String, String> params) {

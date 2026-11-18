@@ -210,12 +210,14 @@ const {
   openEditManufacturer,
   saveManufacturer,
   disableManufacturers,
-  confirmDisable: confirmDisablePartner,
-  cancelDisable: cancelDisablePartner,
-  disableConfirmOpen: partnerDisableConfirmOpen,
-  disableConfirmLoading: partnerDisableConfirmLoading,
-  disableConfirmKind: partnerDisableConfirmKind,
-  disableConfirmCodes: partnerDisableConfirmCodes
+  confirmStatusChange: confirmPartnerStatusChange,
+  cancelStatusChange: cancelPartnerStatusChange,
+  openStatusConfirm: openPartnerStatusConfirm,
+  statusConfirmTarget: partnerStatusConfirmTarget,
+  statusConfirmOpen: partnerStatusConfirmOpen,
+  statusConfirmLoading: partnerStatusConfirmLoading,
+  statusConfirmKind: partnerStatusConfirmKind,
+  statusConfirmCodes: partnerStatusConfirmCodes
 } = usePartnerMasterData({
   selectedCodes,
   selectedSupplier,
@@ -229,6 +231,9 @@ const {
   clearActionState,
   loadPage
 })
+
+const partnerStatusAction = computed(() => partnerStatusConfirmTarget.value === 1 ? '启用' : '停用')
+const partnerStatusKindLabel = computed(() => partnerStatusConfirmKind.value === 'supplier' ? '供应商' : '厂家')
 
 const {
   campusForm,
@@ -1791,10 +1796,10 @@ function warehouseFlagChipClass(enabled: unknown) {
                   <button
                     v-if="authStore.canWrite(code)"
                     type="button"
-                    class="ulc-action is-danger"
-                    @click="disableSuppliers([String(row.code)])"
+                    class="ulc-action" :class="{ 'is-danger': row.status !== '停用' }"
+                    @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)"
                   >
-                    停用
+                    {{ row.status === '停用' ? '启用' : '停用' }}
                   </button>
                 </div>
               </template>
@@ -2042,10 +2047,10 @@ function warehouseFlagChipClass(enabled: unknown) {
                   <button
                     v-if="authStore.canWrite(code)"
                     type="button"
-                    class="ulc-action is-danger"
-                    @click="disableManufacturers([String(row.code)])"
+                    class="ulc-action" :class="{ 'is-danger': row.status !== '停用' }"
+                    @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
                   >
-                    停用
+                    {{ row.status === '停用' ? '启用' : '停用' }}
                   </button>
                 </div>
               </template>
@@ -3229,18 +3234,18 @@ function warehouseFlagChipClass(enabled: unknown) {
               </button>
               <template v-else-if="code === 'supplier-management'">
                 <button type="button" class="btn-text" @click="openEditSupplier(row, false)">修改</button>
-                <button type="button" class="btn-text btn-text-danger" @click="disableSuppliers([String(row.code)])">
-                  停用
+                <button type="button" class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }" @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)">
+                  {{ row.status === '停用' ? '启用' : '停用' }}
                 </button>
               </template>
               <template v-else-if="code === 'manufacturer-management'">
                 <button type="button" class="btn-text" @click="openEditManufacturer(row, false)">修改</button>
                 <button
                   type="button"
-                  class="btn-text btn-text-danger"
-                  @click="disableManufacturers([String(row.code)])"
+                  class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }"
+                  @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
                 >
-                  停用
+                  {{ row.status === '停用' ? '启用' : '停用' }}
                 </button>
               </template>
               <template v-else-if="code === 'campus-management'">
@@ -3438,29 +3443,25 @@ function warehouseFlagChipClass(enabled: unknown) {
       </template>
     </SpdConfirmDialog>
 
-    <!-- 供应商 / 厂家：停用确认弹窗 -->
     <SpdConfirmDialog
-      v-model:open="partnerDisableConfirmOpen"
-      :title="partnerDisableConfirmKind === 'supplier' ? '停用供应商' : '停用生产厂家'"
-      tone="danger"
-      :confirm-text="partnerDisableConfirmKind === 'supplier' ? '确认停用供应商' : '确认停用厂家'"
-      :loading="partnerDisableConfirmLoading"
-      :description="partnerDisableConfirmKind === 'supplier'
-        ? [
-            '停用后该供应商将不可用于新订单、定数包与采购收货。',
-            '历史交易、合同、付款记录仍可查询。'
-          ]
-        : [
-            '停用后该厂家将不可用于新商品注册、资质证照与采购。',
-            '历史商品关联、合同记录仍可查询。'
-          ]"
-      :details="[
-        `本次操作将停用 ${partnerDisableConfirmCodes.length} 个${partnerDisableConfirmKind === 'supplier' ? '供应商' : '厂家'}`,
-        '如需重新启用，请联系主数据管理员'
-      ]"
-      @confirm="confirmDisablePartner"
-      @cancel="cancelDisablePartner"
-    />
+      v-model:open="partnerStatusConfirmOpen"
+      :title="`${partnerStatusAction}${partnerStatusKindLabel}`"
+      :tone="partnerStatusConfirmTarget === 1 ? 'primary' : 'danger'"
+      :confirm-text="`确认${partnerStatusAction}${partnerStatusKindLabel}`"
+      :loading="partnerStatusConfirmLoading"
+      :description="partnerStatusConfirmTarget === 1
+        ? `启用后，该${partnerStatusKindLabel}可重新用于相关业务。`
+        : partnerStatusConfirmKind === 'supplier'
+          ? ['停用后该供应商将不可用于新订单、定数包与采购收货。', '历史交易、合同、付款记录仍可查询。']
+          : ['停用后该厂家将不可用于新商品注册、资质证照与采购。', '历史商品关联、合同记录仍可查询。']"
+      :details="`本次操作将${partnerStatusAction} ${partnerStatusConfirmCodes.length} 个${partnerStatusKindLabel}`"
+      @confirm="confirmPartnerStatusChange"
+      @cancel="cancelPartnerStatusChange"
+    >
+      <template #extra>
+        <StatusMessage v-if="actionError" :message="actionError" tone="error" role="alert" />
+      </template>
+    </SpdConfirmDialog>
 
     <!-- 函数式确认弹窗 host（院区/科室/库房/目录/货位 删除等共用） -->
     <SpdConfirmHost />

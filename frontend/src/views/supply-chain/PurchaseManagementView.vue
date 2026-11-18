@@ -40,6 +40,7 @@ const {
   smartPeriods,
   smartSelectedPeriod,
   smartAnalysisNo,
+  smartDeptCode,
   smartTotalFormulaQty,
   smartTotalRecommendedQty,
   showSmartAnalysisDialog,
@@ -608,7 +609,7 @@ async function handleOrderAttachmentUpload(event: Event) {
             <p>{{ smartAnalysisNo || '正在生成分析' }}</p>
             <h3>智能补货分析</h3>
           </div>
-          <button class="btn-icon" type="button" @click="showSmartAnalysisDialog = false"><X :size="18" /></button>
+          <button class="btn-icon" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false"><X :size="18" /></button>
         </header>
 
         <div class="analysis-summary">
@@ -670,8 +671,15 @@ async function handleOrderAttachmentUpload(event: Event) {
         </div>
 
         <footer>
-          <button class="btn" type="button" @click="showSmartAnalysisDialog = false">关闭</button>
-          <button class="btn btn-primary" type="button" :disabled="smartAnalysisLoading || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
+          <label class="inline-field">
+            <span>发起科室</span>
+            <select v-model="smartDeptCode" class="md-select" :disabled="demandSubmitting">
+              <option value="">{{ departments.length ? '请选择授权范围内科室' : '当前账号暂无可选科室' }}</option>
+              <option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
+            </select>
+          </label>
+          <button class="btn" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false">关闭</button>
+          <button class="btn btn-primary" type="button" :disabled="smartAnalysisLoading || demandSubmitting || !smartDeptCode || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
             <PackagePlus :size="18" />
             生成采购需求
           </button>

@@ -58,6 +58,7 @@ export function usePurchaseManagement() {
   const smartSelectedPeriod = ref(30)
   const smartAnalysisId = ref<number | null>(null)
   const smartAnalysisNo = ref('')
+  const smartDeptCode = ref('')
   const smartTotalFormulaQty = ref(0)
   const smartTotalRecommendedQty = ref(0)
   const showSmartAnalysisDialog = ref(false)
@@ -502,6 +503,10 @@ export function usePurchaseManagement() {
   }
 
   async function runSmartAnalysis() {
+    if (smartAnalysisLoading.value || demandSubmitting.value) return
+    if (!departments.value.some(department => department.deptCode === smartDeptCode.value)) {
+      smartDeptCode.value = departments.value.find(department => Boolean(department.isCurrent))?.deptCode ?? ''
+    }
     smartAnalysisLoading.value = true
     smartAnalysisError.value = ''
     showSmartAnalysisDialog.value = true
@@ -538,6 +543,12 @@ export function usePurchaseManagement() {
   }
 
   async function createDemandFromSmartAnalysis() {
+    if (demandSubmitting.value || smartAnalysisLoading.value) return
+    const department = departments.value.find(item => item.deptCode === smartDeptCode.value)
+    if (!department) {
+      notify.warning('请选择授权范围内的发起科室')
+      return
+    }
     const mergedItems = new Map<string, number>()
     for (const row of smartRows.value) {
       const qty = Number(row.recommendedQty)
@@ -553,6 +564,7 @@ export function usePurchaseManagement() {
       notify.warning('暂无可生成采购需求的补货建议')
       return
     }
+    demandSubmitting.value = true
     try {
       if (smartAnalysisId.value == null) {
         notify.error('智能补货分析编号缺失，请重新分析')
@@ -560,6 +572,7 @@ export function usePurchaseManagement() {
       }
       const result = await createPurchaseDemand({
         analysisId: smartAnalysisId.value,
+        deptCode: department.deptCode,
         demandSource: '智能补货分析',
         urgentLevel: 'normal',
         remark: `近${smartSelectedPeriod.value}天一级库实际拣配出库智能分析生成`,
@@ -576,6 +589,8 @@ export function usePurchaseManagement() {
       await loadData()
     } catch (error) {
       notify.error(errorMessage(error))
+    } finally {
+      demandSubmitting.value = false
     }
   }
 
@@ -814,6 +829,7 @@ export function usePurchaseManagement() {
     smartSelectedPeriod,
     smartAnalysisId,
     smartAnalysisNo,
+    smartDeptCode,
     smartTotalFormulaQty,
     smartTotalRecommendedQty,
     showSmartAnalysisDialog,

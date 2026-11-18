@@ -38,11 +38,9 @@ export type FeatureIcon =
   | 'file-minus'
   | 'file-plus-2'
   | 'file-search-2'
-  | 'file-spreadsheet'
   | 'file-text'
   | 'flask-conical'
   | 'git-branch'
-  | 'grid-2x2'
   | 'heart-pulse'
   | 'key-round'
   | 'layers-3'
@@ -166,7 +164,8 @@ export const featureCatalog = [
     viewFamily: 'feature',
     nodeKind: 'navigation',
     children: [
-      'product-catalog',
+      'pending-product-catalog',
+      'hospital-product-catalog',
       'supplier-manufacturer-management',
       'campus-management',
       'department-management',
@@ -174,15 +173,6 @@ export const featureCatalog = [
       'warehouse-location-management',
       'license-management'
     ]
-  },
-  {
-    code: 'product-catalog',
-    title: '商品目录',
-    icon: 'grid-2x2',
-    routeTarget: '/',
-    viewFamily: 'feature',
-    nodeKind: 'navigation',
-    children: ['pending-product-catalog', 'hospital-product-catalog']
   },
   {
     code: 'pending-product-catalog',
@@ -523,7 +513,14 @@ export const featureCatalog = [
     routeTarget: '/features/operations-decision',
     viewFamily: 'feature',
     nodeKind: 'navigation',
-    children: ['operation-cockpit', 'report-center']
+    children: [
+      'operation-cockpit',
+      'spd-his-reconciliation-report',
+      'supplier-delivery-ledger-report',
+      'centralized-procurement-progress-report',
+      'inventory-movement-summary-report',
+      'inventory-product-detail-report'
+    ]
   },
   {
     code: 'operation-cockpit',
@@ -532,21 +529,6 @@ export const featureCatalog = [
     routeTarget: '/features/operation-cockpit',
     viewFamily: 'feature',
     nodeKind: 'business'
-  },
-  {
-    code: 'report-center',
-    title: '报表中心',
-    icon: 'file-spreadsheet',
-    routeTarget: '/features/spd-his-reconciliation-report',
-    viewFamily: 'feature',
-    nodeKind: 'navigation',
-    children: [
-      'spd-his-reconciliation-report',
-      'supplier-delivery-ledger-report',
-      'centralized-procurement-progress-report',
-      'inventory-movement-summary-report',
-      'inventory-product-detail-report'
-    ]
   },
   {
     code: 'spd-his-reconciliation-report',
@@ -737,6 +719,7 @@ export const featureCatalogRedirects = [
   { from: 'reversal-management', to: 'red-flush-management' },
   { from: 'pda-offline-records', to: 'pda-offline-record' },
   { from: 'product-catalog', to: '/' },
+  { from: 'report-center', to: 'spd-his-reconciliation-report' },
   { from: 'quota-package-template', to: 'quota-template-maintenance' }
 ] as const
 
@@ -744,7 +727,6 @@ export const featureViewNodeGroups = {
   navigation: [
     'master-data-quota',
     'quota-package-template',
-    'product-catalog',
     'supply-chain',
     'special-compliance',
     'settlement-finance',

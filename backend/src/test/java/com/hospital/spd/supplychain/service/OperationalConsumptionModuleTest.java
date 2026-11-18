@@ -118,7 +118,7 @@ class OperationalConsumptionModuleTest {
     }
 
     @Test
-    void rejectsHighValueConsumptionOutsideBillingCallback() {
+    void rejectsHighValueConsumptionWithoutScannedUniqueCode() {
         mockExistingDepartment(10L);
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), eq("HV001")))
                 .thenReturn(Map.of("productId", 101L, "productCode", "HV001", "productName", "High Value Implant",
@@ -223,6 +223,16 @@ class OperationalConsumptionModuleTest {
     }
 
     @Test
+    void missingConsumptionReturnsBusinessError() {
+        when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("MISSING")))
+                .thenThrow(new org.springframework.dao.EmptyResultDataAccessException(1));
+
+        assertThatThrownBy(() -> module.reverseConsumption("MISSING"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("原消耗单不存在");
+    }
+
+    @Test
     void restoresQuotaPackageTraceWhenItsConsumptionIsReversed() {
         mockReversalProductLock();
         when(jdbcTemplate.queryForObject(contains("SELECT product_id FROM quota_package_label"), eq(Long.class), eq(55L)))
@@ -238,6 +248,11 @@ class OperationalConsumptionModuleTest {
                 .thenReturn(List.of());
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
+        when(jdbcTemplate.queryForObject(contains("SELECT trace_code_id FROM quota_package_label"), eq(Long.class), eq(55L)))
+                .thenReturn(77L);
+        when(support.receiveAvailable(20L, 100L, 300L, BigDecimal.TEN,
+                "department_consumption_reverse_in", "department_consumption", 1L, "department consumption reversed"))
+                .thenReturn(99L);
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
                 .thenReturn(1);
         when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
@@ -245,6 +260,8 @@ class OperationalConsumptionModuleTest {
         module.reverseConsumption("XH001");
 
         verify(quotaPackageTraceFlowService).reverseConsumption(55L, "XH001");
+        verify(support).linkInventoryEventTraceCodes(99L, List.of(
+                new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(77L, "quota_package", BigDecimal.TEN)));
     }
 
     private void mockExistingDepartment(Long deptId) {

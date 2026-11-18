@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import 'element-plus/theme-chalk/el-dialog.css'
 import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-message-box.css'
 import { useRoute } from 'vue-router'
 import {
   Activity,
@@ -42,6 +43,7 @@ import {
   fetchClosureList,
   fetchClosureOptions,
   fetchClosureOverview,
+  fetchServerPagedClosureList,
   fetchPickingLooseStock,
   fetchPickingPackageLabelDetail,
   fetchPickingPackageLabels,
@@ -63,12 +65,17 @@ import {
 import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
 import { consumeQuotaPackageByCode } from '../../api/udiTraceability'
 import { formatApiErrorText, formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import { usePagedFilters } from '../../composables/usePagedFilters'
+import { formatDateTime } from '../../utils/dateTime'
+import { useAuthStore } from '../../stores/auth'
 
 const route = useRoute()
 const loading = ref(false)
 const actionError = ref('')
 const recallDialogError = ref('')
 const deliverySubmitting = ref(false)
+const reversingConsumption = ref(false)
+const auth = useAuthStore()
 
 /** 各业务动作的兜底失败文案，避免一律显示"操作失败" */
 const ACTION_FAILURE_TEXT: Record<string, string> = {
@@ -148,7 +155,6 @@ const form = reactive({
   customReplenishmentDays: '' as number | '',
   requisitionNo: '',
   deliveryNo: '',
-  consumptionNo: '',
   period: '2026-05',
   deviceNo: 'PDA-001',
   operationType: 'delivery_sign',
@@ -200,7 +206,7 @@ const titleMap: Record<string, string> = {
 }
 const title = computed(() => pageCode.value === 'red-flush-management' ? '红冲管理' : titleMap[type.value])
 const subtitle = computed(() => {
-  if (type.value === 'red-flush') return '展示反消耗生成并持久化到数据库的红冲记录。'
+  if (type.value === 'red-flush') return '查看科室消耗冲销记录，反消耗从科室消耗的原单发起。'
   if (type.value === 'settlement') return '按库存批次固化的结算点自动生成明细，财务复核即可。'
   if (type.value === 'risk') return '登记冷链异常与召回隔离事件，形成合规追踪入口。'
   if (type.value === 'pda') return '模拟 PDA 离线作业补传，记录设备、作业类型与回放状态。'
@@ -244,47 +250,35 @@ const effectiveReplenishmentDays = computed(() => {
   return Number.isFinite(days) && days > 0 ? days : 7
 })
 
-/** 结算对账：本页结算金额合计，用于表头摘要行 */
-const settlementTotalAmount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  return rows.value.reduce((sum, row) => sum + Number(row.settlementAmount || 0), 0)
+const settlementLoadError = ref('')
+const settlementSummary = ref<Record<string, number>>({})
+const {
+  filters: settlementFilters, filterError: settlementFilterError, apply: applySettlementFilters,
+  reset: resetSettlementFilters, load: loadSettlement, beginRequest: beginClosureRequest
+} = usePagedFilters({
+  defaults: { dateFrom: '', dateTo: '', traceCode: '', deptName: '', productKeyword: '', goodsType: '', sort: 'timeDesc' },
+  page: currentPage,
+  size: pageSize,
+  loading,
+  loadError: settlementLoadError,
+  errorMessage: '结算明细加载失败',
+  isActive: () => type.value === 'settlement',
+  fetchPage: params => fetchServerPagedClosureList('settlement', params),
+  onPage: (result) => {
+    rows.value = result.rows
+    totalItems.value = result.total
+    settlementSummary.value = result.summary ?? {}
+  },
+  onError: () => {
+    rows.value = []
+    totalItems.value = 0
+    settlementSummary.value = {}
+  }
 })
-const settlementTotalQuantity = computed(() => {
-  if (type.value !== 'settlement') return 0
-  return rows.value.reduce((sum, row) => sum + Number(row.settlementQuantity || 0), 0)
-})
-const settlementGoodsType = ref('')
-const settlementPackageCount = computed(() => rows.value.reduce((sum, row) => sum + Number(row.packageCount || 0), 0))
-const settlementLooseQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.looseQuantity || 0), 0))
-const settlementHighValueQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.highValueQuantity || 0), 0))
 
 function settlementGoodsLabel(value: unknown) {
   return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货', unknown: '待核对货型' } as Record<string, string>)[String(value)] || '-'
 }
-
-function changeSettlementGoodsType() {
-  currentPage.value = 1
-  loadData()
-}
-/** 结算 KPI：供应商数 = 结算供应商去重，结算单数 = 当前页内 settlementNo 去重 */
-const settlementSupplierCount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  const set = new Set<string>()
-  for (const row of rows.value) {
-    const v = String(row.settlementSupplier || '').trim()
-    if (v && v !== '-') set.add(v)
-  }
-  return set.size
-})
-const settlementDocumentCount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  const set = new Set<string>()
-  for (const row of rows.value) {
-    const v = String(row.settlementNo || row.bizNo || '').trim()
-    if (v && v !== '-') set.add(v)
-  }
-  return set.size
-})
 
 function shortagePayload() {
   return {
@@ -294,16 +288,19 @@ function shortagePayload() {
   }
 }
 
-async function loadLinkedWarehouses() {
+async function loadLinkedWarehouses(isCurrent = () => true) {
+  const requestedType = type.value
   const deptCode = selectedDepartment.value?.deptCode
   if (!deptCode) {
     linkedWarehouses.value = []
     if (type.value !== 'delivery') form.warehouseName = ''
     return
   }
+  const isCurrentDepartment = () =>
+    isCurrent() && type.value === requestedType && selectedDepartment.value?.deptCode === deptCode
   try {
     const warehouses = await fetchDepartmentWarehouses(deptCode)
-    if (selectedDepartment.value?.deptCode !== deptCode) return
+    if (!isCurrentDepartment()) return
     linkedWarehouses.value = warehouses.filter(item => Number(item.selected ?? 0) === 1)
     // 选择科室时默认带出科室所关联的库房
     const preferred = linkedWarehouses.value[0]?.name || ''
@@ -326,6 +323,7 @@ async function loadLinkedWarehouses() {
       form.warehouseName = preferred
     }
   } catch (error) {
+    if (!isCurrentDepartment()) return
     linkedWarehouses.value = []
     if (type.value !== 'delivery') form.warehouseName = ''
     notifyError(apiErrorText(error, '关联库房加载失败'))
@@ -347,15 +345,19 @@ async function maybeOpenRouteSmartAnalysis() {
 }
 
 async function loadData() {
+  const requestedType = type.value
+  if (requestedType === 'settlement') return loadSettlement()
+  const isLatest = beginClosureRequest()
+  const isCurrent = () => isLatest() && type.value === requestedType
   loading.value = true
   try {
     applyRouteSmartDefaults()
     const [overview, optionData, listData] = await Promise.all([
       fetchClosureOverview(),
       fetchClosureOptions(),
-      fetchClosureList(type.value, { page: String(currentPage.value), size: String(pageSize.value),
-        ...(type.value === 'settlement' ? { goodsType: settlementGoodsType.value } : {}) })
+      fetchClosureList(requestedType, { page: String(currentPage.value), size: String(pageSize.value) })
     ])
+    if (!isCurrent()) return
     summary.value = overview.summary
     options.value = optionData
     rows.value = listData.rows
@@ -368,7 +370,8 @@ async function loadData() {
     }
     applyRouteSmartDefaults()
     if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
-      await loadLinkedWarehouses()
+      await loadLinkedWarehouses(isCurrent)
+      if (!isCurrent()) return
     } else if (!form.warehouseName && optionData.warehouses[0]) {
       form.warehouseName = optionData.warehouses[0].warehouseName
     }
@@ -378,16 +381,20 @@ async function loadData() {
       if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
         form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
       }
-      await loadPickingRequisitions()
+      await loadPickingRequisitions(isCurrent)
+      if (!isCurrent()) return
     }
     await maybeOpenRouteSmartAnalysis()
+  } catch (cause) {
+    if (isCurrent()) throw cause
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
-async function loadPickingRequisitions() {
+async function loadPickingRequisitions(isCurrent = () => type.value === 'delivery') {
   const result = await fetchPickingRequisitions()
+  if (!isCurrent()) return
   pickingRequisitionRows.value = result.rows || []
   pickingTotal.value = pickingRequisitionRows.value.length
   const selectedStillPending = pickingRequisitionRows.value.some(row => String(row.itemId || '') === selectedPickingItemId.value)
@@ -649,15 +656,20 @@ async function resolveConsumption() {
   consumptionResolved.value = null
   try {
     const result = await resolveConsumptionProduct(code)
+    if (code !== consumptionQueryCode.value.trim()) return
     consumptionResolved.value = result
     form.productCode = String(result.productCode || '')
     if (result.sourceType === 'package') {
       form.quantity = Number(result.packageQuantity || 0)
+    } else if (Number(result.highValue) === 1) {
+      form.quantity = 1
     }
     if (result.warehouseName) {
-      const choices = warehouseChoices.value.map(item => item.warehouseName)
-      if (choices.includes(String(result.warehouseName))) {
-        form.warehouseName = String(result.warehouseName)
+      const warehouse = warehouseChoices.value.find(item => result.warehouseId
+        ? item.warehouseId === Number(result.warehouseId) : item.warehouseName === result.warehouseName)
+      if (warehouse) {
+        form.warehouseName = warehouse.warehouseName
+        if (warehouse.warehouseId) form.warehouseId = warehouse.warehouseId
       }
     }
     notifySuccess(`已定位商品：${result.productCode} / ${result.productName}（${result.sourceType === 'package' ? '定数包码' : 'UDI/唯一码'}）`)
@@ -801,6 +813,26 @@ async function runAction(action: string, row?: Record<string, unknown>): Promise
   }
 }
 
+async function confirmConsumptionReversal(row: Record<string, unknown>) {
+  const sourceNo = String(row.bizNo || '').trim()
+  if (!sourceNo || row.status !== 'confirmed' || reversingConsumption.value
+    || !auth.hasPermission('reverse-consumption:write')) return
+  reversingConsumption.value = true
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认冲销消耗单「${sourceNo}」？冲销后将恢复原批次库存，并撤销该单待确认的结算明细。`,
+        '确认反消耗', { type: 'warning', confirmButtonText: '确认冲销', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await runAction('reverse', row)
+  } finally {
+    reversingConsumption.value = false
+  }
+}
+
 async function performAction(action: string, row?: Record<string, unknown>) {
   let result: Record<string, unknown> = {}
   if (action === 'shortage') {
@@ -826,19 +858,27 @@ async function performAction(action: string, row?: Record<string, unknown>) {
   }
   if (action === 'consumption') {
     if (!Number.isInteger(Number(form.quantity)) || Number(form.quantity) <= 0) throw new Error('消耗数量必须为正整数，不支持小数')
+    if (consumptionQueryCode.value.trim() && !consumptionResolved.value) throw new Error('请先查询扫码结果，再登记消耗')
     if (consumptionResolved.value?.sourceType === 'package') {
       result = await consumeQuotaPackageByCode({
         code: consumptionQueryCode.value.trim(),
         deptName: form.deptName || undefined
       })
     } else {
-      result = await createConsumption(form)
+      result = await createConsumption({
+        ...form,
+        uniqueCode: Number(consumptionResolved.value?.highValue) === 1 ? consumptionResolved.value?.uniqueCode : undefined
+      })
     }
-    form.consumptionNo = String(result.consumptionNo || '')
-    notifySuccess(`科室消耗已登记：${result.consumptionNo}`)
+    const settlementNos = Array.isArray(result.settlementNos) ? result.settlementNos : []
+    notifySuccess(`科室消耗已登记：${result.consumptionNo}${settlementNos.length ? `，结算单：${settlementNos.join('、')}` : ''}`)
+    consumptionQueryCode.value = ''
+    consumptionResolved.value = null
   }
   if (action === 'reverse') {
-    result = await reverseConsumption(String(row?.bizNo || form.consumptionNo))
+    const sourceNo = String(row?.bizNo || '').trim()
+    if (!sourceNo) throw new Error('请选择要反消耗的原消耗单')
+    result = await reverseConsumption(sourceNo)
     notifySuccess(`反消耗红冲已生成：${result.flushNo}`)
   }
   if (action === 'pda') {
@@ -1048,38 +1088,37 @@ watch(() => form.productCode, () => {
       @refresh="loadData"
     />
 
-    <!-- 结算对账：4 项 KPI 摘要卡（参考 UDI udi-summary 风格） -->
-    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总">
+    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总" :aria-busy="loading">
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-doc"><FileText :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">结算单数</span>
-          <strong class="settlement-kpi-value">{{ settlementDocumentCount }} <small>/ {{ totalItems }}</small></strong>
-          <span class="settlement-kpi-hint">本屏结算单去重数 / 总条数</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.documentCount ?? '—' }} <small>/ {{ totalItems }}</small></strong>
+          <span class="settlement-kpi-hint">匹配结算单去重数 / 明细条数</span>
         </div>
       </div>
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-supplier"><Building2 :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">供应商数</span>
-          <strong class="settlement-kpi-value">{{ settlementSupplierCount }}</strong>
-          <span class="settlement-kpi-hint">结算供应商去重</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.supplierCount ?? '—' }}</strong>
+          <span class="settlement-kpi-hint">匹配供应商去重数</span>
         </div>
       </div>
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-qty"><PackageCheck :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">数量合计</span>
-          <strong class="settlement-kpi-value">{{ settlementTotalQuantity }}</strong>
-          <span class="settlement-kpi-hint">本屏去重包数 {{ settlementPackageCount }}；散货 {{ settlementLooseQuantity }}；高值 {{ settlementHighValueQuantity }}</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.totalQuantity ?? '—' }}</strong>
+          <span class="settlement-kpi-hint">匹配基本数量 · 去重包数 {{ settlementSummary.packageCount ?? '—' }} / 散货 {{ settlementSummary.looseQuantity ?? '—' }} / 高值 {{ settlementSummary.highValueQuantity ?? '—' }}</span>
         </div>
       </div>
       <div class="settlement-kpi-item is-amount">
         <i class="settlement-kpi-icon is-amount"><CheckCircle2 :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">金额合计</span>
-          <strong class="settlement-kpi-value">¥ {{ settlementTotalAmount.toFixed(2) }}</strong>
-          <span class="settlement-kpi-hint">本屏结算金额累加</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.totalAmount == null ? '—' : `¥ ${settlementSummary.totalAmount.toFixed(2)}` }}</strong>
+          <span class="settlement-kpi-hint">全部匹配明细金额</span>
         </div>
       </div>
     </section>
@@ -1181,6 +1220,7 @@ watch(() => form.productCode, () => {
             <div class="consumption-code-search">
               <input
                 v-model.trim="consumptionQueryCode"
+                @input="consumptionResolved = null"
                 placeholder="扫码或输入定数包码、UDI、唯一码，点击查询定位商品"
                 @keyup.enter="resolveConsumption"
               />
@@ -1194,11 +1234,11 @@ watch(() => form.productCode, () => {
             <span>已识别耗材</span>
             <div class="consumption-resolved">
               <strong>{{ consumptionResolved.productCode }} / {{ consumptionResolved.productName }}</strong>
-              <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}</small>
+              <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}<template v-if="consumptionResolved.warehouseName"> · 库房 {{ consumptionResolved.warehouseName }}</template></small>
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && consumptionResolved?.sourceType === 'package'" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && (consumptionResolved?.sourceType === 'package' || Number(consumptionResolved?.highValue) === 1)" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
           <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
@@ -1255,10 +1295,6 @@ watch(() => form.productCode, () => {
           <PackageCheck :size="18" />
           登记消耗
         </button>
-        <button v-if="type === 'consumption'" class="btn" type="button" @click="runAction('reverse')">
-          <RotateCcw :size="18" />
-          反消耗/红冲
-        </button>
         <button v-if="type === 'risk' && !isRecallPage" class="btn btn-primary" type="button" @click="runAction('cold')">
           <AlertTriangle :size="18" />
           冷链异常
@@ -1307,7 +1343,7 @@ watch(() => form.productCode, () => {
                 >
                   <td>
                     <strong>{{ row.requisitionNo }}</strong>
-                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">部分拣配</span>
+                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
                   </td>
                   <td>{{ row.deptName }}</td>
                   <td>
@@ -1504,16 +1540,39 @@ watch(() => form.productCode, () => {
           <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
         </template>
       </div>
-      <div v-if="type === 'settlement'" class="settlement-type-filter">
-        <label for="settlement-goods-type">结算货型</label>
-        <select id="settlement-goods-type" v-model="settlementGoodsType" @change="changeSettlementGoodsType">
-          <option value="">全部货型</option>
-          <option value="high_value">高值耗材</option>
-          <option value="quota_package">定数包</option>
-          <option value="loose">散货</option>
-          <option value="unknown">待核对货型</option>
-        </select>
-        <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行显示包内基本数量。</span>
+      <div v-if="type === 'settlement'" class="settlement-query">
+        <form class="settlement-filters" aria-label="结算明细查询" @submit.prevent="applySettlementFilters">
+          <label><span>申领开始日期</span><input v-model="settlementFilters.dateFrom" class="md-input" type="date" /></label>
+          <label><span>申领结束日期</span><input v-model="settlementFilters.dateTo" class="md-input" type="date" /></label>
+          <label><span>追溯码</span><input v-model.trim="settlementFilters.traceCode" class="md-input" type="search" placeholder="UDI、唯一码或定数包码" /></label>
+          <label><span>科室</span><input v-model.trim="settlementFilters.deptName" class="md-input" type="search" placeholder="输入结算科室名称" /></label>
+          <label><span>商品信息</span><input v-model.trim="settlementFilters.productKeyword" class="md-input" type="search" placeholder="编码、名称、规格、厂家或注册证" /></label>
+          <label>
+            <span>结算货型</span>
+            <select v-model="settlementFilters.goodsType" class="md-select" @change="applySettlementFilters">
+              <option value="">全部货型</option>
+              <option value="high_value">高值耗材</option>
+              <option value="quota_package">定数包</option>
+              <option value="loose">散货</option>
+              <option value="unknown">待核对货型</option>
+            </select>
+          </label>
+          <label>
+            <span>排序</span>
+            <select v-model="settlementFilters.sort" class="md-select" @change="applySettlementFilters">
+              <option value="timeDesc">申领时间从新到旧</option>
+              <option value="timeAsc">申领时间从旧到新</option>
+              <option value="departmentAsc">科室名称升序</option>
+              <option value="departmentDesc">科室名称降序</option>
+            </select>
+          </label>
+          <div class="settlement-query-actions">
+            <button class="md-btn" type="button" @click="resetSettlementFilters"><RotateCcw :size="16" /> 重置</button>
+            <button class="md-btn md-btn-primary" type="submit"><Search :size="16" /> 查询</button>
+          </div>
+        </form>
+        <StatusMessage :message="settlementFilterError || settlementLoadError" tone="error" role="alert" />
+        <p class="settlement-query-hint">申领日期仅匹配可关联申领单的明细。同一定数包仅在首条结算明细计 1 包。</p>
       </div>
       <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
         <table class="master-table settlement-detail-table">
@@ -1541,10 +1600,12 @@ watch(() => form.productCode, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="18" class="approval-empty">正在加载结算明细...</td>
+              <td colspan="18" class="approval-empty"><EmptyState message="正在加载结算明细..." /></td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="18" class="approval-empty">暂无结算明细</td>
+              <td colspan="18" class="approval-empty">
+                <EmptyState :message="settlementLoadError ? '结算明细加载失败' : '暂无符合查询条件的结算明细'" />
+              </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.settlementItemId)">
               <td class="settlement-col-document">
@@ -1619,6 +1680,7 @@ watch(() => form.productCode, () => {
               <td class="settlement-col-time">
                 <div class="settlement-cell-stack">
                   <strong>{{ row.settlementOperator || '-' }}</strong>
+                  <span class="settlement-cell-meta">申领：{{ formatDateTime(row.requisitionTime) }}</span>
                   <span class="settlement-cell-meta">结算：{{ row.settlementTime || '-' }}</span>
                   <span class="settlement-cell-meta">创建：{{ row.createTime || '-' }}</span>
                 </div>
@@ -1626,6 +1688,25 @@ watch(() => form.productCode, () => {
               <td class="settlement-col-status">
                 <span class="status-badge" :class="row.status === 'pending_confirm' ? 'pending' : 'enabled'">{{ formatStatusText(row.status) }}</span>
               </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else-if="type === 'red-flush'" class="table-scroll">
+        <table class="master-table purchase-table">
+          <thead>
+            <tr><th>红冲单号</th><th>原消耗单号</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="loading"><td colspan="6"><EmptyState message="正在加载红冲记录..." /></td></tr>
+            <tr v-else-if="!rows.length"><td colspan="6"><EmptyState message="暂无红冲记录" /></td></tr>
+            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
+              <td>{{ row.bizNo }}</td>
+              <td>{{ row.sourceNo || '-' }}</td>
+              <td>{{ row.flushType === 'reverse_consumption' ? '反消耗' : formatBusinessText(row.flushType) }}</td>
+              <td>{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</td>
+              <td>{{ formatDateTime(row.createTime) }}</td>
+              <td>{{ row.remark === 'reverse consumption red flush' ? '反消耗红冲' : row.remark || '-' }}</td>
             </tr>
           </tbody>
         </table>
@@ -1716,7 +1797,8 @@ watch(() => form.productCode, () => {
                     确认签收
                   </button>
                   <span v-else-if="type === 'delivery'">已签收</span>
-                  <button v-if="type === 'consumption' && row.status === 'confirmed'" type="button" @click="runAction('reverse', row)">
+                  <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
+                    type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
                     <RotateCcw :size="15" />
                     反消耗
                   </button>
@@ -1940,15 +2022,28 @@ watch(() => form.productCode, () => {
 </template>
 
 <style scoped>
-.settlement-type-filter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+.settlement-query {
   padding: 12px 16px;
 }
-.settlement-type-filter select { padding: 6px 12px; }
-.settlement-type-filter span { color: var(--md-text-secondary, #667085); font-size: 12px; }
+.settlement-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 10px 12px;
+}
+.settlement-filters label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.settlement-query-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settlement-filters span,
+.settlement-query-hint { color: var(--md-text-secondary, #667085); font-size: 12px; }
+.settlement-query-hint { margin: 8px 0 0; }
 /* =====================================================================
    拣配配送 delivery-acceptance-page
    ---------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
 
 export interface ClosureOptions {
   departments: Array<{ deptCode: string; deptName: string }>
@@ -54,6 +54,13 @@ export async function fetchDepartmentRequisitionWarehouses(deptCode: string) {
  */
 export async function fetchClosureList(type: string, params: Record<string, string> = {}) {
   return getData<PageResult<Record<string, unknown>>>(`/operational-closure/lists/${type}`, { params })
+}
+
+export async function fetchServerPagedClosureList(type: 'requisition' | 'settlement', params: Record<string, string>) {
+  // These lists apply ordering and pagination together on the server.
+  return unwrapData(await http.get<ApiResponse<PageResult<Record<string, unknown>>>>(
+    `/operational-closure/lists/${type}`, { params }
+  ))
 }
 
 /** 获取独立的拣配记录台账，沿用拣配配送只读权限。 */
@@ -251,7 +258,7 @@ export async function fetchRecallInventory(params: Record<string, string>) {
  */
 export async function reverseConsumption(consumptionNo: string) {
   return putData<Record<string, unknown>>(
-    `/operational-closure/consumptions/${consumptionNo}/reverse`
+    `/operational-closure/consumptions/${encodeURIComponent(consumptionNo)}/reverse`
   )
 }
 

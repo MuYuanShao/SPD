@@ -6,7 +6,7 @@
  * 视觉沿用主数据模块（MdDataTableCard / MdFormDialog）
  * 的 md-* 设计语言，与其他菜单保持一致。
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from '@lucide/vue'
 import {
   fetchPrintTemplates,
@@ -20,6 +20,7 @@ import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import MdFormDialog from '../../components/master-data/MdFormDialog.vue'
 import MdFormSection from '../../components/master-data/MdFormSection.vue'
 import MdStatus from '../../components/master-data/MdStatus.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 
 const rows = ref<PrintTemplateRow[]>([])
 const loading = ref(false)
@@ -37,6 +38,13 @@ const saving = ref(false)
 const formError = ref('')
 const newFieldCode = ref('')
 const newFieldLabel = ref('')
+const newFieldError = ref('')
+const newFieldFeedback = ref('')
+const fieldFeedback = ref<HTMLElement>()
+
+watch([newFieldError, newFieldFeedback], () => {
+  fieldFeedback.value?.scrollIntoView({ block: 'nearest' })
+}, { flush: 'post' })
 
 const paperPresets = [
   { label: '60 × 40 mm（常见标签纸）', width: 60, height: 40 },
@@ -73,8 +81,7 @@ function openEditor(row: PrintTemplateRow) {
   status.value = Number(row.status ?? 1)
   remark.value = row.remark ?? ''
   fields.value = parseTemplateFields(row.fieldsJson)
-  newFieldCode.value = ''
-  newFieldLabel.value = ''
+  resetNewField()
   formError.value = ''
   showEditor.value = true
 }
@@ -102,22 +109,30 @@ function moveField(index: number, direction: -1 | 1) {
 function addField() {
   const code = newFieldCode.value.trim()
   const label = newFieldLabel.value.trim()
+  newFieldFeedback.value = ''
   if (!code) {
-    formError.value = '请填写新增字段的编码'
+    newFieldError.value = '请填写新增字段的编码'
     return
   }
   if (fields.value.some(field => field.code === code)) {
-    formError.value = '该字段编码已存在'
+    newFieldError.value = '该字段编码已存在'
     return
   }
   fields.value = [...fields.value, { code, label: label || code, enabled: true }]
+  resetNewField()
+  newFieldFeedback.value = `已添加「${label || code}」，保存模板后生效`
+}
+
+function resetNewField() {
   newFieldCode.value = ''
   newFieldLabel.value = ''
-  formError.value = ''
+  newFieldError.value = ''
+  newFieldFeedback.value = ''
 }
 
 function removeField(field: PrintTemplateField) {
   fields.value = fields.value.filter(item => item.code !== field.code)
+  newFieldFeedback.value = ''
 }
 
 async function saveTemplate() {
@@ -316,16 +331,22 @@ onMounted(loadList)
             <p v-if="!fields.length" class="md-print-template-field-empty">该模板暂无可用字段</p>
           </div>
           <form class="md-print-template-add-field" @submit.prevent="addField">
-            <input v-model.trim="newFieldCode" class="md-input" placeholder="新字段编码，如 operator" />
-            <input v-model.trim="newFieldLabel" class="md-input" placeholder="新字段名称，如 操作员" />
+            <input v-model.trim="newFieldCode" class="md-input" aria-label="新字段编码"
+              :aria-invalid="Boolean(newFieldError)" :aria-describedby="newFieldError ? 'print-template-field-error' : undefined"
+              placeholder="新字段编码，如 operator" @input="newFieldError = ''; newFieldFeedback = ''" />
+            <input v-model.trim="newFieldLabel" class="md-input" aria-label="新字段名称" placeholder="新字段名称，如 操作员" />
             <button class="md-btn md-btn-primary" type="submit">
               <Plus :size="15" />
               <span>新增字段</span>
             </button>
-            <button class="md-btn" type="button" :disabled="!newFieldCode" @click="newFieldCode = ''; newFieldLabel = ''">
+            <button class="md-btn" type="button" :disabled="!newFieldCode && !newFieldLabel" @click="resetNewField">
               <RotateCcw :size="14" />
               <span>清空</span>
             </button>
+            <div v-if="newFieldError || newFieldFeedback" ref="fieldFeedback" class="md-print-template-field-feedback">
+              <StatusMessage id="print-template-field-error" :message="newFieldError" tone="error" role="alert" />
+              <StatusMessage :message="newFieldFeedback" tone="success" role="status" />
+            </div>
           </form>
         </MdFormSection>
       </div>
@@ -532,6 +553,10 @@ onMounted(loadList)
 .md-print-template-add-field .md-input {
   flex: 1 1 160px;
   min-width: 0;
+}
+
+.md-print-template-field-feedback {
+  flex: 0 0 100%;
 }
 
 /* ===== 响应式 ===== */

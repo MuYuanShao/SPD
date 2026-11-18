@@ -63,6 +63,58 @@ test('公告加载失败可重试，同一公告只分配给一次登录', async
   }
 })
 
+test('打印模板新增字段在按钮旁显示校验和添加结果', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  const fixture = {
+    id: 1, templateCode: 'quota_label', templateType: 'quota_label', templateName: '标签模板',
+    paperWidthMm: 40, paperHeightMm: 60, status: 1,
+    fieldsJson: JSON.stringify([{ code: 'labelNo', label: '标签号', enabled: true }])
+  }
+  await page.route('**/api/print-templates', route => route.fulfill({ json: { code: 0, data: [fixture] } }))
+  await page.route('**/api/print-templates/quota_label', route => {
+    const payload = route.request().postDataJSON()
+    expect(route.request().method()).toBe('PUT')
+    expect(JSON.parse(payload.fieldsJson)).toContainEqual({ code: 'operator', label: '操作员', enabled: true })
+    return route.fulfill({ json: { code: 0, data: { templateType: 'quota_label' } } })
+  })
+  await page.goto('/features/print-template-settings')
+  await login(page)
+  const dialog = page.getByRole('dialog')
+  await page.getByRole('button', { name: '调整模板' }).first().click()
+  const addField = dialog.getByRole('button', { name: '新增字段', exact: true })
+  const code = dialog.getByRole('textbox', { name: '新字段编码' })
+  await addField.click()
+  const alert = dialog.getByRole('alert')
+  await expect(alert).toHaveText('请填写新增字段的编码')
+  await expect(alert).toBeInViewport()
+
+  const label = dialog.getByRole('textbox', { name: '新字段名称' })
+  await code.fill('operator')
+  await label.fill('操作员')
+  await addField.click()
+  const operator = dialog.getByRole('checkbox', { name: '启用字段 operator' })
+  await expect(operator).toBeChecked()
+  await expect(dialog.getByRole('status')).toContainText('已添加「操作员」')
+
+  await dialog.locator('.md-print-template-field-row').filter({
+    has: page.getByRole('checkbox', { name: '启用字段 operator' })
+  })
+    .getByRole('button', { name: '删除字段' }).click()
+  await expect(dialog.getByRole('status')).toHaveCount(0)
+  await expect(operator).toHaveCount(0)
+
+  await code.fill('operator')
+  await label.fill('操作员')
+  await addField.click()
+  await code.fill('operator')
+  await addField.click()
+  await expect(alert).toHaveText('该字段编码已存在')
+  await expect(alert).toBeInViewport()
+  await expect(operator).toHaveCount(1)
+  await dialog.getByRole('button', { name: '保存模板' }).click()
+  await expect(dialog).toBeHidden()
+})
+
 test('管理员可提交含空格和换行的公告并收到发布提示', async ({ page }) => {
   await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
   await page.route('**/api/system-notices', route => {
@@ -151,13 +203,18 @@ test('医院目录停用商品显示启用并提交审批', async ({ page }) => 
     if (++attempts === 1) return route.fulfill({ json: { code: 400, message: '该商品已有进行中的目录申请，请勿重复提交' } })
     return route.fulfill({ json: { code: 0, data: { updatedRows: 1 } } })
   })
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
   await page.goto('/features/hospital-product-catalog')
   await login(page)
   const menu = page.locator('.spd-side-nav')
-  for (const name of ['待审批目录', '医院目录', '供应商厂家管理']) {
-    await expect(menu.getByRole('menuitem', { name, exact: true, includeHidden: true })).toHaveCount(1)
+  const masterData = menu.locator('.el-sub-menu').filter({
+    has: page.getByText('基础数据管理', { exact: true })
+  })
+  const directItems = masterData.locator(':scope > ul > .el-menu-item')
+  for (const name of ['待审批目录', '医院目录', '供应商厂家管理', '院区管理']) {
+    await expect(directItems.getByText(name, { exact: true })).toHaveCount(1)
   }
-  await expect(menu.locator('.el-menu-item').getByText('商品目录', { exact: true })).toHaveCount(0)
+  await expect(menu.getByText('商品目录', { exact: true })).toHaveCount(0)
   const row = page.getByRole('row').filter({ hasText: code })
   await expect(row.getByRole('button', { name: '停用', exact: true })).toBeHidden()
   await row.getByRole('button', { name: '启用', exact: true }).click()
@@ -556,6 +613,196 @@ test('拣配记录弹窗逐条显示完整定数包码', async ({ page }) => {
   await expect(dialog).toBeHidden()
 })
 
+test('科室消耗扫描高值唯一码直接提交并显示结算单号', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/options', route => route.fulfill({ json: { code: 0, data: {
+    departments: [{ deptCode: 'TEST-DEPT', deptName: '测试科室' }], warehouses: [], products: [], balances: []
+  } } }))
+  await page.route('**/api/master-data/departments/TEST-DEPT/warehouses', route => route.fulfill({
+    json: { code: 0, data: [{ warehouseId: 42, name: '测试库房', selected: 1 }] }
+  }))
+  await page.route('**/api/operational-closure/consumptions/resolve?*', route => route.fulfill({ json: { code: 0, data: {
+    sourceType: 'udi', uniqueCode: 'HV-TEST-01', highValue: 1, productCode: 'HV-P',
+    productName: '高值耗材测试', warehouseId: 42, warehouseName: '测试库房'
+  } } }))
+  await page.route('**/api/operational-closure/consumptions', route => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postDataJSON()).toMatchObject({
+      uniqueCode: 'HV-TEST-01', productCode: 'HV-P', warehouseId: 42, quantity: 1
+    })
+    return route.fulfill({ json: { code: 0, data: { consumptionNo: 'XH-TEST', settlementNos: ['JS-TEST'] } } })
+  })
+  await page.goto('/features/department-consumption')
+  await login(page)
+  await page.getByRole('combobox', { name: '库房', exact: true }).selectOption({ label: '测试库房' })
+  await page.getByPlaceholder('扫码或输入定数包码、UDI、唯一码，点击查询定位商品').fill('HV-TEST-01')
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await expect(page.getByText('HV-P / 高值耗材测试', { exact: true })).toBeVisible()
+  await expect(page.getByLabel('数量', { exact: true })).toHaveValue('1')
+  await page.getByRole('button', { name: '登记消耗', exact: true }).click()
+  await expect(page.getByText(/科室消耗已登记：XH-TEST，结算单：JS-TEST/).first()).toBeVisible()
+})
+
+test('反消耗确认使用选中原单并在红冲台账展示结果', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  let attempts = 0
+  await page.route('**/api/operational-closure/lists/consumption?*', route => route.fulfill({
+    json: { code: 0, data: { page: 1, size: 20, total: 2, rows: [
+      { bizNo: 'XH-A', status: 'confirmed' },
+      { bizNo: 'XH-B', status: attempts === 2 ? 'reversed' : 'confirmed' }
+    ] } }
+  }))
+  await page.route('**/api/operational-closure/consumptions/*/reverse', route => {
+    expect(route.request().method()).toBe('PUT')
+    expect(new URL(route.request().url()).pathname).toContain('/consumptions/XH-B/reverse')
+    attempts++
+    return route.fulfill({ json: attempts === 1
+      ? { code: 400, message: '该消耗已确认结算，不能直接反消耗' }
+      : { code: 0, data: { flushNo: 'FXH-B', status: 'approved' } } })
+  })
+  await page.route('**/api/operational-closure/lists/red-flush?*', route => route.fulfill({
+    json: { code: 0, data: { page: 1, size: 20, total: 1, rows: [
+      { bizNo: 'FXH-B', sourceNo: 'XH-B', flushType: 'reverse_consumption', status: 'approved' }
+    ] } }
+  }))
+  await page.goto('/features/department-consumption')
+  await login(page)
+  const reverse = page.getByRole('row').filter({ hasText: 'XH-B' }).getByRole('button', { name: '反消耗', exact: true })
+  const prompt = page.getByRole('dialog', { name: '确认反消耗' })
+  await reverse.click()
+  await expect(prompt).toContainText('XH-B')
+  await prompt.getByRole('button', { name: '取消' }).click()
+  expect(attempts).toBe(0)
+  await reverse.click()
+  await prompt.getByRole('button', { name: '确认冲销' }).click()
+  await expect(page.getByText('该消耗已确认结算，不能直接反消耗', { exact: true }).first()).toBeVisible()
+  await expect(reverse).toBeEnabled()
+  await reverse.click()
+  await prompt.getByRole('button', { name: '确认冲销' }).click()
+  await expect(page.getByText('反消耗红冲已生成：FXH-B', { exact: true }).first()).toBeVisible()
+  const menu = page.locator('.spd-side-nav')
+  await menu.getByText('结算与财务', { exact: true }).click()
+  await menu.getByText('红冲管理', { exact: true }).click()
+  const record = page.getByRole('row').filter({ hasText: 'FXH-B' })
+  await expect(record.getByText('XH-B', { exact: true })).toBeVisible()
+  await expect(record.getByText('已冲销', { exact: true })).toBeVisible()
+})
+
+test('结算对账支持组合查询和服务端科室排序', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/lists/settlement?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const filtered = params.get('traceCode') === 'TEST-UDI'
+    const pageNumber = Number(params.get('page') || 1)
+    const rows = filtered
+      ? [{ settlementItemId: pageNumber, settlementNo: `JS-MATCH-${pageNumber}`, requisitionTime: '2026-11-18 12:30:00' }]
+      : [{ settlementItemId: 2, settlementNo: 'JS-DEFAULT' }]
+    const summary = filtered ? { totalQuantity: 130, totalAmount: 1250.25 } : { totalQuantity: 240, totalAmount: 2800 }
+    return route.fulfill({ json: { code: 0, data: { rows, summary, page: pageNumber, size: 20, total: filtered ? 22 : 1 } } })
+  })
+  await page.goto('/features/settlement-reconciliation')
+  await login(page)
+  await expect(page.getByText('JS-DEFAULT', { exact: true })).toBeVisible()
+  const query = page.getByRole('form', { name: '结算明细查询' })
+  await query.getByLabel('申领开始日期').fill('2026-11-01')
+  await query.getByLabel('申领结束日期').fill('2026-11-18')
+  await query.getByLabel('追溯码').fill('TEST-UDI')
+  await query.getByLabel('科室', { exact: true }).fill('设备')
+  await query.getByLabel('商品信息').fill('耗材')
+  const request = page.waitForRequest(r => r.url().includes('/lists/settlement?') && r.url().includes('departmentAsc'))
+  await query.getByLabel('排序').selectOption('departmentAsc')
+  expect(Object.fromEntries(new URL((await request).url()).searchParams)).toMatchObject({
+    dateFrom: '2026-11-01', dateTo: '2026-11-18', traceCode: 'TEST-UDI',
+    deptName: '设备', productKeyword: '耗材', sort: 'departmentAsc', page: '1'
+  })
+  await expect(page.getByText('JS-MATCH-1', { exact: true })).toBeVisible()
+  await expect(page.getByText('申领：2026-11-18 12:30:00')).toBeVisible()
+  const totals = page.getByRole('region', { name: '结算汇总' })
+  await expect(totals.getByText('130', { exact: true })).toBeVisible()
+  await expect(totals.getByText('¥ 1250.25', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(page.getByText('JS-MATCH-2', { exact: true })).toBeVisible()
+  await expect(totals.getByText('130', { exact: true })).toBeVisible()
+  await expect(totals.getByText('¥ 1250.25', { exact: true })).toBeVisible()
+  await query.getByRole('button', { name: '重置' }).click()
+  await expect(page.getByText('JS-DEFAULT', { exact: true })).toBeVisible()
+  await expect(totals.getByText('¥ 2800.00', { exact: true })).toBeVisible()
+})
+
+test('切换到结算对账后忽略旧菜单的延迟返回', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/overview', route => route.fulfill({ json: { code: 0, data: { summary: {} } } }))
+  await page.route('**/api/operational-closure/options', route => route.fulfill({
+    json: { code: 0, data: { departments: [], warehouses: [], products: [], balances: [] } }
+  }))
+  let releaseConsumption = () => {}
+  const holdConsumption = new Promise<void>(resolve => { releaseConsumption = resolve })
+  await page.route('**/api/operational-closure/lists/consumption?*', async route => {
+    await holdConsumption
+    await route.fulfill({ json: { code: 0, data: {
+      rows: [{ bizNo: 'OLD-CONSUMPTION' }], page: 1, size: 20, total: 1
+    } } })
+  })
+  await page.route('**/api/operational-closure/lists/settlement?*', route => route.fulfill({ json: { code: 0, data: {
+    rows: [{ settlementItemId: 1, settlementNo: 'JS-CURRENT' }],
+    summary: { totalQuantity: 9, totalAmount: 123.45 }, page: 1, size: 20, total: 1
+  } } }))
+  try {
+    await page.goto('/features/department-consumption')
+    const started = page.waitForRequest('**/api/operational-closure/lists/consumption?*')
+    await login(page)
+    await started
+    const menu = page.locator('.spd-side-nav')
+    await menu.getByText('结算与财务', { exact: true }).click()
+    await menu.getByText('结算对账', { exact: true }).click()
+    await expect(page.getByText('JS-CURRENT', { exact: true })).toBeVisible()
+    const finished = page.waitForResponse('**/api/operational-closure/lists/consumption?*')
+    releaseConsumption()
+    await (await finished).finished()
+    await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))))
+    await expect(page.getByText('JS-CURRENT', { exact: true })).toBeVisible()
+    await expect(page.getByRole('region', { name: '结算汇总' }).getByText('¥ 123.45', { exact: true })).toBeVisible()
+  } finally {
+    releaseConsumption()
+  }
+})
+
+test('科室申领历史按查询条件和服务端排序分页', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/lists/requisition?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const filtered = params.get('deptName') === '设备'
+    return route.fulfill({ json: { code: 0, data: {
+      page: Number(params.get('page')), size: 20, total: filtered ? 2 : 23,
+      rows: filtered
+        ? [{ bizNo: 'SL-B', deptName: '设备乙科' }, { bizNo: 'SL-A', deptName: '设备甲科' }]
+        : [{ bizNo: `SL-PAGE-${params.get('page')}` }]
+    } } })
+  })
+  await page.goto('/features/department-requisition')
+  await login(page)
+  await expect(page.getByText('SL-PAGE-1', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(page.getByText('SL-PAGE-2', { exact: true })).toBeVisible()
+
+  const query = page.getByRole('form', { name: '历史申领单查询' })
+  await query.getByLabel('开始日期').fill('2026-11-01')
+  await query.getByLabel('结束日期').fill('2026-11-18')
+  await query.getByLabel('状态').selectOption('pending_approval')
+  await query.getByLabel('科室', { exact: true }).fill('设备')
+  await query.getByLabel('申领单号').fill('SL')
+  const loaded = page.waitForRequest(r => r.url().includes('/lists/requisition?') && r.url().includes('departmentDesc'))
+  await query.getByLabel('排序').selectOption('departmentDesc')
+  const params = new URL((await loaded).url()).searchParams
+  expect(Object.fromEntries(params)).toMatchObject({
+    page: '1', dateFrom: '2026-11-01', dateTo: '2026-11-18',
+    status: 'pending_approval', deptName: '设备', requisitionNo: 'SL', sort: 'departmentDesc'
+  })
+  await expect(page.locator('.requisition-order-table tbody tr td:first-child')).toHaveText(['SL-B', 'SL-A'])
+  await query.getByRole('button', { name: '重置' }).click()
+  await expect(page.getByText('SL-PAGE-1', { exact: true })).toBeVisible()
+})
+
 test('待审批科室申领单可在历史列表审批通过', async ({ page }) => {
   const no = 'SL-SMOKE-APPROVAL'
   let status = 'pending_approval'
@@ -832,7 +1079,8 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('13')
   await selectedLoose.getByRole('button', { name: '减少申领数量' }).click()
   await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
-  await page.getByRole('button', { name: '查询', exact: true }).click()
+  await page.getByRole('dialog', { name: '新增科室申领' })
+    .getByRole('button', { name: '查询', exact: true }).click()
   await expect(selectedLoose.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
   await expect(looseRow.getByRole('spinbutton', { name: '申领数量' })).toHaveValue('12')
   await packageRow.locator('input[type="checkbox"]').check()

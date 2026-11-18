@@ -10,7 +10,7 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import {
   analyzeDepartmentRequisition,
   createRequisition,
-  fetchClosureList,
+  fetchServerPagedClosureList,
   fetchDepartmentRequisitionOptions,
   fetchDepartmentRequisitionWarehouses,
   fetchRequisitionItems,
@@ -27,6 +27,7 @@ import {
 } from '../../api/quotaPackages'
 import { formatStatusText } from '../../utils/chineseDisplay'
 import { useAuthStore } from '../../stores/auth'
+import { usePagedFilters } from '../../composables/usePagedFilters'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -95,6 +96,24 @@ const totalItems = ref(0)
 const historyPage = ref(1)
 const historySize = ref(20)
 const historyTotal = ref(0)
+const {
+  filters: historyFilters, filterError: historyFilterError, apply: applyHistoryFilters,
+  reset: resetHistoryFilters, load: loadRequisitionOrders, beginRequest: beginHistoryRequest
+} = usePagedFilters({
+  defaults: { dateFrom: '', dateTo: '', status: '', deptName: '', requisitionNo: '', sort: 'timeDesc' },
+  page: historyPage,
+  size: historySize,
+  loading,
+  loadError: error,
+  errorMessage: '科室申领记录加载失败',
+  isActive: () => !requisitionStarted.value,
+  fetchPage: params => fetchServerPagedClosureList('requisition', params),
+  onPage: (result) => {
+    requisitionOrders.value = result.rows
+    historyTotal.value = result.total
+  }
+})
+const historyStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'partial_picked', 'picked', 'signed', 'completed', 'cancelled']
 const options = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
 const linkedWarehouses = ref<RequisitionWarehouseOption[]>([])
 const smartOpen = ref(false)
@@ -126,24 +145,6 @@ const canSmartAnalyze = computed(() => authStore.hasPermission('department-requi
 function money(value: unknown) {
   const amount = Number(value || 0)
   return Number.isFinite(amount) ? amount.toFixed(2) : '0.00'
-}
-
-async function loadRequisitionOrders() {
-  if (requisitionStarted.value) return
-  loading.value = true
-  error.value = ''
-  try {
-    const page = await fetchClosureList('requisition', {
-      page: String(historyPage.value),
-      size: String(historySize.value)
-    })
-    requisitionOrders.value = page.rows
-    historyTotal.value = page.total
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : '科室请购记录加载失败'
-  } finally {
-    loading.value = false
-  }
 }
 
 async function approveRequisition(order: Record<string, unknown>) {
@@ -300,6 +301,7 @@ async function startRequisition() {
   } else {
     await loadLinkedWarehouses()
   }
+  beginHistoryRequest()
   requisitionStarted.value = true
   currentPage.value = 1
   await loadCatalog()
@@ -607,6 +609,33 @@ async function changeWarehouse() {
             新增申领
           </button>
         </div>
+        <form class="dept-req-filters" aria-label="历史申领单查询" @submit.prevent="applyHistoryFilters">
+          <label><span>开始日期</span><input v-model="historyFilters.dateFrom" type="date" /></label>
+          <label><span>结束日期</span><input v-model="historyFilters.dateTo" type="date" /></label>
+          <label>
+            <span>状态</span>
+            <select v-model="historyFilters.status">
+              <option value="">全部状态</option>
+              <option v-for="status in historyStatuses" :key="status" :value="status">{{ formatStatusText(status) }}</option>
+            </select>
+          </label>
+          <label><span>科室</span><input v-model.trim="historyFilters.deptName" type="search" placeholder="输入科室名称" /></label>
+          <label><span>申领单号</span><input v-model.trim="historyFilters.requisitionNo" type="search" placeholder="输入申领单号" /></label>
+          <label>
+            <span>排序</span>
+            <select v-model="historyFilters.sort" @change="applyHistoryFilters">
+              <option value="timeDesc">申领时间从新到旧</option>
+              <option value="timeAsc">申领时间从旧到新</option>
+              <option value="departmentAsc">科室名称升序</option>
+              <option value="departmentDesc">科室名称降序</option>
+            </select>
+          </label>
+          <div class="dept-req-filter-actions">
+            <button class="btn" type="button" @click="resetHistoryFilters"><RotateCcw :size="16" /> 重置</button>
+            <button class="btn btn-primary" type="submit"><Search :size="16" /> 查询</button>
+          </div>
+        </form>
+        <StatusMessage :message="historyFilterError" tone="error" role="alert" />
         <table class="dept-req-table requisition-order-table">
           <thead>
             <tr>
@@ -614,7 +643,7 @@ async function changeWarehouse() {
               <th>科室</th>
               <th>库房</th>
               <th>请购人</th>
-              <th>时间</th>
+              <th>申领时间</th>
               <th>商品总数量</th>
               <th>总金额</th>
               <th>状态</th>

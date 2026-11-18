@@ -62,8 +62,9 @@ export function defaultPrintConfig(): QuotaLabelPrintConfig {
   }
 }
 
-function fieldValue(field: PrintTemplateField, row: PackageLabelRow) {
+function fieldValue(field: PrintTemplateField, row: PackageLabelRow, operator: string) {
   if (field.value !== undefined) return field.value
+  if (field.code === 'operator') return operator || '-'
   return switchValue(field.code, row)
 }
 
@@ -90,15 +91,15 @@ function switchValue(code: string, row: PackageLabelRow) {
  * 优先使用工作站已注入的 Zebra Browser Print；未安装时降级为浏览器打印。
  * 打印字段与纸张尺寸取自打印模板调整中的配置。
  */
-export async function printQuotaLabel(row: PackageLabelRow) {
+export async function printQuotaLabel(row: PackageLabelRow, operator: string) {
   const config = await loadQuotaLabelPrintConfig()
   if (window.BrowserPrint) {
     const printer = await getDefaultPrinter(window.BrowserPrint)
-    await sendToPrinter(printer, buildQuotaLabelZpl(row, config))
+    await sendToPrinter(printer, buildQuotaLabelZpl(row, config, operator))
     return printer.name || printer.uid || 'Zebra 打印机'
   }
 
-  printQuotaLabelInBrowser(row, config)
+  printQuotaLabelInBrowser(row, config, operator)
   return '浏览器打印窗口'
 }
 
@@ -128,7 +129,7 @@ function sendToPrinter(printer: ZebraPrinterDevice, zpl: string) {
   })
 }
 
-function buildQuotaLabelZpl(row: PackageLabelRow, config: QuotaLabelPrintConfig) {
+function buildQuotaLabelZpl(row: PackageLabelRow, config: QuotaLabelPrintConfig, operator: string) {
   const enabled = new Set(config.fields.filter((field) => field.enabled).map((field) => field.code))
   const labelNo = zplText(row.labelNo, 40)
   const width = Math.max(Math.round(config.paperWidthMm * 8), 200)
@@ -147,13 +148,13 @@ function buildQuotaLabelZpl(row: PackageLabelRow, config: QuotaLabelPrintConfig)
     (field) => field.enabled && field.code !== 'labelNo' && field.code !== 'footer'
   )
   for (const field of detailFields) {
-    const text = zplText(`${field.label}: ${fieldValue(field, row)}`, 42)
+    const text = zplText(`${field.label}: ${fieldValue(field, row, operator)}`, 42)
     lines.push(`^FO16,${y}^A0N,16,16^FB${width - 32},2,0,L,0^FD${text}^FS`)
     y += 36
   }
   const footer = config.fields.find((field) => field.code === 'footer' && field.enabled)
   if (footer) {
-    lines.push(`^FO16,${y + 6}^A0N,14,14^FD${zplText(fieldValue(footer, row), 42)}^FS`)
+    lines.push(`^FO16,${y + 6}^A0N,14,14^FD${zplText(fieldValue(footer, row, operator), 42)}^FS`)
   }
   return `^XA
 ^CI28
@@ -164,7 +165,7 @@ ${lines.join('\n')}
 ^XZ`
 }
 
-function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintConfig) {
+function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintConfig, operator: string) {
   const printWindow = window.open('', '_blank', 'popup,width=720,height=560')
   if (!printWindow) {
     throw new Error('打印窗口被浏览器拦截，请允许本站弹出窗口后重试')
@@ -198,7 +199,7 @@ function printQuotaLabelInBrowser(row: PackageLabelRow, config: QuotaLabelPrintC
       const term = printDocument.createElement('dt')
       const description = printDocument.createElement('dd')
       term.textContent = field.label
-      description.textContent = fieldValue(field, row)
+      description.textContent = fieldValue(field, row, operator)
       details.append(term, description)
     })
   label.append(title)

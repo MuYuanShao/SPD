@@ -7,7 +7,11 @@ import com.hospital.spd.common.OperatorContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -143,6 +147,8 @@ public class OperationalClosureReadModel {
         }).toList();
     }
 
+    // Keep summary and detail queries on the same snapshot while settlements are posted.
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Map<String, Object> list(String type, Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption", "red-flush").contains(type)) {
@@ -279,6 +285,13 @@ public class OperationalClosureReadModel {
         appendLike(where, args, "dr.requisition_no", params.get("requisitionNo"));
         appendLike(where, args, "sd.dept_name", params.get("deptName"));
         appendEquals(where, args, "dr.status", params.get("status"));
+        appendRequisitionDateRange(where, args, "dr.apply_time", params);
+        String orderBy = switch (params.getOrDefault("sort", "")) {
+            case "timeAsc" -> "dr.apply_time ASC, dr.requisition_id ASC";
+            case "departmentAsc" -> "sd.dept_name ASC, dr.apply_time DESC, dr.requisition_id DESC";
+            case "departmentDesc" -> "sd.dept_name DESC, dr.apply_time DESC, dr.requisition_id DESC";
+            default -> "dr.apply_time DESC, dr.requisition_id DESC";
+        };
         String countSql = "SELECT COUNT(*) FROM department_requisition dr JOIN sys_dept sd ON sd.dept_id = dr.dept_id" + where;
         Long total = args.isEmpty() ? jdbcTemplate.queryForObject(countSql, Long.class)
                 : jdbcTemplate.queryForObject(countSql, Long.class, args.toArray());
@@ -301,9 +314,35 @@ public class OperationalClosureReadModel {
                 """ + where + """
                  GROUP BY dr.requisition_id, dr.requisition_no, sd.dept_name, w.warehouse_name,
                           u.real_name, u.username, dr.status, dr.apply_time
-                 ORDER BY dr.apply_time DESC LIMIT ? OFFSET ?
-                """, pageArgs.toArray());
+                """ + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?", pageArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    private LocalDate requisitionDate(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            LocalDate date = LocalDate.parse(value.trim());
+            if (date.getYear() >= 1000 && date.getYear() < 9999) return date;
+        } catch (DateTimeParseException ignored) {
+            // Return the same validation message for invalid and unsupported dates.
+        }
+        throw new IllegalArgumentException("请输入有效的申领日期");
+    }
+
+    private void appendRequisitionDateRange(StringBuilder where, List<Object> args, String column, Map<String, String> params) {
+        LocalDate from = requisitionDate(params.get("dateFrom"));
+        LocalDate to = requisitionDate(params.get("dateTo"));
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new IllegalArgumentException("开始日期不能晚于结束日期");
+        }
+        if (from != null) {
+            where.append(" AND ").append(column).append(" >= ?");
+            args.add(from.atStartOfDay());
+        }
+        if (to != null) {
+            where.append(" AND ").append(column).append(" < ?");
+            args.add(to.plusDays(1).atStartOfDay());
+        }
     }
 
     private Map<String, Object> scopedDepartmentRecords(String type, PageRequest page) {
@@ -409,6 +448,7 @@ public class OperationalClosureReadModel {
         String sql = """
                 SELECT sbi.item_id AS settlementItemId,
                        sb.settlement_id AS settlementId,
+                       sb.supplier_id AS settlementSupplierId,
                        sb.settlement_no AS settlementNo,
                        COALESCE(sd.dept_name, hvc.dept_name, tc.current_department, '-') AS settlementDept,
                        COALESCE(w.warehouse_name, tc.current_location, '-') AS settlementWarehouse,
@@ -464,6 +504,29 @@ public class OperationalClosureReadModel {
                                 JSON_UNQUOTE(JSON_EXTRACT(dc.patient_info, '$.patientName')),
                                 '-') AS patientName,
                        sb.status,
+                       COALESCE(
+                           (SELECT dr.apply_time
+                              FROM spd_delivery_package_binding pb
+                              JOIN spd_delivery_order d ON d.delivery_id = pb.delivery_id
+                              JOIN department_requisition dr ON dr.requisition_id = pb.requisition_id
+                             WHERE pb.label_id = qpl.label_id AND pb.product_id = sbi.product_id
+                               AND d.sign_time <= dc.consume_time
+                             ORDER BY d.sign_time DESC, d.delivery_id DESC LIMIT 1),
+                           (SELECT dr.apply_time
+                              FROM spd_delivery_trace_code dt
+                              JOIN spd_delivery_order d ON d.delivery_id = dt.delivery_id
+                              JOIN department_requisition dr ON dr.requisition_no = d.requisition_no
+                             WHERE dt.trace_code_id = sbi.trace_code_id
+                               AND d.sign_time <= COALESCE(hvc.charge_time, hvc.create_time, dc.consume_time)
+                             ORDER BY d.sign_time DESC, d.delivery_id DESC LIMIT 1),
+                           (SELECT dr.apply_time
+                              FROM department_requisition_trace_code rt
+                              JOIN department_requisition dr ON dr.requisition_id = rt.requisition_id
+                              JOIN department_requisition_item ri ON ri.item_id = rt.requisition_item_id
+                             WHERE rt.trace_code_id = sbi.trace_code_id
+                               AND ri.product_id = sbi.product_id
+                               AND rt.create_time <= COALESCE(hvc.charge_time, hvc.create_time, dc.consume_time))
+                       ) AS requisitionAppliedAt,
                        sb.generate_time AS generatedAt,
                        sb.settlement_period AS period
                   FROM settlement_bill_item sbi
@@ -495,16 +558,43 @@ public class OperationalClosureReadModel {
                          AND confirm_audit.biz_id = sb.settlement_id
                     )
                 """;
-        String where = goodsType.isEmpty() ? "" : " WHERE detail.goodsType = ?";
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
-        if (!goodsType.isEmpty()) args.add(goodsType);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM (" + sql + ") detail" + where,
-                Long.class, args.toArray());
+        appendEquals(where, args, "detail.goodsType", goodsType);
+        appendLike(where, args, "detail.settlementDept", params.get("deptName"));
+        appendLike(where, args, "CONCAT_WS(' ', detail.uid, detail.uniqueCode, detail.quotaPackageCode)", params.get("traceCode"));
+        appendLike(where, args, """
+                CONCAT_WS(' ', detail.productCode, detail.productName, detail.genericName,
+                    detail.specModel, detail.manufacturerName, detail.registrationNo)
+                """.strip(), params.get("productKeyword"));
+        appendRequisitionDateRange(where, args, "detail.requisitionAppliedAt", params);
+        String orderBy = switch (params.getOrDefault("sort", "")) {
+            case "timeAsc" -> "detail.requisitionAppliedAt IS NULL, detail.requisitionAppliedAt ASC, ";
+            case "timeDesc" -> "detail.requisitionAppliedAt DESC, ";
+            case "departmentAsc" -> "detail.settlementDept ASC, detail.requisitionAppliedAt DESC, ";
+            case "departmentDesc" -> "detail.settlementDept DESC, detail.requisitionAppliedAt DESC, ";
+            default -> "";
+        };
+        Map<String, Object> summary = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS rowCount,
+                       COUNT(DISTINCT detail.settlementId) AS documentCount,
+                       COUNT(DISTINCT detail.settlementSupplierId) AS supplierCount,
+                       COUNT(DISTINCT detail.packageLabelId) AS packageCount,
+                       COALESCE(SUM(detail.settlementQuantity), 0) AS totalQuantity,
+                       COALESCE(SUM(detail.settlementAmount), 0) AS totalAmount,
+                       COALESCE(SUM(detail.looseQuantity), 0) AS looseQuantity,
+                       COALESCE(SUM(detail.highValueQuantity), 0) AS highValueQuantity
+                  FROM (
+                """ + sql + ") detail" + where, args.toArray());
+        long total = ((Number) summary.getOrDefault("rowCount", 0)).longValue();
         args.add(pageReq.size());
         args.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM (" + sql + ") detail" + where
-                + " ORDER BY detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?", args.toArray());
-        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT detail.*, DATE_FORMAT(detail.requisitionAppliedAt, '%Y-%m-%d %H:%i:%s') AS requisitionTime
+                  FROM (
+                """ + sql + ") detail" + where
+                + " ORDER BY " + orderBy + "detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total, pageReq, summary);
     }
 
     private Map<String, Object> highValueChargeDetails(Map<String, String> params, PageRequest pageReq) {

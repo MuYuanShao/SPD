@@ -34,6 +34,7 @@ const DISPLAY_TEXT: Record<string, string> = {
   available: '可用',
   reserved: '已预留',
   picked: '已拣货',
+  partial_picked: '部分拣配',
   consumed: '已消耗',
   in_stock: '在库',
   fulfilled: '已完成',

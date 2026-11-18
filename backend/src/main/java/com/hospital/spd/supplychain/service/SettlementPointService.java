@@ -76,7 +76,8 @@ public class SettlementPointService {
                   JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                   JOIN inventory_batch ib ON ib.batch_id = dci.batch_id
                  WHERE dc.consumption_id = ? AND dc.status = 'confirmed'
-                   AND ib.settlement_mode = 'department_consumption'
+                   AND (ib.settlement_mode = 'department_consumption'
+                        OR (dc.related_biz_type = 'manual_high_value' AND ib.settlement_mode = 'actual_sale'))
                    AND NOT EXISTS (
                      SELECT 1 FROM settlement_bill_item sbi
                       WHERE sbi.source_biz_type = 'department_consumption_item'
@@ -203,7 +204,9 @@ public class SettlementPointService {
                       FROM department_consumption dc
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                       JOIN inventory_batch ib ON ib.batch_id = dci.batch_id
-                     WHERE dc.status = 'confirmed' AND ib.settlement_mode = 'department_consumption'
+                     WHERE dc.status = 'confirmed'
+                       AND (ib.settlement_mode = 'department_consumption'
+                            OR (dc.related_biz_type = 'manual_high_value' AND ib.settlement_mode = 'actual_sale'))
                        AND dc.consume_time >= ? AND dc.consume_time < ?
                     """;
             case ACTUAL_SALE -> """

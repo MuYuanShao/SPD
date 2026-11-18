@@ -2,9 +2,12 @@ package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
 import com.hospital.spd.specialty.service.QuotaPackageTraceFlowService;
+import com.hospital.spd.specialty.service.HighValueTraceFlowService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
+import com.hospital.spd.common.service.InventoryEventCommand;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
 import org.springframework.jdbc.support.KeyHolder;
@@ -35,6 +38,8 @@ public class OperationalConsumptionModule {
     private final OperatorContextProvider operatorContextProvider;
     private final SettlementPointService settlementPointService;
     private final QuotaPackageTraceFlowService quotaPackageTraceFlowService;
+    private final HighValueTraceFlowService highValueTraceFlowService;
+    private static final String MANUAL_HIGH_VALUE = "manual_high_value";
 
     public OperationalConsumptionModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
         this(jdbcTemplate, support, OperatorContext::system,
@@ -58,6 +63,7 @@ public class OperationalConsumptionModule {
         this.operatorContextProvider = operatorContextProvider;
         this.settlementPointService = settlementPointService;
         this.quotaPackageTraceFlowService = quotaPackageTraceFlowService;
+        this.highValueTraceFlowService = new HighValueTraceFlowService(jdbcTemplate, support, operatorContextProvider);
     }
 
     @Transactional
@@ -71,9 +77,13 @@ public class OperationalConsumptionModule {
         Long warehouseId = ((Number) destination.get("warehouseId")).longValue();
         new DepartmentRequisitionAccessService(jdbcTemplate, operatorContextProvider).requireDepartment(deptId);
         Map<String, Object> product = findProduct(productCode);
-        if (product.get("highValue") instanceof Number highValue && highValue.intValue() == 1) {
-            throw new IllegalArgumentException("高值耗材只能在收到 HIS/手麻/手术系统计费回传后扣减库存");
+        Long productId = ((Number) product.get("productId")).longValue();
+        boolean highValue = product.get("highValue") instanceof Number flag && flag.intValue() == 1;
+        if (highValue && (!(body.get("uniqueCode") instanceof String code) || code.isBlank())) {
+            throw new IllegalArgumentException("请先扫描高值耗材唯一码，再登记科室消耗");
         }
+        var units = highValue ? highValueTraceFlowService.requireUnits(
+                List.of(requireText(body, "uniqueCode")), quantity, productId, warehouseId, List.of("signed")) : List.<HighValueTraceFlowService.TraceUnit>of();
         OperatorContext operator = operatorContextProvider.current();
         String consumptionNo = support.nextNo(DEPARTMENT_CONSUMPTION);
         KeyHolder keyHolder = new GeneratedKeyHolder();
@@ -81,15 +91,22 @@ public class OperationalConsumptionModule {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO department_consumption (
                       consumption_no, dept_id, warehouse_id, consumption_type, related_biz_type, status, consume_by
-                    ) VALUES (?, ?, ?, 'department_consumption', 'inventory', 'confirmed', ?)
+                    ) VALUES (?, ?, ?, 'department_consumption', ?, 'confirmed', ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, consumptionNo);
             ps.setLong(2, deptId);
             ps.setLong(3, warehouseId);
-            ps.setLong(4, operator.userId());
+            ps.setString(4, highValue ? MANUAL_HIGH_VALUE : "inventory");
+            ps.setLong(5, operator.userId());
             return ps;
         }, keyHolder);
         Long consumptionId = Objects.requireNonNull(keyHolder.getKey()).longValue();
+        if (highValue) {
+            BigDecimal amount = highValueTraceFlowService.consumeUnits(
+                    units, consumptionId, consumptionNo, productId, warehouseId, deptName, null, null);
+            List<String> settlementNos = settlementPointService.generateForConsumption(consumptionId);
+            return Map.of("consumptionNo", consumptionNo, "amount", amount, "settlementNos", settlementNos);
+        }
         List<SupplyChainSupport.InventoryDeduction> deductions = support.consumeAvailableFifo(
                 warehouseId, ((Number) product.get("productId")).longValue(), quantity,
                 "department_consumption_out", "department_consumption", consumptionId,
@@ -110,13 +127,18 @@ public class OperationalConsumptionModule {
 
     @Transactional
     public Map<String, Object> reverseConsumption(String consumptionNo) {
+        if (consumptionNo == null || consumptionNo.isBlank()) {
+            throw new IllegalArgumentException("请选择要反消耗的原消耗单");
+        }
         List<Long> products = jdbcTemplate.queryForList("""
                 SELECT DISTINCT item.product_id FROM department_consumption_item item
                   JOIN department_consumption consumption ON consumption.consumption_id = item.consumption_id
                  WHERE consumption.consumption_no = ?
                 """, Long.class, consumptionNo);
         new QuotaPackagePricingService(jdbcTemplate).lockProducts(products);
-        Map<String, Object> consumption = jdbcTemplate.queryForMap("""
+        Map<String, Object> consumption;
+        try {
+            consumption = jdbcTemplate.queryForMap("""
                 SELECT consumption_id AS consumptionId, dept_id AS deptId, consume_by AS consumeBy,
                        (SELECT w.dept_id FROM warehouse w WHERE w.warehouse_id = department_consumption.warehouse_id
                           AND w.deleted = 0 AND w.status = 1 FOR SHARE) AS warehouseDeptId,
@@ -126,6 +148,9 @@ public class OperationalConsumptionModule {
                  WHERE consumption_no = ?
                  FOR UPDATE
                 """, consumptionNo);
+        } catch (EmptyResultDataAccessException e) {
+            throw new IllegalArgumentException("原消耗单不存在，请刷新后重新选择");
+        }
         Long documentDeptId = consumption.get("deptId") instanceof Number n ? n.longValue() : null;
         Long warehouseDeptId = consumption.get("warehouseDeptId") instanceof Number n ? n.longValue() : null;
         if (documentDeptId == null || !Objects.equals(documentDeptId, warehouseDeptId)) {
@@ -158,11 +183,11 @@ public class OperationalConsumptionModule {
                  FOR UPDATE
                 """, consumptionId);
         if (settlements.stream().anyMatch(row -> "confirmed".equals(row.get("status")))) {
-            throw new IllegalArgumentException("该消耗已确认结算，不能反消耗；请先按财务红冲流程处理结算单");
+            throw new IllegalArgumentException("该消耗已确认结算，不能直接反消耗。请联系财务核对原结算单并处理");
         }
         for (Map<String, Object> bill : settlements) {
             List<Long> invoices = jdbcTemplate.queryForList("SELECT invoice_id FROM supplier_invoice WHERE settlement_id = ? FOR UPDATE", Long.class, bill.get("settlementId"));
-            if (!invoices.isEmpty()) throw new IllegalArgumentException("该消耗结算单已关联发票，请先完成发票与结算的财务撤销处理，不能直接反消耗");
+            if (!invoices.isEmpty()) throw new IllegalArgumentException("该消耗结算单已关联发票，不能直接反消耗。请联系财务核对关联发票和结算单并处理");
         }
         if ("quota_package_label".equals(String.valueOf(consumption.get("relatedBizType")))
                 && consumption.get("relatedBizId") instanceof Number labelId) {
@@ -178,15 +203,34 @@ public class OperationalConsumptionModule {
                                     + "，差额 " + refresh.differenceAmount()));
         }
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
-                SELECT product_id AS productId, batch_id AS batchId, quantity
+                SELECT product_id AS productId, batch_id AS batchId, quantity, trace_code_id AS traceCodeId
                   FROM department_consumption_item
                  WHERE consumption_id = ?
                 """, consumptionId);
+        Long packageTraceId = null;
+        boolean quotaPackage = "quota_package_label".equals(consumption.get("relatedBizType"));
+        boolean manualHighValue = MANUAL_HIGH_VALUE.equals(consumption.get("relatedBizType"));
+        if (quotaPackage && consumption.get("relatedBizId") instanceof Number labelId
+                && items.stream().anyMatch(item -> item.get("traceCodeId") == null)) {
+            packageTraceId = jdbcTemplate.queryForObject(
+                    "SELECT trace_code_id FROM quota_package_label WHERE label_id = ?", Long.class, labelId.longValue());
+        }
         for (Map<String, Object> item : items) {
-            support.receiveAvailable(warehouseId, ((Number) item.get("productId")).longValue(),
-                    ((Number) item.get("batchId")).longValue(), (BigDecimal) item.get("quantity"),
+            BigDecimal quantity = (BigDecimal) item.get("quantity");
+            Long eventId = support.receiveAvailable(warehouseId, ((Number) item.get("productId")).longValue(),
+                    ((Number) item.get("batchId")).longValue(), quantity,
                     "department_consumption_reverse_in", "department_consumption", consumptionId,
                     "department consumption reversed");
+            Long traceId = item.get("traceCodeId") instanceof Number id ? Long.valueOf(id.longValue()) : packageTraceId;
+            if (manualHighValue) {
+                if (traceId == null) throw new IllegalArgumentException("高值消耗明细缺少唯一码，不能反消耗");
+                highValueTraceFlowService.restoreSignedConsumption(traceId,
+                        ((Number) item.get("productId")).longValue(), warehouseId, consumptionNo);
+            }
+            if ((quotaPackage || manualHighValue) && traceId != null) {
+                support.linkInventoryEventTraceCodes(eventId,
+                        List.of(new InventoryEventCommand.TraceLink(traceId, manualHighValue ? "high_value_unit" : "quota_package", quantity)));
+            }
         }
         int updated = jdbcTemplate.update("UPDATE department_consumption SET status = 'reversed' WHERE consumption_no = ? AND status = 'confirmed'", consumptionNo);
         if (updated != 1) {
@@ -274,8 +318,9 @@ public class OperationalConsumptionModule {
         List<Map<String, Object>> traces = jdbcTemplate.queryForList("""
                 SELECT utc.udi_code AS udiCode, utc.unique_code AS uniqueCode,
                        utc.product_code AS productCode, utc.product_name AS productName,
-                       utc.spec_model AS specModel, p.unit,
-                       utc.current_location AS warehouseName, w.dept_id AS deptId
+                       utc.spec_model AS specModel, p.unit, p.is_high_value AS highValue,
+                       COALESCE(w.warehouse_name, utc.current_location) AS warehouseName,
+                       w.warehouse_id AS warehouseId, w.dept_id AS deptId
                   FROM udi_trace_code utc
                   LEFT JOIN inventory_batch_trace_code bt ON bt.trace_code_id = utc.trace_code_id
                   LEFT JOIN warehouse w ON w.warehouse_id = bt.current_warehouse_id

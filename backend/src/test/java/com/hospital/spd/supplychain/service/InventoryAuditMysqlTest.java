@@ -187,6 +187,34 @@ class InventoryAuditMysqlTest {
         assertThat(jdbc.queryForObject("SELECT total_amount FROM settlement_bill WHERE settlement_id = ?", BigDecimal.class, bill)).isEqualByComparingTo("20");
     }
 
+    @Test void signedHighValueCanBeConsumedAndSettledWithoutBillingCallback() {
+        long dept = department("-DEP");
+        jdbc.update("UPDATE warehouse SET dept_id = ? WHERE warehouse_id = ?", dept, warehouseId);
+        jdbc.update("UPDATE product SET is_high_value = 1 WHERE product_id = ?", productId);
+        jdbc.update("INSERT INTO supplier (supplier_code, supplier_name, credit_code, supplier_type, contact_name, contact_phone) VALUES (?, ?, ?, '配送商', '审核测试', '13000000000')",
+                code, code, code.substring(3, 21));
+        long supplier = id("SELECT supplier_id FROM supplier WHERE supplier_code = ?", code);
+        jdbc.update("UPDATE inventory_batch SET supplier_id = ?, settlement_mode = 'actual_sale' WHERE batch_id = ?", supplier, batchId);
+        jdbc.update("INSERT INTO udi_trace_code (udi_code, unique_code, product_code, product_name, trace_scope, current_status) VALUES (?, ?, ?, '高值测试', 'high_value', 'signed')", code, code, code);
+        long trace = id("SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?", code);
+        jdbc.update("INSERT INTO inventory_batch_trace_code (batch_id, trace_code_id, receiving_item_id, current_warehouse_id, lifecycle_status) VALUES (?, ?, 1, ?, 'signed')", batchId, trace, warehouseId);
+
+        var request = java.util.Map.<String, Object>of("deptName", code + "-DEP", "warehouseName", code,
+                "productCode", code, "uniqueCode", code, "quantity", BigDecimal.ONE);
+        var result = consumption.createConsumption(request);
+        assertThat((java.util.List<?>) result.get("settlementNos")).hasSize(1);
+        assertThat(quantity("available_qty")).isEqualByComparingTo("1");
+        assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id = ? AND source_biz_type = 'department_consumption_item'", trace)).isEqualTo(1);
+        assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(1);
+        assertThatThrownBy(() -> consumption.createConsumption(request)).hasMessageContaining("consumed");
+        assertThat(quantity("available_qty")).isEqualByComparingTo("1");
+
+        consumption.reverseConsumption(String.valueOf(result.get("consumptionNo")));
+        assertThat(quantity("available_qty")).isEqualByComparingTo("2");
+        assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id = ?", trace)).isZero();
+        assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("signed");
+    }
+
     @Test void highValueIsolationUpdatesStableIdentityAndTimeline() {
         jdbc.update("UPDATE inventory_balance SET locked_qty = 0 WHERE batch_id = ?", batchId);
         jdbc.update("UPDATE product SET is_high_value = 1 WHERE product_id = ?", productId);

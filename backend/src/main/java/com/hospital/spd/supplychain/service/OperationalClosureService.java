@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.hospital.spd.supplychain.OperationalCommandRequests.*;
@@ -264,6 +265,10 @@ public class OperationalClosureService {
 
     public Map<String, Object> recallInventory(Map<String, String> params) {
         return riskModule.recallInventory(params);
+    }
+
+    public List<Map<String, Object>> pendingRecallReceipts() {
+        return riskModule.pendingRecallReceipts();
     }
 
     public Map<String, Object> receiveRecall(String recallNo) {

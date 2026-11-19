@@ -1,7 +1,10 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.DataScopeService;
+import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.supplychain.StocktakingRequest;
 import com.hospital.spd.supplychain.PackingTaskRequest;
+import com.hospital.spd.supplychain.SupplyChainSupport;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,8 +13,10 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 
@@ -28,6 +33,7 @@ class InventoryAuditMysqlTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired InventoryService inventory;
     @Autowired OperationalRiskModule risk;
+    @Autowired SupplyChainSupport supplyChainSupport;
     @Autowired DailyInventorySummaryService daily;
     @Autowired com.hospital.spd.common.service.InventoryEventService events;
     @Autowired PackingTaskService packing;
@@ -353,7 +359,22 @@ class InventoryAuditMysqlTest {
         assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("recall_in_transit");
 
         assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
-        assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
+        long centerDept = department("-CENTER-DEP");
+        jdbc.update("UPDATE warehouse SET dept_id = ? WHERE warehouse_id = ?", centerDept, destination);
+        var sourceOperator = new OperatorContext(2L, "source", null, List.of(), dept, OperatorContext.DATA_SCOPE_DEPT);
+        var centerOperator = new OperatorContext(3L, "center", null, List.of(), centerDept, OperatorContext.DATA_SCOPE_DEPT);
+        var sourceRisk = new OperationalRiskModule(jdbc, supplyChainSupport, new DataScopeService(() -> sourceOperator));
+        var centerRisk = new OperationalRiskModule(jdbc, supplyChainSupport, new DataScopeService(() -> centerOperator));
+        assertThat(sourceRisk.pendingRecallReceipts()).isEmpty();
+        assertThatThrownBy(() -> sourceRisk.receiveRecall(recallNo)).isInstanceOf(AccessDeniedException.class);
+        assertThat(centerRisk.pendingRecallReceipts()).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("recallNo", recallNo).containsEntry("sourceWarehouses", code)
+                    .containsEntry("destinationWarehouse", result.get("primaryWarehouseName"));
+            assertThat((BigDecimal) row.get("quantity")).isEqualByComparingTo("1");
+        });
+        assertThat(centerRisk.receiveRecall(recallNo)).containsEntry("status", "received");
+        assertThat(centerRisk.pendingRecallReceipts()).isEmpty();
+        assertThatThrownBy(() -> sourceRisk.receiveRecall(recallNo)).isInstanceOf(AccessDeniedException.class);
         assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance WHERE warehouse_id = ? AND batch_id = ?", BigDecimal.class, destination, batchId)).isEqualByComparingTo("1");
         assertThat(id("SELECT current_warehouse_id FROM inventory_batch_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(destination);
         assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(2);

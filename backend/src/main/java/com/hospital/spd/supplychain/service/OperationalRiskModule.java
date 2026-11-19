@@ -1,7 +1,9 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.service.InventoryEventCommand;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -28,10 +30,12 @@ public class OperationalRiskModule {
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
+    private final DataScopeService dataScope;
 
-    public OperationalRiskModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support) {
+    public OperationalRiskModule(JdbcTemplate jdbcTemplate, SupplyChainSupport support, DataScopeService dataScope) {
         this.jdbcTemplate = jdbcTemplate;
         this.support = support;
+        this.dataScope = dataScope;
     }
 
     public Map<String, Object> coldChainException(Map<String, Object> body) {
@@ -177,6 +181,25 @@ public class OperationalRiskModule {
         return type.contains("一级") || type.contains("中心");
     }
 
+    public List<Map<String, Object>> pendingRecallReceipts() {
+        StringBuilder where = new StringBuilder("""
+                 WHERE r.business_type = 'recall' AND r.status = 'pending_receipt'
+                   AND w.deleted = 0 AND w.status = 1
+                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+                """);
+        List<Object> args = new ArrayList<>();
+        dataScope.appendScope(where, args, "w.dept_id", null);
+        return jdbcTemplate.queryForList("""
+                SELECT r.recall_no AS recallNo, w.warehouse_name AS destinationWarehouse,
+                       r.affected_qty AS quantity,
+                       (SELECT GROUP_CONCAT(DISTINCT e.warehouse_name_snapshot ORDER BY e.warehouse_name_snapshot SEPARATOR '、')
+                          FROM inventory_event e
+                         WHERE e.source_biz_type = 'recall_event' AND e.source_biz_id = r.recall_id
+                           AND e.event_type = 'warehouse_transfer_out' AND e.qty_change < 0) AS sourceWarehouses
+                  FROM recall_event r JOIN warehouse w ON w.warehouse_id = r.destination_warehouse_id
+                """ + where + " ORDER BY r.create_time, r.recall_id", args.toArray());
+    }
+
     @Transactional
     public Map<String, Object> receiveRecall(String recallNo) {
         var records = jdbcTemplate.queryForList("""
@@ -186,18 +209,25 @@ public class OperationalRiskModule {
                 """, recallNo);
         if (records.isEmpty()) throw new IllegalArgumentException("未找到召回退库单");
         var record = records.get(0);
-        if ("received".equals(record.get("status"))) return Map.of("recallNo", recallNo, "status", "received");
-        if (!"pending_receipt".equals(record.get("status")) || !(record.get("destinationId") instanceof Number target)) {
+        if (!(record.get("destinationId") instanceof Number target)) {
             throw new IllegalArgumentException("只有待签收的召回退库单可以入库");
         }
         long recallId = ((Number) record.get("recallId")).longValue();
         long destination = target.longValue();
-        var warehouses = jdbcTemplate.queryForList("""
-                SELECT warehouse_name AS name FROM warehouse
-                 WHERE warehouse_id = ? AND deleted = 0 AND status = 1
-                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%') FOR SHARE
-                """, destination);
-        if (warehouses.isEmpty()) throw new IllegalArgumentException("中心库已停用或库房类型已变更");
+        StringBuilder warehouseQuery = new StringBuilder("""
+                SELECT w.warehouse_name AS name FROM warehouse w
+                 WHERE w.warehouse_id = ? AND w.deleted = 0 AND w.status = 1
+                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+                """);
+        List<Object> warehouseArgs = new ArrayList<>();
+        warehouseArgs.add(destination);
+        dataScope.appendScope(warehouseQuery, warehouseArgs, "w.dept_id", null);
+        var warehouses = jdbcTemplate.queryForList(warehouseQuery + " FOR SHARE", warehouseArgs.toArray());
+        if (warehouses.isEmpty()) throw new AccessDeniedException("接收中心库不可用或超出当前操作人的数据范围");
+        if ("received".equals(record.get("status"))) return Map.of("recallNo", recallNo, "status", "received");
+        if (!"pending_receipt".equals(record.get("status"))) {
+            throw new IllegalArgumentException("只有待签收的召回退库单可以入库");
+        }
         String destinationName = String.valueOf(warehouses.get(0).get("name"));
         var outgoing = jdbcTemplate.queryForList("""
                 SELECT event_id AS eventId, warehouse_id AS sourceId, product_id AS productId,

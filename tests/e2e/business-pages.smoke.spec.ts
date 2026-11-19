@@ -848,10 +848,15 @@ test('科室消耗扫描高值唯一码直接提交并显示结算单号', async
   await expect(page.getByText(/科室消耗已登记：XH-TEST，结算单：JS-TEST/).first()).toBeVisible()
 })
 
-test('召回与隔离按时间、商品及来源科室查询记录', async ({ page }) => {
+test('召回与隔离组合查询并在拣配配送确认召回签收', async ({ page }) => {
   let received = false
   await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
-  await page.route('**/api/operational-closure/recalls/ZH-FILTERED/receipt', route => {
+  await page.route('**/api/operational-closure/picking/recall-receipts', route => route.fulfill({
+    json: { code: 0, data: received ? [] : [{
+      recallNo: 'ZH-FILTERED', sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 2
+    }] }
+  }))
+  await page.route('**/api/operational-closure/picking/recall-receipts/ZH-FILTERED', route => {
     expect(route.request().method()).toBe('PUT')
     received = true
     return route.fulfill({ json: { code: 0, data: { recallNo: 'ZH-FILTERED', status: 'received' } } })
@@ -867,6 +872,18 @@ test('召回与隔离按时间、商品及来源科室查询记录', async ({ pa
     } } })
   })
   await page.goto('/features/recall-isolation')
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'recall-ui-test', userId: 1, username: 'receiver' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'receiver', roles: [], dataScope: 2,
+    menuCodes: ['recall-isolation', 'picking-delivery'], permissionCodes: ['picking-delivery:write']
+  })))
+  await page.route('**/api/operational-closure/overview', route => route.fulfill(api({ summary: {}, events: [] })))
+  await page.route('**/api/operational-closure/options', route => route.fulfill(api({
+    departments: [], warehouses: [], products: [], balances: []
+  })))
+  await page.route('**/api/operational-closure/picking/requisitions', route => route.fulfill(api({ rows: [] })))
+  await page.route('**/api/stock-returns/picking-queue', route => route.fulfill(api([])))
   await login(page)
   await expect(page.getByText('ZH-ALL', { exact: true })).toBeVisible()
   const query = page.getByRole('form', { name: '召回与隔离记录查询' })
@@ -884,15 +901,26 @@ test('召回与隔离按时间、商品及来源科室查询记录', async ({ pa
   await expect(row.getByText('设备科', { exact: true })).toBeVisible()
   await expect(row.getByText('SPD中心库', { exact: true })).toBeVisible()
   await expect(row.getByText('待中心库签收', { exact: true })).toBeVisible()
-  await row.getByRole('button', { name: '签收入库', exact: true }).click()
+  await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: '确认签收入库' })
   await expect(dialog).toContainText('ZH-FILTERED')
   await dialog.getByRole('button', { name: '取消' }).click()
   expect(received).toBeFalsy()
-  await row.getByRole('button', { name: '签收入库', exact: true }).click()
+  await expect(row.getByRole('button', { name: '签收入库', exact: true })).toHaveCount(0)
+  await page.goto('/features/picking-delivery')
+  const queue = page.getByRole('region', { name: '召回待签收' })
+  const pendingRow = queue.getByRole('row').filter({ hasText: 'ZH-FILTERED' })
+  for (const cell of ['设备科二级库', 'SPD中心库', '2']) {
+    await expect(pendingRow.getByRole('cell', { name: cell, exact: true })).toBeVisible()
+  }
+  await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
   await dialog.getByRole('button', { name: '签收入库', exact: true }).click()
-  await expect(row.getByText('已签收入库', { exact: true })).toBeVisible()
-  await expect(row.getByText('2026-11-13 11:00:00', { exact: true })).toBeVisible()
+  await expect(pendingRow).toHaveCount(0)
+  expect(received).toBeTruthy()
+  await page.goto('/features/recall-isolation')
+  const history = page.getByRole('row').filter({ hasText: 'ZH-ALL' })
+  await expect(history.getByText('已签收入库', { exact: true })).toBeVisible()
+  await expect(history.getByText('2026-11-13 11:00:00', { exact: true })).toBeVisible()
 })
 
 test('反消耗确认使用选中原单并在红冲台账展示结果', async ({ page }) => {

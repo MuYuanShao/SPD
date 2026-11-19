@@ -178,6 +178,12 @@ public class RbacAuthorizationService {
         if (path.startsWith("/operational-closure/requisitions/")) {
             return "department-requisition:read";
         }
+        if (path.equals("/operational-closure/picking/recall-receipts")
+                || path.startsWith("/operational-closure/picking/recall-receipts/")) {
+            return ("GET".equals(verb) && path.equals("/operational-closure/picking/recall-receipts"))
+                    || ("PUT".equals(verb) && path.matches("/operational-closure/picking/recall-receipts/[^/]+"))
+                    ? "picking-delivery:write" : null;
+        }
         if (path.startsWith("/operational-closure/picking")) {
             return "department-requisition:pick";
         }

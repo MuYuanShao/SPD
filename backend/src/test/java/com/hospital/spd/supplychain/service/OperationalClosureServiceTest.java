@@ -50,7 +50,7 @@ class OperationalClosureServiceTest {
                 new OperationalShortageModule(jdbcTemplate, support),
                 new OperationalSettlementModule(jdbcTemplate, support),
                 new OperationalPdaModule(jdbcTemplate, support),
-                new OperationalRiskModule(jdbcTemplate, support),
+                new OperationalRiskModule(jdbcTemplate, support, mock(com.hospital.spd.common.DataScopeService.class)),
                 new OperationalHighValueModule(jdbcTemplate, support),
                 new OperationalDeliveryModule(jdbcTemplate, support),
                 new OperationalRequisitionModule(jdbcTemplate, support),

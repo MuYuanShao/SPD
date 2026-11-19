@@ -39,7 +39,9 @@ import {
   createColdChainException,
   createConsumption,
   createRecall,
+  fetchPendingRecallReceipts,
   receiveRecall,
+  type PendingRecallReceipt,
   createRequisition,
   fetchClosureList,
   fetchClosureOptions,
@@ -187,6 +189,10 @@ const recallHistoryFilters = reactive({ ...defaultRecallHistoryFilters })
 const appliedRecallHistoryFilters = ref({ ...defaultRecallHistoryFilters })
 const recallHistoryError = ref('')
 const receivingRecallNo = ref('')
+const pendingRecallReceipts = ref<PendingRecallReceipt[]>([])
+const recallReceiptQueueError = ref('')
+const recallReceiptQueueLoading = ref(false)
+let recallReceiptRequestVersion = 0
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
@@ -358,6 +364,7 @@ async function loadData() {
   const isLatest = beginClosureRequest()
   const isCurrent = () => isLatest() && type.value === requestedType && isRecallPage.value === recallPage
   loading.value = true
+  if (requestedType === 'delivery') void loadRecallReceipts(isCurrent)
   if (requestedType === 'red-flush') {
     redFlushError.value = ''
     try {
@@ -417,9 +424,10 @@ async function loadData() {
       if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
         form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
       }
-      await loadPickingRequisitions(isCurrent)
-      if (!isCurrent()) return
-      await loadWarehouseReturns(isCurrent)
+      await Promise.all([
+        loadPickingRequisitions(isCurrent),
+        loadWarehouseReturns(isCurrent)
+      ])
     }
     await maybeOpenRouteSmartAnalysis()
   } catch (cause) {
@@ -485,21 +493,40 @@ function resetRecallHistoryFilters() {
   applyRecallHistoryFilters()
 }
 
-async function confirmRecallReceipt(row: Record<string, unknown>) {
-  const recallNo = String(row.bizNo || '')
-  if (!recallNo || receivingRecallNo.value || row.status !== 'pending_receipt' || !auth.hasPermission('recall-isolation:write')) return
+async function loadRecallReceipts(isCurrent: () => boolean) {
+  if (!auth.canWrite('picking-delivery')) return
+  const version = ++recallReceiptRequestVersion
+  recallReceiptQueueError.value = ''
+  recallReceiptQueueLoading.value = true
+  try {
+    const result = await fetchPendingRecallReceipts()
+    if (isCurrent() && version === recallReceiptRequestVersion) pendingRecallReceipts.value = result
+  } catch (cause) {
+    if (!isCurrent() || version !== recallReceiptRequestVersion) return
+    pendingRecallReceipts.value = []
+    recallReceiptQueueError.value = apiErrorText(cause, '召回待签收列表加载失败')
+  } finally {
+    if (isCurrent() && version === recallReceiptRequestVersion) recallReceiptQueueLoading.value = false
+  }
+}
+
+async function confirmRecallReceipt(row: PendingRecallReceipt) {
+  const { recallNo, destinationWarehouse } = row
+  if (receivingRecallNo.value || !auth.canWrite('picking-delivery')) return
   receivingRecallNo.value = recallNo
   try {
     try {
       await ElMessageBox.confirm(
-        `确认召回单「${recallNo}」的实物已到达 ${row.warehouseName || '中心库'}？`,
+        `确认召回单「${recallNo}」的实物已到达 ${destinationWarehouse}？`,
         '确认签收入库', { type: 'warning', confirmButtonText: '签收入库', cancelButtonText: '取消' }
       )
     } catch {
       return
     }
     await receiveRecall(recallNo)
-    await loadData()
+    recallReceiptRequestVersion++
+    recallReceiptQueueLoading.value = false
+    pendingRecallReceipts.value = pendingRecallReceipts.value.filter(item => item.recallNo !== recallNo)
     notifySuccess(`召回单已签收入库：${recallNo}`)
   } catch (cause) {
     notifyError(apiErrorText(cause, '召回退库签收失败'))
@@ -1722,6 +1749,27 @@ watch(recallBusinessType, () => {
       </div>
     </section>
 
+    <section v-if="type === 'delivery' && auth.canWrite('picking-delivery')" class="hospital-catalog-panel" aria-labelledby="recall-receipt-queue-title">
+      <div class="section-title"><h3 id="recall-receipt-queue-title">召回待签收</h3></div>
+      <StatusMessage :message="recallReceiptQueueError" tone="error" role="alert" />
+      <div class="table-scroll">
+        <table class="master-table">
+          <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="row in pendingRecallReceipts" :key="row.recallNo">
+              <td>{{ row.recallNo }}</td><td>{{ row.sourceWarehouses || '—' }}</td>
+              <td>{{ row.destinationWarehouse }}</td><td>{{ row.quantity }}</td>
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="Boolean(receivingRecallNo)"
+                @click="confirmRecallReceipt(row)">确认签收</button></td>
+            </tr>
+            <tr v-if="!pendingRecallReceipts.length && !recallReceiptQueueError">
+              <td colspan="5"><EmptyState :message="recallReceiptQueueLoading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <section v-if="type !== 'high-value' && type !== 'delivery'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
@@ -1948,11 +1996,11 @@ watch(recallBusinessType, () => {
         <div class="table-scroll">
           <table class="master-table purchase-table">
             <thead>
-              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>登记时间</th><th>签收时间</th><th>操作</th></tr>
+              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>登记时间</th><th>签收时间</th></tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="11"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
-              <tr v-else-if="!rows.length"><td colspan="11"><EmptyState message="暂无召回与隔离记录" /></td></tr>
+              <tr v-if="loading"><td colspan="10"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
+              <tr v-else-if="!rows.length"><td colspan="10"><EmptyState message="暂无召回与隔离记录" /></td></tr>
               <tr v-else v-for="row in rows" :key="String(row.bizNo)">
                 <td>{{ row.bizNo }}</td>
                 <td>{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</td>
@@ -1964,11 +2012,6 @@ watch(recallBusinessType, () => {
                 <td>{{ formatStatusText(row.status) }}</td>
                 <td>{{ formatDateTime(row.createTime) }}</td>
                 <td>{{ formatDateTime(row.receivedTime) }}</td>
-                <td>
-                  <button v-if="row.status === 'pending_receipt' && auth.hasPermission('recall-isolation:write')"
-                    type="button" class="md-btn" :disabled="Boolean(receivingRecallNo)" @click="confirmRecallReceipt(row)">签收入库</button>
-                  <span v-else>-</span>
-                </td>
               </tr>
             </tbody>
           </table>

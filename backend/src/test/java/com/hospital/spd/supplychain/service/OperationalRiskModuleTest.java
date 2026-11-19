@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +31,7 @@ class OperationalRiskModuleTest {
 
     @BeforeEach
     void setUp() {
-        module = new OperationalRiskModule(jdbcTemplate, support);
+        module = new OperationalRiskModule(jdbcTemplate, support, mock(com.hospital.spd.common.DataScopeService.class));
         org.mockito.Mockito.lenient().when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_id = ?"), org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(Map.of("productId", 100L));
         org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("FROM quota_packing_task_reservation r"), any(Object[].class)))

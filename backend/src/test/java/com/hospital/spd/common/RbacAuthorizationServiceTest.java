@@ -51,6 +51,17 @@ class RbacAuthorizationServiceTest {
     private final RbacAuthorizationService service = new RbacAuthorizationService(jdbcTemplate);
 
     @Test
+    void recallReceiptQueueAndConfirmationRequirePickingWritePermission() {
+        stubPermissions(50L, List.of("picking-delivery:write"));
+        stubPermissions(51L, List.of("picking-delivery", "recall-isolation:write"));
+        String queue = "/api/operational-closure/picking/recall-receipts";
+        assertThat(service.isAllowed(50L, List.of(), "GET", queue)).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "PUT", queue + "/ZH-1")).isTrue();
+        assertThat(service.isAllowed(51L, List.of(), "GET", queue)).isFalse();
+        assertThat(service.isAllowed(51L, List.of(), "PUT", queue + "/ZH-1")).isFalse();
+    }
+
+    @Test
     void inventory_product_report_uses_its_own_permission_for_both_urls() {
         stubPermissions(41L, List.of("inventory-product-detail-report"));
         stubPermissions(42L, List.of("dashboard"));

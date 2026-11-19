@@ -305,8 +305,19 @@ export async function createRecall(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/recalls', payload)
 }
 
+export interface PendingRecallReceipt {
+  recallNo: string
+  sourceWarehouses?: string
+  destinationWarehouse: string
+  quantity: number
+}
+
+export function fetchPendingRecallReceipts() {
+  return getData<PendingRecallReceipt[]>('/operational-closure/picking/recall-receipts')
+}
+
 export function receiveRecall(recallNo: string) {
-  return putData<Record<string, unknown>>(`/operational-closure/recalls/${encodeURIComponent(recallNo)}/receipt`)
+  return putData<Record<string, unknown>>(`/operational-closure/picking/recall-receipts/${encodeURIComponent(recallNo)}`)
 }
 
 /**

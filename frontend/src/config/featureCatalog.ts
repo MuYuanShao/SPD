@@ -344,6 +344,7 @@ export const featureCatalog = [
       'replenishment-task',
       'picking-delivery',
       'picking-records',
+      'stock-return',
       'department-requisition',
       'department-consumption',
       'stocktaking-management'
@@ -396,6 +397,14 @@ export const featureCatalog = [
     routeTarget: '/features/picking-delivery',
     viewFamily: 'operational-closure',
     chunkFamily: 'supply-chain'
+  },
+  {
+    code: 'stock-return',
+    title: '退货管理',
+    icon: 'archive-restore',
+    routeTarget: '/features/stock-return',
+    viewFamily: 'feature',
+    nodeKind: 'business'
   },
   {
     code: 'picking-records',

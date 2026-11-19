@@ -266,6 +266,10 @@ public class OperationalClosureService {
         return riskModule.recallInventory(params);
     }
 
+    public Map<String, Object> receiveRecall(String recallNo) {
+        return riskModule.receiveRecall(recallNo);
+    }
+
     @Transactional
     public Map<String, Object> bindHighValuePatient(HighValuePatientBindingRequest request) {
         return highValueModule.bindPatient(request.toCompatibilityMap());

@@ -356,7 +356,9 @@ public class InventoryMovementService {
                               String eventType, String sourceType, Long sourceId, String remark) {
         requirePositive(quantity);
         List<Long> expired = jdbcTemplate.queryForList("SELECT batch_id FROM inventory_batch WHERE batch_id = ? AND expire_date < CURRENT_DATE FOR SHARE", Long.class, batchId);
-        if (!expired.isEmpty()) throw new IllegalArgumentException("来源批次已过期，不能确认打包");
+        if (!expired.isEmpty() && !"stock_return_order".equals(sourceType)) {
+            throw new IllegalArgumentException("来源批次已过期，不能确认打包");
+        }
         int affected = jdbcTemplate.update("""
                 UPDATE inventory_balance
                    SET locked_qty = locked_qty - ?

@@ -536,10 +536,11 @@ class OperationalClosureServiceTest {
     // ==================== createRecall() ====================
 
     @Test
-    @DisplayName("创建产品召回——成功隔离")
+    @DisplayName("创建库存隔离——成功就地隔离")
     void shouldCreateRecallSuccessfully() {
         Map<String, Object> body = Map.of(
                 "productCode", "PC001",
+                "businessType", "isolate",
                 "scope", "primary",
                 "warehouseName", "主仓库",
                 "batchNo", "PC20260601",
@@ -553,8 +554,6 @@ class OperationalClosureServiceTest {
                 .thenReturn(List.of(Map.of("warehouseId", 10L, "batchId", 66L,
                         "looseQty", BigDecimal.valueOf(50), "packageQty", BigDecimal.ZERO,
                         "totalQty", BigDecimal.valueOf(50))));
-        when(jdbcTemplate.queryForMap(contains("warehouse_type LIKE '%一级%'")))
-                .thenReturn(Map.of("warehouseId", 10L, "warehouseName", "主仓库"));
         doAnswer(invocation -> {
             populateKeyHolder(invocation.getArgument(1), 88L);
             return 1;

@@ -26,6 +26,7 @@ public enum DocumentKind {
     PDA_OFFLINE_RECORD("PDA", 5, "pda_offline_record", "record_no"),
     COLD_CHAIN_EXCEPTION("LL", 5, "cold_chain_exception", "event_no"),
     RECALL_EVENT("ZH", 5, "recall_event", "recall_no"),
+    STOCK_RETURN("TH", 5, "stock_return_order", "return_no"),
     HIGH_VALUE_CHARGE("GZ", 5, "high_value_charge", "charge_no"),
     HIGH_VALUE_UNIQUE_CODE("", 6, "udi_trace_code", "unique_code"),
     UDI_TRACE_EVENT("UT", 6, "udi_trace_event", "event_no"),

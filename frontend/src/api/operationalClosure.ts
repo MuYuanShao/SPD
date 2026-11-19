@@ -305,6 +305,10 @@ export async function createRecall(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/recalls', payload)
 }
 
+export function receiveRecall(recallNo: string) {
+  return putData<Record<string, unknown>>(`/operational-closure/recalls/${encodeURIComponent(recallNo)}/receipt`)
+}
+
 /**
  * 创建高值耗材计费记录
  * @param payload - 计费信息

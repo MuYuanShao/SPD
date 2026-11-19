@@ -428,7 +428,7 @@ public class QuotaPackageTraceFlowService {
     private static String labelStatus(String traceStatus) {
         return switch (traceStatus) {
             case "delivery_picked", "delivered" -> "delivered";
-            case "signed", "consumed", "settled" -> traceStatus;
+            case "signed", "consumed", "settled", "returned", "return_reserved" -> traceStatus;
             case "unpacked" -> "void";
             default -> "available";
         };

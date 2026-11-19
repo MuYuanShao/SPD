@@ -193,6 +193,11 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.createRecall(request));
     }
 
+    @PutMapping("/recalls/{recallNo}/receipt")
+    public ApiResponse<Map<String, Object>> receiveRecall(@PathVariable String recallNo) {
+        return ApiResponse.ok(service.receiveRecall(recallNo));
+    }
+
     @GetMapping("/recalls/batches")
     public ApiResponse<Map<String, Object>> recallBatches(@RequestParam(defaultValue = "") String productCode,
                                                           @RequestParam(defaultValue = "") String warehouseName) {

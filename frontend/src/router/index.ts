@@ -22,6 +22,7 @@ const InventoryWorkbenchView = () => import('../views/supply-chain/InventoryWork
 const QuotaPackageView = () => import('../views/supply-chain/QuotaPackageView.vue')
 const OperationalClosureView = () => import('../views/supply-chain/OperationalClosureView.vue')
 const PickingRecordsView = () => import('../views/supply-chain/PickingRecordsView.vue')
+const StockReturnView = () => import('../views/supply-chain/StockReturnView.vue')
 const InvoiceManagementView = () => import('../views/supply-chain/InvoiceManagementView.vue')
 const UdiTraceabilityView = () => import('../views/supply-chain/UdiTraceabilityView.vue')
 const HighValueChargeDetailView = () => import('../views/supply-chain/HighValueChargeDetailView.vue')
@@ -166,6 +167,12 @@ export const router = createRouter({
       name: 'invoice-management',
       component: InvoiceManagementView,
       meta: { requiresAuth: true }
+    },
+    {
+      path: featureRouteTarget('stock-return'),
+      name: 'stock-return',
+      component: StockReturnView,
+      meta: { requiresAuth: true, featureCode: 'stock-return' }
     },
     {
       path: featureRouteTarget('picking-records'),

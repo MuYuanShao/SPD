@@ -34,6 +34,7 @@ class InventoryAuditMysqlTest {
     @Autowired OperationalConsumptionModule consumption;
     @Autowired OperationalDeliveryModule delivery;
     @Autowired ReceivingOrderService receiving;
+    @Autowired StockReturnService stockReturns;
     String code;
     long productId, warehouseId, batchId;
 
@@ -213,6 +214,150 @@ class InventoryAuditMysqlTest {
         assertThat(quantity("available_qty")).isEqualByComparingTo("2");
         assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id = ?", trace)).isZero();
         assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("signed");
+    }
+
+    @Test void departmentReturnReservesThenTransfersOnlyOnConfirmation() {
+        long dept = department("-RET");
+        jdbc.update("UPDATE warehouse SET warehouse_type='二级库',dept_id=? WHERE warehouse_id=?", dept, warehouseId);
+        jdbc.update("UPDATE inventory_balance SET available_qty=6,locked_qty=0 WHERE batch_id=?", batchId);
+        jdbc.update("INSERT INTO warehouse (warehouse_code,warehouse_name,warehouse_type,campus_name) VALUES (?,?,'中心库','审核测试院区')",
+                code + "-DST", code + "-DST");
+        long center = id("SELECT warehouse_id FROM warehouse WHERE warehouse_code=?", code + "-DST");
+        long balance = id("SELECT balance_id FROM inventory_balance WHERE warehouse_id=? AND batch_id=?", warehouseId, batchId);
+
+        var request = new StockReturnService.ReturnRequest("department", warehouseId, center, null, "batch", "退库测试",
+                java.util.List.of(new StockReturnService.Selection(balance, BigDecimal.valueOf(2))), returnKey());
+        var pending = stockReturns.submit(request);
+        String no = (String) pending.get("returnNo");
+        assertThat(stockReturns.submit(request)).isEqualTo(pending);
+        assertThat(pending).containsEntry("status", "pending_confirm");
+        assertThat(quantity("available_qty")).isEqualByComparingTo("4");
+        assertThat(quantity("locked_qty")).isEqualByComparingTo("2");
+        assertThat(id("SELECT COUNT(*) FROM inventory_balance WHERE warehouse_id=? AND batch_id=?", center, batchId)).isZero();
+        assertThat(stockReturns.records(true)).anyMatch(row -> no.equals(row.get("returnNo")));
+
+        assertThat(stockReturns.confirmWarehouseReturn(no)).containsEntry("status", "confirmed");
+        stockReturns.confirmWarehouseReturn(no);
+        assertThat(quantity("available_qty")).isEqualByComparingTo("4");
+        assertThat(quantity("locked_qty")).isEqualByComparingTo("0");
+        assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance WHERE warehouse_id=? AND batch_id=?",
+                BigDecimal.class, center, batchId)).isEqualByComparingTo("2");
+        assertThat(stockReturns.records(true)).noneMatch(row -> no.equals(row.get("returnNo")));
+    }
+
+    @Test void departmentReturnKeepsThePackageAndDoesNotDoubleCountLooseStockAtCenter() {
+        long dept = department("-PK-RET");
+        jdbc.update("UPDATE warehouse SET warehouse_type='二级库',dept_id=? WHERE warehouse_id=?", dept, warehouseId);
+        jdbc.update("UPDATE inventory_balance SET available_qty=3,locked_qty=0 WHERE batch_id=?", batchId);
+        jdbc.update("INSERT INTO warehouse (warehouse_code,warehouse_name,warehouse_type,campus_name) VALUES (?,?,'中心库','审核测试院区')",
+                code + "-DST", code + "-DST");
+        long center = id("SELECT warehouse_id FROM warehouse WHERE warehouse_code=?", code + "-DST");
+        long template = template();
+        jdbc.update("INSERT INTO quota_package_label(label_no,template_id,product_id,warehouse_id,package_quantity,status) VALUES (?,?,?,?,2,'signed')",
+                code, template, productId, warehouseId);
+        long label = id("SELECT label_id FROM quota_package_label WHERE label_no=?", code);
+        jdbc.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES (?,?,2,10,?)",
+                label, batchId, warehouseId);
+        var request = new StockReturnService.ReturnRequest("department", warehouseId, center, null, "package", "退包测试",
+                java.util.List.of(new StockReturnService.Selection(label, BigDecimal.ONE)), returnKey());
+        var order = stockReturns.submit(request);
+        assertThat(quantity("available_qty")).isEqualByComparingTo("1");
+        assertThat(quantity("locked_qty")).isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("return_reserved");
+        stockReturns.confirmWarehouseReturn((String) order.get("returnNo"));
+        assertThat(id("SELECT warehouse_id FROM quota_package_label WHERE label_id=?", label)).isEqualTo(center);
+        assertThat(jdbc.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("available");
+        assertThat(quantity("locked_qty")).isEqualByComparingTo("0");
+        assertThat(id("SELECT COUNT(*) FROM inventory_balance WHERE warehouse_id=? AND batch_id=? AND available_qty>0", center, batchId)).isZero();
+    }
+
+    @Test void supplierReturnDeductsOnlyChosenHighValueCode() {
+        long supplier = returnSupplier();
+        jdbc.update("UPDATE inventory_balance SET locked_qty=0 WHERE batch_id=?", batchId);
+        jdbc.update("UPDATE product SET is_high_value=1 WHERE product_id=?", productId);
+        for (int i = 0; i < 2; i++) {
+            String unique = code + "-" + i;
+            jdbc.update("INSERT INTO udi_trace_code (udi_code,unique_code,product_code,product_name,trace_scope,current_status) VALUES (?,?,?,'高值测试','high_value','in_stock')",
+                    unique, unique, code);
+            long trace = id("SELECT trace_code_id FROM udi_trace_code WHERE unique_code=?", unique);
+            jdbc.update("INSERT INTO inventory_batch_trace_code (batch_id,trace_code_id,receiving_item_id,current_warehouse_id,lifecycle_status) VALUES (?,?,1,?,'in_stock')",
+                    batchId, trace, warehouseId);
+        }
+        var candidates = stockReturns.candidates(warehouseId, "trace", supplier, code, "");
+        assertThat(candidates).hasSize(2);
+        long chosen = ((Number) candidates.get(0).get("id")).longValue();
+        long other = ((Number) candidates.get(1).get("id")).longValue();
+        var request = new StockReturnService.ReturnRequest("supplier", warehouseId, null, supplier, "trace", "退货测试",
+                java.util.List.of(new StockReturnService.Selection(chosen, BigDecimal.ONE)), returnKey());
+        var result = stockReturns.submit(request);
+        assertThat(result).containsEntry("status", "confirmed");
+        assertThat(stockReturns.submit(request)).isEqualTo(result);
+        assertThat(quantity("available_qty")).isEqualByComparingTo("1");
+        assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id=?", String.class, chosen)).isEqualTo("supplier_returned");
+        assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id=?", String.class, other)).isEqualTo("in_stock");
+        assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id=?", chosen)).isEqualTo(1);
+    }
+
+    @Test void supplierReturnUsesWholeSignedPackageWithoutTakingOtherBatchStock() {
+        long supplier = returnSupplier();
+        long dept = department("-PKG");
+        jdbc.update("UPDATE warehouse SET warehouse_type='二级库',dept_id=? WHERE warehouse_id=?", dept, warehouseId);
+        jdbc.update("UPDATE inventory_balance SET available_qty=5,locked_qty=0 WHERE batch_id=?", batchId);
+        long template = template();
+        jdbc.update("INSERT INTO quota_package_label(label_no,template_id,product_id,warehouse_id,package_quantity,status) VALUES (?,?,?,?,2,'signed')",
+                code, template, productId, warehouseId);
+        long label = id("SELECT label_id FROM quota_package_label WHERE label_no=?", code);
+        jdbc.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES (?,?,2,10,?)",
+                label, batchId, warehouseId);
+        assertThat(stockReturns.candidates(warehouseId, "package", supplier, code, "")).hasSize(1);
+        assertThat((BigDecimal) stockReturns.candidates(warehouseId, "batch", supplier, code, "").get(0).get("availableQuantity"))
+                .isEqualByComparingTo("3");
+
+        var request = new StockReturnService.ReturnRequest("supplier", warehouseId, null, supplier, "package", "退包测试",
+                java.util.List.of(new StockReturnService.Selection(label, BigDecimal.ONE)), returnKey());
+        assertThat(stockReturns.submit(request)).containsEntry("status", "confirmed");
+        assertThat(quantity("available_qty")).isEqualByComparingTo("3");
+        assertThat(jdbc.queryForObject("SELECT status FROM quota_package_label WHERE label_id=?", String.class, label)).isEqualTo("returned");
+    }
+
+    private long returnSupplier() {
+        jdbc.update("INSERT INTO supplier (supplier_code,supplier_name,credit_code,supplier_type,contact_name,contact_phone) VALUES (?,?,?,'配送商','审核测试','13000000000')",
+                code, code, code.substring(3, 21));
+        long supplier = id("SELECT supplier_id FROM supplier WHERE supplier_code=?", code);
+        jdbc.update("UPDATE inventory_batch SET supplier_id=? WHERE batch_id=?", supplier, batchId);
+        return supplier;
+    }
+
+    private String returnKey() {
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    @Test void recallReturnsHighValueToCenterOnlyAfterReceipt() {
+        long dept = department("-DEP");
+        jdbc.update("INSERT INTO warehouse (warehouse_code, warehouse_name, warehouse_type, campus_name) VALUES (?, ?, '中心库', '审核测试院区')",
+                code + "-CENTER", code + "-CENTER");
+        jdbc.update("UPDATE warehouse SET warehouse_type = '二级库', dept_id = ? WHERE warehouse_id = ?", dept, warehouseId);
+        jdbc.update("UPDATE inventory_balance SET available_qty = 1, locked_qty = 0 WHERE batch_id = ?", batchId);
+        jdbc.update("UPDATE product SET is_high_value = 1 WHERE product_id = ?", productId);
+        jdbc.update("INSERT INTO udi_trace_code (udi_code, unique_code, product_code, product_name, trace_scope, current_status) VALUES (?, ?, ?, '高值测试', 'high_value', 'signed')", code, code, code);
+        long trace = id("SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?", code);
+        jdbc.update("INSERT INTO inventory_batch_trace_code (batch_id, trace_code_id, receiving_item_id, current_warehouse_id, lifecycle_status) VALUES (?, ?, 1, ?, 'signed')", batchId, trace, warehouseId);
+
+        var result = risk.createRecall(java.util.Map.of("businessType", "recall", "scope", "secondary",
+                "warehouseName", code, "productCode", code, "batchNo", code, "reason", "召回签收测试"));
+        String recallNo = (String) result.get("recallNo");
+        long destination = id("SELECT destination_warehouse_id FROM recall_event WHERE recall_no = ?", recallNo);
+        assertThat(result).containsEntry("status", "pending_receipt");
+        assertThat(quantity("available_qty")).isEqualByComparingTo("0");
+        assertThat(id("SELECT COUNT(*) FROM inventory_balance WHERE warehouse_id = ? AND batch_id = ?", destination, batchId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("recall_in_transit");
+
+        assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
+        assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
+        assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance WHERE warehouse_id = ? AND batch_id = ?", BigDecimal.class, destination, batchId)).isEqualByComparingTo("1");
+        assertThat(id("SELECT current_warehouse_id FROM inventory_batch_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(destination);
+        assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(2);
+        assertThat(id("SELECT COUNT(*) FROM recall_event WHERE recall_no = ? AND received_time IS NOT NULL", recallNo)).isEqualTo(1);
     }
 
     @Test void highValueIsolationUpdatesStableIdentityAndTimeline() {

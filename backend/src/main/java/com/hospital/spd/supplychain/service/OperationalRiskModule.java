@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.common.service.InventoryEventCommand;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -71,14 +72,16 @@ public class OperationalRiskModule {
         String productCode = params.getOrDefault("productCode", "").trim();
         if (productCode.isBlank()) return Map.of("rows", List.of());
         Map<String, Object> product = findProduct(productCode);
-        return Map.of("rows", recallInventoryRows(
+        var rows = recallInventoryRows(
                 ((Number) product.get("productId")).longValue(),
                 normalizeScope(params.get("scope")),
-                params.getOrDefault("warehouseName", "").trim(), null));
+                params.getOrDefault("warehouseName", "").trim(), null);
+        return Map.of("rows", "recall".equals(params.get("businessType"))
+                ? rows.stream().filter(row -> !isCenterWarehouse(row)).toList() : rows);
     }
 
     /**
-     * 召回隔离：选定商品与批次后提交确认，立即将该批次的可用库存转为隔离库存（库存扣减）。
+     * 召回生成待签收退库，隔离在原库房冻结可用库存。
      */
     @Transactional
     public Map<String, Object> createRecall(Map<String, Object> body) {
@@ -105,6 +108,14 @@ public class OperationalRiskModule {
                 """) : candidates.get(0);
         Long primaryWarehouseId = ((Number) primary.get("warehouseId")).longValue();
         String primaryWarehouseName = String.valueOf(primary.get("warehouseName"));
+        if (recall) {
+            candidates = candidates.stream()
+                    .filter(row -> ((Number) row.get("warehouseId")).longValue() != primaryWarehouseId)
+                    .filter(row -> !isCenterWarehouse(row))
+                    .toList();
+            if (candidates.isEmpty()) throw new IllegalArgumentException("当前范围无可退回中心库的库存");
+        }
+        String status = recall ? "pending_receipt" : "isolated";
         BigDecimal quantity = candidates.stream()
                 .map(row -> (BigDecimal) row.get("totalQty"))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -115,8 +126,8 @@ public class OperationalRiskModule {
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO recall_event (
-                      recall_no, warehouse_name, product_code, product_name, batch_id, affected_qty, status, reason, business_type
-                    ) VALUES (?, ?, ?, ?, ?, ?, 'isolated', ?, ?)
+                      recall_no, warehouse_name, product_code, product_name, batch_id, affected_qty, status, reason, business_type, destination_warehouse_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, recallNo);
             ps.setString(2, primaryWarehouseName);
@@ -128,8 +139,10 @@ public class OperationalRiskModule {
                 ps.setLong(5, eventBatchId);
             }
             ps.setBigDecimal(6, quantity);
-            ps.setString(7, reason);
-            ps.setString(8, businessType);
+            ps.setString(7, status);
+            ps.setString(8, reason);
+            ps.setString(9, businessType);
+            ps.setObject(10, recall ? primaryWarehouseId : null);
             return ps;
         }, keyHolder);
         Long recallId = Objects.requireNonNull(keyHolder.getKey()).longValue();
@@ -140,19 +153,93 @@ public class OperationalRiskModule {
             Long sourceWarehouseId = ((Number) candidate.get("warehouseId")).longValue();
             Long batchId = ((Number) candidate.get("batchId")).longValue();
             BigDecimal totalQty = (BigDecimal) candidate.get("totalQty");
-            Long destinationId = recall ? primaryWarehouseId : sourceWarehouseId;
-            isolateTraceUnits(sourceWarehouseId, destinationId, productId, batchId, recallNo, reason);
-            if (recall && !sourceWarehouseId.equals(primaryWarehouseId)) {
-                support.transferSpecificBatch(sourceWarehouseId, primaryWarehouseId, productId, batchId, totalQty,
-                        "recall_event", recallId, "召回库存回收到一级库：" + reason);
+            List<Long> traces = restrictTraceUnits(sourceWarehouseId, productId, batchId, recallNo, reason, recall);
+            if (recall) {
+                if (product.get("highValue") instanceof Number flag && flag.intValue() == 1
+                        && totalQty.compareTo(BigDecimal.valueOf(traces.size())) != 0) {
+                    throw new IllegalArgumentException("高值耗材退库数量与可转运唯一码数量不一致");
+                }
+                var outbound = support.consumeSpecificBatchEvent(sourceWarehouseId, productId, batchId, totalQty,
+                        "warehouse_transfer_out", "recall_event", recallId, "召回退库出库，待中心库签收：" + reason);
+                if (!traces.isEmpty()) support.linkInventoryEventTraceCodes(outbound.eventId(), traceLinks(traces));
+            } else {
+                support.isolateSpecificBatch(sourceWarehouseId, productId, batchId, totalQty, "recall_event", recallId, reason);
             }
-            support.isolateSpecificBatch(recall ? primaryWarehouseId : sourceWarehouseId, productId, batchId, totalQty,
-                    "recall_event", recallId, reason);
         }
-        support.writeAudit("recall", recall ? "recall_to_primary_and_isolate" : "isolate_in_place", recallId, recallNo,
+        support.writeAudit("recall", recall ? "recall_return_dispatched" : "isolate_in_place", recallId, recallNo,
                 "scope=" + scope + ", batch=" + batchNo + ", quantity=" + quantity);
-        return Map.of("recallNo", recallNo, "status", "isolated", "affectedQty", quantity,
+        return Map.of("recallNo", recallNo, "status", status, "affectedQty", quantity,
                 "primaryWarehouseName", primaryWarehouseName);
+    }
+
+    private boolean isCenterWarehouse(Map<String, Object> row) {
+        String type = String.valueOf(row.get("warehouseType"));
+        return type.contains("一级") || type.contains("中心");
+    }
+
+    @Transactional
+    public Map<String, Object> receiveRecall(String recallNo) {
+        var records = jdbcTemplate.queryForList("""
+                SELECT recall_id AS recallId, destination_warehouse_id AS destinationId, status,
+                       affected_qty AS quantity
+                  FROM recall_event WHERE recall_no = ? AND business_type = 'recall' FOR UPDATE
+                """, recallNo);
+        if (records.isEmpty()) throw new IllegalArgumentException("未找到召回退库单");
+        var record = records.get(0);
+        if ("received".equals(record.get("status"))) return Map.of("recallNo", recallNo, "status", "received");
+        if (!"pending_receipt".equals(record.get("status")) || !(record.get("destinationId") instanceof Number target)) {
+            throw new IllegalArgumentException("只有待签收的召回退库单可以入库");
+        }
+        long recallId = ((Number) record.get("recallId")).longValue();
+        long destination = target.longValue();
+        var warehouses = jdbcTemplate.queryForList("""
+                SELECT warehouse_name AS name FROM warehouse
+                 WHERE warehouse_id = ? AND deleted = 0 AND status = 1
+                   AND (warehouse_type LIKE '%一级%' OR warehouse_type LIKE '%中心%') FOR SHARE
+                """, destination);
+        if (warehouses.isEmpty()) throw new IllegalArgumentException("中心库已停用或库房类型已变更");
+        String destinationName = String.valueOf(warehouses.get(0).get("name"));
+        var outgoing = jdbcTemplate.queryForList("""
+                SELECT event_id AS eventId, warehouse_id AS sourceId, product_id AS productId,
+                       batch_id AS batchId, -qty_change AS quantity
+                  FROM inventory_event
+                 WHERE source_biz_type = 'recall_event' AND source_biz_id = ?
+                   AND event_type = 'warehouse_transfer_out' AND qty_change < 0
+                 ORDER BY product_id, batch_id, event_id
+                """, recallId);
+        BigDecimal shipped = outgoing.stream().map(row -> (BigDecimal) row.get("quantity")).reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (shipped.signum() <= 0 || shipped.compareTo((BigDecimal) record.get("quantity")) != 0) {
+            throw new IllegalArgumentException("退库出库明细与单据数量不一致");
+        }
+        new QuotaPackagePricingService(jdbcTemplate).lockProducts(outgoing.stream()
+                .map(row -> ((Number) row.get("productId")).longValue()).toList());
+        for (var row : outgoing) {
+            Long eventId = support.receiveAvailable(destination, ((Number) row.get("productId")).longValue(),
+                    ((Number) row.get("batchId")).longValue(), (BigDecimal) row.get("quantity"),
+                    "warehouse_transfer_in", "recall_event", recallId, "中心库签收召回退库：" + recallNo);
+            List<Long> traces = jdbcTemplate.queryForList("""
+                    SELECT trace_code_id FROM inventory_event_trace_code
+                     WHERE event_id = ? AND trace_type = 'high_value_unit' ORDER BY trace_code_id
+                    """, Long.class, row.get("eventId"));
+            for (Long traceId : traces) {
+                int changed = jdbcTemplate.update("""
+                        UPDATE inventory_batch_trace_code
+                           SET current_warehouse_id = ?, lifecycle_status = 'in_stock'
+                         WHERE trace_code_id = ? AND current_warehouse_id = ? AND lifecycle_status = 'recall_in_transit'
+                        """, destination, traceId, row.get("sourceId"));
+                if (changed != 1) throw new IllegalArgumentException("召回唯一码状态已变化，不能签收入库");
+                jdbcTemplate.update("""
+                        UPDATE udi_trace_code SET current_status = 'in_stock', current_location = ?,
+                               current_department = NULL, last_event_name = '召回签收入库', last_event_time = NOW()
+                         WHERE trace_code_id = ?
+                        """, destinationName, traceId);
+                writeRecallTraceEvent(traceId, recallNo, "recall_receipt", "召回签收入库", "中心库确认签收");
+            }
+            if (!traces.isEmpty()) support.linkInventoryEventTraceCodes(eventId, traceLinks(traces));
+        }
+        jdbcTemplate.update("UPDATE recall_event SET status = 'received', received_time = NOW() WHERE recall_id = ?", recallId);
+        support.writeAudit("recall", "recall_return_received", recallId, recallNo, "中心库签收入库：" + shipped);
+        return Map.of("recallNo", recallNo, "status", "received", "receivedQty", shipped);
     }
 
     private List<Map<String, Object>> recallInventoryRows(Long productId, String scope, String warehouseName, String batchNo) {
@@ -287,34 +374,45 @@ public class OperationalRiskModule {
         }
     }
 
-    private void isolateTraceUnits(Long sourceWarehouse, Long destinationWarehouse, Long productId, Long batchId,
-                                   String recallNo, String reason) {
+    private List<Long> restrictTraceUnits(Long sourceWarehouse, Long productId, Long batchId,
+                                         String recallNo, String reason, boolean recall) {
         List<Long> units = jdbcTemplate.queryForList("""
                 SELECT trace.trace_code_id FROM inventory_batch_trace_code trace
                   JOIN inventory_batch batch ON batch.batch_id = trace.batch_id
                   JOIN udi_trace_code code ON code.trace_code_id = trace.trace_code_id AND code.trace_scope = 'high_value'
                  WHERE trace.current_warehouse_id = ? AND trace.batch_id = ? AND batch.product_id = ?
-                   AND trace.lifecycle_status NOT IN ('consumed', 'settled', 'void', 'cancelled', 'isolated')
+                   AND trace.lifecycle_status NOT IN ('consumed', 'settled', 'void', 'cancelled', 'isolated', 'recall_in_transit')
                  ORDER BY trace.trace_code_id FOR UPDATE
                 """, Long.class, sourceWarehouse, batchId, productId);
+        String status = recall ? "recall_in_transit" : "isolated";
+        String eventName = recall ? "召回退库出库" : "库存隔离";
         for (Long traceId : units) {
             List<Long> deliveries = jdbcTemplate.queryForList("SELECT delivery_id FROM spd_delivery_trace_code WHERE trace_code_id = ? AND recalled = 0 FOR UPDATE", Long.class, traceId);
             jdbcTemplate.update("UPDATE spd_delivery_trace_code SET recalled = 1 WHERE trace_code_id = ?", traceId);
             for (Long delivery : deliveries) reconcileRecallDelivery(delivery);
-            jdbcTemplate.update("UPDATE inventory_batch_trace_code SET current_warehouse_id = ?, lifecycle_status = 'isolated' WHERE trace_code_id = ?", destinationWarehouse, traceId);
+            jdbcTemplate.update("UPDATE inventory_batch_trace_code SET lifecycle_status = ? WHERE trace_code_id = ?", status, traceId);
             jdbcTemplate.update("""
                     UPDATE udi_trace_code code JOIN warehouse w ON w.warehouse_id = ?
                       LEFT JOIN sys_dept d ON d.dept_id = w.dept_id
-                       SET code.current_status = 'isolated', code.risk_level = 'exception',
+                       SET code.current_status = ?, code.risk_level = 'exception',
                            code.current_location = w.warehouse_name, code.current_department = d.dept_name,
-                           code.last_event_name = '召回隔离', code.last_event_time = NOW()
+                           code.last_event_name = ?, code.last_event_time = NOW()
                      WHERE code.trace_code_id = ?
-                    """, destinationWarehouse, traceId);
-            jdbcTemplate.update("""
-                    INSERT INTO udi_trace_event (trace_code_id, event_no, event_type, event_name, biz_no, status, remark, sort_order, event_time)
-                    VALUES (?, ?, 'recall_isolation', '召回隔离', ?, 'done', ?, 80, NOW())
-                    """, traceId, support.nextNo(com.hospital.spd.common.service.DocumentKind.UDI_TRACE_EVENT), recallNo, reason);
+                    """, sourceWarehouse, status, eventName, traceId);
+            writeRecallTraceEvent(traceId, recallNo, recall ? "recall_dispatch" : "recall_isolation", eventName, reason);
         }
+        return units;
+    }
+
+    private List<InventoryEventCommand.TraceLink> traceLinks(List<Long> traces) {
+        return traces.stream().map(id -> new InventoryEventCommand.TraceLink(id, "high_value_unit", BigDecimal.ONE)).toList();
+    }
+
+    private void writeRecallTraceEvent(Long traceId, String recallNo, String type, String name, String remark) {
+        jdbcTemplate.update("""
+                INSERT INTO udi_trace_event (trace_code_id, event_no, event_type, event_name, biz_no, status, remark, sort_order, event_time)
+                VALUES (?, ?, ?, ?, ?, 'done', ?, 80, NOW())
+                """, traceId, support.nextNo(com.hospital.spd.common.service.DocumentKind.UDI_TRACE_EVENT), type, name, recallNo, remark);
     }
 
     private void reconcileRecallDelivery(Long deliveryId) {
@@ -377,7 +475,7 @@ public class OperationalRiskModule {
     private Map<String, Object> findProduct(String productCode) {
         return jdbcTemplate.queryForMap("""
                 SELECT product_id AS productId, product_code AS productCode, product_name AS productName,
-                       unit, purchase_price AS purchasePrice
+                       unit, purchase_price AS purchasePrice, is_high_value AS highValue
                   FROM product WHERE product_code = ? AND deleted = 0 AND status = 1 FOR UPDATE
                 """, productCode);
     }

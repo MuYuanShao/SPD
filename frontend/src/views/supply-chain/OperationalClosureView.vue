@@ -39,6 +39,7 @@ import {
   createColdChainException,
   createConsumption,
   createRecall,
+  receiveRecall,
   createRequisition,
   fetchClosureList,
   fetchClosureOptions,
@@ -68,12 +69,16 @@ import { formatApiErrorText, formatBusinessText, formatStatusText } from '../../
 import { usePagedFilters } from '../../composables/usePagedFilters'
 import { formatDateTime } from '../../utils/dateTime'
 import { useAuthStore } from '../../stores/auth'
+import { confirmWarehouseReturn, fetchWarehouseReturnQueue, type ReturnRecord } from '../../api/stockReturns'
 
 const route = useRoute()
 const loading = ref(false)
 const actionError = ref('')
 const recallDialogError = ref('')
 const deliverySubmitting = ref(false)
+const warehouseReturnQueue = ref<ReturnRecord[]>([])
+const confirmingWarehouseReturn = ref('')
+const warehouseReturnQueueError = ref('')
 const reversingConsumption = ref(false)
 const auth = useAuthStore()
 
@@ -181,6 +186,7 @@ const defaultRecallHistoryFilters = { dateFrom: '', dateTo: '', productName: '',
 const recallHistoryFilters = reactive({ ...defaultRecallHistoryFilters })
 const appliedRecallHistoryFilters = ref({ ...defaultRecallHistoryFilters })
 const recallHistoryError = ref('')
+const receivingRecallNo = ref('')
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
@@ -413,6 +419,7 @@ async function loadData() {
       }
       await loadPickingRequisitions(isCurrent)
       if (!isCurrent()) return
+      await loadWarehouseReturns(isCurrent)
     }
     await maybeOpenRouteSmartAnalysis()
   } catch (cause) {
@@ -423,6 +430,42 @@ async function loadData() {
     recallHistoryError.value = apiErrorText(cause, '召回与隔离记录加载失败')
   } finally {
     if (isCurrent()) loading.value = false
+  }
+}
+
+async function loadWarehouseReturns(isCurrent = () => type.value === 'delivery') {
+  if (!auth.canWrite('picking-delivery')) return
+  warehouseReturnQueueError.value = ''
+  try {
+    const result = await fetchWarehouseReturnQueue()
+    if (isCurrent()) warehouseReturnQueue.value = result
+  } catch (cause) {
+    if (isCurrent()) {
+      warehouseReturnQueue.value = []
+      warehouseReturnQueueError.value = apiErrorText(cause, '待确认退库单加载失败')
+    }
+  }
+}
+
+async function confirmDepartmentReturn(row: ReturnRecord) {
+  if (confirmingWarehouseReturn.value || !auth.canWrite('picking-delivery')) return
+  confirmingWarehouseReturn.value = row.returnNo
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认退库单「${row.returnNo}」的实物已到达 ${row.destinationWarehouse || '中心库'}？`,
+        '确认科室退库', { type: 'warning', confirmButtonText: '确认退库', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await confirmWarehouseReturn(row.returnNo)
+    await loadWarehouseReturns()
+    notifySuccess(`科室退库已确认：${row.returnNo}`)
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '科室退库确认失败'))
+  } finally {
+    confirmingWarehouseReturn.value = ''
   }
 }
 
@@ -440,6 +483,29 @@ function applyRecallHistoryFilters() {
 function resetRecallHistoryFilters() {
   Object.assign(recallHistoryFilters, defaultRecallHistoryFilters)
   applyRecallHistoryFilters()
+}
+
+async function confirmRecallReceipt(row: Record<string, unknown>) {
+  const recallNo = String(row.bizNo || '')
+  if (!recallNo || receivingRecallNo.value || row.status !== 'pending_receipt' || !auth.hasPermission('recall-isolation:write')) return
+  receivingRecallNo.value = recallNo
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认召回单「${recallNo}」的实物已到达 ${row.warehouseName || '中心库'}？`,
+        '确认签收入库', { type: 'warning', confirmButtonText: '签收入库', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await receiveRecall(recallNo)
+    await loadData()
+    notifySuccess(`召回单已签收入库：${recallNo}`)
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '召回退库签收失败'))
+  } finally {
+    receivingRecallNo.value = ''
+  }
 }
 
 function applyRedFlushFilters() {
@@ -796,6 +862,7 @@ async function loadRecallInventory() {
     const result = await fetchRecallInventory({
       productCode: form.productCode,
       scope: recallScope.value,
+      businessType: recallBusinessType.value,
       warehouseName: recallScope.value === 'all' ? '' : form.warehouseName
     })
     recallInventoryRows.value = result.rows || []
@@ -986,7 +1053,7 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     })
     notifySuccess(recallBusinessType.value === 'isolate'
       ? `隔离完成：${result.recallNo}，${result.affectedQty} 件已在原库房隔离`
-      : `召回完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`)
+      : `召回退库已出库：${result.recallNo}，${result.affectedQty} 件待 ${result.primaryWarehouseName} 签收入库`)
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -1091,6 +1158,15 @@ watch(() => form.productCode, () => {
   if (type.value === 'risk') {
     if (isRecallPage.value) loadRecallInventory()
     else loadRecallBatches()
+  }
+})
+watch(recallBusinessType, () => {
+  if (!isRecallPage.value) return
+  if (recallBusinessType.value === 'recall' && recallScope.value === 'primary') {
+    recallScope.value = 'secondary'
+    void applyRecallScope()
+  } else {
+    void loadRecallInventory()
   }
 })
 </script>
@@ -1229,8 +1305,8 @@ watch(() => form.productCode, () => {
     <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
       <form @submit.prevent="submitRecallDialog">
         <div class="supplier-form-grid">
-          <label><span>业务类型</span><select v-model="recallBusinessType"><option value="recall">召回（回收至一级库并隔离）</option><option value="isolate">隔离（原库房隔离）</option></select></label>
-          <label><span>库存范围</span><select v-model="recallScope" @change="applyRecallScope"><option value="all">全部库房</option><option value="primary">一级库</option><option value="secondary">二级库</option><option value="tertiary">三级库</option></select></label>
+          <label><span>业务类型</span><select v-model="recallBusinessType"><option value="recall">召回退库（待中心库签收）</option><option value="isolate">隔离（原库房隔离）</option></select></label>
+          <label><span>库存范围</span><select v-model="recallScope" @change="applyRecallScope"><option value="all">{{ recallBusinessType === 'recall' ? '全部非中心库' : '全部库房' }}</option><option v-if="recallBusinessType === 'isolate'" value="primary">一级库</option><option value="secondary">二级库</option><option value="tertiary">三级库</option></select></label>
           <label><span>科室</span><select v-model="form.deptName" :disabled="!['secondary', 'tertiary'].includes(recallScope)" :required="['secondary', 'tertiary'].includes(recallScope)"><option value="">请选择科室</option><option v-for="item in options.departments" :key="item.deptCode" :value="item.deptName">{{ item.deptName }}</option></select></label>
           <label><span>库房</span><select v-model="form.warehouseName" :disabled="recallScope === 'all'" :required="recallScope !== 'all'"><option value="">请选择库房</option><option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option></select></label>
           <label class="wide"><span>商品</span><select v-model="form.productCode" required><option value="">请选择商品</option><option v-for="item in options.products" :key="item.productCode" :value="item.productCode">{{ item.productName }}（{{ item.productCode }}）</option></select></label>
@@ -1627,6 +1703,25 @@ watch(() => form.productCode, () => {
       </div>
     </section>
 
+    <section v-if="type === 'delivery' && auth.canWrite('picking-delivery')" class="hospital-catalog-panel">
+      <div class="section-title"><h3>待确认科室退库</h3></div>
+      <StatusMessage :message="warehouseReturnQueueError" tone="error" role="alert" />
+      <div class="table-scroll">
+        <table class="master-table">
+          <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="row in warehouseReturnQueue" :key="row.returnNo">
+              <td>{{ row.returnNo }}</td><td>{{ row.sourceWarehouse }}</td><td>{{ row.destinationWarehouse }}</td>
+              <td>{{ row.quantity }}</td><td>{{ row.createTime }}</td>
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="Boolean(confirmingWarehouseReturn)"
+                @click="confirmDepartmentReturn(row)">确认退库</button></td>
+            </tr>
+            <tr v-if="!warehouseReturnQueue.length"><td colspan="6"><EmptyState message="暂无待确认科室退库" /></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <section v-if="type !== 'high-value' && type !== 'delivery'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
@@ -1853,11 +1948,11 @@ watch(() => form.productCode, () => {
         <div class="table-scroll">
           <table class="master-table purchase-table">
             <thead>
-              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>时间</th></tr>
+              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>登记时间</th><th>签收时间</th><th>操作</th></tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="9"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
-              <tr v-else-if="!rows.length"><td colspan="9"><EmptyState message="暂无召回与隔离记录" /></td></tr>
+              <tr v-if="loading"><td colspan="11"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
+              <tr v-else-if="!rows.length"><td colspan="11"><EmptyState message="暂无召回与隔离记录" /></td></tr>
               <tr v-else v-for="row in rows" :key="String(row.bizNo)">
                 <td>{{ row.bizNo }}</td>
                 <td>{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</td>
@@ -1868,6 +1963,12 @@ watch(() => form.productCode, () => {
                 <td>{{ row.quantity }}</td>
                 <td>{{ formatStatusText(row.status) }}</td>
                 <td>{{ formatDateTime(row.createTime) }}</td>
+                <td>{{ formatDateTime(row.receivedTime) }}</td>
+                <td>
+                  <button v-if="row.status === 'pending_receipt' && auth.hasPermission('recall-isolation:write')"
+                    type="button" class="md-btn" :disabled="Boolean(receivingRecallNo)" @click="confirmRecallReceipt(row)">签收入库</button>
+                  <span v-else>-</span>
+                </td>
               </tr>
             </tbody>
           </table>

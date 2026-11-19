@@ -440,6 +440,7 @@ public class OperationalClosureReadModel {
                 SELECT r.recall_no AS bizNo, r.business_type AS businessType, r.product_code AS productCode,
                        r.product_name AS productName, r.warehouse_name AS warehouseName,
                        r.affected_qty AS quantity, r.status, r.reason,
+                       DATE_FORMAT(r.received_time, '%Y-%m-%d %H:%i:%s') AS receivedTime,
                        DATE_FORMAT(r.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        (SELECT GROUP_CONCAT(DISTINCT e.dept_name_snapshot ORDER BY e.dept_name_snapshot SEPARATOR '、')
                 """ + sourceEvents + ") AS sourceDepartments" + from

@@ -86,6 +86,11 @@ public class RbacAuthorizationService {
 
     private static String requiredPermission(String method, String path) {
         String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
+        if (path.equals("/stock-returns") || path.startsWith("/stock-returns/")) {
+            if ("/stock-returns/picking-queue".equals(path) && "GET".equals(verb)) return "picking-delivery:write";
+            if (path.matches("/stock-returns/[^/]+/warehouse-confirm") && "PUT".equals(verb)) return "picking-delivery:write";
+            return "GET".equals(verb) ? "stock-return" : "stock-return:write";
+        }
 
         if (path.startsWith("/mobile/")) {
             if(path.startsWith("/mobile/picking/")) {

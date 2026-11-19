@@ -1,4 +1,4 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
 
 export interface InventoryBalanceRow {
   balanceId: number
@@ -24,6 +24,25 @@ export interface InventoryBalanceRow {
   settlementMode?: string
   updateTime?: string
 }
+export interface LooseStockRow {
+  balanceId: number
+  warehouseName: string
+  productCode: string
+  productName: string
+  specModel: string | null
+  manufacturerName: string | null
+  unit: string | null
+  unitPrice: number | null
+  systemBatchNo: string
+  productionBatchNo: string | null
+  expireDate: string | null
+  availableQty: number
+}
+
+export async function fetchLooseStock(params: Record<string, string>) {
+  return unwrapData(await http.get<ApiResponse<PageResult<LooseStockRow>>>('/inventory/loose-stock', { params }))
+}
+
 /**
  * 分页查询库存余额列表
  * @param params - 查询参数
@@ -136,7 +155,9 @@ export interface InventoryEventQuery {
  * @returns 库存交易流水列表
  */
 export async function fetchInventoryEvents(params: InventoryEventQuery) {
-  return getData<PageResult<InventoryEventRow> & { summary?: InventoryEventSummary }>('/inventory/events', { params })
+  return unwrapData(await http.get<ApiResponse<PageResult<InventoryEventRow> & { summary?: InventoryEventSummary }>>(
+    '/inventory/events', { params }
+  ))
 }
 
 export async function fetchInventoryEventDetail(eventNo: string) {

@@ -99,6 +99,8 @@ class ReceivingOrderServiceTest {
             service.list(Map.of("page", "1", "size", "20", "statusGroup", "pending"));
 
             verify(jdbcTemplate).queryForObject(contains("ro.receiving_status = 'draft'"), eq(Long.class), any(Object[].class));
+            verify(jdbcTemplate).queryForList(
+                    contains("ORDER BY ro.create_time DESC, ro.receiving_order_id DESC LIMIT ? OFFSET ?"), any(Object[].class));
         }
 
         @Test
@@ -111,6 +113,9 @@ class ReceivingOrderServiceTest {
             service.list(Map.of("page", "1", "size", "20", "statusGroup", "completed"));
 
             verify(jdbcTemplate).queryForObject(contains("ro.receiving_status IN ('approved', 'rejected')"), eq(Long.class), any(Object[].class));
+            verify(jdbcTemplate).queryForList(contains(
+                    "ORDER BY COALESCE(ro.receive_time, ro.update_time, ro.create_time) DESC, ro.receiving_order_id DESC LIMIT ? OFFSET ?"),
+                    any(Object[].class));
         }
 
         @Test

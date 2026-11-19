@@ -61,6 +61,7 @@
   --md-danger-border: #fecaca;
   --md-danger-text: #b91c1c;
 
+  --inventory-table-heading-bg: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   --md-info: #0284c7;
   --md-info-soft: #f0f9ff;
   --md-info-border: #bae6fd;

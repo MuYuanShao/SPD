@@ -111,13 +111,17 @@ public class ReceivingOrderService {
         appendLike(where, args, "s.supplier_name", params.get("supplierName"));
         String summaryWhere = where.toString();
         List<Object> summaryArgs = new ArrayList<>(args);
+        String sortTime = "ro.create_time";
         if (!isBlank(params.get("status"))) {
             where.append(" AND ro.receiving_status = ?");
             args.add(params.get("status").trim());
         } else if (!isBlank(params.get("statusGroup"))) {
             switch (params.get("statusGroup").trim()) {
                 case "pending" -> where.append(" AND ro.receiving_status = 'draft'");
-                case "completed" -> where.append(" AND ro.receiving_status IN ('approved', 'rejected')");
+                case "completed" -> {
+                    where.append(" AND ro.receiving_status IN ('approved', 'rejected')");
+                    sortTime = "COALESCE(ro.receive_time, ro.update_time, ro.create_time)";
+                }
                 default -> throw new IllegalArgumentException("收货状态分组不正确");
             }
         }
@@ -154,7 +158,8 @@ public class ReceivingOrderService {
                   JOIN supplier s ON s.supplier_id = ro.supplier_id
                   JOIN warehouse w ON w.warehouse_id = ro.warehouse_id
                   LEFT JOIN receiving_order_item roi ON roi.receiving_order_id = ro.receiving_order_id
-                """ + where + " GROUP BY ro.receiving_order_id ORDER BY ro.create_time DESC LIMIT ? OFFSET ?",
+                """ + where + " GROUP BY ro.receiving_order_id ORDER BY " + sortTime
+                        + " DESC, ro.receiving_order_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         String summarySql = """

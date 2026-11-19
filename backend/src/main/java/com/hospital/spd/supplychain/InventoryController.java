@@ -1,6 +1,7 @@
 package com.hospital.spd.supplychain;
 
 import com.hospital.spd.common.ApiResponse;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.supplychain.service.InventoryService;
 import com.hospital.spd.supplychain.service.BatchPriceAdjustmentService;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,11 @@ public class InventoryController {
     public InventoryController(InventoryService service, BatchPriceAdjustmentService priceAdjustments) {
         this.service = service;
         this.priceAdjustments = priceAdjustments;
+    }
+
+    @GetMapping("/loose-stock")
+    public ApiResponse<PageResponse<Map<String, Object>>> looseStock(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.looseStock(params));
     }
 
     @GetMapping("/balances")

@@ -28,6 +28,7 @@ const selected = ref<Record<number, number>>({})
 const loading = ref(false)
 const searching = ref(false)
 const submitting = ref(false)
+const confirmationOpen = ref(false)
 const error = ref('')
 let searchVersion = 0
 let retryRequest: { fingerprint: string; key: string } | undefined
@@ -43,8 +44,27 @@ const centers = computed(() => {
 const choiceReady = computed(() => Boolean(sourceId.value && (kind.value === 'supplier' ? supplierId.value : centerId.value)))
 const selectedItems = computed(() => candidates.value.filter(row => row.id in selected.value))
 const canWrite = computed(() => auth.canWrite('stock-return'))
+const money = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' })
+const confirmationRows = computed(() => selectedItems.value.map(row => {
+  const quantity = Number(selected.value[row.id])
+  // 批次价格保留四位小数，按明细金额四舍五入到分后再汇总。
+  const priceInTenThousandths = row.unitPrice == null ? null : Math.round(Number(row.unitPrice) * 10000)
+  const amount = priceInTenThousandths == null ? null : Math.round(priceInTenThousandths * quantity / 100)
+  return { ...row, quantity, baseQuantity: quantity * (row.packageQuantity ?? 1), amount }
+}))
+const quantitySummary = computed(() => {
+  const totals = new Map<string, number>()
+  for (const row of confirmationRows.value) {
+    const unit = row.unit || '（单位未维护）'
+    totals.set(unit, (totals.get(unit) ?? 0) + row.baseQuantity)
+  }
+  return Array.from(totals, ([unit, quantity]) => `${quantity} ${unit}`).join('、')
+})
+const amountSummary = computed(() => confirmationRows.value.some(row => row.amount == null)
+  ? '金额待核实'
+  : money.format(confirmationRows.value.reduce((total, row) => total + (row.amount ?? 0), 0) / 100))
 
-watch(kind, value => {
+watch(kind, () => {
   sourceId.value = ''
   supplierId.value = ''
 })
@@ -103,7 +123,7 @@ function selectAll() {
   ]))
 }
 
-async function submit() {
+async function submit(confirmed = false) {
   if (!sourceId.value || !choiceReady.value || !canWrite.value || submitting.value || !selectedItems.value.length) return
   const items = selectedItems.value.map(row => ({ id: row.id, quantity: Number(selected.value[row.id]) }))
   if (!reason.value.trim()) {
@@ -115,16 +135,21 @@ async function submit() {
     notify.warning('退货数量须为正整数且不超过可退数量')
     return
   }
-  submitting.value = true
   const department = kind.value === 'department'
+  if (department && !confirmed) {
+    confirmationOpen.value = true
+    return
+  }
+  submitting.value = true
+  confirmationOpen.value = false
   try {
-    try {
-      await ElMessageBox.confirm(department
-        ? '提交后将预占二级库库存，待拣配配送确认后转入中心库。'
-        : '确认后将扣减选中库存并生成供应商退货记录。', '确认退货',
-      { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' })
-    } catch {
-      return
+    if (!department) {
+      try {
+        await ElMessageBox.confirm('确认后将扣减选中库存并生成供应商退货记录。', '确认退货',
+          { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' })
+      } catch {
+        return
+      }
     }
     const request = {
       kind: kind.value, sourceWarehouseId: sourceId.value, destinationWarehouseId: centerId.value || undefined,
@@ -218,7 +243,7 @@ onMounted(refresh)
       <div class="return-actions">
         <button type="button" class="md-btn" :disabled="!candidates.length || submitting" @click="selectAll">批量选择查询结果</button>
         <label>退货原因<input v-model.trim="reason" class="md-input" maxlength="500" :disabled="submitting" /></label>
-        <button type="button" class="md-btn md-btn-primary" :disabled="submitting || !selectedItems.length" @click="submit">
+        <button type="button" class="md-btn md-btn-primary" :disabled="submitting || !selectedItems.length" @click="submit()">
           {{ kind === 'department' ? '提交退库预占' : '确认供应商退货' }}
         </button>
       </div>
@@ -241,6 +266,36 @@ onMounted(refresh)
         </table>
       </div>
     </section>
+    <el-dialog v-model="confirmationOpen" title="确认退货" class="stock-return-confirm-dialog"
+      modal-class="stock-return-confirm-overlay" append-to-body destroy-on-close :close-on-click-modal="false">
+      <p class="return-confirm-note">提交后将预占二级库库存，待拣配配送确认后转入中心库。</p>
+      <div class="table-scroll return-confirm-table" role="region" aria-label="退货商品明细" tabindex="0">
+        <table class="master-table">
+          <thead>
+            <tr><th>商品信息</th><th>批号 / 库存码</th><th>注册证</th><th>厂家</th><th>单位</th><th>退货数量</th><th>金额</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in confirmationRows" :key="row.id">
+              <td>{{ row.productName }}<span class="return-confirm-detail">{{ row.productCode }}<template v-if="row.specModel"> · {{ row.specModel }}</template></span></td>
+              <td>{{ row.batchNo || '—' }}<span v-if="row.code !== row.batchNo" class="return-confirm-detail">{{ row.code }}</span></td>
+              <td>{{ row.registrationNo || '—' }}</td>
+              <td>{{ row.manufacturerName || '—' }}</td>
+              <td>{{ row.unit || '—' }}</td>
+              <td class="return-confirm-number">{{ row.baseQuantity }}<span v-if="row.packageQuantity" class="return-confirm-detail">{{ row.quantity }} 包</span></td>
+              <td class="return-confirm-number">{{ row.amount == null ? '待核实' : money.format(row.amount / 100) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <dl class="return-confirm-totals">
+        <div><dt>数量汇总</dt><dd>{{ quantitySummary }}</dd></div>
+        <div><dt>金额汇总</dt><dd>{{ amountSummary }}</dd></div>
+      </dl>
+      <template #footer>
+        <el-button @click="confirmationOpen = false">取消</el-button>
+        <el-button type="primary" :disabled="submitting || !confirmationRows.length" @click="submit(true)">确认提交</el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -251,4 +306,24 @@ onMounted(refresh)
 .return-filters label, .return-actions label { display: grid; gap: 4px; min-width: 0; }
 .return-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 12px; }
 .return-quantity { width: 100px; }
+:global(.stock-return-confirm-overlay .el-overlay-dialog) {
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+:global(.el-dialog.stock-return-confirm-dialog) {
+  width: min(1080px, calc(100vw - 32px)) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100dvh - 32px) !important;
+  margin: 0 !important;
+}
+.return-confirm-note { margin: 0 0 12px; color: var(--el-text-color-secondary); }
+.return-confirm-table { max-height: min(44vh, 420px); overflow: auto; }
+.return-confirm-table table { min-width: 780px; }
+.return-confirm-table th { position: sticky; top: 0; z-index: 1; background: var(--el-fill-color-light); }
+.return-confirm-detail { display: block; color: var(--el-text-color-secondary); font-size: 12px; }
+.return-confirm-number { text-align: right; font-variant-numeric: tabular-nums; }
+.return-confirm-totals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; margin: 12px 0 0; }
+.return-confirm-totals > div { display: flex; align-items: baseline; gap: 8px; }
+.return-confirm-totals dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
 </style>

@@ -87,7 +87,7 @@ public class RbacAuthorizationService {
     private static String requiredPermission(String method, String path) {
         String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
         if (path.equals("/stock-returns") || path.startsWith("/stock-returns/")) {
-            if ("/stock-returns/picking-queue".equals(path) && "GET".equals(verb)) return "picking-delivery:write";
+            if (("/stock-returns/picking-queue".equals(path) || "/stock-returns/picking-queue/page".equals(path)) && "GET".equals(verb)) return "picking-delivery:write";
             if (path.matches("/stock-returns/[^/]+/warehouse-confirm") && "PUT".equals(verb)) return "picking-delivery:write";
             return "GET".equals(verb) ? "stock-return" : "stock-return:write";
         }
@@ -180,7 +180,8 @@ public class RbacAuthorizationService {
         }
         if (path.equals("/operational-closure/picking/recall-receipts")
                 || path.startsWith("/operational-closure/picking/recall-receipts/")) {
-            return ("GET".equals(verb) && path.equals("/operational-closure/picking/recall-receipts"))
+            return ("GET".equals(verb) && (path.equals("/operational-closure/picking/recall-receipts")
+                    || path.equals("/operational-closure/picking/recall-receipts/page")))
                     || ("PUT".equals(verb) && path.matches("/operational-closure/picking/recall-receipts/[^/]+"))
                     ? "picking-delivery:write" : null;
         }

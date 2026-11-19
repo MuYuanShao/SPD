@@ -163,43 +163,14 @@ public class OperationalDeliveryModule {
         requireItemAccess(itemId);
         List<Object> args = new ArrayList<>();
         args.add(itemId);
-        StringBuilder where = new StringBuilder("""
-                 WHERE dri.item_id = ?
-                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+        StringBuilder filters = new StringBuilder("""
+                 AND bal.product_id = (SELECT product_id FROM department_requisition_item WHERE item_id = ?)
                 """);
         if (!warehouseName.isBlank()) {
-            where.append(" AND w.warehouse_name = ?");
+            filters.append(" AND w.warehouse_name = ?");
             args.add(warehouseName);
         }
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT bal.balance_id AS balanceId, ib.batch_id AS batchId,
-                       p.product_code AS productCode, p.product_name AS productName,
-                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       p.unit, p.purchase_price AS unitPrice,
-                       ib.system_batch_no AS systemBatchNo,
-                       ib.production_batch_no AS productionBatchNo,
-                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
-                       ib.batch_unit_price AS unitPrice,
-                       GREATEST(bal.available_qty - COALESCE(packaged.package_qty, 0), 0) AS availableQty
-                  FROM department_requisition_item dri
-                  JOIN inventory_balance bal ON bal.product_id = dri.product_id
-                   AND bal.location_id IS NULL AND bal.available_qty > 0
-                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
-                    AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
-                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
-                  JOIN product p ON p.product_id = bal.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                  LEFT JOIN (
-                    SELECT qpl.warehouse_id, qpl.product_id, src.batch_id, SUM(src.source_qty) AS package_qty
-                      FROM quota_package_label qpl
-                      JOIN quota_package_label_source src ON src.label_id = qpl.label_id
-                     WHERE qpl.status = 'signed'
-                     GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
-                  ) packaged ON packaged.warehouse_id = bal.warehouse_id
-                    AND packaged.product_id = bal.product_id AND packaged.batch_id = bal.batch_id
-                """ + where + " HAVING availableQty > 0 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id",
-                args.toArray());
-        return Map.of("rows", rows);
+        return Map.of("rows", LooseStockQuery.fetch(jdbcTemplate, null, filters, args).rows());
     }
 
     /**

@@ -1,9 +1,11 @@
-import { getData, postData, putData } from './http'
+import { getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
 
 export interface ReturnWarehouse { id: number; name: string; type?: string; campus: string }
 export interface ReturnCandidate {
   id: number; code: string; batchNo: string; productCode: string; productName: string
   availableQuantity: number; packageQuantity?: number
+  specModel?: string | null; registrationNo?: string | null; manufacturerName?: string | null
+  unit?: string | null; unitPrice?: number | null
 }
 export interface ReturnRecord {
   returnNo: string; kind: 'department' | 'supplier'; status: string; reason: string; quantity: number
@@ -22,7 +24,8 @@ export const fetchStockReturnOptions = () => getData<{
 export const fetchStockReturnCandidates = (params: Record<string, string | number | undefined>) =>
   getData<ReturnCandidate[]>('/stock-returns/candidates', { params })
 export const fetchStockReturns = () => getData<ReturnRecord[]>('/stock-returns')
-export const fetchWarehouseReturnQueue = () => getData<ReturnRecord[]>('/stock-returns/picking-queue')
+export const fetchWarehouseReturnQueue = async (params: { page: number; size: number }) =>
+  unwrapData(await http.get<ApiResponse<PageResult<ReturnRecord>>>('/stock-returns/picking-queue/page', { params }))
 export const submitStockReturn = (request: ReturnRequest) =>
   postData<{ returnNo: string; status: string }>('/stock-returns', request, { freeTextFields: ['reason'] })
 export const confirmWarehouseReturn = (no: string) =>

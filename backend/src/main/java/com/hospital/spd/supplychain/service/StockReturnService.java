@@ -1,5 +1,8 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.JdbcPageQuery;
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.common.QuantityRules;
 import com.hospital.spd.common.service.DocumentKind;
@@ -65,20 +68,31 @@ public class StockReturnService {
     }
 
     public List<Map<String, Object>> records(boolean queue) {
+        return queryReturns(queue, null).rows();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> pickingQueue(PageRequest page) {
+        return queryReturns(true, page);
+    }
+
+    private PageResponse<Map<String, Object>> queryReturns(boolean queue, PageRequest page) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         access.appendScope(where, args, "r.dept_id", "r.created_by");
         if (queue) where.append(" AND r.return_kind='department' AND r.status='pending_confirm'");
-        return jdbc.queryForList("""
+        String from = """
+                  FROM stock_return_order r JOIN warehouse w ON w.warehouse_id=r.source_warehouse_id
+                  LEFT JOIN warehouse target ON target.warehouse_id=r.destination_warehouse_id
+                  LEFT JOIN supplier ON supplier.supplier_id=r.supplier_id
+                """ + where;
+        return JdbcPageQuery.fetch(jdbc, page, """
                 SELECT r.return_no AS returnNo, r.return_kind AS kind, r.status, r.reason,
                        w.warehouse_name AS sourceWarehouse, target.warehouse_name AS destinationWarehouse,
                        supplier.supplier_name AS supplierName, DATE_FORMAT(r.create_time,'%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(r.confirm_time,'%Y-%m-%d %H:%i:%s') AS confirmTime,
                        (SELECT SUM(i.quantity) FROM stock_return_item i WHERE i.return_id=r.return_id) AS quantity
-                  FROM stock_return_order r JOIN warehouse w ON w.warehouse_id=r.source_warehouse_id
-                  LEFT JOIN warehouse target ON target.warehouse_id=r.destination_warehouse_id
-                  LEFT JOIN supplier ON supplier.supplier_id=r.supplier_id
-                """ + where + " ORDER BY r.return_id DESC", args.toArray());
+                """, from, " ORDER BY r.return_id DESC", args);
     }
 
     public List<Map<String, Object>> candidates(long warehouseId, String type, Long supplierId, String batchNo, String keyword) {
@@ -89,6 +103,8 @@ public class StockReturnService {
             case "batch" -> jdbc.queryForList("""
                     SELECT bal.balance_id AS id, b.system_batch_no AS batchNo, p.product_code AS productCode,
                            p.product_name AS productName, b.system_batch_no AS code,
+                           p.spec_model AS specModel, p.registration_no AS registrationNo, p.unit,
+                           m.manufacturer_name AS manufacturerName, b.batch_unit_price AS unitPrice,
                            GREATEST(bal.available_qty - (
                                SELECT COALESCE(SUM(s.source_qty),0) FROM quota_package_label_source s
                                JOIN quota_package_label q ON q.label_id=s.label_id
@@ -96,6 +112,7 @@ public class StockReturnService {
                            ),0) AS availableQuantity
                       FROM inventory_balance bal JOIN inventory_batch b ON b.batch_id=bal.batch_id
                       JOIN product p ON p.product_id=bal.product_id
+                      LEFT JOIN manufacturer m ON m.manufacturer_id=p.manufacturer_id
                      WHERE bal.warehouse_id=? AND bal.location_id IS NULL AND bal.available_qty>0
                        AND COALESCE(p.is_high_value,0)=0
                        AND NOT EXISTS (SELECT 1 FROM inventory_batch_trace_code tc WHERE tc.batch_id=b.batch_id)
@@ -106,10 +123,13 @@ public class StockReturnService {
                     """, warehouseId, supplierId, supplierId, batch, batch, batch, code, code, code);
             case "trace" -> jdbc.queryForList("""
                     SELECT t.trace_code_id AS id, b.system_batch_no AS batchNo, p.product_code AS productCode,
-                           p.product_name AS productName, u.unique_code AS code, 1 AS availableQuantity
+                           p.product_name AS productName, u.unique_code AS code, 1 AS availableQuantity,
+                           p.spec_model AS specModel, p.registration_no AS registrationNo, p.unit,
+                           m.manufacturer_name AS manufacturerName, b.batch_unit_price AS unitPrice
                       FROM inventory_batch_trace_code t JOIN inventory_batch b ON b.batch_id=t.batch_id
                       JOIN udi_trace_code u ON u.trace_code_id=t.trace_code_id AND u.trace_scope='high_value'
                       JOIN product p ON p.product_id=b.product_id
+                      LEFT JOIN manufacturer m ON m.manufacturer_id=p.manufacturer_id
                      WHERE t.current_warehouse_id=? AND (t.lifecycle_status='signed' OR (? IS NOT NULL AND t.lifecycle_status='in_stock'))
                        AND (? IS NULL OR b.supplier_id=?)
                        AND (?='' OR b.system_batch_no=? OR b.production_batch_no=?)
@@ -119,10 +139,16 @@ public class StockReturnService {
             case "package" -> jdbc.queryForList("""
                     SELECT q.label_id AS id, q.label_no AS code, p.product_code AS productCode, p.product_name AS productName,
                            1 AS availableQuantity, q.package_quantity AS packageQuantity,
+                           p.spec_model AS specModel, p.registration_no AS registrationNo, p.unit,
+                           m.manufacturer_name AS manufacturerName,
+                           (SELECT SUM(s.source_qty * b.batch_unit_price)
+                              FROM quota_package_label_source s JOIN inventory_batch b ON b.batch_id=s.batch_id
+                             WHERE s.label_id=q.label_id) AS unitPrice,
                            (SELECT GROUP_CONCAT(DISTINCT b.system_batch_no ORDER BY b.system_batch_no)
                               FROM quota_package_label_source s JOIN inventory_batch b ON b.batch_id=s.batch_id
                              WHERE s.label_id=q.label_id) AS batchNo
                       FROM quota_package_label q JOIN product p ON p.product_id=q.product_id
+                      LEFT JOIN manufacturer m ON m.manufacturer_id=p.manufacturer_id
                      WHERE q.warehouse_id=? AND (q.status='signed' OR (? IS NOT NULL AND q.status='available'))
                        AND (q.label_no LIKE ? OR p.product_name LIKE ?)
                        AND EXISTS (SELECT 1 FROM quota_package_label_source s JOIN inventory_batch b ON b.batch_id=s.batch_id

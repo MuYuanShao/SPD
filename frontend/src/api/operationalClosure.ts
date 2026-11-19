@@ -312,8 +312,10 @@ export interface PendingRecallReceipt {
   quantity: number
 }
 
-export function fetchPendingRecallReceipts() {
-  return getData<PendingRecallReceipt[]>('/operational-closure/picking/recall-receipts')
+export async function fetchPendingRecallReceipts(params: { page: number; size: number }) {
+  return unwrapData(await http.get<ApiResponse<PageResult<PendingRecallReceipt>>>(
+    '/operational-closure/picking/recall-receipts/page', { params }
+  ))
 }
 
 export function receiveRecall(recallNo: string) {

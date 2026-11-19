@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.OperatorContext;
@@ -53,6 +54,19 @@ public class InventoryService {
     }
 
     // ===== 公开方法 =====
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> looseStock(Map<String, String> params) {
+        List<Object> args = new ArrayList<>();
+        StringBuilder filters = new StringBuilder(" AND p.deleted = 0 AND p.is_high_value = 0 AND w.deleted = 0 AND w.status = 1");
+        new DataScopeService(operatorContextProvider).appendScope(filters, args, "w.dept_id", null);
+        appendLike(filters, args, "w.warehouse_name", params.get("warehouseName"));
+        appendLike(filters, args, "p.product_code", params.get("productCode"));
+        appendLike(filters, args, "p.product_name", params.get("productName"));
+        appendLike(filters, args, "ib.system_batch_no", params.get("systemBatchNo"));
+        return LooseStockQuery.fetch(jdbcTemplate, PageRequest.from(params), filters, args);
+    }
+
 
     /**
      * 库存汇总数量为无货位余额与中心库在库定数包之和；已签收包已进入科室余额，不重复累加。

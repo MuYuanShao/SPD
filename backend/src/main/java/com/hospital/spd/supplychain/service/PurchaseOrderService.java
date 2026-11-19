@@ -136,7 +136,7 @@ public class PurchaseOrderService {
                   FROM purchase_order po
                   JOIN supplier s ON s.supplier_id = po.supplier_id
                   LEFT JOIN purchase_order_item poi ON poi.purchase_order_id = po.purchase_order_id
-                """ + where + " GROUP BY po.purchase_order_id ORDER BY po.create_time DESC LIMIT ? OFFSET ?",
+                """ + where + " GROUP BY po.purchase_order_id ORDER BY po.create_time DESC, po.purchase_order_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         StringBuilder summaryScope = new StringBuilder(" WHERE 1 = 1");
@@ -307,7 +307,7 @@ public class PurchaseOrderService {
         pageArgs.add(pageReq.offset());
         List<Map<String, Object>> demandHeaders = jdbcTemplate.queryForList("""
                 SELECT pd.demand_no AS demandNo, MAX(pd.create_time) AS sortTime
-                """ + fromClause + where + " GROUP BY pd.demand_no ORDER BY sortTime DESC LIMIT ? OFFSET ?",
+                """ + fromClause + where + " GROUP BY pd.demand_no ORDER BY sortTime DESC, pd.demand_no DESC LIMIT ? OFFSET ?",
                 pageArgs.toArray());
         if (demandHeaders.isEmpty()) {
             return PageResponse.of(List.of(), total == null ? 0 : total, pageReq);

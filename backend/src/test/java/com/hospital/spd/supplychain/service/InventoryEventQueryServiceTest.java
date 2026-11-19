@@ -42,6 +42,11 @@ class InventoryEventQueryServiceTest {
         ArgumentCaptor<String> countSql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).queryForObject(countSql.capture(), eq(Long.class), any(Object[].class));
         assertThat(countSql.getValue()).doesNotContain("inventory_event_trace_code");
+        ArgumentCaptor<String> rowSql = ArgumentCaptor.forClass(String.class);
+        verify(jdbc).queryForList(rowSql.capture(), any(Object[].class));
+        assertThat(rowSql.getValue().replaceAll("\\s+", " ")).contains(
+                "ORDER BY ie.warehouse_name_snapshot ASC, ie.event_time DESC, "
+                        + "ie.product_name_snapshot ASC, ie.product_code_snapshot ASC, ie.event_id DESC LIMIT ? OFFSET ?");
     }
 
     @Test

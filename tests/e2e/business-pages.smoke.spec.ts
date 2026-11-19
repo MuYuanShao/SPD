@@ -642,7 +642,9 @@ test('科室退库预占后在拣配配送确认', async ({ page }) => {
     centers: [{ id: 10, name: '测试中心库', campus: '测试院区' }], suppliers: []
   } } }))
   await page.route('**/api/stock-returns/candidates?*', route => route.fulfill({ json: { code: 0, data: [
-    { id: 8, code: 'B-TEST', batchNo: 'B-TEST', productCode: 'P1', productName: '测试耗材', availableQuantity: 4 }
+    { id: 8, code: 'B-TEST', batchNo: 'B-TEST', productCode: 'P1', productName: '测试耗材',
+      availableQuantity: 4, specModel: '测试规格', registrationNo: '测试注册证', manufacturerName: '测试厂家',
+      unit: '件', unitPrice: 1.255 }
   ] } }))
   let pending = false
   const order = { returnNo: 'TH-TEST', kind: 'department', status: 'pending_confirm',
@@ -658,8 +660,8 @@ test('科室退库预占后在拣配配送确认', async ({ page }) => {
     }
     return route.fulfill({ json: { code: 0, data: pending ? [order] : [] } })
   })
-  await page.route('**/api/stock-returns/picking-queue', route =>
-    route.fulfill({ json: { code: 0, data: pending ? [order] : [] } }))
+  await page.route('**/api/stock-returns/picking-queue/page?*', route =>
+    route.fulfill({ json: { code: 0, data: { rows: pending ? [order] : [], total: pending ? 1 : 0, page: 1, size: 20 } } }))
   await page.route('**/api/stock-returns/TH-TEST/warehouse-confirm', route => {
     expect(route.request().method()).toBe('PUT')
     pending = false
@@ -673,9 +675,25 @@ test('科室退库预占后在拣配配送确认', async ({ page }) => {
   await page.getByRole('button', { name: '批量选择查询结果' }).click()
   await page.getByRole('textbox', { name: '退货原因' }).fill('测试退货')
   await page.getByRole('button', { name: '提交退库预占' }).click()
-  await page.getByRole('dialog', { name: '确认退货' }).getByRole('button', { name: '确认提交' }).click()
+  const confirmation = page.getByRole('dialog', { name: '确认退货' })
+  await expect(confirmation).toBeVisible()
+  for (const text of ['测试耗材', '测试规格', '测试注册证', '测试厂家', '4 件', '金额汇总']) {
+    await expect(confirmation.getByText(text, { exact: false }).first()).toBeVisible()
+  }
+  await expect(confirmation.getByText(/^[￥¥]5\.02$/)).toHaveCount(2)
+  await expect.poll(() => confirmation.locator('.stock-return-confirm-dialog').evaluate(element => {
+    const bounds = element.getBoundingClientRect()
+    return Math.max(Math.abs(bounds.left + bounds.width / 2 - innerWidth / 2),
+      Math.abs(bounds.top + bounds.height / 2 - innerHeight / 2))
+  })).toBeLessThan(12)
+  await confirmation.getByRole('button', { name: '取消', exact: true }).click()
+  await expect(confirmation).toBeHidden()
+  expect(pending).toBeFalsy()
+  await page.getByRole('button', { name: '提交退库预占' }).click()
+  await confirmation.getByRole('button', { name: '确认提交' }).click()
   await expect(page.getByRole('cell', { name: '待拣配配送确认' })).toBeVisible()
   await page.locator('.spd-side-nav').getByText('拣配配送', { exact: true }).click()
+  await page.getByRole('tab', { name: '科室退货确认' }).click()
   const pendingRow = page.getByRole('row').filter({ hasText: 'TH-TEST' })
   await pendingRow.getByRole('button', { name: '确认退库' }).click()
   await page.getByRole('dialog', { name: '确认科室退库' }).getByRole('button', { name: '确认退库' }).click()
@@ -736,8 +754,66 @@ test('供应商退货按批号批量选包且仅最终确认提交', async ({ pa
   expect(submissions).toBe(1)
 })
 
+test('库存管理的可用散货按条件查询并请求当前页', async ({ page }) => {
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'loose-stock-test' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'inventory', roles: [], dataScope: 2,
+    menuCodes: ['inventory-management'], permissionCodes: []
+  })))
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill(api(null)))
+  await page.route('**/api/inventory/balances?*', route => route.fulfill(api({ rows: [], total: 0, page: 1, size: 20 })))
+  const requests: Record<string, string>[] = []
+  await page.route('**/api/inventory/loose-stock?*', route => {
+    const params = Object.fromEntries(new URL(route.request().url()).searchParams)
+    requests.push(params)
+    const pageNumber = Number(params.page)
+    const size = Number(params.size)
+    const total = params.productCode === 'P-LOOSE' ? 21 : 0
+    const start = (pageNumber - 1) * size
+    const rows = Array.from({ length: Math.max(0, Math.min(total - start, size)) }, (_, i) => ({
+      balanceId: start + i, productCode: 'P-LOOSE', productName: '测试散货',
+      warehouseName: 'SPD中心库', systemBatchNo: 'B-' + (start + i + 1), availableQty: 3
+    }))
+    return route.fulfill(api({ rows, total, page: pageNumber, size }))
+  })
+  await page.goto('/features/inventory-management')
+  await login(page)
+  await page.getByRole('tab', { name: '可用散货查询' }).click()
+  await expect(page.getByText('暂无可用散货')).toBeVisible()
+  const filters = page.getByRole('form', { name: '可用散货查询' })
+  await filters.getByLabel('商品编码').fill('P-LOOSE')
+  await filters.getByRole('button', { name: '查询' }).click()
+  await expect(page.getByText('显示 1-20 条，共 21 条')).toBeVisible()
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(page.getByRole('cell', { name: 'B-21', exact: true })).toBeVisible()
+  expect(requests.map(({ page, size, productCode }) => ({ page, size, productCode }))).toEqual([
+    { page: '1', size: '20', productCode: '' },
+    { page: '1', size: '20', productCode: 'P-LOOSE' },
+    { page: '2', size: '20', productCode: 'P-LOOSE' }
+  ])
+})
+
 test('拣配配送保留待拣配工作台并移除重复的记录列表', async ({ page }) => {
   let historyRequested = false
+  let pickingCompleted = false
+  let finishPicking!: () => void
+  const pickingResponse = new Promise<void>(resolve => { finishPicking = resolve })
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'picking-tab-test' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'picker', roles: [], dataScope: 2,
+    menuCodes: ['picking-delivery'], permissionCodes: ['picking-delivery:write']
+  })))
+  await page.route('**/api/operational-closure/overview', route => route.fulfill(api({ summary: {}, events: [] })))
+  await page.route('**/api/stock-returns/picking-queue/page?*', route =>
+    route.fulfill(api({ rows: [], total: 0, page: 1, size: 20 })))
+  await page.route('**/api/operational-closure/picking/confirm-loose', async route => {
+    expect(route.request().postDataJSON()).toMatchObject({ quantity: 2 })
+    await pickingResponse
+    pickingCompleted = true
+    await route.fulfill(api({ deliveryNo: 'PS-TAB-TEST' }))
+  })
   page.on('request', request => {
     if (request.url().includes('/api/operational-closure/lists/delivery')) historyRequested = true
   })
@@ -748,13 +824,27 @@ test('拣配配送保留待拣配工作台并移除重复的记录列表', async
   } } }))
   await page.route('**/api/operational-closure/picking/requisitions**', route => {
     const params = new URL(route.request().url()).searchParams
-    return route.fulfill({ json: { code: 0, data: { rows: params.get('deptCode') ? [{
+    return route.fulfill({ json: { code: 0, data: { rows: params.get('deptCode') && !pickingCompleted ? [{
       requisitionNo: 'SL-PICK-TEST', itemId: 1, deptName: '测试科室', sourceWarehouseName: '一级测试库',
       productCode: 'P1', status: 'partial_picked', requisitionCreatedAt: '2026-11-18 10:00:00',
       partialPickingCompletedAt: '2026-11-18 11:00:00', remainingQty: 2, itemType: 'loose'
+    }, {
+      requisitionNo: 'SL2026102800007', itemId: 2, deptName: '测试科室', sourceWarehouseName: '一级测试库',
+      productCode: 'P2', remainingQty: 1, itemType: 'loose'
     }] : [] } } })
   })
-  await page.route('**/api/operational-closure/picking/loose-stock?*', route => route.fulfill({ json: { code: 0, data: { rows: [] } } }))
+  let looseLookupFails = false
+  await page.route('**/api/operational-closure/picking/loose-stock?*', route => {
+    const itemId = new URL(route.request().url()).searchParams.get('itemId')
+    if (itemId === '2' && looseLookupFails) {
+      return route.fulfill({ json: { code: 500, message: '库存查询暂不可用' } })
+    }
+    const rows = itemId === '2' ? [] : Array.from({ length: 51 }, (_, index) => ({
+      balanceId: index + 1, productName: '测试散货',
+      systemBatchNo: 'LOOSE-' + String(index + 1).padStart(2, '0'), availableQty: 2
+    }))
+    return route.fulfill(api({ rows }))
+  })
   const pending = page.waitForResponse('**/api/operational-closure/picking/requisitions')
   await page.goto('/features/picking-delivery')
   await login(page)
@@ -774,6 +864,46 @@ test('拣配配送保留待拣配工作台并移除重复的记录列表', async
   await expect(req.getByText('2026-11-18 10:00:00', { exact: true })).toBeVisible()
   await expect(req.getByText('2026-11-18 11:00:00', { exact: true })).toBeVisible()
   await expect(page.getByRole('combobox', { name: '库房', exact: true })).toHaveValue('一级测试库')
+  const emptyStockRow = page.getByRole('row').filter({ hasText: 'SL2026102800007' })
+  await emptyStockRow.getByRole('button', { name: '选择', exact: true }).click()
+  await expect(emptyStockRow.getByRole('button', { name: '已选择' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(emptyStockRow.getByRole('status')).toHaveText('当前库房没有该商品的可用散货')
+  await expect(page.getByRole('button', { name: '确认拣配出库' })).toBeDisabled()
+  looseLookupFails = true
+  await emptyStockRow.getByRole('button', { name: '已选择' }).click()
+  await expect(emptyStockRow.getByRole('alert')).toContainText('库存查询暂不可用')
+  await expect(emptyStockRow.getByText('当前库房没有该商品的可用散货')).toHaveCount(0)
+  await req.getByRole('button', { name: '选择', exact: true }).click()
+  const detailPager = page.locator('[aria-label="拣配库存明细分页"]')
+  const batchRows = page.locator('.picking-panel--loose tbody tr')
+  const batchRow = (batch: string) => batchRows.filter({ has: page.getByRole('cell', { name: batch, exact: true }) })
+  await expect(detailPager).toContainText('显示 1-10 条，共 51 条')
+  await expect(batchRows).toHaveCount(10)
+  const firstBatch = (await batchRows.first().getByRole('cell').nth(1).innerText()).trim()
+  await batchRow(firstBatch).getByRole('spinbutton').fill('1')
+  await detailPager.getByRole('button', { name: '下一页' }).click()
+  await expect(detailPager).toContainText('显示 11-20 条，共 51 条')
+  await expect(batchRow(firstBatch)).toHaveCount(0)
+  const secondBatch = (await batchRows.first().getByRole('cell').nth(1).innerText()).trim()
+  await batchRow(secondBatch).getByRole('spinbutton').fill('1')
+  const detailSize = detailPager.getByRole('spinbutton', { name: '每页条数' })
+  await detailSize.fill('100')
+  await detailSize.blur()
+  await expect(detailSize).toHaveValue('50')
+  await expect(detailPager).toContainText('显示 1-50 条，共 51 条')
+  await expect(batchRows).toHaveCount(50)
+  await expect(batchRow(firstBatch).getByRole('spinbutton')).toHaveValue('1')
+  await expect(batchRow(secondBatch).getByRole('spinbutton')).toHaveValue('1')
+  const submitting = page.waitForRequest('**/api/operational-closure/picking/confirm-loose')
+  await page.getByRole('button', { name: '确认拣配出库' }).click()
+  await submitting
+  await page.getByRole('tab', { name: '科室退货确认' }).click()
+  const reloaded = page.waitForResponse(response => response.url().includes('/picking/requisitions?'))
+  finishPicking()
+  await reloaded
+  await expect(page.getByRole('tab', { name: '科室退货确认' })).toHaveAttribute('aria-selected', 'true')
+  await page.getByRole('tab', { name: '拣配管理' }).click()
+  await expect(req).toHaveCount(0)
 })
 
 test('拣配记录可签收并在弹窗逐条显示完整定数包码', async ({ page }) => {
@@ -850,12 +980,39 @@ test('科室消耗扫描高值唯一码直接提交并显示结算单号', async
 
 test('召回与隔离组合查询并在拣配配送确认召回签收', async ({ page }) => {
   let received = false
+  const recallPageRequests: { page: string | null; size: string | null }[] = []
+  const returnPageRequests: { page: string | null; size: string | null }[] = []
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'recall-ui-test', userId: 1, username: 'receiver' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'receiver', roles: [], dataScope: 2,
+    menuCodes: ['recall-isolation', 'picking-delivery'], permissionCodes: ['picking-delivery:write']
+  })))
+  await page.route('**/api/operational-closure/overview', route => route.fulfill(api({ summary: {}, events: [] })))
+  await page.route('**/api/operational-closure/options', route => route.fulfill(api({
+    departments: [], warehouses: [], products: [], balances: []
+  })))
+  await page.route('**/api/operational-closure/picking/requisitions', route => route.fulfill(api({ rows: [] })))
+  await page.route('**/api/stock-returns/picking-queue/page?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    returnPageRequests.push({ page: params.get('page'), size: params.get('size') })
+    const rows = Array.from({ length: 20 }, (_, index) => ({ returnNo: 'TH-WAIT-' + index }))
+    return route.fulfill(api({ rows, total: 21, page: 1, size: 20 }))
+  })
   await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
-  await page.route('**/api/operational-closure/picking/recall-receipts', route => route.fulfill({
-    json: { code: 0, data: received ? [] : [{
-      recallNo: 'ZH-FILTERED', sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 2
-    }] }
-  }))
+  await page.route('**/api/operational-closure/picking/recall-receipts/page?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    recallPageRequests.push({ page: params.get('page'), size: params.get('size') })
+    const pageNumber = Number(params.get('page'))
+    const rows = pageNumber === 1
+      ? Array.from({ length: 20 }, (_, index) => ({
+        recallNo: 'ZH-WAIT-' + index, sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 1
+      }))
+      : received ? [] : [{
+        recallNo: 'ZH-FILTERED', sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 2
+      }]
+    return route.fulfill(api({ rows, total: received ? 20 : 21, page: pageNumber, size: 20 }))
+  })
   await page.route('**/api/operational-closure/picking/recall-receipts/ZH-FILTERED', route => {
     expect(route.request().method()).toBe('PUT')
     received = true
@@ -872,18 +1029,6 @@ test('召回与隔离组合查询并在拣配配送确认召回签收', async ({
     } } })
   })
   await page.goto('/features/recall-isolation')
-  const api = (data: unknown) => ({ json: { code: 0, data } })
-  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'recall-ui-test', userId: 1, username: 'receiver' })))
-  await page.route('**/api/auth/me', route => route.fulfill(api({
-    userId: 1, username: 'receiver', roles: [], dataScope: 2,
-    menuCodes: ['recall-isolation', 'picking-delivery'], permissionCodes: ['picking-delivery:write']
-  })))
-  await page.route('**/api/operational-closure/overview', route => route.fulfill(api({ summary: {}, events: [] })))
-  await page.route('**/api/operational-closure/options', route => route.fulfill(api({
-    departments: [], warehouses: [], products: [], balances: []
-  })))
-  await page.route('**/api/operational-closure/picking/requisitions', route => route.fulfill(api({ rows: [] })))
-  await page.route('**/api/stock-returns/picking-queue', route => route.fulfill(api([])))
   await login(page)
   await expect(page.getByText('ZH-ALL', { exact: true })).toBeVisible()
   const query = page.getByRole('form', { name: '召回与隔离记录查询' })
@@ -901,21 +1046,34 @@ test('召回与隔离组合查询并在拣配配送确认召回签收', async ({
   await expect(row.getByText('设备科', { exact: true })).toBeVisible()
   await expect(row.getByText('SPD中心库', { exact: true })).toBeVisible()
   await expect(row.getByText('待中心库签收', { exact: true })).toBeVisible()
-  await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
-  const dialog = page.getByRole('dialog', { name: '确认签收入库' })
-  await expect(dialog).toContainText('ZH-FILTERED')
-  await dialog.getByRole('button', { name: '取消' }).click()
-  expect(received).toBeFalsy()
   await expect(row.getByRole('button', { name: '签收入库', exact: true })).toHaveCount(0)
   await page.goto('/features/picking-delivery')
-  const queue = page.getByRole('region', { name: '召回待签收' })
+  await expect(page.getByRole('tab', { name: '拣配管理' })).toHaveAttribute('aria-selected', 'true')
+  const recallTab = page.getByRole('tab', { name: '召回确认' })
+  await recallTab.click()
+  const queue = page.getByRole('tabpanel', { name: '召回确认' })
+  await expect(queue).toContainText('显示 1-20 条，共 21 条')
+  expect(recallPageRequests).toEqual([{ page: '1', size: '20' }])
+  await queue.getByRole('button', { name: '下一页' }).click()
+  await expect(queue).toContainText('显示 21-21 条，共 21 条')
+  await page.getByRole('tab', { name: '科室退货确认' }).click()
+  await expect(page.getByRole('tabpanel', { name: '科室退货确认' })).toContainText('显示 1-20 条，共 21 条')
+  expect(returnPageRequests).toEqual([{ page: '1', size: '20' }])
+  await expect(queue).toHaveCount(0)
+  await recallTab.click()
   const pendingRow = queue.getByRole('row').filter({ hasText: 'ZH-FILTERED' })
   for (const cell of ['设备科二级库', 'SPD中心库', '2']) {
     await expect(pendingRow.getByRole('cell', { name: cell, exact: true })).toBeVisible()
   }
   await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '确认签收入库' })
+  await expect(dialog).toContainText('ZH-FILTERED')
+  await dialog.getByRole('button', { name: '取消' }).click()
+  expect(received).toBeFalsy()
+  await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
   await dialog.getByRole('button', { name: '签收入库', exact: true }).click()
   await expect(pendingRow).toHaveCount(0)
+  await expect(queue).toContainText('显示 1-20 条，共 20 条')
   expect(received).toBeTruthy()
   await page.goto('/features/recall-isolation')
   const history = page.getByRole('row').filter({ hasText: 'ZH-ALL' })

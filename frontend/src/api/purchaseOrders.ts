@@ -1,4 +1,8 @@
-import { getData, getPage, http, postData, putData } from './http'
+import { getData, getPage, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
+
+async function fetchPurchasePage<T>(url: string, params: Record<string, string>) {
+  return unwrapData(await http.get<ApiResponse<PageResult<T>>>(url, { params }))
+}
 
 export interface PurchaseOrderRow {
   updateTime?: string
@@ -179,7 +183,7 @@ export interface PurchaseOrderPayload {
  * @returns 采购订单列表及汇总信息
  */
 export async function fetchPurchaseOrders(params: Record<string, string>) {
-  return getPage<PurchaseOrderRow>('/purchase-orders', { params })
+  return fetchPurchasePage<PurchaseOrderRow>('/purchase-orders', params)
 }
 
 /**
@@ -256,7 +260,7 @@ export async function fetchPurchaseSmartReplenishmentAnalysis(periodDays = 30) {
  * @returns 采购需求列表
  */
 export async function fetchPurchaseDemands(params: Record<string, string>) {
-  return getPage<PurchaseDemandRow>('/purchase-orders/demands', { params }, 'demandNo')
+  return fetchPurchasePage<PurchaseDemandRow>('/purchase-orders/demands', params)
 }
 
 /**
@@ -291,7 +295,7 @@ export async function updatePurchaseDemandAction(demandNo: string, action: strin
  * @returns 采购计划列表
  */
 export async function fetchPurchasePlans(params: Record<string, string>) {
-  return getPage<PurchasePlanRow>('/purchase-orders/plans', { params })
+  return fetchPurchasePage<PurchasePlanRow>('/purchase-orders/plans', params)
 }
 
 /**

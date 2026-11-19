@@ -81,7 +81,11 @@ public class InventoryEventQueryService {
                        DATE_FORMAT(ie.event_time, '%Y-%m-%d %H:%i') AS eventTime
                   FROM inventory_event ie
                 """.replace("__SOURCE_BIZ_NO__", SOURCE_NO_EXPR) + parts.where()
-                + " ORDER BY ie.dept_name_snapshot, ie.event_time DESC, ie.event_id DESC LIMIT ? OFFSET ?";
+                + """
+                   ORDER BY ie.warehouse_name_snapshot ASC, ie.event_time DESC,
+                            ie.product_name_snapshot ASC, ie.product_code_snapshot ASC, ie.event_id DESC
+                   LIMIT ? OFFSET ?
+                  """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(rowSql, rowArgs.toArray());
         rows.forEach(this::decorateTransactionType);
         return PageResponse.of(rows, total == null ? 0 : total, page, loadSummary(parts));

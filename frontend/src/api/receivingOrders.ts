@@ -1,4 +1,4 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
 
 export interface ReceivingOrderRow {
   updateTime?: string
@@ -75,10 +75,7 @@ export interface ReceivingOrderDetail {
  * @returns 收货单列表及汇总信息
  */
 export async function fetchReceivingOrders(params: Record<string, string>) {
-  return getData<PageResult<ReceivingOrderRow>>(
-    '/receiving-orders',
-    { params }
-  )
+  return unwrapData(await http.get<ApiResponse<PageResult<ReceivingOrderRow>>>('/receiving-orders', { params }))
 }
 
 /**

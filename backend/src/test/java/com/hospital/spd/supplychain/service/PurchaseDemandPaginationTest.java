@@ -13,8 +13,10 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class PurchaseDemandPaginationTest {
@@ -37,5 +39,8 @@ class PurchaseDemandPaginationTest {
 
         assertThat(result.get("total")).isEqualTo(1L);
         assertThat(result.get("rows")).asList().hasSize(2);
+        verify(jdbcTemplate).queryForList(
+                contains("GROUP BY pd.demand_no ORDER BY sortTime DESC, pd.demand_no DESC LIMIT ? OFFSET ?"),
+                any(Object[].class));
     }
 }

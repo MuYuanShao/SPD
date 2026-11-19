@@ -1,5 +1,6 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.supplychain.StocktakingRequest;
@@ -133,6 +134,29 @@ class InventoryAuditMysqlTest {
         assertThat(quantity("isolated_qty")).isEqualByComparingTo("10");
     }
 
+    @Test void availableLooseStockPagesExcludeSignedPackagesAndExpiredBatches() {
+        jdbc.update("UPDATE inventory_balance SET available_qty = 10 WHERE batch_id = ?", batchId);
+        label(template(), "signed", 5, "-LOOSE");
+        jdbc.update("""
+                INSERT INTO inventory_batch (system_batch_no,product_id,batch_unit_price,expire_date)
+                VALUES (?,?,10,CURRENT_DATE + INTERVAL 1 DAY),(?,?,10,CURRENT_DATE - INTERVAL 1 DAY)
+                """, code + "-LIVE", productId, code + "-EXPIRED", productId);
+        jdbc.update("""
+                INSERT INTO inventory_balance (warehouse_id,product_id,batch_id,available_qty,locked_qty)
+                SELECT ?,product_id,batch_id,3,0 FROM inventory_batch WHERE system_batch_no IN (?,?)
+                """, warehouseId, code + "-LIVE", code + "-EXPIRED");
+
+        var first = inventory.looseStock(java.util.Map.of("productCode", code, "size", "1"));
+        var second = inventory.looseStock(java.util.Map.of("warehouseName", code, "page", "2", "size", "1"));
+        assertThat(first.total()).isEqualTo(2);
+        assertThat(second.total()).isEqualTo(2);
+        assertThat(first.rows()).singleElement().satisfies(row -> assertThat(row).containsEntry("systemBatchNo", code + "-LIVE"));
+        assertThat(second.rows()).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("systemBatchNo", code);
+            assertThat((BigDecimal) row.get("availableQty")).isEqualByComparingTo("5");
+        });
+    }
+
     @Test void midnightConsumptionBelongsToExactlyOneBusinessDate() {
         java.time.LocalDate day = java.time.LocalDate.now().minusDays(3);
         jdbc.update("DELETE FROM inventory_daily_summary");
@@ -231,6 +255,12 @@ class InventoryAuditMysqlTest {
         long center = id("SELECT warehouse_id FROM warehouse WHERE warehouse_code=?", code + "-DST");
         long balance = id("SELECT balance_id FROM inventory_balance WHERE warehouse_id=? AND batch_id=?", warehouseId, batchId);
 
+        assertThat(stockReturns.candidates(warehouseId, "batch", null, "", code))
+                .singleElement().satisfies(row -> {
+                    assertThat(row).containsEntry("unit", "个").containsEntry("specModel", "测试")
+                            .containsKeys("registrationNo", "manufacturerName");
+                    assertThat((BigDecimal) row.get("unitPrice")).isEqualByComparingTo("10");
+                });
         var request = new StockReturnService.ReturnRequest("department", warehouseId, center, null, "batch", "退库测试",
                 java.util.List.of(new StockReturnService.Selection(balance, BigDecimal.valueOf(2))), returnKey());
         var pending = stockReturns.submit(request);
@@ -241,6 +271,10 @@ class InventoryAuditMysqlTest {
         assertThat(quantity("locked_qty")).isEqualByComparingTo("2");
         assertThat(id("SELECT COUNT(*) FROM inventory_balance WHERE warehouse_id=? AND batch_id=?", center, batchId)).isZero();
         assertThat(stockReturns.records(true)).anyMatch(row -> no.equals(row.get("returnNo")));
+        var pendingReturns = stockReturns.pickingQueue(new PageRequest(1, 1, 0));
+        assertThat(pendingReturns.total()).isPositive();
+        assertThat(pendingReturns.rows()).singleElement().satisfies(row ->
+                assertThat(row).containsEntry("returnNo", no));
 
         assertThat(stockReturns.confirmWarehouseReturn(no)).containsEntry("status", "confirmed");
         stockReturns.confirmWarehouseReturn(no);
@@ -264,6 +298,10 @@ class InventoryAuditMysqlTest {
         long label = id("SELECT label_id FROM quota_package_label WHERE label_no=?", code);
         jdbc.update("INSERT INTO quota_package_label_source(label_id,batch_id,source_qty,unit_price,warehouse_id) VALUES (?,?,2,10,?)",
                 label, batchId, warehouseId);
+        jdbc.update("UPDATE inventory_batch SET batch_unit_price=1.25 WHERE batch_id=?", batchId);
+        assertThat(stockReturns.candidates(warehouseId, "package", null, "", code))
+                .singleElement().satisfies(row ->
+                        assertThat((BigDecimal) row.get("unitPrice")).isEqualByComparingTo("2.50"));
         var request = new StockReturnService.ReturnRequest("department", warehouseId, center, null, "package", "退包测试",
                 java.util.List.of(new StockReturnService.Selection(label, BigDecimal.ONE)), returnKey());
         var order = stockReturns.submit(request);
@@ -358,7 +396,6 @@ class InventoryAuditMysqlTest {
         assertThat(id("SELECT COUNT(*) FROM inventory_balance WHERE warehouse_id = ? AND batch_id = ?", destination, batchId)).isZero();
         assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("recall_in_transit");
 
-        assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
         long centerDept = department("-CENTER-DEP");
         jdbc.update("UPDATE warehouse SET dept_id = ? WHERE warehouse_id = ?", centerDept, destination);
         var sourceOperator = new OperatorContext(2L, "source", null, List.of(), dept, OperatorContext.DATA_SCOPE_DEPT);
@@ -366,15 +403,24 @@ class InventoryAuditMysqlTest {
         var sourceRisk = new OperationalRiskModule(jdbc, supplyChainSupport, new DataScopeService(() -> sourceOperator));
         var centerRisk = new OperationalRiskModule(jdbc, supplyChainSupport, new DataScopeService(() -> centerOperator));
         assertThat(sourceRisk.pendingRecallReceipts()).isEmpty();
+        assertThat(sourceRisk.pendingRecallReceipts(new PageRequest(1, 1, 0)).total()).isZero();
         assertThatThrownBy(() -> sourceRisk.receiveRecall(recallNo)).isInstanceOf(AccessDeniedException.class);
         assertThat(centerRisk.pendingRecallReceipts()).singleElement().satisfies(row -> {
             assertThat(row).containsEntry("recallNo", recallNo).containsEntry("sourceWarehouses", code)
                     .containsEntry("destinationWarehouse", result.get("primaryWarehouseName"));
             assertThat((BigDecimal) row.get("quantity")).isEqualByComparingTo("1");
         });
+        var pendingRecalls = centerRisk.pendingRecallReceipts(new PageRequest(1, 1, 0));
+        assertThat(pendingRecalls.total()).isEqualTo(1);
+        assertThat(pendingRecalls.rows()).singleElement().satisfies(row ->
+                assertThat(row).containsEntry("recallNo", recallNo));
+        var pastLastPage = centerRisk.pendingRecallReceipts(new PageRequest(2, 1, 1));
+        assertThat(pastLastPage.total()).isEqualTo(1);
+        assertThat(pastLastPage.rows()).isEmpty();
         assertThat(centerRisk.receiveRecall(recallNo)).containsEntry("status", "received");
         assertThat(centerRisk.pendingRecallReceipts()).isEmpty();
         assertThatThrownBy(() -> sourceRisk.receiveRecall(recallNo)).isInstanceOf(AccessDeniedException.class);
+        assertThat(risk.receiveRecall(recallNo)).containsEntry("status", "received");
         assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance WHERE warehouse_id = ? AND batch_id = ?", BigDecimal.class, destination, batchId)).isEqualByComparingTo("1");
         assertThat(id("SELECT current_warehouse_id FROM inventory_batch_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(destination);
         assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(2);

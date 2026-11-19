@@ -1,5 +1,7 @@
 package com.hospital.spd.supplychain;
 
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.supplychain.service.OperationalClosureService;
 import com.hospital.spd.supplychain.service.ManualSettlementGenerationRequest;
@@ -196,6 +198,11 @@ public class OperationalClosureController {
     @GetMapping("/picking/recall-receipts")
     public ApiResponse<List<Map<String, Object>>> pendingRecallReceipts() {
         return ApiResponse.ok(service.pendingRecallReceipts());
+    }
+
+    @GetMapping("/picking/recall-receipts/page")
+    public ApiResponse<PageResponse<Map<String, Object>>> pendingRecallReceiptsPage(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.pendingRecallReceipts(PageRequest.from(params)));
     }
 
     @PutMapping("/picking/recall-receipts/{recallNo}")

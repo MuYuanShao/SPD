@@ -14,6 +14,8 @@ import {
   createStocktakingSheet,
   fetchBatchPriceAdjustments,
   fetchInventoryBalances,
+  fetchLooseStock,
+  type LooseStockRow,
   fetchQuotaPackageStock,
   previewStocktakingSheet,
   fetchStocktakingItems,
@@ -171,17 +173,26 @@ const priceRows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 const inventoryPagination = reactive({
   balances: { page: 1, size: 20, total: 0 },
+  looseStock: { page: 1, size: 20, total: 0 },
   quotaStock: { page: 1, size: 20, total: 0 },
   codeStock: { page: 1, size: 20, total: 0 },
   stocktaking: { page: 1, size: 20, total: 0 },
   price: { page: 1, size: 20, total: 0 }
 })
-const inventoryTab = ref<'summary' | 'quota' | 'unique'>('summary')
 const inventoryTabs = [
   { key: 'summary', label: '库存汇总查询' },
   { key: 'quota', label: '定数包库存查询' },
-  { key: 'unique', label: '唯一码查询' }
+  { key: 'unique', label: '唯一码查询' },
+  { key: 'loose', label: '可用散货查询' }
 ] as const
+type InventoryTab = typeof inventoryTabs[number]['key']
+const inventoryTab = ref<InventoryTab>('summary')
+const looseStockRows = ref<LooseStockRow[]>([])
+const looseStockError = ref('')
+const looseStockLoading = ref(false)
+const looseQuery = reactive({ warehouseName: '', productCode: '', productName: '', systemBatchNo: '' })
+const appliedLooseQuery = ref({ ...looseQuery })
+let looseRequestVersion = 0
 const quotaStockRows = ref<Record<string, unknown>[]>([])
 const codeStockRows = ref<Record<string, unknown>[]>([])
 const quotaQuery = reactive({
@@ -246,7 +257,41 @@ function stocktakingTone(status: unknown) {
   if (String(status || '') === 'draft') return 'pending'
   return 'enabled'
 }
+async function loadLooseStock() {
+  const state = inventoryPagination.looseStock
+  const version = ++looseRequestVersion
+  looseStockError.value = ''
+  looseStockLoading.value = true
+  try {
+    const data = await fetchLooseStock({
+      ...appliedLooseQuery.value, page: String(state.page), size: String(state.size)
+    })
+    if (version !== looseRequestVersion) return
+    const lastPage = Math.max(1, Math.ceil(data.total / data.size))
+    if (data.page > lastPage) {
+      state.page = lastPage
+      return await loadLooseStock()
+    }
+    looseStockRows.value = data.rows
+    Object.assign(state, { page: data.page, size: data.size, total: data.total })
+  } catch (cause) {
+    if (version !== looseRequestVersion) return
+    looseStockRows.value = []
+    state.total = 0
+    looseStockError.value = cause instanceof Error ? cause.message : '可用散货加载失败'
+  } finally {
+    if (version === looseRequestVersion) looseStockLoading.value = false
+  }
+}
+
+function searchLooseStock() {
+  appliedLooseQuery.value = { ...looseQuery }
+  inventoryPagination.looseStock.page = 1
+  void loadData()
+}
+
 async function loadData() {
+  if (mode.value === 'inventory' && inventoryTab.value === 'loose') return loadLooseStock()
   loading.value = true
   try {
     if (mode.value === 'events') return
@@ -329,7 +374,7 @@ async function changeInventoryPageSize(key: keyof typeof inventoryPagination, si
   await loadData()
 }
 
-function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
+function changeInventoryTab(tab: InventoryTab) {
   if (tab === inventoryTab.value) return
   inventoryTab.value = tab
   inventoryPagination.balances.page = 1
@@ -385,7 +430,7 @@ watch(mode, () => {
       crumb="供应链业务"
       :title="title"
       :description="subtitle"
-      :loading="loading"
+      :loading="isInventoryManagement && inventoryTab === 'loose' ? looseStockLoading : loading"
       @refresh="loadData"
     />
 
@@ -549,7 +594,7 @@ watch(mode, () => {
       </template>
 
       <!-- 唯一码查询 -->
-      <template v-else>
+      <template v-else-if="inventoryTab === 'unique'">
         <form class="hospital-query-grid inventory-query-grid" role="search" @submit.prevent="loadData">
           <label><span>科室</span><input v-model.trim="codeQuery.deptName" class="md-input" placeholder="科室名称" /></label>
           <label><span>库房</span><input v-model.trim="codeQuery.warehouseName" class="md-input" placeholder="库房名称" /></label>
@@ -621,6 +666,43 @@ watch(mode, () => {
           :loading="loading"
           @change-page="changeInventoryPage('codeStock', $event)"
           @change-size="changeInventoryPageSize('codeStock', $event)"
+        />
+      </template>
+      <template v-else-if="inventoryTab === 'loose'">
+        <form class="hospital-query-grid purchase-query-grid inventory-query-grid" aria-label="可用散货查询" @submit.prevent="searchLooseStock">
+          <label><span>库房</span><input v-model.trim="looseQuery.warehouseName" placeholder="中心库或一级库" /></label>
+          <label><span>商品编码</span><input v-model.trim="looseQuery.productCode" /></label>
+          <label><span>商品名称</span><input v-model.trim="looseQuery.productName" /></label>
+          <label><span>系统批次</span><input v-model.trim="looseQuery.systemBatchNo" /></label>
+          <button class="btn btn-primary" type="submit" :disabled="looseStockLoading"><Search :size="16" />查询</button>
+        </form>
+        <div class="table-scroll inventory-list-scroll" role="region" aria-label="可用散货结果" tabindex="0">
+          <table class="master-table inventory-table">
+            <thead>
+              <tr><th>库房</th><th>商品编码</th><th>商品名称</th><th>规格型号</th><th>厂家</th><th>单位</th>
+                <th>单价</th><th>系统批次</th><th>生产批号</th><th>有效期</th><th>可用数量</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in looseStockRows" :key="row.balanceId">
+                <td>{{ row.warehouseName }}</td><td>{{ row.productCode }}</td><td>{{ row.productName }}</td>
+                <td>{{ row.specModel || '—' }}</td><td>{{ row.manufacturerName || '—' }}</td><td>{{ row.unit || '—' }}</td>
+                <td>{{ row.unitPrice == null ? '—' : Number(row.unitPrice).toFixed(2) }}</td>
+                <td>{{ row.systemBatchNo }}</td><td>{{ row.productionBatchNo || '—' }}</td>
+                <td>{{ row.expireDate || '—' }}</td><td>{{ row.availableQty }}</td>
+              </tr>
+              <tr v-if="!looseStockRows.length">
+                <td colspan="11" class="inventory-state-cell" :role="looseStockError ? 'alert' : 'status'">
+                  {{ looseStockError || (looseStockLoading ? '正在加载可用散货…' : '暂无可用散货') }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls
+          :page="inventoryPagination.looseStock.page" :size="inventoryPagination.looseStock.size"
+          :total="inventoryPagination.looseStock.total" :loading="looseStockLoading"
+          @change-page="changeInventoryPage('looseStock', $event)"
+          @change-size="changeInventoryPageSize('looseStock', $event)"
         />
       </template>
     </section>
@@ -1001,7 +1083,7 @@ watch(mode, () => {
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: var(--inventory-table-heading-bg) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
 }
 
@@ -1085,7 +1167,7 @@ watch(mode, () => {
   z-index: 3;
   padding: 9px 12px !important;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: var(--inventory-table-heading-bg) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
   font-size: 12px !important;
   font-weight: 600 !important;

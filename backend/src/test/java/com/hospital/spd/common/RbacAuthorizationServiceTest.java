@@ -59,6 +59,10 @@ class RbacAuthorizationServiceTest {
         assertThat(service.isAllowed(50L, List.of(), "PUT", queue + "/ZH-1")).isTrue();
         assertThat(service.isAllowed(51L, List.of(), "GET", queue)).isFalse();
         assertThat(service.isAllowed(51L, List.of(), "PUT", queue + "/ZH-1")).isFalse();
+        for (String page : List.of(queue + "/page", "/api/stock-returns/picking-queue/page")) {
+            assertThat(service.isAllowed(50L, List.of(), "GET", page)).isTrue();
+            assertThat(service.isAllowed(51L, List.of(), "GET", page)).isFalse();
+        }
     }
 
     @Test

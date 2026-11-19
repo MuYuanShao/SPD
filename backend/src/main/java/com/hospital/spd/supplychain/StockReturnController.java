@@ -1,5 +1,7 @@
 package com.hospital.spd.supplychain;
 
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.supplychain.service.StockReturnService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -44,6 +46,11 @@ public class StockReturnController {
     @GetMapping("/picking-queue")
     public ApiResponse<List<Map<String, Object>>> queue() {
         return ApiResponse.ok(returns.records(true));
+    }
+
+    @GetMapping("/picking-queue/page")
+    public ApiResponse<PageResponse<Map<String, Object>>> queuePage(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(returns.pickingQueue(PageRequest.from(params)));
     }
 
     @PostMapping

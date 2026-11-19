@@ -70,6 +70,7 @@ import { consumeQuotaPackageByCode } from '../../api/udiTraceability'
 import { formatApiErrorText, formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
 import { usePagedFilters } from '../../composables/usePagedFilters'
 import { formatDateTime } from '../../utils/dateTime'
+import type { PageResult } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
 import { confirmWarehouseReturn, fetchWarehouseReturnQueue, type ReturnRecord } from '../../api/stockReturns'
 
@@ -78,9 +79,7 @@ const loading = ref(false)
 const actionError = ref('')
 const recallDialogError = ref('')
 const deliverySubmitting = ref(false)
-const warehouseReturnQueue = ref<ReturnRecord[]>([])
 const confirmingWarehouseReturn = ref('')
-const warehouseReturnQueueError = ref('')
 const reversingConsumption = ref(false)
 const auth = useAuthStore()
 
@@ -114,6 +113,39 @@ const pickingPackageScanCode = ref('')
 const pickingUniqueCodeRows = ref<Array<Record<string, unknown>>>([])
 const selectedPickingUniqueCodes = ref<string[]>([])
 const pickingLooseRows = ref<Array<Record<string, unknown> & { pickQty?: number }>>([])
+const pickingLooseLoading = ref(false)
+const pickingLooseError = ref('')
+const pickingLooseStatus = computed(() => {
+  if (selectedPickingItemType.value !== 'loose') return ''
+  if (pickingLooseLoading.value) return '正在查询散货…'
+  if (pickingLooseError.value) return pickingLooseError.value
+  if (!pickingLooseRows.value.length) return '当前库房没有该商品的可用散货'
+  return ''
+})
+let pickingSourceRequest = 0
+const maxPickingDetailSize = 50
+const pickingDetailSize = ref(10)
+const pickingDetailPage = ref(1)
+const pickingDetailTotal = computed(() => {
+  switch (selectedPickingItemType.value) {
+    case 'unique_code': return pickingUniqueCodeRows.value.length
+    case 'quota_package': return pickingPackageRows.value.length
+    case 'loose': return pickingLooseRows.value.length
+    default: return 0
+  }
+})
+const pickingDetailLastPage = computed(() => Math.max(1, Math.ceil(pickingDetailTotal.value / pickingDetailSize.value)))
+
+function pagePickingDetails<T>(rows: T[]) {
+  const start = (pickingDetailPage.value - 1) * pickingDetailSize.value
+  return rows.slice(start, start + pickingDetailSize.value)
+}
+
+function changePickingDetailSize(size: number) {
+  pickingDetailSize.value = Math.min(size, maxPickingDetailSize)
+  pickingDetailPage.value = 1
+}
+
 const linkedWarehouses = ref<DepartmentWarehouseRelation[]>([])
 const summary = ref<Record<string, number>>({})
 const analysisDialogOpen = ref(false)
@@ -189,10 +221,6 @@ const recallHistoryFilters = reactive({ ...defaultRecallHistoryFilters })
 const appliedRecallHistoryFilters = ref({ ...defaultRecallHistoryFilters })
 const recallHistoryError = ref('')
 const receivingRecallNo = ref('')
-const pendingRecallReceipts = ref<PendingRecallReceipt[]>([])
-const recallReceiptQueueError = ref('')
-const recallReceiptQueueLoading = ref(false)
-let recallReceiptRequestVersion = 0
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
@@ -364,7 +392,6 @@ async function loadData() {
   const isLatest = beginClosureRequest()
   const isCurrent = () => isLatest() && type.value === requestedType && isRecallPage.value === recallPage
   loading.value = true
-  if (requestedType === 'delivery') void loadRecallReceipts(isCurrent)
   if (requestedType === 'red-flush') {
     redFlushError.value = ''
     try {
@@ -424,10 +451,7 @@ async function loadData() {
       if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
         form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
       }
-      await Promise.all([
-        loadPickingRequisitions(isCurrent),
-        loadWarehouseReturns(isCurrent)
-      ])
+      await loadPickingRequisitions(isCurrent)
     }
     await maybeOpenRouteSmartAnalysis()
   } catch (cause) {
@@ -441,18 +465,59 @@ async function loadData() {
   }
 }
 
-async function loadWarehouseReturns(isCurrent = () => type.value === 'delivery') {
-  if (!auth.canWrite('picking-delivery')) return
-  warehouseReturnQueueError.value = ''
-  try {
-    const result = await fetchWarehouseReturnQueue()
-    if (isCurrent()) warehouseReturnQueue.value = result
-  } catch (cause) {
-    if (isCurrent()) {
-      warehouseReturnQueue.value = []
-      warehouseReturnQueueError.value = apiErrorText(cause, '待确认退库单加载失败')
+const deliveryTabs = [
+  { key: 'picking', label: '拣配管理' },
+  { key: 'returns', label: '科室退货确认' },
+  { key: 'recalls', label: '召回确认' }
+] as const
+type DeliveryTab = typeof deliveryTabs[number]['key']
+const deliveryTab = ref<DeliveryTab>('picking')
+const visibleDeliveryTabs = computed(() => auth.canWrite('picking-delivery') ? deliveryTabs : deliveryTabs.slice(0, 1))
+
+function useDeliveryQueue<T>(fetchPage: (params: { page: number; size: number }) => Promise<PageResult<T>>, errorMessage: string) {
+  const result = ref<PageResult<T>>({ rows: [], total: 0, page: 1, size: 20 })
+  const loading = ref(false)
+  const error = ref('')
+  let version = 0
+
+  async function load(page = result.value.page, size = result.value.size) {
+    if (type.value !== 'delivery' || !auth.canWrite('picking-delivery')) return
+    const request = ++version
+    loading.value = true
+    error.value = ''
+    try {
+      let data = await fetchPage({ page, size })
+      if (request !== version) return
+      while (data.page > Math.max(1, Math.ceil(data.total / data.size))) {
+        data = await fetchPage({ page: Math.max(1, Math.ceil(data.total / data.size)), size: data.size })
+        if (request !== version) return
+      }
+      result.value = data
+    } catch (cause) {
+      if (request !== version) return
+      result.value = { ...result.value, rows: [] }
+      error.value = apiErrorText(cause, errorMessage)
+    } finally {
+      if (request === version) loading.value = false
     }
   }
+
+  return reactive({ result, loading, error, load })
+}
+
+const returnQueue = useDeliveryQueue(fetchWarehouseReturnQueue, '待确认退库单加载失败')
+const recallQueue = useDeliveryQueue(fetchPendingRecallReceipts, '召回待签收列表加载失败')
+
+function refreshDeliveryTab() {
+  if (deliveryTab.value === 'returns') return returnQueue.load()
+  if (deliveryTab.value === 'recalls') return recallQueue.load()
+  return loadData()
+}
+
+function changeDeliveryTab(tab: DeliveryTab) {
+  if (deliveryTab.value === tab) return
+  deliveryTab.value = tab
+  void refreshDeliveryTab()
 }
 
 async function confirmDepartmentReturn(row: ReturnRecord) {
@@ -468,7 +533,7 @@ async function confirmDepartmentReturn(row: ReturnRecord) {
       return
     }
     await confirmWarehouseReturn(row.returnNo)
-    await loadWarehouseReturns()
+    await returnQueue.load()
     notifySuccess(`科室退库已确认：${row.returnNo}`)
   } catch (cause) {
     notifyError(apiErrorText(cause, '科室退库确认失败'))
@@ -493,23 +558,6 @@ function resetRecallHistoryFilters() {
   applyRecallHistoryFilters()
 }
 
-async function loadRecallReceipts(isCurrent: () => boolean) {
-  if (!auth.canWrite('picking-delivery')) return
-  const version = ++recallReceiptRequestVersion
-  recallReceiptQueueError.value = ''
-  recallReceiptQueueLoading.value = true
-  try {
-    const result = await fetchPendingRecallReceipts()
-    if (isCurrent() && version === recallReceiptRequestVersion) pendingRecallReceipts.value = result
-  } catch (cause) {
-    if (!isCurrent() || version !== recallReceiptRequestVersion) return
-    pendingRecallReceipts.value = []
-    recallReceiptQueueError.value = apiErrorText(cause, '召回待签收列表加载失败')
-  } finally {
-    if (isCurrent() && version === recallReceiptRequestVersion) recallReceiptQueueLoading.value = false
-  }
-}
-
 async function confirmRecallReceipt(row: PendingRecallReceipt) {
   const { recallNo, destinationWarehouse } = row
   if (receivingRecallNo.value || !auth.canWrite('picking-delivery')) return
@@ -524,9 +572,7 @@ async function confirmRecallReceipt(row: PendingRecallReceipt) {
       return
     }
     await receiveRecall(recallNo)
-    recallReceiptRequestVersion++
-    recallReceiptQueueLoading.value = false
-    pendingRecallReceipts.value = pendingRecallReceipts.value.filter(item => item.recallNo !== recallNo)
+    await recallQueue.load()
     notifySuccess(`召回单已签收入库：${recallNo}`)
   } catch (cause) {
     notifyError(apiErrorText(cause, '召回退库签收失败'))
@@ -621,6 +667,9 @@ async function selectPickingRequisition(row: Record<string, unknown>) {
 }
 
 async function loadPickingSources() {
+  const request = ++pickingSourceRequest
+  pickingLooseLoading.value = false
+  pickingLooseError.value = ''
   if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
     pickingPackageRows.value = []
     pickingUniqueCodeRows.value = []
@@ -633,8 +682,8 @@ async function loadPickingSources() {
     itemId: selectedPickingItemId.value,
     warehouseName: form.warehouseName
   }
-  const isCurrent = () => type.value === 'delivery' && selectedPickingItemId.value === baseParams.itemId
-    && form.warehouseName === baseParams.warehouseName
+  const isCurrent = () => request === pickingSourceRequest && type.value === 'delivery'
+    && selectedPickingItemId.value === baseParams.itemId && form.warehouseName === baseParams.warehouseName
   if (itemType === 'unique_code') {
     const result = await fetchPickingUniqueCodes(baseParams)
     if (!isCurrent()) return
@@ -649,10 +698,19 @@ async function loadPickingSources() {
     pickingPackageRows.value = labelsResult.rows || []
     pickingLooseRows.value = []
   } else {
-    const looseResult = await fetchPickingLooseStock(baseParams)
-    if (!isCurrent()) return
-    pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
+    pickingLooseRows.value = []
     pickingPackageRows.value = []
+    pickingUniqueCodeRows.value = []
+    pickingLooseLoading.value = true
+    try {
+      const looseResult = await fetchPickingLooseStock(baseParams)
+      if (!isCurrent()) return
+      pickingLooseRows.value = (looseResult.rows || []).map(row => ({ ...row, pickQty: 0 }))
+    } catch (cause) {
+      if (isCurrent()) pickingLooseError.value = apiErrorText(cause, '可用散货查询失败')
+    } finally {
+      if (isCurrent()) pickingLooseLoading.value = false
+    }
   }
   pickingUniqueCodeRows.value = []
 }
@@ -1150,6 +1208,7 @@ async function createTaskFromAnalysis(row: Record<string, unknown>) {
 
 onMounted(loadData)
 watch([type, isRecallPage], () => {
+  deliveryTab.value = 'picking'
   currentPage.value = 1
   autoSmartAnalysisHandled.value = false
   loadData()
@@ -1170,6 +1229,10 @@ watch(() => form.deptCode, () => {
 })
 watch(() => form.warehouseId, () => {
   if (type.value === 'consumption') form.warehouseName = linkedWarehouses.value.find(item => item.warehouseId === form.warehouseId)?.name || ''
+})
+watch([selectedPickingItemId, () => form.warehouseName], () => { pickingDetailPage.value = 1 })
+watch(pickingDetailLastPage, lastPage => {
+  pickingDetailPage.value = Math.min(pickingDetailPage.value, lastPage)
 })
 watch(() => form.warehouseName, () => {
   if (type.value === 'delivery') {
@@ -1215,8 +1278,8 @@ watch(recallBusinessType, () => {
       crumb="供应链业务"
       :title="title"
       :description="subtitle"
-      :loading="loading"
-      @refresh="loadData"
+      :loading="deliveryTab === 'returns' ? returnQueue.loading : deliveryTab === 'recalls' ? recallQueue.loading : loading"
+      @refresh="refreshDeliveryTab"
     />
 
     <MdPageHeader
@@ -1345,7 +1408,17 @@ watch(recallBusinessType, () => {
       </form>
     </el-dialog>
 
-    <section v-if="type !== 'settlement' && type !== 'red-flush' && type !== 'high-value' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+    <section v-if="type !== 'settlement' && type !== 'red-flush' && type !== 'high-value' && !isRecallPage"
+      class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+      <div v-if="type === 'delivery'" class="subnav-tabs delivery-tabs" role="tablist" aria-label="拣配配送业务">
+        <button v-for="tab in visibleDeliveryTabs"
+          :id="'delivery-tab-' + tab.key" :key="tab.key" type="button" role="tab"
+          :aria-selected="deliveryTab === tab.key" :aria-controls="'delivery-panel-' + tab.key"
+          :class="{ active: deliveryTab === tab.key }" @click="changeDeliveryTab(tab.key)">
+          {{ tab.label }}
+        </button>
+      </div>
+      <template v-if="type !== 'delivery' || deliveryTab === 'picking'">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon"><ScanLine :size="20" /></i>
@@ -1479,7 +1552,7 @@ watch(recallBusinessType, () => {
           <Save :size="18" />
           提交申领
         </button>
-        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId" @click="runAction('delivery')">
+        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId || Boolean(pickingLooseStatus)" @click="runAction('delivery')">
           <Truck :size="18" />
           确认拣配出库
         </button>
@@ -1508,7 +1581,8 @@ watch(recallBusinessType, () => {
         </table>
       </div>
 
-      <div v-if="type === 'delivery'" class="picking-workbench">
+      <div v-if="type === 'delivery'" id="delivery-panel-picking" class="picking-workbench"
+        role="tabpanel" aria-labelledby="delivery-tab-picking">
         <section class="picking-panel picking-panel--requisition">
           <form class="settlement-filters" aria-label="待拣配申领日期查询" @submit.prevent="applyPickingFilters">
             <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" /></label>
@@ -1566,7 +1640,13 @@ watch(recallBusinessType, () => {
                   <td>{{ row.pickedQty }}</td>
                   <td>{{ row.remainingQty }}</td>
                   <td>
-                    <button class="btn-text" type="button" @click="selectPickingRequisition(row)">选择</button>
+                    <button class="btn-text" type="button"
+                      :aria-pressed="selectedPickingItemId === String(row.itemId)"
+                      @click="selectPickingRequisition(row)">
+                      {{ selectedPickingItemId === String(row.itemId) ? '已选择' : '选择' }}
+                    </button>
+                    <span v-if="selectedPickingItemId === String(row.itemId) && pickingLooseStatus"
+                      class="muted-cell" :role="pickingLooseError ? 'alert' : 'status'">{{ pickingLooseStatus }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -1604,7 +1684,7 @@ watch(recallBusinessType, () => {
                 <tr v-if="!pickingUniqueCodeRows.length">
                   <td colspan="5" class="approval-empty">该申请明细没有可拣配的唯一码/UDI</td>
                 </tr>
-                <tr v-for="row in pickingUniqueCodeRows" :key="String(row.uniqueCode)">
+                <tr v-for="row in pagePickingDetails(pickingUniqueCodeRows)" :key="String(row.uniqueCode)">
                   <td>
                     <input
                       type="checkbox"
@@ -1649,7 +1729,7 @@ watch(recallBusinessType, () => {
                 <tr v-if="!pickingPackageRows.length">
                   <td colspan="7" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
                 </tr>
-                <tr v-for="row in pickingPackageRows" :key="String(row.labelNo)">
+                <tr v-for="row in pagePickingDetails(pickingPackageRows)" :key="String(row.labelNo)">
                   <td>
                     <input
                       type="checkbox"
@@ -1678,7 +1758,7 @@ watch(recallBusinessType, () => {
 
         <section v-if="selectedPickingItemType === 'loose'" class="picking-panel picking-panel--loose">
           <div class="section-title compact">
-            <h3>可用散货</h3>
+            <h3>散货拣配</h3>
             <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ selectedPendingQty }}（基础单位）</span>
           </div>
           <div class="table-scroll">
@@ -1686,30 +1766,18 @@ watch(recallBusinessType, () => {
               <thead>
                 <tr>
                   <th>商品名称</th>
-                  <th>规格型号</th>
-                  <th>厂家</th>
-                  <th>单位</th>
-                  <th>单价</th>
                   <th>系统批次</th>
-                  <th>生产批号</th>
-                  <th>有效期</th>
                   <th>可用数量</th>
                   <th>拣配数量</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!pickingLooseRows.length">
-                  <td colspan="10" class="approval-empty">一级库没有该商品的可用散货</td>
+                  <td colspan="4" class="approval-empty">{{ pickingLooseStatus }}</td>
                 </tr>
-                <tr v-for="row in pickingLooseRows" :key="String(row.balanceId)">
+                <tr v-for="row in pagePickingDetails(pickingLooseRows)" :key="String(row.balanceId)">
                   <td><strong>{{ row.productName }}</strong><span class="muted-cell">{{ row.productCode }}</span></td>
-                  <td>{{ row.specModel || '-' }}</td>
-                  <td>{{ row.manufacturerName || '-' }}</td>
-                  <td>{{ row.unit || '-' }}</td>
-                  <td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
                   <td>{{ row.systemBatchNo }}</td>
-                  <td>{{ row.productionBatchNo || '-' }}</td>
-                  <td>{{ row.expireDate || '-' }}</td>
                   <td>{{ row.availableQty }}</td>
                   <td>
                     <input v-integer-quantity
@@ -1727,47 +1795,64 @@ watch(recallBusinessType, () => {
           </div>
         </section>
         </template>
+        <PaginationControls
+          aria-label="拣配库存明细分页"
+          :page="pickingDetailPage" :size="pickingDetailSize" :total="pickingDetailTotal"
+          :max-page-size="maxPickingDetailSize" :loading="loading || pickingLooseLoading"
+          @change-page="pickingDetailPage = $event"
+          @change-size="changePickingDetailSize"
+        />
       </div>
-    </section>
+      </template>
 
-    <section v-if="type === 'delivery' && auth.canWrite('picking-delivery')" class="hospital-catalog-panel">
-      <div class="section-title"><h3>待确认科室退库</h3></div>
-      <StatusMessage :message="warehouseReturnQueueError" tone="error" role="alert" />
+    <section v-else-if="deliveryTab === 'returns' && auth.canWrite('picking-delivery')"
+      id="delivery-panel-returns" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-returns">
+      <StatusMessage :message="returnQueue.error" tone="error" role="alert" />
       <div class="table-scroll">
         <table class="master-table">
           <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="row in warehouseReturnQueue" :key="row.returnNo">
+            <tr v-for="row in returnQueue.result.rows" :key="row.returnNo">
               <td>{{ row.returnNo }}</td><td>{{ row.sourceWarehouse }}</td><td>{{ row.destinationWarehouse }}</td>
               <td>{{ row.quantity }}</td><td>{{ row.createTime }}</td>
-              <td><button type="button" class="md-btn md-btn-primary" :disabled="Boolean(confirmingWarehouseReturn)"
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
                 @click="confirmDepartmentReturn(row)">确认退库</button></td>
             </tr>
-            <tr v-if="!warehouseReturnQueue.length"><td colspan="6"><EmptyState message="暂无待确认科室退库" /></td></tr>
+            <tr v-if="!returnQueue.result.rows.length && !returnQueue.error"><td colspan="6"><EmptyState :message="returnQueue.loading ? '正在加载待确认退库单…' : '暂无待确认科室退库'" /></td></tr>
           </tbody>
         </table>
       </div>
+      <PaginationControls
+        :page="returnQueue.result.page" :size="returnQueue.result.size" :total="returnQueue.result.total"
+        :loading="returnQueue.loading" @change-page="returnQueue.load($event)" @change-size="returnQueue.load(1, $event)"
+      />
     </section>
 
-    <section v-if="type === 'delivery' && auth.canWrite('picking-delivery')" class="hospital-catalog-panel" aria-labelledby="recall-receipt-queue-title">
-      <div class="section-title"><h3 id="recall-receipt-queue-title">召回待签收</h3></div>
-      <StatusMessage :message="recallReceiptQueueError" tone="error" role="alert" />
+    <section v-else-if="deliveryTab === 'recalls' && auth.canWrite('picking-delivery')"
+      id="delivery-panel-recalls" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-recalls">
+      <StatusMessage :message="recallQueue.error" tone="error" role="alert" />
       <div class="table-scroll">
         <table class="master-table">
           <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>操作</th></tr></thead>
           <tbody>
-            <tr v-for="row in pendingRecallReceipts" :key="row.recallNo">
+            <tr v-for="row in recallQueue.result.rows" :key="row.recallNo">
               <td>{{ row.recallNo }}</td><td>{{ row.sourceWarehouses || '—' }}</td>
               <td>{{ row.destinationWarehouse }}</td><td>{{ row.quantity }}</td>
-              <td><button type="button" class="md-btn md-btn-primary" :disabled="Boolean(receivingRecallNo)"
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="recallQueue.loading || Boolean(receivingRecallNo)"
                 @click="confirmRecallReceipt(row)">确认签收</button></td>
             </tr>
-            <tr v-if="!pendingRecallReceipts.length && !recallReceiptQueueError">
-              <td colspan="5"><EmptyState :message="recallReceiptQueueLoading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
+            <tr v-if="!recallQueue.result.rows.length && !recallQueue.error">
+              <td colspan="5"><EmptyState :message="recallQueue.loading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
             </tr>
           </tbody>
         </table>
       </div>
+      <PaginationControls
+        :page="recallQueue.result.page" :size="recallQueue.result.size" :total="recallQueue.result.total"
+        :loading="recallQueue.loading" @change-page="recallQueue.load($event)" @change-size="recallQueue.load(1, $event)"
+      />
+    </section>
+
     </section>
 
     <section v-if="type !== 'high-value' && type !== 'delivery'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
@@ -3737,5 +3822,43 @@ watch(recallBusinessType, () => {
   .delivery-acceptance-page .picking-panel .table-scroll {
     max-height: max(240px, calc(100dvh - 420px));
   }
+}
+.delivery-tabs {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+}
+
+.delivery-tabs button {
+  position: relative;
+  min-height: 38px;
+  padding-inline: 16px;
+  border: 0;
+  background: transparent;
+}
+
+.delivery-tabs button.active {
+  background: var(--subnav-btn-active-bg);
+  color: var(--tech-blue);
+}
+
+.delivery-tabs button.active::after {
+  position: absolute;
+  inset: auto 12px -5px;
+  height: 2px;
+  background: currentColor;
+  content: '';
+}
+
+.delivery-confirmation-panel .master-table thead th {
+  padding: 9px 12px !important;
+  background: var(--inventory-table-heading-bg) !important;
+}
+
+.delivery-confirmation-panel .master-table tbody td {
+  padding: 8px 12px !important;
+}
+
+.delivery-confirmation-panel .master-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted) !important;
 }
 </style>

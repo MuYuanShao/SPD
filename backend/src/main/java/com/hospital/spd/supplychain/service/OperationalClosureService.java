@@ -1,5 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.supplychain.CreateRequisitionRequest;
 import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.AnalysisRequest;
 import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.GenerateRequest;
@@ -265,6 +267,10 @@ public class OperationalClosureService {
 
     public Map<String, Object> recallInventory(Map<String, String> params) {
         return riskModule.recallInventory(params);
+    }
+
+    public PageResponse<Map<String, Object>> pendingRecallReceipts(PageRequest page) {
+        return riskModule.pendingRecallReceipts(page);
     }
 
     public List<Map<String, Object>> pendingRecallReceipts() {

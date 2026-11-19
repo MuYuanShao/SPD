@@ -1,6 +1,9 @@
 package com.hospital.spd.supplychain.service;
 
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.common.JdbcPageQuery;
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.service.InventoryEventCommand;
 import org.springframework.security.access.AccessDeniedException;
@@ -182,6 +185,15 @@ public class OperationalRiskModule {
     }
 
     public List<Map<String, Object>> pendingRecallReceipts() {
+        return queryPendingRecallReceipts(null).rows();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> pendingRecallReceipts(PageRequest page) {
+        return queryPendingRecallReceipts(page);
+    }
+
+    private PageResponse<Map<String, Object>> queryPendingRecallReceipts(PageRequest page) {
         StringBuilder where = new StringBuilder("""
                  WHERE r.business_type = 'recall' AND r.status = 'pending_receipt'
                    AND w.deleted = 0 AND w.status = 1
@@ -189,15 +201,17 @@ public class OperationalRiskModule {
                 """);
         List<Object> args = new ArrayList<>();
         dataScope.appendScope(where, args, "w.dept_id", null);
-        return jdbcTemplate.queryForList("""
+        String from = """
+                  FROM recall_event r JOIN warehouse w ON w.warehouse_id = r.destination_warehouse_id
+                """ + where;
+        return JdbcPageQuery.fetch(jdbcTemplate, page, """
                 SELECT r.recall_no AS recallNo, w.warehouse_name AS destinationWarehouse,
                        r.affected_qty AS quantity,
                        (SELECT GROUP_CONCAT(DISTINCT e.warehouse_name_snapshot ORDER BY e.warehouse_name_snapshot SEPARATOR '、')
                           FROM inventory_event e
                          WHERE e.source_biz_type = 'recall_event' AND e.source_biz_id = r.recall_id
                            AND e.event_type = 'warehouse_transfer_out' AND e.qty_change < 0) AS sourceWarehouses
-                  FROM recall_event r JOIN warehouse w ON w.warehouse_id = r.destination_warehouse_id
-                """ + where + " ORDER BY r.create_time, r.recall_id", args.toArray());
+                """, from, " ORDER BY r.create_time, r.recall_id", args);
     }
 
     @Transactional

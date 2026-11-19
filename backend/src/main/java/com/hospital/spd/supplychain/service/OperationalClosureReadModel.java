@@ -151,7 +151,7 @@ public class OperationalClosureReadModel {
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Map<String, Object> list(String type, Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
-        if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption", "red-flush").contains(type)) {
+        if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption").contains(type)) {
             return scopedDepartmentRecords(type, pageReq);
         }
         return switch (type) {
@@ -181,13 +181,7 @@ public class OperationalClosureReadModel {
                       FROM department_consumption dc
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                     """), pageReq);
-            case "red-flush" -> PageResponse.of(jdbcTemplate.queryForList("""
-                    SELECT flush_no AS bizNo, source_consumption_no AS sourceNo,
-                           flush_type AS flushType, status, remark,
-                           DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM consumption_red_flush
-                     ORDER BY create_time DESC LIMIT ? OFFSET ?
-                    """, pageReq.size(), pageReq.offset()), countLong("consumption_red_flush", "1 = 1"), pageReq);
+            case "red-flush" -> redFlushRecords(params, pageReq);
             case "settlement" -> settlementDetails(params, pageReq);
             case "pda" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT record_no AS bizNo, device_no AS deviceNo, operation_type AS operationType,
@@ -215,6 +209,7 @@ public class OperationalClosureReadModel {
                     """, pageReq.size(), pageReq.offset()),
                     countLong("cold_chain_exception", "1 = 1") + countLong("recall_event", "1 = 1"),
                     pageReq);
+            case "recall" -> recallRecords(params, pageReq);
             case "high-value" -> highValueChargeDetails(params, pageReq);
             default -> PageResponse.of(List.of(), 0, pageReq);
         };
@@ -285,7 +280,7 @@ public class OperationalClosureReadModel {
         appendLike(where, args, "dr.requisition_no", params.get("requisitionNo"));
         appendLike(where, args, "sd.dept_name", params.get("deptName"));
         appendEquals(where, args, "dr.status", params.get("status"));
-        appendRequisitionDateRange(where, args, "dr.apply_time", params);
+        appendDateRange(where, args, "dr.apply_time", params);
         String orderBy = switch (params.getOrDefault("sort", "")) {
             case "timeAsc" -> "dr.apply_time ASC, dr.requisition_id ASC";
             case "departmentAsc" -> "sd.dept_name ASC, dr.apply_time DESC, dr.requisition_id DESC";
@@ -318,7 +313,7 @@ public class OperationalClosureReadModel {
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
-    private LocalDate requisitionDate(String value) {
+    private LocalDate queryDate(String value) {
         if (value == null || value.isBlank()) return null;
         try {
             LocalDate date = LocalDate.parse(value.trim());
@@ -326,12 +321,12 @@ public class OperationalClosureReadModel {
         } catch (DateTimeParseException ignored) {
             // Return the same validation message for invalid and unsupported dates.
         }
-        throw new IllegalArgumentException("请输入有效的申领日期");
+        throw new IllegalArgumentException("请输入有效的日期");
     }
 
-    private void appendRequisitionDateRange(StringBuilder where, List<Object> args, String column, Map<String, String> params) {
-        LocalDate from = requisitionDate(params.get("dateFrom"));
-        LocalDate to = requisitionDate(params.get("dateTo"));
+    private void appendDateRange(StringBuilder where, List<Object> args, String column, Map<String, String> params) {
+        LocalDate from = queryDate(params.get("dateFrom"));
+        LocalDate to = queryDate(params.get("dateTo"));
         if (from != null && to != null && from.isAfter(to)) {
             throw new IllegalArgumentException("开始日期不能晚于结束日期");
         }
@@ -356,14 +351,10 @@ public class OperationalClosureReadModel {
             from = " FROM shortage_replenishment_task task";
             dept = "(SELECT CASE WHEN COUNT(*) = 1 THEN MIN(d.dept_id) ELSE NULL END FROM sys_dept d WHERE d.dept_name = task.dept_name AND d.deleted = 0)";
             owner = null; order = "task.create_time";
-        } else if ("consumption".equals(type)) {
+        } else {
             select = "dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode, p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount, dc.status, dc.consume_time AS createTime";
             from = " FROM department_consumption dc JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id JOIN product p ON p.product_id = item.product_id JOIN sys_dept d ON d.dept_id = dc.dept_id";
             dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time";
-        } else {
-            select = "flush.flush_no AS bizNo, flush.source_consumption_no AS sourceNo, flush.flush_type AS flushType, flush.status, flush.remark, flush.create_time AS createTime";
-            from = " FROM consumption_red_flush flush JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no";
-            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "flush.create_time";
         }
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
@@ -371,6 +362,89 @@ public class OperationalClosureReadModel {
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
         args.add(page.size()); args.add(page.offset());
         return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " DESC LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
+    }
+
+    public Map<String, Object> redFlushOptions() {
+        StringBuilder where = new StringBuilder(" WHERE d.deleted = 0 AND d.status = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "d.dept_id", null);
+        var departments = jdbcTemplate.queryForList(
+                "SELECT d.dept_code AS deptCode, d.dept_name AS deptName FROM sys_dept d" + where
+                        + " ORDER BY d.dept_name, d.dept_id", args.toArray());
+        var warehouses = jdbcTemplate.queryForList("""
+                SELECT d.dept_code AS deptCode, w.warehouse_id AS warehouseId, w.warehouse_name AS warehouseName
+                  FROM sys_dept d JOIN warehouse w ON w.dept_id = d.dept_id AND w.deleted = 0
+                """ + where + " ORDER BY w.warehouse_name, w.warehouse_id", args.toArray());
+        return Map.of("departments", departments, "warehouses", warehouses);
+    }
+
+    private Map<String, Object> redFlushRecords(Map<String, String> params, PageRequest pageReq) {
+        String from = """
+                 FROM consumption_red_flush flush
+                 LEFT JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no
+                 LEFT JOIN sys_dept d ON d.dept_id = dc.dept_id
+                 LEFT JOIN warehouse w ON w.warehouse_id = dc.warehouse_id
+                """;
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "dc.dept_id", "dc.consume_by");
+        appendEquals(where, args, "d.dept_code", params.get("deptCode"));
+        String warehouseId = params.get("warehouseId");
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            try {
+                where.append(" AND dc.warehouse_id = ?");
+                args.add(Long.parseLong(warehouseId));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("库房参数无效", e);
+            }
+        }
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+        args.add(pageReq.size());
+        args.add(pageReq.offset());
+        var rows = jdbcTemplate.queryForList("""
+                SELECT flush.flush_no AS bizNo, flush.source_consumption_no AS sourceNo,
+                       d.dept_name AS deptName, w.warehouse_name AS warehouseName,
+                       flush.flush_type AS flushType, flush.status, flush.remark,
+                       DATE_FORMAT(flush.create_time, '%Y-%m-%d %H:%i') AS createTime
+                """ + from + where + " ORDER BY flush.create_time DESC, flush.flush_no DESC LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
+    }
+
+    private Map<String, Object> recallRecords(Map<String, String> params, PageRequest pageReq) {
+        String sourceEvents = """
+                FROM inventory_event e
+                WHERE e.source_biz_type = 'recall_event' AND e.source_biz_id = r.recall_id
+                  AND (e.event_type = 'warehouse_transfer_out'
+                       OR (e.event_type = 'recall_isolate' AND (r.business_type = 'isolate' OR NOT EXISTS (
+                           SELECT 1 FROM inventory_event transfer
+                            WHERE transfer.source_biz_type = 'recall_event'
+                              AND transfer.source_biz_id = r.recall_id
+                              AND transfer.event_type = 'warehouse_transfer_out'
+                       ))))
+                """;
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        appendDateRange(where, args, "r.create_time", params);
+        appendLike(where, args, "r.product_name", params.get("productName"));
+        appendLike(where, args, "r.product_code", params.get("productCode"));
+        String deptName = params.get("deptName");
+        if (deptName != null && !deptName.isBlank()) {
+            where.append(" AND EXISTS (SELECT 1 ").append(sourceEvents).append(" AND e.dept_name_snapshot LIKE ?)");
+            args.add("%" + deptName.trim() + "%");
+        }
+        String from = " FROM recall_event r" + where;
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
+        args.add(pageReq.size());
+        args.add(pageReq.offset());
+        var rows = jdbcTemplate.queryForList("""
+                SELECT r.recall_no AS bizNo, r.business_type AS businessType, r.product_code AS productCode,
+                       r.product_name AS productName, r.warehouse_name AS warehouseName,
+                       r.affected_qty AS quantity, r.status, r.reason,
+                       DATE_FORMAT(r.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       (SELECT GROUP_CONCAT(DISTINCT e.dept_name_snapshot ORDER BY e.dept_name_snapshot SEPARATOR '、')
+                """ + sourceEvents + ") AS sourceDepartments" + from
+                + " ORDER BY r.create_time DESC, r.recall_id DESC LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     private Map<String, Object> deliveryRecords(Map<String, String> params, PageRequest pageReq) {
@@ -592,7 +666,7 @@ public class OperationalClosureReadModel {
                 CONCAT_WS(' ', detail.productCode, detail.productName, detail.genericName,
                     detail.specModel, detail.manufacturerName, detail.registrationNo)
                 """.strip(), params.get("productKeyword"));
-        appendRequisitionDateRange(where, args, "detail.requisitionAppliedAt", params);
+        appendDateRange(where, args, "detail.requisitionAppliedAt", params);
         String orderBy = switch (params.getOrDefault("sort", "")) {
             case "timeAsc" -> "detail.requisitionAppliedAt IS NULL, detail.requisitionAppliedAt ASC, ";
             case "timeDesc" -> "detail.requisitionAppliedAt DESC, ";

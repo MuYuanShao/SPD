@@ -89,6 +89,10 @@ public class OperationalClosureService {
         return readModel.list(type, params);
     }
 
+    public Map<String, Object> redFlushOptions() {
+        return readModel.redFlushOptions();
+    }
+
     public Map<String, Object> requisitionDetails(String requisitionNo) {
         return readModel.requisitionDetails(requisitionNo);
     }

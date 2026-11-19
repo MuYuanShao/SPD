@@ -747,6 +747,36 @@ test('科室消耗扫描高值唯一码直接提交并显示结算单号', async
   await expect(page.getByText(/科室消耗已登记：XH-TEST，结算单：JS-TEST/).first()).toBeVisible()
 })
 
+test('召回与隔离按时间、商品及来源科室查询记录', async ({ page }) => {
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route('**/api/operational-closure/lists/recall?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const filtered = params.get('deptName') === '设备'
+    return route.fulfill({ json: { code: 0, data: {
+      rows: [{ bizNo: filtered ? 'ZH-FILTERED' : 'ZH-ALL', businessType: 'recall', productCode: 'P1',
+        sourceDepartments: '设备科', warehouseName: 'SPD中心库', quantity: 2, status: 'isolated' }],
+      total: 1, page: 1, size: 20
+    } } })
+  })
+  await page.goto('/features/recall-isolation')
+  await login(page)
+  await expect(page.getByText('ZH-ALL', { exact: true })).toBeVisible()
+  const query = page.getByRole('form', { name: '召回与隔离记录查询' })
+  await query.getByLabel('开始日期').fill('2026-11-13')
+  await query.getByLabel('结束日期').fill('2026-11-13')
+  await query.getByLabel('商品名称').fill('耗材')
+  await query.getByLabel('商品编码').fill('P1')
+  await query.getByLabel('来源科室').fill('设备')
+  const request = page.waitForRequest(r => r.url().includes('/lists/recall?') && Boolean(new URL(r.url()).searchParams.get('deptName')))
+  await query.getByRole('button', { name: '查询', exact: true }).click()
+  expect(Object.fromEntries(new URL((await request).url()).searchParams)).toMatchObject({
+    page: '1', dateFrom: '2026-11-13', dateTo: '2026-11-13', productName: '耗材', productCode: 'P1', deptName: '设备'
+  })
+  const row = page.getByRole('row').filter({ hasText: 'ZH-FILTERED' })
+  await expect(row.getByText('设备科', { exact: true })).toBeVisible()
+  await expect(row.getByText('SPD中心库', { exact: true })).toBeVisible()
+})
+
 test('反消耗确认使用选中原单并在红冲台账展示结果', async ({ page }) => {
   await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
   let attempts = 0
@@ -769,6 +799,13 @@ test('反消耗确认使用选中原单并在红冲台账展示结果', async ({
       { bizNo: 'FXH-B', sourceNo: 'XH-B', flushType: 'reverse_consumption', status: 'approved' }
     ] } }
   }))
+  await page.route('**/api/operational-closure/red-flush/options', route => route.fulfill({ json: { code: 0, data: {
+    departments: [{ deptCode: 'D-A', deptName: '测试甲科' }, { deptCode: 'D-B', deptName: '测试乙科' }],
+    warehouses: [
+      { deptCode: 'D-A', warehouseId: 10, warehouseName: '甲科库房' },
+      { deptCode: 'D-B', warehouseId: 20, warehouseName: '乙科库房' }
+    ]
+  } } }))
   await page.goto('/features/department-consumption')
   await login(page)
   const reverse = page.getByRole('row').filter({ hasText: 'XH-B' }).getByRole('button', { name: '反消耗', exact: true })
@@ -789,6 +826,20 @@ test('反消耗确认使用选中原单并在红冲台账展示结果', async ({
   await menu.getByText('红冲管理', { exact: true }).click()
   const record = page.getByRole('row').filter({ hasText: 'FXH-B' })
   await expect(record.getByText('XH-B', { exact: true })).toBeVisible()
+  const filters = page.getByRole('form', { name: '红冲记录查询' })
+  const department = filters.getByRole('combobox', { name: '科室', exact: true })
+  const warehouse = filters.getByRole('combobox', { name: '库房', exact: true })
+  await expect(warehouse).toBeDisabled()
+  await department.selectOption('D-A')
+  await warehouse.selectOption('10')
+  await expect(warehouse.locator('option')).toHaveText(['该科室全部库房', '甲科库房'])
+  await department.selectOption('D-B')
+  await expect(warehouse).toHaveValue('')
+  await expect(warehouse.locator('option')).toHaveText(['该科室全部库房', '乙科库房'])
+  await warehouse.selectOption('20')
+  const requested = page.waitForRequest(r => r.url().includes('/lists/red-flush?') && r.url().includes('warehouseId=20'))
+  await filters.getByRole('button', { name: '查询' }).click()
+  expect(Object.fromEntries(new URL((await requested).url()).searchParams)).toMatchObject({ deptCode: 'D-B', warehouseId: '20', page: '1' })
   await expect(record.getByText('已冲销', { exact: true })).toBeVisible()
 })
 

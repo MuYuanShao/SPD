@@ -147,6 +147,40 @@ public class QuotaPackagePricingService {
         jdbc.update("UPDATE catalog_price_change SET affected_packages = ? WHERE change_id = ?", affected, changeId);
     }
 
+    /** Revalues unlocked packages from current batch prices without changing source snapshots. */
+    int refreshAfterBatchAdjustment(long batchId, long productId) {
+        var labels = jdbc.queryForList("""
+                SELECT label.label_id AS labelId, label.status, label.package_quantity AS quantity,
+                       label.settlement_unit_price AS settlementUnitPrice
+                  FROM quota_package_label label
+                 WHERE label.product_id = ?
+                   AND EXISTS (SELECT 1 FROM quota_package_label_source source
+                               WHERE source.label_id = label.label_id AND source.batch_id = ?)
+                 ORDER BY label.label_id FOR UPDATE
+                """, productId, batchId);
+        int changed = 0;
+        for (var label : labels) {
+            long labelId = ((Number) label.get("labelId")).longValue();
+            if (isTerminal(label.get("status")) || isSettlementLocked(labelId)) continue;
+            BigDecimal quantity = decimal(label.get("quantity"));
+            var totals = jdbc.queryForMap("""
+                    SELECT SUM(source.source_qty) AS quantity,
+                           SUM(source.source_qty * batch.batch_unit_price) AS amount
+                      FROM quota_package_label_source source
+                      JOIN inventory_batch batch ON batch.batch_id = source.batch_id
+                     WHERE source.label_id = ? FOR SHARE
+                    """, labelId);
+            if (quantity.signum() <= 0 || totals.get("amount") == null
+                    || quantity.compareTo(decimal(totals.get("quantity"))) != 0) continue;
+            BigDecimal newPrice = decimal(totals.get("amount")).divide(quantity, 6, RoundingMode.HALF_UP);
+            if (label.get("settlementUnitPrice") != null
+                    && decimal(label.get("settlementUnitPrice")).compareTo(newPrice) == 0) continue;
+            jdbc.update("UPDATE quota_package_label SET settlement_unit_price = ? WHERE label_id = ?", newPrice, labelId);
+            changed++;
+        }
+        return changed;
+    }
+
     public void initializePackage(long labelId, long productId) {
         Map<String, Object> product = lockProduct(productId);
         if (!isSettlementLocked(labelId)) {

@@ -179,6 +179,8 @@ public class RbacAuthorizationService {
         String featureCode;
         if (path.equals("/operational-closure/overview") || path.equals("/operational-closure/options")) {
             featureCode = "operational-closure";
+        } else if (path.equals("/operational-closure/red-flush/options") && "GET".equals(verb)) {
+            featureCode = "red-flush-management";
         } else if (path.startsWith("/operational-closure/lists/")) {
             String type = path.substring("/operational-closure/lists/".length()).split("/")[0];
             if ("requisition".equals(type) || "department-requisition".equals(type)) {
@@ -192,6 +194,7 @@ public class RbacAuthorizationService {
                 case "settlement", "settlement-reconciliation" -> "settlement-reconciliation";
                 case "pda" -> "pda-offline-record";
                 case "cold-chain", "risk" -> "cold-chain-monitoring";
+                case "recall" -> "recall-isolation";
                 case "high-value" -> "high-value-consumables";
                 default -> null;
             };

@@ -113,6 +113,31 @@ class QuotaPackagePricingMysqlTest {
         jdbc.update("INSERT INTO quota_package_label_source VALUES(?,?,?,20,2)", id, id, id + 100);
     }
 
+    @Test
+    void batchAdjustmentRepricesUnsettledAndMixedPackagesWithoutChangingSourcesOrExistingBills() {
+        label(2, "signed");
+        label(3, "available");
+        jdbc.update("UPDATE quota_package_label SET settlement_unit_price=2 WHERE label_id IN (1,2,3)");
+        jdbc.update("UPDATE quota_package_label_source SET batch_id=101 WHERE label_id=2");
+        jdbc.update("UPDATE quota_package_label_source SET source_qty=10 WHERE label_id=3");
+        jdbc.update("INSERT INTO quota_package_label_source VALUES(99,3,101,10,2)");
+        jdbc.update("INSERT INTO settlement_bill_item(settlement_id,source_biz_type,source_biz_id,trace_code_id,amount) VALUES(1,'department_consumption_item',9901,1002,40)");
+
+        tx.executeWithoutResult(status -> {
+            pricing.lockProducts(List.of(1L));
+            jdbc.update("UPDATE inventory_batch SET batch_unit_price=1.5 WHERE batch_id=101");
+            assertThat(pricing.refreshAfterBatchAdjustment(101, 1)).isEqualTo(2);
+            assertThat(settlement.generateForConsumption(4001L)).hasSize(1);
+        });
+
+        assertThat(jdbc.queryForObject("SELECT settlement_unit_price FROM quota_package_label WHERE label_id=1", BigDecimal.class)).isEqualByComparingTo("1.5");
+        assertThat(jdbc.queryForObject("SELECT settlement_unit_price FROM quota_package_label WHERE label_id=2", BigDecimal.class)).isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("SELECT settlement_unit_price FROM quota_package_label WHERE label_id=3", BigDecimal.class)).isEqualByComparingTo("1.75");
+        assertThat(jdbc.queryForObject("SELECT unit_price FROM quota_package_label_source WHERE source_id=1", BigDecimal.class)).isEqualByComparingTo("2");
+        assertThat(jdbc.queryForObject("SELECT amount FROM settlement_bill_item WHERE source_biz_id=3001", BigDecimal.class)).isEqualByComparingTo("30");
+        assertThat(jdbc.queryForObject("SELECT amount FROM settlement_bill_item WHERE source_biz_id=9901", BigDecimal.class)).isEqualByComparingTo("40");
+    }
+
     void change(String approval, String price) {
         tx.executeWithoutResult(status -> {
             Map<String, Object> before = pricing.lockProduct(1);

@@ -43,6 +43,7 @@ import {
   fetchClosureList,
   fetchClosureOptions,
   fetchClosureOverview,
+  fetchRedFlushOptions,
   fetchServerPagedClosureList,
   fetchPickingLooseStock,
   fetchPickingPackageLabelDetail,
@@ -176,6 +177,10 @@ const recallDialogOpen = ref(false)
 const recallSubmitting = ref(false)
 const recallBusinessType = ref<'recall' | 'isolate'>('recall')
 const recallScope = ref<'all' | 'primary' | 'secondary' | 'tertiary'>('all')
+const defaultRecallHistoryFilters = { dateFrom: '', dateTo: '', productName: '', productCode: '', deptName: '' }
+const recallHistoryFilters = reactive({ ...defaultRecallHistoryFilters })
+const appliedRecallHistoryFilters = ref({ ...defaultRecallHistoryFilters })
+const recallHistoryError = ref('')
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
@@ -251,6 +256,12 @@ const effectiveReplenishmentDays = computed(() => {
 
 const settlementLoadError = ref('')
 const settlementSummary = ref<Record<string, number>>({})
+const redFlushOptions = ref<Awaited<ReturnType<typeof fetchRedFlushOptions>>>({ departments: [], warehouses: [] })
+const redFlushFilters = reactive({ deptCode: '', warehouseId: '' })
+const appliedRedFlushFilters = ref({ ...redFlushFilters })
+const redFlushError = ref('')
+const redFlushWarehouses = computed(() =>
+  redFlushOptions.value.warehouses.filter(item => item.deptCode === redFlushFilters.deptCode))
 const {
   filters: settlementFilters, filterError: settlementFilterError, apply: applySettlementFilters,
   reset: resetSettlementFilters, load: loadSettlement, beginRequest: beginClosureRequest
@@ -336,16 +347,44 @@ async function maybeOpenRouteSmartAnalysis() {
 
 async function loadData() {
   const requestedType = type.value
+  const recallPage = isRecallPage.value
   if (requestedType === 'settlement') return loadSettlement()
   const isLatest = beginClosureRequest()
-  const isCurrent = () => isLatest() && type.value === requestedType
+  const isCurrent = () => isLatest() && type.value === requestedType && isRecallPage.value === recallPage
   loading.value = true
+  if (requestedType === 'red-flush') {
+    redFlushError.value = ''
+    try {
+      const [filterOptions, result] = await Promise.all([
+        fetchRedFlushOptions(),
+        fetchServerPagedClosureList('red-flush', {
+          ...appliedRedFlushFilters.value, page: String(currentPage.value), size: String(pageSize.value)
+        })
+      ])
+      if (!isCurrent()) return
+      redFlushOptions.value = filterOptions
+      rows.value = result.rows
+      totalItems.value = result.total
+      pageSize.value = result.size
+    } catch (cause) {
+      if (!isCurrent()) return
+      rows.value = []
+      totalItems.value = 0
+      redFlushError.value = apiErrorText(cause, '红冲记录加载失败')
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+    return
+  }
   try {
+    if (recallPage) recallHistoryError.value = ''
     applyRouteSmartDefaults()
     const [overview, optionData, listData] = await Promise.all([
       fetchClosureOverview(),
       fetchClosureOptions(),
-      requestedType === 'delivery' ? null
+      recallPage ? fetchServerPagedClosureList('recall', {
+        ...appliedRecallHistoryFilters.value, page: String(currentPage.value), size: String(pageSize.value)
+      }) : requestedType === 'delivery' ? null
         : fetchClosureList(requestedType, { page: String(currentPage.value), size: String(pageSize.value) })
     ])
     if (!isCurrent()) return
@@ -377,10 +416,41 @@ async function loadData() {
     }
     await maybeOpenRouteSmartAnalysis()
   } catch (cause) {
-    if (isCurrent()) throw cause
+    if (!isCurrent()) return
+    if (!recallPage) throw cause
+    rows.value = []
+    totalItems.value = 0
+    recallHistoryError.value = apiErrorText(cause, '召回与隔离记录加载失败')
   } finally {
     if (isCurrent()) loading.value = false
   }
+}
+
+function applyRecallHistoryFilters() {
+  const { dateFrom, dateTo } = recallHistoryFilters
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    recallHistoryError.value = '开始日期不能晚于结束日期'
+    return
+  }
+  appliedRecallHistoryFilters.value = { ...recallHistoryFilters }
+  currentPage.value = 1
+  void loadData()
+}
+
+function resetRecallHistoryFilters() {
+  Object.assign(recallHistoryFilters, defaultRecallHistoryFilters)
+  applyRecallHistoryFilters()
+}
+
+function applyRedFlushFilters() {
+  appliedRedFlushFilters.value = { ...redFlushFilters }
+  currentPage.value = 1
+  void loadData()
+}
+
+function resetRedFlushFilters() {
+  Object.assign(redFlushFilters, { deptCode: '', warehouseId: '' })
+  applyRedFlushFilters()
 }
 
 async function loadPickingRequisitions(isCurrent = () => type.value === 'delivery') {
@@ -985,7 +1055,7 @@ async function createTaskFromAnalysis(row: Record<string, unknown>) {
 }
 
 onMounted(loadData)
-watch(type, () => {
+watch([type, isRecallPage], () => {
   currentPage.value = 1
   autoSmartAnalysisHandled.value = false
   loadData()
@@ -1172,7 +1242,7 @@ watch(() => form.productCode, () => {
       </form>
     </el-dialog>
 
-    <section v-if="type !== 'settlement' && type !== 'high-value' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+    <section v-if="type !== 'settlement' && type !== 'red-flush' && type !== 'high-value' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon"><ScanLine :size="20" /></i>
@@ -1568,7 +1638,7 @@ watch(() => form.productCode, () => {
         </template>
         <template v-else>
           <History :size="20" />
-          <h3>{{ type === 'settlement' ? '结算明细' : '业务单据' }}</h3>
+          <h3>{{ isRecallPage ? '召回与隔离记录' : type === 'settlement' ? '结算明细' : '业务单据' }}</h3>
         </template>
       </div>
       <div v-if="type === 'settlement'" class="settlement-query">
@@ -1724,16 +1794,39 @@ watch(() => form.productCode, () => {
         </table>
       </div>
       <div v-else-if="type === 'red-flush'" class="table-scroll">
+        <div class="settlement-query">
+          <form class="settlement-filters" aria-label="红冲记录查询" @submit.prevent="applyRedFlushFilters">
+            <label><span>科室</span>
+              <select v-model="redFlushFilters.deptCode" class="md-select" @change="redFlushFilters.warehouseId = ''">
+                <option value="">全部授权科室</option>
+                <option v-for="dept in redFlushOptions.departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
+              </select>
+            </label>
+            <label><span>库房</span>
+              <select v-model="redFlushFilters.warehouseId" class="md-select" :disabled="!redFlushFilters.deptCode || !redFlushWarehouses.length">
+                <option value="">{{ !redFlushFilters.deptCode ? '请先选择科室' : redFlushWarehouses.length ? '该科室全部库房' : '该科室暂无关联库房' }}</option>
+                <option v-for="warehouse in redFlushWarehouses" :key="warehouse.warehouseId" :value="String(warehouse.warehouseId)">{{ warehouse.warehouseName }}</option>
+              </select>
+            </label>
+            <div class="settlement-query-actions">
+              <button class="md-btn" type="button" @click="resetRedFlushFilters">重置</button>
+              <button class="md-btn md-btn-primary" type="submit">查询</button>
+            </div>
+          </form>
+          <StatusMessage :message="redFlushError" tone="error" role="alert" />
+        </div>
         <table class="master-table purchase-table">
           <thead>
-            <tr><th>红冲单号</th><th>原消耗单号</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
+            <tr><th>红冲单号</th><th>原消耗单号</th><th>科室</th><th>库房</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="6"><EmptyState message="正在加载红冲记录..." /></td></tr>
-            <tr v-else-if="!rows.length"><td colspan="6"><EmptyState message="暂无红冲记录" /></td></tr>
+            <tr v-if="loading"><td colspan="8"><EmptyState message="正在加载红冲记录..." /></td></tr>
+            <tr v-else-if="!rows.length"><td colspan="8"><EmptyState :message="redFlushError ? '红冲记录加载失败' : '暂无红冲记录'" /></td></tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
+              <td>{{ row.deptName || '-' }}</td>
+              <td>{{ row.warehouseName || '-' }}</td>
               <td>{{ row.flushType === 'reverse_consumption' ? '反消耗' : formatBusinessText(row.flushType) }}</td>
               <td>{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</td>
               <td>{{ formatDateTime(row.createTime) }}</td>
@@ -1742,6 +1835,44 @@ watch(() => form.productCode, () => {
           </tbody>
         </table>
       </div>
+      <template v-else-if="isRecallPage">
+        <div class="settlement-query">
+          <form class="settlement-filters" aria-label="召回与隔离记录查询" @submit.prevent="applyRecallHistoryFilters">
+            <label><span>开始日期</span><input v-model="recallHistoryFilters.dateFrom" type="date" class="md-input" /></label>
+            <label><span>结束日期</span><input v-model="recallHistoryFilters.dateTo" type="date" class="md-input" /></label>
+            <label><span>商品名称</span><input v-model.trim="recallHistoryFilters.productName" type="search" class="md-input" /></label>
+            <label><span>商品编码</span><input v-model.trim="recallHistoryFilters.productCode" type="search" class="md-input" /></label>
+            <label><span>来源科室</span><input v-model.trim="recallHistoryFilters.deptName" type="search" class="md-input" /></label>
+            <div class="settlement-query-actions">
+              <button type="button" class="md-btn" @click="resetRecallHistoryFilters">重置</button>
+              <button type="submit" class="md-btn md-btn-primary">查询</button>
+            </div>
+          </form>
+          <StatusMessage :message="recallHistoryError" tone="error" role="alert" />
+        </div>
+        <div class="table-scroll">
+          <table class="master-table purchase-table">
+            <thead>
+              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>时间</th></tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading"><td colspan="9"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
+              <tr v-else-if="!rows.length"><td colspan="9"><EmptyState message="暂无召回与隔离记录" /></td></tr>
+              <tr v-else v-for="row in rows" :key="String(row.bizNo)">
+                <td>{{ row.bizNo }}</td>
+                <td>{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</td>
+                <td>{{ row.productCode }}</td>
+                <td>{{ row.productName }}</td>
+                <td>{{ row.sourceDepartments || '-' }}</td>
+                <td>{{ row.warehouseName || '-' }}</td>
+                <td>{{ row.quantity }}</td>
+                <td>{{ formatStatusText(row.status) }}</td>
+                <td>{{ formatDateTime(row.createTime) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
       <div v-else class="table-scroll">
         <table class="master-table purchase-table" :class="{ 'consumption-history-table': type === 'consumption' }">
           <thead>

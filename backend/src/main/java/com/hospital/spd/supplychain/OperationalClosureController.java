@@ -42,6 +42,11 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.list(type, params));
     }
 
+    @GetMapping("/red-flush/options")
+    public ApiResponse<Map<String, Object>> redFlushOptions() {
+        return ApiResponse.ok(service.redFlushOptions());
+    }
+
     @GetMapping("/requisitions/{requisitionNo}/items")
     public ApiResponse<Map<String, Object>> requisitionDetails(@PathVariable String requisitionNo) {
         return ApiResponse.ok(service.requisitionDetails(requisitionNo));

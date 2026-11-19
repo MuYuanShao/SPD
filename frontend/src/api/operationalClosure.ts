@@ -56,11 +56,18 @@ export async function fetchClosureList(type: string, params: Record<string, stri
   return getData<PageResult<Record<string, unknown>>>(`/operational-closure/lists/${type}`, { params })
 }
 
-export async function fetchServerPagedClosureList(type: 'requisition' | 'settlement', params: Record<string, string>) {
+export async function fetchServerPagedClosureList(type: 'requisition' | 'settlement' | 'red-flush' | 'recall', params: Record<string, string>) {
   // These lists apply ordering and pagination together on the server.
   return unwrapData(await http.get<ApiResponse<PageResult<Record<string, unknown>>>>(
     `/operational-closure/lists/${type}`, { params }
   ))
+}
+
+export function fetchRedFlushOptions() {
+  return getData<{
+    departments: ClosureOptions['departments']
+    warehouses: Array<{ deptCode: string; warehouseId: number; warehouseName: string }>
+  }>('/operational-closure/red-flush/options')
 }
 
 /** 获取独立的拣配记录台账，沿用拣配配送只读权限。 */

@@ -988,7 +988,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => hospitalCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -1081,7 +1081,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             >
               <template #header>
                 <span class="ulc-th-text">创建时间</span>
-                <i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('createTime', $event)" />
+
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).createTime) }}</span>
@@ -1096,7 +1096,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             >
               <template #header>
                 <span class="ulc-th-text">修改时间</span>
-                <i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('updateTime', $event)" />
+
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).updateTime) }}</span>
@@ -1675,7 +1675,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的供应商"
             @selection-change="onSupplierSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => supplierCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -1810,7 +1810,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
               <el-table-column v-if="isSupplierColVisible(column.key)" :label="column.label" :min-width="supplierColWidth(column.key)">
                 <template #header>
-                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag(column.key, $event)" />
+                  <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
                 <template #default="{ row }">
                   <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
@@ -1978,7 +1978,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的厂家"
             @selection-change="onManufacturerSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => manufacturerCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -2069,7 +2069,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
               <el-table-column v-if="isManufacturerColVisible(column.key)" :label="column.label" :min-width="manufacturerColWidth(column.key)">
                 <template #header>
-                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag(column.key, $event)" />
+                  <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
                 <template #default="{ row }">
                   <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
@@ -2211,7 +2211,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的院区"
             @selection-change="onCampusSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => campusCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -2306,7 +2306,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             </el-table-column>
             <el-table-column v-if="isCampusColVisible('createTime')" label="创建时间" :min-width="campusColWidth('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
@@ -2483,7 +2483,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的科室"
             @selection-change="onDepartmentSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => departmentCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -2627,7 +2627,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             </el-table-column>
             <el-table-column v-if="isDepartmentColVisible('createTime')" label="创建时间" :min-width="departmentColWidth('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
@@ -2895,7 +2895,7 @@ function warehouseFlagChipClass(enabled: unknown) {
           </el-table-column>
           <el-table-column v-if="isCatalogColVisible('createTime')" label="创建时间" :min-width="catalogColWidth('createTime')">
             <template #header>
-              <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('createTime', $event)" />
+              <span class="ulc-th-text">创建时间</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
@@ -3064,7 +3064,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             style="width: 100%"
             empty-text="暂无符合条件的库房"
             @selection-change="onWarehouseSelectionChange"
-          
+
             @header-dragend="(width: number, oldWidth: number, column: any) => warehouseCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
@@ -3204,7 +3204,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             </el-table-column>
             <el-table-column v-if="isWarehouseColVisible('createTime')" label="创建时间" :min-width="warehouseColWidth('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>

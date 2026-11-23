@@ -589,7 +589,7 @@ onUnmounted(closePreview)
         </el-table-column>
         <el-table-column v-if="isLicenseColVisible('createTime')" label="创建时间" :min-width="licenseColWidth('createTime')">
           <template #header>
-            <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('createTime', $event)" />
+            <span class="ulc-th-text">创建时间</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.createTime || '-' }}</span>
@@ -597,7 +597,7 @@ onUnmounted(closePreview)
         </el-table-column>
         <el-table-column v-if="isLicenseColVisible('updateTime')" label="修改时间" :min-width="licenseColWidth('updateTime')">
           <template #header>
-            <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('updateTime', $event)" />
+            <span class="ulc-th-text">修改时间</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.updateTime || '-' }}</span>

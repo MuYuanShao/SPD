@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Ban,
   Building2,
@@ -563,6 +563,83 @@ const isCatalogColVisible = (key: string) => catalogCols.isColumnVisible(key)
 const catalogColWidth = (key: string) => catalogCols.columnWidth(key)
 /** 目录列宽绑定：使用计算后的最终列宽（弹性列受上限约束，短字段不被挤压） */
 const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
+
+/* ------------------------------------------------------------------
+ * 科室库房目录表格：表头固定
+ * ------------------------------------------------------------------
+ * 需求：页面/内容区整体滚动时表头不固定（随内容滚走）；
+ *      表格内部出现滚动条时，表头固定在表格容器顶部，方便确认当前列。
+ *
+ * 实现：给 el-table 设置 max-height，Element Plus 会把超出的行收进
+ *      表格自身的滚动容器（.el-table__body-wrapper），表头留在容器顶部不动。
+ *      高度按「内容区可视高度 - 表格上方占用高度 - 分页区预留」动态计算，
+ *      用 ResizeObserver 跟随视口宽度、字号档位、内容区高度变化重算，
+ *      避免硬编码像素在不同分辨率下出现大片留白或表格被压扁。
+ * ------------------------------------------------------------------ */
+
+/** 表格最大高度（px），由 measureCatalogTableMaxHeight 更新 */
+const catalogTableMaxHeight = ref(0)
+
+/** 分页区预留高度（px）：分页条 + 间距 */
+const CATALOG_PAGINATION_RESERVE = 76
+/** 最小可用高度（px）：低于此值时不再压缩，避免表格只剩一两行 */
+const CATALOG_MIN_TABLE_HEIGHT = 260
+
+let catalogTableResizeObserver: ResizeObserver | undefined
+
+/**
+ * 计算表格可用的最大高度。
+ * 以内容区（main.spd-content）为基准，减去表格上方元素（标题、筛选区、工具栏）
+ * 实际占用的高度与分页区预留高度。
+ */
+function measureCatalogTableMaxHeight() {
+  const tableEl = catalogTableRef.value?.$el as HTMLElement | undefined
+  if (!tableEl) return
+  const contentEl = tableEl.closest('.spd-content') as HTMLElement | null
+  const container = contentEl ?? (document.querySelector('.spd-content') as HTMLElement | null)
+  if (!container) return
+
+  // 内容区可视高度
+  const containerClientH = container.clientHeight
+  if (!containerClientH) return
+
+  // 表格顶部相对内容区顶部的偏移（标题 + 筛选区 + 工具栏）
+  const containerRect = container.getBoundingClientRect()
+  const tableRect = tableEl.getBoundingClientRect()
+  const offsetTop = Math.max(0, Math.round(tableRect.top - containerRect.top + container.scrollTop))
+
+  const available = containerClientH - offsetTop - CATALOG_PAGINATION_RESERVE
+  catalogTableMaxHeight.value = Math.max(CATALOG_MIN_TABLE_HEIGHT, available)
+}
+
+/** 字号档位变化会改变行高，进而改变表格高度，需要重算可用高度 */
+function setupCatalogTableResizeObserver() {
+  if (typeof ResizeObserver === 'undefined') return
+  const contentEl = document.querySelector('.spd-content') as HTMLElement | null
+  if (!contentEl) return
+  catalogTableResizeObserver = new ResizeObserver(() => {
+    measureCatalogTableMaxHeight()
+  })
+  catalogTableResizeObserver.observe(contentEl)
+}
+
+onMounted(() => {
+  measureCatalogTableMaxHeight()
+  setupCatalogTableResizeObserver()
+  // 数据加载完成后行数变化，需要重算
+  watch(
+    () => page.value?.rows?.length,
+    () => {
+      // 等 DOM 更新后再测量
+      requestAnimationFrame(measureCatalogTableMaxHeight)
+    }
+  )
+})
+
+onBeforeUnmount(() => {
+  catalogTableResizeObserver?.disconnect()
+  catalogTableResizeObserver = undefined
+})
 
 const isWarehouseColVisible = (key: string) => warehouseCols.isColumnVisible(key)
 const warehouseColWidth = (key: string) => warehouseCols.columnWidth(key)
@@ -2624,7 +2701,7 @@ function warehouseFlagChipClass(enabled: unknown) {
           style="width: 100%"
           empty-text="暂无符合条件的科室库房目录"
           @selection-change="onCatalogSelectionChange"
-        
+          :max-height="catalogTableMaxHeight || undefined"
           @header-dragend="(width: number, oldWidth: number, column: any) => catalogCols.handleHeaderDragEnd(width, oldWidth, column)">
           <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
           <el-table-column

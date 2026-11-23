@@ -46,3 +46,6 @@ Thumbs.db
 /deploy/.env
 /deploy/.env.*
 !/deploy/.env.production.example
+
+# Local scratch/temp artifacts
+.tmp/

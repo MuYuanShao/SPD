@@ -104,6 +104,7 @@ public class OperationalConsumptionModule {
         if (highValue) {
             BigDecimal amount = highValueTraceFlowService.consumeUnits(
                     units, consumptionId, consumptionNo, productId, warehouseId, deptName, null, null);
+            RequisitionOriginSql.captureConsumption(jdbcTemplate, consumptionId);
             List<String> settlementNos = settlementPointService.generateForConsumption(consumptionId);
             return Map.of("consumptionNo", consumptionNo, "amount", amount, "settlementNos", settlementNos);
         }
@@ -115,12 +116,14 @@ public class OperationalConsumptionModule {
         for (SupplyChainSupport.InventoryDeduction deduction : deductions) {
             BigDecimal itemAmount = deduction.quantity().multiply(deduction.unitPrice());
             jdbcTemplate.update("""
-                    INSERT INTO department_consumption_item (consumption_id, product_id, batch_id, quantity, unit_price, amount)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO department_consumption_item (
+                      consumption_id, product_id, batch_id, quantity, unit_price, amount, inventory_issue_event_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
                     """, consumptionId, product.get("productId"), deduction.batchId(), deduction.quantity(),
-                    deduction.unitPrice(), itemAmount);
+                    deduction.unitPrice(), itemAmount, deduction.eventId());
             amount = amount.add(itemAmount);
         }
+        RequisitionOriginSql.captureConsumption(jdbcTemplate, consumptionId);
         settlementPointService.generateForConsumption(consumptionId);
         return Map.of("consumptionNo", consumptionNo, "amount", amount);
     }
@@ -203,7 +206,8 @@ public class OperationalConsumptionModule {
                                     + "，差额 " + refresh.differenceAmount()));
         }
         List<Map<String, Object>> items = jdbcTemplate.queryForList("""
-                SELECT product_id AS productId, batch_id AS batchId, quantity, trace_code_id AS traceCodeId
+                SELECT product_id AS productId, batch_id AS batchId, quantity, trace_code_id AS traceCodeId,
+                       requisition_type AS requisitionType
                   FROM department_consumption_item
                  WHERE consumption_id = ?
                 """, consumptionId);
@@ -217,10 +221,14 @@ public class OperationalConsumptionModule {
         }
         for (Map<String, Object> item : items) {
             BigDecimal quantity = (BigDecimal) item.get("quantity");
-            Long eventId = support.receiveAvailable(warehouseId, ((Number) item.get("productId")).longValue(),
-                    ((Number) item.get("batchId")).longValue(), quantity,
-                    "department_consumption_reverse_in", "department_consumption", consumptionId,
-                    "department consumption reversed");
+            long productId = ((Number) item.get("productId")).longValue();
+            long batchId = ((Number) item.get("batchId")).longValue();
+            String requisitionType = quotaPackage || manualHighValue ? null : (String) item.get("requisitionType");
+            Long eventId = requisitionType == null
+                    ? support.receiveAvailable(warehouseId, productId, batchId, quantity,
+                            "department_consumption_reverse_in", "department_consumption", consumptionId,
+                            "department consumption reversed")
+                    : support.restoreConsumedInventory(warehouseId, productId, batchId, quantity, consumptionId, requisitionType);
             Long traceId = item.get("traceCodeId") instanceof Number id ? Long.valueOf(id.longValue()) : packageTraceId;
             if (manualHighValue) {
                 if (traceId == null) throw new IllegalArgumentException("高值消耗明细缺少唯一码，不能反消耗");

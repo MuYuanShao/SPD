@@ -148,7 +148,7 @@ public class ProductService {
                 FROM product p
                 LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id
                 LEFT JOIN supplier s ON p.supplier_id = s.supplier_id
-                """ + where + " ORDER BY p.product_id DESC LIMIT ? OFFSET ?",
+                """ + where + " ORDER BY p.update_time DESC, p.product_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         return new MasterDataPage(

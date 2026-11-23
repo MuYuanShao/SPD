@@ -4,6 +4,7 @@ import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.system.service.FieldOptionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ import java.util.Map;
 public class OperationalClosureReadModel {
 
     private final JdbcTemplate jdbcTemplate;
+    private final FieldOptionService fieldOptions;
     private final DepartmentRequisitionAccessService requisitionAccess;
 
     public OperationalClosureReadModel(JdbcTemplate jdbcTemplate) {
@@ -33,10 +35,17 @@ public class OperationalClosureReadModel {
                 new DataScopeService(OperatorContext::system)));
     }
 
-    @Autowired
     public OperationalClosureReadModel(JdbcTemplate jdbcTemplate,
                                        DepartmentRequisitionAccessService requisitionAccess) {
+        this(jdbcTemplate, requisitionAccess, new FieldOptionService(jdbcTemplate));
+    }
+
+    @Autowired
+    public OperationalClosureReadModel(JdbcTemplate jdbcTemplate,
+                                       DepartmentRequisitionAccessService requisitionAccess,
+                                       FieldOptionService fieldOptions) {
         this.jdbcTemplate = jdbcTemplate;
+        this.fieldOptions = fieldOptions;
         this.requisitionAccess = requisitionAccess;
     }
 
@@ -110,7 +119,8 @@ public class OperationalClosureReadModel {
                 SELECT dept_code AS deptCode, dept_name AS deptName
                   FROM sys_dept
                 """ + where + " ORDER BY sort_order, dept_id", args.toArray());
-        return Map.of("departments", departments, "warehouses", List.of(), "products", List.of(), "balances", List.of());
+        return Map.of("departments", departments, "warehouses", List.of(), "products", List.of(), "balances", List.of(),
+                "requisitionTypes", fieldOptions.activeOptions(FieldOptionService.REQUISITION_TYPE));
     }
 
     /** Returns only enabled warehouses currently owned by the authorized department. */
@@ -163,18 +173,22 @@ public class OperationalClosureReadModel {
                            formula_replenish_qty AS formulaReplenishQty,
                            manual_adjusted AS manualAdjusted, formula_text AS formulaText, status,
                            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM shortage_replenishment_task ORDER BY create_time DESC LIMIT ? OFFSET ?
+                      FROM shortage_replenishment_task ORDER BY create_time DESC, task_id DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countLong("shortage_replenishment_task", "1 = 1"), pageReq);
             case "delivery" -> deliveryRecords(params, pageReq);
             case "requisition" -> requisitionRecords(params, pageReq);
             case "consumption" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT dc.consumption_no AS bizNo, sd.dept_name AS deptName, p.product_code AS productCode,
                            p.product_name AS productName, dci.quantity, dci.unit_price AS unitPrice, dci.amount,
+                           dci.requisition_type AS requisitionType,
+                           COALESCE(requisition_option.option_label, dci.requisition_type) AS requisitionTypeLabel,
                            dc.status, DATE_FORMAT(dc.consume_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM department_consumption dc
                       JOIN sys_dept sd ON sd.dept_id = dc.dept_id
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                       JOIN product p ON p.product_id = dci.product_id
+                      LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                        AND requisition_option.option_value = dci.requisition_type
                      ORDER BY dc.consume_time DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countJoinedRows("""
                     SELECT COUNT(*)
@@ -350,18 +364,30 @@ public class OperationalClosureReadModel {
             select = "task.task_no AS bizNo, task.dept_name AS deptName, task.product_code AS productCode, task.product_name AS productName, task.replenish_qty AS quantity, task.min_qty AS minQty, task.current_qty AS currentQty, task.period_days AS periodDays, task.period_issue_qty AS periodIssueQty, task.avg_daily_issue_qty AS avgDailyIssueQty, task.formula_replenish_qty AS formulaReplenishQty, task.manual_adjusted AS manualAdjusted, task.formula_text AS formulaText, task.status, task.create_time AS createTime";
             from = " FROM shortage_replenishment_task task";
             dept = "(SELECT CASE WHEN COUNT(*) = 1 THEN MIN(d.dept_id) ELSE NULL END FROM sys_dept d WHERE d.dept_name = task.dept_name AND d.deleted = 0)";
-            owner = null; order = "task.create_time";
+            owner = null; order = "task.create_time DESC, task.task_id DESC";
         } else {
-            select = "dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode, p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount, dc.status, dc.consume_time AS createTime";
-            from = " FROM department_consumption dc JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id JOIN product p ON p.product_id = item.product_id JOIN sys_dept d ON d.dept_id = dc.dept_id";
-            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time";
+            select = """
+                    dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode,
+                    p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount,
+                    dc.status, dc.consume_time AS createTime, item.requisition_type AS requisitionType,
+                    COALESCE(requisition_option.option_label, item.requisition_type) AS requisitionTypeLabel
+                    """;
+            from = """
+                    FROM department_consumption dc
+                    JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id
+                    JOIN product p ON p.product_id = item.product_id
+                    JOIN sys_dept d ON d.dept_id = dc.dept_id
+                    LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                      AND requisition_option.option_value = item.requisition_type
+                    """;
+            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time DESC";
         }
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
         requisitionAccess.appendScope(where, args, dept, owner);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + from + where, Long.class, args.toArray());
         args.add(page.size()); args.add(page.offset());
-        return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " DESC LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
+        return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
     }
 
     public Map<String, Object> redFlushOptions() {
@@ -475,6 +501,8 @@ public class OperationalClosureReadModel {
         String from = """
                  FROM spd_delivery_order d
                  LEFT JOIN department_requisition dr ON dr.requisition_no = d.requisition_no
+                 LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                   AND requisition_option.option_value = COALESCE(d.requisition_type, dr.requisition_type)
                 """ + where;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
 
@@ -484,6 +512,8 @@ public class OperationalClosureReadModel {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT d.delivery_id AS deliveryId, d.delivery_no AS bizNo,
                        d.requisition_no AS sourceNo, d.dept_name AS deptName,
+                       COALESCE(d.requisition_type, dr.requisition_type) AS requisitionType,
+                       COALESCE(requisition_option.option_label, d.requisition_type, dr.requisition_type) AS requisitionTypeLabel,
                        d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
                        d.quantity, d.status,
                        DATE_FORMAT(dr.approve_time, '%Y-%m-%d %H:%i:%s') AS requisitionCreatedAt,
@@ -604,6 +634,8 @@ public class OperationalClosureReadModel {
                                 JSON_UNQUOTE(JSON_EXTRACT(dc.patient_info, '$.patientName')),
                                 '-') AS patientName,
                        sb.status,
+                       COALESCE(sbi.requisition_type, dci.requisition_type) AS requisitionType,
+                       COALESCE(requisition_option.option_label, sbi.requisition_type, dci.requisition_type) AS requisitionTypeLabel,
                        COALESCE(
                            (SELECT dr.apply_time
                               FROM spd_delivery_package_binding pb
@@ -637,6 +669,8 @@ public class OperationalClosureReadModel {
                   LEFT JOIN department_consumption_item dci
                     ON sbi.source_biz_type = 'department_consumption_item'
                    AND dci.item_id = sbi.source_biz_id
+                  LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                    AND requisition_option.option_value = COALESCE(sbi.requisition_type, dci.requisition_type)
                   LEFT JOIN department_consumption dc ON dc.consumption_id = dci.consumption_id
                   LEFT JOIN quota_package_label qpl ON qpl.product_id = sbi.product_id
                     AND sbi.source_biz_type = 'department_consumption_item'

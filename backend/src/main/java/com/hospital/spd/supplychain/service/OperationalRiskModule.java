@@ -207,11 +207,12 @@ public class OperationalRiskModule {
         return JdbcPageQuery.fetch(jdbcTemplate, page, """
                 SELECT r.recall_no AS recallNo, w.warehouse_name AS destinationWarehouse,
                        r.affected_qty AS quantity,
+                       DATE_FORMAT(r.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        (SELECT GROUP_CONCAT(DISTINCT e.warehouse_name_snapshot ORDER BY e.warehouse_name_snapshot SEPARATOR '、')
                           FROM inventory_event e
                          WHERE e.source_biz_type = 'recall_event' AND e.source_biz_id = r.recall_id
                            AND e.event_type = 'warehouse_transfer_out' AND e.qty_change < 0) AS sourceWarehouses
-                """, from, " ORDER BY r.create_time, r.recall_id", args);
+                """, from, " ORDER BY r.create_time DESC, r.recall_id DESC", args);
     }
 
     @Transactional

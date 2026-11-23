@@ -1,4 +1,4 @@
-import { getData, getPage, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
+import { getServerPage, getData, getPage, postData, putData, type PageResult } from './http'
 import { collectSortedRows } from '../utils/businessListSort'
 
 export interface QuotaTemplateRow {
@@ -113,14 +113,12 @@ export interface DepartmentRequisitionCatalogRow {
  * @returns 定数包模板列表
  */
 export async function fetchQuotaTemplates(params: Record<string, string>) {
-  return getPage<QuotaTemplateRow>('/quota-packages/templates', { params })
+  return getServerPage<PageResult<QuotaTemplateRow>>('/quota-packages/templates', { params })
 }
 
 export async function fetchQuotaTemplateChoices() {
   const read = async (page: number, size: number) => ({
-    ...unwrapData(await http.get<ApiResponse<PageResult<QuotaTemplateRow>>>(
-      '/quota-packages/templates', { params: { page, size } }
-    ))
+    ...await getServerPage<PageResult<QuotaTemplateRow>>('/quota-packages/templates', { params: { page, size } })
   })
   const first = await read(1, 200)
   return await collectSortedRows(first, read) as QuotaTemplateRow[]
@@ -255,10 +253,7 @@ export async function fetchDepartmentRequisitionCatalog(params: Record<string, s
  * @returns 打包任务列表
  */
 export async function fetchPackingTasks(params: Record<string, string> = {}) {
-  return getPage<PackingTaskRow>(
-    '/quota-packages/packing-tasks',
-    { params }
-  )
+  return getServerPage<PageResult<PackingTaskRow>>('/quota-packages/packing-tasks', { params })
 }
 
 /**
@@ -394,7 +389,7 @@ export async function printPackageLabel(labelNo: string) {
  * @returns 事件列表
  */
 export async function fetchPackageEvents(params: Record<string, string> = {}) {
-  return getPage<Record<string, unknown>>(
+  return getServerPage<PageResult<Record<string, unknown>>>(
     '/quota-packages/events',
     { params }
   )

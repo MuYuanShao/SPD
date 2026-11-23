@@ -1,4 +1,4 @@
-import { getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
+import { getServerPage, getData, postData, putData, type PageResult } from './http'
 
 export interface ReturnWarehouse { id: number; name: string; type?: string; campus: string }
 export interface ReturnCandidate {
@@ -25,7 +25,7 @@ export const fetchStockReturnCandidates = (params: Record<string, string | numbe
   getData<ReturnCandidate[]>('/stock-returns/candidates', { params })
 export const fetchStockReturns = () => getData<ReturnRecord[]>('/stock-returns')
 export const fetchWarehouseReturnQueue = async (params: { page: number; size: number }) =>
-  unwrapData(await http.get<ApiResponse<PageResult<ReturnRecord>>>('/stock-returns/picking-queue/page', { params }))
+  getServerPage<PageResult<ReturnRecord>>('/stock-returns/picking-queue/page', { params })
 export const submitStockReturn = (request: ReturnRequest) =>
   postData<{ returnNo: string; status: string }>('/stock-returns', request, { freeTextFields: ['reason'] })
 export const confirmWarehouseReturn = (no: string) =>

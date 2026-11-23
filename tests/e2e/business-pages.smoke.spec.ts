@@ -826,6 +826,7 @@ test('拣配配送保留待拣配工作台并移除重复的记录列表', async
     const params = new URL(route.request().url()).searchParams
     return route.fulfill({ json: { code: 0, data: { rows: params.get('deptCode') && !pickingCompleted ? [{
       requisitionNo: 'SL-PICK-TEST', itemId: 1, deptName: '测试科室', sourceWarehouseName: '一级测试库',
+      requisitionType: 'urgent', requisitionTypeLabel: '紧急申领',
       productCode: 'P1', status: 'partial_picked', requisitionCreatedAt: '2026-11-18 10:00:00',
       partialPickingCompletedAt: '2026-11-18 11:00:00', remainingQty: 2, itemType: 'loose'
     }, {
@@ -861,6 +862,7 @@ test('拣配配送保留待拣配工作台并移除重复的记录列表', async
     deptCode: 'DEP-1', dateFrom: '2026-11-18', dateTo: '2026-11-18'
   })
   const req = page.getByRole('row').filter({ hasText: 'SL-PICK-TEST' })
+  await expect(req.getByRole('cell', { name: '紧急申领', exact: true })).toBeVisible()
   await expect(req.getByText('2026-11-18 10:00:00', { exact: true })).toBeVisible()
   await expect(req.getByText('2026-11-18 11:00:00', { exact: true })).toBeVisible()
   await expect(page.getByRole('combobox', { name: '库房', exact: true })).toHaveValue('一级测试库')
@@ -1009,7 +1011,8 @@ test('召回与隔离组合查询并在拣配配送确认召回签收', async ({
         recallNo: 'ZH-WAIT-' + index, sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 1
       }))
       : received ? [] : [{
-        recallNo: 'ZH-FILTERED', sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库', quantity: 2
+        recallNo: 'ZH-FILTERED', sourceWarehouses: '设备科二级库', destinationWarehouse: 'SPD中心库',
+        quantity: 2, createTime: '2026-11-13 10:30:00'
       }]
     return route.fulfill(api({ rows, total: received ? 20 : 21, page: pageNumber, size: 20 }))
   })
@@ -1062,7 +1065,7 @@ test('召回与隔离组合查询并在拣配配送确认召回签收', async ({
   await expect(queue).toHaveCount(0)
   await recallTab.click()
   const pendingRow = queue.getByRole('row').filter({ hasText: 'ZH-FILTERED' })
-  for (const cell of ['设备科二级库', 'SPD中心库', '2']) {
+  for (const cell of ['设备科二级库', 'SPD中心库', '2', '2026-11-13 10:30:00']) {
     await expect(pendingRow.getByRole('cell', { name: cell, exact: true })).toBeVisible()
   }
   await pendingRow.getByRole('button', { name: '确认签收', exact: true }).click()
@@ -1314,11 +1317,17 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     data,
     timestamp: new Date().toISOString()
   })
+  await page.route('**/api/auth/login', route => route.fulfill({ json: { code: 0, data: { token: 'requisition-type-test' } } }))
+  await page.route('**/api/auth/me', route => route.fulfill({ json: { code: 0, data: {
+    userId: 1, username: 'requisition-tester', status: 1, roles: ['ROLE_ADMIN'], menuCodes: [], permissionCodes: []
+  } } }))
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
 
   await page.route('**/api/operational-closure/requisitions/options', route => route.fulfill({
     contentType: 'application/json',
     body: ok({
       departments: [{ deptCode: 'SURG', deptName: '手术室' }],
+      requisitionTypes: [{ optionValue: 'urgent', optionLabel: '紧急申领' }],
       warehouses: [],
       products: [],
       balances: []
@@ -1491,6 +1500,10 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await expect(page.getByText('SL-HISTORY-001')).toBeVisible()
   expect(catalogCallCount).toBe(0)
   await page.getByRole('button', { name: '新增申领' }).click()
+  const requisitionType = page.getByRole('combobox', { name: '申领类型', exact: true })
+  await expect(requisitionType).toHaveValue('')
+  await expect(requisitionType).not.toHaveAttribute('required')
+  await requisitionType.selectOption('urgent')
   await expect(page.getByText('当前院区有多个供货库房，请选择本次从哪个库房发货')).toBeVisible()
   expect(catalogCallCount).toBe(0)
   await page.getByLabel('供货库房', { exact: true }).selectOption('30')
@@ -1512,6 +1525,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
   await expect(page.getByText(/SL-SMART-001/)).toBeVisible()
   expect(smartGeneratePayload).toEqual({
     analysisId: 88,
+    requisitionType: 'urgent',
     items: [{ analysisItemId: 801, quantity: 8, selected: true }]
   })
 
@@ -1555,6 +1569,7 @@ test('科室申领从历史列表进入当前科室目录并按申领模式折�
     warehouseName: '手术室二级库',
     destinationWarehouseId: 20,
     sourceWarehouseId: 30,
+    requisitionType: 'urgent',
     items: [
       {
         productCode: 'PKG-001',

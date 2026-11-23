@@ -61,7 +61,7 @@ public class SupplyChainSupport {
         return inventoryMovementService.consumeAvailableFifo(warehouseId, productId, requiredQty,
                         eventType, sourceType, sourceId, remark)
                 .stream()
-                .map(deduction -> new InventoryDeduction(deduction.batchId(), deduction.quantity(), deduction.unitPrice()))
+                .map(deduction -> new InventoryDeduction(deduction.batchId(), deduction.quantity(), deduction.unitPrice(), deduction.eventId()))
                 .toList();
     }
 
@@ -128,6 +128,13 @@ public class SupplyChainSupport {
                 eventType, sourceType, sourceId, remark);
     }
 
+    public Long restoreConsumedInventory(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
+                                         Long consumptionId, String requisitionType) {
+        return inventoryMovementService.receiveAvailable(warehouseId, productId, batchId, quantity,
+                "department_consumption_reverse_in", "department_consumption", consumptionId,
+                "department consumption reversed", requisitionType);
+    }
+
     public Long adjustAvailable(Long balanceId, Long warehouseId, Long productId, Long batchId, BigDecimal quantityChange,
                                 String eventType, String sourceType, Long sourceId, String remark) {
         return inventoryMovementService.adjustAvailable(balanceId, warehouseId, productId, batchId, quantityChange,
@@ -148,7 +155,10 @@ public class SupplyChainSupport {
         inventoryMovementService.releaseLockedToAvailable(balanceId, quantity);
     }
 
-    public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+    public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice, Long eventId) {
+        public InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+            this(batchId, quantity, unitPrice, null);
+        }
     }
 
     public record InventoryDeductionEvent(InventoryDeduction deduction, Long eventId) {

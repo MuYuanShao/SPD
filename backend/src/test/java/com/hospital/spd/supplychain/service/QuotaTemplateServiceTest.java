@@ -82,6 +82,9 @@ class QuotaTemplateServiceTest {
 
         assertThat(result).hasSize(2);
         verify(jdbcTemplate).queryForList(contains("p.product_name AS templateName"), any(Object[].class));
+        verify(jdbcTemplate).queryForList(contains(
+                "ORDER BY qpt.update_time DESC, qpt.create_time DESC, qpt.template_id DESC LIMIT ? OFFSET ?"),
+                any(Object[].class));
     }
 
     @Test

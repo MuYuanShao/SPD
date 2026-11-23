@@ -1598,6 +1598,7 @@ watch(recallBusinessType, () => {
                 <tr>
                   <th>申领单号</th>
                   <th>申领单创建时间</th>
+                  <th>申领类型</th>
                   <th>部分拣配完成时间</th>
                   <th>科室</th>
                   <th>商品</th>
@@ -1610,7 +1611,7 @@ watch(recallBusinessType, () => {
               </thead>
               <tbody>
                 <tr v-if="!pickingRequisitionRows.length">
-                  <td colspan="10" class="approval-empty">暂无待拣配申领单</td>
+                  <td colspan="11" class="approval-empty">暂无待拣配申领单</td>
                 </tr>
                 <tr
                   v-for="row in paginatedPickingRequisitions"
@@ -1622,6 +1623,7 @@ watch(recallBusinessType, () => {
                     <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
                   </td>
                   <td>{{ formatDateTime(row.requisitionCreatedAt) }}</td>
+                  <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
                   <td>{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
                   <td>{{ row.deptName }}</td>
                   <td>
@@ -1833,16 +1835,17 @@ watch(recallBusinessType, () => {
       <StatusMessage :message="recallQueue.error" tone="error" role="alert" />
       <div class="table-scroll">
         <table class="master-table">
-          <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>操作</th></tr></thead>
+          <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>登记时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in recallQueue.result.rows" :key="row.recallNo">
               <td>{{ row.recallNo }}</td><td>{{ row.sourceWarehouses || '—' }}</td>
               <td>{{ row.destinationWarehouse }}</td><td>{{ row.quantity }}</td>
+              <td>{{ formatDateTime(row.createTime) }}</td>
               <td><button type="button" class="md-btn md-btn-primary" :disabled="recallQueue.loading || Boolean(receivingRecallNo)"
                 @click="confirmRecallReceipt(row)">确认签收</button></td>
             </tr>
             <tr v-if="!recallQueue.result.rows.length && !recallQueue.error">
-              <td colspan="5"><EmptyState :message="recallQueue.loading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
+              <td colspan="6"><EmptyState :message="recallQueue.loading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
             </tr>
           </tbody>
         </table>
@@ -1909,6 +1912,7 @@ watch(recallBusinessType, () => {
             <tr>
               <th class="settlement-col-document">结算单</th>
               <th class="settlement-col-location">结算归属</th>
+              <th>申领类型</th>
               <th class="settlement-col-product">商品信息</th>
               <th class="settlement-col-spec">规格 / 单位</th>
               <th class="settlement-col-manufacturer">厂家 / 注册证</th>
@@ -1929,10 +1933,10 @@ watch(recallBusinessType, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="18" class="approval-empty"><EmptyState message="正在加载结算明细..." /></td>
+              <td colspan="19" class="approval-empty"><EmptyState message="正在加载结算明细..." /></td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="18" class="approval-empty">
+              <td colspan="19" class="approval-empty">
                 <EmptyState :message="settlementLoadError ? '结算明细加载失败' : '暂无符合查询条件的结算明细'" />
               </td>
             </tr>
@@ -1949,6 +1953,7 @@ watch(recallBusinessType, () => {
                   <span class="settlement-cell-meta" :title="String(row.settlementWarehouse || '-')">库房：{{ row.settlementWarehouse || '-' }}</span>
                 </div>
               </td>
+              <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
               <td class="settlement-col-product">
                 <div class="settlement-cell-stack">
                   <strong :title="String(row.productName || '-')">{{ row.productName || '-' }}</strong>
@@ -2107,6 +2112,7 @@ watch(recallBusinessType, () => {
           <thead>
             <tr>
               <th>{{ type === 'consumption' ? '消耗单号' : '单据号' }}</th>
+              <th v-if="type === 'consumption'">申领类型</th>
               <th>{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</th>
               <th>商品编码</th>
               <th>商品名称</th>
@@ -2118,15 +2124,16 @@ watch(recallBusinessType, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8" class="approval-empty">正在加载闭环数据...</td>
+              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">正在加载闭环数据...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="8" class="approval-empty">
+              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">
                 <EmptyState message="暂无业务单据" />
               </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
+              <td v-if="type === 'consumption'">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
               <td>
                 <template v-if="type === 'consumption'">
                   <strong>{{ row.deptName || '-' }}</strong>

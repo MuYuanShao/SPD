@@ -32,6 +32,20 @@ class DepartmentWarehouseCatalogServiceTest {
     }
 
     @Test
+    void catalogsOrderByLatestUpdateBeforePagination() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class))).thenReturn(2L);
+        when(jdbcTemplate.queryForList(anyString(), any(Object[].class)))
+                .thenReturn(List.of(Map.of("code", 12L)));
+
+        var result = service.catalogs(Map.of("page", "2", "size", "1"));
+
+        assertThat(result.rows()).hasSize(1);
+        verify(jdbcTemplate).queryForList(
+                contains("ORDER BY dwc.update_time DESC, dwc.catalog_id DESC LIMIT ? OFFSET ?"),
+                eq(1), eq(1));
+    }
+
+    @Test
     void batchMaintainCatalogsCreatesUpdatesAndRestoresEntries() {
         when(jdbcTemplate.queryForList(contains("SELECT dept_id FROM sys_dept"), eq(Long.class), eq("手术室")))
                 .thenReturn(List.of(7L));

@@ -193,7 +193,7 @@ onMounted(loadRecords)
         <table class="master-table record-table">
           <thead>
             <tr>
-              <th>配送单号</th><th>申领单号</th><th>申领单创建时间</th><th>科室</th><th>出库库房</th>
+              <th>配送单号</th><th>申领单号</th><th>申领类型</th><th>申领单创建时间</th><th>科室</th><th>出库库房</th>
               <th>商品信息</th><th class="numeric-cell">数量</th><th>定数包码</th>
               <th>状态</th><th>配送单拣配时间</th><th>部分拣配完成时间</th><th>拣配完成时间</th><th>签收时间</th>
               <th v-if="auth.canWrite('picking-delivery')">操作</th>
@@ -201,14 +201,15 @@ onMounted(loadRecords)
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td :colspan="auth.canWrite('picking-delivery') ? 14 : 13" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
+              <td :colspan="auth.canWrite('picking-delivery') ? 15 : 14" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td :colspan="auth.canWrite('picking-delivery') ? 14 : 13" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
+              <td :colspan="auth.canWrite('picking-delivery') ? 15 : 14" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.deliveryId ?? row.bizNo)">
               <td class="primary-cell">{{ row.bizNo || '-' }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
+              <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
               <td class="md-audit-time">{{ formatDateTime(row.requisitionCreatedAt) }}</td>
               <td>{{ row.deptName || '-' }}</td>
               <td>{{ row.warehouseName || '-' }}</td>

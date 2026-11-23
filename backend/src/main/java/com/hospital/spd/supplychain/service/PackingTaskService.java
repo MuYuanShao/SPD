@@ -145,7 +145,7 @@ public class PackingTaskService {
                   JOIN product p ON p.product_id = qpt.product_id
                   LEFT JOIN quota_packing_task_reservation qptr ON qptr.task_id = qpt.task_id
                   LEFT JOIN inventory_batch ib ON ib.batch_id = qptr.batch_id
-                """ + where + " GROUP BY qpt.task_id ORDER BY qpt.create_time DESC LIMIT ? OFFSET ?",
+                """ + where + " GROUP BY qpt.task_id ORDER BY qpt.create_time DESC, qpt.task_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
@@ -541,7 +541,7 @@ public class PackingTaskService {
                   FROM quota_package_event qpe
                   LEFT JOIN quota_package_label qpl ON qpl.label_id = qpe.label_id
                 """ + where + """
-                 ORDER BY qpe.event_time DESC
+                 ORDER BY qpe.event_time DESC, qpe.event_id DESC
                  LIMIT ? OFFSET ?
                 """, queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);

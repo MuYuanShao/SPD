@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -17,7 +18,12 @@ public final class DepartmentRequisitionSmartRequests {
                                   Long sourceWarehouseId, @Positive Integer selectedPeriodDays) {}
 
     public record GenerateRequest(@NotNull @Positive Long analysisId,
-                                  @NotEmpty List<@Valid GenerateItem> items) {}
+                                  @NotEmpty List<@Valid GenerateItem> items,
+                                  @Size(max = 100) String requisitionType) {
+        public GenerateRequest(Long analysisId, List<GenerateItem> items) {
+            this(analysisId, items, null);
+        }
+    }
 
     public record GenerateItem(@NotNull @Positive Long analysisItemId,
                                @NotNull @com.hospital.spd.common.WholeQuantity BigDecimal quantity,

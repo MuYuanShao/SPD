@@ -26,13 +26,16 @@ public class MobileDeliveryRepository {
             SELECT s.delivery_id, s.delivery_no, s.status, s.delivery_type,
                    d.dept_id, d.dept_name, src.warehouse_id, src.warehouse_name,
                    dst.warehouse_id, dst.warehouse_name, s.product_code, s.product_name, s.quantity, p.unit,
-                   s.requisition_no,p.spec_model,m.manufacturer_name,s.create_time,s.sign_time
+                   s.requisition_no,p.spec_model,m.manufacturer_name,s.create_time,s.sign_time,
+                   COALESCE(s.requisition_type, r.requisition_type) AS requisitionType,
+                   (SELECT option_label FROM sys_field_option
+                     WHERE field_key = 'requisition_type' AND option_value = COALESCE(s.requisition_type, r.requisition_type)) AS requisitionTypeLabel
             """;
     private static final RowMapper<Task> TASK = (rs, row) -> new Task(rs.getLong(1), rs.getString(2), rs.getString(3),
             rs.getString(4), rs.getLong(5), rs.getString(6), rs.getLong(7), rs.getString(8), rs.getLong(9),
             rs.getString(10), rs.getString(11), rs.getString(12), rs.getBigDecimal(13), rs.getString(14),
             rs.getString(15),rs.getString(16),rs.getString(17),rs.getObject(18,java.time.LocalDateTime.class),
-            rs.getObject(19,java.time.LocalDateTime.class));
+            rs.getObject(19,java.time.LocalDateTime.class),rs.getString("requisitionType"),rs.getString("requisitionTypeLabel"));
 
     public MobileDeliveryRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 

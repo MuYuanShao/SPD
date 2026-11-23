@@ -180,3 +180,8 @@ export async function deleteData<T>(url: string, config?: AxiosRequestConfig) {
 export async function getPage<T>(url: string, config?: AxiosRequestConfig, groupBy?: keyof T & string) {
   return normalizePageResult(await getData<PageResult<T> | T[]>(url, config, groupBy))
 }
+
+/** Reads the server's paged result in its original order. */
+export async function getServerPage<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return unwrapData(await http.get<ApiResponse<T>>(url, config))
+}

@@ -24,12 +24,13 @@ public final class MobileContracts {
                        Long deptId, String deptName, Long sourceWarehouseId, String sourceWarehouseName,
                        Long warehouseId, String warehouseName, String productCode, String productName,
                        BigDecimal quantity, String unit, String requisitionNo, String specModel,
-                       String manufacturerName, java.time.LocalDateTime createdAt, java.time.LocalDateTime signedAt) {
+                       String manufacturerName, java.time.LocalDateTime createdAt, java.time.LocalDateTime signedAt,
+                       String requisitionType, String requisitionTypeLabel) {
         public Task(Long id, String documentNo, String status, String deliveryType, Long deptId, String deptName,
                     Long sourceWarehouseId, String sourceWarehouseName, Long warehouseId, String warehouseName,
                     String productCode, String productName, BigDecimal quantity, String unit) {
             this(id,documentNo,status,deliveryType,deptId,deptName,sourceWarehouseId,sourceWarehouseName,
-                    warehouseId,warehouseName,productCode,productName,quantity,unit,null,null,null,null,null);
+                    warehouseId,warehouseName,productCode,productName,quantity,unit,null,null,null,null,null,null,null);
         }
     }
     public record CheckItem(String type, Long id, String code, String alternateCode, String status) {}

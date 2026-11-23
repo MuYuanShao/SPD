@@ -39,6 +39,7 @@ class InventoryAuditMysqlTest {
     @Autowired com.hospital.spd.common.service.InventoryEventService events;
     @Autowired PackingTaskService packing;
     @Autowired OperationalConsumptionModule consumption;
+    @Autowired OperationalHighValueModule highValue;
     @Autowired OperationalDeliveryModule delivery;
     @Autowired ReceivingOrderService receiving;
     @Autowired StockReturnService stockReturns;
@@ -229,6 +230,20 @@ class InventoryAuditMysqlTest {
         jdbc.update("INSERT INTO udi_trace_code (udi_code, unique_code, product_code, product_name, trace_scope, current_status) VALUES (?, ?, ?, '高值测试', 'high_value', 'signed')", code, code, code);
         long trace = id("SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?", code);
         jdbc.update("INSERT INTO inventory_batch_trace_code (batch_id, trace_code_id, receiving_item_id, current_warehouse_id, lifecycle_status) VALUES (?, ?, 1, ?, 'signed')", batchId, trace, warehouseId);
+        jdbc.update("""
+                INSERT INTO department_requisition (requisition_no, dept_id, warehouse_id, requisition_type, status)
+                VALUES (?, ?, ?, 'urgent', 'signed')
+                """, code, dept, warehouseId);
+        jdbc.update("""
+                INSERT INTO spd_delivery_order
+                  (delivery_no, requisition_no, dept_name, warehouse_name, product_code, product_name, quantity,
+                   status, delivery_type, destination_warehouse_id, sign_time, requisition_type)
+                VALUES (?, ?, ?, ?, ?, '高值测试', 1, 'signed', 'unique_code', ?, NOW(), 'urgent')
+                """, code, code, code + "-DEP", code, code, warehouseId);
+        jdbc.update("""
+                INSERT INTO spd_delivery_trace_code (delivery_id, trace_code_id)
+                SELECT delivery_id, ? FROM spd_delivery_order WHERE delivery_no = ?
+                """, trace, code);
 
         var request = java.util.Map.<String, Object>of("deptName", code + "-DEP", "warehouseName", code,
                 "productCode", code, "uniqueCode", code, "quantity", BigDecimal.ONE);
@@ -236,6 +251,10 @@ class InventoryAuditMysqlTest {
         assertThat((java.util.List<?>) result.get("settlementNos")).hasSize(1);
         assertThat(quantity("available_qty")).isEqualByComparingTo("1");
         assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id = ? AND source_biz_type = 'department_consumption_item'", trace)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT requisition_type FROM department_consumption_item WHERE trace_code_id = ?",
+                String.class, trace)).isEqualTo("urgent");
+        assertThat(jdbc.queryForObject("SELECT requisition_type FROM settlement_bill_item WHERE trace_code_id = ?",
+                String.class, trace)).isEqualTo("urgent");
         assertThat(id("SELECT COUNT(*) FROM inventory_event_trace_code WHERE trace_code_id = ?", trace)).isEqualTo(1);
         assertThatThrownBy(() -> consumption.createConsumption(request)).hasMessageContaining("consumed");
         assertThat(quantity("available_qty")).isEqualByComparingTo("1");
@@ -244,6 +263,13 @@ class InventoryAuditMysqlTest {
         assertThat(quantity("available_qty")).isEqualByComparingTo("2");
         assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE trace_code_id = ?", trace)).isZero();
         assertThat(jdbc.queryForObject("SELECT lifecycle_status FROM inventory_batch_trace_code WHERE trace_code_id = ?", String.class, trace)).isEqualTo("signed");
+        highValue.receiveBillingCallback(java.util.Map.of("externalChargeNo", code + "-HIS", "uniqueCode", code,
+                "productCode", code, "warehouseName", code, "deptName", "HIS科室别名",
+                "patientNo", "FLOW-TEST", "amount", BigDecimal.TEN, "quantity", BigDecimal.ONE));
+        assertThat(jdbc.queryForObject("""
+                SELECT requisition_type FROM settlement_bill_item
+                WHERE trace_code_id = ? AND source_biz_type = 'high_value_charge'
+                """, String.class, trace)).isEqualTo("urgent");
     }
 
     @Test void departmentReturnReservesThenTransfersOnlyOnConfirmation() {

@@ -111,7 +111,7 @@ public class QuotaTemplateService {
                   JOIN product p ON p.product_id = qpti.product_id
                   LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
                   LEFT JOIN supplier s ON s.supplier_id = p.supplier_id
-                """ + where + " ORDER BY qpt.update_time DESC LIMIT ? OFFSET ?",
+                """ + where + " ORDER BY qpt.update_time DESC, qpt.create_time DESC, qpt.template_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }

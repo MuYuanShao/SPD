@@ -85,6 +85,8 @@ class ProductServiceTest {
             assertThat(result.rows()).hasSize(2);
             assertThat(result.rows().get(0)).containsEntry("code", "P001");
             assertThat(result.columns()).contains("商品编码", "商品名称", "规格型号");
+            verify(jdbcTemplate).queryForList(
+                    contains("ORDER BY p.update_time DESC, p.product_id DESC LIMIT ? OFFSET ?"), any(Object[].class));
         }
 
         @Test

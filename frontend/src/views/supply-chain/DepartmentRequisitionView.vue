@@ -90,6 +90,7 @@ let detailRequestVersion = 0
 const detailLoading = ref(false)
 const activeRequisitionNo = ref('')
 const requisitionStarted = ref(false)
+const requisitionType = ref('')
 const currentPage = ref(1)
 const pageSize = ref(20)
 const totalItems = ref(0)
@@ -293,14 +294,11 @@ async function loadCatalog() {
 
 async function startRequisition() {
   if (optionsLoading.value) return
+  requisitionType.value = ''
   clearQuantityDrafts()
   notify.success('')
   error.value = ''
-  if (!options.value.departments.length) {
-    await loadOptions()
-  } else {
-    await loadLinkedWarehouses()
-  }
+  await loadOptions()
   beginHistoryRequest()
   requisitionStarted.value = true
   currentPage.value = 1
@@ -470,9 +468,11 @@ async function submitSelectedRequisitions() {
       warehouseName: selectedWarehouse.value?.name,
       destinationWarehouseId: filters.warehouseId,
       sourceWarehouseId: filters.sourceWarehouseId,
+      requisitionType: requisitionType.value || undefined,
       items
     })
     submittedCount.value += submittedItems.length
+    requisitionType.value = ''
     const requisitionNo = (result as { requisitionNo?: string }).requisitionNo
     notify.success(requisitionNo
       ? `已提交 ${submittedItems.length} 条科室申领明细，申请单号：${requisitionNo}`
@@ -540,6 +540,7 @@ async function generateSmartRequisitions() {
   try {
     const result = await generateRequisitionsFromAnalysis({
       analysisId: smartAnalysisId.value,
+      requisitionType: requisitionType.value || undefined,
       items: smartRows.value.map((row) => ({
         analysisItemId: Number(row.analysisItemId),
         quantity: Math.max(0, Number(row.recommendedQty || 0)),
@@ -727,6 +728,15 @@ async function changeWarehouse() {
 
       <!-- 筛选条：单行紧凑 -->
       <div class="dept-req-filterbar">
+        <label class="dept-req-filterbar-item">
+          <span>申领类型</span>
+          <select v-model="requisitionType" :disabled="submitting || optionsLoading">
+            <option value="">请选择（选填）</option>
+            <option v-for="option in options.requisitionTypes" :key="option.optionValue" :value="option.optionValue">
+              {{ option.optionLabel }}
+            </option>
+          </select>
+        </label>
         <label class="dept-req-filterbar-item">
           <span>科室</span>
           <select v-model="filters.targetDeptCode" :disabled="submitting" @change="changeDepartment">

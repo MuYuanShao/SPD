@@ -82,7 +82,7 @@ public class InventoryEventQueryService {
                   FROM inventory_event ie
                 """.replace("__SOURCE_BIZ_NO__", SOURCE_NO_EXPR) + parts.where()
                 + """
-                   ORDER BY ie.warehouse_name_snapshot ASC, ie.event_time DESC,
+                   ORDER BY ie.event_time DESC, ie.warehouse_name_snapshot ASC,
                             ie.product_name_snapshot ASC, ie.product_code_snapshot ASC, ie.event_id DESC
                    LIMIT ? OFFSET ?
                   """;

@@ -83,7 +83,7 @@ public class WarehouseService {
                        ), 0) AS locationCount
                 FROM warehouse w
                 LEFT JOIN sys_dept d ON w.dept_id = d.dept_id
-                """ + where + " ORDER BY w.warehouse_id DESC LIMIT ? OFFSET ?",
+                """ + where + " ORDER BY w.update_time DESC, w.warehouse_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         return new MasterDataPage(
@@ -305,7 +305,7 @@ public class WarehouseService {
                   FROM warehouse_location wl
                   LEFT JOIN product p ON p.product_id = wl.product_id AND p.deleted = 0
                  WHERE wl.warehouse_id = ? AND wl.deleted = 0
-                 ORDER BY wl.location_id DESC
+                 ORDER BY wl.update_time DESC, wl.location_id DESC
                 """, warehouseId);
     }
 

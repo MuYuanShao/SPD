@@ -45,7 +45,7 @@ class InventoryEventQueryServiceTest {
         ArgumentCaptor<String> rowSql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).queryForList(rowSql.capture(), any(Object[].class));
         assertThat(rowSql.getValue().replaceAll("\\s+", " ")).contains(
-                "ORDER BY ie.warehouse_name_snapshot ASC, ie.event_time DESC, "
+                "ORDER BY ie.event_time DESC, ie.warehouse_name_snapshot ASC, "
                         + "ie.product_name_snapshot ASC, ie.product_code_snapshot ASC, ie.event_id DESC LIMIT ? OFFSET ?");
     }
 

@@ -81,7 +81,8 @@ class OperationalClosureReadModelTest {
 
         assertThat(rows(page)).containsExactly(Map.of("bizNo", "QH001"));
         assertThat(page).containsEntry("total", 1L);
-        verify(jdbcTemplate).queryForList(contains("shortage_replenishment_task"), eq(10), eq(10));
+        verify(jdbcTemplate).queryForList(
+                contains("ORDER BY create_time DESC, task_id DESC LIMIT ? OFFSET ?"), eq(10), eq(10));
     }
 
     @Test

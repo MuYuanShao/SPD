@@ -14,6 +14,7 @@ import java.util.Map;
  */
 @Service
 public class FieldOptionService {
+    public static final String REQUISITION_TYPE = "requisition_type";
 
     private final JdbcTemplate jdbcTemplate;
 
@@ -22,6 +23,14 @@ public class FieldOptionService {
     }
 
     public List<Map<String, Object>> options(String fieldKey) {
+        return options(fieldKey, false);
+    }
+
+    public List<Map<String, Object>> activeOptions(String fieldKey) {
+        return options(fieldKey, true);
+    }
+
+    private List<Map<String, Object>> options(String fieldKey, boolean activeOnly) {
         if (SqlHelper.isBlank(fieldKey)) {
             return List.of();
         }
@@ -33,8 +42,7 @@ public class FieldOptionService {
                        sort_order AS sortOrder, status, remark
                   FROM sys_field_option
                  WHERE field_key = ? AND deleted = 0
-                 ORDER BY sort_order, option_id
-                """, fieldKey.trim());
+                """ + (activeOnly ? " AND status = 1" : "") + " ORDER BY sort_order, option_id", fieldKey.trim());
     }
 
     public List<Map<String, Object>> fields() {
@@ -46,6 +54,7 @@ public class FieldOptionService {
                  ORDER BY MIN(option_id)
                 """);
     }
+
 
     public Map<String, Object> create(FieldOptionUpsertRequest request) {
         requireKeyAndLabels(request);

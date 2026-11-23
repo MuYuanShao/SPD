@@ -134,9 +134,9 @@ public class OperationalDeliveryModule {
                 traceCodeIds, productId, sourceWarehouseId, List.of("in_stock"));
         String requisitionNo = String.valueOf(item.get("requisitionNo"));
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
-        Long deliveryId = insertHighValueDelivery(deliveryNo, requisitionNo, itemId,
-                String.valueOf(item.get("deptName")), String.valueOf(item.get("sourceWarehouseName")),
-                String.valueOf(item.get("productCode")), String.valueOf(item.get("productName")), current);
+        Long deliveryId = insertDelivery("unique_code", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(String.valueOf(item.get("deptName")), String.valueOf(item.get("sourceWarehouseName"))),
+                new DeliveryGoods(String.valueOf(item.get("productCode")), String.valueOf(item.get("productName")), current));
         traceFlowService.bindRequisition(((Number) item.get("requisitionId")).longValue(), itemId, units,
                 requisitionNo, String.valueOf(item.get("deptName")));
         traceFlowService.bindDelivery(deliveryId, units, deliveryNo, String.valueOf(item.get("deptName")));
@@ -208,8 +208,9 @@ public class OperationalDeliveryModule {
         }
         Map<String, Object> product = findProductByProductId(productId);
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
-        Long deliveryId = insertLoosePickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
-                String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity);
+        Long deliveryId = insertDelivery("loose", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(deptName, warehouseName),
+                new DeliveryGoods(String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity));
         consumeActualLooseStock(warehouseId, productId, quantity, deliveryId, requisitionNo, deliveryNo);
         updateRequisitionPickStatus(requisitionId);
         support.writeAudit("delivery", "confirm_loose_picking", deliveryId, deliveryNo,
@@ -271,6 +272,8 @@ public class OperationalDeliveryModule {
         String pickingSql = """
                 SELECT dr.requisition_no AS requisitionNo,
                        dr.requisition_id AS requisitionId,
+                       dr.requisition_type AS requisitionType,
+                       COALESCE(requisition_option.option_label, dr.requisition_type) AS requisitionTypeLabel,
                        sd.dept_name AS deptName,
                        source.warehouse_name AS sourceWarehouseName,
                        p.product_code AS productCode,
@@ -298,6 +301,8 @@ public class OperationalDeliveryModule {
                        DATE_FORMAT(dr.apply_time, '%Y-%m-%d %H:%i') AS applyTime
                   FROM department_requisition dr
                   JOIN sys_dept sd ON sd.dept_id = dr.dept_id
+                  LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                    AND requisition_option.option_value = dr.requisition_type
                   LEFT JOIN warehouse source ON source.warehouse_id = dr.source_warehouse_id
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN product p ON p.product_id = dri.product_id
@@ -520,8 +525,8 @@ public class OperationalDeliveryModule {
         BigDecimal totalQuantity = selectedPackageQuantity;
         String productCode = String.valueOf(firstLabel.get("productCode"));
         String productName = String.valueOf(firstLabel.get("productName"));
-        Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
-                productCode, productName, totalQuantity);
+        Long deliveryId = insertDelivery("package", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(deptName, warehouseName), new DeliveryGoods(productCode, productName, totalQuantity));
 
         for (Map<String, Object> label : labels) {
             Long labelId = ((Number) label.get("labelId")).longValue();
@@ -800,68 +805,31 @@ public class OperationalDeliveryModule {
         if (!expired.isEmpty()) throw new IllegalArgumentException("定数包来源批次已过期，不能拣配或签收入可用库存");
     }
 
-    private Long insertPickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                      String deptName, String warehouseName,
-                                      String productCode, String productName, BigDecimal quantity) {
+    private record DeliveryRouteNames(String department, String warehouse) {}
+
+    private record DeliveryGoods(String productCode, String productName, BigDecimal quantity) {}
+
+    private Long insertDelivery(String deliveryType, String deliveryNo, String requisitionNo, Long requisitionItemId,
+                                DeliveryRouteNames route, DeliveryGoods goods) {
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO spd_delivery_order (
                       delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'package', ?, ?, ?, ?, ?, 'picked')
+                      dept_name, warehouse_name, product_code, product_name, quantity, status, requisition_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'picked',
+                              (SELECT requisition_type FROM department_requisition WHERE requisition_no = ?))
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, deliveryNo);
             ps.setString(2, requisitionNo);
             ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName);
-            ps.setString(5, warehouseName);
-            ps.setString(6, productCode);
-            ps.setString(7, productName);
-            ps.setBigDecimal(8, quantity);
-            return ps;
-        }, keyHolder);
-        return Objects.requireNonNull(keyHolder.getKey()).longValue();
-    }
-
-    private Long insertHighValueDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                         String deptName, String warehouseName,
-                                         String productCode, String productName, BigDecimal quantity) {
-        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO spd_delivery_order (
-                      delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'unique_code', ?, ?, ?, ?, ?, 'picked')
-                    """, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, deliveryNo); ps.setString(2, requisitionNo); ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName); ps.setString(5, warehouseName); ps.setString(6, productCode);
-            ps.setString(7, productName); ps.setBigDecimal(8, quantity);
-            return ps;
-        }, keyHolder);
-        return Objects.requireNonNull(keyHolder.getKey()).longValue();
-    }
-
-    private Long insertLoosePickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                           String deptName, String warehouseName,
-                                           String productCode, String productName, BigDecimal quantity) {
-        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO spd_delivery_order (
-                      delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'loose', ?, ?, ?, ?, ?, 'picked')
-                    """, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, deliveryNo);
-            ps.setString(2, requisitionNo);
-            ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName);
-            ps.setString(5, warehouseName);
-            ps.setString(6, productCode);
-            ps.setString(7, productName);
-            ps.setBigDecimal(8, quantity);
+            ps.setString(4, deliveryType);
+            ps.setString(5, route.department());
+            ps.setString(6, route.warehouse());
+            ps.setString(7, goods.productCode());
+            ps.setString(8, goods.productName());
+            ps.setBigDecimal(9, goods.quantity());
+            ps.setString(10, requisitionNo);
             return ps;
         }, keyHolder);
         return Objects.requireNonNull(keyHolder.getKey()).longValue();

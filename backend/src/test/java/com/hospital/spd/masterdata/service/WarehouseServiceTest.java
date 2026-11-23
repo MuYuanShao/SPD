@@ -88,6 +88,9 @@ class WarehouseServiceTest {
             assertThat(result.rows()).hasSize(2);
             assertThat(result.rows().get(0)).containsEntry("code", "WH001");
             assertThat(result.columns()).contains("库房编码", "库房名称", "库房类型");
+            verify(jdbcTemplate).queryForList(
+                    contains("ORDER BY w.update_time DESC, w.warehouse_id DESC LIMIT ? OFFSET ?"),
+                    any(Object[].class));
         }
 
         @Test
@@ -377,6 +380,8 @@ class WarehouseServiceTest {
 
             assertThat(result).hasSize(1);
             assertThat(result.get(0)).containsEntry("locationCode", "A-01");
+            verify(jdbcTemplate).queryForList(
+                    contains("ORDER BY wl.update_time DESC, wl.location_id DESC"), eq(10L));
         }
 
         @Test

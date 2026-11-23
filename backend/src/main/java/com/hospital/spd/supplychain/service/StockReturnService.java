@@ -92,7 +92,7 @@ public class StockReturnService {
                        supplier.supplier_name AS supplierName, DATE_FORMAT(r.create_time,'%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(r.confirm_time,'%Y-%m-%d %H:%i:%s') AS confirmTime,
                        (SELECT SUM(i.quantity) FROM stock_return_item i WHERE i.return_id=r.return_id) AS quantity
-                """, from, " ORDER BY r.return_id DESC", args);
+                """, from, queue ? " ORDER BY r.create_time DESC, r.return_id DESC" : " ORDER BY r.return_id DESC", args);
     }
 
     public List<Map<String, Object>> candidates(long warehouseId, String type, Long supplierId, String batchNo, String keyword) {

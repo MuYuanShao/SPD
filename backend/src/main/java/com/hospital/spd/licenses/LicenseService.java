@@ -95,7 +95,7 @@ public class LicenseService {
                        (SELECT COUNT(*) FROM sys_attachment a
                          WHERE a.biz_type = 'license' AND a.biz_id = l.license_id AND a.deleted = 0) AS attachmentCount
                   FROM license_document l
-                """ + where + " ORDER BY l.license_id DESC LIMIT ? OFFSET ?", queryArgs.toArray());
+                """ + where + " ORDER BY l.update_time DESC, l.license_id DESC LIMIT ? OFFSET ?", queryArgs.toArray());
 
         Map<String, Object> summary = new LinkedHashMap<>();
         for (String licenseType : LICENSE_TYPES) {

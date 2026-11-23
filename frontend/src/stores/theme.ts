@@ -66,8 +66,12 @@ const FONT_SIZE_STORAGE_KEY = 'spd.theme.fontSize'
 const DEFAULT_THEME: ThemeId = 'medical-blue'
 
 /* ============== 字号档位 ==============
-   面向 30 岁以上用户，提供标准 / 大 / 特大三档。
-   通过 <html data-font-size="..."> 驱动整站字号体系。 */
+   面向 30 岁以上用户，提供小 / 中 / 大三档。
+   通过 <html data-font-size="..."> 驱动整站字号体系。
+
+   档位 id 与像素值沿用历史命名（standard / large / xlarge），
+   以兼容既有 localStorage 持久化数据与 CSS 选择器；
+   用户可见名称改为「小 / 中 / 大」，其中「中」为默认档。 */
 export type FontSizeId = 'standard' | 'large' | 'xlarge'
 
 export interface FontSizeDefinition {
@@ -79,12 +83,12 @@ export interface FontSizeDefinition {
 }
 
 export const FONT_SIZES: FontSizeDefinition[] = [
-  { id: 'standard', name: '标准', base: '14px', hint: '常规显示器 · 密度优先' },
-  { id: 'large', name: '大', base: '16px', hint: '27 寸以上屏幕 · 轻度老花' },
-  { id: 'xlarge', name: '特大', base: '18px', hint: '视力偏弱 · 高分辨率远距' }
+  { id: 'standard', name: '小', base: '14px', hint: '常规显示器 · 密度优先' },
+  { id: 'large', name: '中', base: '16px', hint: '默认档 · 日常办公' },
+  { id: 'xlarge', name: '大', base: '18px', hint: '视力偏弱 · 高分辨率远距' }
 ]
 
-export const DEFAULT_FONT_SIZE: FontSizeId = 'standard'
+export const DEFAULT_FONT_SIZE: FontSizeId = 'large'
 
 /** 把 hex / rgb 颜色与目标色混合，ratio = 0 返回原色，1 返回目标色 */
 function mixColor(color: string, target: [number, number, number], ratio: number): string {
@@ -230,7 +234,7 @@ export const useThemeStore = defineStore('theme', {
         // 忽略写入失败
       }
     },
-    /** 切换字号档位（标准 / 大 / 特大） */
+    /** 切换字号档位（小 / 中 / 大） */
     setFontSize(id: FontSizeId) {
       this.fontSize = id
       applyFontSize(id)

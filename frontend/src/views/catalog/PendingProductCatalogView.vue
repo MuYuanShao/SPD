@@ -420,6 +420,37 @@ const startApprovalColDrag = (key: string, event: MouseEvent) => approvalCols.st
 const visibleDataColumnCount = computed(() => approvalCols.visibleColumnCount.value)
 const approvalTableSpan = computed(() => visibleDataColumnCount.value + 4)
 
+/**
+ * `<colgroup>` 列宽清单 —— **列宽隔离的关键**。
+ * ---------------------------------------------------------------------
+ * 背景：原实现只在 `<th>` 上写 `width`，且没有 `<colgroup>`。
+ * 在 `table-layout: fixed` 下，浏览器只把 `<th>` 的 width 当作「建议值」，
+ * 表格总宽减去各列声明宽度后的剩余空间，会被分配给**其它列** ——
+ * 于是拖动任意一列时，相邻列（乃至整个表格）都会跟着变形。
+ *
+ * 解法：用 `<colgroup>` + `<col>` 显式声明每一列宽度。
+ * `<col>` 是 HTML 表格中**唯一**能一列一列精确声明宽度的元素，
+ * 浏览器据此把每列宽度刚性固定，不再重新分配剩余空间。
+ */
+const APPROVAL_FIXED_COL_WIDTHS = [
+  { key: 'check', label: '', width: 48 },
+  { key: 'no', label: '审批单号', width: 170 },
+  { key: 'product', label: '商品名称 / 规格', width: 250 }
+] as const
+
+/** 参与 `<colgroup>` 的全部列（固定列 + 可见数据列 + 操作列），与表头顺序严格一致 */
+const approvalColGroup = computed(() => {
+  const cols: Array<{ key: string; width: number }> = APPROVAL_FIXED_COL_WIDTHS.map((col) => ({
+    key: col.key,
+    width: col.width
+  }))
+  for (const column of approvalCols.visibleColumns.value) {
+    cols.push({ key: column.key, width: approvalColWidth(column.key) })
+  }
+  cols.push({ key: 'action', width: 250 })
+  return cols
+})
+
 /** 提交时间统一输出 YYYY-MM-DD HH:MM:SS */
 function approvalTimeText(row: PendingProductApplicationRow) {
   return formatDateTime(row.time)
@@ -770,6 +801,13 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 
         <div ref="approvalTableShellRef" class="approval-wide-table-shell" @scroll="handleApprovalScroll">
           <table class="approval-wide-table" :style="{ minWidth: approvalTableMinWidth + 'px' }">
+            <colgroup>
+              <col
+                v-for="col in approvalColGroup"
+                :key="col.key"
+                :style="{ width: col.width + 'px' }"
+              />
+            </colgroup>
             <thead>
               <tr>
                 <th class="approval-col-check">
@@ -790,10 +828,12 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
                 </th>
                 <th v-if="isColVisible('createTime')" :style="{ width: approvalColWidth('createTime') + 'px' }">
-                  <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('createTime', $event)" />
+                  <span class="ulc-th-text">创建时间</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('createTime', $event)" />
                 </th>
                 <th v-if="isColVisible('updateTime')" :style="{ width: approvalColWidth('updateTime') + 'px' }">
-                  <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('updateTime', $event)" />
+                  <span class="ulc-th-text">修改时间</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('updateTime', $event)" />
                 </th>
                 <th v-if="isColVisible('productCode')" :style="{ width: approvalColWidth('productCode') + 'px' }">
                   <span class="ulc-th-text">商品编码</span>

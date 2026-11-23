@@ -187,8 +187,8 @@
 /* ===== 侧边栏 ===== */
 .approval-sidebar-card,
 .approval-list-card {
-  background: var(--spd-bg-container) !important;
-  border: 1px solid var(--spd-border-subtle) !important;
+  background: var(--ulc-bg-container, var(--spd-bg-container)) !important;
+  border: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   box-shadow: var(--spd-shadow-1) !important;
   color: var(--spd-text-primary) !important;
@@ -307,7 +307,7 @@
 
 .approval-task-item.orange svg,
 .approval-task-item.orange > div > svg {
-  color: #fa8c16;
+  color: var(--ulc-warning, var(--spd-c-warning, #9a6114));
 }
 
 .approval-task-item.blue svg,
@@ -317,7 +317,7 @@
 
 .approval-task-item.green svg,
 .approval-task-item.green > div > svg {
-  color: #52c41a;
+  color: var(--ulc-success, var(--spd-c-success, #2f7d5b));
 }
 
 /* ===== 子列表 ===== */
@@ -631,16 +631,20 @@
   color: var(--spd-text-primary);
 }
 
+/* 配色统一走 --ulc-* 令牌（与标准列表页一致）：
+   表头 --ulc-primary / 斑马纹 --ulc-row-stripe / 悬停 --ulc-row-hover / 边框 --ulc-border */
 .approval-wide-table thead {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%);
+  background: var(--ulc-primary, var(--primary));
 }
 
 .approval-wide-table th,
 .approval-wide-table td {
   overflow: hidden;
-  border-right: 1px solid var(--spd-border-subtle) !important;
-  border-bottom: 1px solid var(--spd-border-subtle) !important;
-  padding: 12px !important;
+  border-right: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
+  border-bottom: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
+  /* G-1 表格数据单元格行高 --spd-lh-tight；留白随字号档位缩放 */
+  padding: var(--spd-table-cell-padding-y, 10px) 8px !important;
+  line-height: var(--spd-lh-tight, 1.35);
   text-align: left;
   text-overflow: ellipsis;
   vertical-align: middle;
@@ -648,11 +652,12 @@
 }
 
 .approval-wide-table th {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
   color: #ffffff !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display) !important;
+  line-height: var(--spd-lh-tight, 1.35);
   letter-spacing: 0;
   border-right-color: rgba(255, 255, 255, 0.22) !important;
   border-bottom: 0 !important;
@@ -665,17 +670,28 @@
   font-size: var(--spd-font-size-base);
 }
 
+/* ===== 列宽刚性锁定（配合 <colgroup> 使用）=====
+   <colgroup> 是 HTML 表格中唯一能逐列精确声明宽度的元素。
+   浏览器据此固定每列宽度，拖动任一列时**不再**把剩余空间
+   重新分配给其它列，从而做到「拖动一列不影响相邻列」。
+
+   这里再给单元格补一层 max-width 约束，防止长内容反向撑开列宽。 */
+.approval-wide-table th,
+.approval-wide-table td {
+  max-width: 100%;
+}
+
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: #ffffff;
+  background: var(--ulc-bg-container, #ffffff);
 }
 
 .approval-wide-table tbody tr:hover td {
-  background: var(--spd-primary-bg) !important;
+  background: var(--ulc-row-hover, #e8f1f1) !important;
 }
 
 .approval-wide-table tbody tr:has(input:checked) td {
-  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
-  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+  background: var(--spd-c-primary-soft) !important;
+  border-bottom-color: color-mix(in srgb, var(--ulc-primary) 15%, var(--ulc-border));
 }
 
 /* ===== Sticky 列：仅操作列固定，其余列随横向滚动 =====
@@ -686,7 +702,7 @@
   z-index: 2;
   width: 250px;
   min-width: 250px;
-  background: var(--spd-bg-container) !important;
+  background: var(--ulc-bg-container) !important;
 }
 
 .approval-sticky-action::before {
@@ -794,27 +810,27 @@ thead .approval-sticky-action {
 }
 
 .approval-type.change {
-  background: #f9f0ff;
-  color: #722ed1;
-  border-color: #d3adf7;
+  background: var(--spd-c-chip-bg-info);
+  color: var(--spd-c-info);
+  border-color: var(--spd-c-info-border);
 }
 
 .approval-type.qualification {
-  background: #f6ffed;
-  color: #52c41a;
-  border-color: #b7eb8f;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
+  border-color: var(--spd-c-success-border);
 }
 
 .approval-type.price {
-  background: #fff7e6;
-  color: #fa8c16;
-  border-color: #ffd591;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
+  border-color: var(--spd-c-warning-border);
 }
 
 .approval-type.deactivate {
-  background: #fff1f0;
-  color: #f5222d;
-  border-color: #ffa39e;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
+  border-color: var(--spd-c-danger-border);
 }
 
 /* ===== 状态 Chip ===== */
@@ -831,8 +847,8 @@ thead .approval-sticky-action {
 }
 
 .approval-status.orange {
-  background: #fff7e6;
-  color: #d46b08;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
 }
 
 .approval-status.blue {
@@ -841,13 +857,13 @@ thead .approval-sticky-action {
 }
 
 .approval-status.red {
-  background: #fff1f0;
-  color: #cf1322;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
 }
 
 .approval-status.green {
-  background: #f6ffed;
-  color: #389e0d;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
 }
 
 /* ===== 风险 Chip ===== */
@@ -867,9 +883,9 @@ thead .approval-sticky-action {
 }
 
 .approval-risk-chip.orange {
-  background: #fff7e6;
-  color: #d46b08;
-  border: 1px solid #ffd591;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
+  border: 1px solid var(--spd-c-warning-border);
 }
 
 .approval-risk-chip.blue {
@@ -879,15 +895,15 @@ thead .approval-sticky-action {
 }
 
 .approval-risk-chip.green {
-  background: #f6ffed;
-  color: #389e0d;
-  border: 1px solid #b7eb8f;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
+  border: 1px solid var(--spd-c-success-border);
 }
 
 .approval-risk-chip.red {
-  background: #fff1f0;
-  color: #cf1322;
-  border: 1px solid #ffa39e;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
+  border: 1px solid var(--spd-c-danger-border);
 }
 
 /* ===== 行操作 ===== */
@@ -1854,12 +1870,13 @@ body .column-settings-dialog.column-settings-dialog {
    ===================================================================== */
 
 /* ===== 表头：主题色实底（去掉渐变） ===== */
+/* 配色对齐标准列表页：统一走 --ulc-* 令牌，不再写死主题色与渐变 */
 .approval-wide-table thead {
-  background: var(--primary) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
 }
 
 .approval-wide-table th {
-  background: var(--primary) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
   color: #ffffff !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
@@ -1925,32 +1942,34 @@ thead .approval-sticky-action {
 }
 
 /* ===== 斑马纹：奇数行浅色底 ===== */
+/* 斑马纹与悬停态：统一走 --ulc-row-stripe / --ulc-row-hover / --ulc-border，
+   与标准列表页（科室库房目录）保持一致的观感 */
 .approval-wide-table tbody tr:nth-child(odd) td {
-  background: #f6fafb;
+  background: var(--ulc-row-stripe, #f7fafb);
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: #ffffff;
+  background: var(--ulc-bg-container, #ffffff);
 }
 
 /* 固定列（仅操作列）同样跟随斑马纹，否则会出现白底断层 */
 .approval-wide-table tbody tr:nth-child(odd) td.approval-sticky-action {
-  background: #f6fafb !important;
+  background: var(--ulc-row-stripe, #f7fafb) !important;
 }
 
 .approval-wide-table tbody tr:nth-child(even) td.approval-sticky-action {
-  background: #ffffff !important;
+  background: var(--ulc-bg-container, #ffffff) !important;
 }
 
 .approval-wide-table tbody tr:hover td,
 .approval-wide-table tbody tr:hover td.approval-sticky-action {
-  background: #eaf4f6 !important;
+  background: var(--ulc-row-hover, #e8f1f1) !important;
 }
 
 .approval-wide-table tbody tr:has(input:checked) td,
 .approval-wide-table tbody tr:has(input:checked) td.approval-sticky-action {
-  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
-  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+  background: var(--spd-c-primary-soft) !important;
+  border-bottom-color: color-mix(in srgb, var(--ulc-primary) 15%, var(--ulc-border));
 }
 
 /* ===== 顶部概览卡片已移除 ===== */

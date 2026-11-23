@@ -145,7 +145,7 @@ onBeforeUnmount(() => {
           <code>{{ themeStore.primaryColor }}</code>
         </div>
 
-        <!-- 字号档位：标准 / 大 / 特大 -->
+        <!-- 字号档位：小 / 中 / 大 -->
         <div class="spd-theme-panel-header spd-theme-panel-header--second">
           <span class="spd-theme-panel-title">界面字号</span>
           <button

@@ -321,7 +321,7 @@ onMounted(refresh)
 .return-confirm-table { max-height: min(44vh, 420px); overflow: auto; }
 .return-confirm-table table { min-width: 780px; }
 .return-confirm-table th { position: sticky; top: 0; z-index: 1; background: var(--el-fill-color-light); }
-.return-confirm-detail { display: block; color: var(--el-text-color-secondary); font-size: 12px; }
+.return-confirm-detail { display: block; color: var(--el-text-color-secondary); font-size: var(--spd-font-size-sm); }
 .return-confirm-number { text-align: right; font-variant-numeric: tabular-nums; }
 .return-confirm-totals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; margin: 12px 0 0; }
 .return-confirm-totals > div { display: flex; align-items: baseline; gap: 8px; }

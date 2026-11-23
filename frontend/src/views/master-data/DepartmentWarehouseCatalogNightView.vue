@@ -588,11 +588,11 @@ const canWrite = computed(() => authStore.canWrite('department-warehouse-catalog
 
 .spd-night-empty span {
   color: var(--spd-text-secondary);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .spd-night-empty small {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 </style>

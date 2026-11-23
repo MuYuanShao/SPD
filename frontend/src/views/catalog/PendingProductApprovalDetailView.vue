@@ -893,7 +893,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   padding: 4px 8px;
   border: 1px solid #d1d5db;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   line-height: 1.5;
   color: #1e293b;
   background: #fff;
@@ -914,7 +914,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   border-radius: 4px;
   border: 1px solid #e2e8f0;
   background: #f8fafc;
@@ -932,7 +932,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 .edit-checkbox-label.storage-label .edit-input {
   width: 120px;
   padding: 2px 6px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .category-edit-row {
@@ -959,7 +959,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 .opinion-tip {
   margin: 4px 0 0;
   color: #64748b;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }
 </style>

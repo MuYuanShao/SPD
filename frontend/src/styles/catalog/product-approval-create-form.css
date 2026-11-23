@@ -39,7 +39,7 @@
   padding: 10px 0 8px;
   border-bottom: 1px solid var(--line);
   color: #102033;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 800;
 }
 
@@ -65,7 +65,7 @@
   min-height: 32px !important;
   height: 32px !important;
   padding: 0 16px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .supplier-form-grid.compact {
@@ -144,7 +144,7 @@
 
 .product-form-grid span {
   color: #607285;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 

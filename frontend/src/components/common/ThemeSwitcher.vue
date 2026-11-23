@@ -504,7 +504,7 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
   text-align: center;
   font-weight: 700;
-  line-height: 1.1;
+  line-height: var(--spd-lh-tight);
   color: var(--fli-text, #1f2937);
 }
 

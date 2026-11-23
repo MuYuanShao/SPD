@@ -1773,7 +1773,7 @@ async function changeWarehouse() {
 .dept-req-dialog-title > span {
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   color: #1f2937;
   letter-spacing: 0.2px;
 }

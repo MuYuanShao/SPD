@@ -11,14 +11,14 @@
 
 .workbench-hero h2 {
   margin: 0 0 8px;
-  font-size: 30px;
+  font-size: var(--spd-font-size-3xl);
   letter-spacing: 0;
 }
 
 .workbench-hero p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 17px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .kpi-grid {
@@ -43,13 +43,13 @@
 .kpi-card p {
   margin: 0 0 10px;
   color: #607285;
-  font-size: 16px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .kpi-card strong {
   display: block;
   color: #06152b;
-  font-size: 30px;
+  font-size: var(--spd-font-size-2xl);
   line-height: 1;
 }
 
@@ -198,7 +198,7 @@
   border-radius: 999px;
   background: #ff2f45;
   color: #ffffff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -232,7 +232,7 @@
 
 .card-heading h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .card-heading button {
@@ -336,7 +336,7 @@
 .exception-card table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
 }
 
 .exception-card th {
@@ -397,7 +397,7 @@
 
 .notice-item strong {
   color: #08162a;
-  font-size: 17px;
+  font-size: var(--spd-font-size-base);
 }
 
 .notice-item p {
@@ -407,6 +407,6 @@
 
 .notice-item span {
   color: #9aa6b5;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 

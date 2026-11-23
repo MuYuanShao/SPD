@@ -68,7 +68,7 @@
     radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95), transparent 30%),
     linear-gradient(145deg, #0f766e, #15a58f);
   color: #ffffff;
-  font-size: 21px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 800;
   letter-spacing: 0.02em;
   box-shadow: 0 18px 36px rgba(15, 118, 110, 0.22);
@@ -82,8 +82,8 @@
 
 .quota-page .detail-heading h2 {
   color: #102033;
-  font-size: 31px;
-  line-height: 1.16;
+  font-size: var(--spd-font-size-3xl);
+  line-height: var(--spd-lh-tight);
 }
 
 .quota-page .detail-heading small {
@@ -91,7 +91,7 @@
   max-width: 720px;
   margin-top: 10px;
   color: #5f7280;
-  font-size: 15px;
+  font-size: var(--spd-font-size-sm);
   line-height: 1.65;
 }
 
@@ -150,13 +150,13 @@
 
 .quota-page .quota-stat-grid span {
   color: #60798b;
-  font-size: 14px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .quota-page .quota-stat-grid strong {
   margin-top: 12px;
   color: #0a2c33;
-  font-size: 34px;
+  font-size: var(--spd-font-size-4xl);
 }
 
 .quota-page .hospital-catalog-panel {
@@ -186,7 +186,7 @@
   flex: 1;
   margin: 0;
   color: #102033;
-  font-size: 20px;
+  font-size: var(--spd-font-size-xl);
   letter-spacing: 0;
 }
 
@@ -205,7 +205,7 @@
 
 .quota-page .hospital-query-grid span {
   color: #567084;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .quota-page .hospital-query-grid input,
@@ -267,7 +267,7 @@
 
 .quota-page .master-table th {
   color: #587184;
-  font-size: 14px;
+  font-size: var(--spd-font-size-table-head);
 }
 
 .quota-page .master-table th,
@@ -365,8 +365,8 @@
 }
 
 .quota-page .hospital-query-grid span {
-  font-size: 12px;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-tight);
 }
 
 .quota-page .hospital-query-grid input,
@@ -374,7 +374,7 @@
   min-height: 34px;
   border-radius: 6px;
   padding: 0 9px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .quota-page .hospital-query-grid .btn-primary {
@@ -451,28 +451,28 @@
   height: 48px;
   border-bottom-color: #edf2f5;
   padding: 10px 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .quota-page .master-table th {
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
 }
 
 .quota-page .status-badge {
   min-height: 22px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .quota-page .row-actions {
   gap: 6px;
   flex-wrap: wrap;
   align-content: center;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
 }
 
 .quota-page .btn-text {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   min-height: 24px;
   padding: 0;
 }
@@ -488,11 +488,11 @@
 }
 
 .main-area:has(.quota-page) .topbar h1 {
-  font-size: 20px;
+  font-size: var(--spd-font-size-3xl);
 }
 
 .main-area:has(.quota-page) .topbar p {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .main-area:has(.quota-page) .ai-assistant-entry,

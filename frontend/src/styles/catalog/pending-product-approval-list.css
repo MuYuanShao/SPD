@@ -6,14 +6,14 @@
 .approval-page-title h2 {
   margin: 0 0 8px;
   color: #06152b;
-  font-size: 30px;
+  font-size: var(--spd-font-size-3xl);
   letter-spacing: 0;
 }
 
 .approval-page-title p {
   margin: 0;
   color: #607285;
-  font-size: 17px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-workspace {
@@ -45,7 +45,7 @@
 
 .approval-sidebar-title h3 {
   margin: 0;
-  font-size: 21px;
+  font-size: var(--spd-font-size-xl);
 }
 
 .approval-task-list {
@@ -104,7 +104,7 @@
   border-radius: 999px;
   background: #f1f3f6;
   color: #607285;
-  font-size: 14px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .approval-task-item.orange svg {
@@ -167,7 +167,7 @@
 .approval-context h3 {
   margin: 0 0 6px;
   color: #06152b;
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .approval-context p {
@@ -202,7 +202,7 @@
   background: #f3f6f8;
   color: #607285;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-filter-row {
@@ -483,7 +483,7 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #334652;
 }
 .approval-batch-bar > span {
@@ -498,12 +498,12 @@
   justify-content: space-between;
   padding: 16px 0 8px;
   margin-top: 8px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-sm);
   color: #475569;
 }
 .approval-pagination-info {
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 .approval-pagination-pages {
   display: flex;
@@ -529,7 +529,7 @@
 }
 .approval-empty-state p {
   color: #94a3b8;
-  font-size: 15px;
+  font-size: var(--spd-font-size-sm);
   margin: 0;
 }
 
@@ -556,7 +556,7 @@
   display: block;
   margin-top: 10px;
   color: #102033;
-  font-size: 26px;
+  font-size: var(--spd-font-size-2xl);
   line-height: 1;
 }
 
@@ -577,7 +577,7 @@
 .approval-sidebar-title p {
   margin: 4px 0 0;
   color: #607285;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ── Approval task list — aligned with subnav-panel look ── */
@@ -659,12 +659,12 @@
 
 .approval-field-nav-head strong {
   color: #102033;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .approval-field-nav-head span {
   color: #607285;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
 
@@ -706,7 +706,7 @@
 
 .approval-wide-table th {
   color: #516679;
-  font-size: 13px;
+  font-size: var(--spd-font-size-table-head);
   font-weight: 800;
 }
 
@@ -766,7 +766,7 @@ thead .approval-sticky-action {
   min-width: 160px;
   color: #dc2626;
   font-size: 0.8125rem;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
   white-space: normal;
   word-break: break-all;
 }
@@ -804,7 +804,7 @@ thead .approval-sticky-action {
   min-height: 24px;
   border-radius: 999px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
   white-space: nowrap;
 }

@@ -228,7 +228,7 @@ function closeOnMask(event: MouseEvent) {
     0 8px 20px -6px rgba(99, 102, 241, 0.18),
     0 2px 6px rgba(15, 23, 42, 0.06);
   overflow: hidden;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #0f172a;
 }
 
@@ -245,10 +245,10 @@ function closeOnMask(event: MouseEvent) {
 .spd-confirm-title {
   flex: 1;
   margin: 0;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: #0f172a;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
 }
 
 .spd-confirm-icon {
@@ -307,8 +307,8 @@ function closeOnMask(event: MouseEvent) {
 .spd-confirm-desc {
   margin: 0;
   color: #334155;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-loose);
 }
 
 .spd-confirm-details {
@@ -324,7 +324,7 @@ function closeOnMask(event: MouseEvent) {
 
 .spd-confirm-details li {
   color: #9a3412;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }
 
@@ -378,7 +378,7 @@ function closeOnMask(event: MouseEvent) {
   border-radius: 10px;
   font: inherit;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   line-height: 1;
   color: #ffffff;
   cursor: pointer;

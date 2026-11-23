@@ -50,7 +50,7 @@
   align-items: center;
   gap: 8px;
   color: #203541;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -60,7 +60,7 @@
 
 .campus-filter-heading small {
   color: #667987;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .campus-management-panel .campus-query-grid {
@@ -76,7 +76,7 @@
 
 .campus-management-panel .campus-query-grid label > span {
   color: #405564;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
 
@@ -127,7 +127,7 @@
   align-items: center;
   gap: 8px;
   color: #647784;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -203,7 +203,7 @@
 .campus-table .campus-code-cell {
   color: #31515e;
   font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -212,7 +212,7 @@
   max-width: 240px;
   overflow: hidden;
   color: #102b36;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
 }
 
@@ -237,12 +237,12 @@
 
 .campus-contact-cell strong {
   color: #233c47;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .campus-contact-cell span {
   color: #667987;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -256,7 +256,7 @@
   border-radius: 6px;
   background: #f5f8f8;
   color: #425d68;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -268,7 +268,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -292,7 +292,7 @@
 
 .campus-update-time {
   color: #637783;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -341,21 +341,21 @@
   align-items: center;
   gap: 7px;
   color: #0f766e !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
   letter-spacing: 0.04em;
 }
 
 .campus-dialog .campus-dialog-title {
   margin-top: 5px;
-  font-size: 21px;
-  line-height: 1.25;
+  font-size: var(--spd-font-size-2xl);
+  line-height: var(--spd-lh-tight);
 }
 
 .campus-dialog-subtitle {
   margin-top: 5px !important;
   color: #667987 !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .campus-dialog .campus-dialog-close {
@@ -394,7 +394,7 @@
   border-bottom: 1px solid #edf2f3;
   padding-bottom: 6px;
   color: #203b46;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 800;
 }
 
@@ -411,7 +411,7 @@
 
 .campus-dialog-form .required-mark {
   color: #b42318;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .campus-dialog-form input,

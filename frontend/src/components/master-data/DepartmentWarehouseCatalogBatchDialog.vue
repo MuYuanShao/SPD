@@ -259,13 +259,13 @@ function toggleAllFiltered() {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
 .batch-catalog-header h3 {
   color: #fff;
-  font-size: 20px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
   letter-spacing: 0.3px;
 }
@@ -274,7 +274,7 @@ function toggleAllFiltered() {
   display: block;
   margin-top: 6px;
   color: rgba(255, 255, 255, 0.88);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* 关闭按钮在深色头部上保持可见 */
@@ -321,13 +321,13 @@ function toggleAllFiltered() {
 
 .batch-catalog-scope-heading strong {
   color: var(--bcd-text);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
 }
 
 .batch-catalog-scope-heading span {
   color: var(--bcd-muted);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .batch-catalog-fields label {
@@ -527,7 +527,7 @@ function toggleAllFiltered() {
 
 .batch-dept-hint {
   color: var(--bcd-primary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ===== 商品列表 ===== */
@@ -582,7 +582,7 @@ function toggleAllFiltered() {
   margin-left: 6px;
   padding: 1px 7px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-style: normal;
   font-weight: 600;
   vertical-align: middle;
@@ -618,7 +618,7 @@ function toggleAllFiltered() {
   padding: 9px 12px;
   border-top: 1px solid var(--bcd-primary-border);
   background: var(--bcd-primary-soft);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ===== 底部按钮背景色由 department-warehouse-catalog.css 的全局规则接管 =====

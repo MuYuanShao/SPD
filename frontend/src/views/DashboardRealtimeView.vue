@@ -663,7 +663,7 @@ onMounted(loadDashboard)
   color: var(--slate-900);
   font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   letter-spacing: -0.3px;
   font-variant-numeric: tabular-nums;
   overflow: hidden;
@@ -750,7 +750,7 @@ onMounted(loadDashboard)
   color: var(--slate-800);
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
 }
 .wb-card-title p {
   margin: 0;
@@ -926,7 +926,7 @@ onMounted(loadDashboard)
 .wb-process-node-text {
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   text-align: center;
   overflow-wrap: break-word;
   word-break: keep-all;

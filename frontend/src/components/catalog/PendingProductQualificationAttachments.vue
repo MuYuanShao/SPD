@@ -114,12 +114,12 @@ onUnmounted(() => { listRequest++; closePreview() })
 .qualification-attachments { grid-column: 1 / -1; width: 100%; min-width: 0; border-top: 1px solid #e2e8f0; padding-top: 12px; }
 .qualification-attachments > header, .qualification-attachments > header strong { display: flex; align-items: center; gap: 6px; }
 .qualification-attachments > header { justify-content: space-between; }
-.attachment-hint, .qualification-file-info small { color: #64748b; font-size: 12px; }
+.attachment-hint, .qualification-file-info small { color: #64748b; font-size: var(--spd-font-size-sm); }
 .attachment-error { color: #b91c1c; }
 .qualification-files { list-style: none; padding: 0; margin: 8px 0 0; max-height: 330px; overflow: auto; }
 .qualification-files li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eef2f7; }
 .qualification-file-info { min-width: 0; display: grid; gap: 4px; }
-.qualification-file-info strong { overflow-wrap: anywhere; font-size: 13px; }
+.qualification-file-info strong { overflow-wrap: anywhere; font-size: var(--spd-font-size-base); }
 .qualification-file-actions { display: flex; gap: 10px; flex-shrink: 0; }
 .qualification-image { display: block; max-width: 100%; max-height: 65vh; margin: auto; object-fit: contain; }
 .qualification-pdf { display: block; border: 0; width: 100%; height: 65vh; }

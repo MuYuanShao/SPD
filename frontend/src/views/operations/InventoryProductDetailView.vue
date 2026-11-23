@@ -169,7 +169,7 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
   gap: 5px;
   min-width: 0;
   color: #4b5b66;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 .report-filters input {
@@ -207,12 +207,12 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
 }
 .report-table {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 .report-table :deep(th .cell) {
   color: #294b52;
   font-weight: 800;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
 }
 
 @media (max-width: 1100px) {

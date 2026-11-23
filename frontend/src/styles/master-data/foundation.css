@@ -25,7 +25,7 @@
   display: block;
   margin-top: 8px;
   color: #102033;
-  font-size: 28px;
+  font-size: var(--spd-font-size-3xl);
 }
 
 .inline-message {
@@ -161,12 +161,12 @@
 .warehouse-location-header p,
 .warehouse-location-header span {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .warehouse-location-header h3 {
   color: #06152b;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -208,7 +208,7 @@
   display: grid;
   gap: 6px;
   color: #405367;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 

@@ -828,7 +828,7 @@ onBeforeUnmount(() => {
 .ai-medical-drag-handle .ai-medical-drag-title strong {
   color: #161f38;
   font-size: var(--spd-font-size-xl);
-  line-height: 1.1;
+  line-height: var(--spd-lh-tight);
 }
 
 .ai-medical-drag-handle .ai-medical-drag-title span {

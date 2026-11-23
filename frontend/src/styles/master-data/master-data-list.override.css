@@ -933,7 +933,7 @@
 
 .supplier-form-grid span {
   color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500;
 }
 
@@ -947,7 +947,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   transition: all 0.18s ease;
   width: 100%;
 }
@@ -984,7 +984,7 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 6px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-primary);
   cursor: pointer;
 }
@@ -1034,7 +1034,7 @@
   padding: 0 14px !important;
   height: 32px !important;
   min-height: 32px !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 500 !important;
   display: inline-flex !important;
   align-items: center;
@@ -1085,7 +1085,7 @@
 .architecture-note p {
   margin: 0 !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }
 
@@ -1102,17 +1102,17 @@
 .empty-state p {
   color: var(--spd-text-tertiary) !important;
   margin: 8px 0 0 !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .muted {
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .error-text {
   color: #f5222d !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .success-text {
@@ -1139,13 +1139,13 @@
 
 .stocktaking-scope-head strong {
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .stocktaking-scope-head span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-options {
@@ -1166,7 +1166,7 @@
   color: var(--spd-text-primary) !important;
   cursor: pointer;
   transition: all 0.18s ease;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-scope-option:hover {
@@ -1190,7 +1190,7 @@
   border-top: 1px solid var(--spd-border-subtle);
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-selected em {
@@ -1205,7 +1205,7 @@
   border-radius: 999px;
   background: var(--spd-primary-bg) !important;
   color: var(--primary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1228,7 +1228,7 @@
   border-radius: 999px;
   background: var(--spd-bg-page) !important;
   color: var(--primary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 

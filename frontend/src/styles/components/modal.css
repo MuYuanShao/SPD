@@ -210,7 +210,7 @@
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   letter-spacing: -0.2px;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
 }
 
 /* 标题前小色块（用 ::before，不依赖具体组件结构） */
@@ -416,7 +416,7 @@
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   letter-spacing: -0.2px;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
 }
 
 /* 标题前小色块 */
@@ -989,7 +989,7 @@
   font-weight: 600 !important;
   color: #0f172a !important;
   letter-spacing: -0.2px !important;
-  line-height: 1.3 !important;
+  line-height: var(--spd-lh-tight) !important;
   display: flex !important;
   align-items: center !important;
   gap: 10px !important;

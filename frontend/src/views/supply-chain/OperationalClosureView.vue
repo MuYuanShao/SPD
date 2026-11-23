@@ -2365,7 +2365,7 @@ watch(() => form.productCode, () => {
   color: #14213a;
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
-  line-height: 1.1;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2765,7 +2765,7 @@ watch(() => form.productCode, () => {
   color: var(--spd-text-heading, #14213a);
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 

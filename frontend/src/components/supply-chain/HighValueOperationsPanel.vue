@@ -247,7 +247,7 @@ onMounted(loadData)
 
 .hv-ops-card .section-title h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading, #14213a);
 }
@@ -255,7 +255,7 @@ onMounted(loadData)
 .hv-ops-section-description {
   margin: 2px 0 0;
   color: var(--md-text-secondary, #607285);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -271,7 +271,7 @@ onMounted(loadData)
   gap: 6px;
   min-width: 0;
   color: var(--md-text-secondary, #607285);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -283,7 +283,7 @@ onMounted(loadData)
   padding: 0 11px;
   background: var(--md-bg-card, #fff);
   color: var(--spd-text-primary, #111c2e);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .hv-ops-form .wide-field {
@@ -312,7 +312,7 @@ onMounted(loadData)
   border-radius: var(--md-radius, 6px);
   background: var(--md-bg-card, #fff);
   color: var(--spd-text-primary, #111c2e);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inline-message.is-error {
@@ -330,7 +330,7 @@ onMounted(loadData)
 .muted-cell {
   display: block;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 

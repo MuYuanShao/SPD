@@ -683,18 +683,18 @@ a.el-link {
 }
 
 .standard-page-heading h2 {
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-3xl) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
   margin: 0 0 4px !important;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
   letter-spacing: -0.2px;
 }
 
 .standard-page-heading p,
 .standard-page-heading span {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   margin: 0 !important;
 }
 
@@ -750,7 +750,7 @@ a.el-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading);
   margin: 0;
@@ -813,7 +813,7 @@ a.el-link {
 .workflow-band-title {
   color: var(--spd-text-heading) !important;
   font-weight: 600 !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   margin: 0 !important;
 }
 
@@ -824,14 +824,14 @@ a.el-link {
 .metric-panel .metric-label,
 .metric-panel .metric-hint {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .metric-panel .metric-value {
   color: var(--spd-text-heading) !important;
   font-weight: 700;
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-2xl);
+  line-height: var(--spd-lh-tight);
 }
 
 /* =====================================================================
@@ -981,7 +981,7 @@ a.el-link {
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
-  line-height: 1.3 !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .el-dialog__body {

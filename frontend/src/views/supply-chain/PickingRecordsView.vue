@@ -271,7 +271,7 @@ onMounted(loadRecords)
 
 .record-query-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -286,7 +286,7 @@ onMounted(loadRecords)
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   outline: none;
 }
 
@@ -305,7 +305,7 @@ onMounted(loadRecords)
 .record-query-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -321,14 +321,14 @@ onMounted(loadRecords)
 .record-table-title h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .record-table-title > span {
   margin-left: auto;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -356,7 +356,7 @@ onMounted(loadRecords)
   padding: 9px 12px !important;
   background: var(--md-bg-subtle, #f6f8fb) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 600 !important;
   white-space: nowrap;
   border-bottom: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
@@ -366,7 +366,7 @@ onMounted(loadRecords)
   height: 40px;
   padding: 9px 12px !important;
   color: var(--md-text, var(--spd-text-primary)) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
   background: var(--md-bg-card, #fff) !important;
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
@@ -391,7 +391,7 @@ onMounted(loadRecords)
 .record-table td small {
   margin-top: 3px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .record-table .primary-cell {

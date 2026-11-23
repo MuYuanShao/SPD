@@ -564,7 +564,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
-  line-height: 1.1;
+  line-height: var(--spd-lh-tight);
   text-shadow: 0 0 16px currentColor;
 }
 .kpi-body strong em { margin-left: 6px; font-size: var(--spd-font-size-sm); font-style: normal; font-weight: 500; color: var(--text-dim); }

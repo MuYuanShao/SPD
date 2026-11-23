@@ -523,7 +523,7 @@
   border-bottom: 1px solid #e0e7ff !important;
   padding-bottom: 10px;
   color: #1e293b !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   position: relative;
 }
@@ -549,12 +549,12 @@
   gap: 3px;
   color: #334155 !important;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .supplier-dialog-form .required-mark {
   color: #dc2626 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -568,7 +568,7 @@
   color: #0f172a !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -628,7 +628,7 @@
   min-height: 40px;
   border-radius: 10px !important;
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 @media (max-width: 900px) {

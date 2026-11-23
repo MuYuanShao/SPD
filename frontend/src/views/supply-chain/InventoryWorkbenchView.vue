@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Teleport } from 'vue'
+import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
+import 'element-plus/theme-chalk/el-dialog.css'
 import { useRoute } from 'vue-router'
 import { CheckCircle2, ClipboardCheck, Eye, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
@@ -17,6 +19,7 @@ import {
   fetchLooseStock,
   type LooseStockRow,
   fetchQuotaPackageStock,
+  type QuotaPackageStockRow,
   previewStocktakingSheet,
   fetchStocktakingItems,
   fetchStocktakingList,
@@ -193,7 +196,14 @@ const looseStockLoading = ref(false)
 const looseQuery = reactive({ warehouseName: '', productCode: '', productName: '', systemBatchNo: '' })
 const appliedLooseQuery = ref({ ...looseQuery })
 let looseRequestVersion = 0
-const quotaStockRows = ref<Record<string, unknown>[]>([])
+const quotaStockRows = ref<QuotaPackageStockRow[]>([])
+const quotaCodesOpen = ref(false)
+const selectedQuotaCodes = ref<string[]>([])
+
+function openQuotaCodes(codes: string[]) {
+  selectedQuotaCodes.value = codes
+  quotaCodesOpen.value = true
+}
 const codeStockRows = ref<Record<string, unknown>[]>([])
 const quotaQuery = reactive({
   warehouseName: '',
@@ -538,6 +548,7 @@ watch(mode, () => {
                 <th>库房</th>
                 <th>科室</th>
                 <th>定数包编码</th>
+                <th>定数包唯一码</th>
                 <th>定数包名称</th>
                 <th>模板版本</th>
                 <th>商品编码</th>
@@ -556,12 +567,19 @@ watch(mode, () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="17" class="inventory-state-cell">正在加载定数包库存...</td>
+                <td colspan="18" class="inventory-state-cell">正在加载定数包库存...</td>
               </tr>
-              <tr v-for="(row, index) in quotaStockRows" v-else :key="index">
+              <tr v-for="row in quotaStockRows" v-else :key="`${row.warehouseId}-${row.templateId}-${row.productId}`">
                 <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
                 <td class="inventory-wrap-cell">{{ row.deptName }}</td>
                 <td class="inventory-code-cell inventory-wrap-cell">{{ row.packageCode }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">
+                  <button v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
+                    class="btn btn-sm" type="button" @click="openQuotaCodes(row.packageUniqueCodes)">
+                    查看 {{ row.packageUniqueCodes.length }} 个唯一码
+                  </button>
+                  <span v-else>{{ row.packageUniqueCodes?.[0] || '—' }}</span>
+                </td>
                 <td class="inventory-product-cell inventory-wrap-cell">{{ row.packageName }}</td>
                 <td>{{ row.templateVersion ?? '-' }}</td>
                 <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode || '-' }}</td>
@@ -578,7 +596,7 @@ watch(mode, () => {
                 <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
               </tr>
               <tr v-if="!quotaStockRows.length && !loading">
-                <td colspan="17" class="inventory-state-cell">暂无定数包库存数据</td>
+                <td colspan="18" class="inventory-state-cell">暂无定数包库存数据</td>
               </tr>
             </tbody>
           </table>
@@ -883,6 +901,17 @@ watch(mode, () => {
       </section>
     </div>
     </Teleport>
+    <ElDialog v-model="quotaCodesOpen" title="定数包唯一码" width="min(560px, calc(100vw - 32px))"
+      class="quota-stock-codes-dialog" align-center append-to-body destroy-on-close>
+      <div class="quota-stock-code-list" role="region" aria-label="定数包唯一码列表" tabindex="0">
+        <ul>
+          <li v-for="code in selectedQuotaCodes" :key="code"><code>{{ code }}</code></li>
+        </ul>
+      </div>
+      <template #footer>
+        <button class="btn" type="button" @click="quotaCodesOpen = false">关闭</button>
+      </template>
+    </ElDialog>
 
     <Teleport to="body">
     <div v-if="stocktakingDetailOpen" class="attachment-preview-mask" @click.self="stocktakingDetailOpen = false">
@@ -952,6 +981,23 @@ watch(mode, () => {
 </template>
 
 <style scoped>
+:global(.el-dialog.quota-stock-codes-dialog) {
+  width: min(560px, calc(100vw - 32px)) !important;
+}
+
+.quota-stock-code-list {
+  max-height: min(45vh, 400px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.quota-stock-code-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 24px;
+}
+
 /* =====================================================================
    库存管理 样式优化
    ---------------------------------------------------------------------

@@ -39,6 +39,8 @@ class PurchaseDemandPaginationTest {
 
         assertThat(result.get("total")).isEqualTo(1L);
         assertThat(result.get("rows")).asList().hasSize(2);
+        verify(jdbcTemplate).queryForList(contains("OVER (PARTITION BY pd.demand_no) AS demandAmount"),
+                any(Object[].class));
         verify(jdbcTemplate).queryForList(
                 contains("GROUP BY pd.demand_no ORDER BY sortTime DESC, pd.demand_no DESC LIMIT ? OFFSET ?"),
                 any(Object[].class));

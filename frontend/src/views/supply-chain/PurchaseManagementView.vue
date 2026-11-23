@@ -363,6 +363,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <th>商品明细</th>
               <th>需求总数</th>
               <th>建议采购量</th>
+              <th class="numeric-cell">金额</th>
               <th>紧急程度</th>
               <th>状态</th>
               <th>创建时间</th>
@@ -371,7 +372,7 @@ async function handleOrderAttachmentUpload(event: Event) {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="11" class="approval-empty">正在加载采购需求...</td>
+              <td colspan="12" class="approval-empty">正在加载采购需求...</td>
             </tr>
             <tr v-for="group in demandGroups" v-else :key="group.demandNo" class="demand-group-row">
               <td><input v-model="selectedDemandNos" type="checkbox" :value="group.demandNo" :disabled="group.demandStatus !== 'approved'" :aria-label="`选择需求 ${group.demandNo}`" /></td>
@@ -387,6 +388,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
               <td>{{ group.totalQuantity }}</td>
               <td>{{ group.totalSuggestedQty }}</td>
+              <td class="numeric-cell">¥ {{ group.totalAmount.toFixed(2) }}</td>
               <td>{{ formatBusinessText(group.urgentLevel) }}</td>
               <td><span :class="['status-badge', statusTone(group.demandStatus)]">{{ statusLabel(group.demandStatus) }}</span></td>
               <td class="md-audit-time">{{ group.createTime || '-' }}</td>
@@ -397,7 +399,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
             </tr>
             <tr v-if="!loading && demandGroups.length === 0">
-              <td colspan="11" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
+              <td colspan="12" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
             </tr>
           </tbody>
         </table>
@@ -722,7 +724,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td>{{ item.specModel }}</td>
               <td>{{ item.quantity }}</td>
               <td>¥ {{ Number(item.unitPrice || 0).toFixed(2) }}</td>
-              <td>¥ {{ (Number(item.unitPrice || 0) * Number(item.quantity)).toString() }}</td>
+              <td>¥ {{ Number(item.lineAmount ?? 0).toFixed(2) }}</td>
               <td>{{ item.registrationNo || '-' }}</td>
               <td>{{ item.manufacturerName || '-' }}</td>
             </tr>

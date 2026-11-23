@@ -35,6 +35,11 @@ class RegulatoryReportCenterMysqlTest {
         Map<String, String> params = Map.of("dateFrom", "2020-01-01", "dateTo", "2030-12-31", "page", "1", "size", "20");
 
         assertReport(service.supplierDeliveryLedger(params));
+        var ledgerOptions = service.supplierDeliveryLedgerOptions();
+        assertTrue(ledgerOptions.get("suppliers") instanceof java.util.List<?>);
+        assertTrue(ledgerOptions.get("departments") instanceof java.util.List<?>);
+        assertReport(service.supplierDeliveryLedger(Map.of(
+                "dateFrom", "2020-01-01", "dateTo", "2030-12-31", "supplierId", "1", "departmentId", "1")));
         assertReport(service.centralizedProcurementProgress(params));
         assertReport(service.inventoryMovementSummary(params));
         Integer invalidFormulaRows = new JdbcTemplate(dataSource).queryForObject("""

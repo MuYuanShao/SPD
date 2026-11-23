@@ -26,6 +26,7 @@ import java.util.*;
  */
 @Service
 public class InventoryService {
+    private static final String QUOTA_STOCK_STATUSES = "('pending_print', 'available', 'signed')";
 
     private final JdbcTemplate jdbcTemplate;
     private final SupplyChainSupport support;
@@ -168,12 +169,11 @@ public class InventoryService {
     /**
      * 定数包库存按库房与模板汇总待打印、可用和已签收包；同商品散货数量扣除余额中已包含的签收包。
      */
+    @Transactional(readOnly = true)
     public Map<String, Object> quotaPackageStock(Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
         List<Object> args = new ArrayList<>();
-        StringBuilder where = new StringBuilder("""
-                 WHERE qpl.status IN ('pending_print', 'available', 'signed')
-                """);
+        StringBuilder where = new StringBuilder(" WHERE qpl.status IN ").append(QUOTA_STOCK_STATUSES);
         appendLike(where, args, "w.warehouse_name", params.get("warehouseName"));
         appendLike(where, args, "d.dept_name", params.get("deptName"));
         appendLike(where, args, "qpt.template_code", params.get("packageCode"));
@@ -184,10 +184,11 @@ public class InventoryService {
         // Signed packages are already represented in department balances, across all templates.
         String looseQuantity = "CASE WHEN qpl.template_id = (SELECT MIN(owned.template_id) FROM quota_package_label owned "
                 + "WHERE owned.warehouse_id = qpl.warehouse_id AND owned.product_id = qpl.product_id "
-                + "AND owned.status IN ('pending_print','available','signed')) "
+                + "AND owned.status IN " + QUOTA_STOCK_STATUSES + ") "
                 + "THEN GREATEST(COALESCE(lo.loose_qty, 0) - COALESCE(qpl.signed_qty, 0), 0) ELSE 0 END";
         String groupedSql = """
-                SELECT w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
+                SELECT qpl.warehouse_id AS warehouseId, qpl.template_id AS templateId, p.product_id AS productId,
+                       w.warehouse_name AS warehouseName, COALESCE(d.dept_name, '-') AS deptName,
                        qpt.template_code AS packageCode, qpt.template_name AS packageName,
                        qpt.version_no AS templateVersion, p.product_code AS productCode, p.product_name AS productName,
                        p.spec_model AS specModel, COALESCE(p.registration_no, '-') AS registrationNo,
@@ -204,7 +205,7 @@ public class InventoryService {
                            SUM(CASE WHEN labels.status = 'signed' THEN labels.package_quantity ELSE 0 END)
                              OVER (PARTITION BY labels.warehouse_id, labels.product_id) AS signed_qty
                       FROM quota_package_label labels
-                     WHERE labels.status IN ('pending_print', 'available', 'signed')
+                     WHERE labels.status IN %s
                   ) qpl
                   JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
                   JOIN product p ON p.product_id = qpl.product_id
@@ -218,7 +219,7 @@ public class InventoryService {
                      WHERE location_id IS NULL
                      GROUP BY warehouse_id, product_id
                   ) lo ON lo.warehouse_id = qpl.warehouse_id AND lo.product_id = qpl.product_id
-                """.formatted(looseQuantity, looseQuantity) + where + """
+                """.formatted(looseQuantity, looseQuantity, QUOTA_STOCK_STATUSES) + where + """
                  GROUP BY qpl.warehouse_id, qpl.template_id, d.dept_name, w.warehouse_name,
                           qpt.template_code, qpt.template_name, qpt.version_no, p.product_id,
                           p.product_code, p.product_name, p.spec_model,
@@ -232,9 +233,44 @@ public class InventoryService {
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(groupedSql
-                + " ORDER BY w.warehouse_name, qpt.template_code, qpl.warehouse_id, qpl.template_id LIMIT ? OFFSET ?",
+                + " ORDER BY w.warehouse_name, qpt.template_code, qpl.warehouse_id, qpl.template_id, p.product_id LIMIT ? OFFSET ?",
                 queryArgs.toArray());
-        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+        return PageResponse.of(withQuotaPackageUniqueCodes(rows), total == null ? 0 : total, pageReq);
+    }
+
+    /** Loads complete trace codes for the displayed groups without changing stock counts. */
+    private List<Map<String, Object>> withQuotaPackageUniqueCodes(List<Map<String, Object>> rows) {
+        if (rows.isEmpty()) return rows;
+        var groups = new LinkedHashMap<QuotaStockGroup, List<String>>();
+        for (var row : rows) groups.put(QuotaStockGroup.from(row), new ArrayList<>());
+        String placeholders = String.join(", ", Collections.nCopies(groups.size(), "(?, ?, ?)"));
+        List<Long> args = groups.keySet().stream()
+                .flatMap(group -> java.util.stream.Stream.of(group.warehouseId(), group.templateId(), group.productId()))
+                .toList();
+        // Resolve trace IDs only for the warehouse, template and product groups on this page.
+        var codes = jdbcTemplate.queryForList("""
+                SELECT label.warehouse_id AS warehouseId, label.template_id AS templateId, label.product_id AS productId,
+                       trace.unique_code AS uniqueCode
+                  FROM quota_package_label label
+                  JOIN udi_trace_code trace ON trace.trace_code_id = label.trace_code_id
+                    AND trace.trace_scope = 'low_value_quota_pack'
+                 WHERE label.status IN %s
+                   AND trace.unique_code IS NOT NULL AND trace.unique_code <> ''
+                   AND (label.warehouse_id, label.template_id, label.product_id) IN (
+                """.formatted(QUOTA_STOCK_STATUSES) + placeholders + ") ORDER BY trace.unique_code, label.label_id", args.toArray());
+        for (var code : codes) groups.get(QuotaStockGroup.from(code)).add((String) code.get("uniqueCode"));
+        return rows.stream().map(row -> {
+            Map<String, Object> result = new LinkedHashMap<>(row);
+            result.put("packageUniqueCodes", groups.get(QuotaStockGroup.from(row)));
+            return result;
+        }).toList();
+    }
+
+    private record QuotaStockGroup(long warehouseId, long templateId, long productId) {
+        static QuotaStockGroup from(Map<String, Object> row) {
+            return new QuotaStockGroup(((Number) row.get("warehouseId")).longValue(),
+                    ((Number) row.get("templateId")).longValue(), ((Number) row.get("productId")).longValue());
+        }
     }
 
     /**

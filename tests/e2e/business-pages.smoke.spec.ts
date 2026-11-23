@@ -754,6 +754,57 @@ test('供应商退货按批号批量选包且仅最终确认提交', async ({ pa
   expect(submissions).toBe(1)
 })
 
+test('供货台账首页可查询且导出沿用已应用筛选', async ({ page }) => {
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'supplier-ledger-test' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'ledger', roles: [], dataScope: 2,
+    menuCodes: ['supplier-delivery-ledger-report'], permissionCodes: []
+  })))
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill(api(null)))
+  const ledgerPath = '**/api/report-center/supplier-delivery-ledger?*'
+  const exportPath = '**/api/report-center/supplier-delivery-ledger/export.xlsx?*'
+  await page.route('**/api/report-center/supplier-delivery-ledger/options', route => route.fulfill(api({
+    suppliers: [{ id: 7, code: 'SP-7', name: '测试配送商' }],
+    departments: [{ id: 9, code: 'DEP-9', name: '测试科室' }]
+  })))
+  await page.route(ledgerPath, route => {
+    const params = new URL(route.request().url()).searchParams
+    return route.fulfill(api({
+      rows: [{ orderNo: 'LEDGER-1', acceptanceDepartment: params.get('department')
+        || (params.get('departmentId') === '9' ? '测试科室' : '默认科室') }],
+      total: 1, page: 1, size: 20, summary: {}
+    }))
+  })
+  await page.route(exportPath, route => route.fulfill({
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', body: 'export-test'
+  }))
+  await page.goto('/features/supplier-delivery-ledger-report')
+  await login(page)
+  await expect(page.getByText('默认科室', { exact: true })).toBeVisible()
+  const supplier = page.getByRole('combobox', { name: '供应商', exact: true })
+  await supplier.click()
+  await supplier.fill('SP-7')
+  await page.getByRole('option', { name: '测试配送商 · SP-7' }).click()
+  const department = page.getByRole('combobox', { name: '科室', exact: true })
+  await department.click()
+  await page.getByRole('option', { name: '测试科室 · DEP-9' }).click()
+  const filtered = page.waitForRequest(ledgerPath)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  expect(Object.fromEntries(new URL((await filtered).url()).searchParams)).toMatchObject({ supplierId: '7', departmentId: '9' })
+  await expect(page.getByRole('cell', { name: '测试科室', exact: true })).toBeVisible()
+  await department.click()
+  await department.fill('中心库')
+  await page.getByRole('option', { name: '中心库', exact: true }).click()
+  const exported = page.waitForRequest(exportPath)
+  await page.getByRole('button', { name: '导出 Excel' }).click()
+  expect(Object.fromEntries(new URL((await exported).url()).searchParams)).toMatchObject({ supplierId: '7', departmentId: '9' })
+  const fallback = page.waitForRequest(ledgerPath)
+  await page.getByRole('button', { name: '查询', exact: true }).click()
+  expect(new URL((await fallback).url()).searchParams.get('department')).toBe('中心库')
+  await expect(page.getByRole('cell', { name: '中心库', exact: true })).toBeVisible()
+})
+
 test('库存管理的可用散货按条件查询并请求当前页', async ({ page }) => {
   const api = (data: unknown) => ({ json: { code: 0, data } })
   await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'loose-stock-test' })))
@@ -792,6 +843,67 @@ test('库存管理的可用散货按条件查询并请求当前页', async ({ pa
     { page: '1', size: '20', productCode: 'P-LOOSE' },
     { page: '2', size: '20', productCode: 'P-LOOSE' }
   ])
+})
+
+test('定数包库存同组多个唯一码在独立弹窗显示', async ({ page }) => {
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'quota-stock-codes-test' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'inventory', roles: [], dataScope: 2,
+    menuCodes: ['inventory-management'], permissionCodes: []
+  })))
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill(api(null)))
+  await page.route('**/api/inventory/balances?*', route => route.fulfill(api({ rows: [], total: 0, page: 1, size: 20 })))
+  await page.route('**/api/inventory/quota-package-stock?*', route => route.fulfill(api({
+    rows: [{ warehouseId: 1, templateId: 2, productId: 3, packageCode: 'PACK-A', packageCount: 2,
+      packageUniqueCodes: ['QP-TEST-1', 'QP-TEST-2'] }],
+    total: 1, page: 1, size: 20
+  })))
+  await page.goto('/features/inventory-management')
+  await login(page)
+  await page.getByRole('tab', { name: '定数包库存查询' }).click()
+  await page.getByRole('button', { name: '查看 2 个唯一码' }).click()
+  const codes = page.getByRole('dialog', { name: '定数包唯一码' })
+  await expect(codes.getByRole('listitem')).toHaveText(['QP-TEST-1', 'QP-TEST-2'])
+  await codes.getByRole('button', { name: '关闭', exact: true }).click()
+  await expect(codes).toBeHidden()
+})
+
+test('定数包库存按商品拼音排序后再跨页展示', async ({ page }) => {
+  const api = (data: unknown) => ({ json: { code: 0, data } })
+  await page.route('**/api/auth/login', route => route.fulfill(api({ token: 'quota-stock-sort-test' })))
+  await page.route('**/api/auth/me', route => route.fulfill(api({
+    userId: 1, username: 'inventory', roles: [], dataScope: 2,
+    menuCodes: ['inventory-management'], permissionCodes: []
+  })))
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill(api(null)))
+  await page.route('**/api/inventory/balances?*', route => route.fulfill(api({ rows: [], total: 0, page: 1, size: 20 })))
+  const stock = Array.from({ length: 22 }, (_, index) => ({
+    warehouseId: 1, templateId: index + 1, productId: index + 1,
+    packageCode: index < 2 ? 'PACK-GAUZE' : 'PACK-' + String(index + 1).padStart(2, '0'), packageCount: 1,
+    templateVersion: index === 0 ? 2 : 1,
+    productName: index < 2 ? '纱布耗材' : index === 2 ? '坐垫耗材' : '阿尔法耗材',
+    packageUniqueCodes: [index === 0 ? 'A-GAUZE-V2' : index === 1 ? 'Z-GAUZE-V1' : 'QP-' + (index + 1)]
+  }))
+  await page.route('**/api/inventory/quota-package-stock?*', route => {
+    const params = new URL(route.request().url()).searchParams
+    const currentPage = Number(params.get('page'))
+    const size = Number(params.get('size'))
+    const start = (currentPage - 1) * size
+    return route.fulfill(api({ rows: stock.slice(start, start + size), total: stock.length, page: currentPage, size }))
+  })
+  await page.goto('/features/inventory-management')
+  await login(page)
+  await page.getByRole('tab', { name: '定数包库存查询' }).click()
+  const rows = page.getByRole('region', { name: '定数包库存结果' }).locator('tbody tr')
+  await expect(rows).toHaveCount(20)
+  await expect(rows.first()).toContainText('阿尔法耗材')
+  await expect(rows.last()).toContainText('Z-GAUZE-V1')
+  await expect(rows.last()).toContainText('PACK-GAUZE')
+  await page.getByRole('button', { name: '下一页' }).click()
+  await expect(rows).toHaveCount(2)
+  await expect(rows.first()).toContainText('A-GAUZE-V2')
+  await expect(rows.last()).toContainText('坐垫耗材')
 })
 
 test('拣配配送保留待拣配工作台并移除重复的记录列表', async ({ page }) => {

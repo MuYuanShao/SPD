@@ -318,6 +318,7 @@ public class PurchaseOrderService {
         String placeholders = String.join(",", java.util.Collections.nCopies(demandNos.size(), "?"));
         List<Object> detailArgs = new ArrayList<>(demandNos);
         detailArgs.addAll(demandNos);
+        // Round individual line amounts before totaling each requisition number.
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT pd.demand_id AS demandId, pd.demand_no AS demandNo, pd.demand_source AS demandSource,
                        pd.demand_status AS demandStatus, pd.urgent_level AS urgentLevel,
@@ -325,6 +326,9 @@ public class PurchaseOrderService {
                        p.spec_model AS specModel, pd.quantity, pd.approved_quantity AS approvedQuantity,
                        pd.suggested_purchase_qty AS suggestedPurchaseQty,
                        p.purchase_price AS unitPrice, p.registration_no AS registrationNo,
+                       ROUND(COALESCE(p.purchase_price, 0) * pd.quantity, 2) AS lineAmount,
+                       SUM(ROUND(COALESCE(p.purchase_price, 0) * pd.quantity, 2))
+                           OVER (PARTITION BY pd.demand_no) AS demandAmount,
                        m.manufacturer_name AS manufacturerName,
                        DATE_FORMAT(pd.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM purchase_demand pd

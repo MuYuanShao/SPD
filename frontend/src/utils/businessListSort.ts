@@ -26,18 +26,22 @@ function canonical(value: unknown): string {
 function compareText(a: string, b: string) { return a < b ? -1 : a > b ? 1 : 0 }
 function text(value: unknown) { return typeof value === 'string' ? value : canonical(value) }
 
-export function sortBusinessRows<T>(rows: readonly T[]): T[] {
+export function sortBusinessRows<T>(rows: readonly T[], excludedFields: readonly string[] = []): T[] {
   if (!rows.length || !rows.every(row => row !== null && typeof row === 'object' && !Array.isArray(row))) return [...rows]
-  const records = rows as readonly ListRecord[]
+  const excluded = new Set(excludedFields)
+  const allRecords = rows as readonly ListRecord[]
+  const records = excluded.size
+    ? allRecords.map(row => Object.fromEntries(Object.entries(row).filter(([key]) => !excluded.has(key))))
+    : allRecords
   const keys = [...new Set(records.flatMap(row => Object.keys(row)))].sort()
   const name = nameFields.find(key => keys.includes(key))
   const preferred = ['specModel', 'spec', 'unit', 'brand', 'manufacturerName', 'manufacturer', 'supplierName', 'supplier']
   const otherFields = [...preferred.filter(key => keys.includes(key) && key !== name), ...keys.filter(key => key !== name && !preferred.includes(key))]
   const fields = name ? [name, ...otherFields] : otherFields
   const prepared = rows.map((row, index) => ({ row, index,
-    primary: name ? pinyinInitials(text((row as ListRecord)[name])) : '',
-    values: fields.map(field => pinyinInitials(text((row as ListRecord)[field]))),
-    exact: canonical(row)
+    primary: name ? pinyinInitials(text(records[index][name])) : '',
+    values: fields.map(field => pinyinInitials(text(records[index][field]))),
+    exact: canonical(records[index])
   }))
   prepared.sort((a, b) => {
     let order = compareText(a.primary, b.primary)
@@ -85,10 +89,11 @@ function groupRows(rows: unknown[], groupBy: string): unknown[][] {
 
 /** Read bounded API pages and sort by detail fields while keeping each document together. */
 export async function collectSortedRows(first: SortablePage,
-  read: (page: number, size: number) => Promise<SortablePage>, groupBy?: string): Promise<unknown[]> {
+  read: (page: number, size: number) => Promise<SortablePage>, groupBy?: string,
+  excludedFields: readonly string[] = []): Promise<unknown[]> {
   const complete = groupBy ? first.total === groupRows(first.rows, groupBy).length : first.total <= first.rows.length
   if (complete && Number(first.page ?? 1) === 1) {
-    const sorted = sortBusinessRows(first.rows)
+    const sorted = sortBusinessRows(first.rows, excludedFields)
     return groupBy ? groupRows(sorted, groupBy) : sorted
   }
   const start = await read(1, 200)
@@ -103,7 +108,7 @@ export async function collectSortedRows(first: SortablePage,
     }
     rows.push(...next.rows)
   }
-  const sorted = sortBusinessRows(rows)
+  const sorted = sortBusinessRows(rows, excludedFields)
   const result = groupBy ? groupRows(sorted, groupBy) : sorted
   if (result.length !== start.total) throw new Error('列表分页数据不完整，请刷新重试')
   return result

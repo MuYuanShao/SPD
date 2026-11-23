@@ -125,6 +125,34 @@ class InventoryAuditMysqlTest {
         assertThat(id("SELECT COUNT(*) FROM quota_package_label WHERE label_id IN (?, ?) AND status = 'void'", first, second)).isEqualTo(2);
     }
 
+    @Test void groupedPackageStockReturnsOnlyTheCurrentPackagesUniqueCodes() {
+        long template = template();
+        long first = label(template, "available", 2, "-AVAILABLE");
+        long second = label(template, "signed", 2, "-SIGNED");
+        long consumed = label(template, "consumed", 2, "-CONSUMED");
+        label(template, "pending_print", 2, "-PENDING");
+        for (long labelId : new long[]{first, second, consumed}) {
+            String uniqueCode = code + "-" + labelId;
+            jdbc.update("""
+                    INSERT INTO udi_trace_code (udi_code, unique_code, product_code, product_name, trace_scope)
+                    VALUES (?, ?, ?, '测试定数包', 'low_value_quota_pack')
+                    """, uniqueCode, uniqueCode, code);
+            jdbc.update("""
+                    UPDATE quota_package_label SET trace_code_id =
+                      (SELECT trace_code_id FROM udi_trace_code WHERE unique_code = ?)
+                    WHERE label_id = ?
+                    """, uniqueCode, labelId);
+        }
+        var result = inventory.quotaPackageStock(java.util.Map.of("productCode", code, "size", "1"));
+        assertThat(result).containsEntry("total", 1L);
+        assertThat((List<?>) result.get("rows")).singleElement().satisfies(row -> {
+            var stock = (java.util.Map<?, ?>) row;
+            assertThat(((Number) stock.get("packageCount")).intValue()).isEqualTo(3);
+            assertThat(stock.get("packageUniqueCodes")).isEqualTo(
+                    java.util.stream.Stream.of(code + "-" + first, code + "-" + second).sorted().toList());
+        });
+    }
+
     @Test void signedPackageRecallCountsItsPhysicalUnitsOnlyOnce() {
         long template = template();
         jdbc.update("UPDATE inventory_balance SET available_qty = 10, locked_qty = 0 WHERE batch_id = ?", batchId);

@@ -55,11 +55,34 @@ export async function fetchInventoryBalances(params: Record<string, string>) {
   )
 }
 
-/**
- * 定数包库存查询
- */
+export interface QuotaPackageStockRow {
+  warehouseId: number
+  templateId: number
+  productId: number
+  warehouseName: string
+  deptName: string
+  packageCode: string
+  packageName: string
+  templateVersion: number | null
+  productCode: string
+  productName: string
+  specModel: string | null
+  registrationNo: string
+  unitPrice: number
+  unit: string | null
+  packageCount: number
+  packageQty: number
+  looseQty: number
+  amount: number
+  manufacturerName: string
+  supplierName: string
+  packageUniqueCodes: string[]
+}
+
+/** 分页查询定数包库存及其唯一码。 */
 export async function fetchQuotaPackageStock(params: Record<string, string>) {
-  return getData<PageResult<Record<string, unknown>>>('/inventory/quota-package-stock', { params })
+  return getData<PageResult<QuotaPackageStockRow>>('/inventory/quota-package-stock', { params }, undefined,
+    ['packageUniqueCodes', 'warehouseId', 'templateId', 'productId'])
 }
 
 /**

@@ -73,6 +73,8 @@ export interface PurchaseDemandRow {
   quantity: number
   approvedQuantity: number
   suggestedPurchaseQty: number
+  lineAmount?: number
+  demandAmount?: number
   unitPrice?: number
   registrationNo?: string
   manufacturerName?: string

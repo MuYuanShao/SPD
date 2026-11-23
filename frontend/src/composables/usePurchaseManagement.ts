@@ -41,6 +41,7 @@ interface DemandGroup {
   items: PurchaseDemandRow[]
   totalQuantity: number
   totalSuggestedQty: number
+  totalAmount: number
   itemCount: number
 }
 
@@ -147,6 +148,7 @@ export function usePurchaseManagement() {
           items: [],
           totalQuantity: 0,
           totalSuggestedQty: 0,
+          totalAmount: Number(row.demandAmount ?? 0),
           itemCount: 0
         }
         groups.set(row.demandNo, group)

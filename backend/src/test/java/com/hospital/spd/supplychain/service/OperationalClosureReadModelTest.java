@@ -9,11 +9,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -79,7 +81,22 @@ class OperationalClosureReadModelTest {
 
         assertThat(rows(page)).containsExactly(Map.of("bizNo", "QH001"));
         assertThat(page).containsEntry("total", 1L);
-        verify(jdbcTemplate).queryForList(contains("shortage_replenishment_task"), eq(10), eq(10));
+        verify(jdbcTemplate).queryForList(
+                contains("ORDER BY create_time DESC, task_id DESC LIMIT ? OFFSET ?"), eq(10), eq(10));
+    }
+
+    @Test
+    void filtersRecallRecordsBySourceDepartmentAndDateProduct() {
+        var start = LocalDateTime.of(2026, 11, 13, 0, 0);
+        var end = start.plusDays(1);
+        readModel.list("recall", Map.of("dateFrom", "2026-11-13", "dateTo", "2026-11-13",
+                "productName", "耗材", "productCode", "P1", "deptName", "手术室"));
+
+        verify(jdbcTemplate).queryForObject(argThat(sql -> sql.contains("r.create_time >= ? AND r.create_time < ?")
+                        && sql.contains("e.dept_name_snapshot LIKE ?") && sql.contains("warehouse_transfer_out")),
+                eq(Long.class), eq(start), eq(end), eq("%耗材%"), eq("%P1%"), eq("%手术室%"));
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("AS sourceDepartments") && sql.contains("e.dept_name_snapshot LIKE ?")),
+                eq(start), eq(end), eq("%耗材%"), eq("%P1%"), eq("%手术室%"), eq(20), eq(0));
     }
 
     @Test
@@ -152,12 +169,24 @@ class OperationalClosureReadModelTest {
     void shouldReturnRedFlushRows() {
         when(jdbcTemplate.queryForList(contains("FROM consumption_red_flush"), eq(20), eq(0)))
                 .thenReturn(List.of(Map.of("bizNo", "FXH001", "sourceNo", "XH001")));
-        when(jdbcTemplate.queryForObject(contains("consumption_red_flush"), eq(Long.class))).thenReturn(1L);
+        when(jdbcTemplate.queryForObject(contains("consumption_red_flush"), eq(Long.class),
+                org.mockito.ArgumentMatchers.any(Object[].class))).thenReturn(1L);
 
         Map<String, Object> page = readModel.list("red-flush", Map.of("page", "1", "size", "20"));
 
         assertThat(rows(page)).containsExactly(Map.of("bizNo", "FXH001", "sourceNo", "XH001"));
         assertThat(page).containsEntry("total", 1L);
+    }
+
+    @Test
+    void redFlushFiltersByOriginalConsumptionDepartmentAndWarehouse() {
+        readModel.list("red-flush", Map.of("deptCode", "D-B", "warehouseId", "20"));
+
+        verify(jdbcTemplate).queryForObject(contains("d.dept_code = ? AND dc.warehouse_id = ?"),
+                eq(Long.class), eq("D-B"), eq(20L));
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("d.dept_code = ? AND dc.warehouse_id = ?")
+                        && sql.contains("dc.consumption_no = flush.source_consumption_no")),
+                eq("D-B"), eq(20L), eq(20), eq(0));
     }
 
     @Test
@@ -172,6 +201,29 @@ class OperationalClosureReadModelTest {
 
         assertThat(rows(page)).containsExactly(Map.of("bizNo", "SL001", "totalQuantity", BigDecimal.TEN));
         assertThat(page).containsEntry("total", 1L);
+    }
+
+    @Test
+    void requisitionHistoryFiltersBothQueriesAndOrdersBeforePagination() {
+        var start = LocalDateTime.of(2026, 11, 1, 0, 0);
+        var end = LocalDateTime.of(2026, 11, 19, 0, 0);
+        readModel.list("requisition", Map.of("deptName", "设备", "status", "approved",
+                "dateFrom", "2026-11-01", "dateTo", "2026-11-18",
+                "sort", "departmentDesc", "page", "2", "size", "20"));
+
+        verify(jdbcTemplate).queryForObject(contains("dr.apply_time >= ? AND dr.apply_time < ?"),
+                eq(Long.class), eq("%设备%"), eq("approved"), eq(start), eq(end));
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("dr.apply_time >= ? AND dr.apply_time < ?")
+                        && sql.contains("ORDER BY sd.dept_name DESC, dr.apply_time DESC, dr.requisition_id DESC LIMIT ? OFFSET ?")),
+                eq("%设备%"), eq("approved"), eq(start), eq(end), eq(20), eq(20));
+    }
+
+    @Test
+    void requisitionHistoryRejectsReversedDates() {
+        assertThatThrownBy(() -> readModel.list("requisition",
+                Map.of("dateFrom", "2026-11-18", "dateTo", "2026-11-01")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("开始日期不能晚于结束日期");
     }
 
     @Test
@@ -201,14 +253,39 @@ class OperationalClosureReadModelTest {
                         "productCode", "P001",
                         "settlementAmount", BigDecimal.TEN
                 )));
-        when(jdbcTemplate.queryForObject(contains("FROM settlement_bill_item sbi"), eq(Long.class), org.mockito.ArgumentMatchers.any(Object[].class)))
-                .thenReturn(1L);
+        var summary = Map.<String, Object>of("rowCount", 42L, "totalQuantity", BigDecimal.valueOf(130),
+                "totalAmount", new BigDecimal("1250.25"), "packageCount", 2L);
+        when(jdbcTemplate.queryForMap(contains("FROM settlement_bill_item sbi"), org.mockito.ArgumentMatchers.any(Object[].class)))
+                .thenReturn(summary);
 
         Map<String, Object> page = readModel.list("settlement", Map.of("page", "1", "size", "20"));
 
         assertThat(rows(page)).hasSize(1);
         assertThat(rows(page).get(0)).containsEntry("settlementNo", "JS001");
-        assertThat(page).containsEntry("total", 1L);
+        assertThat(page).containsEntry("total", 42L).containsEntry("summary", summary);
+    }
+
+    @Test
+    void settlementFiltersUsingLinkedRequisitionDateAndSortsBeforePagination() {
+        var start = LocalDateTime.of(2026, 11, 1, 0, 0);
+        var end = LocalDateTime.of(2026, 11, 19, 0, 0);
+        readModel.list("settlement", Map.of("goodsType", "quota_package", "deptName", "设备",
+                "traceCode", "TRACE", "productKeyword", "耗材",
+                "dateFrom", "2026-11-01", "dateTo", "2026-11-18",
+                "sort", "departmentAsc", "page", "2"));
+
+        verify(jdbcTemplate).queryForMap(argThat(sql ->
+                        sql.contains("detail.requisitionAppliedAt >= ? AND detail.requisitionAppliedAt < ?")
+                         && sql.contains("detail.quotaPackageCode)")
+                         && sql.contains("detail.manufacturerName, detail.registrationNo)")
+                         && sql.contains("SUM(detail.settlementAmount)")
+                         && sql.contains("COUNT(DISTINCT detail.packageLabelId)")),
+                eq("quota_package"), eq("%设备%"), eq("%TRACE%"), eq("%耗材%"), eq(start), eq(end));
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("pb.label_id = qpl.label_id")
+                        && sql.contains("dt.trace_code_id = sbi.trace_code_id")
+                        && sql.contains("rt.trace_code_id = sbi.trace_code_id")
+                        && sql.contains("ORDER BY detail.settlementDept ASC, detail.requisitionAppliedAt DESC, detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?")),
+                eq("quota_package"), eq("%设备%"), eq("%TRACE%"), eq("%耗材%"), eq(start), eq(end), eq(20), eq(20));
     }
 
     @Test

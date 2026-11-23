@@ -1,5 +1,7 @@
 package com.hospital.spd.supplychain;
 
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.ApiResponse;
 import com.hospital.spd.supplychain.service.OperationalClosureService;
 import com.hospital.spd.supplychain.service.ManualSettlementGenerationRequest;
@@ -42,6 +44,11 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.list(type, params));
     }
 
+    @GetMapping("/red-flush/options")
+    public ApiResponse<Map<String, Object>> redFlushOptions() {
+        return ApiResponse.ok(service.redFlushOptions());
+    }
+
     @GetMapping("/requisitions/{requisitionNo}/items")
     public ApiResponse<Map<String, Object>> requisitionDetails(@PathVariable String requisitionNo) {
         return ApiResponse.ok(service.requisitionDetails(requisitionNo));
@@ -58,8 +65,8 @@ public class OperationalClosureController {
     }
 
     @GetMapping("/picking/requisitions")
-    public ApiResponse<Map<String, Object>> pickingRequisitions() {
-        return ApiResponse.ok(service.pickingRequisitions());
+    public ApiResponse<Map<String, Object>> pickingRequisitions(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.pickingRequisitions(params));
     }
 
     @GetMapping("/picking/package-labels")
@@ -186,6 +193,21 @@ public class OperationalClosureController {
     @PostMapping("/recalls")
     public ApiResponse<Map<String, Object>> createRecall(@Valid @RequestBody RecallRequest request) {
         return ApiResponse.ok(service.createRecall(request));
+    }
+
+    @GetMapping("/picking/recall-receipts")
+    public ApiResponse<List<Map<String, Object>>> pendingRecallReceipts() {
+        return ApiResponse.ok(service.pendingRecallReceipts());
+    }
+
+    @GetMapping("/picking/recall-receipts/page")
+    public ApiResponse<PageResponse<Map<String, Object>>> pendingRecallReceiptsPage(@RequestParam Map<String, String> params) {
+        return ApiResponse.ok(service.pendingRecallReceipts(PageRequest.from(params)));
+    }
+
+    @PutMapping("/picking/recall-receipts/{recallNo}")
+    public ApiResponse<Map<String, Object>> receiveRecall(@PathVariable String recallNo) {
+        return ApiResponse.ok(service.receiveRecall(recallNo));
     }
 
     @GetMapping("/recalls/batches")

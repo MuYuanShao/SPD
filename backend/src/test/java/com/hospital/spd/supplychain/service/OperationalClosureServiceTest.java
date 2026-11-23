@@ -50,7 +50,7 @@ class OperationalClosureServiceTest {
                 new OperationalShortageModule(jdbcTemplate, support),
                 new OperationalSettlementModule(jdbcTemplate, support),
                 new OperationalPdaModule(jdbcTemplate, support),
-                new OperationalRiskModule(jdbcTemplate, support),
+                new OperationalRiskModule(jdbcTemplate, support, mock(com.hospital.spd.common.DataScopeService.class)),
                 new OperationalHighValueModule(jdbcTemplate, support),
                 new OperationalDeliveryModule(jdbcTemplate, support),
                 new OperationalRequisitionModule(jdbcTemplate, support),
@@ -70,9 +70,10 @@ class OperationalClosureServiceTest {
 
     private static CreateRequisitionRequest requisitionRequest(Map<String, Object> body) {
         return new CreateRequisitionRequest(
-                String.valueOf(body.get("deptName")), String.valueOf(body.get("warehouseName")),
+                null, String.valueOf(body.get("deptName")), String.valueOf(body.get("warehouseName")),
                 null, null, null, String.valueOf(body.get("productCode")),
-                (BigDecimal) body.get("quantity"), null, null, null);
+                (BigDecimal) body.get("quantity"), null, null, null, null, null,
+                (String) body.get("requisitionType"));
     }
 
     // ==================== list() — 8 种类型参数化测试 ====================
@@ -229,8 +230,11 @@ class OperationalClosureServiceTest {
                 "deptName", "外科",
                 "warehouseName", "外科库",
                 "productCode", "PC001",
-                "quantity", BigDecimal.valueOf(5)
+                "quantity", BigDecimal.valueOf(5),
+                "requisitionType", "urgent"
         );
+        when(jdbcTemplate.queryForList(contains("AND status = 1 ORDER BY sort_order"), eq("requisition_type")))
+                .thenReturn(List.of(Map.of("optionValue", "urgent")));
 
         // Java eagerly evaluates fallback arguments to text() helper
         when(jdbcTemplate.queryForObject(contains("SELECT dept_name FROM sys_dept"),
@@ -259,7 +263,12 @@ class OperationalClosureServiceTest {
         when(support.nextNo(eq("SL"), eq("department_requisition"), eq("requisition_no")))
                 .thenReturn("SL20260601001");
 
+        var connection = mock(java.sql.Connection.class);
+        var statement = mock(java.sql.PreparedStatement.class);
+        when(connection.prepareStatement(contains("INSERT INTO department_requisition"), eq(java.sql.Statement.RETURN_GENERATED_KEYS)))
+                .thenReturn(statement);
         doAnswer(invocation -> {
+            invocation.<PreparedStatementCreator>getArgument(0).createPreparedStatement(connection);
             populateKeyHolder(invocation.getArgument(1), 99L);
             return 1;
         }).when(jdbcTemplate).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
@@ -269,6 +278,16 @@ class OperationalClosureServiceTest {
         assertThat(result)
                 .containsEntry("requisitionNo", "SL20260601001")
                 .containsEntry("status", "pending_approval");
+        verify(statement).setString(5, "urgent");
+    }
+
+    @Test
+    void rejectsDisabledOrUnknownRequisitionType() {
+        var body = Map.<String, Object>of("deptName", "外科", "warehouseName", "外科库",
+                "productCode", "PC001", "quantity", BigDecimal.ONE, "requisitionType", "disabled");
+        assertThatThrownBy(() -> service.createRequisition(requisitionRequest(body)))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("申领类型不存在或已停用");
+        verify(jdbcTemplate, never()).update(any(PreparedStatementCreator.class), any(KeyHolder.class));
     }
 
     @Test
@@ -362,7 +381,7 @@ class OperationalClosureServiceTest {
                 .containsEntry("amount", BigDecimal.valueOf(150));
         verify(jdbcTemplate).update(contains("INSERT INTO department_consumption_item"),
                 eq(88L), eq(100L), eq(200L), eq(BigDecimal.valueOf(10)),
-                eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(150)));
+                eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(150)), isNull());
     }
 
     @Test
@@ -536,10 +555,11 @@ class OperationalClosureServiceTest {
     // ==================== createRecall() ====================
 
     @Test
-    @DisplayName("创建产品召回——成功隔离")
+    @DisplayName("创建库存隔离——成功就地隔离")
     void shouldCreateRecallSuccessfully() {
         Map<String, Object> body = Map.of(
                 "productCode", "PC001",
+                "businessType", "isolate",
                 "scope", "primary",
                 "warehouseName", "主仓库",
                 "batchNo", "PC20260601",
@@ -553,8 +573,6 @@ class OperationalClosureServiceTest {
                 .thenReturn(List.of(Map.of("warehouseId", 10L, "batchId", 66L,
                         "looseQty", BigDecimal.valueOf(50), "packageQty", BigDecimal.ZERO,
                         "totalQty", BigDecimal.valueOf(50))));
-        when(jdbcTemplate.queryForMap(contains("warehouse_type LIKE '%一级%'")))
-                .thenReturn(Map.of("warehouseId", 10L, "warehouseName", "主仓库"));
         doAnswer(invocation -> {
             populateKeyHolder(invocation.getArgument(1), 88L);
             return 1;

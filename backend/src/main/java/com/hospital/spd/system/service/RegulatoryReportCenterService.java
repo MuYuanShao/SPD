@@ -69,6 +69,20 @@ public class RegulatoryReportCenterService {
                 "supplier_delivery_ledger_report", "查看供应商供货明细台账");
     }
 
+    public Map<String, Object> supplierDeliveryLedgerOptions() {
+        // Keep inactive master records selectable for historical deliveries.
+        var suppliers = jdbcTemplate.queryForList("""
+                SELECT supplier_id AS id, supplier_code AS code, supplier_name AS name
+                  FROM supplier WHERE deleted = 0 ORDER BY supplier_name, supplier_id
+                """);
+        // Department master data supplies the acceptance department options.
+        var departments = jdbcTemplate.queryForList("""
+                SELECT dept_id AS id, dept_code AS code, dept_name AS name
+                  FROM sys_dept WHERE deleted = 0 ORDER BY sort_order, dept_id
+                """);
+        return Map.of("suppliers", suppliers, "departments", departments);
+    }
+
     public byte[] exportSupplierDeliveryLedger(Map<String, String> params) {
         QuerySpec spec = supplierSpec(params);
         return export(spec, "supplyDate DESC, acceptanceTime DESC, productCode", "供应商供货明细台账",
@@ -140,12 +154,19 @@ public class RegulatoryReportCenterService {
 
     private QuerySpec supplierSpec(Map<String, String> params) {
         DateRange range = dateRange(params);
-        StringBuilder where = new StringBuilder(" WHERE ro.receive_time >= ? AND ro.receive_time < ? AND p.deleted = 0");
+        String acceptanceDepartment = "COALESCE(d.dept_name, w.warehouse_name)";
+        // The ledger includes approved receipts with a positive qualified quantity only.
+        StringBuilder where = new StringBuilder("""
+                 WHERE ro.receive_time >= ? AND ro.receive_time < ? AND p.deleted = 0
+                   AND ro.receiving_status = 'approved' AND roi.qualified_quantity > 0
+                """);
         List<Object> args = new ArrayList<>(List.of(Date.valueOf(range.from()), Date.valueOf(range.to().plusDays(1))));
         dataScopeService.appendScope(where, args, "w.dept_id", "ro.receiver_id");
-        appendLike(where, args, "s.supplier_name", params.get("supplier"));
+        appendIdOrName(where, args, "s.supplier_id", params.get("supplierId"),
+                "s.supplier_name", params.get("supplier"));
         appendCategory(where, args, params.get("category"));
-        appendLike(where, args, "d.dept_name", params.get("department"));
+        appendIdOrName(where, args, "d.dept_id", params.get("departmentId"),
+                acceptanceDepartment, params.get("department"));
         String centralized = text(params.get("centralizedStatus"));
         if ("SELECTED".equalsIgnoreCase(centralized)) where.append(" AND p.is_centralized_procurement = 1");
         if ("NON_SELECTED".equalsIgnoreCase(centralized)) where.append(" AND p.is_centralized_procurement = 0");
@@ -157,7 +178,7 @@ public class RegulatoryReportCenterService {
                        roi.unit_price AS unitPrice, roi.qualified_quantity AS supplyQuantity,
                        ROUND(roi.qualified_quantity * roi.unit_price, 2) AS supplyAmount,
                        COALESCE(po.order_no, '-') AS orderNo, COALESCE(p.contract_code, '-') AS contractNo,
-                       COALESCE(d.dept_name, w.warehouse_name) AS acceptanceDepartment,
+                       __ACCEPTANCE_DEPARTMENT__ AS acceptanceDepartment,
                        COALESCE(NULLIF(u.real_name, ''), u.username, '-') AS acceptanceUser,
                        DATE_FORMAT(ro.receive_time, '%Y-%m-%d %H:%i') AS acceptanceTime,
                        CASE WHEN p.is_centralized_procurement = 1 THEN '中选' ELSE '非中选' END AS centralizedStatus
@@ -170,7 +191,7 @@ public class RegulatoryReportCenterService {
                   JOIN warehouse w ON w.warehouse_id = ro.warehouse_id
                   LEFT JOIN sys_dept d ON d.dept_id = w.dept_id
                   LEFT JOIN sys_user u ON u.user_id = ro.receiver_id
-                """ + where;
+                """.replace("__ACCEPTANCE_DEPARTMENT__", acceptanceDepartment) + where;
         return new QuerySpec(sql, args);
     }
 
@@ -366,6 +387,23 @@ public class RegulatoryReportCenterService {
         if (normalized.isBlank()) return;
         where.append(" AND ").append(column).append(" LIKE ?");
         args.add("%" + normalized + "%");
+    }
+
+    private static void appendIdOrName(StringBuilder where, List<Object> args, String idColumn, String idValue,
+                                       String nameColumn, String nameValue) {
+        String value = text(idValue);
+        if (value.isBlank()) {
+            appendLike(where, args, nameColumn, nameValue);
+            return;
+        }
+        try {
+            long id = Long.parseLong(value);
+            if (id <= 0) throw new NumberFormatException();
+            where.append(" AND ").append(idColumn).append(" = ?");
+            args.add(id);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("供应商或科室选项无效，请重新选择");
+        }
     }
 
     private static LocalDate parseDate(String value, LocalDate fallback) {

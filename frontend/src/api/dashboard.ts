@@ -1,4 +1,5 @@
 import { getData } from './http'
+import type { SystemNotice } from './systemNotices'
 
 export interface DashboardData {
   metrics: {
@@ -51,7 +52,7 @@ export interface HomeWorkbench {
   trend: WorkbenchDay[]
   alerts: Record<'lowStock' | 'expiry' | 'quality' | 'shortage' | 'license' | 'stagnant', number>
   todos: { rows: WorkbenchTodo[]; total: number }
-  notices: Array<{ id: string; title: string; date: string; content: string }>
+  notices: SystemNotice[]
   noticeSourceAvailable: boolean
   definitions: { expiryWarningDays: number; stagnantDays: number }
 }

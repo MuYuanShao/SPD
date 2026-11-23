@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElOption, ElSelect } from 'element-plus'
 import { Download, FileSpreadsheet, RefreshCw, Search } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
@@ -13,10 +13,12 @@ import {
   fetchCentralizedProcurementProgress,
   fetchInventoryMovementSummary,
   fetchSupplierDeliveryLedger,
+  fetchSupplierDeliveryLedgerOptions,
   recordRegulatoryPdfExport,
   type CentralizedProcurementRow,
   type InventoryMovementRow,
   type SupplierDeliveryRow,
+  type SupplierLedgerOption,
 } from '../../api/reportCenter'
 
 type ReportType = 'supplier' | 'centralized' | 'inventory'
@@ -47,9 +49,12 @@ const configs = {
 } as const
 const config = computed(() => configs[reportType.value])
 const query = reactive({
-  dateFrom: inputDate(monthAgo), dateTo: inputDate(today), supplier: '', category: '', department: '',
+  dateFrom: inputDate(monthAgo), dateTo: inputDate(today), supplierId: undefined as number | undefined,
+  supplierDepartment: undefined as number | string | undefined, category: '', department: '',
   centralizedStatus: 'ALL', batch: '', warehouse: '', materialType: 'ALL', page: 1, size: 20,
 })
+const appliedQuery = ref({ ...query })
+let reportRequestVersion = 0
 const rows = ref<ReportRow[]>([])
 const supplierRows = computed(() => rows.value as SupplierDeliveryRow[])
 const centralizedRows = computed(() => rows.value as CentralizedProcurementRow[])
@@ -59,6 +64,10 @@ const summary = ref<Record<string, number>>({})
 const loading = ref(false)
 const exporting = ref(false)
 const error = ref('')
+const supplierOptions = ref<SupplierLedgerOption[]>([])
+const departmentOptions = ref<SupplierLedgerOption[]>([])
+const supplierOptionsLoading = ref(false)
+const supplierOptionsError = ref('')
 
 function inputDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -67,16 +76,39 @@ function number(value: unknown) { return Number(value || 0) }
 function quantity(value: unknown) { return number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 }) }
 function amount(value: unknown) { return number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 function reportParams() {
-  const base = { dateFrom: query.dateFrom, dateTo: query.dateTo, page: query.page, size: query.size }
-  if (reportType.value === 'supplier') return { ...base, supplier: query.supplier, category: query.category, department: query.department, centralizedStatus: query.centralizedStatus as 'ALL' | 'SELECTED' | 'NON_SELECTED' }
-  if (reportType.value === 'centralized') return { ...base, batch: query.batch, category: query.category, department: query.department }
-  return { ...base, warehouse: query.warehouse, category: query.category, materialType: query.materialType as 'ALL' | 'HIGH' | 'LOW' | 'REAGENT' }
+  const filters = appliedQuery.value
+  const base = { dateFrom: filters.dateFrom, dateTo: filters.dateTo, page: query.page, size: query.size }
+  if (reportType.value === 'supplier') return {
+    ...base,
+    supplierId: filters.supplierId || undefined,
+    departmentId: typeof filters.supplierDepartment === 'number' ? filters.supplierDepartment : undefined,
+    department: typeof filters.supplierDepartment === 'string' ? filters.supplierDepartment : undefined,
+    category: filters.category,
+    centralizedStatus: filters.centralizedStatus as 'ALL' | 'SELECTED' | 'NON_SELECTED'
+  }
+  if (reportType.value === 'centralized') return { ...base, batch: filters.batch, category: filters.category, department: filters.department }
+  return { ...base, warehouse: filters.warehouse, category: filters.category, materialType: filters.materialType as 'ALL' | 'HIGH' | 'LOW' | 'REAGENT' }
 }
 function readableError(reason: unknown, fallback: string) {
   return reason instanceof Error && reason.message && reason.message !== 'Request failed' ? reason.message : fallback
 }
 
+async function loadSupplierOptions() {
+  supplierOptionsLoading.value = true
+  supplierOptionsError.value = ''
+  try {
+    const options = await fetchSupplierDeliveryLedgerOptions()
+    supplierOptions.value = options.suppliers
+    departmentOptions.value = options.departments
+  } catch (reason) {
+    supplierOptionsError.value = readableError(reason, '供应商或科室选项加载失败')
+  } finally {
+    supplierOptionsLoading.value = false
+  }
+}
+
 async function loadReport() {
+  const request = ++reportRequestVersion
   loading.value = true
   error.value = ''
   try {
@@ -86,19 +118,31 @@ async function loadReport() {
       : reportType.value === 'centralized'
         ? await fetchCentralizedProcurementProgress(params as Parameters<typeof fetchCentralizedProcurementProgress>[0])
         : await fetchInventoryMovementSummary(params as Parameters<typeof fetchInventoryMovementSummary>[0])
+    if (request !== reportRequestVersion) return
     rows.value = result.rows
     total.value = result.total
     summary.value = Object.fromEntries(Object.entries(result.summary || {}).map(([key, value]) => [key, number(value)]))
   } catch (reason) {
+    if (request !== reportRequestVersion) return
     rows.value = []; total.value = 0; summary.value = {}
     error.value = readableError(reason, `${config.value.title}加载失败，请稍后重试`)
     ElMessage.error(error.value)
-  } finally { loading.value = false }
+  } finally {
+    if (request === reportRequestVersion) loading.value = false
+  }
+}
+
+function applyQuery() {
+  query.page = 1
+  appliedQuery.value = { ...query }
+  void loadReport()
 }
 
 function resetQuery() {
-  Object.assign(query, { dateFrom: inputDate(monthAgo), dateTo: inputDate(today), supplier: '', category: '', department: '', centralizedStatus: 'ALL', batch: '', warehouse: '', materialType: 'ALL', page: 1 })
-  void loadReport()
+  Object.assign(query, { dateFrom: inputDate(monthAgo), dateTo: inputDate(today), supplierId: undefined,
+    supplierDepartment: undefined, category: '', department: '', centralizedStatus: 'ALL', batch: '',
+    warehouse: '', materialType: 'ALL', page: 1 })
+  applyQuery()
 }
 function changePage(page: number) {
   if (page === query.page) return
@@ -121,7 +165,7 @@ async function exportExcel() {
         ? await exportCentralizedProcurementProgressExcel(params as Parameters<typeof exportCentralizedProcurementProgressExcel>[0])
         : await exportInventoryMovementSummaryExcel(params as Parameters<typeof exportInventoryMovementSummaryExcel>[0])
     const href = URL.createObjectURL(blob)
-    const link = document.createElement('a'); link.href = href; link.download = `${config.value.title}_${query.dateFrom}_${query.dateTo}.xlsx`; link.click()
+    const link = document.createElement('a'); link.href = href; link.download = `${config.value.title}_${params.dateFrom}_${params.dateTo}.xlsx`; link.click()
     URL.revokeObjectURL(href)
     ElMessage.success('Excel 已开始下载')
   } catch (reason) {
@@ -134,8 +178,14 @@ async function exportPdf() {
   catch (reason) { error.value = readableError(reason, 'PDF 导出准备失败，请稍后重试'); ElMessage.error(error.value) }
 }
 
-watch(reportType, () => { resetQuery() })
-onMounted(() => void loadReport())
+watch(reportType, () => {
+  resetQuery()
+  if (reportType.value === 'supplier') void loadSupplierOptions()
+})
+onMounted(() => {
+  void loadReport()
+  if (reportType.value === 'supplier') void loadSupplierOptions()
+})
 </script>
 
 <template>
@@ -152,31 +202,43 @@ onMounted(() => void loadReport())
       <div class="report-filters">
         <label><span>统计时间</span><div class="date-range"><input v-model="query.dateFrom" type="date" /><i>至</i><input v-model="query.dateTo" type="date" /></div></label>
         <template v-if="reportType === 'supplier'">
-          <label><span>供应商</span><input v-model.trim="query.supplier" type="search" placeholder="全部供应商" @keyup.enter="changePage(1)" /></label>
-          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="一级 / 二级 / 三级分类" @keyup.enter="changePage(1)" /></label>
-          <label><span>科室</span><input v-model.trim="query.department" type="search" placeholder="全部科室" @keyup.enter="changePage(1)" /></label>
+          <label><span>供应商</span>
+            <ElSelect v-model="query.supplierId" aria-label="供应商" clearable filterable
+              :loading="supplierOptionsLoading" placeholder="全部供应商">
+              <ElOption v-for="supplier in supplierOptions" :key="supplier.id" :value="supplier.id"
+                :label="`${supplier.name} · ${supplier.code}`" />
+            </ElSelect>
+          </label>
+          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="一级 / 二级 / 三级分类" @keyup.enter="applyQuery" /></label>
+          <label><span>科室</span>
+            <ElSelect v-model="query.supplierDepartment" aria-label="科室" clearable filterable allow-create default-first-option
+              :loading="supplierOptionsLoading" placeholder="请选择科室或输入库房名称">
+              <ElOption v-for="department in departmentOptions" :key="department.id" :value="department.id"
+                :label="`${department.name} · ${department.code}`" />
+            </ElSelect>
+          </label>
           <label><span>集采中选状态</span><select v-model="query.centralizedStatus"><option value="ALL">全部</option><option value="SELECTED">中选</option><option value="NON_SELECTED">非中选</option></select></label>
         </template>
         <template v-else-if="reportType === 'centralized'">
-          <label><span>集采批次</span><input v-model.trim="query.batch" type="search" placeholder="批次名称 / 编码" @keyup.enter="changePage(1)" /></label>
-          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="全部分类" @keyup.enter="changePage(1)" /></label>
-          <label><span>科室</span><input v-model.trim="query.department" type="search" placeholder="消耗科室" @keyup.enter="changePage(1)" /></label>
+          <label><span>集采批次</span><input v-model.trim="query.batch" type="search" placeholder="批次名称 / 编码" @keyup.enter="applyQuery" /></label>
+          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="全部分类" @keyup.enter="applyQuery" /></label>
+          <label><span>科室</span><input v-model.trim="query.department" type="search" placeholder="消耗科室" @keyup.enter="applyQuery" /></label>
         </template>
         <template v-else>
-          <label><span>库房</span><input v-model.trim="query.warehouse" type="search" placeholder="全部库房" @keyup.enter="changePage(1)" /></label>
-          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="全部分类" @keyup.enter="changePage(1)" /></label>
+          <label><span>库房</span><input v-model.trim="query.warehouse" type="search" placeholder="全部库房" @keyup.enter="applyQuery" /></label>
+          <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="全部分类" @keyup.enter="applyQuery" /></label>
           <label><span>耗材类型</span><select v-model="query.materialType"><option value="ALL">全部</option><option value="HIGH">高值耗材</option><option value="LOW">低值耗材</option><option value="REAGENT">试剂</option></select></label>
         </template>
       </div>
       <div class="report-actions">
-        <button class="btn btn-primary" type="button" :disabled="loading" @click="changePage(1)"><Search :size="16" />查询</button>
+        <button class="btn btn-primary" type="button" :disabled="loading" @click="applyQuery"><Search :size="16" />查询</button>
         <button class="btn" type="button" :disabled="loading" @click="resetQuery"><RefreshCw :size="16" />重置</button>
-        <button class="btn" type="button" :disabled="exporting" @click="exportExcel"><FileSpreadsheet :size="16" />导出 Excel</button>
-        <button class="btn" type="button" @click="exportPdf"><Download :size="16" />导出 PDF</button>
+        <button class="btn" type="button" :disabled="loading || exporting" @click="exportExcel"><FileSpreadsheet :size="16" />导出 Excel</button>
+        <button class="btn" type="button" :disabled="loading" @click="exportPdf"><Download :size="16" />导出 PDF</button>
       </div>
     </section>
 
-    <StatusMessage :message="error" tone="error" role="alert" />
+    <StatusMessage :message="error || (reportType === 'supplier' ? supplierOptionsError : '')" tone="error" role="alert" />
 
     <section class="report-summary" aria-label="汇总指标">
       <template v-if="reportType === 'supplier'">

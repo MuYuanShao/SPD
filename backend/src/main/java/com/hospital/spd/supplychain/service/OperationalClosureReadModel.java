@@ -4,10 +4,15 @@ import com.hospital.spd.common.PageRequest;
 import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
+import com.hospital.spd.system.service.FieldOptionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -22,6 +27,7 @@ import java.util.Map;
 public class OperationalClosureReadModel {
 
     private final JdbcTemplate jdbcTemplate;
+    private final FieldOptionService fieldOptions;
     private final DepartmentRequisitionAccessService requisitionAccess;
 
     public OperationalClosureReadModel(JdbcTemplate jdbcTemplate) {
@@ -29,10 +35,17 @@ public class OperationalClosureReadModel {
                 new DataScopeService(OperatorContext::system)));
     }
 
-    @Autowired
     public OperationalClosureReadModel(JdbcTemplate jdbcTemplate,
                                        DepartmentRequisitionAccessService requisitionAccess) {
+        this(jdbcTemplate, requisitionAccess, new FieldOptionService(jdbcTemplate));
+    }
+
+    @Autowired
+    public OperationalClosureReadModel(JdbcTemplate jdbcTemplate,
+                                       DepartmentRequisitionAccessService requisitionAccess,
+                                       FieldOptionService fieldOptions) {
         this.jdbcTemplate = jdbcTemplate;
+        this.fieldOptions = fieldOptions;
         this.requisitionAccess = requisitionAccess;
     }
 
@@ -106,7 +119,8 @@ public class OperationalClosureReadModel {
                 SELECT dept_code AS deptCode, dept_name AS deptName
                   FROM sys_dept
                 """ + where + " ORDER BY sort_order, dept_id", args.toArray());
-        return Map.of("departments", departments, "warehouses", List.of(), "products", List.of(), "balances", List.of());
+        return Map.of("departments", departments, "warehouses", List.of(), "products", List.of(), "balances", List.of(),
+                "requisitionTypes", fieldOptions.activeOptions(FieldOptionService.REQUISITION_TYPE));
     }
 
     /** Returns only enabled warehouses currently owned by the authorized department. */
@@ -143,9 +157,11 @@ public class OperationalClosureReadModel {
         }).toList();
     }
 
+    // Keep summary and detail queries on the same snapshot while settlements are posted.
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Map<String, Object> list(String type, Map<String, String> params) {
         PageRequest pageReq = PageRequest.from(params);
-        if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption", "red-flush").contains(type)) {
+        if (!requisitionAccess.isUnrestricted() && List.of("shortage", "consumption").contains(type)) {
             return scopedDepartmentRecords(type, pageReq);
         }
         return switch (type) {
@@ -157,31 +173,29 @@ public class OperationalClosureReadModel {
                            formula_replenish_qty AS formulaReplenishQty,
                            manual_adjusted AS manualAdjusted, formula_text AS formulaText, status,
                            DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM shortage_replenishment_task ORDER BY create_time DESC LIMIT ? OFFSET ?
+                      FROM shortage_replenishment_task ORDER BY create_time DESC, task_id DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countLong("shortage_replenishment_task", "1 = 1"), pageReq);
             case "delivery" -> deliveryRecords(params, pageReq);
             case "requisition" -> requisitionRecords(params, pageReq);
             case "consumption" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT dc.consumption_no AS bizNo, sd.dept_name AS deptName, p.product_code AS productCode,
                            p.product_name AS productName, dci.quantity, dci.unit_price AS unitPrice, dci.amount,
+                           dci.requisition_type AS requisitionType,
+                           COALESCE(requisition_option.option_label, dci.requisition_type) AS requisitionTypeLabel,
                            dc.status, DATE_FORMAT(dc.consume_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM department_consumption dc
                       JOIN sys_dept sd ON sd.dept_id = dc.dept_id
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                       JOIN product p ON p.product_id = dci.product_id
+                      LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                        AND requisition_option.option_value = dci.requisition_type
                      ORDER BY dc.consume_time DESC LIMIT ? OFFSET ?
                     """, pageReq.size(), pageReq.offset()), countJoinedRows("""
                     SELECT COUNT(*)
                       FROM department_consumption dc
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                     """), pageReq);
-            case "red-flush" -> PageResponse.of(jdbcTemplate.queryForList("""
-                    SELECT flush_no AS bizNo, source_consumption_no AS sourceNo,
-                           flush_type AS flushType, status, remark,
-                           DATE_FORMAT(create_time, '%Y-%m-%d %H:%i') AS createTime
-                      FROM consumption_red_flush
-                     ORDER BY create_time DESC LIMIT ? OFFSET ?
-                    """, pageReq.size(), pageReq.offset()), countLong("consumption_red_flush", "1 = 1"), pageReq);
+            case "red-flush" -> redFlushRecords(params, pageReq);
             case "settlement" -> settlementDetails(params, pageReq);
             case "pda" -> PageResponse.of(jdbcTemplate.queryForList("""
                     SELECT record_no AS bizNo, device_no AS deviceNo, operation_type AS operationType,
@@ -209,6 +223,7 @@ public class OperationalClosureReadModel {
                     """, pageReq.size(), pageReq.offset()),
                     countLong("cold_chain_exception", "1 = 1") + countLong("recall_event", "1 = 1"),
                     pageReq);
+            case "recall" -> recallRecords(params, pageReq);
             case "high-value" -> highValueChargeDetails(params, pageReq);
             default -> PageResponse.of(List.of(), 0, pageReq);
         };
@@ -279,6 +294,13 @@ public class OperationalClosureReadModel {
         appendLike(where, args, "dr.requisition_no", params.get("requisitionNo"));
         appendLike(where, args, "sd.dept_name", params.get("deptName"));
         appendEquals(where, args, "dr.status", params.get("status"));
+        appendDateRange(where, args, "dr.apply_time", params);
+        String orderBy = switch (params.getOrDefault("sort", "")) {
+            case "timeAsc" -> "dr.apply_time ASC, dr.requisition_id ASC";
+            case "departmentAsc" -> "sd.dept_name ASC, dr.apply_time DESC, dr.requisition_id DESC";
+            case "departmentDesc" -> "sd.dept_name DESC, dr.apply_time DESC, dr.requisition_id DESC";
+            default -> "dr.apply_time DESC, dr.requisition_id DESC";
+        };
         String countSql = "SELECT COUNT(*) FROM department_requisition dr JOIN sys_dept sd ON sd.dept_id = dr.dept_id" + where;
         Long total = args.isEmpty() ? jdbcTemplate.queryForObject(countSql, Long.class)
                 : jdbcTemplate.queryForObject(countSql, Long.class, args.toArray());
@@ -301,9 +323,35 @@ public class OperationalClosureReadModel {
                 """ + where + """
                  GROUP BY dr.requisition_id, dr.requisition_no, sd.dept_name, w.warehouse_name,
                           u.real_name, u.username, dr.status, dr.apply_time
-                 ORDER BY dr.apply_time DESC LIMIT ? OFFSET ?
-                """, pageArgs.toArray());
+                """ + " ORDER BY " + orderBy + " LIMIT ? OFFSET ?", pageArgs.toArray());
         return PageResponse.of(rows, total == null ? 0 : total, pageReq);
+    }
+
+    private LocalDate queryDate(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            LocalDate date = LocalDate.parse(value.trim());
+            if (date.getYear() >= 1000 && date.getYear() < 9999) return date;
+        } catch (DateTimeParseException ignored) {
+            // Return the same validation message for invalid and unsupported dates.
+        }
+        throw new IllegalArgumentException("请输入有效的日期");
+    }
+
+    private void appendDateRange(StringBuilder where, List<Object> args, String column, Map<String, String> params) {
+        LocalDate from = queryDate(params.get("dateFrom"));
+        LocalDate to = queryDate(params.get("dateTo"));
+        if (from != null && to != null && from.isAfter(to)) {
+            throw new IllegalArgumentException("开始日期不能晚于结束日期");
+        }
+        if (from != null) {
+            where.append(" AND ").append(column).append(" >= ?");
+            args.add(from.atStartOfDay());
+        }
+        if (to != null) {
+            where.append(" AND ").append(column).append(" < ?");
+            args.add(to.plusDays(1).atStartOfDay());
+        }
     }
 
     private Map<String, Object> scopedDepartmentRecords(String type, PageRequest page) {
@@ -316,22 +364,114 @@ public class OperationalClosureReadModel {
             select = "task.task_no AS bizNo, task.dept_name AS deptName, task.product_code AS productCode, task.product_name AS productName, task.replenish_qty AS quantity, task.min_qty AS minQty, task.current_qty AS currentQty, task.period_days AS periodDays, task.period_issue_qty AS periodIssueQty, task.avg_daily_issue_qty AS avgDailyIssueQty, task.formula_replenish_qty AS formulaReplenishQty, task.manual_adjusted AS manualAdjusted, task.formula_text AS formulaText, task.status, task.create_time AS createTime";
             from = " FROM shortage_replenishment_task task";
             dept = "(SELECT CASE WHEN COUNT(*) = 1 THEN MIN(d.dept_id) ELSE NULL END FROM sys_dept d WHERE d.dept_name = task.dept_name AND d.deleted = 0)";
-            owner = null; order = "task.create_time";
-        } else if ("consumption".equals(type)) {
-            select = "dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode, p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount, dc.status, dc.consume_time AS createTime";
-            from = " FROM department_consumption dc JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id JOIN product p ON p.product_id = item.product_id JOIN sys_dept d ON d.dept_id = dc.dept_id";
-            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time";
+            owner = null; order = "task.create_time DESC, task.task_id DESC";
         } else {
-            select = "flush.flush_no AS bizNo, flush.source_consumption_no AS sourceNo, flush.flush_type AS flushType, flush.status, flush.remark, flush.create_time AS createTime";
-            from = " FROM consumption_red_flush flush JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no";
-            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "flush.create_time";
+            select = """
+                    dc.consumption_no AS bizNo, d.dept_name AS deptName, p.product_code AS productCode,
+                    p.product_name AS productName, item.quantity, item.unit_price AS unitPrice, item.amount,
+                    dc.status, dc.consume_time AS createTime, item.requisition_type AS requisitionType,
+                    COALESCE(requisition_option.option_label, item.requisition_type) AS requisitionTypeLabel
+                    """;
+            from = """
+                    FROM department_consumption dc
+                    JOIN department_consumption_item item ON item.consumption_id = dc.consumption_id
+                    JOIN product p ON p.product_id = item.product_id
+                    JOIN sys_dept d ON d.dept_id = dc.dept_id
+                    LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                      AND requisition_option.option_value = item.requisition_type
+                    """;
+            dept = "dc.dept_id"; owner = "dc.consume_by"; order = "dc.consume_time DESC";
         }
         StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
         requisitionAccess.appendScope(where, args, dept, owner);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) " + from + where, Long.class, args.toArray());
         args.add(page.size()); args.add(page.offset());
-        return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " DESC LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
+        return PageResponse.of(jdbcTemplate.queryForList("SELECT " + select + from + where + " ORDER BY " + order + " LIMIT ? OFFSET ?", args.toArray()), total == null ? 0 : total, page);
+    }
+
+    public Map<String, Object> redFlushOptions() {
+        StringBuilder where = new StringBuilder(" WHERE d.deleted = 0 AND d.status = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "d.dept_id", null);
+        var departments = jdbcTemplate.queryForList(
+                "SELECT d.dept_code AS deptCode, d.dept_name AS deptName FROM sys_dept d" + where
+                        + " ORDER BY d.dept_name, d.dept_id", args.toArray());
+        var warehouses = jdbcTemplate.queryForList("""
+                SELECT d.dept_code AS deptCode, w.warehouse_id AS warehouseId, w.warehouse_name AS warehouseName
+                  FROM sys_dept d JOIN warehouse w ON w.dept_id = d.dept_id AND w.deleted = 0
+                """ + where + " ORDER BY w.warehouse_name, w.warehouse_id", args.toArray());
+        return Map.of("departments", departments, "warehouses", warehouses);
+    }
+
+    private Map<String, Object> redFlushRecords(Map<String, String> params, PageRequest pageReq) {
+        String from = """
+                 FROM consumption_red_flush flush
+                 LEFT JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no
+                 LEFT JOIN sys_dept d ON d.dept_id = dc.dept_id
+                 LEFT JOIN warehouse w ON w.warehouse_id = dc.warehouse_id
+                """;
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        requisitionAccess.appendScope(where, args, "dc.dept_id", "dc.consume_by");
+        appendEquals(where, args, "d.dept_code", params.get("deptCode"));
+        String warehouseId = params.get("warehouseId");
+        if (warehouseId != null && !warehouseId.isBlank()) {
+            try {
+                where.append(" AND dc.warehouse_id = ?");
+                args.add(Long.parseLong(warehouseId));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("库房参数无效", e);
+            }
+        }
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from + where, Long.class, args.toArray());
+        args.add(pageReq.size());
+        args.add(pageReq.offset());
+        var rows = jdbcTemplate.queryForList("""
+                SELECT flush.flush_no AS bizNo, flush.source_consumption_no AS sourceNo,
+                       d.dept_name AS deptName, w.warehouse_name AS warehouseName,
+                       flush.flush_type AS flushType, flush.status, flush.remark,
+                       DATE_FORMAT(flush.create_time, '%Y-%m-%d %H:%i') AS createTime
+                """ + from + where + " ORDER BY flush.create_time DESC, flush.flush_no DESC LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
+    }
+
+    private Map<String, Object> recallRecords(Map<String, String> params, PageRequest pageReq) {
+        String sourceEvents = """
+                FROM inventory_event e
+                WHERE e.source_biz_type = 'recall_event' AND e.source_biz_id = r.recall_id
+                  AND (e.event_type = 'warehouse_transfer_out'
+                       OR (e.event_type = 'recall_isolate' AND (r.business_type = 'isolate' OR NOT EXISTS (
+                           SELECT 1 FROM inventory_event transfer
+                            WHERE transfer.source_biz_type = 'recall_event'
+                              AND transfer.source_biz_id = r.recall_id
+                              AND transfer.event_type = 'warehouse_transfer_out'
+                       ))))
+                """;
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
+        List<Object> args = new ArrayList<>();
+        appendDateRange(where, args, "r.create_time", params);
+        appendLike(where, args, "r.product_name", params.get("productName"));
+        appendLike(where, args, "r.product_code", params.get("productCode"));
+        String deptName = params.get("deptName");
+        if (deptName != null && !deptName.isBlank()) {
+            where.append(" AND EXISTS (SELECT 1 ").append(sourceEvents).append(" AND e.dept_name_snapshot LIKE ?)");
+            args.add("%" + deptName.trim() + "%");
+        }
+        String from = " FROM recall_event r" + where;
+        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
+        args.add(pageReq.size());
+        args.add(pageReq.offset());
+        var rows = jdbcTemplate.queryForList("""
+                SELECT r.recall_no AS bizNo, r.business_type AS businessType, r.product_code AS productCode,
+                       r.product_name AS productName, r.warehouse_name AS warehouseName,
+                       r.affected_qty AS quantity, r.status, r.reason,
+                       DATE_FORMAT(r.received_time, '%Y-%m-%d %H:%i:%s') AS receivedTime,
+                       DATE_FORMAT(r.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       (SELECT GROUP_CONCAT(DISTINCT e.dept_name_snapshot ORDER BY e.dept_name_snapshot SEPARATOR '、')
+                """ + sourceEvents + ") AS sourceDepartments" + from
+                + " ORDER BY r.create_time DESC, r.recall_id DESC LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total == null ? 0 : total, pageReq);
     }
 
     private Map<String, Object> deliveryRecords(Map<String, String> params, PageRequest pageReq) {
@@ -354,10 +494,16 @@ public class OperationalClosureReadModel {
             args.add("%" + labelNo.trim() + "%");
         }
         appendEquals(where, args, "d.status", params.get("status"));
-        appendDateBoundary(where, args, "d.create_time", params.get("dateFrom"), false);
-        appendDateBoundary(where, args, "d.create_time", params.get("dateTo"), true);
+        String dateColumn = "approval".equals(params.get("dateType")) ? "dr.approve_time" : "d.create_time";
+        appendDateBoundary(where, args, dateColumn, params.get("dateFrom"), false);
+        appendDateBoundary(where, args, dateColumn, params.get("dateTo"), true);
 
-        String from = " FROM spd_delivery_order d" + where;
+        String from = """
+                 FROM spd_delivery_order d
+                 LEFT JOIN department_requisition dr ON dr.requisition_no = d.requisition_no
+                 LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                   AND requisition_option.option_value = COALESCE(d.requisition_type, dr.requisition_type)
+                """ + where;
         Long total = jdbcTemplate.queryForObject("SELECT COUNT(*)" + from, Long.class, args.toArray());
 
         List<Object> queryArgs = new ArrayList<>(args);
@@ -366,8 +512,31 @@ public class OperationalClosureReadModel {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT d.delivery_id AS deliveryId, d.delivery_no AS bizNo,
                        d.requisition_no AS sourceNo, d.dept_name AS deptName,
+                       COALESCE(d.requisition_type, dr.requisition_type) AS requisitionType,
+                       COALESCE(requisition_option.option_label, d.requisition_type, dr.requisition_type) AS requisitionTypeLabel,
                        d.warehouse_name AS warehouseName, d.product_code AS productCode, d.product_name AS productName,
                        d.quantity, d.status,
+                       DATE_FORMAT(dr.approve_time, '%Y-%m-%d %H:%i:%s') AS requisitionCreatedAt,
+                       CASE WHEN dr.status IN ('picked', 'signed') THEN (
+                           SELECT DATE_FORMAT(MAX(outgoing.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order outgoing
+                            WHERE outgoing.requisition_no = dr.requisition_no
+                              AND outgoing.status IN ('picked', 'signed')
+                       ) END AS pickingCompletedAt,
+                       CASE
+                         WHEN dr.status = 'partial_picked' THEN (
+                           SELECT DATE_FORMAT(MAX(partial.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order partial
+                            WHERE partial.requisition_no = dr.requisition_no AND partial.status IN ('picked', 'signed')
+                         )
+                         WHEN dr.status IN ('picked', 'signed') THEN (
+                           SELECT DATE_FORMAT(previous.create_time, '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order previous
+                            WHERE previous.requisition_no = dr.requisition_no AND previous.status IN ('picked', 'signed')
+                            ORDER BY previous.create_time DESC, previous.delivery_id DESC
+                            LIMIT 1 OFFSET 1
+                         )
+                       END AS partialPickingCompletedAt,
                        DATE_FORMAT(d.sign_time, '%Y-%m-%d %H:%i') AS finishTime,
                        DATE_FORMAT(d.create_time, '%Y-%m-%d %H:%i') AS createTime
                 """ + from + """
@@ -409,6 +578,7 @@ public class OperationalClosureReadModel {
         String sql = """
                 SELECT sbi.item_id AS settlementItemId,
                        sb.settlement_id AS settlementId,
+                       sb.supplier_id AS settlementSupplierId,
                        sb.settlement_no AS settlementNo,
                        COALESCE(sd.dept_name, hvc.dept_name, tc.current_department, '-') AS settlementDept,
                        COALESCE(w.warehouse_name, tc.current_location, '-') AS settlementWarehouse,
@@ -464,6 +634,31 @@ public class OperationalClosureReadModel {
                                 JSON_UNQUOTE(JSON_EXTRACT(dc.patient_info, '$.patientName')),
                                 '-') AS patientName,
                        sb.status,
+                       COALESCE(sbi.requisition_type, dci.requisition_type) AS requisitionType,
+                       COALESCE(requisition_option.option_label, sbi.requisition_type, dci.requisition_type) AS requisitionTypeLabel,
+                       COALESCE(
+                           (SELECT dr.apply_time
+                              FROM spd_delivery_package_binding pb
+                              JOIN spd_delivery_order d ON d.delivery_id = pb.delivery_id
+                              JOIN department_requisition dr ON dr.requisition_id = pb.requisition_id
+                             WHERE pb.label_id = qpl.label_id AND pb.product_id = sbi.product_id
+                               AND d.sign_time <= dc.consume_time
+                             ORDER BY d.sign_time DESC, d.delivery_id DESC LIMIT 1),
+                           (SELECT dr.apply_time
+                              FROM spd_delivery_trace_code dt
+                              JOIN spd_delivery_order d ON d.delivery_id = dt.delivery_id
+                              JOIN department_requisition dr ON dr.requisition_no = d.requisition_no
+                             WHERE dt.trace_code_id = sbi.trace_code_id
+                               AND d.sign_time <= COALESCE(hvc.charge_time, hvc.create_time, dc.consume_time)
+                             ORDER BY d.sign_time DESC, d.delivery_id DESC LIMIT 1),
+                           (SELECT dr.apply_time
+                              FROM department_requisition_trace_code rt
+                              JOIN department_requisition dr ON dr.requisition_id = rt.requisition_id
+                              JOIN department_requisition_item ri ON ri.item_id = rt.requisition_item_id
+                             WHERE rt.trace_code_id = sbi.trace_code_id
+                               AND ri.product_id = sbi.product_id
+                               AND rt.create_time <= COALESCE(hvc.charge_time, hvc.create_time, dc.consume_time))
+                       ) AS requisitionAppliedAt,
                        sb.generate_time AS generatedAt,
                        sb.settlement_period AS period
                   FROM settlement_bill_item sbi
@@ -474,6 +669,8 @@ public class OperationalClosureReadModel {
                   LEFT JOIN department_consumption_item dci
                     ON sbi.source_biz_type = 'department_consumption_item'
                    AND dci.item_id = sbi.source_biz_id
+                  LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                    AND requisition_option.option_value = COALESCE(sbi.requisition_type, dci.requisition_type)
                   LEFT JOIN department_consumption dc ON dc.consumption_id = dci.consumption_id
                   LEFT JOIN quota_package_label qpl ON qpl.product_id = sbi.product_id
                     AND sbi.source_biz_type = 'department_consumption_item'
@@ -495,16 +692,43 @@ public class OperationalClosureReadModel {
                          AND confirm_audit.biz_id = sb.settlement_id
                     )
                 """;
-        String where = goodsType.isEmpty() ? "" : " WHERE detail.goodsType = ?";
+        StringBuilder where = new StringBuilder(" WHERE 1 = 1");
         List<Object> args = new ArrayList<>();
-        if (!goodsType.isEmpty()) args.add(goodsType);
-        Long total = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM (" + sql + ") detail" + where,
-                Long.class, args.toArray());
+        appendEquals(where, args, "detail.goodsType", goodsType);
+        appendLike(where, args, "detail.settlementDept", params.get("deptName"));
+        appendLike(where, args, "CONCAT_WS(' ', detail.uid, detail.uniqueCode, detail.quotaPackageCode)", params.get("traceCode"));
+        appendLike(where, args, """
+                CONCAT_WS(' ', detail.productCode, detail.productName, detail.genericName,
+                    detail.specModel, detail.manufacturerName, detail.registrationNo)
+                """.strip(), params.get("productKeyword"));
+        appendDateRange(where, args, "detail.requisitionAppliedAt", params);
+        String orderBy = switch (params.getOrDefault("sort", "")) {
+            case "timeAsc" -> "detail.requisitionAppliedAt IS NULL, detail.requisitionAppliedAt ASC, ";
+            case "timeDesc" -> "detail.requisitionAppliedAt DESC, ";
+            case "departmentAsc" -> "detail.settlementDept ASC, detail.requisitionAppliedAt DESC, ";
+            case "departmentDesc" -> "detail.settlementDept DESC, detail.requisitionAppliedAt DESC, ";
+            default -> "";
+        };
+        Map<String, Object> summary = jdbcTemplate.queryForMap("""
+                SELECT COUNT(*) AS rowCount,
+                       COUNT(DISTINCT detail.settlementId) AS documentCount,
+                       COUNT(DISTINCT detail.settlementSupplierId) AS supplierCount,
+                       COUNT(DISTINCT detail.packageLabelId) AS packageCount,
+                       COALESCE(SUM(detail.settlementQuantity), 0) AS totalQuantity,
+                       COALESCE(SUM(detail.settlementAmount), 0) AS totalAmount,
+                       COALESCE(SUM(detail.looseQuantity), 0) AS looseQuantity,
+                       COALESCE(SUM(detail.highValueQuantity), 0) AS highValueQuantity
+                  FROM (
+                """ + sql + ") detail" + where, args.toArray());
+        long total = ((Number) summary.getOrDefault("rowCount", 0)).longValue();
         args.add(pageReq.size());
         args.add(pageReq.offset());
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("SELECT * FROM (" + sql + ") detail" + where
-                + " ORDER BY detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?", args.toArray());
-        return PageResponse.of(rows, total == null ? 0L : total, pageReq);
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
+                SELECT detail.*, DATE_FORMAT(detail.requisitionAppliedAt, '%Y-%m-%d %H:%i:%s') AS requisitionTime
+                  FROM (
+                """ + sql + ") detail" + where
+                + " ORDER BY " + orderBy + "detail.generatedAt DESC, detail.settlementItemId LIMIT ? OFFSET ?", args.toArray());
+        return PageResponse.of(rows, total, pageReq, summary);
     }
 
     private Map<String, Object> highValueChargeDetails(Map<String, String> params, PageRequest pageReq) {

@@ -8,6 +8,8 @@ export interface PrintTemplateField {
 }
 
 export interface PrintTemplateRow {
+  createTime?: string
+  updateTime?: string
   id: number
   templateCode: string
   templateName: string

@@ -71,6 +71,7 @@ public class SafetyStockService {
                        COALESCE(qpt.template_name, '-') AS templateName,
                        qss.min_qty AS minQty, qss.max_qty AS maxQty,
                        CASE qss.status WHEN 1 THEN '启用' ELSE '禁用' END AS status,
+                       DATE_FORMAT(qss.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(qss.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM quota_safety_stock qss
                   JOIN sys_dept sd ON sd.dept_id = qss.dept_id

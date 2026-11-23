@@ -231,6 +231,12 @@ public class HighValueTraceFlowService {
                 null, null, "高值耗材唯一码完成供应商结算", 90);
     }
 
+    public void restoreSignedConsumption(Long traceCodeId, Long productId, Long warehouseId, String consumptionNo) {
+        TraceUnit unit = requireUnitsByIds(List.of(traceCodeId), productId, warehouseId, List.of("consumed")).get(0);
+        transition(unit, warehouseId, "signed", "consumption_reverse", "科室反消耗",
+                consumptionNo, null, null, "高值耗材唯一码恢复科室库存", 80);
+    }
+
     private void transition(TraceUnit unit, Long warehouseId, String status, String eventType, String eventName,
                             String bizNo, String locationName, String departmentName, String remark, int sortOrder) {
         jdbcTemplate.update("""

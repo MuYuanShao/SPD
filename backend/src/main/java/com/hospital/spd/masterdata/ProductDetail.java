@@ -39,7 +39,9 @@ public record ProductDetail(
         boolean keyMonitored,
         String storageCondition,
         String statusLabel,
-        List<ProductAttachment> attachments
+        List<ProductAttachment> attachments,
+        String createTime,
+        String updateTime
 ) {
     public ProductDetail(
             Long productId, String productCode, String productName, String specModel, String brand,
@@ -59,6 +61,6 @@ public record ProductDetail(
                 productionLicenseNo, businessLicenseNo, volumeBased, centralizedProcurement,
                 domestic, contractCode, firstCategory, secondCategory, thirdCategory, chargeable,
                 tenderSubCode, highValue, coldChain, quotaManaged, false, storageCondition,
-                statusLabel, attachments);
+                statusLabel, attachments, null, null);
     }
 }

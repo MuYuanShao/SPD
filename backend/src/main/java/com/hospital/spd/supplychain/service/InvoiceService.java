@@ -55,6 +55,7 @@ public class InvoiceService {
                        DATE_FORMAT(si.invoice_date, '%Y-%m-%d') AS invoiceDate,
                        si.amount, si.tax_amount AS taxAmount, si.status,
                        sb.settlement_no AS settlementNo, si.remark,
+                       DATE_FORMAT(si.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(si.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM supplier_invoice si
                   JOIN supplier s ON s.supplier_id = si.supplier_id

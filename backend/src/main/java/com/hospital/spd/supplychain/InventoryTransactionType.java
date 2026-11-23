@@ -13,6 +13,7 @@ public enum InventoryTransactionType {
     TERTIARY_IN("tertiary_in", "三级库入库", "quantity"),
     SECONDARY_OUT("secondary_out", "二级库出库", "quantity"),
     TERTIARY_OUT("tertiary_out", "三级库出库", "quantity"),
+    SUPPLIER_RETURN_OUT("supplier_return_out", "供应商退货出库", "quantity"),
     BATCH_PRICE_ADJUSTMENT("batch_price_adjustment", "批次调价", "valuation");
 
     private final String code;
@@ -31,6 +32,7 @@ public enum InventoryTransactionType {
 
     public static InventoryTransactionType fromEvent(String eventType, String warehouseType, int direction) {
         if ("batch_price_adjustment".equals(eventType)) return BATCH_PRICE_ADJUSTMENT;
+        if ("supplier_return_out".equals(eventType)) return SUPPLIER_RETURN_OUT;
         if ("purchase_receive_in".equals(eventType)) return RECEIVING_IN;
         if ("quota_pack_out".equals(eventType)) return QUOTA_PACK_IN;
         if ("quota_unpack_in".equals(eventType) || "quota_terminate_in".equals(eventType)) return QUOTA_UNPACK;

@@ -153,10 +153,12 @@ public class DepartmentRequisitionSmartService {
             Long deptId = Long.valueOf(ids[0]);
             Map<String, Object> dept = jdbcTemplate.queryForMap(
                     "SELECT dept_code AS deptCode, dept_name AS deptName FROM sys_dept WHERE dept_id = ?", deptId);
-            Map<String, Object> result = requisitionModule.createRequisition(Map.of(
+            var requisition = new LinkedHashMap<>(Map.of(
                     "deptCode", dept.get("deptCode"), "deptName", dept.get("deptName"),
                     "destinationWarehouseId", Long.valueOf(ids[1]), "sourceWarehouseId", Long.valueOf(ids[2]),
                     "items", entry.getValue()));
+            if (request.requisitionType() != null) requisition.put("requisitionType", request.requisitionType());
+            Map<String, Object> result = requisitionModule.createRequisition(requisition);
             String no = String.valueOf(result.get("requisitionNo"));
             requisitionNos.add(no);
             Long requisitionId = jdbcTemplate.queryForObject(

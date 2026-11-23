@@ -14,6 +14,7 @@ public record SystemConfigRow(
         String expireTime,
         String riskLevel,
         String status,
-        String updateTime
+        String updateTime,
+        String createTime
 ) {
 }

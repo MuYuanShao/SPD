@@ -35,6 +35,8 @@ class BatchPriceAdjustmentServiceTest {
                 "newUnitPrice", new BigDecimal("15.00"), "status", "draft"));
         when(jdbc.queryForObject(contains("FROM inventory_batch"), eq(BigDecimal.class), eq(8L)))
                 .thenReturn(new BigDecimal("12.00"));
+        when(jdbc.queryForObject("SELECT product_id FROM inventory_batch WHERE batch_id = ?", Long.class, 8L))
+                .thenReturn(9L);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.approve("TJ002"))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("价格已变化");
         verifyNoInteractions(events);
@@ -58,13 +60,16 @@ class BatchPriceAdjustmentServiceTest {
         when(jdbc.queryForList(contains("FROM inventory_balance"), eq(8L))).thenReturn(List.of(Map.of("balanceId", 9L)));
         when(jdbc.queryForObject(contains("FROM inventory_batch"), eq(BigDecimal.class), eq(8L)))
                 .thenReturn(new BigDecimal("10.00"));
+        when(jdbc.queryForObject("SELECT product_id FROM inventory_batch WHERE batch_id = ?", Long.class, 8L))
+                .thenReturn(9L);
         when(events.recordValuationEvents(eq(7L), eq(8L), eq(new BigDecimal("10.00")),
                 eq(new BigDecimal("12.00")), anyString())).thenReturn(List.of(101L, 102L));
         when(jdbc.update(startsWith("UPDATE batch_price_adjustment"), eq(1L), eq(7L))).thenReturn(1);
 
         Map<String, Object> result = service.approve("TJ001");
 
-        assertThat(result).containsEntry("status", "approved").containsEntry("valuationEventCount", 2);
+        assertThat(result).containsEntry("status", "approved").containsEntry("valuationEventCount", 2)
+                .containsEntry("affectedPackages", 0);
         verify(jdbc).queryForList(contains("FOR UPDATE"), eq(8L));
         verify(jdbc).update("UPDATE inventory_batch SET batch_unit_price = ? WHERE batch_id = ?",
                 new BigDecimal("12.00"), 8L);

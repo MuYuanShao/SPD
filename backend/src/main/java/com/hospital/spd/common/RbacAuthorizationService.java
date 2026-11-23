@@ -28,6 +28,12 @@ public class RbacAuthorizationService {
         }
 
         String path = normalizePath(requestPath);
+        if (path.equals("/system-notices/login-delivery")) {
+            return userId != null && "POST".equalsIgnoreCase(method);
+        }
+        if (path.matches("/system-notices/[0-9]+/read")) {
+            return userId != null && "PUT".equalsIgnoreCase(method);
+        }
         if ((path.equals("/ai-assistant/models") && "GET".equalsIgnoreCase(method))
                 || (path.equals("/ai-assistant/chat") && "POST".equalsIgnoreCase(method))) {
             return userId != null;
@@ -80,6 +86,11 @@ public class RbacAuthorizationService {
 
     private static String requiredPermission(String method, String path) {
         String verb = method == null ? "GET" : method.toUpperCase(Locale.ROOT);
+        if (path.equals("/stock-returns") || path.startsWith("/stock-returns/")) {
+            if (("/stock-returns/picking-queue".equals(path) || "/stock-returns/picking-queue/page".equals(path)) && "GET".equals(verb)) return "picking-delivery:write";
+            if (path.matches("/stock-returns/[^/]+/warehouse-confirm") && "PUT".equals(verb)) return "picking-delivery:write";
+            return "GET".equals(verb) ? "stock-return" : "stock-return:write";
+        }
 
         if (path.startsWith("/mobile/")) {
             if(path.startsWith("/mobile/picking/")) {
@@ -167,12 +178,21 @@ public class RbacAuthorizationService {
         if (path.startsWith("/operational-closure/requisitions/")) {
             return "department-requisition:read";
         }
+        if (path.equals("/operational-closure/picking/recall-receipts")
+                || path.startsWith("/operational-closure/picking/recall-receipts/")) {
+            return ("GET".equals(verb) && (path.equals("/operational-closure/picking/recall-receipts")
+                    || path.equals("/operational-closure/picking/recall-receipts/page")))
+                    || ("PUT".equals(verb) && path.matches("/operational-closure/picking/recall-receipts/[^/]+"))
+                    ? "picking-delivery:write" : null;
+        }
         if (path.startsWith("/operational-closure/picking")) {
             return "department-requisition:pick";
         }
         String featureCode;
         if (path.equals("/operational-closure/overview") || path.equals("/operational-closure/options")) {
             featureCode = "operational-closure";
+        } else if (path.equals("/operational-closure/red-flush/options") && "GET".equals(verb)) {
+            featureCode = "red-flush-management";
         } else if (path.startsWith("/operational-closure/lists/")) {
             String type = path.substring("/operational-closure/lists/".length()).split("/")[0];
             if ("requisition".equals(type) || "department-requisition".equals(type)) {
@@ -186,6 +206,7 @@ public class RbacAuthorizationService {
                 case "settlement", "settlement-reconciliation" -> "settlement-reconciliation";
                 case "pda" -> "pda-offline-record";
                 case "cold-chain", "risk" -> "cold-chain-monitoring";
+                case "recall" -> "recall-isolation";
                 case "high-value" -> "high-value-consumables";
                 default -> null;
             };

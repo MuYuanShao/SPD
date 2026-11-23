@@ -1,4 +1,4 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getServerPage, getData, postData, putData, type PageResult } from './http'
 
 export interface InventoryBalanceRow {
   balanceId: number
@@ -24,6 +24,25 @@ export interface InventoryBalanceRow {
   settlementMode?: string
   updateTime?: string
 }
+export interface LooseStockRow {
+  balanceId: number
+  warehouseName: string
+  productCode: string
+  productName: string
+  specModel: string | null
+  manufacturerName: string | null
+  unit: string | null
+  unitPrice: number | null
+  systemBatchNo: string
+  productionBatchNo: string | null
+  expireDate: string | null
+  availableQty: number
+}
+
+export async function fetchLooseStock(params: Record<string, string>) {
+  return getServerPage<PageResult<LooseStockRow>>('/inventory/loose-stock', { params })
+}
+
 /**
  * 分页查询库存余额列表
  * @param params - 查询参数
@@ -36,11 +55,34 @@ export async function fetchInventoryBalances(params: Record<string, string>) {
   )
 }
 
-/**
- * 定数包库存查询
- */
+export interface QuotaPackageStockRow {
+  warehouseId: number
+  templateId: number
+  productId: number
+  warehouseName: string
+  deptName: string
+  packageCode: string
+  packageName: string
+  templateVersion: number | null
+  productCode: string
+  productName: string
+  specModel: string | null
+  registrationNo: string
+  unitPrice: number
+  unit: string | null
+  packageCount: number
+  packageQty: number
+  looseQty: number
+  amount: number
+  manufacturerName: string
+  supplierName: string
+  packageUniqueCodes: string[]
+}
+
+/** 分页查询定数包库存及其唯一码。 */
 export async function fetchQuotaPackageStock(params: Record<string, string>) {
-  return getData<PageResult<Record<string, unknown>>>('/inventory/quota-package-stock', { params })
+  return getData<PageResult<QuotaPackageStockRow>>('/inventory/quota-package-stock', { params }, undefined,
+    ['packageUniqueCodes', 'warehouseId', 'templateId', 'productId'])
 }
 
 /**
@@ -136,7 +178,9 @@ export interface InventoryEventQuery {
  * @returns 库存交易流水列表
  */
 export async function fetchInventoryEvents(params: InventoryEventQuery) {
-  return getData<PageResult<InventoryEventRow> & { summary?: InventoryEventSummary }>('/inventory/events', { params })
+  return getServerPage<PageResult<InventoryEventRow> & { summary?: InventoryEventSummary }>(
+    '/inventory/events', { params }
+  )
 }
 
 export async function fetchInventoryEventDetail(eventNo: string) {

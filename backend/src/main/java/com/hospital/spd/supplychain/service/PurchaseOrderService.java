@@ -125,6 +125,7 @@ public class PurchaseOrderService {
                        po.order_status AS orderStatus, po.total_amount AS totalAmount,
                        po.purchase_type AS purchaseType, po.close_reason AS closeReason,
                        DATE_FORMAT(po.expected_arrival_date, '%Y-%m-%d') AS expectedArrivalDate,
+                       DATE_FORMAT(po.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(po.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        DATE_FORMAT(po.send_time, '%Y-%m-%d %H:%i') AS sendTime,
                        DATE_FORMAT(po.close_time, '%Y-%m-%d %H:%i') AS closeTime,
@@ -135,7 +136,7 @@ public class PurchaseOrderService {
                   FROM purchase_order po
                   JOIN supplier s ON s.supplier_id = po.supplier_id
                   LEFT JOIN purchase_order_item poi ON poi.purchase_order_id = po.purchase_order_id
-                """ + where + " GROUP BY po.purchase_order_id ORDER BY po.create_time DESC LIMIT ? OFFSET ?",
+                """ + where + " GROUP BY po.purchase_order_id ORDER BY po.create_time DESC, po.purchase_order_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         StringBuilder summaryScope = new StringBuilder(" WHERE 1 = 1");
@@ -168,6 +169,7 @@ public class PurchaseOrderService {
                        po.order_status AS orderStatus, po.total_amount AS totalAmount,
                        po.purchase_type AS purchaseType, po.close_reason AS closeReason,
                        DATE_FORMAT(po.expected_arrival_date, '%Y-%m-%d') AS expectedArrivalDate,
+                       DATE_FORMAT(po.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        DATE_FORMAT(po.create_time, '%Y-%m-%d %H:%i') AS createTime,
                        DATE_FORMAT(po.approve_time, '%Y-%m-%d %H:%i') AS approveTime,
                        DATE_FORMAT(po.send_time, '%Y-%m-%d %H:%i') AS sendTime,
@@ -305,7 +307,7 @@ public class PurchaseOrderService {
         pageArgs.add(pageReq.offset());
         List<Map<String, Object>> demandHeaders = jdbcTemplate.queryForList("""
                 SELECT pd.demand_no AS demandNo, MAX(pd.create_time) AS sortTime
-                """ + fromClause + where + " GROUP BY pd.demand_no ORDER BY sortTime DESC LIMIT ? OFFSET ?",
+                """ + fromClause + where + " GROUP BY pd.demand_no ORDER BY sortTime DESC, pd.demand_no DESC LIMIT ? OFFSET ?",
                 pageArgs.toArray());
         if (demandHeaders.isEmpty()) {
             return PageResponse.of(List.of(), total == null ? 0 : total, pageReq);
@@ -316,6 +318,7 @@ public class PurchaseOrderService {
         String placeholders = String.join(",", java.util.Collections.nCopies(demandNos.size(), "?"));
         List<Object> detailArgs = new ArrayList<>(demandNos);
         detailArgs.addAll(demandNos);
+        // Round individual line amounts before totaling each requisition number.
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT pd.demand_id AS demandId, pd.demand_no AS demandNo, pd.demand_source AS demandSource,
                        pd.demand_status AS demandStatus, pd.urgent_level AS urgentLevel,
@@ -323,6 +326,9 @@ public class PurchaseOrderService {
                        p.spec_model AS specModel, pd.quantity, pd.approved_quantity AS approvedQuantity,
                        pd.suggested_purchase_qty AS suggestedPurchaseQty,
                        p.purchase_price AS unitPrice, p.registration_no AS registrationNo,
+                       ROUND(COALESCE(p.purchase_price, 0) * pd.quantity, 2) AS lineAmount,
+                       SUM(ROUND(COALESCE(p.purchase_price, 0) * pd.quantity, 2))
+                           OVER (PARTITION BY pd.demand_no) AS demandAmount,
                        m.manufacturer_name AS manufacturerName,
                        DATE_FORMAT(pd.create_time, '%Y-%m-%d %H:%i') AS createTime
                   FROM purchase_demand pd

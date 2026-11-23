@@ -76,9 +76,24 @@ export interface BaseReportQuery {
 
 export interface SupplierDeliveryQuery extends BaseReportQuery {
   supplier?: string
+  supplierId?: number
   category?: string
   department?: string
+  departmentId?: number
   centralizedStatus?: 'ALL' | 'SELECTED' | 'NON_SELECTED'
+}
+
+export interface SupplierLedgerOption {
+  id: number
+  code: string
+  name: string
+}
+
+/** 获取供货台账筛选所用的供应商和科室主数据选项。 */
+export function fetchSupplierDeliveryLedgerOptions() {
+  return getData<{ suppliers: SupplierLedgerOption[]; departments: SupplierLedgerOption[] }>(
+    '/report-center/supplier-delivery-ledger/options'
+  )
 }
 
 export interface SupplierDeliveryRow {

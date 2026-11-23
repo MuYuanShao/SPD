@@ -12,6 +12,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class RbacAuthorizationServiceTest {
+    @Test void noticesAreReadableBySignedInUsersAndPublishableOnlyByAdministrators() {
+        var service = new RbacAuthorizationService(mock(JdbcTemplate.class));
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "POST", "/api/system-notices/login-delivery")).isTrue();
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "PUT", "/api/system-notices/1/read")).isTrue();
+        assertThat(service.isAllowed(null, List.of(), "POST", "/api/system-notices/login-delivery")).isFalse();
+        assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "POST", "/api/system-notices")).isFalse();
+        assertThat(service.isAllowed(50L, List.of("ROLE_ADMIN"), "POST", "/api/system-notices")).isTrue();
+    }
     @Test
     void authenticatedUsersCanChangeTheirOwnPasswordWithoutAnAdminPermission() {
         assertThat(service.isAllowed(50L, List.of("ROLE_USER"), "PUT", "/api/auth/password")).isTrue();
@@ -41,6 +49,21 @@ class RbacAuthorizationServiceTest {
 
     private final JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
     private final RbacAuthorizationService service = new RbacAuthorizationService(jdbcTemplate);
+
+    @Test
+    void recallReceiptQueueAndConfirmationRequirePickingWritePermission() {
+        stubPermissions(50L, List.of("picking-delivery:write"));
+        stubPermissions(51L, List.of("picking-delivery", "recall-isolation:write"));
+        String queue = "/api/operational-closure/picking/recall-receipts";
+        assertThat(service.isAllowed(50L, List.of(), "GET", queue)).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "PUT", queue + "/ZH-1")).isTrue();
+        assertThat(service.isAllowed(51L, List.of(), "GET", queue)).isFalse();
+        assertThat(service.isAllowed(51L, List.of(), "PUT", queue + "/ZH-1")).isFalse();
+        for (String page : List.of(queue + "/page", "/api/stock-returns/picking-queue/page")) {
+            assertThat(service.isAllowed(50L, List.of(), "GET", page)).isTrue();
+            assertThat(service.isAllowed(51L, List.of(), "GET", page)).isFalse();
+        }
+    }
 
     @Test
     void inventory_product_report_uses_its_own_permission_for_both_urls() {

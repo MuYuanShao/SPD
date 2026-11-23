@@ -56,6 +56,7 @@ async function clear() {
     <dl class="summary">
       <dt>配送单</dt><dd><b>{{ record.detail.task.documentNo }}</b></dd>
       <dt>关联申领单</dt><dd>{{task.requisitionNo || '原单未提供'}}</dd>
+      <dt>申领类型</dt><dd>{{task.requisitionTypeLabel || task.requisitionType || '—'}}</dd>
       <dt>单据状态</dt><dd>{{statusName}}</dd>
       <dt>配送类型</dt><dd>{{deliveryName}}</dd>
       <dt>接收科室</dt><dd>{{task.deptName}}</dd>

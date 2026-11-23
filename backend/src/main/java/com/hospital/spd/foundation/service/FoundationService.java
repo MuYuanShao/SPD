@@ -74,6 +74,7 @@ public class FoundationService {
                 SELECT u.user_id AS userId, u.username, u.real_name AS realName, u.phone, u.email,
                        u.gender, u.dept_id AS deptId, d.dept_name AS deptName, u.status,
                        DATE_FORMAT(u.last_login_time, '%Y-%m-%d %H:%i') AS lastLoginTime,
+                       DATE_FORMAT(u.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(u.update_time, '%Y-%m-%d %H:%i') AS updateTime,
                        GROUP_CONCAT(r.role_name ORDER BY r.sort_order SEPARATOR '、') AS roleNames,
                        GROUP_CONCAT(r.role_id ORDER BY r.sort_order) AS roleIds
@@ -197,6 +198,7 @@ public class FoundationService {
         List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
                 SELECT r.role_id AS roleId, r.role_name AS roleName, r.role_code AS roleCode,
                        r.description, r.data_scope AS dataScope, r.status, r.sort_order AS sortOrder,
+                       DATE_FORMAT(r.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(r.update_time, '%Y-%m-%d %H:%i') AS updateTime,
                        COUNT(DISTINCT ur.user_id) AS userCount,
                        COUNT(DISTINCT rp.perm_id) AS permissionCount,

@@ -305,11 +305,13 @@ onMounted(() => loadFields(true))
                 <th>排序</th>
                 <th>状态</th>
                 <th>备注</th>
+                <th>创建时间</th>
+                <th>修改时间</th>
                 <th>操作</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-if="loading"><td colspan="6" class="text-center muted">正在加载字段...</td></tr>
+              <tr v-if="loading"><td colspan="8" class="text-center muted">正在加载字段...</td></tr>
               <tr v-for="option in options" v-else :key="option.optionId">
                 <td><span class="sys-tag is-code">{{ option.optionValue === '' ? '（空值）' : option.optionValue }}</span></td>
                 <td>{{ option.optionLabel }}</td>
@@ -320,6 +322,8 @@ onMounted(() => loadFields(true))
                   </span>
                 </td>
                 <td>{{ option.remark || '-' }}</td>
+                <td class="md-audit-time">{{ option.createTime || '-' }}</td>
+                <td class="md-audit-time">{{ option.updateTime || '-' }}</td>
                 <td>
                   <button class="btn-text" type="button" @click="openEditOptionDialog(option)">编辑</button>
                   <button class="btn-text btn-text-danger" type="button" @click="handleRemoveOption(option)">删除</button>

@@ -14,8 +14,17 @@ public record InventoryEventCommand(
         BigDecimal quantityChange,
         BigDecimal quantityAfter,
         String remark,
-        List<TraceLink> traceLinks
+        List<TraceLink> traceLinks,
+        Long locationId,
+        String requisitionType
 ) {
+    public InventoryEventCommand(String eventType, String sourceBizType, Long sourceBizId, Long warehouseId,
+                                 Long productId, Long batchId, BigDecimal quantityChange, BigDecimal quantityAfter,
+                                 String remark, List<TraceLink> traceLinks) {
+        this(eventType, sourceBizType, sourceBizId, warehouseId, productId, batchId, quantityChange,
+                quantityAfter, remark, traceLinks, null, null);
+    }
+
     public InventoryEventCommand {
         traceLinks = traceLinks == null ? List.of() : List.copyOf(traceLinks);
     }

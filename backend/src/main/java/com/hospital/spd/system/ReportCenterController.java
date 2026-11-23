@@ -60,6 +60,11 @@ public class ReportCenterController {
         return excel(regulatoryReportService.exportSupplierDeliveryLedger(params), "供应商供货明细台账.xlsx");
     }
 
+    @GetMapping("/supplier-delivery-ledger/options")
+    public ApiResponse<Map<String, Object>> supplierDeliveryLedgerOptions() {
+        return ApiResponse.ok(regulatoryReportService.supplierDeliveryLedgerOptions());
+    }
+
     @GetMapping("/centralized-procurement-progress")
     public ApiResponse<Map<String, Object>> centralizedProcurementProgress(@RequestParam Map<String, String> params) {
         return ApiResponse.ok(regulatoryReportService.centralizedProcurementProgress(params));

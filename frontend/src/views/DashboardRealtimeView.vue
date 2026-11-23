@@ -8,9 +8,11 @@ import {
   ShieldAlert, Bell, ListChecks, Layers
 } from '@lucide/vue'
 import { fetchDashboard, type DashboardData } from '../api/dashboard'
+import { publishSystemNotice } from '../api/systemNotices'
 import { useAuthStore } from '../stores/auth'
 import { formatBusinessText, formatStatusText } from '../utils/chineseDisplay'
 import NoticeList, { type NoticeItem } from '../components/business/NoticeList.vue'
+import StatusMessage from '../components/common/StatusMessage.vue'
 import TodoList, { type TodoItem } from '../components/business/TodoList.vue'
 import TrendChart from '../components/business/TrendChart.vue'
 import { useHomeWorkbench } from '../composables/useHomeWorkbench'
@@ -22,6 +24,42 @@ import { featureRouteTarget } from '../config/featureCatalog'
  * 实时数据
  * ========================================================= */
 const authStore = useAuthStore()
+const noticeEditorOpen = ref(false)
+const noticeTitle = ref('')
+const noticeContent = ref('')
+const noticeSaving = ref(false)
+const noticeError = ref('')
+const noticeFeedback = ref('')
+
+function openNoticeEditor() {
+  noticeTitle.value = ''
+  noticeContent.value = ''
+  noticeError.value = ''
+  noticeFeedback.value = ''
+  noticeEditorOpen.value = true
+}
+
+async function submitNotice() {
+  if (noticeSaving.value) return
+  const title = noticeTitle.value.trim()
+  const content = noticeContent.value.trim()
+  if (!title || !content) {
+    noticeError.value = '请输入公告标题和正文'
+    return
+  }
+  noticeSaving.value = true
+  noticeError.value = ''
+  try {
+    await publishSystemNotice(title, content)
+    noticeEditorOpen.value = false
+    noticeFeedback.value = '公告已发布'
+    refreshHome()
+  } catch (cause) {
+    noticeError.value = cause instanceof Error ? cause.message : '公告发布失败，请重试'
+  } finally {
+    noticeSaving.value = false
+  }
+}
 
 const loading = ref(false)
 const error = ref('')
@@ -440,8 +478,12 @@ onMounted(loadDashboard)
             <h2>系统公告</h2>
             <p>{{ notices.length }} 条</p>
           </div>
+          <el-button v-if="authStore.hasRole('ROLE_ADMIN')" type="primary" size="small" @click="openNoticeEditor">
+            新增公告
+          </el-button>
         </header>
         <div class="wb-card-body">
+          <StatusMessage :message="noticeFeedback" tone="success" role="status" />
           <NoticeList :items="notices" @select="showNotice" />
         </div>
       </article>
@@ -449,8 +491,24 @@ onMounted(loadDashboard)
 
     <!-- 弹窗：公告 / 待办详情 -->
     <el-dialog :model-value="Boolean(detail)" :title="detail?.title" class="tight" width="min(560px, 92vw)" @close="detail = undefined">
-      <p>{{ detail?.content }}</p>
+      <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ detail?.content }}</p>
       <template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="noticeEditorOpen" title="新增系统公告" width="min(560px, 92vw)"
+      :show-close="!noticeSaving" :close-on-press-escape="!noticeSaving" :close-on-click-modal="!noticeSaving">
+      <form @submit.prevent="submitNotice">
+        <label for="system-notice-title">公告标题</label>
+        <el-input id="system-notice-title" v-model="noticeTitle" maxlength="120" show-word-limit :disabled="noticeSaving" />
+        <label for="system-notice-content">公告正文</label>
+        <el-input id="system-notice-content" v-model="noticeContent" type="textarea" :rows="6"
+          maxlength="5000" show-word-limit :disabled="noticeSaving" />
+        <StatusMessage :message="noticeError" tone="error" role="alert" />
+      </form>
+      <template #footer>
+        <el-button :disabled="noticeSaving" @click="noticeEditorOpen = false">取消</el-button>
+        <el-button type="primary" :loading="noticeSaving" @click="submitNotice">发布公告</el-button>
+      </template>
     </el-dialog>
 
     <!-- 弹窗：常用功能设置 -->

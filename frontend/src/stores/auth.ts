@@ -28,6 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isAuthenticated = computed(() => Boolean(token.value && currentUser.value))
   const username = computed(() => currentUser.value?.username || '')
   const initializationError = ref('')
+  const completedLogins = ref(0)
   let initialization: Promise<void> | undefined
   let sessionVersion = 0
 
@@ -57,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
     session.setToken(data.token)
 
     await fetchCurrentUser()
+    completedLogins.value++
   }
 
   async function fetchCurrentUser() {
@@ -158,6 +160,7 @@ export const useAuthStore = defineStore('auth', () => {
     currentUser,
     isAuthenticated,
     initializationError,
+    completedLogins,
     username,
     login,
     logout,

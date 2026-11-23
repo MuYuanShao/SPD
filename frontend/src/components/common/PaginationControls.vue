@@ -7,6 +7,7 @@ const props = withDefaults(
     size: number
     total: number
     loading?: boolean
+    maxPageSize?: number
     pageSizeOptions?: number[]
   }>(),
   {
@@ -62,8 +63,10 @@ function submitSize() {
     sizeInput.value = String(props.size)
     return
   }
-  if (nextSize !== props.size) {
-    emit('change-size', nextSize)
+  const size = Math.min(nextSize, props.maxPageSize ?? nextSize)
+  sizeInput.value = String(size)
+  if (size !== props.size) {
+    emit('change-size', size)
   }
 }
 
@@ -83,9 +86,9 @@ function submitJump() {
       显示 {{ startItem }}-{{ endItem }} 条，共 {{ total }} 条
     </span>
     <div class="hospital-pagination-controls">
-      <form class="hospital-pagination-size" @submit.prevent="submitSize">
+      <form class="hospital-pagination-size" novalidate @submit.prevent="submitSize">
         每页
-        <input v-model="sizeInput" type="number" min="1" :disabled="loading" @blur="submitSize" />
+        <input v-model="sizeInput" type="number" aria-label="每页条数" min="1" :max="maxPageSize" :disabled="loading" @blur="submitSize" />
         条
       </form>
       <button class="btn btn-sm" type="button" :disabled="page <= 1 || loading" @click="changePage(page - 1)">

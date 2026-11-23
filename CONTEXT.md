@@ -67,8 +67,10 @@ department inventory. Department signing completes both inventory changes atomic
 must be idempotent. Do not infer a failed occupancy solely from a particular balance column;
 verify exclusive unique-code ownership, in-transit delivery state, and signing behavior.
 
-Department signing is not patient charging. High-value department inventory is deducted on
-receipt of HIS/anesthesia/surgery billing data; low-value quota packages support scan-driven
+Department signing does not charge the patient. Signed high-value units may be consumed
+directly by unique code in Department Consumption, which deducts the traced batch and creates
+eligible supplier settlement details. External billing remains a separate consumption entry
+and cannot deduct a unit already consumed. Low-value quota packages support scan-driven
 department consumption. Settlement uses the corresponding actual business source.
 
 ### Concurrency Flow

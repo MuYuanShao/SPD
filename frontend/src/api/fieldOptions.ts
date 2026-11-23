@@ -1,6 +1,8 @@
 import { deleteData, getData, postData, putData } from './http'
 
 export interface FieldOption {
+  createTime?: string
+  updateTime?: string
   optionId: number
   fieldKey: string
   fieldLabel: string

@@ -66,12 +66,12 @@ public final class OperationalCommandRequests {
                                      @NotBlank(message = "库房名称不能为空") String warehouseName,
                                      @NotBlank(message = "商品编码不能为空") String productCode,
                                      @NotNull(message = "消耗数量不能为空") @Positive(message = "消耗数量必须大于零") @com.hospital.spd.common.WholeQuantity BigDecimal quantity,
-                                     String deptCode, Long warehouseId)
+                                     String deptCode, Long warehouseId, String uniqueCode)
             implements CompatibleRequest {
         public ConsumptionRequest(String deptName, String warehouseName, String productCode, @com.hospital.spd.common.WholeQuantity BigDecimal quantity) {
-            this(deptName, warehouseName, productCode, quantity, null, null);
+            this(deptName, warehouseName, productCode, quantity, null, null, null);
         }
-        public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity, "deptCode", deptCode, "warehouseId", warehouseId); }
+        public Map<String, Object> toCompatibilityMap() { return map("deptName", deptName, "warehouseName", warehouseName, "productCode", productCode, "quantity", quantity, "deptCode", deptCode, "warehouseId", warehouseId, "uniqueCode", uniqueCode); }
     }
 
     public record PdaUploadRequest(String deviceNo, String operationType) implements CompatibleRequest {

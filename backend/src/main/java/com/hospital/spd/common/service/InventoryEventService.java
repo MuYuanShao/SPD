@@ -65,8 +65,8 @@ public class InventoryEventService {
                       supplier_id_snapshot, supplier_name_snapshot,
                       batch_id, system_batch_no_snapshot, production_batch_no_snapshot,
                       qty_change, qty_after, unit_price_snapshot, amount_snapshot, snapshot_origin,
-                      operator_id, remark
-                    ) VALUES (?, ?, ?, 'quantity', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'captured', ?, ?)
+                      operator_id, remark, location_id, requisition_type
+                    ) VALUES (?, ?, ?, 'quantity', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'captured', ?, ?, ?, ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, documentNumberService.next("KC", 5, "inventory_event", "event_no"));
             ps.setString(2, command.eventType());
@@ -96,6 +96,8 @@ public class InventoryEventService {
             ps.setBigDecimal(26, amount);
             ps.setLong(27, operator.userId());
             ps.setString(28, command.remark());
+            setNullableLong(ps, 29, command.locationId());
+            ps.setString(30, command.requisitionType());
             return ps;
         }, keyHolder);
         Long eventId = Objects.requireNonNull(keyHolder.getKey()).longValue();

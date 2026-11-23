@@ -71,12 +71,13 @@ public class SettlementPointService {
                 SELECT ib.supplier_id AS supplierId, DATE_FORMAT(dc.consume_time, '%Y-%m') AS settlementPeriod,
                        'department_consumption_item' AS sourceBizType, dci.item_id AS sourceBizId,
                        dci.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=dci.product_id AND current_product.is_high_value=1) AS catalogHighValue, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
-                       dci.quantity, dci.unit_price AS unitPrice, dci.amount
+                       dci.quantity, dci.unit_price AS unitPrice, dci.amount, dci.requisition_type AS requisitionType
                   FROM department_consumption dc
                   JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                   JOIN inventory_batch ib ON ib.batch_id = dci.batch_id
                  WHERE dc.consumption_id = ? AND dc.status = 'confirmed'
-                   AND ib.settlement_mode = 'department_consumption'
+                   AND (ib.settlement_mode = 'department_consumption'
+                        OR (dc.related_biz_type = 'manual_high_value' AND ib.settlement_mode = 'actual_sale'))
                    AND NOT EXISTS (
                      SELECT 1 FROM settlement_bill_item sbi
                       WHERE sbi.source_biz_type = 'department_consumption_item'
@@ -94,7 +95,7 @@ public class SettlementPointService {
                        ib.product_id AS productId, ib.batch_id AS batchId, hvc.trace_code_id AS traceCodeId,
                        hvc.quantity,
                        CASE WHEN hvc.quantity = 0 THEN 0 ELSE hvc.amount / hvc.quantity END AS unitPrice,
-                       hvc.amount
+                       hvc.amount, __REQUISITION_TYPE__ AS requisitionType
                   FROM high_value_charge hvc
                   JOIN inventory_batch_trace_code ibtc ON ibtc.trace_code_id = hvc.trace_code_id
                   JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
@@ -104,7 +105,8 @@ public class SettlementPointService {
                      SELECT 1 FROM settlement_bill_item sbi
                       WHERE sbi.source_biz_type = 'high_value_charge' AND sbi.source_biz_id = hvc.charge_id
                    )
-                """, "ib.product_id", chargeId));
+                 ORDER BY hvc.charge_id
+                """.replace("__REQUISITION_TYPE__", RequisitionOriginSql.HIGH_VALUE_CHARGE_TYPE), "ib.product_id", chargeId));
     }
 
     /**
@@ -196,14 +198,16 @@ public class SettlementPointService {
                     SELECT ib.supplier_id AS supplierId, DATE_FORMAT(dc.consume_time, '%Y-%m') AS settlementPeriod,
                            'department_consumption_item' AS sourceBizType, dci.item_id AS sourceBizId,
                            dci.product_id AS productId, EXISTS(SELECT 1 FROM product current_product WHERE current_product.product_id=dci.product_id AND current_product.is_high_value=1) AS catalogHighValue, dci.batch_id AS batchId, dci.trace_code_id AS traceCodeId, EXISTS(SELECT 1 FROM inventory_batch_trace_code trace WHERE trace.batch_id=ib.batch_id) AS highValueBatch,
-                           dci.quantity, dci.unit_price AS unitPrice, dci.amount,
+                           dci.quantity, dci.unit_price AS unitPrice, dci.amount, dci.requisition_type AS requisitionType,
                            EXISTS (SELECT 1 FROM settlement_bill_item sbi
                                     WHERE sbi.source_biz_type = 'department_consumption_item'
                                       AND sbi.source_biz_id = dci.item_id) AS alreadySettled
                       FROM department_consumption dc
                       JOIN department_consumption_item dci ON dci.consumption_id = dc.consumption_id
                       JOIN inventory_batch ib ON ib.batch_id = dci.batch_id
-                     WHERE dc.status = 'confirmed' AND ib.settlement_mode = 'department_consumption'
+                     WHERE dc.status = 'confirmed'
+                       AND (ib.settlement_mode = 'department_consumption'
+                            OR (dc.related_biz_type = 'manual_high_value' AND ib.settlement_mode = 'actual_sale'))
                        AND dc.consume_time >= ? AND dc.consume_time < ?
                     """;
             case ACTUAL_SALE -> """
@@ -211,7 +215,7 @@ public class SettlementPointService {
                            'high_value_charge' AS sourceBizType, hvc.charge_id AS sourceBizId,
                            ib.product_id AS productId, ib.batch_id AS batchId, hvc.trace_code_id AS traceCodeId,
                            hvc.quantity, CASE WHEN hvc.quantity = 0 THEN 0 ELSE hvc.amount / hvc.quantity END AS unitPrice,
-                           hvc.amount,
+                           hvc.amount, __REQUISITION_TYPE__ AS requisitionType,
                            EXISTS (SELECT 1 FROM settlement_bill_item sbi
                                     WHERE sbi.source_biz_type = 'high_value_charge'
                                       AND sbi.source_biz_id = hvc.charge_id) AS alreadySettled
@@ -220,7 +224,7 @@ public class SettlementPointService {
                       JOIN inventory_batch ib ON ib.batch_id = ibtc.batch_id
                      WHERE hvc.status = 'charged' AND ib.settlement_mode = 'actual_sale'
                        AND hvc.charge_time >= ? AND hvc.charge_time < ?
-                    """;
+                    """.replace("__REQUISITION_TYPE__", RequisitionOriginSql.HIGH_VALUE_CHARGE_TYPE);
         };
     }
 
@@ -275,11 +279,11 @@ public class SettlementPointService {
                 jdbcTemplate.update("""
                         INSERT INTO settlement_bill_item (
                           settlement_id, source_biz_type, source_biz_id, product_id, batch_id, trace_code_id,
-                          quantity, unit_price, amount, goods_type
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          quantity, unit_price, amount, goods_type, requisition_type
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """, settlementId, row.get("sourceBizType"), row.get("sourceBizId"), row.get("productId"),
                         row.get("batchId"), row.get("traceCodeId"), row.get("quantity"),
-                        row.get("unitPrice"), row.get("amount"), snapshotGoodsType(row));
+                        row.get("unitPrice"), row.get("amount"), snapshotGoodsType(row), row.get("requisitionType"));
             }
             if (phase3Outbox != null) phase3Outbox.captureSettlement(settlementId);
             String adverb = "manual_generate".equals(auditAction) ? "manually" : "automatically";

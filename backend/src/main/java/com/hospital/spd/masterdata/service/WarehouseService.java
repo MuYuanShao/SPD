@@ -74,6 +74,7 @@ public class WarehouseService {
                        CASE w.receiving_enabled WHEN 1 THEN TRUE ELSE FALSE END AS receivingEnabled,
                        COALESCE(JSON_UNQUOTE(w.stats_categories), '-') AS statsCategories,
                        CASE w.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(w.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(w.update_time, '%Y-%m-%d %H:%i') AS updateTime,
                        COALESCE((
                          SELECT COUNT(1)
@@ -82,7 +83,7 @@ public class WarehouseService {
                        ), 0) AS locationCount
                 FROM warehouse w
                 LEFT JOIN sys_dept d ON w.dept_id = d.dept_id
-                """ + where + " ORDER BY w.warehouse_id DESC LIMIT ? OFFSET ?",
+                """ + where + " ORDER BY w.update_time DESC, w.warehouse_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         return new MasterDataPage(
@@ -299,11 +300,12 @@ public class WarehouseService {
                        p.product_name AS productName,
                        CASE wl.status WHEN 1 THEN '启用' ELSE '停用' END AS statusLabel,
                        wl.status AS status,
+                       DATE_FORMAT(wl.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
                        DATE_FORMAT(wl.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM warehouse_location wl
                   LEFT JOIN product p ON p.product_id = wl.product_id AND p.deleted = 0
                  WHERE wl.warehouse_id = ? AND wl.deleted = 0
-                 ORDER BY wl.location_id DESC
+                 ORDER BY wl.update_time DESC, wl.location_id DESC
                 """, warehouseId);
     }
 

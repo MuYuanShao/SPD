@@ -1,6 +1,7 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getServerPage, getData, http, postData, putData, unwrapData, type ApiResponse, type PageResult } from './http'
 
 export interface ClosureOptions {
+  requisitionTypes?: Array<{ optionValue: string; optionLabel: string }>
   departments: Array<{ deptCode: string; deptName: string }>
   warehouses: Array<{ warehouseId?: number; warehouseName: string; warehouseType?: string }>
   products: Array<{ selectable?: number; maintained?: number; productCode: string; productName: string; specModel: string; unit: string; purchasePrice: number }>
@@ -53,7 +54,22 @@ export async function fetchDepartmentRequisitionWarehouses(deptCode: string) {
  * @returns 业务数据列表
  */
 export async function fetchClosureList(type: string, params: Record<string, string> = {}) {
+  if (type === 'shortage') return fetchServerPagedClosureList(type, params)
   return getData<PageResult<Record<string, unknown>>>(`/operational-closure/lists/${type}`, { params })
+}
+
+export async function fetchServerPagedClosureList(type: 'requisition' | 'settlement' | 'red-flush' | 'recall' | 'shortage', params: Record<string, string>) {
+  // These lists apply ordering and pagination together on the server.
+  return getServerPage<PageResult<Record<string, unknown>>>(
+    `/operational-closure/lists/${type}`, { params }
+  )
+}
+
+export function fetchRedFlushOptions() {
+  return getData<{
+    departments: ClosureOptions['departments']
+    warehouses: Array<{ deptCode: string; warehouseId: number; warehouseName: string }>
+  }>('/operational-closure/red-flush/options')
 }
 
 /** 获取独立的拣配记录台账，沿用拣配配送只读权限。 */
@@ -61,8 +77,10 @@ export async function fetchPickingRecords(params: Record<string, string> = {}) {
   return fetchClosureList('delivery', params)
 }
 
-export async function fetchPickingRequisitions() {
-  return getData<{ rows: Record<string, unknown>[] }>('/operational-closure/picking/requisitions')
+export async function fetchPickingRequisitions(params: Record<string, string> = {}) {
+  return unwrapData(await http.get<ApiResponse<{ rows: Record<string, unknown>[] }>>(
+    '/operational-closure/picking/requisitions', { params }
+  ))
 }
 
 export async function fetchPickingPackageLabels(params: Record<string, string> = {}) {
@@ -83,6 +101,7 @@ export interface PackageLabelDetail {
   warehouseName: string
   warehouseType: string
   createTime: string
+  updateTime?: string
   sources: Array<{ batchId: number; systemBatchNo?: string; productionBatchNo?: string; expireDate?: string; sourceQty: number; unitPrice: number }>
   bindings: Array<{ deliveryNo: string; requisitionNo?: string; packageQuantity: number; createTime: string }>
   events: Array<{ eventNo: string; eventType: string; statusBefore?: string; statusAfter?: string; qtyChange: number; remark?: string; createTime: string }>
@@ -164,6 +183,7 @@ export async function analyzeDepartmentRequisition(payload: {
 
 export async function generateRequisitionsFromAnalysis(payload: {
   analysisId: number
+  requisitionType?: string
   items: Array<{ analysisItemId: number; quantity: number; selected: boolean }>
 }) {
   return postData<{ createdCount: number; requisitionNos: string[]; status: string }>(
@@ -250,7 +270,7 @@ export async function fetchRecallInventory(params: Record<string, string>) {
  */
 export async function reverseConsumption(consumptionNo: string) {
   return putData<Record<string, unknown>>(
-    `/operational-closure/consumptions/${consumptionNo}/reverse`
+    `/operational-closure/consumptions/${encodeURIComponent(consumptionNo)}/reverse`
   )
 }
 
@@ -288,6 +308,24 @@ export async function createColdChainException(payload: Record<string, unknown>)
  */
 export async function createRecall(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>('/operational-closure/recalls', payload)
+}
+
+export interface PendingRecallReceipt {
+  recallNo: string
+  sourceWarehouses?: string
+  destinationWarehouse: string
+  quantity: number
+  createTime: string
+}
+
+export async function fetchPendingRecallReceipts(params: { page: number; size: number }) {
+  return getServerPage<PageResult<PendingRecallReceipt>>(
+    '/operational-closure/picking/recall-receipts/page', { params }
+  )
+}
+
+export function receiveRecall(recallNo: string) {
+  return putData<Record<string, unknown>>(`/operational-closure/picking/recall-receipts/${encodeURIComponent(recallNo)}`)
 }
 
 /**

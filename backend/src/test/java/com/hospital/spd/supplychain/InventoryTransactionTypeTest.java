@@ -27,6 +27,7 @@ class InventoryTransactionTypeTest {
         assertThat(InventoryTransactionType.BATCH_PRICE_ADJUSTMENT.code()).isEqualTo("batch_price_adjustment");
         assertThat(InventoryTransactionType.BATCH_PRICE_ADJUSTMENT.label()).isEqualTo("批次调价");
         assertThat(InventoryTransactionType.BATCH_PRICE_ADJUSTMENT.category()).isEqualTo("valuation");
-        assertThat(InventoryTransactionType.options()).hasSize(8);
+        assertThat(InventoryTransactionType.options()).hasSize(9)
+                .contains(java.util.Map.of("code", "supplier_return_out", "label", "供应商退货出库", "category", "quantity"));
     }
 }

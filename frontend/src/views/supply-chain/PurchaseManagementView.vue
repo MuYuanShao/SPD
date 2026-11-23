@@ -40,6 +40,7 @@ const {
   smartPeriods,
   smartSelectedPeriod,
   smartAnalysisNo,
+  smartDeptCode,
   smartTotalFormulaQty,
   smartTotalRecommendedQty,
   showSmartAnalysisDialog,
@@ -361,14 +362,16 @@ async function handleOrderAttachmentUpload(event: Event) {
               <th>商品明细</th>
               <th>需求总数</th>
               <th>建议采购量</th>
+              <th class="numeric-cell">金额</th>
               <th>紧急程度</th>
               <th>状态</th>
+              <th>创建时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="approval-empty">正在加载采购需求...</td>
+              <td colspan="12" class="approval-empty">正在加载采购需求...</td>
             </tr>
             <tr v-for="group in demandGroups" v-else :key="group.demandNo" class="demand-group-row">
               <td><input v-model="selectedDemandNos" type="checkbox" :value="group.demandNo" :disabled="group.demandStatus !== 'approved'" :aria-label="`选择需求 ${group.demandNo}`" /></td>
@@ -384,8 +387,10 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
               <td>{{ group.totalQuantity }}</td>
               <td>{{ group.totalSuggestedQty }}</td>
+              <td class="numeric-cell">¥ {{ group.totalAmount.toFixed(2) }}</td>
               <td>{{ formatBusinessText(group.urgentLevel) }}</td>
               <td><span :class="['status-badge', statusTone(group.demandStatus)]">{{ statusLabel(group.demandStatus) }}</span></td>
+              <td class="md-audit-time">{{ group.createTime || '-' }}</td>
               <td class="row-actions">
                 <button v-if="group.demandStatus === 'draft' && authStore.hasPermission('purchase-demand:submit')" class="btn-text" @click="runDemandAction(group, 'submit')">提交</button>
                 <button v-if="group.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:review')" class="btn-text" @click="runDemandAction(group, 'approve')">审核通过</button>
@@ -393,7 +398,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
             </tr>
             <tr v-if="!loading && demandGroups.length === 0">
-              <td colspan="10" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
+              <td colspan="12" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
             </tr>
           </tbody>
         </table>
@@ -419,12 +424,13 @@ async function handleOrderAttachmentUpload(event: Event) {
               <th>配送商数</th>
               <th>发起科室</th>
               <th>状态</th>
+              <th>创建时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8" class="approval-empty">正在加载采购计划...</td>
+              <td colspan="9" class="approval-empty">正在加载采购计划...</td>
             </tr>
             <tr v-for="row in plans" v-else :key="row.planNo">
               <td class="document-no-cell">{{ row.planNo }}</td>
@@ -434,6 +440,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td>{{ row.supplierCount }}</td>
               <td>{{ row.initiatingDeptName || '-' }}</td>
               <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td class="row-actions">
                 <button class="btn-text" @click="planDetailNo = row.planNo">明细/配送商</button>
                 <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:approve')" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
@@ -442,7 +449,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
             </tr>
             <tr v-if="!loading && plans.length === 0">
-              <td colspan="8" class="approval-empty"><EmptyState message="暂无采购计划" /></td>
+              <td colspan="9" class="approval-empty"><EmptyState message="暂无采购计划" /></td>
             </tr>
           </tbody>
         </table>
@@ -471,13 +478,15 @@ async function handleOrderAttachmentUpload(event: Event) {
               <th>剩余数量</th>
               <th>总金额</th>
               <th>预计到货</th>
+              <th>创建时间</th>
+              <th>修改时间</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="12" class="approval-empty">正在加载采购订单...</td>
+              <td colspan="14" class="approval-empty">正在加载采购订单...</td>
             </tr>
             <tr
               v-for="row in rows"
@@ -515,6 +524,8 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
               <td>¥ {{ Number(row.totalAmount).toFixed(2) }}</td>
               <td>{{ row.expectedArrivalDate || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+              <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               <td><span :class="['status-badge', statusTone(row.orderStatus)]">{{ statusLabel(row.orderStatus) }}</span></td>
               <td class="row-actions">
                 <button class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
@@ -534,7 +545,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               </td>
             </tr>
             <tr v-if="!loading && rows.length === 0">
-              <td colspan="12" class="approval-empty">暂无采购订单</td>
+              <td colspan="14" class="approval-empty">暂无采购订单</td>
             </tr>
           </tbody>
         </table>
@@ -599,7 +610,7 @@ async function handleOrderAttachmentUpload(event: Event) {
             <p>{{ smartAnalysisNo || '正在生成分析' }}</p>
             <h3>智能补货分析</h3>
           </div>
-          <button class="btn-icon" type="button" @click="showSmartAnalysisDialog = false"><X :size="18" /></button>
+          <button class="btn-icon" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false"><X :size="18" /></button>
         </header>
 
         <div class="analysis-summary">
@@ -661,8 +672,15 @@ async function handleOrderAttachmentUpload(event: Event) {
         </div>
 
         <footer>
-          <button class="btn" type="button" @click="showSmartAnalysisDialog = false">关闭</button>
-          <button class="btn btn-primary" type="button" :disabled="smartAnalysisLoading || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
+          <label class="inline-field">
+            <span>发起科室</span>
+            <select v-model="smartDeptCode" class="md-select" :disabled="demandSubmitting">
+              <option value="">{{ departments.length ? '请选择授权范围内科室' : '当前账号暂无可选科室' }}</option>
+              <option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
+            </select>
+          </label>
+          <button class="btn" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false">关闭</button>
+          <button class="btn btn-primary" type="button" :disabled="smartAnalysisLoading || demandSubmitting || !smartDeptCode || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
             <PackagePlus :size="18" />
             生成采购需求
           </button>
@@ -705,7 +723,7 @@ async function handleOrderAttachmentUpload(event: Event) {
               <td>{{ item.specModel }}</td>
               <td>{{ item.quantity }}</td>
               <td>¥ {{ Number(item.unitPrice || 0).toFixed(2) }}</td>
-              <td>¥ {{ (Number(item.unitPrice || 0) * Number(item.quantity)).toString() }}</td>
+              <td>¥ {{ Number(item.lineAmount ?? 0).toFixed(2) }}</td>
               <td>{{ item.registrationNo || '-' }}</td>
               <td>{{ item.manufacturerName || '-' }}</td>
             </tr>
@@ -733,6 +751,8 @@ async function handleOrderAttachmentUpload(event: Event) {
             <span>供应商：<strong>{{ detail.order.supplierName }}</strong></span>
             <span>状态：<strong>{{ statusLabel(detail.order.orderStatus) }}</strong></span>
             <span>订单金额：<strong>¥ {{ Number(detail.order.totalAmount || 0).toFixed(2) }}</strong></span>
+            <span>创建时间：<strong>{{ detail.order.createTime || '-' }}</strong></span>
+            <span>修改时间：<strong>{{ detail.order.updateTime || '-' }}</strong></span>
             <span>预计到货：<strong>{{ detail.order.expectedArrivalDate || '-' }}</strong></span>
           </section>
           <div class="table-scroll order-detail-table-wrap">

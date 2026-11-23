@@ -143,7 +143,7 @@ public class ProductApprovalService {
                                a.first_category, a.second_category, a.third_category, a.is_chargeable, a.tender_sub_code,
                                a.is_high_value, a.is_cold_chain, a.is_quota_managed, a.is_key_monitored,
                                a.storage_condition,
-                               a.change_diff, a.submit_by, submitter.dept_id AS submit_dept_id, a.submit_time,
+                               a.change_diff, a.submit_by, submitter.dept_id AS submit_dept_id, a.submit_time, a.create_time, a.update_time,
                                a.approve_opinion, a.initial_review_opinion,
                                a.final_review_opinion, a.return_reason, a.reject_reason
                         FROM pending_product_application a
@@ -257,7 +257,7 @@ public class ProductApprovalService {
         queryArgs.add(pageReq.size());
         queryArgs.add(pageReq.offset());
         List<PendingProductApplicationRow> rows = jdbcTemplate.query("""
-                        SELECT a.application_no, a.application_type, a.product_name, a.product_code, a.spec_model,
+                        SELECT a.application_no, a.application_type, a.product_name, a.product_code,
                                a.registration_no, a.registration_expire_date,
                                a.production_license_no, a.business_license_no,
                                a.manufacturer_name,
@@ -266,15 +266,12 @@ public class ProductApprovalService {
                                a.is_volume_based, a.is_centralized_procurement, a.is_domestic,
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
                                a.is_quota_managed, a.is_key_monitored,
-                               a.approval_status, a.submit_by,
-                               COALESCE(submitter.real_name, submitter.username, CAST(a.submit_by AS CHAR)) AS submit_name,
-                               a.submit_time,
+                               a.approval_status, a.submit_by, a.submit_time, a.create_time, a.update_time,
                                (SELECT r.step_name FROM pending_product_approval_route_step r
                                  WHERE r.application_id=a.application_id AND r.approval_round=a.approval_round
                                    AND r.route_status='pending' ORDER BY r.route_order LIMIT 1) AS current_step_name
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
-                        LEFT JOIN sys_user submitter ON submitter.user_id = a.submit_by
                         %s
                         ORDER BY a.submit_time DESC, a.application_id DESC
                         LIMIT ? OFFSET ?
@@ -1142,12 +1139,12 @@ public class ProductApprovalService {
             enriched.add(new PendingProductApplicationRow(
                     row.no(), row.type(), row.product(), row.supplier(),
                     row.applicant(), row.time(), row.status(), row.statusTone(), row.warning(),
-                    row.productCode(), row.specModel(), summary,
+                    row.productCode(), summary,
                     row.manufacturerName(), row.registrationNo(), row.contractCode(),
                     row.firstCategory(), row.secondCategory(), row.thirdCategory(),
                     row.volumeBased(), row.centralizedProcurement(), row.domestic(),
                     row.chargeable(), row.purchasePrice(), row.purchaseUnit(), row.udiCode(),
-                    row.quotaManaged(), row.keyMonitored()
+                    row.quotaManaged(), row.keyMonitored(), row.createTime(), row.updateTime()
             ));
         }
         return enriched;

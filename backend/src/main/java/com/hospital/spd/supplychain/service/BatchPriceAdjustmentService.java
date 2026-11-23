@@ -29,6 +29,7 @@ public class BatchPriceAdjustmentService {
     private final ApprovalFlowGuard approvalFlowGuard;
     private final InventoryEventService inventoryEventService;
     private final AuditLogService auditLogService;
+    private final QuotaPackagePricingService quotaPricing;
 
     public BatchPriceAdjustmentService(JdbcTemplate jdbcTemplate, SupplyChainSupport support,
                                        OperatorContextProvider operatorContextProvider,
@@ -41,6 +42,7 @@ public class BatchPriceAdjustmentService {
         this.approvalFlowGuard = approvalFlowGuard;
         this.inventoryEventService = inventoryEventService;
         this.auditLogService = auditLogService;
+        this.quotaPricing = new QuotaPackagePricingService(jdbcTemplate);
     }
 
     @Transactional
@@ -89,6 +91,9 @@ public class BatchPriceAdjustmentService {
         if (!approvalFlowGuard.recordDecision("batch-price-adjustment", "price-adjustment-approval", adjustmentNo, null, null, true))
             return Map.of("adjustmentNo", adjustmentNo, "status", "draft", "approvalRecorded", true);
         Long batchId = ((Number) adjustment.get("batchId")).longValue();
+        Long productId = jdbcTemplate.queryForObject("SELECT product_id FROM inventory_batch WHERE batch_id = ?", Long.class, batchId);
+        if (productId == null) throw new IllegalArgumentException("批次未关联商品");
+        quotaPricing.lockProducts(List.of(productId));
         BigDecimal currentPrice = jdbcTemplate.queryForObject(
                 "SELECT batch_unit_price FROM inventory_batch WHERE batch_id = ? FOR UPDATE",
                 BigDecimal.class, batchId);
@@ -99,6 +104,7 @@ public class BatchPriceAdjustmentService {
         BigDecimal oldPrice = (BigDecimal) adjustment.get("oldUnitPrice");
         BigDecimal newPrice = (BigDecimal) adjustment.get("newUnitPrice");
         jdbcTemplate.update("UPDATE inventory_batch SET batch_unit_price = ? WHERE batch_id = ?", newPrice, batchId);
+        int affectedPackages = quotaPricing.refreshAfterBatchAdjustment(batchId, productId);
         Long adjustmentId = ((Number) adjustment.get("adjustmentId")).longValue();
         jdbcTemplate.update("""
                 UPDATE batch_price_adjustment SET affected_qty = (
@@ -112,8 +118,9 @@ public class BatchPriceAdjustmentService {
                 operator.userId(), adjustmentId);
         if (updated != 1) throw new IllegalArgumentException("调价单已处理");
         auditLogService.record("batch_price_adjustment", "approve", adjustmentId, adjustmentNo,
-                "批次调价审批通过，生成价值流水 " + eventIds.size() + " 条");
-        return Map.of("adjustmentNo", adjustmentNo, "status", "approved", "valuationEventCount", eventIds.size());
+                "批次调价审批通过，生成价值流水 " + eventIds.size() + " 条，更新未结算定数包 " + affectedPackages + " 个");
+        return Map.of("adjustmentNo", adjustmentNo, "status", "approved", "valuationEventCount", eventIds.size(),
+                "affectedPackages", affectedPackages);
     }
 
     public Map<String, Object> list(Map<String, String> params) {

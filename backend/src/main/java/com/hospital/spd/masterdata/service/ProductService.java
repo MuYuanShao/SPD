@@ -77,8 +77,6 @@ public class ProductService {
         appendLike(where, args, "p.spec_model", params.get("model"));
         appendLike(where, args, "m.manufacturer_name", params.get("manufacturerName"));
         appendLike(where, args, "s.supplier_name", params.get("supplierName"));
-        appendVendorKeyword(where, args, params.get("vendorKeyword"));
-        appendCatalogStatus(where, args, params.get("status"));
         appendLike(where, args, "p.purchase_price", params.get("price"));
         appendBoolean(where, args, "p.is_centralized_procurement", params.get("isCentralized"));
         appendBoolean(where, args, "p.is_domestic", params.get("isDomestic"));
@@ -144,11 +142,13 @@ public class ProductService {
                        CASE p.is_key_monitored WHEN 1 THEN '是' ELSE '否' END AS keyMonitored,
                        COALESCE(p.tender_sub_code, '-') AS tenderSubCode,
                        p.unit AS unit, p.purchase_price AS price,
-                       CASE p.status WHEN 1 THEN '启用' ELSE '停用' END AS status
+                       CASE p.status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(p.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(p.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                 FROM product p
                 LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id
                 LEFT JOIN supplier s ON p.supplier_id = s.supplier_id
-                """ + where + " ORDER BY p.product_id DESC LIMIT ? OFFSET ?",
+                """ + where + " ORDER BY p.update_time DESC, p.product_id DESC LIMIT ? OFFSET ?",
                 queryArgs.toArray());
 
         return new MasterDataPage(
@@ -305,7 +305,9 @@ public class ProductService {
                        p.tender_sub_code,
                        p.is_high_value, p.is_cold_chain, p.is_quota_managed, p.is_key_monitored,
                        p.storage_condition,
-                       p.status
+                       p.status,
+                       DATE_FORMAT(p.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(p.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                 FROM product p
                 LEFT JOIN product_category c ON p.category_id = c.category_id
                 LEFT JOIN manufacturer m ON p.manufacturer_id = m.manufacturer_id
@@ -351,7 +353,9 @@ public class ProductService {
                     rs.getInt("is_key_monitored") == 1,
                     fallback(rs.getString("storage_condition")),
                     rs.getInt("status") == 1 ? "启用" : "停用",
-                    attachments
+                    attachments,
+                    rs.getString("createTime"),
+                    rs.getString("updateTime")
             );
             }, productCode);
         } catch (org.springframework.dao.EmptyResultDataAccessException ex) {
@@ -739,24 +743,5 @@ public class ProductService {
         if (quotaManaged && (highValue || coldChain)) {
             throw new IllegalArgumentException("高值耗材或冷链耗材不能设置为定数管理");
         }
-    }
-
-    /** 精简筛选：厂家 / 供应商合并关键字（任一命中即可）。 */
-    private static void appendVendorKeyword(StringBuilder sql, List<Object> args, String value) {
-        if (isBlank(value)) {
-            return;
-        }
-        sql.append(" AND (m.manufacturer_name LIKE ? OR s.supplier_name LIKE ?)");
-        args.add("%" + value.trim() + "%");
-        args.add("%" + value.trim() + "%");
-    }
-
-    /** 精简筛选：启用 / 停用状态。 */
-    private static void appendCatalogStatus(StringBuilder sql, List<Object> args, String value) {
-        if (isBlank(value)) {
-            return;
-        }
-        sql.append(" AND p.status = ?");
-        args.add("停用".equals(value.trim()) ? 0 : 1);
     }
 }

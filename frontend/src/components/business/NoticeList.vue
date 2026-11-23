@@ -1,7 +1,8 @@
 <script setup lang="ts">
-export interface NoticeItem { id: string; title: string; date: string; content: string }
-defineProps<{ items: NoticeItem[] }>()
-const emit = defineEmits<{ select: [item: NoticeItem] }>()
+import type { SystemNotice } from '../../api/systemNotices'
+export type NoticeItem = SystemNotice
+defineProps<{ items: SystemNotice[] }>()
+const emit = defineEmits<{ select: [item: SystemNotice] }>()
 </script>
 <template>
   <el-empty v-if="!items.length" description="暂无公告" :image-size="48" />

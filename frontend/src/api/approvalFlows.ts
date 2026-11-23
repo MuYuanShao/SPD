@@ -18,6 +18,7 @@ export interface ApprovalFlowStep {
 }
 
 export interface ApprovalFlowRow {
+  createTime?: string
   flowId: number
   featureCode: string
   featureName: string
@@ -69,7 +70,7 @@ export interface ApprovalFlowOptions {
   departments: ApprovalFlowDepartmentOption[]
 }
 
-export type ApprovalFlowPayload = Omit<ApprovalFlowRow, 'flowId' | 'deptName' | 'createBy' | 'createByName' | 'updateTime'>
+export type ApprovalFlowPayload = Omit<ApprovalFlowRow, 'flowId' | 'deptName' | 'createBy' | 'createByName' | 'createTime' | 'updateTime'>
 
 export async function fetchApprovalFlows(params: Record<string, string>) {
   return getData<ApprovalFlowRow[]>('/approval-flows', { params })

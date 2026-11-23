@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import 'element-plus/theme-chalk/el-dialog.css'
 import 'element-plus/theme-chalk/el-message.css'
+import 'element-plus/theme-chalk/el-message-box.css'
 import { useRoute } from 'vue-router'
 import {
   Activity,
@@ -38,10 +39,15 @@ import {
   createColdChainException,
   createConsumption,
   createRecall,
+  fetchPendingRecallReceipts,
+  receiveRecall,
+  type PendingRecallReceipt,
   createRequisition,
   fetchClosureList,
   fetchClosureOptions,
   fetchClosureOverview,
+  fetchRedFlushOptions,
+  fetchServerPagedClosureList,
   fetchPickingLooseStock,
   fetchPickingPackageLabelDetail,
   fetchPickingPackageLabels,
@@ -54,7 +60,6 @@ import {
   receiveHighValueBillingCallback,
   resolveConsumptionProduct,
   reverseConsumption,
-  signDelivery,
   smartReplenishmentAnalysis,
   uploadPdaOffline,
   type ClosureOptions,
@@ -63,12 +68,20 @@ import {
 import { fetchDepartmentWarehouses, type DepartmentWarehouseRelation } from '../../api/masterData'
 import { consumeQuotaPackageByCode } from '../../api/udiTraceability'
 import { formatApiErrorText, formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import { usePagedFilters } from '../../composables/usePagedFilters'
+import { formatDateTime } from '../../utils/dateTime'
+import type { PageResult } from '../../api/http'
+import { useAuthStore } from '../../stores/auth'
+import { confirmWarehouseReturn, fetchWarehouseReturnQueue, type ReturnRecord } from '../../api/stockReturns'
 
 const route = useRoute()
 const loading = ref(false)
 const actionError = ref('')
 const recallDialogError = ref('')
 const deliverySubmitting = ref(false)
+const confirmingWarehouseReturn = ref('')
+const reversingConsumption = ref(false)
+const auth = useAuthStore()
 
 /** 各业务动作的兜底失败文案，避免一律显示"操作失败" */
 const ACTION_FAILURE_TEXT: Record<string, string> = {
@@ -77,7 +90,6 @@ const ACTION_FAILURE_TEXT: Record<string, string> = {
   approveRequisition: '申领审批失败，请重试',
   rejectRequisition: '申领驳回失败，请重试',
   delivery: '拣配出库失败，请重试',
-  sign: '配送签收失败，请重试',
   consumption: '消耗登记失败，请检查科室库存后重试',
   reverse: '反消耗红冲失败，请重试',
   pda: 'PDA 离线补传失败，请重试',
@@ -89,6 +101,9 @@ const ACTION_FAILURE_TEXT: Record<string, string> = {
 const rows = ref<Record<string, unknown>[]>([])
 const analysisRows = ref<Record<string, unknown>[]>([])
 const pickingRequisitionRows = ref<Record<string, unknown>[]>([])
+const pickingFilters = reactive({ deptCode: '', dateFrom: '', dateTo: '' })
+const appliedPickingFilters = ref({ ...pickingFilters })
+let pickingRequestVersion = 0
 const pickingPackageRows = ref<Record<string, unknown>[]>([])
 const selectedPickingRequisitionNo = ref('')
 const selectedPickingItemId = ref('')
@@ -98,6 +113,39 @@ const pickingPackageScanCode = ref('')
 const pickingUniqueCodeRows = ref<Array<Record<string, unknown>>>([])
 const selectedPickingUniqueCodes = ref<string[]>([])
 const pickingLooseRows = ref<Array<Record<string, unknown> & { pickQty?: number }>>([])
+const pickingLooseLoading = ref(false)
+const pickingLooseError = ref('')
+const pickingLooseStatus = computed(() => {
+  if (selectedPickingItemType.value !== 'loose') return ''
+  if (pickingLooseLoading.value) return '正在查询散货…'
+  if (pickingLooseError.value) return pickingLooseError.value
+  if (!pickingLooseRows.value.length) return '当前库房没有该商品的可用散货'
+  return ''
+})
+let pickingSourceRequest = 0
+const maxPickingDetailSize = 50
+const pickingDetailSize = ref(10)
+const pickingDetailPage = ref(1)
+const pickingDetailTotal = computed(() => {
+  switch (selectedPickingItemType.value) {
+    case 'unique_code': return pickingUniqueCodeRows.value.length
+    case 'quota_package': return pickingPackageRows.value.length
+    case 'loose': return pickingLooseRows.value.length
+    default: return 0
+  }
+})
+const pickingDetailLastPage = computed(() => Math.max(1, Math.ceil(pickingDetailTotal.value / pickingDetailSize.value)))
+
+function pagePickingDetails<T>(rows: T[]) {
+  const start = (pickingDetailPage.value - 1) * pickingDetailSize.value
+  return rows.slice(start, start + pickingDetailSize.value)
+}
+
+function changePickingDetailSize(size: number) {
+  pickingDetailSize.value = Math.min(size, maxPickingDetailSize)
+  pickingDetailPage.value = 1
+}
+
 const linkedWarehouses = ref<DepartmentWarehouseRelation[]>([])
 const summary = ref<Record<string, number>>({})
 const analysisDialogOpen = ref(false)
@@ -132,7 +180,6 @@ const paginatedPickingRequisitions = computed(() => {
 })
 
 /** 拣配配送底部表格：history type */
-const isDeliveryHistory = computed(() => type.value === 'delivery')
 
 const form = reactive({
   deptName: '',
@@ -147,8 +194,6 @@ const form = reactive({
   replenishmentDays: 7 as number | 'custom',
   customReplenishmentDays: '' as number | '',
   requisitionNo: '',
-  deliveryNo: '',
-  consumptionNo: '',
   period: '2026-05',
   deviceNo: 'PDA-001',
   operationType: 'delivery_sign',
@@ -171,6 +216,11 @@ const recallDialogOpen = ref(false)
 const recallSubmitting = ref(false)
 const recallBusinessType = ref<'recall' | 'isolate'>('recall')
 const recallScope = ref<'all' | 'primary' | 'secondary' | 'tertiary'>('all')
+const defaultRecallHistoryFilters = { dateFrom: '', dateTo: '', productName: '', productCode: '', deptName: '' }
+const recallHistoryFilters = reactive({ ...defaultRecallHistoryFilters })
+const appliedRecallHistoryFilters = ref({ ...defaultRecallHistoryFilters })
+const recallHistoryError = ref('')
+const receivingRecallNo = ref('')
 const recallBatchNo = ref('')
 const recallInventoryRows = ref<Array<Record<string, unknown>>>([])
 
@@ -235,47 +285,41 @@ const effectiveReplenishmentDays = computed(() => {
   return Number.isFinite(days) && days > 0 ? days : 7
 })
 
-/** 结算对账：本页结算金额合计，用于表头摘要行 */
-const settlementTotalAmount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  return rows.value.reduce((sum, row) => sum + Number(row.settlementAmount || 0), 0)
+const settlementLoadError = ref('')
+const settlementSummary = ref<Record<string, number>>({})
+const redFlushOptions = ref<Awaited<ReturnType<typeof fetchRedFlushOptions>>>({ departments: [], warehouses: [] })
+const redFlushFilters = reactive({ deptCode: '', warehouseId: '' })
+const appliedRedFlushFilters = ref({ ...redFlushFilters })
+const redFlushError = ref('')
+const redFlushWarehouses = computed(() =>
+  redFlushOptions.value.warehouses.filter(item => item.deptCode === redFlushFilters.deptCode))
+const {
+  filters: settlementFilters, filterError: settlementFilterError, apply: applySettlementFilters,
+  reset: resetSettlementFilters, load: loadSettlement, beginRequest: beginClosureRequest
+} = usePagedFilters({
+  defaults: { dateFrom: '', dateTo: '', traceCode: '', deptName: '', productKeyword: '', goodsType: '', sort: 'timeDesc' },
+  page: currentPage,
+  size: pageSize,
+  loading,
+  loadError: settlementLoadError,
+  errorMessage: '结算明细加载失败',
+  isActive: () => type.value === 'settlement',
+  fetchPage: params => fetchServerPagedClosureList('settlement', params),
+  onPage: (result) => {
+    rows.value = result.rows
+    totalItems.value = result.total
+    settlementSummary.value = result.summary ?? {}
+  },
+  onError: () => {
+    rows.value = []
+    totalItems.value = 0
+    settlementSummary.value = {}
+  }
 })
-const settlementTotalQuantity = computed(() => {
-  if (type.value !== 'settlement') return 0
-  return rows.value.reduce((sum, row) => sum + Number(row.settlementQuantity || 0), 0)
-})
-const settlementGoodsType = ref('')
-const settlementPackageCount = computed(() => rows.value.reduce((sum, row) => sum + Number(row.packageCount || 0), 0))
-const settlementLooseQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.looseQuantity || 0), 0))
-const settlementHighValueQuantity = computed(() => rows.value.reduce((sum, row) => sum + Number(row.highValueQuantity || 0), 0))
 
 function settlementGoodsLabel(value: unknown) {
   return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货', unknown: '待核对货型' } as Record<string, string>)[String(value)] || '-'
 }
-
-function changeSettlementGoodsType() {
-  currentPage.value = 1
-  loadData()
-}
-/** 结算 KPI：供应商数 = 结算供应商去重，结算单数 = 当前页内 settlementNo 去重 */
-const settlementSupplierCount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  const set = new Set<string>()
-  for (const row of rows.value) {
-    const v = String(row.settlementSupplier || '').trim()
-    if (v && v !== '-') set.add(v)
-  }
-  return set.size
-})
-const settlementDocumentCount = computed(() => {
-  if (type.value !== 'settlement') return 0
-  const set = new Set<string>()
-  for (const row of rows.value) {
-    const v = String(row.settlementNo || row.bizNo || '').trim()
-    if (v && v !== '-') set.add(v)
-  }
-  return set.size
-})
 
 function shortagePayload() {
   return {
@@ -285,16 +329,19 @@ function shortagePayload() {
   }
 }
 
-async function loadLinkedWarehouses() {
+async function loadLinkedWarehouses(isCurrent = () => true) {
+  const requestedType = type.value
   const deptCode = selectedDepartment.value?.deptCode
   if (!deptCode) {
     linkedWarehouses.value = []
     if (type.value !== 'delivery') form.warehouseName = ''
     return
   }
+  const isCurrentDepartment = () =>
+    isCurrent() && type.value === requestedType && selectedDepartment.value?.deptCode === deptCode
   try {
     const warehouses = await fetchDepartmentWarehouses(deptCode)
-    if (selectedDepartment.value?.deptCode !== deptCode) return
+    if (!isCurrentDepartment()) return
     linkedWarehouses.value = warehouses.filter(item => Number(item.selected ?? 0) === 1)
     // 选择科室时默认带出科室所关联的库房
     const preferred = linkedWarehouses.value[0]?.name || ''
@@ -304,19 +351,11 @@ async function loadLinkedWarehouses() {
       form.warehouseName = selected?.name || ''
       return
     }
-    if (type.value === 'delivery') {
-      // 拣配配送只允许一级库：科室关联库房为一级库时直接带出，否则保持当前一级库
-      if (preferred && primaryWarehouses.value.some(item => item.warehouseName === preferred)) {
-        form.warehouseName = preferred
-      } else if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
-        form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
-      }
-      return
-    }
     if (!linkedWarehouses.value.some(item => item.name === form.warehouseName)) {
       form.warehouseName = preferred
     }
   } catch (error) {
+    if (!isCurrentDepartment()) return
     linkedWarehouses.value = []
     if (type.value !== 'delivery') form.warehouseName = ''
     notifyError(apiErrorText(error, '关联库房加载失败'))
@@ -338,19 +377,52 @@ async function maybeOpenRouteSmartAnalysis() {
 }
 
 async function loadData() {
+  const requestedType = type.value
+  const recallPage = isRecallPage.value
+  if (requestedType === 'settlement') return loadSettlement()
+  const isLatest = beginClosureRequest()
+  const isCurrent = () => isLatest() && type.value === requestedType && isRecallPage.value === recallPage
   loading.value = true
+  if (requestedType === 'red-flush') {
+    redFlushError.value = ''
+    try {
+      const [filterOptions, result] = await Promise.all([
+        fetchRedFlushOptions(),
+        fetchServerPagedClosureList('red-flush', {
+          ...appliedRedFlushFilters.value, page: String(currentPage.value), size: String(pageSize.value)
+        })
+      ])
+      if (!isCurrent()) return
+      redFlushOptions.value = filterOptions
+      rows.value = result.rows
+      totalItems.value = result.total
+      pageSize.value = result.size
+    } catch (cause) {
+      if (!isCurrent()) return
+      rows.value = []
+      totalItems.value = 0
+      redFlushError.value = apiErrorText(cause, '红冲记录加载失败')
+    } finally {
+      if (isCurrent()) loading.value = false
+    }
+    return
+  }
   try {
+    if (recallPage) recallHistoryError.value = ''
     applyRouteSmartDefaults()
     const [overview, optionData, listData] = await Promise.all([
       fetchClosureOverview(),
       fetchClosureOptions(),
-      fetchClosureList(type.value, { page: String(currentPage.value), size: String(pageSize.value),
-        ...(type.value === 'settlement' ? { goodsType: settlementGoodsType.value } : {}) })
+      recallPage ? fetchServerPagedClosureList('recall', {
+        ...appliedRecallHistoryFilters.value, page: String(currentPage.value), size: String(pageSize.value)
+      }) : requestedType === 'delivery' ? null
+        : fetchClosureList(requestedType, { page: String(currentPage.value), size: String(pageSize.value) })
     ])
+    if (!isCurrent()) return
     summary.value = overview.summary
     options.value = optionData
-    rows.value = listData.rows
-    totalItems.value = listData.total
+    rows.value = listData?.rows ?? []
+    totalItems.value = listData?.total ?? 0
     if (!form.deptName && optionData.departments[0]) form.deptName = optionData.departments[0].deptName
     if (type.value === 'consumption' && !form.deptCode) {
       const department = optionData.departments.find(item => item.deptName === form.deptName) || optionData.departments[0]
@@ -358,8 +430,9 @@ async function loadData() {
       form.deptName = department?.deptName || ''
     }
     applyRouteSmartDefaults()
-    if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
-      await loadLinkedWarehouses()
+    if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
+      await loadLinkedWarehouses(isCurrent)
+      if (!isCurrent()) return
     } else if (!form.warehouseName && optionData.warehouses[0]) {
       form.warehouseName = optionData.warehouses[0].warehouseName
     }
@@ -369,16 +442,153 @@ async function loadData() {
       if (!primaryWarehouses.value.some(item => item.warehouseName === form.warehouseName)) {
         form.warehouseName = primaryWarehouses.value[0]?.warehouseName || ''
       }
-      await loadPickingRequisitions()
+      await loadPickingRequisitions(isCurrent)
     }
     await maybeOpenRouteSmartAnalysis()
+  } catch (cause) {
+    if (!isCurrent()) return
+    if (!recallPage) throw cause
+    rows.value = []
+    totalItems.value = 0
+    recallHistoryError.value = apiErrorText(cause, '召回与隔离记录加载失败')
   } finally {
-    loading.value = false
+    if (isCurrent()) loading.value = false
   }
 }
 
-async function loadPickingRequisitions() {
-  const result = await fetchPickingRequisitions()
+const deliveryTabs = [
+  { key: 'picking', label: '拣配管理' },
+  { key: 'returns', label: '科室退货确认' },
+  { key: 'recalls', label: '召回确认' }
+] as const
+type DeliveryTab = typeof deliveryTabs[number]['key']
+const deliveryTab = ref<DeliveryTab>('picking')
+const visibleDeliveryTabs = computed(() => auth.canWrite('picking-delivery') ? deliveryTabs : deliveryTabs.slice(0, 1))
+
+function useDeliveryQueue<T>(fetchPage: (params: { page: number; size: number }) => Promise<PageResult<T>>, errorMessage: string) {
+  const result = ref<PageResult<T>>({ rows: [], total: 0, page: 1, size: 20 })
+  const loading = ref(false)
+  const error = ref('')
+  let version = 0
+
+  async function load(page = result.value.page, size = result.value.size) {
+    if (type.value !== 'delivery' || !auth.canWrite('picking-delivery')) return
+    const request = ++version
+    loading.value = true
+    error.value = ''
+    try {
+      let data = await fetchPage({ page, size })
+      if (request !== version) return
+      while (data.page > Math.max(1, Math.ceil(data.total / data.size))) {
+        data = await fetchPage({ page: Math.max(1, Math.ceil(data.total / data.size)), size: data.size })
+        if (request !== version) return
+      }
+      result.value = data
+    } catch (cause) {
+      if (request !== version) return
+      result.value = { ...result.value, rows: [] }
+      error.value = apiErrorText(cause, errorMessage)
+    } finally {
+      if (request === version) loading.value = false
+    }
+  }
+
+  return reactive({ result, loading, error, load })
+}
+
+const returnQueue = useDeliveryQueue(fetchWarehouseReturnQueue, '待确认退库单加载失败')
+const recallQueue = useDeliveryQueue(fetchPendingRecallReceipts, '召回待签收列表加载失败')
+
+function refreshDeliveryTab() {
+  if (deliveryTab.value === 'returns') return returnQueue.load()
+  if (deliveryTab.value === 'recalls') return recallQueue.load()
+  return loadData()
+}
+
+function changeDeliveryTab(tab: DeliveryTab) {
+  if (deliveryTab.value === tab) return
+  deliveryTab.value = tab
+  void refreshDeliveryTab()
+}
+
+async function confirmDepartmentReturn(row: ReturnRecord) {
+  if (confirmingWarehouseReturn.value || !auth.canWrite('picking-delivery')) return
+  confirmingWarehouseReturn.value = row.returnNo
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认退库单「${row.returnNo}」的实物已到达 ${row.destinationWarehouse || '中心库'}？`,
+        '确认科室退库', { type: 'warning', confirmButtonText: '确认退库', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await confirmWarehouseReturn(row.returnNo)
+    await returnQueue.load()
+    notifySuccess(`科室退库已确认：${row.returnNo}`)
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '科室退库确认失败'))
+  } finally {
+    confirmingWarehouseReturn.value = ''
+  }
+}
+
+function applyRecallHistoryFilters() {
+  const { dateFrom, dateTo } = recallHistoryFilters
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    recallHistoryError.value = '开始日期不能晚于结束日期'
+    return
+  }
+  appliedRecallHistoryFilters.value = { ...recallHistoryFilters }
+  currentPage.value = 1
+  void loadData()
+}
+
+function resetRecallHistoryFilters() {
+  Object.assign(recallHistoryFilters, defaultRecallHistoryFilters)
+  applyRecallHistoryFilters()
+}
+
+async function confirmRecallReceipt(row: PendingRecallReceipt) {
+  const { recallNo, destinationWarehouse } = row
+  if (receivingRecallNo.value || !auth.canWrite('picking-delivery')) return
+  receivingRecallNo.value = recallNo
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认召回单「${recallNo}」的实物已到达 ${destinationWarehouse}？`,
+        '确认签收入库', { type: 'warning', confirmButtonText: '签收入库', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await receiveRecall(recallNo)
+    await recallQueue.load()
+    notifySuccess(`召回单已签收入库：${recallNo}`)
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '召回退库签收失败'))
+  } finally {
+    receivingRecallNo.value = ''
+  }
+}
+
+function applyRedFlushFilters() {
+  appliedRedFlushFilters.value = { ...redFlushFilters }
+  currentPage.value = 1
+  void loadData()
+}
+
+function resetRedFlushFilters() {
+  Object.assign(redFlushFilters, { deptCode: '', warehouseId: '' })
+  applyRedFlushFilters()
+}
+
+async function loadPickingRequisitions(isCurrent = () => type.value === 'delivery') {
+  const request = ++pickingRequestVersion
+  const result = await fetchPickingRequisitions(Object.fromEntries(
+    Object.entries(appliedPickingFilters.value).filter(([, value]) => value)
+  ))
+  if (!isCurrent() || request !== pickingRequestVersion) return
   pickingRequisitionRows.value = result.rows || []
   pickingTotal.value = pickingRequisitionRows.value.length
   const selectedStillPending = pickingRequisitionRows.value.some(row => String(row.itemId || '') === selectedPickingItemId.value)
@@ -392,9 +602,30 @@ async function loadPickingRequisitions() {
     pickingPackageRows.value = []
     pickingUniqueCodeRows.value = []
     pickingLooseRows.value = []
+    if (appliedPickingFilters.value.deptCode) form.warehouseName = ''
   } else if (selectedPickingItemId.value) {
     await loadPickingSources()
   }
+}
+
+async function applyPickingFilters() {
+  if (pickingFilters.dateFrom && pickingFilters.dateTo && pickingFilters.dateFrom > pickingFilters.dateTo) {
+    notifyError('开始日期不能晚于结束日期', 'warning')
+    return
+  }
+  appliedPickingFilters.value = { ...pickingFilters }
+  pickingPage.value = 1
+  selectedPickingItemId.value = ''
+  try {
+    await loadPickingRequisitions()
+  } catch (cause) {
+    notifyError(apiErrorText(cause, '待拣配申领单查询失败'))
+  }
+}
+
+function resetPickingFilters() {
+  Object.assign(pickingFilters, { deptCode: '', dateFrom: '', dateTo: '' })
+  void applyPickingFilters()
 }
 
 /** 申请明细类型展示：唯一码/定数包/散货，与申请单申请的商品明细类型配对 */
@@ -418,6 +649,7 @@ async function selectPickingRequisition(row: Record<string, unknown>) {
   selectedPickingItemType.value = row.itemType === 'high_value' ? 'unique_code' : String(row.itemType || 'loose')
   form.requisitionNo = selectedPickingRequisitionNo.value
   form.deptName = String(row.deptName || form.deptName)
+  if (row.sourceWarehouseName) form.warehouseName = String(row.sourceWarehouseName)
   form.productCode = String(row.productCode || form.productCode)
   form.quantity = Number(row.remainingQty || row.requisitionQty || 1)
   selectedPickingLabels.value = []
@@ -426,6 +658,9 @@ async function selectPickingRequisition(row: Record<string, unknown>) {
 }
 
 async function loadPickingSources() {
+  const request = ++pickingSourceRequest
+  pickingLooseLoading.value = false
+  pickingLooseError.value = ''
   if (!selectedPickingRequisitionNo.value || !selectedPickingItemId.value) {
     pickingPackageRows.value = []
     pickingUniqueCodeRows.value = []
@@ -438,8 +673,11 @@ async function loadPickingSources() {
     itemId: selectedPickingItemId.value,
     warehouseName: form.warehouseName
   }
+  const isCurrent = () => request === pickingSourceRequest && type.value === 'delivery'
+    && selectedPickingItemId.value === baseParams.itemId && form.warehouseName === baseParams.warehouseName
   if (itemType === 'unique_code') {
     const result = await fetchPickingUniqueCodes(baseParams)
+    if (!isCurrent()) return
     pickingUniqueCodeRows.value = result.rows || []
     pickingPackageRows.value = []
     pickingLooseRows.value = []
@@ -447,12 +685,23 @@ async function loadPickingSources() {
   }
   if (itemType === 'quota_package') {
     const labelsResult = await fetchPickingPackageLabels(baseParams)
+    if (!isCurrent()) return
     pickingPackageRows.value = labelsResult.rows || []
     pickingLooseRows.value = []
   } else {
-    const looseResult = await fetchPickingLooseStock(baseParams)
-    pickingLooseRows.value = (looseResult.rows || []).map((row) => ({ ...row, pickQty: 0 }))
+    pickingLooseRows.value = []
     pickingPackageRows.value = []
+    pickingUniqueCodeRows.value = []
+    pickingLooseLoading.value = true
+    try {
+      const looseResult = await fetchPickingLooseStock(baseParams)
+      if (!isCurrent()) return
+      pickingLooseRows.value = (looseResult.rows || []).map(row => ({ ...row, pickQty: 0 }))
+    } catch (cause) {
+      if (isCurrent()) pickingLooseError.value = apiErrorText(cause, '可用散货查询失败')
+    } finally {
+      if (isCurrent()) pickingLooseLoading.value = false
+    }
   }
   pickingUniqueCodeRows.value = []
 }
@@ -552,7 +801,6 @@ async function confirmSelectedPicking() {
       itemId: Number(selectedPickingItemId.value),
       traceCodeIds
     })
-    form.deliveryNo = String(result.deliveryNo || '')
     notifySuccess(`拣配出库完成：${result.deliveryNo}，唯一码 ${selectedPickingUniqueCodes.value.length} 个`)
     selectedPickingUniqueCodes.value = []
     await loadData()
@@ -577,7 +825,6 @@ async function confirmSelectedPicking() {
     const looseResult = await confirmLoosePicking({ ...basePayload, quantity: looseQty })
     done.push(`散货 ${looseQty}（${looseResult.deliveryNo}）`)
   }
-  form.deliveryNo = String(done[0]?.split('（')[1]?.replace('）', '') || '')
   notifySuccess(`拣配出库完成：${done.join('、')}`)
   selectedPickingLabels.value = []
   pickingLooseRows.value = pickingLooseRows.value.map((row) => ({ ...row, pickQty: 0 }))
@@ -640,15 +887,20 @@ async function resolveConsumption() {
   consumptionResolved.value = null
   try {
     const result = await resolveConsumptionProduct(code)
+    if (code !== consumptionQueryCode.value.trim()) return
     consumptionResolved.value = result
     form.productCode = String(result.productCode || '')
     if (result.sourceType === 'package') {
       form.quantity = Number(result.packageQuantity || 0)
+    } else if (Number(result.highValue) === 1) {
+      form.quantity = 1
     }
     if (result.warehouseName) {
-      const choices = warehouseChoices.value.map(item => item.warehouseName)
-      if (choices.includes(String(result.warehouseName))) {
-        form.warehouseName = String(result.warehouseName)
+      const warehouse = warehouseChoices.value.find(item => result.warehouseId
+        ? item.warehouseId === Number(result.warehouseId) : item.warehouseName === result.warehouseName)
+      if (warehouse) {
+        form.warehouseName = warehouse.warehouseName
+        if (warehouse.warehouseId) form.warehouseId = warehouse.warehouseId
       }
     }
     notifySuccess(`已定位商品：${result.productCode} / ${result.productName}（${result.sourceType === 'package' ? '定数包码' : 'UDI/唯一码'}）`)
@@ -686,6 +938,7 @@ async function loadRecallInventory() {
     const result = await fetchRecallInventory({
       productCode: form.productCode,
       scope: recallScope.value,
+      businessType: recallBusinessType.value,
       warehouseName: recallScope.value === 'all' ? '' : form.warehouseName
     })
     recallInventoryRows.value = result.rows || []
@@ -792,6 +1045,26 @@ async function runAction(action: string, row?: Record<string, unknown>): Promise
   }
 }
 
+async function confirmConsumptionReversal(row: Record<string, unknown>) {
+  const sourceNo = String(row.bizNo || '').trim()
+  if (!sourceNo || row.status !== 'confirmed' || reversingConsumption.value
+    || !auth.hasPermission('reverse-consumption:write')) return
+  reversingConsumption.value = true
+  try {
+    try {
+      await ElMessageBox.confirm(
+        `确认冲销消耗单「${sourceNo}」？冲销后将恢复原批次库存，并撤销该单待确认的结算明细。`,
+        '确认反消耗', { type: 'warning', confirmButtonText: '确认冲销', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+    await runAction('reverse', row)
+  } finally {
+    reversingConsumption.value = false
+  }
+}
+
 async function performAction(action: string, row?: Record<string, unknown>) {
   let result: Record<string, unknown> = {}
   if (action === 'shortage') {
@@ -811,25 +1084,29 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     await confirmSelectedPicking()
     return
   }
-  if (action === 'sign') {
-    result = await signDelivery(String(row?.bizNo || form.deliveryNo))
-    notifySuccess(`配送已签收：${result.deliveryNo}`)
-  }
   if (action === 'consumption') {
     if (!Number.isInteger(Number(form.quantity)) || Number(form.quantity) <= 0) throw new Error('消耗数量必须为正整数，不支持小数')
+    if (consumptionQueryCode.value.trim() && !consumptionResolved.value) throw new Error('请先查询扫码结果，再登记消耗')
     if (consumptionResolved.value?.sourceType === 'package') {
       result = await consumeQuotaPackageByCode({
         code: consumptionQueryCode.value.trim(),
         deptName: form.deptName || undefined
       })
     } else {
-      result = await createConsumption(form)
+      result = await createConsumption({
+        ...form,
+        uniqueCode: Number(consumptionResolved.value?.highValue) === 1 ? consumptionResolved.value?.uniqueCode : undefined
+      })
     }
-    form.consumptionNo = String(result.consumptionNo || '')
-    notifySuccess(`科室消耗已登记：${result.consumptionNo}`)
+    const settlementNos = Array.isArray(result.settlementNos) ? result.settlementNos : []
+    notifySuccess(`科室消耗已登记：${result.consumptionNo}${settlementNos.length ? `，结算单：${settlementNos.join('、')}` : ''}`)
+    consumptionQueryCode.value = ''
+    consumptionResolved.value = null
   }
   if (action === 'reverse') {
-    result = await reverseConsumption(String(row?.bizNo || form.consumptionNo))
+    const sourceNo = String(row?.bizNo || '').trim()
+    if (!sourceNo) throw new Error('请选择要反消耗的原消耗单')
+    result = await reverseConsumption(sourceNo)
     notifySuccess(`反消耗红冲已生成：${result.flushNo}`)
   }
   if (action === 'pda') {
@@ -852,7 +1129,7 @@ async function performAction(action: string, row?: Record<string, unknown>) {
     })
     notifySuccess(recallBusinessType.value === 'isolate'
       ? `隔离完成：${result.recallNo}，${result.affectedQty} 件已在原库房隔离`
-      : `召回完成：${result.recallNo}，${result.affectedQty} 件已回收到 ${result.primaryWarehouseName} 并隔离`)
+      : `召回退库已出库：${result.recallNo}，${result.affectedQty} 件待 ${result.primaryWarehouseName} 签收入库`)
   }
   if (action === 'bindPatient') {
     const uniqueCode = form.uniqueCodes.split(/[,，\s]+/).find(Boolean) || ''
@@ -921,13 +1198,14 @@ async function createTaskFromAnalysis(row: Record<string, unknown>) {
 }
 
 onMounted(loadData)
-watch(type, () => {
+watch([type, isRecallPage], () => {
+  deliveryTab.value = 'picking'
   currentPage.value = 1
   autoSmartAnalysisHandled.value = false
   loadData()
 })
 watch(() => form.deptName, () => {
-  if (['shortage', 'requisition', 'consumption', 'delivery'].includes(type.value)) {
+  if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
     loadLinkedWarehouses()
   }
   if (type.value === 'risk') {
@@ -943,6 +1221,10 @@ watch(() => form.deptCode, () => {
 watch(() => form.warehouseId, () => {
   if (type.value === 'consumption') form.warehouseName = linkedWarehouses.value.find(item => item.warehouseId === form.warehouseId)?.name || ''
 })
+watch([selectedPickingItemId, () => form.warehouseName], () => { pickingDetailPage.value = 1 })
+watch(pickingDetailLastPage, lastPage => {
+  pickingDetailPage.value = Math.min(pickingDetailPage.value, lastPage)
+})
 watch(() => form.warehouseName, () => {
   if (type.value === 'delivery') {
     selectedPickingLabels.value = []
@@ -957,6 +1239,15 @@ watch(() => form.productCode, () => {
   if (type.value === 'risk') {
     if (isRecallPage.value) loadRecallInventory()
     else loadRecallBatches()
+  }
+})
+watch(recallBusinessType, () => {
+  if (!isRecallPage.value) return
+  if (recallBusinessType.value === 'recall' && recallScope.value === 'primary') {
+    recallScope.value = 'secondary'
+    void applyRecallScope()
+  } else {
+    void loadRecallInventory()
   }
 })
 </script>
@@ -976,8 +1267,8 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'delivery'"
       crumb="供应链业务"
       :title="title"
-      :loading="loading"
-      @refresh="loadData"
+      :loading="deliveryTab === 'returns' ? returnQueue.loading : deliveryTab === 'recalls' ? recallQueue.loading : loading"
+      @refresh="refreshDeliveryTab"
     />
 
     <MdPageHeader
@@ -1032,38 +1323,37 @@ watch(() => form.productCode, () => {
       @refresh="loadData"
     />
 
-    <!-- 结算对账：4 项 KPI 摘要卡（参考 UDI udi-summary 风格） -->
-    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总">
+    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总" :aria-busy="loading">
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-doc"><FileText :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">结算单数</span>
-          <strong class="settlement-kpi-value">{{ settlementDocumentCount }} <small>/ {{ totalItems }}</small></strong>
-          <span class="settlement-kpi-hint">本屏结算单去重数 / 总条数</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.documentCount ?? '—' }} <small>/ {{ totalItems }}</small></strong>
+          <span class="settlement-kpi-hint">匹配结算单去重数 / 明细条数</span>
         </div>
       </div>
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-supplier"><Building2 :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">供应商数</span>
-          <strong class="settlement-kpi-value">{{ settlementSupplierCount }}</strong>
-          <span class="settlement-kpi-hint">结算供应商去重</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.supplierCount ?? '—' }}</strong>
+          <span class="settlement-kpi-hint">匹配供应商去重数</span>
         </div>
       </div>
       <div class="settlement-kpi-item">
         <i class="settlement-kpi-icon is-qty"><PackageCheck :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">数量合计</span>
-          <strong class="settlement-kpi-value">{{ settlementTotalQuantity }}</strong>
-          <span class="settlement-kpi-hint">本屏去重包数 {{ settlementPackageCount }}；散货 {{ settlementLooseQuantity }}；高值 {{ settlementHighValueQuantity }}</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.totalQuantity ?? '—' }}</strong>
+          <span class="settlement-kpi-hint">匹配基本数量 · 去重包数 {{ settlementSummary.packageCount ?? '—' }} / 散货 {{ settlementSummary.looseQuantity ?? '—' }} / 高值 {{ settlementSummary.highValueQuantity ?? '—' }}</span>
         </div>
       </div>
       <div class="settlement-kpi-item is-amount">
         <i class="settlement-kpi-icon is-amount"><CheckCircle2 :size="18" /></i>
         <div>
           <span class="settlement-kpi-label">金额合计</span>
-          <strong class="settlement-kpi-value">¥ {{ settlementTotalAmount.toFixed(2) }}</strong>
-          <span class="settlement-kpi-hint">本屏结算金额累加</span>
+          <strong class="settlement-kpi-value">{{ settlementSummary.totalAmount == null ? '—' : `¥ ${settlementSummary.totalAmount.toFixed(2)}` }}</strong>
+          <span class="settlement-kpi-hint">全部匹配明细金额</span>
         </div>
       </div>
     </section>
@@ -1089,8 +1379,8 @@ watch(() => form.productCode, () => {
     <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
       <form @submit.prevent="submitRecallDialog">
         <div class="supplier-form-grid">
-          <label><span>业务类型</span><select v-model="recallBusinessType"><option value="recall">召回（回收至一级库并隔离）</option><option value="isolate">隔离（原库房隔离）</option></select></label>
-          <label><span>库存范围</span><select v-model="recallScope" @change="applyRecallScope"><option value="all">全部库房</option><option value="primary">一级库</option><option value="secondary">二级库</option><option value="tertiary">三级库</option></select></label>
+          <label><span>业务类型</span><select v-model="recallBusinessType"><option value="recall">召回退库（待中心库签收）</option><option value="isolate">隔离（原库房隔离）</option></select></label>
+          <label><span>库存范围</span><select v-model="recallScope" @change="applyRecallScope"><option value="all">{{ recallBusinessType === 'recall' ? '全部非中心库' : '全部库房' }}</option><option v-if="recallBusinessType === 'isolate'" value="primary">一级库</option><option value="secondary">二级库</option><option value="tertiary">三级库</option></select></label>
           <label><span>科室</span><select v-model="form.deptName" :disabled="!['secondary', 'tertiary'].includes(recallScope)" :required="['secondary', 'tertiary'].includes(recallScope)"><option value="">请选择科室</option><option v-for="item in options.departments" :key="item.deptCode" :value="item.deptName">{{ item.deptName }}</option></select></label>
           <label><span>库房</span><select v-model="form.warehouseName" :disabled="recallScope === 'all'" :required="recallScope !== 'all'"><option value="">请选择库房</option><option v-for="item in warehouseChoices" :key="item.warehouseName" :value="item.warehouseName">{{ item.warehouseName }}</option></select></label>
           <label class="wide"><span>商品</span><select v-model="form.productCode" required><option value="">请选择商品</option><option v-for="item in options.products" :key="item.productCode" :value="item.productCode">{{ item.productName }}（{{ item.productCode }}）</option></select></label>
@@ -1102,7 +1392,17 @@ watch(() => form.productCode, () => {
       </form>
     </el-dialog>
 
-    <section v-if="type !== 'settlement' && type !== 'high-value' && !isRecallPage" class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+    <section v-if="type !== 'settlement' && type !== 'red-flush' && type !== 'high-value' && !isRecallPage"
+      class="hospital-catalog-panel" :class="{ 'consumption-entry-card': type === 'consumption', 'delivery-workspace-card': type === 'delivery' }">
+      <div v-if="type === 'delivery'" class="subnav-tabs delivery-tabs" role="tablist" aria-label="拣配配送业务">
+        <button v-for="tab in visibleDeliveryTabs"
+          :id="'delivery-tab-' + tab.key" :key="tab.key" type="button" role="tab"
+          :aria-selected="deliveryTab === tab.key" :aria-controls="'delivery-panel-' + tab.key"
+          :class="{ active: deliveryTab === tab.key }" @click="changeDeliveryTab(tab.key)">
+          {{ tab.label }}
+        </button>
+      </div>
+      <template v-if="type !== 'delivery' || deliveryTab === 'picking'">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon"><ScanLine :size="20" /></i>
@@ -1134,7 +1434,11 @@ watch(() => form.productCode, () => {
         </label>
         <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
           <span>科室</span>
-          <select v-if="type === 'consumption'" v-model="form.deptCode">
+          <select v-if="type === 'delivery'" v-model="pickingFilters.deptCode" @change="applyPickingFilters">
+            <option value="">全部授权科室</option>
+            <option v-for="item in options.departments" :key="item.deptCode" :value="item.deptCode">{{ item.deptName }}</option>
+          </select>
+          <select v-else-if="type === 'consumption'" v-model="form.deptCode">
             <option v-for="item in options.departments" :key="item.deptCode" :value="item.deptCode">{{ item.deptName }}（{{ item.deptCode }}）</option>
           </select>
           <select v-else v-model="form.deptName">
@@ -1165,6 +1469,7 @@ watch(() => form.productCode, () => {
             <div class="consumption-code-search">
               <input
                 v-model.trim="consumptionQueryCode"
+                @input="consumptionResolved = null"
                 placeholder="扫码或输入定数包码、UDI、唯一码，点击查询定位商品"
                 @keyup.enter="resolveConsumption"
               />
@@ -1178,11 +1483,11 @@ watch(() => form.productCode, () => {
             <span>已识别耗材</span>
             <div class="consumption-resolved">
               <strong>{{ consumptionResolved.productCode }} / {{ consumptionResolved.productName }}</strong>
-              <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}</small>
+              <small>{{ consumptionResolved.specModel || '-' }} · {{ consumptionResolved.unit || '-' }} · 来源：{{ consumptionResolved.sourceType === 'package' ? '定数包码' : 'UDI/唯一码' }}<template v-if="consumptionResolved.warehouseName"> · 库房 {{ consumptionResolved.warehouseName }}</template></small>
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && consumptionResolved?.sourceType === 'package'" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && (consumptionResolved?.sourceType === 'package' || Number(consumptionResolved?.highValue) === 1)" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
           <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
@@ -1231,17 +1536,13 @@ watch(() => form.productCode, () => {
           <Save :size="18" />
           提交申领
         </button>
-        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId" @click="runAction('delivery')">
+        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId || Boolean(pickingLooseStatus)" @click="runAction('delivery')">
           <Truck :size="18" />
           确认拣配出库
         </button>
         <button v-if="type === 'consumption'" class="btn btn-primary" type="button" @click="runAction('consumption')">
           <PackageCheck :size="18" />
           登记消耗
-        </button>
-        <button v-if="type === 'consumption'" class="btn" type="button" @click="runAction('reverse')">
-          <RotateCcw :size="18" />
-          反消耗/红冲
         </button>
         <button v-if="type === 'risk' && !isRecallPage" class="btn btn-primary" type="button" @click="runAction('cold')">
           <AlertTriangle :size="18" />
@@ -1264,13 +1565,25 @@ watch(() => form.productCode, () => {
         </table>
       </div>
 
-      <div v-if="type === 'delivery'" class="picking-workbench">
+      <div v-if="type === 'delivery'" id="delivery-panel-picking" class="picking-workbench"
+        role="tabpanel" aria-labelledby="delivery-tab-picking">
         <section class="picking-panel picking-panel--requisition">
+          <form class="settlement-filters" aria-label="待拣配申领日期查询" @submit.prevent="applyPickingFilters">
+            <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" /></label>
+            <label><span>审批结束日期</span><input v-model="pickingFilters.dateTo" class="md-input" type="date" /></label>
+            <div class="settlement-query-actions">
+              <button class="md-btn" type="button" @click="resetPickingFilters">重置</button>
+              <button class="md-btn md-btn-primary" type="submit">查询</button>
+            </div>
+          </form>
           <div class="table-scroll">
             <table class="master-table purchase-detail-table">
               <thead>
                 <tr>
                   <th>申领单号</th>
+                  <th>申领单创建时间</th>
+                  <th>申领类型</th>
+                  <th>部分拣配完成时间</th>
                   <th>科室</th>
                   <th>商品</th>
                   <th>申请类型</th>
@@ -1282,7 +1595,7 @@ watch(() => form.productCode, () => {
               </thead>
               <tbody>
                 <tr v-if="!pickingRequisitionRows.length">
-                  <td colspan="8" class="approval-empty">暂无待拣配申领单</td>
+                  <td colspan="11" class="approval-empty">暂无待拣配申领单</td>
                 </tr>
                 <tr
                   v-for="row in paginatedPickingRequisitions"
@@ -1291,8 +1604,11 @@ watch(() => form.productCode, () => {
                 >
                   <td>
                     <strong>{{ row.requisitionNo }}</strong>
-                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">部分拣配</span>
+                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
                   </td>
+                  <td>{{ formatDateTime(row.requisitionCreatedAt) }}</td>
+                  <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
+                  <td>{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
                   <td>{{ row.deptName }}</td>
                   <td>
                     <strong>{{ row.productName }}</strong>
@@ -1310,7 +1626,13 @@ watch(() => form.productCode, () => {
                   <td>{{ row.pickedQty }}</td>
                   <td>{{ row.remainingQty }}</td>
                   <td>
-                    <button class="btn-text" type="button" @click="selectPickingRequisition(row)">选择</button>
+                    <button class="btn-text" type="button"
+                      :aria-pressed="selectedPickingItemId === String(row.itemId)"
+                      @click="selectPickingRequisition(row)">
+                      {{ selectedPickingItemId === String(row.itemId) ? '已选择' : '选择' }}
+                    </button>
+                    <span v-if="selectedPickingItemId === String(row.itemId) && pickingLooseStatus"
+                      class="muted-cell" :role="pickingLooseError ? 'alert' : 'status'">{{ pickingLooseStatus }}</span>
                   </td>
                 </tr>
               </tbody>
@@ -1348,7 +1670,7 @@ watch(() => form.productCode, () => {
                 <tr v-if="!pickingUniqueCodeRows.length">
                   <td colspan="5" class="approval-empty">该申请明细没有可拣配的唯一码/UDI</td>
                 </tr>
-                <tr v-for="row in pickingUniqueCodeRows" :key="String(row.uniqueCode)">
+                <tr v-for="row in pagePickingDetails(pickingUniqueCodeRows)" :key="String(row.uniqueCode)">
                   <td>
                     <input
                       type="checkbox"
@@ -1386,13 +1708,14 @@ watch(() => form.productCode, () => {
                   <th>商品</th>
                   <th>包内数量</th>
                   <th>生成时间</th>
+                  <th>修改时间</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!pickingPackageRows.length">
-                  <td colspan="6" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
+                  <td colspan="7" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
                 </tr>
-                <tr v-for="row in pickingPackageRows" :key="String(row.labelNo)">
+                <tr v-for="row in pagePickingDetails(pickingPackageRows)" :key="String(row.labelNo)">
                   <td>
                     <input
                       type="checkbox"
@@ -1412,6 +1735,7 @@ watch(() => form.productCode, () => {
                   </td>
                   <td>{{ row.packageQuantity }}</td>
                   <td>{{ row.createTime }}</td>
+                  <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -1420,7 +1744,7 @@ watch(() => form.productCode, () => {
 
         <section v-if="selectedPickingItemType === 'loose'" class="picking-panel picking-panel--loose">
           <div class="section-title compact">
-            <h3>可用散货</h3>
+            <h3>散货拣配</h3>
             <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ selectedPendingQty }}（基础单位）</span>
           </div>
           <div class="table-scroll">
@@ -1428,30 +1752,18 @@ watch(() => form.productCode, () => {
               <thead>
                 <tr>
                   <th>商品名称</th>
-                  <th>规格型号</th>
-                  <th>厂家</th>
-                  <th>单位</th>
-                  <th>单价</th>
                   <th>系统批次</th>
-                  <th>生产批号</th>
-                  <th>有效期</th>
                   <th>可用数量</th>
                   <th>拣配数量</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!pickingLooseRows.length">
-                  <td colspan="10" class="approval-empty">一级库没有该商品的可用散货</td>
+                  <td colspan="4" class="approval-empty">{{ pickingLooseStatus }}</td>
                 </tr>
-                <tr v-for="row in pickingLooseRows" :key="String(row.balanceId)">
+                <tr v-for="row in pagePickingDetails(pickingLooseRows)" :key="String(row.balanceId)">
                   <td><strong>{{ row.productName }}</strong><span class="muted-cell">{{ row.productCode }}</span></td>
-                  <td>{{ row.specModel || '-' }}</td>
-                  <td>{{ row.manufacturerName || '-' }}</td>
-                  <td>{{ row.unit || '-' }}</td>
-                  <td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
                   <td>{{ row.systemBatchNo }}</td>
-                  <td>{{ row.productionBatchNo || '-' }}</td>
-                  <td>{{ row.expireDate || '-' }}</td>
                   <td>{{ row.availableQty }}</td>
                   <td>
                     <input v-integer-quantity
@@ -1469,10 +1781,68 @@ watch(() => form.productCode, () => {
           </div>
         </section>
         </template>
+        <PaginationControls
+          aria-label="拣配库存明细分页"
+          :page="pickingDetailPage" :size="pickingDetailSize" :total="pickingDetailTotal"
+          :max-page-size="maxPickingDetailSize" :loading="loading || pickingLooseLoading"
+          @change-page="pickingDetailPage = $event"
+          @change-size="changePickingDetailSize"
+        />
       </div>
+      </template>
+
+    <section v-else-if="deliveryTab === 'returns' && auth.canWrite('picking-delivery')"
+      id="delivery-panel-returns" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-returns">
+      <StatusMessage :message="returnQueue.error" tone="error" role="alert" />
+      <div class="table-scroll">
+        <table class="master-table">
+          <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="row in returnQueue.result.rows" :key="row.returnNo">
+              <td>{{ row.returnNo }}</td><td>{{ row.sourceWarehouse }}</td><td>{{ row.destinationWarehouse }}</td>
+              <td>{{ row.quantity }}</td><td>{{ row.createTime }}</td>
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
+                @click="confirmDepartmentReturn(row)">确认退库</button></td>
+            </tr>
+            <tr v-if="!returnQueue.result.rows.length && !returnQueue.error"><td colspan="6"><EmptyState :message="returnQueue.loading ? '正在加载待确认退库单…' : '暂无待确认科室退库'" /></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <PaginationControls
+        :page="returnQueue.result.page" :size="returnQueue.result.size" :total="returnQueue.result.total"
+        :loading="returnQueue.loading" @change-page="returnQueue.load($event)" @change-size="returnQueue.load(1, $event)"
+      />
     </section>
 
-    <section v-if="type !== 'high-value'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
+    <section v-else-if="deliveryTab === 'recalls' && auth.canWrite('picking-delivery')"
+      id="delivery-panel-recalls" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-recalls">
+      <StatusMessage :message="recallQueue.error" tone="error" role="alert" />
+      <div class="table-scroll">
+        <table class="master-table">
+          <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>登记时间</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="row in recallQueue.result.rows" :key="row.recallNo">
+              <td>{{ row.recallNo }}</td><td>{{ row.sourceWarehouses || '—' }}</td>
+              <td>{{ row.destinationWarehouse }}</td><td>{{ row.quantity }}</td>
+              <td>{{ formatDateTime(row.createTime) }}</td>
+              <td><button type="button" class="md-btn md-btn-primary" :disabled="recallQueue.loading || Boolean(receivingRecallNo)"
+                @click="confirmRecallReceipt(row)">确认签收</button></td>
+            </tr>
+            <tr v-if="!recallQueue.result.rows.length && !recallQueue.error">
+              <td colspan="6"><EmptyState :message="recallQueue.loading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <PaginationControls
+        :page="recallQueue.result.page" :size="recallQueue.result.size" :total="recallQueue.result.total"
+        :loading="recallQueue.loading" @change-page="recallQueue.load($event)" @change-size="recallQueue.load(1, $event)"
+      />
+    </section>
+
+    </section>
+
+    <section v-if="type !== 'high-value' && type !== 'delivery'" class="hospital-catalog-panel" :class="{ 'consumption-history-card': type === 'consumption', 'finance-detail-card': type === 'settlement' }">
       <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption' }">
         <template v-if="type === 'consumption'">
           <i class="consumption-section-icon is-history"><History :size="20" /></i>
@@ -1483,19 +1853,42 @@ watch(() => form.productCode, () => {
         </template>
         <template v-else>
           <History :size="20" />
-          <h3>{{ type === 'settlement' ? '结算明细' : type === 'delivery' ? '拣配记录' : '业务单据' }}</h3>
+          <h3>{{ isRecallPage ? '召回与隔离记录' : type === 'settlement' ? '结算明细' : '业务单据' }}</h3>
         </template>
       </div>
-      <div v-if="type === 'settlement'" class="settlement-type-filter">
-        <label for="settlement-goods-type">结算货型</label>
-        <select id="settlement-goods-type" v-model="settlementGoodsType" @change="changeSettlementGoodsType">
-          <option value="">全部货型</option>
-          <option value="high_value">高值耗材</option>
-          <option value="quota_package">定数包</option>
-          <option value="loose">散货</option>
-          <option value="unknown">待核对货型</option>
-        </select>
-        <span>跨批次、供应商的同一包仅在首条结算明细计 1 包；各行显示包内基本数量。</span>
+      <div v-if="type === 'settlement'" class="settlement-query">
+        <form class="settlement-filters" aria-label="结算明细查询" @submit.prevent="applySettlementFilters">
+          <label><span>申领开始日期</span><input v-model="settlementFilters.dateFrom" class="md-input" type="date" /></label>
+          <label><span>申领结束日期</span><input v-model="settlementFilters.dateTo" class="md-input" type="date" /></label>
+          <label><span>追溯码</span><input v-model.trim="settlementFilters.traceCode" class="md-input" type="search" placeholder="UDI、唯一码或定数包码" /></label>
+          <label><span>科室</span><input v-model.trim="settlementFilters.deptName" class="md-input" type="search" placeholder="输入结算科室名称" /></label>
+          <label><span>商品信息</span><input v-model.trim="settlementFilters.productKeyword" class="md-input" type="search" placeholder="编码、名称、规格、厂家或注册证" /></label>
+          <label>
+            <span>结算货型</span>
+            <select v-model="settlementFilters.goodsType" class="md-select" @change="applySettlementFilters">
+              <option value="">全部货型</option>
+              <option value="high_value">高值耗材</option>
+              <option value="quota_package">定数包</option>
+              <option value="loose">散货</option>
+              <option value="unknown">待核对货型</option>
+            </select>
+          </label>
+          <label>
+            <span>排序</span>
+            <select v-model="settlementFilters.sort" class="md-select" @change="applySettlementFilters">
+              <option value="timeDesc">申领时间从新到旧</option>
+              <option value="timeAsc">申领时间从旧到新</option>
+              <option value="departmentAsc">科室名称升序</option>
+              <option value="departmentDesc">科室名称降序</option>
+            </select>
+          </label>
+          <div class="settlement-query-actions">
+            <button class="md-btn" type="button" @click="resetSettlementFilters"><RotateCcw :size="16" /> 重置</button>
+            <button class="md-btn md-btn-primary" type="submit"><Search :size="16" /> 查询</button>
+          </div>
+        </form>
+        <StatusMessage :message="settlementFilterError || settlementLoadError" tone="error" role="alert" />
+        <p class="settlement-query-hint">申领日期仅匹配可关联申领单的明细。同一定数包仅在首条结算明细计 1 包。</p>
       </div>
       <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
         <table class="master-table settlement-detail-table">
@@ -1503,6 +1896,7 @@ watch(() => form.productCode, () => {
             <tr>
               <th class="settlement-col-document">结算单</th>
               <th class="settlement-col-location">结算归属</th>
+              <th>申领类型</th>
               <th class="settlement-col-product">商品信息</th>
               <th class="settlement-col-spec">规格 / 单位</th>
               <th class="settlement-col-manufacturer">厂家 / 注册证</th>
@@ -1523,10 +1917,12 @@ watch(() => form.productCode, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="18" class="approval-empty">正在加载结算明细...</td>
+              <td colspan="19" class="approval-empty"><EmptyState message="正在加载结算明细..." /></td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="18" class="approval-empty">暂无结算明细</td>
+              <td colspan="19" class="approval-empty">
+                <EmptyState :message="settlementLoadError ? '结算明细加载失败' : '暂无符合查询条件的结算明细'" />
+              </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.settlementItemId)">
               <td class="settlement-col-document">
@@ -1541,6 +1937,7 @@ watch(() => form.productCode, () => {
                   <span class="settlement-cell-meta" :title="String(row.settlementWarehouse || '-')">库房：{{ row.settlementWarehouse || '-' }}</span>
                 </div>
               </td>
+              <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
               <td class="settlement-col-product">
                 <div class="settlement-cell-stack">
                   <strong :title="String(row.productName || '-')">{{ row.productName || '-' }}</strong>
@@ -1601,6 +1998,7 @@ watch(() => form.productCode, () => {
               <td class="settlement-col-time">
                 <div class="settlement-cell-stack">
                   <strong>{{ row.settlementOperator || '-' }}</strong>
+                  <span class="settlement-cell-meta">申领：{{ formatDateTime(row.requisitionTime) }}</span>
                   <span class="settlement-cell-meta">结算：{{ row.settlementTime || '-' }}</span>
                   <span class="settlement-cell-meta">创建：{{ row.createTime || '-' }}</span>
                 </div>
@@ -1612,11 +2010,93 @@ watch(() => form.productCode, () => {
           </tbody>
         </table>
       </div>
+      <div v-else-if="type === 'red-flush'" class="table-scroll">
+        <div class="settlement-query">
+          <form class="settlement-filters" aria-label="红冲记录查询" @submit.prevent="applyRedFlushFilters">
+            <label><span>科室</span>
+              <select v-model="redFlushFilters.deptCode" class="md-select" @change="redFlushFilters.warehouseId = ''">
+                <option value="">全部授权科室</option>
+                <option v-for="dept in redFlushOptions.departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
+              </select>
+            </label>
+            <label><span>库房</span>
+              <select v-model="redFlushFilters.warehouseId" class="md-select" :disabled="!redFlushFilters.deptCode || !redFlushWarehouses.length">
+                <option value="">{{ !redFlushFilters.deptCode ? '请先选择科室' : redFlushWarehouses.length ? '该科室全部库房' : '该科室暂无关联库房' }}</option>
+                <option v-for="warehouse in redFlushWarehouses" :key="warehouse.warehouseId" :value="String(warehouse.warehouseId)">{{ warehouse.warehouseName }}</option>
+              </select>
+            </label>
+            <div class="settlement-query-actions">
+              <button class="md-btn" type="button" @click="resetRedFlushFilters">重置</button>
+              <button class="md-btn md-btn-primary" type="submit">查询</button>
+            </div>
+          </form>
+          <StatusMessage :message="redFlushError" tone="error" role="alert" />
+        </div>
+        <table class="master-table purchase-table">
+          <thead>
+            <tr><th>红冲单号</th><th>原消耗单号</th><th>科室</th><th>库房</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
+          </thead>
+          <tbody>
+            <tr v-if="loading"><td colspan="8"><EmptyState message="正在加载红冲记录..." /></td></tr>
+            <tr v-else-if="!rows.length"><td colspan="8"><EmptyState :message="redFlushError ? '红冲记录加载失败' : '暂无红冲记录'" /></td></tr>
+            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
+              <td>{{ row.bizNo }}</td>
+              <td>{{ row.sourceNo || '-' }}</td>
+              <td>{{ row.deptName || '-' }}</td>
+              <td>{{ row.warehouseName || '-' }}</td>
+              <td>{{ row.flushType === 'reverse_consumption' ? '反消耗' : formatBusinessText(row.flushType) }}</td>
+              <td>{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</td>
+              <td>{{ formatDateTime(row.createTime) }}</td>
+              <td>{{ row.remark === 'reverse consumption red flush' ? '反消耗红冲' : row.remark || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <template v-else-if="isRecallPage">
+        <div class="settlement-query">
+          <form class="settlement-filters" aria-label="召回与隔离记录查询" @submit.prevent="applyRecallHistoryFilters">
+            <label><span>开始日期</span><input v-model="recallHistoryFilters.dateFrom" type="date" class="md-input" /></label>
+            <label><span>结束日期</span><input v-model="recallHistoryFilters.dateTo" type="date" class="md-input" /></label>
+            <label><span>商品名称</span><input v-model.trim="recallHistoryFilters.productName" type="search" class="md-input" /></label>
+            <label><span>商品编码</span><input v-model.trim="recallHistoryFilters.productCode" type="search" class="md-input" /></label>
+            <label><span>来源科室</span><input v-model.trim="recallHistoryFilters.deptName" type="search" class="md-input" /></label>
+            <div class="settlement-query-actions">
+              <button type="button" class="md-btn" @click="resetRecallHistoryFilters">重置</button>
+              <button type="submit" class="md-btn md-btn-primary">查询</button>
+            </div>
+          </form>
+          <StatusMessage :message="recallHistoryError" tone="error" role="alert" />
+        </div>
+        <div class="table-scroll">
+          <table class="master-table purchase-table">
+            <thead>
+              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>登记时间</th><th>签收时间</th></tr>
+            </thead>
+            <tbody>
+              <tr v-if="loading"><td colspan="10"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
+              <tr v-else-if="!rows.length"><td colspan="10"><EmptyState message="暂无召回与隔离记录" /></td></tr>
+              <tr v-else v-for="row in rows" :key="String(row.bizNo)">
+                <td>{{ row.bizNo }}</td>
+                <td>{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</td>
+                <td>{{ row.productCode }}</td>
+                <td>{{ row.productName }}</td>
+                <td>{{ row.sourceDepartments || '-' }}</td>
+                <td>{{ row.warehouseName || '-' }}</td>
+                <td>{{ row.quantity }}</td>
+                <td>{{ formatStatusText(row.status) }}</td>
+                <td>{{ formatDateTime(row.createTime) }}</td>
+                <td>{{ formatDateTime(row.receivedTime) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </template>
       <div v-else class="table-scroll">
         <table class="master-table purchase-table" :class="{ 'consumption-history-table': type === 'consumption' }">
           <thead>
             <tr>
               <th>{{ type === 'consumption' ? '消耗单号' : '单据号' }}</th>
+              <th v-if="type === 'consumption'">申领类型</th>
               <th>{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</th>
               <th>商品编码</th>
               <th>商品名称</th>
@@ -1628,20 +2108,18 @@ watch(() => form.productCode, () => {
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8" class="approval-empty">正在加载闭环数据...</td>
+              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">正在加载闭环数据...</td>
             </tr>
             <tr v-else-if="!rows.length">
-              <td colspan="8" class="approval-empty">
-                <EmptyState :message="type === 'delivery' ? '暂无拣配记录' : '暂无业务单据'" />
+              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">
+                <EmptyState message="暂无业务单据" />
               </td>
             </tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
+              <td v-if="type === 'consumption'">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
               <td>
-                <template v-if="type === 'delivery'">
-                  {{ row.deptName || '-' }}
-                </template>
-                <template v-else-if="type === 'consumption'">
+                <template v-if="type === 'consumption'">
                   <strong>{{ row.deptName || '-' }}</strong>
                   <span class="muted-cell"><Building2 :size="13" />{{ row.warehouseName || '-' }}</span>
                 </template>
@@ -1649,22 +2127,7 @@ watch(() => form.productCode, () => {
               </td>
               <td>{{ row.productCode || '-' }}</td>
               <td>
-                <template v-if="type === 'delivery'">
-                  {{ row.productName || '-' }}
-                  <div v-if="row.labelNos" class="package-label-chips">
-                    <button
-                      v-for="labelNo in String(row.labelNos).split(', ')"
-                      :key="labelNo"
-                      class="btn-link package-label-chip"
-                      type="button"
-                      :title="`查看定数包 ${labelNo} 明细`"
-                      @click="openPackageDetail(labelNo)"
-                    >
-                      {{ labelNo }}
-                    </button>
-                  </div>
-                </template>
-                <template v-else-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
+                <template v-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
                 <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
               </td>
               <td>
@@ -1688,17 +2151,8 @@ watch(() => form.productCode, () => {
               <td>{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
-                  <button
-                    v-if="type === 'delivery' && row.status === 'picked'"
-                    type="button"
-                    :disabled="deliverySubmitting || loading"
-                    @click="runAction('sign', row)"
-                  >
-                    <CheckCircle2 :size="15" />
-                    确认签收
-                  </button>
-                  <span v-else-if="type === 'delivery'">已签收</span>
-                  <button v-if="type === 'consumption' && row.status === 'confirmed'" type="button" @click="runAction('reverse', row)">
+                  <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
+                    type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
                     <RotateCcw :size="15" />
                     反消耗
                   </button>
@@ -1708,7 +2162,7 @@ watch(() => form.productCode, () => {
                   <button v-if="type === 'requisition' && row.status === 'pending_approval'" type="button" @click="runAction('rejectRequisition', row)">
                     驳回
                   </button>
-                  <span v-if="!['delivery', 'consumption'].includes(type)">已联动</span>
+                  <span v-if="type !== 'consumption'">已联动</span>
                 </div>
               </td>
             </tr>
@@ -1720,7 +2174,6 @@ watch(() => form.productCode, () => {
         :size="pageSize"
         :total="totalItems"
         :loading="loading"
-        :hide-summary="isDeliveryHistory"
         @change-page="changePage"
         @change-size="changePageSize"
       />
@@ -1832,6 +2285,7 @@ watch(() => form.productCode, () => {
             <label><span>库房</span><strong>{{ packageDetail.warehouseName }}（{{ packageDetail.warehouseType }}）</strong></label>
             <label><span>状态</span><strong>{{ formatStatusText(packageDetail.status) }} · 打印 {{ packageDetail.printCount }} 次</strong></label>
             <label><span>生成时间</span><strong>{{ packageDetail.createTime }}</strong></label>
+            <label><span>修改时间</span><strong>{{ packageDetail.updateTime || '-' }}</strong></label>
           </div>
 
           <div class="section-title compact">
@@ -1921,15 +2375,29 @@ watch(() => form.productCode, () => {
 </template>
 
 <style scoped>
-.settlement-type-filter {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
+.settlement-query {
   padding: 12px 16px;
 }
-.settlement-type-filter select { padding: 6px 12px; }
-.settlement-type-filter span { color: var(--md-text-secondary, #667085); font-size: var(--spd-font-size-sm); }
+/* 结算 / 拣配 / 红冲 / 召回 各筛选区统一样式 */
+.settlement-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr));
+  gap: 10px 12px;
+}
+.settlement-filters label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.settlement-query-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.settlement-filters span,
+.settlement-query-hint { color: var(--md-text-secondary, #667085); font-size: var(--spd-font-size-sm); }
+.settlement-query-hint { margin: 8px 0 0; }
 /* =====================================================================
    拣配配送 delivery-acceptance-page
    ---------------------------------------------------------------------
@@ -3371,5 +3839,43 @@ watch(() => form.productCode, () => {
   .delivery-acceptance-page .picking-panel .table-scroll {
     max-height: max(240px, calc(100dvh - 420px));
   }
+}
+.delivery-tabs {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+}
+
+.delivery-tabs button {
+  position: relative;
+  min-height: 38px;
+  padding-inline: 16px;
+  border: 0;
+  background: transparent;
+}
+
+.delivery-tabs button.active {
+  background: var(--subnav-btn-active-bg);
+  color: var(--tech-blue);
+}
+
+.delivery-tabs button.active::after {
+  position: absolute;
+  inset: auto 12px -5px;
+  height: 2px;
+  background: currentColor;
+  content: '';
+}
+
+.delivery-confirmation-panel .master-table thead th {
+  padding: 9px 12px !important;
+  background: var(--inventory-table-heading-bg) !important;
+}
+
+.delivery-confirmation-panel .master-table tbody td {
+  padding: 8px 12px !important;
+}
+
+.delivery-confirmation-panel .master-table tbody tr:nth-child(even) td {
+  background: var(--md-bg-muted) !important;
 }
 </style>

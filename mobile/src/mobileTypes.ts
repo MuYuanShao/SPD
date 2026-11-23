@@ -8,6 +8,7 @@ export type DeliveryTask = {
   deptId: number; deptName: string; sourceWarehouseId: number; sourceWarehouseName: string;
   warehouseId: number; warehouseName: string; productCode: string; productName: string; quantity: number; unit: string;
   requisitionNo?: string | null; specModel?: string | null; manufacturerName?: string | null; createdAt?: string | null; signedAt?: string | null
+  requisitionType?: string | null; requisitionTypeLabel?: string | null
 }
 export type CheckItem = { type: 'package' | 'trace'; id: number; code: string; alternateCode: string; status: string }
 export type DeliveryBatch = {batchId:number;systemBatchNo:string|null;productionBatchNo:string|null;productionDate:string|null;expireDate:string|null;quantity:number}

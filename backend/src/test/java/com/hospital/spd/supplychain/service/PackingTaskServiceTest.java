@@ -51,6 +51,24 @@ class PackingTaskServiceTest {
     }
 
     @Test
+    void tasksSortByCreationTimeBeforePagination() {
+        when(jdbcTemplate.queryForObject(anyString(), eq(Long.class), any(Object[].class))).thenReturn(25L);
+
+        service.tasks(Map.of("page", "2", "size", "10"));
+
+        verify(jdbcTemplate).queryForList(
+                contains("ORDER BY qpt.create_time DESC, qpt.task_id DESC LIMIT ? OFFSET ?"), eq(10), eq(10));
+    }
+
+    @Test
+    void packageEventsSortByOccurrenceTimeBeforePagination() {
+        service.packageEvents(Map.of("page", "2", "size", "10"));
+
+        verify(jdbcTemplate).queryForList(
+                contains("ORDER BY qpe.event_time DESC, qpe.event_id DESC"), eq(10), eq(10));
+    }
+
+    @Test
     void looseStockProjectionUsesRequestedPageAndCompleteCount() {
         when(jdbcTemplate.queryForObject(contains("SELECT COUNT(*) FROM ("), eq(Long.class), any(Object[].class)))
                 .thenReturn(405L);

@@ -35,6 +35,7 @@ public class SystemConfigService {
                        DATE_FORMAT(expire_time, '%Y-%m-%d') AS expire_time,
                        COALESCE(risk_level, '-') AS risk_level,
                        CASE status WHEN 1 THEN '启用' ELSE '停用' END AS status,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS create_time,
                        DATE_FORMAT(update_time, '%Y-%m-%d %H:%i') AS update_time
                 FROM system_config
                 WHERE deleted = 0
@@ -68,7 +69,8 @@ public class SystemConfigService {
                 rs.getString("expire_time") == null ? "-" : rs.getString("expire_time"),
                 rs.getString("risk_level"),
                 rs.getString("status"),
-                rs.getString("update_time")
+                rs.getString("update_time"),
+                rs.getString("create_time")
         ), args.toArray());
     }
 

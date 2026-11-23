@@ -18,6 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
@@ -30,7 +31,7 @@ class OperationalRiskModuleTest {
 
     @BeforeEach
     void setUp() {
-        module = new OperationalRiskModule(jdbcTemplate, support);
+        module = new OperationalRiskModule(jdbcTemplate, support, mock(com.hospital.spd.common.DataScopeService.class));
         org.mockito.Mockito.lenient().when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_id = ?"), org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(Map.of("productId", 100L));
         org.mockito.Mockito.lenient().when(jdbcTemplate.queryForList(contains("FROM quota_packing_task_reservation r"), any(Object[].class)))
@@ -58,7 +59,7 @@ class OperationalRiskModuleTest {
     }
 
     @Test
-    void recallsSecondaryInventoryToPrimaryWarehouseAndIsolatesIt() {
+    void dispatchesSecondaryInventoryWithoutReceivingOrIsolatingIt() {
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
                 .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "支架"));
         when(jdbcTemplate.queryForList(contains("converted_stock"), any(Object[].class)))
@@ -75,15 +76,15 @@ class OperationalRiskModuleTest {
                 "scope", "secondary", "warehouseName", "二级库", "productCode", "PC001",
                 "batchNo", "PC2026071001", "reason", "质量异常"));
 
-        assertThat(result).containsEntry("status", "isolated");
-        verify(support).transferSpecificBatch(20L, 10L, 100L, 66L, BigDecimal.valueOf(2),
-                "recall_event", 88L, "召回库存回收到一级库：质量异常");
-        verify(support).isolateSpecificBatch(10L, 100L, 66L, BigDecimal.valueOf(2),
-                "recall_event", 88L, "质量异常");
+        assertThat(result).containsEntry("status", "pending_receipt");
+        verify(support).consumeSpecificBatchEvent(20L, 100L, 66L, BigDecimal.valueOf(2),
+                "warehouse_transfer_out", "recall_event", 88L, "召回退库出库，待中心库签收：质量异常");
+        verify(support, never()).receiveAvailable(any(), any(), any(), any(), anyString(), anyString(), any(), anyString());
+        verify(support, never()).isolateSpecificBatch(any(), any(), any(), any(), anyString(), any(), anyString());
     }
 
     @Test
-    void isolatesPrimaryWarehouseRecallWithoutTransfer() {
+    void rejectsRecallIfTheOnlyStockIsAlreadyInTheDestination() {
         when(jdbcTemplate.queryForMap(contains("FROM product WHERE product_code = ?"), anyString()))
                 .thenReturn(Map.of("productId", 100L, "productCode", "PC001", "productName", "支架"));
         when(jdbcTemplate.queryForList(contains("converted_stock"), any(Object[].class)))
@@ -93,16 +94,10 @@ class OperationalRiskModuleTest {
                         "totalQty", BigDecimal.valueOf(5))));
         when(jdbcTemplate.queryForMap(contains("warehouse_type LIKE '%一级%'")))
                 .thenReturn(Map.of("warehouseId", 10L, "warehouseName", "主仓库"));
-        when(support.nextNo(DocumentKind.RECALL_EVENT)).thenReturn("ZH20260710002");
-        PurchaseOrderServiceTest.mockKeyHolderInsert(jdbcTemplate, 89L);
-
-        Map<String, Object> result = module.createRecall(Map.of(
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> module.createRecall(Map.of(
                 "scope", "primary", "warehouseName", "主仓库", "productCode", "PC001",
-                "batchNo", "PC2026071001", "reason", "批次召回"));
-
-        assertThat(result).containsEntry("status", "isolated");
-        verify(support).isolateSpecificBatch(10L, 100L, 66L, BigDecimal.valueOf(5),
-                "recall_event", 89L, "批次召回");
+                "batchNo", "PC2026071001", "reason", "批次召回")))
+                .hasMessageContaining("无可退回中心库的库存");
         verify(support, never()).transferSpecificBatch(any(), any(), any(), any(), any(), anyString(), any(), anyString());
     }
 
@@ -130,8 +125,6 @@ class OperationalRiskModuleTest {
                         "warehouseId", 10L, "batchId", 66L,
                         "looseQty", BigDecimal.ZERO, "packageQty", BigDecimal.valueOf(5),
                         "totalQty", BigDecimal.valueOf(5))));
-        when(jdbcTemplate.queryForMap(contains("warehouse_type LIKE '%一级%'")))
-                .thenReturn(Map.of("warehouseId", 10L, "warehouseName", "一级库"));
         when(jdbcTemplate.queryForList(contains("FROM quota_package_label qpl"), eq(10L), eq(100L), eq(66L)))
                 .thenReturn(java.util.List.of(Map.of("labelId", 7L, "labelNo", "D001", "status", "available")));
         when(jdbcTemplate.queryForList(contains("FROM quota_package_label_source WHERE label_id"), eq(7L)))
@@ -140,7 +133,7 @@ class OperationalRiskModuleTest {
         when(support.nextNo(DocumentKind.QUOTA_PACKAGE_EVENT)).thenReturn("DS003");
         PurchaseOrderServiceTest.mockKeyHolderInsert(jdbcTemplate, 90L);
 
-        module.createRecall(Map.of("scope", "all", "productCode", "PC001",
+        module.createRecall(Map.of("businessType", "isolate", "scope", "all", "productCode", "PC001",
                 "batchNo", "PC2026071001", "reason", "批次召回"));
 
         verify(support).receiveAvailable(10L, 100L, 66L, BigDecimal.valueOf(5),

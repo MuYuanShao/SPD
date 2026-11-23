@@ -2,6 +2,12 @@ import axios, { type AxiosRequestConfig, type AxiosResponse } from 'axios'
 import { collectSortedRows, isSortablePage, sortBusinessData, type SortablePage } from '../utils/businessListSort'
 import { getSessionAdapter } from './session'
 
+declare module 'axios' {
+  interface AxiosRequestConfig {
+    freeTextFields?: readonly string[]
+  }
+}
+
 export interface ApiResponse<T> {
   code: number
   message: string
@@ -42,7 +48,14 @@ function validateWriteFields(value: unknown): void {
 http.interceptors.request.use(
   (config) => {
     if (writeMethods.has(config.method ?? '')) {
-      validateWriteFields(config.data)
+      const data = config.data
+      if (config.freeTextFields?.length && data && Object.getPrototypeOf(data) === Object.prototype) {
+        for (const [field, value] of Object.entries(data)) {
+          if (!config.freeTextFields.includes(field) || typeof value !== 'string') validateWriteFields(value)
+        }
+      } else {
+        validateWriteFields(data)
+      }
       validateWriteFields(config.params)
     }
     const token = getSessionAdapter().getToken()
@@ -124,7 +137,8 @@ export function normalizePageResult<T>(data: PageResult<T> | T[]): PageResult<T>
   }
 }
 
-export async function getData<T>(url: string, config?: AxiosRequestConfig, groupBy?: string) {
+export async function getData<T>(url: string, config?: AxiosRequestConfig, groupBy?: string,
+  excludedSortFields: readonly string[] = []) {
   const data = unwrapData(await http.get<ApiResponse<T>>(url, config))
   if (!isSortablePage(data)) return sortBusinessData(data)
   const params = { ...(config?.params ?? {}) }
@@ -132,7 +146,7 @@ export async function getData<T>(url: string, config?: AxiosRequestConfig, group
   const size = Math.max(1, Number(data.size ?? params.size ?? data.rows.length ?? 20))
   delete params.page
   delete params.size
-  const key = JSON.stringify([getSessionAdapter().getToken(), url, groupBy, Object.entries(params).sort()])
+  const key = JSON.stringify([getSessionAdapter().getToken(), url, groupBy, excludedSortFields, Object.entries(params).sort()])
   const cached = sortedPageCache.get(key)
   let rows: unknown[]
   if (page > 1 && cached && Date.now() - cached.time < 15000 && cached.rows.length === data.total) {
@@ -144,7 +158,7 @@ export async function getData<T>(url: string, config?: AxiosRequestConfig, group
       }))
       if (!isSortablePage(next)) throw new Error('列表接口未返回完整分页信息')
       return next
-    }, groupBy)
+    }, groupBy, excludedSortFields)
     if (sortedPageCache.size >= 12) sortedPageCache.delete(sortedPageCache.keys().next().value!)
     sortedPageCache.set(key, { time: Date.now(), rows })
   }
@@ -166,4 +180,9 @@ export async function deleteData<T>(url: string, config?: AxiosRequestConfig) {
 
 export async function getPage<T>(url: string, config?: AxiosRequestConfig, groupBy?: keyof T & string) {
   return normalizePageResult(await getData<PageResult<T> | T[]>(url, config, groupBy))
+}
+
+/** Reads the server's paged result in its original order. */
+export async function getServerPage<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return unwrapData(await http.get<ApiResponse<T>>(url, config))
 }

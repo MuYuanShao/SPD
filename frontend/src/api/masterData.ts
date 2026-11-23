@@ -1,4 +1,4 @@
-import { deleteData, getData, postData, putData, http } from './http'
+import { getServerPage, deleteData, getData, postData, putData, http, unwrapData, type ApiResponse } from './http'
 
 /** Resolve private attachment URLs through the authenticated API client, never through a page iframe URL. */
 export async function fetchProductAttachmentBlob(fileUrl: string) {
@@ -44,6 +44,8 @@ export interface ProductAttachment {
 }
 
 export interface ProductDetail {
+  createTime: string
+  updateTime: string
   productId: number
   productCode: string
   productName: string
@@ -264,6 +266,7 @@ export interface DepartmentWarehouseRelationPayload {
 }
 
 export interface WarehouseLocation {
+  createTime?: string
   locationId: number
   locationCode: string
   locationType: string
@@ -342,6 +345,9 @@ export async function fetchMasterDataPage(code: string, query: MasterDataQuery =
     throw new Error(`未配置主数据接口: ${code}`)
   }
 
+  if (['hospital-product-catalog', 'department-warehouse-catalog', 'warehouse-location-management'].includes(code)) {
+    return getServerPage<MasterDataPage>(endpoint, { params: query })
+  }
   return getData<MasterDataPage>(endpoint, { params: query })
 }
 
@@ -730,9 +736,9 @@ export async function importWarehouses(file: File) {
 }
 
 export async function fetchWarehouseLocations(warehouseCode: string) {
-  return getData<WarehouseLocation[]>(
+  return unwrapData(await http.get<ApiResponse<WarehouseLocation[]>>(
     `/master-data/warehouses/${encodeURIComponent(warehouseCode)}/locations`
-  )
+  ))
 }
 
 export async function createWarehouseLocation(warehouseCode: string, payload: WarehouseLocationPayload) {

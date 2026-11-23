@@ -135,7 +135,7 @@ class OperationalDeliveryModuleTest {
         verify(jdbcTemplate).queryForList(argThat((String sql) -> sql.contains("bal.location_id IS NULL")
                         && sql.contains("p.spec_model AS specModel")
                         && sql.contains("manufacturerName")
-                        && sql.contains("p.purchase_price AS unitPrice")),
+                        && sql.contains("ib.batch_unit_price AS unitPrice")),
                 any(Object[].class));
     }
 
@@ -196,10 +196,23 @@ class OperationalDeliveryModuleTest {
     void aggregatesPickedQuotaPackagesByBaseQuantity() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
 
-        module.pickingRequisitions();
+        module.pickingRequisitions(Map.of());
 
         verify(jdbcTemplate).queryForList(argThat((String sql) ->
                 sql.contains("SUM(package_quantity) AS picked_qty")));
+    }
+
+    @Test
+    void pickingQueueFiltersByDepartmentAndApprovalDate() {
+        module.pickingRequisitions(Map.of("deptCode", "DEP-1", "dateFrom", "2026-11-18", "dateTo", "2026-11-18"));
+
+        verify(jdbcTemplate).queryForList(argThat(sql -> sql.contains("sd.dept_code = ?")
+                        && sql.contains("dr.approve_time >= ? AND dr.approve_time < ?")
+                        && sql.contains("ORDER BY dr.approve_time DESC, dr.requisition_id DESC, dri.item_id")
+                        && sql.contains("AS requisitionCreatedAt") && sql.contains("AS partialPickingCompletedAt")
+                        && sql.contains("AS sourceWarehouseName")),
+                eq("DEP-1"), eq(java.time.LocalDateTime.of(2026, 11, 18, 0, 0)),
+                eq(java.time.LocalDateTime.of(2026, 11, 19, 0, 0)));
     }
 
     @Test

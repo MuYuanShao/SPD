@@ -288,13 +288,14 @@ onMounted(loadConfigs)
               <th>生效方式</th>
               <th>风险</th>
               <th>状态</th>
+              <th>创建时间</th>
               <th>更新时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="11" class="text-center muted">正在加载...</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="11" class="text-center muted">暂无配置</td></tr>
+            <tr v-if="loading"><td colspan="12" class="text-center muted">正在加载...</td></tr>
+            <tr v-else-if="!rows.length"><td colspan="12" class="text-center muted">暂无配置</td></tr>
             <tr v-else v-for="row in rows" :key="row.configId">
               <td>
                 <span :class="['sys-tag', `is-type-${themeFor(row.configType)}`]">{{ labelFor(row.configType) }}</span>
@@ -315,6 +316,7 @@ onMounted(loadConfigs)
                   {{ formatStatusText(row.status) }}
                 </span>
               </td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td>{{ row.updateTime }}</td>
               <td>
                 <button class="btn-text" type="button" @click="openEdit(row)">编辑</button>

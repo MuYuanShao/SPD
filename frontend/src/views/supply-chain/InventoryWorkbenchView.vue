@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Teleport } from 'vue'
+import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
+import 'element-plus/theme-chalk/el-dialog.css'
 import { useRoute } from 'vue-router'
 import { CheckCircle2, ClipboardCheck, Eye, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
@@ -14,7 +16,10 @@ import {
   createStocktakingSheet,
   fetchBatchPriceAdjustments,
   fetchInventoryBalances,
+  fetchLooseStock,
+  type LooseStockRow,
   fetchQuotaPackageStock,
+  type QuotaPackageStockRow,
   previewStocktakingSheet,
   fetchStocktakingItems,
   fetchStocktakingList,
@@ -171,18 +176,34 @@ const priceRows = ref<Record<string, unknown>[]>([])
 const loading = ref(false)
 const inventoryPagination = reactive({
   balances: { page: 1, size: 20, total: 0 },
+  looseStock: { page: 1, size: 20, total: 0 },
   quotaStock: { page: 1, size: 20, total: 0 },
   codeStock: { page: 1, size: 20, total: 0 },
   stocktaking: { page: 1, size: 20, total: 0 },
   price: { page: 1, size: 20, total: 0 }
 })
-const inventoryTab = ref<'summary' | 'quota' | 'unique'>('summary')
 const inventoryTabs = [
   { key: 'summary', label: '库存汇总查询' },
   { key: 'quota', label: '定数包库存查询' },
-  { key: 'unique', label: '唯一码查询' }
+  { key: 'unique', label: '唯一码查询' },
+  { key: 'loose', label: '可用散货查询' }
 ] as const
-const quotaStockRows = ref<Record<string, unknown>[]>([])
+type InventoryTab = typeof inventoryTabs[number]['key']
+const inventoryTab = ref<InventoryTab>('summary')
+const looseStockRows = ref<LooseStockRow[]>([])
+const looseStockError = ref('')
+const looseStockLoading = ref(false)
+const looseQuery = reactive({ warehouseName: '', productCode: '', productName: '', systemBatchNo: '' })
+const appliedLooseQuery = ref({ ...looseQuery })
+let looseRequestVersion = 0
+const quotaStockRows = ref<QuotaPackageStockRow[]>([])
+const quotaCodesOpen = ref(false)
+const selectedQuotaCodes = ref<string[]>([])
+
+function openQuotaCodes(codes: string[]) {
+  selectedQuotaCodes.value = codes
+  quotaCodesOpen.value = true
+}
 const codeStockRows = ref<Record<string, unknown>[]>([])
 const quotaQuery = reactive({
   warehouseName: '',
@@ -240,7 +261,41 @@ function stocktakingTone(status: unknown) {
   if (String(status || '') === 'draft') return 'pending'
   return 'enabled'
 }
+async function loadLooseStock() {
+  const state = inventoryPagination.looseStock
+  const version = ++looseRequestVersion
+  looseStockError.value = ''
+  looseStockLoading.value = true
+  try {
+    const data = await fetchLooseStock({
+      ...appliedLooseQuery.value, page: String(state.page), size: String(state.size)
+    })
+    if (version !== looseRequestVersion) return
+    const lastPage = Math.max(1, Math.ceil(data.total / data.size))
+    if (data.page > lastPage) {
+      state.page = lastPage
+      return await loadLooseStock()
+    }
+    looseStockRows.value = data.rows
+    Object.assign(state, { page: data.page, size: data.size, total: data.total })
+  } catch (cause) {
+    if (version !== looseRequestVersion) return
+    looseStockRows.value = []
+    state.total = 0
+    looseStockError.value = cause instanceof Error ? cause.message : '可用散货加载失败'
+  } finally {
+    if (version === looseRequestVersion) looseStockLoading.value = false
+  }
+}
+
+function searchLooseStock() {
+  appliedLooseQuery.value = { ...looseQuery }
+  inventoryPagination.looseStock.page = 1
+  void loadData()
+}
+
 async function loadData() {
+  if (mode.value === 'inventory' && inventoryTab.value === 'loose') return loadLooseStock()
   loading.value = true
   try {
     if (mode.value === 'events') return
@@ -323,7 +378,7 @@ async function changeInventoryPageSize(key: keyof typeof inventoryPagination, si
   await loadData()
 }
 
-function changeInventoryTab(tab: 'summary' | 'quota' | 'unique') {
+function changeInventoryTab(tab: InventoryTab) {
   if (tab === inventoryTab.value) return
   inventoryTab.value = tab
   inventoryPagination.balances.page = 1
@@ -377,7 +432,7 @@ watch(mode, () => {
       v-else
       crumb="供应链业务"
       :title="title"
-      :loading="loading"
+      :loading="isInventoryManagement && inventoryTab === 'loose' ? looseStockLoading : loading"
       @refresh="loadData"
     />
 
@@ -427,11 +482,12 @@ watch(mode, () => {
                 <th>金额</th>
                 <th>厂家</th>
                 <th>供应商</th>
+                <th>更新时间</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="12" class="inventory-state-cell">正在加载库存...</td>
+                <td colspan="13" class="inventory-state-cell">正在加载库存...</td>
               </tr>
               <tr v-for="row in balances" v-else :key="`${row.warehouseName}|${row.productCode}`">
                 <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
@@ -446,9 +502,10 @@ watch(mode, () => {
                 <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
                 <td class="inventory-wrap-cell">{{ row.manufacturerName || '-' }}</td>
                 <td class="inventory-wrap-cell">{{ row.supplierName || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               </tr>
               <tr v-if="!balances.length && !loading">
-                <td colspan="12" class="inventory-state-cell">暂无库存汇总数据</td>
+                <td colspan="13" class="inventory-state-cell">暂无库存汇总数据</td>
               </tr>
             </tbody>
           </table>
@@ -483,6 +540,7 @@ watch(mode, () => {
                 <th>库房</th>
                 <th>科室</th>
                 <th>定数包编码</th>
+                <th>定数包唯一码</th>
                 <th>定数包名称</th>
                 <th>模板版本</th>
                 <th>商品编码</th>
@@ -501,12 +559,19 @@ watch(mode, () => {
             </thead>
             <tbody>
               <tr v-if="loading">
-                <td colspan="17" class="inventory-state-cell">正在加载定数包库存...</td>
+                <td colspan="18" class="inventory-state-cell">正在加载定数包库存...</td>
               </tr>
-              <tr v-for="(row, index) in quotaStockRows" v-else :key="index">
+              <tr v-for="row in quotaStockRows" v-else :key="`${row.warehouseId}-${row.templateId}-${row.productId}`">
                 <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
                 <td class="inventory-wrap-cell">{{ row.deptName }}</td>
                 <td class="inventory-code-cell inventory-wrap-cell">{{ row.packageCode }}</td>
+                <td class="inventory-code-cell inventory-wrap-cell">
+                  <button v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
+                    class="btn btn-sm" type="button" @click="openQuotaCodes(row.packageUniqueCodes)">
+                    查看 {{ row.packageUniqueCodes.length }} 个唯一码
+                  </button>
+                  <span v-else>{{ row.packageUniqueCodes?.[0] || '—' }}</span>
+                </td>
                 <td class="inventory-product-cell inventory-wrap-cell">{{ row.packageName }}</td>
                 <td>{{ row.templateVersion ?? '-' }}</td>
                 <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode || '-' }}</td>
@@ -523,7 +588,7 @@ watch(mode, () => {
                 <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
               </tr>
               <tr v-if="!quotaStockRows.length && !loading">
-                <td colspan="17" class="inventory-state-cell">暂无定数包库存数据</td>
+                <td colspan="18" class="inventory-state-cell">暂无定数包库存数据</td>
               </tr>
             </tbody>
           </table>
@@ -539,7 +604,7 @@ watch(mode, () => {
       </template>
 
       <!-- 唯一码查询 -->
-      <template v-else>
+      <template v-else-if="inventoryTab === 'unique'">
         <form class="hospital-query-grid inventory-query-grid" role="search" @submit.prevent="loadData">
           <label><span>科室</span><input v-model.trim="codeQuery.deptName" class="md-input" placeholder="科室名称" /></label>
           <label><span>库房</span><input v-model.trim="codeQuery.warehouseName" class="md-input" placeholder="库房名称" /></label>
@@ -613,6 +678,43 @@ watch(mode, () => {
           @change-size="changeInventoryPageSize('codeStock', $event)"
         />
       </template>
+      <template v-else-if="inventoryTab === 'loose'">
+        <form class="hospital-query-grid purchase-query-grid inventory-query-grid" aria-label="可用散货查询" @submit.prevent="searchLooseStock">
+          <label><span>库房</span><input v-model.trim="looseQuery.warehouseName" placeholder="中心库或一级库" /></label>
+          <label><span>商品编码</span><input v-model.trim="looseQuery.productCode" /></label>
+          <label><span>商品名称</span><input v-model.trim="looseQuery.productName" /></label>
+          <label><span>系统批次</span><input v-model.trim="looseQuery.systemBatchNo" /></label>
+          <button class="btn btn-primary" type="submit" :disabled="looseStockLoading"><Search :size="16" />查询</button>
+        </form>
+        <div class="table-scroll inventory-list-scroll" role="region" aria-label="可用散货结果" tabindex="0">
+          <table class="master-table inventory-table">
+            <thead>
+              <tr><th>库房</th><th>商品编码</th><th>商品名称</th><th>规格型号</th><th>厂家</th><th>单位</th>
+                <th>单价</th><th>系统批次</th><th>生产批号</th><th>有效期</th><th>可用数量</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in looseStockRows" :key="row.balanceId">
+                <td>{{ row.warehouseName }}</td><td>{{ row.productCode }}</td><td>{{ row.productName }}</td>
+                <td>{{ row.specModel || '—' }}</td><td>{{ row.manufacturerName || '—' }}</td><td>{{ row.unit || '—' }}</td>
+                <td>{{ row.unitPrice == null ? '—' : Number(row.unitPrice).toFixed(2) }}</td>
+                <td>{{ row.systemBatchNo }}</td><td>{{ row.productionBatchNo || '—' }}</td>
+                <td>{{ row.expireDate || '—' }}</td><td>{{ row.availableQty }}</td>
+              </tr>
+              <tr v-if="!looseStockRows.length">
+                <td colspan="11" class="inventory-state-cell" :role="looseStockError ? 'alert' : 'status'">
+                  {{ looseStockError || (looseStockLoading ? '正在加载可用散货…' : '暂无可用散货') }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <PaginationControls
+          :page="inventoryPagination.looseStock.page" :size="inventoryPagination.looseStock.size"
+          :total="inventoryPagination.looseStock.total" :loading="looseStockLoading"
+          @change-page="changeInventoryPage('looseStock', $event)"
+          @change-size="changeInventoryPageSize('looseStock', $event)"
+        />
+      </template>
     </section>
 
     <section v-if="mode === 'stocktaking'" class="hospital-catalog-panel stocktaking-workspace">
@@ -627,13 +729,13 @@ watch(mode, () => {
       <p class="stocktaking-hint">盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。</p>
       <div class="table-scroll stocktaking-list-scroll">
         <table class="master-table purchase-detail-table stocktaking-table">
-          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th class="numeric-cell">差异</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
+          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th class="numeric-cell">差异</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8" class="stocktaking-state-cell">正在加载盘点表...</td>
+              <td colspan="9" class="stocktaking-state-cell">正在加载盘点表...</td>
             </tr>
             <tr v-if="!stocktakingRows.length && !loading">
-              <td colspan="8" class="stocktaking-state-cell">暂无盘点表，点击右上角「新增盘点表」创建</td>
+              <td colspan="9" class="stocktaking-state-cell">暂无盘点表，点击右上角「新增盘点表」创建</td>
             </tr>
             <tr v-for="row in stocktakingRows" v-else :key="String(row.stocktakingNo)">
               <td class="stocktaking-no-cell">{{ row.stocktakingNo }}</td>
@@ -643,6 +745,7 @@ watch(mode, () => {
               <td class="stocktaking-diff-cell">{{ row.diffQty ?? '-' }}</td>
               <td><span :class="['status-badge', stocktakingTone(row.status)]">{{ formatStatusText(row.status) }}</span></td>
               <td>{{ row.reason || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
                   <button class="btn-text" type="button" @click="openStocktakingDetail(String(row.stocktakingNo))"><Eye :size="15" /> 明细</button>
@@ -679,7 +782,7 @@ watch(mode, () => {
       </div>
       <div class="table-scroll">
         <table class="master-table purchase-detail-table">
-          <thead><tr><th>调价单号</th><th>系统批次</th><th>原价</th><th>新价</th><th>影响数量</th><th>状态</th><th>原因</th><th>操作</th></tr></thead>
+          <thead><tr><th>调价单号</th><th>系统批次</th><th>原价</th><th>新价</th><th>影响数量</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in priceRows" :key="String(row.adjustmentNo)">
               <td>{{ row.adjustmentNo }}</td>
@@ -689,6 +792,7 @@ watch(mode, () => {
               <td>{{ row.affectedQty }}</td>
               <td>{{ formatStatusText(row.status) }}</td>
               <td>{{ row.reason || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
               <td><button v-if="row.status === 'draft'" class="btn btn-primary btn-sm" type="button" @click="approvePriceRow(String(row.adjustmentNo))"><CheckCircle2 :size="16" /> 审批</button></td>
             </tr>
           </tbody>
@@ -789,6 +893,17 @@ watch(mode, () => {
       </section>
     </div>
     </Teleport>
+    <ElDialog v-model="quotaCodesOpen" title="定数包唯一码" width="min(560px, calc(100vw - 32px))"
+      class="quota-stock-codes-dialog" align-center append-to-body destroy-on-close>
+      <div class="quota-stock-code-list" role="region" aria-label="定数包唯一码列表" tabindex="0">
+        <ul>
+          <li v-for="code in selectedQuotaCodes" :key="code"><code>{{ code }}</code></li>
+        </ul>
+      </div>
+      <template #footer>
+        <button class="btn" type="button" @click="quotaCodesOpen = false">关闭</button>
+      </template>
+    </ElDialog>
 
     <Teleport to="body">
     <div v-if="stocktakingDetailOpen" class="attachment-preview-mask" @click.self="stocktakingDetailOpen = false">
@@ -858,6 +973,23 @@ watch(mode, () => {
 </template>
 
 <style scoped>
+:global(.el-dialog.quota-stock-codes-dialog) {
+  width: min(560px, calc(100vw - 32px)) !important;
+}
+
+.quota-stock-code-list {
+  max-height: min(45vh, 400px);
+  overflow: auto;
+  overflow-wrap: anywhere;
+}
+
+.quota-stock-code-list ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-inline-start: 24px;
+}
+
 /* =====================================================================
    库存管理 样式优化
    ---------------------------------------------------------------------
@@ -989,7 +1121,7 @@ watch(mode, () => {
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: var(--inventory-table-heading-bg) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
 }
 
@@ -1073,7 +1205,7 @@ watch(mode, () => {
   z-index: 3;
   padding: 9px 12px !important;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: var(--inventory-table-heading-bg) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;

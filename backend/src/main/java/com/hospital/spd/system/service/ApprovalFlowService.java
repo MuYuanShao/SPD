@@ -70,7 +70,8 @@ public class ApprovalFlowService {
                        af.node_code AS nodeCode, af.node_name AS nodeName, af.scope_type AS scopeType,
                        af.scope_id AS scopeId, af.data_scope AS dataScope, af.status, af.remark,
                        af.dept_id AS deptId, d.dept_name AS deptName, af.create_by AS createBy,
-                       u.real_name AS createByName, DATE_FORMAT(af.update_time, '%Y-%m-%d %H:%i') AS updateTime
+                       u.real_name AS createByName, DATE_FORMAT(af.create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(af.update_time, '%Y-%m-%d %H:%i') AS updateTime
                   FROM approval_flow af
                   LEFT JOIN sys_dept d ON d.dept_id = af.dept_id
                   LEFT JOIN sys_user u ON u.user_id = af.create_by
@@ -94,6 +95,7 @@ public class ApprovalFlowService {
                     text(row.get("deptName")),
                     number(row.get("createBy")),
                     text(row.get("createByName")),
+                    text(row.get("createTime")),
                     text(row.get("updateTime")),
                     steps(flowId)
             ));

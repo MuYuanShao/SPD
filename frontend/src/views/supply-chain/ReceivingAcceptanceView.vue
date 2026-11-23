@@ -487,12 +487,14 @@ onMounted(() => {
               <th>入库金额</th>
               <th>状态</th>
               <th>收货时间</th>
+              <th>创建时间</th>
+              <th>修改时间</th>
               <th>操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="10" class="receiving-loading-cell"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
+              <td colspan="12" class="receiving-loading-cell"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
             </tr>
             <tr v-for="row in rows" v-else :key="row.receivingNo">
               <td class="document-no-cell">{{ row.receivingNo }}<small v-if="row.sourceSystem === 'MCP-UI'" style="display:block">MCP供货：{{ row.externalSupplyNo }}</small></td>
@@ -504,6 +506,8 @@ onMounted(() => {
               <td class="receiving-amount-cell">¥ {{ Number(row.receiveAmount).toFixed(2) }}</td>
               <td><span :class="['status-badge', statusTone(row.receivingStatus)]">{{ statusLabel(row.receivingStatus) }}</span></td>
               <td class="receiving-time-cell">{{ row.receiveTime || '-' }}</td>
+              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+              <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               <td>
                 <div class="row-actions">
                   <button type="button" class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
@@ -533,7 +537,7 @@ onMounted(() => {
               </td>
             </tr>
             <tr v-if="!loading && !rows.length">
-              <td colspan="10" class="receiving-empty-cell">
+              <td colspan="12" class="receiving-empty-cell">
                 <EmptyState :message="activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据'" />
               </td>
             </tr>
@@ -804,6 +808,8 @@ onMounted(() => {
             <span>收货时间</span>
             <strong>{{ detail.order.receiveTime || '-' }}</strong>
           </article>
+          <article><span>创建时间</span><strong>{{ detail.order.createTime || '-' }}</strong></article>
+          <article><span>修改时间</span><strong>{{ detail.order.updateTime || '-' }}</strong></article>
         </div>
 
         <div class="receiving-detail-toolbar">

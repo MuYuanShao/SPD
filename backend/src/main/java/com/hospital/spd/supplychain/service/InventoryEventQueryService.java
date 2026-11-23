@@ -26,7 +26,7 @@ public class InventoryEventQueryService {
     private static final Set<String> SOURCE_BIZ_TYPES = Set.of(
             "receiving_order", "inventory_stocktaking", "batch_price_adjustment", "spd_delivery_order",
             "department_consumption", "quota_packing_task", "quota_package_label", "high_value_charge",
-            "recall_event", "warehouse_transfer");
+            "recall_event", "warehouse_transfer", "stock_return_order");
 
     private static final String SOURCE_NO_EXPR = """
             (CASE ie.source_biz_type
@@ -39,6 +39,7 @@ public class InventoryEventQueryService {
               WHEN 'quota_package_label' THEN (SELECT label_no FROM quota_package_label WHERE label_id = ie.source_biz_id)
               WHEN 'high_value_charge' THEN (SELECT charge_no FROM high_value_charge WHERE charge_id = ie.source_biz_id)
               WHEN 'recall_event' THEN (SELECT recall_no FROM recall_event WHERE recall_id = ie.source_biz_id)
+              WHEN 'stock_return_order' THEN (SELECT return_no FROM stock_return_order WHERE return_id = ie.source_biz_id)
               ELSE CAST(ie.source_biz_id AS CHAR)
             END)""";
 
@@ -80,7 +81,11 @@ public class InventoryEventQueryService {
                        DATE_FORMAT(ie.event_time, '%Y-%m-%d %H:%i') AS eventTime
                   FROM inventory_event ie
                 """.replace("__SOURCE_BIZ_NO__", SOURCE_NO_EXPR) + parts.where()
-                + " ORDER BY ie.dept_name_snapshot, ie.event_time DESC, ie.event_id DESC LIMIT ? OFFSET ?";
+                + """
+                   ORDER BY ie.event_time DESC, ie.warehouse_name_snapshot ASC,
+                            ie.product_name_snapshot ASC, ie.product_code_snapshot ASC, ie.event_id DESC
+                   LIMIT ? OFFSET ?
+                  """;
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(rowSql, rowArgs.toArray());
         rows.forEach(this::decorateTransactionType);
         return PageResponse.of(rows, total == null ? 0 : total, page, loadSummary(parts));

@@ -1,6 +1,7 @@
 import { getData, http, type ApiResponse, type PageResult } from './http'
 
 export interface UserRow {
+  createTime?: string
   userId: number
   username: string
   realName: string
@@ -17,6 +18,7 @@ export interface UserRow {
 }
 
 export interface RoleRow {
+  createTime?: string
   roleId: number
   roleName: string
   roleCode: string

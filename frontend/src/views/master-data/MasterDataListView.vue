@@ -210,12 +210,14 @@ const {
   openEditManufacturer,
   saveManufacturer,
   disableManufacturers,
-  confirmDisable: confirmDisablePartner,
-  cancelDisable: cancelDisablePartner,
-  disableConfirmOpen: partnerDisableConfirmOpen,
-  disableConfirmLoading: partnerDisableConfirmLoading,
-  disableConfirmKind: partnerDisableConfirmKind,
-  disableConfirmCodes: partnerDisableConfirmCodes
+  confirmStatusChange: confirmPartnerStatusChange,
+  cancelStatusChange: cancelPartnerStatusChange,
+  openStatusConfirm: openPartnerStatusConfirm,
+  statusConfirmTarget: partnerStatusConfirmTarget,
+  statusConfirmOpen: partnerStatusConfirmOpen,
+  statusConfirmLoading: partnerStatusConfirmLoading,
+  statusConfirmKind: partnerStatusConfirmKind,
+  statusConfirmCodes: partnerStatusConfirmCodes
 } = usePartnerMasterData({
   selectedCodes,
   selectedSupplier,
@@ -229,6 +231,9 @@ const {
   clearActionState,
   loadPage
 })
+
+const partnerStatusAction = computed(() => partnerStatusConfirmTarget.value === 1 ? '启用' : '停用')
+const partnerStatusKindLabel = computed(() => partnerStatusConfirmKind.value === 'supplier' ? '供应商' : '厂家')
 
 const {
   campusForm,
@@ -331,11 +336,14 @@ const {
   batchEditSelectedProducts,
   saveBatchProductEdit,
   disableProducts,
-  confirmDisableProducts,
-  cancelDisableProducts,
-  disableConfirmOpen,
-  disableConfirmLoading,
-  disableConfirmCount,
+  enableProducts,
+  productStatusAction,
+  productStatusError,
+  confirmProductStatusChange,
+  cancelProductStatusChange,
+  productStatusConfirmOpen,
+  productStatusConfirmLoading,
+  productStatusConfirmCount,
   exportHospitalCatalog
 } = useHospitalProductManagement({
   selectedCodes,
@@ -384,7 +392,9 @@ const HOSPITAL_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'spec', label: '规格型号', width: 170, visible: true },
   { key: 'vendor', label: '厂家 / 供应商', width: 250, visible: true },
   { key: 'price', label: '单价', width: 140, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true }
+  { key: 'status', label: '状态', width: 120, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true },
+  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
 ]
 const hospitalCols = useListColumns({
   storageKey: 'spd-hospital-catalog-cols-v1',
@@ -423,7 +433,8 @@ const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'warehouse', label: '关联库房', width: 180, visible: true },
   { key: 'source', label: '原数据标识', width: 160, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
+  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true }
 ]
 
 /**
@@ -462,6 +473,7 @@ const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'manufacturer', label: '生产厂家', width: 156, visible: true, flexible: true, idealWidth: 280, weight: 7, minWidth: 104, maxWidth: 420 },
   { key: 'source', label: '维护来源', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 105 },
   { key: 'status', label: '状态', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 92 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
   { key: 'updateTime', label: '更新时间', width: 126, visible: true, weight: 3, minWidth: 104, maxWidth: 175 }
 ]
 
@@ -476,7 +488,8 @@ const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'statsCategories', label: '统计分类', width: 170, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true },
   { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'locationCount', label: '货位数量', width: 120, visible: true }
+  { key: 'locationCount', label: '货位数量', width: 120, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true }
 ]
 
 const CAMPUS_COL_DEFAULTS: ListColumnConfig[] = [
@@ -486,6 +499,12 @@ const CAMPUS_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'manager', label: '负责人', width: 170, visible: true },
   { key: 'sortOrder', label: '排序', width: 110, visible: true },
   { key: 'status', label: '状态', width: 120, visible: true },
+  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+]
+
+const PARTNER_TIME_COLUMNS = [
+  { key: 'createTime', label: '创建时间', width: 190, visible: true },
   { key: 'updateTime', label: '修改时间', width: 190, visible: true }
 ]
 
@@ -499,7 +518,8 @@ const SUPPLIER_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'contact', label: '联系人', width: 170, visible: true },
   { key: 'email', label: '邮箱', width: 190, visible: true },
   { key: 'address', label: '地址', width: 220, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true }
+  { key: 'status', label: '状态', width: 120, visible: true },
+  ...PARTNER_TIME_COLUMNS
 ]
 
 const MANUFACTURER_COL_DEFAULTS: ListColumnConfig[] = [
@@ -509,7 +529,8 @@ const MANUFACTURER_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'licenseNo', label: '生产许可证号', width: 180, visible: true },
   { key: 'contact', label: '联系人', width: 170, visible: true },
   { key: 'address', label: '地址', width: 240, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true }
+  { key: 'status', label: '状态', width: 120, visible: true },
+  ...PARTNER_TIME_COLUMNS
 ]
 
 const departmentCols = useListColumns({
@@ -1051,13 +1072,46 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="280" align="center" fixed="right">
+            <el-table-column
+              column-key="createTime"
+              v-if="isHospitalColVisible('createTime')"
+              label="创建时间"
+              :min-width="colWidth('createTime')"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+                <i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('createTime', $event)" />
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isHospitalColVisible('updateTime')"
+              label="修改时间"
+              :min-width="colWidth('updateTime')"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+                <i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('updateTime', $event)" />
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).updateTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" :min-width="300" align="center" fixed="right">
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action is-outline" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
                   <RouterLink class="ulc-action is-neutral" :to="{ name: 'hospital-product-detail', params: { productCode: String((row as Record<string, unknown>).code) } }">查看</RouterLink>
                   <button v-if="authStore.canWrite(code)" type="button" class="ulc-action" @click="openEditProduct(String((row as Record<string, unknown>).code), false)">修改</button>
-                  <button v-if="authStore.canWrite(code)" type="button" class="ulc-action is-danger" @click="disableProducts([String((row as Record<string, unknown>).code)])">停用</button>
+                  <template v-if="authStore.canWrite(code)">
+                    <button v-if="row.status === '停用'" type="button" class="ulc-action is-info" @click="enableProducts([String(row.code)])">启用</button>
+                    <button v-else type="button" class="ulc-action is-danger" @click="disableProducts([String((row as Record<string, unknown>).code)])">停用</button>
+                  </template>
                 </div>
               </template>
             </el-table-column>
@@ -1099,6 +1153,8 @@ function warehouseFlagChipClass(enabled: unknown) {
               <div class="d-item"><span>厂家</span><strong>{{ String(hospitalDetailRow.manufacturer ?? '-') }}</strong></div>
               <div class="d-item"><span>供应商</span><strong>{{ String(hospitalDetailRow.supplier ?? '-') }}</strong></div>
               <div class="d-item"><span>状态</span><strong>{{ String(hospitalDetailRow.status ?? '-') }}</strong></div>
+              <div class="d-item"><span>创建时间</span><strong>{{ formatListDateTime(hospitalDetailRow.createTime) }}</strong></div>
+              <div class="d-item"><span>修改时间</span><strong>{{ formatListDateTime(hospitalDetailRow.updateTime) }}</strong></div>
               <div class="d-item"><span>品牌</span><strong>{{ String(hospitalDetailRow.brand ?? '-') }}</strong></div>
             </div>
           </section>
@@ -1751,6 +1807,16 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
+            <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
+              <el-table-column v-if="isSupplierColVisible(column.key)" :label="column.label" :min-width="supplierColWidth(column.key)">
+                <template #header>
+                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag(column.key, $event)" />
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
+                </template>
+              </el-table-column>
+            </template>
             <el-table-column
             column-key="status"
               v-if="isSupplierColVisible('status')"
@@ -1781,10 +1847,10 @@ function warehouseFlagChipClass(enabled: unknown) {
                   <button
                     v-if="authStore.canWrite(code)"
                     type="button"
-                    class="ulc-action is-danger"
-                    @click="disableSuppliers([String(row.code)])"
+                    class="ulc-action" :class="{ 'is-danger': row.status !== '停用' }"
+                    @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)"
                   >
-                    停用
+                    {{ row.status === '停用' ? '启用' : '停用' }}
                   </button>
                 </div>
               </template>
@@ -2000,6 +2066,16 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-strong">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
+            <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
+              <el-table-column v-if="isManufacturerColVisible(column.key)" :label="column.label" :min-width="manufacturerColWidth(column.key)">
+                <template #header>
+                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag(column.key, $event)" />
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
+                </template>
+              </el-table-column>
+            </template>
             <el-table-column
             column-key="status"
               v-if="isManufacturerColVisible('status')"
@@ -2030,10 +2106,10 @@ function warehouseFlagChipClass(enabled: unknown) {
                   <button
                     v-if="authStore.canWrite(code)"
                     type="button"
-                    class="ulc-action is-danger"
-                    @click="disableManufacturers([String(row.code)])"
+                    class="ulc-action" :class="{ 'is-danger': row.status !== '停用' }"
+                    @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
                   >
-                    停用
+                    {{ row.status === '停用' ? '启用' : '停用' }}
                   </button>
                 </div>
               </template>
@@ -2226,6 +2302,14 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
                   {{ formatStatusText(row.status) }}
                 </span>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="isCampusColVisible('createTime')" label="创建时间" :min-width="campusColWidth('createTime')">
+              <template #header>
+                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('createTime', $event)" />
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
@@ -2541,6 +2625,14 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
+            <el-table-column v-if="isDepartmentColVisible('createTime')" label="创建时间" :min-width="departmentColWidth('createTime')">
+              <template #header>
+                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('createTime', $event)" />
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
             <el-table-column
             column-key="updateTime"
               v-if="isDepartmentColVisible('updateTime')"
@@ -2799,6 +2891,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               <span class="ulc-chip" :class="String(row.status) === '启用' ? 'is-success' : 'is-danger'">
                 {{ formatStatusText(row.status) }}
               </span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="isCatalogColVisible('createTime')" label="创建时间" :min-width="catalogColWidth('createTime')">
+            <template #header>
+              <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('createTime', $event)" />
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -3102,6 +3202,14 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
+            <el-table-column v-if="isWarehouseColVisible('createTime')" label="创建时间" :min-width="warehouseColWidth('createTime')">
+              <template #header>
+                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('createTime', $event)" />
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
             <el-table-column
             column-key="updateTime"
               v-if="isWarehouseColVisible('updateTime')"
@@ -3222,18 +3330,18 @@ function warehouseFlagChipClass(enabled: unknown) {
               </button>
               <template v-else-if="code === 'supplier-management'">
                 <button type="button" class="btn-text" @click="openEditSupplier(row, false)">修改</button>
-                <button type="button" class="btn-text btn-text-danger" @click="disableSuppliers([String(row.code)])">
-                  停用
+                <button type="button" class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }" @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)">
+                  {{ row.status === '停用' ? '启用' : '停用' }}
                 </button>
               </template>
               <template v-else-if="code === 'manufacturer-management'">
                 <button type="button" class="btn-text" @click="openEditManufacturer(row, false)">修改</button>
                 <button
                   type="button"
-                  class="btn-text btn-text-danger"
-                  @click="disableManufacturers([String(row.code)])"
+                  class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }"
+                  @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
                 >
-                  停用
+                  {{ row.status === '停用' ? '启用' : '停用' }}
                 </button>
               </template>
               <template v-else-if="code === 'campus-management'">
@@ -3411,46 +3519,45 @@ function warehouseFlagChipClass(enabled: unknown) {
 
     <!-- 医院商品目录：停用确认弹窗 -->
     <SpdConfirmDialog
-      v-model:open="disableConfirmOpen"
-      title="停用医院目录商品"
-      tone="danger"
-      confirm-text="确认停用"
-      :loading="disableConfirmLoading"
-      :description="[
-        '停用后该商品将不可用于新订单、新建定数包、收费消耗与领用。',
-        '历史库存、流水、UDI 追溯记录不会被删除，仍可查询。'
-      ]"
-      :details="[
-        `本次操作将停用 ${disableConfirmCount} 个商品`,
-        '如需重新启用，请联系目录管理员'
-      ]"
-      @confirm="confirmDisableProducts"
-      @cancel="cancelDisableProducts"
-    />
-
-    <!-- 供应商 / 厂家：停用确认弹窗 -->
-    <SpdConfirmDialog
-      v-model:open="partnerDisableConfirmOpen"
-      :title="partnerDisableConfirmKind === 'supplier' ? '停用供应商' : '停用生产厂家'"
-      tone="danger"
-      :confirm-text="partnerDisableConfirmKind === 'supplier' ? '确认停用供应商' : '确认停用厂家'"
-      :loading="partnerDisableConfirmLoading"
-      :description="partnerDisableConfirmKind === 'supplier'
-        ? [
-            '停用后该供应商将不可用于新订单、定数包与采购收货。',
-            '历史交易、合同、付款记录仍可查询。'
-          ]
+      v-model:open="productStatusConfirmOpen"
+      :title="productStatusAction === 1 ? '启用医院目录商品' : '停用医院目录商品'"
+      :tone="productStatusAction === 1 ? 'primary' : 'danger'"
+      :confirm-text="productStatusAction === 1 ? '提交启用申请' : '提交停用申请'"
+      :loading="productStatusConfirmLoading"
+      :description="productStatusAction === 1
+        ? '审批通过后，商品恢复启用。'
         : [
-            '停用后该厂家将不可用于新商品注册、资质证照与采购。',
-            '历史商品关联、合同记录仍可查询。'
-          ]"
-      :details="[
-        `本次操作将停用 ${partnerDisableConfirmCodes.length} 个${partnerDisableConfirmKind === 'supplier' ? '供应商' : '厂家'}`,
-        '如需重新启用，请联系主数据管理员'
-      ]"
-      @confirm="confirmDisablePartner"
-      @cancel="cancelDisablePartner"
-    />
+          '停用后该商品将不可用于新订单、新建定数包、收费消耗与领用。',
+          '历史库存、流水、UDI 追溯记录仍可查询。'
+        ]"
+      :details="`本次申请涉及 ${productStatusConfirmCount} 个商品`"
+      @confirm="confirmProductStatusChange"
+      @cancel="cancelProductStatusChange"
+    >
+      <template #extra>
+        <StatusMessage v-if="productStatusError" :message="productStatusError" tone="error" role="alert" />
+      </template>
+    </SpdConfirmDialog>
+
+    <SpdConfirmDialog
+      v-model:open="partnerStatusConfirmOpen"
+      :title="`${partnerStatusAction}${partnerStatusKindLabel}`"
+      :tone="partnerStatusConfirmTarget === 1 ? 'primary' : 'danger'"
+      :confirm-text="`确认${partnerStatusAction}${partnerStatusKindLabel}`"
+      :loading="partnerStatusConfirmLoading"
+      :description="partnerStatusConfirmTarget === 1
+        ? `启用后，该${partnerStatusKindLabel}可重新用于相关业务。`
+        : partnerStatusConfirmKind === 'supplier'
+          ? ['停用后该供应商将不可用于新订单、定数包与采购收货。', '历史交易、合同、付款记录仍可查询。']
+          : ['停用后该厂家将不可用于新商品注册、资质证照与采购。', '历史商品关联、合同记录仍可查询。']"
+      :details="`本次操作将${partnerStatusAction} ${partnerStatusConfirmCodes.length} 个${partnerStatusKindLabel}`"
+      @confirm="confirmPartnerStatusChange"
+      @cancel="cancelPartnerStatusChange"
+    >
+      <template #extra>
+        <StatusMessage v-if="actionError" :message="actionError" tone="error" role="alert" />
+      </template>
+    </SpdConfirmDialog>
 
     <!-- 函数式确认弹窗 host（院区/科室/库房/目录/货位 删除等共用） -->
     <SpdConfirmHost />

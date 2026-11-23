@@ -1,5 +1,7 @@
 package com.hospital.spd.supplychain.service;
 
+import com.hospital.spd.common.PageRequest;
+import com.hospital.spd.common.PageResponse;
 import com.hospital.spd.supplychain.CreateRequisitionRequest;
 import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.AnalysisRequest;
 import com.hospital.spd.supplychain.DepartmentRequisitionSmartRequests.GenerateRequest;
@@ -8,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.hospital.spd.supplychain.OperationalCommandRequests.*;
@@ -89,12 +92,16 @@ public class OperationalClosureService {
         return readModel.list(type, params);
     }
 
+    public Map<String, Object> redFlushOptions() {
+        return readModel.redFlushOptions();
+    }
+
     public Map<String, Object> requisitionDetails(String requisitionNo) {
         return readModel.requisitionDetails(requisitionNo);
     }
 
-    public Map<String, Object> pickingRequisitions() {
-        return deliveryModule.pickingRequisitions();
+    public Map<String, Object> pickingRequisitions(Map<String, String> params) {
+        return deliveryModule.pickingRequisitions(params);
     }
 
     public Map<String, Object> availablePackageLabels(Map<String, String> params) {
@@ -260,6 +267,18 @@ public class OperationalClosureService {
 
     public Map<String, Object> recallInventory(Map<String, String> params) {
         return riskModule.recallInventory(params);
+    }
+
+    public PageResponse<Map<String, Object>> pendingRecallReceipts(PageRequest page) {
+        return riskModule.pendingRecallReceipts(page);
+    }
+
+    public List<Map<String, Object>> pendingRecallReceipts() {
+        return riskModule.pendingRecallReceipts();
+    }
+
+    public Map<String, Object> receiveRecall(String recallNo) {
+        return riskModule.receiveRecall(recallNo);
     }
 
     @Transactional

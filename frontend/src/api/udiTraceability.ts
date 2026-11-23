@@ -1,6 +1,8 @@
 import { getData, postData, type PageResult } from './http'
 
 export interface UdiTraceRecord {
+  createTime?: string
+  updateTime?: string
   traceCodeId: number
   udiCode: string
   uniqueCode: string

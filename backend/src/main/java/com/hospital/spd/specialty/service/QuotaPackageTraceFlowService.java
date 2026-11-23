@@ -3,6 +3,7 @@ package com.hospital.spd.specialty.service;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.supplychain.SupplyChainSupport;
+import com.hospital.spd.supplychain.service.RequisitionOriginSql;
 import com.hospital.spd.supplychain.service.SettlementPointService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -238,6 +239,7 @@ public class QuotaPackageTraceFlowService {
         if (updated != 1) {
             throw new IllegalArgumentException("定数包状态已变化，请刷新后重试");
         }
+        RequisitionOriginSql.captureConsumption(jdbcTemplate, consumptionId);
         settlementPointService.generateForConsumption(consumptionId);
         transitionLabel(labelId, "consumed", "department_consumption", "定数包扫码消耗",
                 consumptionNo, String.valueOf(quotaPackage.get("warehouseName")), departmentName,
@@ -428,7 +430,7 @@ public class QuotaPackageTraceFlowService {
     private static String labelStatus(String traceStatus) {
         return switch (traceStatus) {
             case "delivery_picked", "delivered" -> "delivered";
-            case "signed", "consumed", "settled" -> traceStatus;
+            case "signed", "consumed", "settled", "returned", "return_reserved" -> traceStatus;
             case "unpacked" -> "void";
             default -> "available";
         };

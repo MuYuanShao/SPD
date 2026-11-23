@@ -1,9 +1,11 @@
 import { isAxiosError } from 'axios'
-import { getData, getPage, postData, putData, deleteData, http } from './http'
+import { getServerPage, getData, getPage, postData, putData, deleteData, http, type PageResult } from './http'
 
 export type LicenseType = 'product' | 'supplier' | 'manufacturer' | 'contract'
 
 export interface LicenseRow {
+  createTime?: string
+  updateTime?: string
   sourceSystem?: string
   id: number
   licenseType: LicenseType
@@ -54,8 +56,8 @@ export interface LicenseAttachment {
   createTime: string
 }
 
-export function fetchLicenses(type: LicenseType | '', keyword = '', page = 1, size = 20) {
-  return getPage<LicenseRow>('/licenses', { params: { type, keyword, page, size } })
+export async function fetchLicenses(type: LicenseType | '', keyword = '', page = 1, size = 20) {
+  return getServerPage<PageResult<LicenseRow>>('/licenses', { params: { type, keyword, page, size } })
 }
 
 export function fetchLicenseDetail(licenseId: number) {

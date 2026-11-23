@@ -83,6 +83,9 @@ class PurchaseOrderServiceTest {
             assertThat(result.get("size")).isEqualTo(20);
             assertThat(result.get("rows")).asList().hasSize(2);
             assertThat(result.get("summary")).isNotNull();
+            verify(jdbcTemplate).queryForList(
+                    contains("ORDER BY po.create_time DESC, po.purchase_order_id DESC LIMIT ? OFFSET ?"),
+                    any(Object[].class));
         }
 
         @Test

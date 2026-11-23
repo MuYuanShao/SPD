@@ -57,7 +57,7 @@ class DepartmentRequisitionSmartServiceTest {
 
         Map<String, Object> result = service.generate(new GenerateRequest(88L, List.of(
                 new GenerateItem(1L, BigDecimal.valueOf(7), true),
-                new GenerateItem(2L, BigDecimal.ZERO, false))));
+                new GenerateItem(2L, BigDecimal.ZERO, false)), "urgent"));
 
         assertThat(result).containsEntry("createdCount", 1).containsEntry("status", "generated");
         verify(jdbcTemplate).update(contains("SET selected = ?, manual_adjusted_qty = ?"),
@@ -66,6 +66,7 @@ class DepartmentRequisitionSmartServiceTest {
                 eq(0), eq(BigDecimal.ZERO), eq(2L));
         @SuppressWarnings("unchecked") ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
         verify(requisitionModule).createRequisition(payload.capture());
+        assertThat(payload.getValue()).containsEntry("requisitionType", "urgent");
         assertThat((List<Map<String, Object>>) payload.getValue().get("items"))
                 .singleElement().satisfies(item -> assertThat(item)
                         .containsEntry("productCode", "PC001")

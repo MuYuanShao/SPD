@@ -134,9 +134,9 @@ public class OperationalDeliveryModule {
                 traceCodeIds, productId, sourceWarehouseId, List.of("in_stock"));
         String requisitionNo = String.valueOf(item.get("requisitionNo"));
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
-        Long deliveryId = insertHighValueDelivery(deliveryNo, requisitionNo, itemId,
-                String.valueOf(item.get("deptName")), String.valueOf(item.get("sourceWarehouseName")),
-                String.valueOf(item.get("productCode")), String.valueOf(item.get("productName")), current);
+        Long deliveryId = insertDelivery("unique_code", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(String.valueOf(item.get("deptName")), String.valueOf(item.get("sourceWarehouseName"))),
+                new DeliveryGoods(String.valueOf(item.get("productCode")), String.valueOf(item.get("productName")), current));
         traceFlowService.bindRequisition(((Number) item.get("requisitionId")).longValue(), itemId, units,
                 requisitionNo, String.valueOf(item.get("deptName")));
         traceFlowService.bindDelivery(deliveryId, units, deliveryNo, String.valueOf(item.get("deptName")));
@@ -163,43 +163,14 @@ public class OperationalDeliveryModule {
         requireItemAccess(itemId);
         List<Object> args = new ArrayList<>();
         args.add(itemId);
-        StringBuilder where = new StringBuilder("""
-                 WHERE dri.item_id = ?
-                   AND (w.warehouse_type LIKE '%一级%' OR w.warehouse_type LIKE '%中心%')
+        StringBuilder filters = new StringBuilder("""
+                 AND bal.product_id = (SELECT product_id FROM department_requisition_item WHERE item_id = ?)
                 """);
         if (!warehouseName.isBlank()) {
-            where.append(" AND w.warehouse_name = ?");
+            filters.append(" AND w.warehouse_name = ?");
             args.add(warehouseName);
         }
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList("""
-                SELECT bal.balance_id AS balanceId, ib.batch_id AS batchId,
-                       p.product_code AS productCode, p.product_name AS productName,
-                       p.spec_model AS specModel, COALESCE(m.manufacturer_name, '-') AS manufacturerName,
-                       p.unit, p.purchase_price AS unitPrice,
-                       ib.system_batch_no AS systemBatchNo,
-                       ib.production_batch_no AS productionBatchNo,
-                       DATE_FORMAT(ib.expire_date, '%Y-%m-%d') AS expireDate,
-                       ib.batch_unit_price AS unitPrice,
-                       GREATEST(bal.available_qty - COALESCE(packaged.package_qty, 0), 0) AS availableQty
-                  FROM department_requisition_item dri
-                  JOIN inventory_balance bal ON bal.product_id = dri.product_id
-                   AND bal.location_id IS NULL AND bal.available_qty > 0
-                  JOIN inventory_batch ib ON ib.batch_id = bal.batch_id
-                    AND (ib.expire_date IS NULL OR ib.expire_date >= CURRENT_DATE)
-                  JOIN warehouse w ON w.warehouse_id = bal.warehouse_id
-                  JOIN product p ON p.product_id = bal.product_id
-                  LEFT JOIN manufacturer m ON m.manufacturer_id = p.manufacturer_id
-                  LEFT JOIN (
-                    SELECT qpl.warehouse_id, qpl.product_id, src.batch_id, SUM(src.source_qty) AS package_qty
-                      FROM quota_package_label qpl
-                      JOIN quota_package_label_source src ON src.label_id = qpl.label_id
-                     WHERE qpl.status = 'signed'
-                     GROUP BY qpl.warehouse_id, qpl.product_id, src.batch_id
-                  ) packaged ON packaged.warehouse_id = bal.warehouse_id
-                    AND packaged.product_id = bal.product_id AND packaged.batch_id = bal.batch_id
-                """ + where + " HAVING availableQty > 0 ORDER BY ib.expire_date IS NULL, ib.expire_date, ib.batch_id",
-                args.toArray());
-        return Map.of("rows", rows);
+        return Map.of("rows", LooseStockQuery.fetch(jdbcTemplate, null, filters, args).rows());
     }
 
     /**
@@ -237,8 +208,9 @@ public class OperationalDeliveryModule {
         }
         Map<String, Object> product = findProductByProductId(productId);
         String deliveryNo = support.nextNo(DELIVERY_ORDER);
-        Long deliveryId = insertLoosePickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
-                String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity);
+        Long deliveryId = insertDelivery("loose", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(deptName, warehouseName),
+                new DeliveryGoods(String.valueOf(product.get("productCode")), String.valueOf(product.get("productName")), quantity));
         consumeActualLooseStock(warehouseId, productId, quantity, deliveryId, requisitionNo, deliveryNo);
         updateRequisitionPickStatus(requisitionId);
         support.writeAudit("delivery", "confirm_loose_picking", deliveryId, deliveryNo,
@@ -286,15 +258,24 @@ public class OperationalDeliveryModule {
         }
     }
 
-    public Map<String, Object> pickingRequisitions() {
+    public Map<String, Object> pickingRequisitions(Map<String, String> params) {
         accessService.requirePermission("department-requisition:pick");
         StringBuilder scope = new StringBuilder(" WHERE dr.status IN ('approved', 'partial_picked')");
         List<Object> scopeArgs = new ArrayList<>();
         accessService.appendScope(scope, scopeArgs, "dr.dept_id", "dr.applicant_id");
+        String deptCode = params.getOrDefault("deptCode", "").trim();
+        if (!deptCode.isEmpty()) {
+            scope.append(" AND sd.dept_code = ?");
+            scopeArgs.add(deptCode);
+        }
+        appendPickingApprovalDates(scope, scopeArgs, params);
         String pickingSql = """
                 SELECT dr.requisition_no AS requisitionNo,
                        dr.requisition_id AS requisitionId,
+                       dr.requisition_type AS requisitionType,
+                       COALESCE(requisition_option.option_label, dr.requisition_type) AS requisitionTypeLabel,
                        sd.dept_name AS deptName,
+                       source.warehouse_name AS sourceWarehouseName,
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        dri.item_id AS itemId,
@@ -310,9 +291,19 @@ public class OperationalDeliveryModule {
                        COALESCE(picked.picked_qty, 0) AS pickedQty,
                        GREATEST(dri.quantity - COALESCE(picked.picked_qty, 0), 0) AS remainingQty,
                        dr.status,
+                       DATE_FORMAT(dr.approve_time, '%Y-%m-%d %H:%i:%s') AS requisitionCreatedAt,
+                       CASE WHEN dr.status = 'partial_picked' THEN (
+                           SELECT DATE_FORMAT(MAX(outgoing.create_time), '%Y-%m-%d %H:%i:%s')
+                             FROM spd_delivery_order outgoing
+                            WHERE outgoing.requisition_no = dr.requisition_no
+                              AND outgoing.status IN ('picked', 'signed')
+                       ) END AS partialPickingCompletedAt,
                        DATE_FORMAT(dr.apply_time, '%Y-%m-%d %H:%i') AS applyTime
                   FROM department_requisition dr
                   JOIN sys_dept sd ON sd.dept_id = dr.dept_id
+                  LEFT JOIN sys_field_option requisition_option ON requisition_option.field_key = 'requisition_type'
+                    AND requisition_option.option_value = dr.requisition_type
+                  LEFT JOIN warehouse source ON source.warehouse_id = dr.source_warehouse_id
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN product p ON p.product_id = dri.product_id
                   LEFT JOIN (
@@ -336,13 +327,35 @@ public class OperationalDeliveryModule {
                   ) picked ON picked.requisition_item_id = dri.item_id
                 """ + scope + """
                  HAVING remainingQty > 0
-                 ORDER BY dr.apply_time DESC, dr.requisition_id DESC
+                 ORDER BY dr.approve_time DESC, dr.requisition_id DESC, dri.item_id
                  LIMIT 100
                 """;
         List<Map<String, Object>> rows = scopeArgs.isEmpty()
                 ? jdbcTemplate.queryForList(pickingSql)
                 : jdbcTemplate.queryForList(pickingSql, scopeArgs.toArray());
         return Map.of("rows", rows);
+    }
+
+    private void appendPickingApprovalDates(StringBuilder sql, List<Object> args, Map<String, String> params) {
+        String from = params.getOrDefault("dateFrom", "").trim();
+        String to = params.getOrDefault("dateTo", "").trim();
+        try {
+            var start = from.isEmpty() ? null : java.time.LocalDate.parse(from);
+            var end = to.isEmpty() ? null : java.time.LocalDate.parse(to);
+            if (start != null && end != null && start.isAfter(end)) {
+                throw new IllegalArgumentException("开始日期不能晚于结束日期");
+            }
+            if (start != null) {
+                sql.append(" AND dr.approve_time >= ?");
+                args.add(start.atStartOfDay());
+            }
+            if (end != null) {
+                sql.append(" AND dr.approve_time < ?");
+                args.add(end.plusDays(1).atStartOfDay());
+            }
+        } catch (java.time.DateTimeException e) {
+            throw new IllegalArgumentException("请输入有效的审批日期", e);
+        }
     }
 
     public Map<String, Object> availablePackageLabels(Map<String, String> params) {
@@ -387,7 +400,8 @@ public class OperationalDeliveryModule {
                        p.product_code AS productCode,
                        p.product_name AS productName,
                        qpl.package_quantity AS packageQuantity,
-                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime
+                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
+                       DATE_FORMAT(qpl.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                   FROM department_requisition dr
                   JOIN department_requisition_item dri ON dri.requisition_id = dr.requisition_id
                   JOIN quota_package_label qpl ON qpl.product_id = dri.product_id
@@ -409,7 +423,8 @@ public class OperationalDeliveryModule {
                        p.spec_model AS specModel, p.unit,
                        qpt.template_code AS templateCode, qpt.template_name AS templateName,
                        w.warehouse_name AS warehouseName, w.warehouse_type AS warehouseType,
-                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime
+                       DATE_FORMAT(qpl.create_time, '%Y-%m-%d %H:%i') AS createTime,
+                       DATE_FORMAT(qpl.update_time, '%Y-%m-%d %H:%i:%s') AS updateTime
                   FROM quota_package_label qpl
                   JOIN product p ON p.product_id = qpl.product_id
                   LEFT JOIN quota_package_template qpt ON qpt.template_id = qpl.template_id
@@ -510,8 +525,8 @@ public class OperationalDeliveryModule {
         BigDecimal totalQuantity = selectedPackageQuantity;
         String productCode = String.valueOf(firstLabel.get("productCode"));
         String productName = String.valueOf(firstLabel.get("productName"));
-        Long deliveryId = insertPickedDelivery(deliveryNo, requisitionNo, itemId, deptName, warehouseName,
-                productCode, productName, totalQuantity);
+        Long deliveryId = insertDelivery("package", deliveryNo, requisitionNo, itemId,
+                new DeliveryRouteNames(deptName, warehouseName), new DeliveryGoods(productCode, productName, totalQuantity));
 
         for (Map<String, Object> label : labels) {
             Long labelId = ((Number) label.get("labelId")).longValue();
@@ -790,68 +805,31 @@ public class OperationalDeliveryModule {
         if (!expired.isEmpty()) throw new IllegalArgumentException("定数包来源批次已过期，不能拣配或签收入可用库存");
     }
 
-    private Long insertPickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                      String deptName, String warehouseName,
-                                      String productCode, String productName, BigDecimal quantity) {
+    private record DeliveryRouteNames(String department, String warehouse) {}
+
+    private record DeliveryGoods(String productCode, String productName, BigDecimal quantity) {}
+
+    private Long insertDelivery(String deliveryType, String deliveryNo, String requisitionNo, Long requisitionItemId,
+                                DeliveryRouteNames route, DeliveryGoods goods) {
         var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO spd_delivery_order (
                       delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'package', ?, ?, ?, ?, ?, 'picked')
+                      dept_name, warehouse_name, product_code, product_name, quantity, status, requisition_type
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'picked',
+                              (SELECT requisition_type FROM department_requisition WHERE requisition_no = ?))
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, deliveryNo);
             ps.setString(2, requisitionNo);
             ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName);
-            ps.setString(5, warehouseName);
-            ps.setString(6, productCode);
-            ps.setString(7, productName);
-            ps.setBigDecimal(8, quantity);
-            return ps;
-        }, keyHolder);
-        return Objects.requireNonNull(keyHolder.getKey()).longValue();
-    }
-
-    private Long insertHighValueDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                         String deptName, String warehouseName,
-                                         String productCode, String productName, BigDecimal quantity) {
-        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO spd_delivery_order (
-                      delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'unique_code', ?, ?, ?, ?, ?, 'picked')
-                    """, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, deliveryNo); ps.setString(2, requisitionNo); ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName); ps.setString(5, warehouseName); ps.setString(6, productCode);
-            ps.setString(7, productName); ps.setBigDecimal(8, quantity);
-            return ps;
-        }, keyHolder);
-        return Objects.requireNonNull(keyHolder.getKey()).longValue();
-    }
-
-    private Long insertLoosePickedDelivery(String deliveryNo, String requisitionNo, Long requisitionItemId,
-                                           String deptName, String warehouseName,
-                                           String productCode, String productName, BigDecimal quantity) {
-        var keyHolder = new org.springframework.jdbc.support.GeneratedKeyHolder();
-        jdbcTemplate.update(connection -> {
-            PreparedStatement ps = connection.prepareStatement("""
-                    INSERT INTO spd_delivery_order (
-                      delivery_no, requisition_no, requisition_item_id, delivery_type,
-                      dept_name, warehouse_name, product_code, product_name, quantity, status
-                    ) VALUES (?, ?, ?, 'loose', ?, ?, ?, ?, ?, 'picked')
-                    """, Statement.RETURN_GENERATED_KEYS);
-            ps.setString(1, deliveryNo);
-            ps.setString(2, requisitionNo);
-            ps.setLong(3, requisitionItemId);
-            ps.setString(4, deptName);
-            ps.setString(5, warehouseName);
-            ps.setString(6, productCode);
-            ps.setString(7, productName);
-            ps.setBigDecimal(8, quantity);
+            ps.setString(4, deliveryType);
+            ps.setString(5, route.department());
+            ps.setString(6, route.warehouse());
+            ps.setString(7, goods.productCode());
+            ps.setString(8, goods.productName());
+            ps.setBigDecimal(9, goods.quantity());
+            ps.setString(10, requisitionNo);
             return ps;
         }, keyHolder);
         return Objects.requireNonNull(keyHolder.getKey()).longValue();

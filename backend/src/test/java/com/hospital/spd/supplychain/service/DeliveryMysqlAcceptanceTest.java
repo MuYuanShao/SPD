@@ -24,6 +24,9 @@ class DeliveryMysqlAcceptanceTest {
     @AfterAll static void cleanup() { if (database != null) database.close(); }
     @Autowired JdbcTemplate jdbc;
     @Autowired OperationalDeliveryModule delivery;
+    @Autowired OperationalConsumptionModule consumption;
+    @Autowired OperationalClosureReadModel readModel;
+    @Autowired com.hospital.spd.mobile.MobileDeliveryRepository mobileDeliveries;
     @Autowired com.hospital.spd.specialty.service.QuotaPackageTraceFlowService trace;
     @LocalServerPort int port;
     String code, sourceName, requisitionNo;
@@ -68,6 +71,132 @@ class DeliveryMysqlAcceptanceTest {
         delivery.signDelivery(no);
         assertThat(stock(sourceId)).isZero();
         assertThat(stock(targetId)).isEqualByComparingTo("4");
+    }
+
+    @Test void signedLooseDeliveryCarriesRequisitionTypeIntoConsumptionAndSettlement() {
+        jdbc.update("UPDATE department_requisition SET requisition_type = 'urgent' WHERE requisition_id = ?", requisitionId);
+        settleOnDepartmentConsumption();
+        String no = pickLoose(4);
+        long deliveryId = id("SELECT delivery_id FROM spd_delivery_order WHERE delivery_no = ?", no);
+        assertThat(mobileDeliveries.detail(deliveryId, deptId, targetId, false).task().requisitionType()).isEqualTo("urgent");
+        delivery.signDelivery(no);
+        assertThat(jdbc.queryForObject("SELECT requisition_type FROM spd_delivery_order WHERE delivery_no = ?", String.class, no))
+                .isEqualTo("urgent");
+        var result = consumption.createConsumption(Map.of("deptName", "配送验收科室", "warehouseName", code + "-B",
+                "productCode", code, "quantity", BigDecimal.ONE));
+        String consumptionNo = String.valueOf(result.get("consumptionNo"));
+        assertThat(jdbc.queryForObject("""
+                SELECT i.requisition_type FROM department_consumption_item i
+                JOIN department_consumption dc ON dc.consumption_id = i.consumption_id
+                WHERE dc.consumption_no = ?
+                """, String.class, consumptionNo)).isEqualTo("urgent");
+        assertThat(jdbc.queryForObject("""
+                SELECT si.requisition_type FROM settlement_bill_item si
+                JOIN department_consumption_item i ON i.item_id = si.source_biz_id
+                JOIN department_consumption dc ON dc.consumption_id = i.consumption_id
+                WHERE si.source_biz_type = 'department_consumption_item' AND dc.consumption_no = ?
+                """, String.class, consumptionNo)).isEqualTo("urgent");
+        assertThat((List<?>) readModel.list("consumption", Map.of()).get("rows"))
+                .anyMatch(row -> row instanceof Map<?, ?> map && consumptionNo.equals(map.get("bizNo"))
+                        && "urgent".equals(map.get("requisitionType")));
+        assertThat((List<?>) readModel.list("settlement", Map.of("productKeyword", code)).get("rows"))
+                .anyMatch(row -> row instanceof Map<?, ?> map && "urgent".equals(map.get("requisitionType")));
+
+        signAdditionalLooseReceipt(requisitionNo + "-MIXED");
+        assertThat(consumeLooseAndReadType(1)).isNull();
+        assertThat(consumeLooseAndReadType(3)).isNull();
+        assertThat(stock(targetId)).isZero();
+        signAdditionalLooseReceipt(requisitionNo + "-RESET");
+        assertThat(consumeLooseAndReadType(1)).isEqualTo("regular_requisition");
+        String latestConsumption = jdbc.queryForObject("""
+                SELECT dc.consumption_no FROM department_consumption dc
+                JOIN department_consumption_item i ON i.consumption_id = dc.consumption_id
+                WHERE i.product_id = ? ORDER BY dc.consumption_id DESC LIMIT 1
+                """, String.class, productId);
+        consumption.reverseConsumption(latestConsumption);
+        assertThat(consumeLooseAndReadType(1)).isEqualTo("regular_requisition");
+    }
+
+    @Test void mixedLocationsKeepOnlyTheSignedNoLocationOrigin() {
+        settleOnDepartmentConsumption();
+        delivery.signDelivery(pickLoose(4));
+        jdbc.update("INSERT INTO warehouse_location (warehouse_id, location_code, location_type) VALUES (?, ?, '散货位')",
+                targetId, code);
+        long locationId = id("SELECT location_id FROM warehouse_location WHERE warehouse_id = ? AND location_code = ?", targetId, code);
+        jdbc.update("""
+                INSERT INTO inventory_balance (warehouse_id, location_id, product_id, batch_id, available_qty)
+                VALUES (?, ?, ?, ?, 1)
+                """, targetId, locationId, productId, batchId);
+        var result = consumption.createConsumption(Map.of("deptName", "配送验收科室", "warehouseName", code + "-B",
+                "productCode", code, "quantity", BigDecimal.valueOf(5)));
+        assertThat(jdbc.queryForList("""
+                SELECT e.location_id AS locationId, i.requisition_type AS consumptionType, si.requisition_type AS settlementType
+                FROM department_consumption_item i
+                JOIN department_consumption dc ON dc.consumption_id = i.consumption_id
+                JOIN inventory_event e ON e.event_id = i.inventory_issue_event_id
+                JOIN settlement_bill_item si ON si.source_biz_type = 'department_consumption_item' AND si.source_biz_id = i.item_id
+                WHERE dc.consumption_no = ?
+                """, result.get("consumptionNo"))).satisfiesExactlyInAnyOrder(
+                row -> assertThat(row).containsEntry("locationId", null).containsEntry("consumptionType", "normal")
+                        .containsEntry("settlementType", "normal"),
+                row -> {
+                    assertThat(row.get("locationId")).isInstanceOf(Number.class);
+                    assertThat(((Number) row.get("locationId")).longValue()).isEqualTo(locationId);
+                    assertThat(row).containsEntry("consumptionType", null).containsEntry("settlementType", null);
+                });
+    }
+
+    private void signAdditionalLooseReceipt(String mixedRequisition) {
+        jdbc.update("""
+                INSERT INTO department_requisition
+                  (requisition_no, dept_id, warehouse_id, source_warehouse_id, requisition_type, status, applicant_id)
+                VALUES (?, ?, ?, ?, 'regular_requisition', 'approved', 1)
+                """, mixedRequisition, deptId, targetId, sourceId);
+        long mixedId = id("SELECT requisition_id FROM department_requisition WHERE requisition_no = ?", mixedRequisition);
+        jdbc.update("""
+                INSERT INTO department_requisition_item (requisition_id, product_id, quantity, unit, item_type)
+                VALUES (?, ?, 1, '个', 'loose')
+                """, mixedId, productId);
+        long mixedItemId = id("SELECT item_id FROM department_requisition_item WHERE requisition_id = ?", mixedId);
+        var picked = delivery.confirmLoosePicking(Map.of("requisitionNo", mixedRequisition, "itemId", mixedItemId,
+                "warehouseName", sourceName, "quantity", BigDecimal.ONE));
+        delivery.signDelivery(String.valueOf(picked.get("deliveryNo")));
+    }
+
+    private String consumeLooseAndReadType(int quantity) {
+        var mixed = consumption.createConsumption(Map.of("deptName", "配送验收科室", "warehouseName", code + "-B",
+                "productCode", code, "quantity", BigDecimal.valueOf(quantity)));
+        return jdbc.queryForObject("""
+                SELECT i.requisition_type FROM department_consumption_item i
+                JOIN department_consumption dc ON dc.consumption_id = i.consumption_id
+                WHERE dc.consumption_no = ?
+                """, String.class, mixed.get("consumptionNo"));
+    }
+
+    @Test void signedPackageKeepsRequisitionTypeInSettlement() {
+        settleOnDepartmentConsumption();
+        jdbc.update("UPDATE department_requisition SET requisition_type = 'urgent' WHERE requisition_id = ?", requisitionId);
+        List<String> labels = packages();
+        String no = (String) delivery.confirmPicking(Map.of("requisitionNo", requisitionNo,
+                "itemId", itemId, "warehouseName", sourceName, "labelNos", labels)).get("deliveryNo");
+        delivery.signDelivery(no);
+        long labelId = id("SELECT label_id FROM quota_package_label WHERE label_no = ?", labels.get(0));
+        trace.consumeByLabelId(labelId);
+        assertThat(jdbc.queryForObject("""
+                SELECT si.requisition_type FROM settlement_bill_item si
+                JOIN quota_package_label label ON label.trace_code_id = si.trace_code_id
+                WHERE label.label_id = ?
+                """, String.class, labelId)).isEqualTo("urgent");
+    }
+
+    private void settleOnDepartmentConsumption() {
+        jdbc.update("""
+                INSERT INTO supplier (supplier_code, supplier_name, credit_code, supplier_type, contact_name, contact_phone)
+                VALUES (?, ?, ?, '配送商', '验收联系人', '13000000000')
+                """, code, code, code.substring(3, 21));
+        long supplier = id("SELECT supplier_id FROM supplier WHERE supplier_code = ?", code);
+        jdbc.update("UPDATE inventory_batch SET supplier_id = ?, settlement_mode = 'department_consumption' WHERE batch_id = ?",
+                supplier, batchId);
     }
 
     @Test void concurrentPickingCannotExceedRequestedQuantity() throws Exception {

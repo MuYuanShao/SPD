@@ -30,6 +30,8 @@ export interface PendingProductTypeCount {
 }
 
 export interface PendingProductApplicationRow {
+  createTime: string
+  updateTime: string
   no: string
   type: string
   product: string
@@ -82,6 +84,8 @@ export interface PendingProductChangeItem {
 }
 
 export interface PendingProductApplicationDetail {
+  createTime: string
+  updateTime: string
   applicationNo: string
   applicationType: string
   approvalStatus: string

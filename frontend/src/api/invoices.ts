@@ -1,6 +1,7 @@
 import { getData, postData, putData, type PageResult } from './http'
 
 export interface InvoiceRow {
+  updateTime?: string
   invoiceId: number
   invoiceNo: string
   invoiceCode: string

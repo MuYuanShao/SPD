@@ -174,16 +174,17 @@ const emit = defineEmits<{
                   <th>固定商品编码</th>
                   <th>商品名称</th>
                   <th>状态</th>
-                  <th>更新时间</th>
+                  <th>创建时间</th>
+                  <th>修改时间</th>
                   <th class="col-actions">操作</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="loading">
-                  <td colspan="9" class="approval-empty">正在加载...</td>
+                  <td colspan="10" class="approval-empty">正在加载...</td>
                 </tr>
                 <tr v-else-if="!rows.length">
-                  <td colspan="9" class="approval-empty">暂无货位，请先新增</td>
+                  <td colspan="10" class="approval-empty">暂无货位，请先新增</td>
                 </tr>
                 <template v-else>
                   <tr v-for="(row, index) in rows" :key="row.locationId">
@@ -202,7 +203,8 @@ const emit = defineEmits<{
                         {{ row.statusLabel }}
                       </span>
                     </td>
-                    <td>{{ row.updateTime || '-' }}</td>
+                    <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+                    <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                     <td class="col-actions warehouse-action-cell">
                       <button
                         type="button"

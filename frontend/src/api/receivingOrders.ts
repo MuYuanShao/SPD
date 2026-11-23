@@ -1,6 +1,7 @@
-import { getData, postData, putData, type PageResult } from './http'
+import { getServerPage, getData, postData, putData, type PageResult } from './http'
 
 export interface ReceivingOrderRow {
+  updateTime?: string
   sourceSystem?: string
   externalSupplyNo?: string
   receivingOrderId: number
@@ -74,10 +75,7 @@ export interface ReceivingOrderDetail {
  * @returns 收货单列表及汇总信息
  */
 export async function fetchReceivingOrders(params: Record<string, string>) {
-  return getData<PageResult<ReceivingOrderRow>>(
-    '/receiving-orders',
-    { params }
-  )
+  return getServerPage<PageResult<ReceivingOrderRow>>('/receiving-orders', { params })
 }
 
 /**

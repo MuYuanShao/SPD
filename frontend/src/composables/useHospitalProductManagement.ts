@@ -162,10 +162,10 @@ export function useHospitalProductManagement(options: {
   const batchProductForm = ref(emptyBatchProductForm())
   const manufacturerOptions = ref<PartnerOption[]>([])
   const supplierOptions = ref<PartnerOption[]>([])
-  const disableConfirmOpen = ref(false)
-  const disableConfirmLoading = ref(false)
-  const disableConfirmCodes = ref<string[]>([])
-  const disableConfirmCount = ref(0)
+  const productStatusConfirmOpen = ref(false)
+  const productStatusConfirmLoading = ref(false)
+  const productStatusConfirmCodes = ref<string[]>([])
+  const productStatusConfirmCount = ref(0)
   const productStatusAction = ref<0 | 1>(0)
   const productStatusError = ref('')
 
@@ -347,9 +347,9 @@ export function useHospitalProductManagement(options: {
     }
     productStatusAction.value = status
     productStatusError.value = ''
-    disableConfirmOpen.value = true
-    disableConfirmCount.value = productCodes.length
-    disableConfirmCodes.value = [...productCodes]
+    productStatusConfirmOpen.value = true
+    productStatusConfirmCount.value = productCodes.length
+    productStatusConfirmCodes.value = [...productCodes]
   }
 
   function disableProducts(productCodes = options.selectedCodes.value) {
@@ -360,28 +360,28 @@ export function useHospitalProductManagement(options: {
     prepareProductStatus(productCodes, 1)
   }
 
-  async function confirmDisableProducts() {
-    if (disableConfirmLoading.value) return
-    const productCodes = disableConfirmCodes.value
+  async function confirmProductStatusChange() {
+    if (productStatusConfirmLoading.value) return
+    const productCodes = productStatusConfirmCodes.value
     productStatusError.value = ''
-    disableConfirmLoading.value = true
+    productStatusConfirmLoading.value = true
     try {
       await updateHospitalProductStatus({ productCodes, status: productStatusAction.value })
-      disableConfirmOpen.value = false
-      disableConfirmCodes.value = []
+      productStatusConfirmOpen.value = false
+      productStatusConfirmCodes.value = []
       await options.loadPage()
       options.actionMessage.value = '已提交商品状态变更申请，审批通过后生效'
     } catch (err) {
       productStatusError.value = err instanceof Error ? err.message : '商品状态变更提交失败'
     } finally {
-      disableConfirmLoading.value = false
+      productStatusConfirmLoading.value = false
     }
   }
 
-  function cancelDisableProducts() {
-    if (disableConfirmLoading.value) return
-    disableConfirmOpen.value = false
-    disableConfirmCodes.value = []
+  function cancelProductStatusChange() {
+    if (productStatusConfirmLoading.value) return
+    productStatusConfirmOpen.value = false
+    productStatusConfirmCodes.value = []
   }
 
   async function submitSelectedProducts() {
@@ -429,11 +429,11 @@ export function useHospitalProductManagement(options: {
     enableProducts,
     productStatusAction,
     productStatusError,
-    confirmDisableProducts,
-    cancelDisableProducts,
-    disableConfirmOpen,
-    disableConfirmLoading,
-    disableConfirmCount,
+    confirmProductStatusChange,
+    cancelProductStatusChange,
+    productStatusConfirmOpen,
+    productStatusConfirmLoading,
+    productStatusConfirmCount,
     submitSelectedProducts,
     exportHospitalCatalog
   }

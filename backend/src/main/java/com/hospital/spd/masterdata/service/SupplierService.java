@@ -56,6 +56,8 @@ public class SupplierService {
                        supplier_type AS type, COALESCE(grade, '-') AS grade,
                        contact_name AS contactName, contact_phone AS contactPhone,
                        COALESCE(email, '-') AS email, COALESCE(address, '-') AS address,
+                       DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') AS createTime,
+                       DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') AS updateTime,
                        CASE status WHEN 1 THEN '启用' ELSE '停用' END AS status
                 FROM supplier
                 """ + where + " ORDER BY supplier_id DESC LIMIT ? OFFSET ?",

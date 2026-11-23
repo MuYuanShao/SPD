@@ -1975,3 +1975,8 @@ textarea:focus-visible {
     max-height: 68vh;
   }
 }
+
+.md-audit-time {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}

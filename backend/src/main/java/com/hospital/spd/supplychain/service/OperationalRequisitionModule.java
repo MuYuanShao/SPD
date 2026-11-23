@@ -9,6 +9,7 @@ import com.hospital.spd.common.DataScopeService;
 import com.hospital.spd.common.OperatorContext;
 import com.hospital.spd.common.OperatorContextProvider;
 import com.hospital.spd.system.service.ApprovalFlowGuard;
+import com.hospital.spd.system.service.FieldOptionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -34,8 +35,11 @@ import static com.hospital.spd.common.service.DocumentKind.DEPARTMENT_REQUISITIO
  */
 @Service
 public class OperationalRequisitionModule {
+    // Requests that omit the optional dictionary value retain the legacy regular type.
+    private static final String DEFAULT_REQUISITION_TYPE = "regular_requisition";
 
     private final JdbcTemplate jdbcTemplate;
+    private final FieldOptionService fieldOptions;
     private final SupplyChainSupport support;
     private final ApprovalFlowGuard approvalFlowGuard;
     private final OperatorContextProvider operatorContextProvider;
@@ -57,14 +61,26 @@ public class OperationalRequisitionModule {
                         new DataScopeService(operatorContextProvider)));
     }
 
-    @Autowired
     public OperationalRequisitionModule(JdbcTemplate jdbcTemplate,
                                          SupplyChainSupport support,
                                          ApprovalFlowGuard approvalFlowGuard,
                                          OperatorContextProvider operatorContextProvider,
                                          HighValueTraceFlowService traceFlowService,
                                          DepartmentRequisitionAccessService accessService) {
+        this(jdbcTemplate, support, approvalFlowGuard, operatorContextProvider, traceFlowService, accessService,
+                new FieldOptionService(jdbcTemplate));
+    }
+
+    @Autowired
+    public OperationalRequisitionModule(JdbcTemplate jdbcTemplate,
+                                         SupplyChainSupport support,
+                                         ApprovalFlowGuard approvalFlowGuard,
+                                         OperatorContextProvider operatorContextProvider,
+                                         HighValueTraceFlowService traceFlowService,
+                                         DepartmentRequisitionAccessService accessService,
+                                         FieldOptionService fieldOptions) {
         this.jdbcTemplate = jdbcTemplate;
+        this.fieldOptions = fieldOptions;
         this.support = support;
         this.approvalFlowGuard = approvalFlowGuard;
         this.operatorContextProvider = operatorContextProvider;
@@ -75,6 +91,12 @@ public class OperationalRequisitionModule {
     @Transactional
     public Map<String, Object> createRequisition(Map<String, Object> body) {
         accessService.requirePermission("department-requisition:create");
+        String selectedType = text(body.get("requisitionType"));
+        if (selectedType != null && fieldOptions.activeOptions(FieldOptionService.REQUISITION_TYPE)
+                .stream().noneMatch(option -> selectedType.equals(option.get("optionValue")))) {
+            throw new IllegalArgumentException("申领类型不存在或已停用，请重新选择");
+        }
+        String requisitionType = selectedType == null ? DEFAULT_REQUISITION_TYPE : selectedType;
         Map<String, Object> department = accessService.resolveDepartment(text(body.get("deptCode")), text(body.get("deptName")));
         String deptName = String.valueOf(department.get("deptName"));
         Long deptId = ((Number) department.get("deptId")).longValue();
@@ -115,7 +137,7 @@ public class OperationalRequisitionModule {
                     INSERT INTO department_requisition (
                       requisition_no, dept_id, warehouse_id, source_warehouse_id,
                       requisition_type, status, applicant_id
-                    ) VALUES (?, ?, ?, ?, 'regular_requisition', 'pending_approval', ?)
+                    ) VALUES (?, ?, ?, ?, ?, 'pending_approval', ?)
                     """, Statement.RETURN_GENERATED_KEYS);
             ps.setString(1, requisitionNo);
             ps.setLong(2, deptId);
@@ -125,7 +147,8 @@ public class OperationalRequisitionModule {
                 ps.setLong(3, warehouseId);
             }
             ps.setLong(4, sourceWarehouseId);
-            ps.setLong(5, operator.userId());
+            ps.setString(5, requisitionType);
+            ps.setLong(6, operator.userId());
             return ps;
         }, keyHolder);
         Long requisitionId = Objects.requireNonNull(keyHolder.getKey()).longValue();

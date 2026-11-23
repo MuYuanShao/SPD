@@ -588,6 +588,10 @@ function eventTone(event: UdiTraceEvent) {
             <dt>包内数量</dt>
             <dd>{{ activeRecord.packageQuantity || '-' }} {{ activeRecord.packageUnit || '' }}</dd>
           </template>
+          <dt>创建时间</dt>
+          <dd class="detail-mono">{{ activeRecord.createTime || '-' }}</dd>
+          <dt>修改时间</dt>
+          <dd class="detail-mono">{{ activeRecord.updateTime || '-' }}</dd>
           <dt>系统批次</dt>
           <dd>{{ activeRecord.batchNo || '-' }}</dd>
           <dt>当前库位</dt>
@@ -659,15 +663,17 @@ function eventTone(event: UdiTraceEvent) {
               <th>状态</th>
               <th>当前位置</th>
               <th>最近节点</th>
+              <th>创建时间</th>
+              <th>修改时间</th>
               <th class="th-action">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td colspan="8"><EmptyState message="正在加载追溯记录..." /></td>
+              <td colspan="10"><EmptyState message="正在加载追溯记录..." /></td>
             </tr>
             <tr v-else-if="!records.length">
-              <td colspan="8"><EmptyState message="暂无符合条件的追溯记录" /></td>
+              <td colspan="10"><EmptyState message="暂无符合条件的追溯记录" /></td>
             </tr>
             <template v-else>
               <tr
@@ -703,6 +709,8 @@ function eventTone(event: UdiTraceEvent) {
                   <span class="last-event">{{ row.lastEventName || '-' }}</span>
                   <small>{{ row.lastEventTime || '-' }}</small>
                 </td>
+                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
+                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
                 <td class="td-action">
                   <button class="row-action-btn" type="button" @click.stop="loadDetail(row.uniqueCode)">
                     <ArrowRight :size="13" />

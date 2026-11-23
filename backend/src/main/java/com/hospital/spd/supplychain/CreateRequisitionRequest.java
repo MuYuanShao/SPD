@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;
@@ -25,7 +26,8 @@ public record CreateRequisitionRequest(
         String templateCode,
         @Positive @com.hospital.spd.common.WholeQuantity BigDecimal packageCount,
         List<String> uniqueCodes,
-        String uniqueCode
+        String uniqueCode,
+        @Size(max = 100) String requisitionType
 ) {
     public CreateRequisitionRequest(String deptName, String destinationWarehouseName,
                                     Long destinationWarehouseId, Long sourceWarehouseId,
@@ -33,7 +35,7 @@ public record CreateRequisitionRequest(
                                     @com.hospital.spd.common.WholeQuantity BigDecimal quantity, String requisitionMode,
                                     List<String> uniqueCodes, String uniqueCode) {
         this(null, deptName, destinationWarehouseName, destinationWarehouseId, sourceWarehouseId,
-                items, productCode, quantity, requisitionMode, null, null, uniqueCodes, uniqueCode);
+                items, productCode, quantity, requisitionMode, null, null, uniqueCodes, uniqueCode, null);
     }
 
     @AssertTrue(message = "items must be non-empty, or legacy productCode and quantity must be provided")
@@ -51,6 +53,7 @@ public record CreateRequisitionRequest(
         Map<String, Object> body = new LinkedHashMap<>();
         if (deptCode != null) body.put("deptCode", deptCode);
         body.put("deptName", deptName);
+        if (requisitionType != null) body.put("requisitionType", requisitionType);
         if (destinationWarehouseName != null) body.put("warehouseName", destinationWarehouseName);
         if (destinationWarehouseId != null) body.put("destinationWarehouseId", destinationWarehouseId);
         if (sourceWarehouseId != null) body.put("sourceWarehouseId", sourceWarehouseId);

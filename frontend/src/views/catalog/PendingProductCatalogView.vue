@@ -386,6 +386,8 @@ const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'type', label: '申请类型', width: 120, visible: true },
   { key: 'applicant', label: '申请人', width: 110, visible: true },
   { key: 'time', label: '提交时间', width: 180, visible: true },
+  { key: 'createTime', label: '创建时间', width: 190, visible: true },
+  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
   { key: 'productCode', label: '商品编码', width: 150, visible: true },
   { key: 'specModel', label: '规格型号', width: 150, visible: true },
   { key: 'supplier', label: '供应商', width: 180, visible: true },
@@ -787,6 +789,12 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   <span class="ulc-th-text">提交时间</span>
                   <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
                 </th>
+                <th v-if="isColVisible('createTime')" :style="{ width: approvalColWidth('createTime') + 'px' }">
+                  <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('createTime', $event)" />
+                </th>
+                <th v-if="isColVisible('updateTime')" :style="{ width: approvalColWidth('updateTime') + 'px' }">
+                  <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('updateTime', $event)" />
+                </th>
                 <th v-if="isColVisible('productCode')" :style="{ width: approvalColWidth('productCode') + 'px' }">
                   <span class="ulc-th-text">商品编码</span>
                   <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('productCode', $event)" />
@@ -890,6 +898,8 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                 <td v-if="isColVisible('type')"><span class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span></td>
                 <td v-if="isColVisible('applicant')"><span class="ulc-strong">{{ approvalWideField(row, 'applicant') }}</span></td>
                 <td v-if="isColVisible('time')" class="approval-time"><span class="ulc-time">{{ approvalTimeText(row) }}</span></td>
+                <td v-if="isColVisible('createTime')" class="approval-time"><span class="ulc-time">{{ formatDateTime(row.createTime) }}</span></td>
+                <td v-if="isColVisible('updateTime')" class="approval-time"><span class="ulc-time">{{ formatDateTime(row.updateTime) }}</span></td>
                 <td v-if="isColVisible('productCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'productCode') }}</span></td>
                 <td v-if="isColVisible('specModel')"><span class="ulc-strong">{{ approvalWideField(row, 'specModel') }}</span></td>
                 <td v-if="isColVisible('supplier')"><span class="ulc-strong">{{ approvalWideField(row, 'supplier') }}</span></td>

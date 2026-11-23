@@ -31,6 +31,11 @@ public class InventoryMovementService {
 
     public Long receiveAvailable(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
                                  String eventType, String sourceType, Long sourceId, String remark) {
+        return receiveAvailable(warehouseId, productId, batchId, quantity, eventType, sourceType, sourceId, remark, null);
+    }
+
+    public Long receiveAvailable(Long warehouseId, Long productId, Long batchId, BigDecimal quantity,
+                                 String eventType, String sourceType, Long sourceId, String remark, String requisitionType) {
         requirePositive(quantity);
         jdbcTemplate.update("""
                 INSERT INTO inventory_balance (
@@ -46,8 +51,9 @@ public class InventoryMovementService {
                  LIMIT 1
                  FOR UPDATE
                 """, warehouseId, productId, batchId);
-        Long eventId = recordEvent(eventType, sourceType, sourceId, warehouseId, productId, batchId,
-                quantity, (BigDecimal) balance.get("availableQty"), remark);
+        Long eventId = inventoryEventService.record(new InventoryEventCommand(eventType, sourceType, sourceId,
+                warehouseId, productId, batchId, quantity, (BigDecimal) balance.get("availableQty"),
+                remark, List.of(), null, requisitionType));
         jdbcTemplate.update("UPDATE inventory_balance SET last_event_id = ? WHERE balance_id = ?",
                 eventId, balance.get("balanceId"));
         return eventId;
@@ -121,10 +127,11 @@ public class InventoryMovementService {
                     BigDecimal.class,
                     balanceId);
             Long batchId = ((Number) balance.get("batchId")).longValue();
-            Long eventId = recordEvent(eventType, sourceType, sourceId, warehouseId, productId,
-                    batchId, deductQty.negate(), qtyAfter, remark);
+            Long locationId = balance.get("locationId") instanceof Number id ? id.longValue() : null;
+            Long eventId = inventoryEventService.record(new InventoryEventCommand(eventType, sourceType, sourceId,
+                    warehouseId, productId, batchId, deductQty.negate(), qtyAfter, remark, List.of(), locationId, null));
             finalizeBalanceMutation(balanceId, eventId);
-            deductions.add(new InventoryDeduction(batchId, deductQty, (BigDecimal) balance.get("unitPrice")));
+            deductions.add(new InventoryDeduction(batchId, deductQty, (BigDecimal) balance.get("unitPrice"), eventId));
             remaining = remaining.subtract(deductQty);
         }
         if (remaining.compareTo(BigDecimal.ZERO) > 0) {
@@ -356,7 +363,9 @@ public class InventoryMovementService {
                               String eventType, String sourceType, Long sourceId, String remark) {
         requirePositive(quantity);
         List<Long> expired = jdbcTemplate.queryForList("SELECT batch_id FROM inventory_batch WHERE batch_id = ? AND expire_date < CURRENT_DATE FOR SHARE", Long.class, batchId);
-        if (!expired.isEmpty()) throw new IllegalArgumentException("来源批次已过期，不能确认打包");
+        if (!expired.isEmpty() && !"stock_return_order".equals(sourceType)) {
+            throw new IllegalArgumentException("来源批次已过期，不能确认打包");
+        }
         int affected = jdbcTemplate.update("""
                 UPDATE inventory_balance
                    SET locked_qty = locked_qty - ?
@@ -419,7 +428,10 @@ public class InventoryMovementService {
         }
     }
 
-    public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+    public record InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice, Long eventId) {
+        public InventoryDeduction(Long batchId, BigDecimal quantity, BigDecimal unitPrice) {
+            this(batchId, quantity, unitPrice, null);
+        }
     }
 
     public record InventoryDeductionEvent(InventoryDeduction deduction, Long eventId) {

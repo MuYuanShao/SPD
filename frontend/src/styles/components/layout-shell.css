@@ -192,13 +192,15 @@
 .nav-item.child {
   min-height: 36px;
   padding-left: 22px;
-  font-size: 14px;
+  /* G-14 左侧主菜单一级项：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
 }
 
 .nav-item.grandchild {
   min-height: 32px;
   padding-left: 42px;
-  font-size: 13px;
+  /* G-15 左侧主菜单三级项：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   color: var(--text-muted);
 }
 

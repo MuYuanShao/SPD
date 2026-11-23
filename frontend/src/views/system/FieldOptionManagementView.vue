@@ -477,22 +477,22 @@ onMounted(() => loadFields(true))
 }
 
 .sys-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .sys-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   opacity: 0.75;
 }
 
@@ -554,7 +554,7 @@ onMounted(() => loadFields(true))
   background: transparent;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -588,8 +588,8 @@ onMounted(() => loadFields(true))
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -643,8 +643,8 @@ onMounted(() => loadFields(true))
   border: none;
   background: transparent;
   color: #10b981;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -671,7 +671,7 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -683,7 +683,7 @@ onMounted(() => loadFields(true))
   border: 1px solid #fca5a5;
   border-radius: 8px;
   color: #991b1b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -727,7 +727,7 @@ onMounted(() => loadFields(true))
 
 .sys-field-side-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
   flex: 1;
@@ -742,7 +742,7 @@ onMounted(() => loadFields(true))
   border-radius: 999px;
   background: var(--spd-primary);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 6px;
 }
@@ -785,12 +785,12 @@ onMounted(() => loadFields(true))
 }
 
 .sys-field-side-name {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .sys-field-side-meta {
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   font-family: var(--spd-font-mono), monospace;
 }
@@ -818,14 +818,14 @@ onMounted(() => loadFields(true))
 
 .sys-table-card-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-table-card-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -835,7 +835,7 @@ onMounted(() => loadFields(true))
   border-radius: 4px;
   padding: 1px 6px;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   color: #475569;
 }
 
@@ -844,7 +844,7 @@ onMounted(() => loadFields(true))
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -855,7 +855,7 @@ onMounted(() => loadFields(true))
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -874,7 +874,7 @@ onMounted(() => loadFields(true))
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 /* 选项值 monospace tag */
 .sys-tag.is-code {
@@ -883,13 +883,12 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 1px 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   white-space: nowrap;
   color: #334155;
   background: #f1f5f9;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
 }
 
 /* 状态 badge */
@@ -898,7 +897,7 @@ onMounted(() => loadFields(true))
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -954,7 +953,7 @@ onMounted(() => loadFields(true))
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -986,8 +985,8 @@ onMounted(() => loadFields(true))
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -1003,7 +1002,7 @@ onMounted(() => loadFields(true))
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }

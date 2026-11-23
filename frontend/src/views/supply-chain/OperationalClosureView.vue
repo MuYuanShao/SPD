@@ -1945,7 +1945,7 @@ watch(() => form.productCode, () => {
   padding: 12px 16px;
 }
 .settlement-type-filter select { padding: 6px 12px; }
-.settlement-type-filter span { color: var(--md-text-secondary, #667085); font-size: 12px; }
+.settlement-type-filter span { color: var(--md-text-secondary, #667085); font-size: var(--spd-font-size-sm); }
 /* =====================================================================
    拣配配送 delivery-acceptance-page
    ---------------------------------------------------------------------
@@ -1998,15 +1998,15 @@ watch(() => form.productCode, () => {
 .delivery-acceptance-page .delivery-section-title h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .delivery-acceptance-page .delivery-section-description {
   margin: 2px 0 0;
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 /* ---------- 查询区 ---------- */
@@ -2017,7 +2017,7 @@ watch(() => form.productCode, () => {
 
 .delivery-acceptance-page .delivery-workspace-card .closure-form-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -2028,7 +2028,7 @@ watch(() => form.productCode, () => {
   border-color: var(--md-border, var(--spd-border-subtle));
   background: var(--md-bg-card, #fff);
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .delivery-acceptance-page .delivery-workspace-card .closure-form-grid :is(input, select):focus {
@@ -2051,14 +2051,14 @@ watch(() => form.productCode, () => {
 .delivery-acceptance-page .delivery-action-hint {
   margin-right: auto;
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .delivery-acceptance-page .delivery-action-row .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -2094,13 +2094,13 @@ watch(() => form.productCode, () => {
 .delivery-acceptance-page .picking-panel .section-title.compact h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .delivery-acceptance-page .picking-panel .muted-hint {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2119,13 +2119,13 @@ watch(() => form.productCode, () => {
   padding: 0 11px;
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .delivery-acceptance-page .picking-package-scan .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: nowrap;
   border-radius: var(--spd-radius-sm, 6px);
 }
@@ -2153,8 +2153,8 @@ watch(() => form.productCode, () => {
   padding: 9px 12px !important;
   background: var(--md-bg-subtle, #f6f8fb) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   white-space: nowrap;
   border-bottom: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
 }
@@ -2163,7 +2163,7 @@ watch(() => form.productCode, () => {
   height: 40px;
   padding: 9px 12px !important;
   color: var(--md-text, var(--spd-text-primary)) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
   background: var(--md-bg-card, #fff) !important;
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
@@ -2225,7 +2225,7 @@ watch(() => form.productCode, () => {
 
 .delivery-acceptance-page .picking-panel .muted-cell {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 定数包明细弹窗 ---------- */
@@ -2261,7 +2261,7 @@ watch(() => form.productCode, () => {
 .consumption-saas-page .breadcrumb-line {
   margin: 0;
   color: #8993a5;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .consumption-saas-page .breadcrumb-line strong {
@@ -2283,15 +2283,15 @@ watch(() => form.productCode, () => {
 .consumption-saas-page .detail-heading h2 {
   margin: 6px 0 5px;
   color: #111c2e;
-  font-size: 24px;
-  font-weight: 650;
+  font-size: var(--spd-font-size-3xl);
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
 .consumption-saas-page .detail-heading small {
   color: var(--consumption-muted);
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-loose);
 }
 
 .consumption-saas-page .btn,
@@ -2309,7 +2309,7 @@ watch(() => form.productCode, () => {
   border-color: #d7dde7;
   color: #33415c;
   background: #fff;
-  font-weight: 550;
+  font-weight: 600;
 }
 
 .consumption-saas-page .btn:hover {
@@ -2358,13 +2358,13 @@ watch(() => form.productCode, () => {
 
 .consumption-saas-page .closure-stat-grid article span {
   color: var(--consumption-muted);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .consumption-saas-page .closure-stat-grid article strong {
   color: #14213a;
-  font-size: 24px;
-  font-weight: 650;
+  font-size: var(--spd-font-size-2xl);
+  font-weight: 600;
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
@@ -2421,7 +2421,7 @@ watch(() => form.productCode, () => {
 .consumption-section-title h3 {
   margin: 0;
   color: #172033;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
@@ -2429,8 +2429,8 @@ watch(() => form.productCode, () => {
   display: block !important;
   margin: 4px 0 0;
   color: var(--consumption-muted);
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .consumption-section-icon.is-history {
@@ -2448,8 +2448,8 @@ watch(() => form.productCode, () => {
   border-radius: 999px;
   color: #087a4d;
   background: #f0fbf6;
-  font-size: 12px;
-  font-weight: 550;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .consumption-live-badge > span {
@@ -2475,8 +2475,8 @@ watch(() => form.productCode, () => {
 .consumption-saas-page .consumption-form-grid > label > span {
   margin-bottom: 8px;
   color: #34415a;
-  font-size: 13px;
-  font-weight: 550;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .consumption-saas-page .consumption-form-grid input,
@@ -2549,7 +2549,7 @@ watch(() => form.productCode, () => {
 .consumption-action-hint {
   margin-right: auto;
   color: #7b8597;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .consumption-history-card .table-scroll {
@@ -2568,8 +2568,8 @@ watch(() => form.productCode, () => {
   border-bottom-color: #dfe5ed !important;
   color: #45536b !important;
   background: #f7f9fc !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   white-space: nowrap;
 }
 
@@ -2579,7 +2579,7 @@ watch(() => form.productCode, () => {
   border-bottom-color: #edf0f4 !important;
   color: #34415a !important;
   background: #fff;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
 }
 
@@ -2756,13 +2756,14 @@ watch(() => form.productCode, () => {
 
 .finance-settlement-page .settlement-kpi-label {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  /* 统计标签：--spd-font-size-sm（13/15/17px） */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .finance-settlement-page .settlement-kpi-value {
   color: var(--spd-text-heading, #14213a);
-  font-size: 18px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   line-height: 1.3;
   font-variant-numeric: tabular-nums;
@@ -2770,16 +2771,18 @@ watch(() => form.productCode, () => {
 
 .finance-settlement-page .settlement-kpi-value small {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  /* 统计单位：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
   margin-left: 2px;
 }
 
 .finance-settlement-page .settlement-kpi-hint {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
+  /* 口径说明：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.4;
+  line-height: var(--spd-lh-base);
 }
 
 /* 表格卡片：与 KPI 卡一致的圆角/阴影 */
@@ -2793,8 +2796,9 @@ watch(() => form.productCode, () => {
 .finance-settlement-page .settlement-detail-table th,
 .finance-settlement-page .settlement-detail-table td {
   padding: 7px 9px !important;
-  font-size: 12.5px !important;
-  line-height: 1.35 !important;
+  /* T-02 结算明细表数据：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-tight) !important;
   border-color: var(--md-border-soft, #e6ecef) !important;
 }
 
@@ -2803,8 +2807,10 @@ watch(() => form.productCode, () => {
   background: var(--md-bg-soft, #f4f8fa) !important;
   box-shadow: inset 0 -1px 0 var(--md-border, #d4dde0) !important;
   color: var(--spd-text-secondary, #607285) !important;
-  font-size: 11.5px !important;
-  font-weight: 600 !important;
+  /* L-03 / T-09 结算明细表头：--spd-font-size-table-head（14/16/18px） */
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
+  line-height: var(--spd-lh-tight) !important;
   letter-spacing: 0.1px;
   text-align: left !important;
   white-space: nowrap;
@@ -2829,13 +2835,15 @@ watch(() => form.productCode, () => {
 /* 单元格内堆叠：间距收敛 */
 .finance-settlement-page .settlement-cell-stack {
   gap: 2px !important;
-  line-height: 1.35 !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .finance-settlement-page .settlement-cell-stack > strong {
   font-weight: 600 !important;
   color: var(--spd-text-primary, #14213a) !important;
-  font-size: 12.5px;
+  /* L-04 结算明细主字段：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-tight) !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2843,7 +2851,8 @@ watch(() => form.productCode, () => {
 
 .finance-settlement-page .settlement-cell-meta {
   color: var(--md-text-muted, #7c8a92) !important;
-  font-size: 11.5px !important;
+  /* L-05 结算明细元信息：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs) !important;
   font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
@@ -2852,36 +2861,48 @@ watch(() => form.productCode, () => {
 
 .finance-settlement-page .settlement-policy-list > span,
 .finance-settlement-page .settlement-code-list > span {
-  font-size: 11.5px !important;
-  line-height: 1.4 !important;
+  /* L-09 结算策略说明：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs) !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .finance-settlement-page .settlement-policy-list b,
 .finance-settlement-page .settlement-code-list b {
   color: var(--md-text-muted, #7c8a92) !important;
-  font-size: 10.5px !important;
+  /* L-08 结算策略标记：--spd-font-size-xs（11/13/15px）
+     原为 10.5px，低于全站 11px 下限，现已统一到 --spd-font-size-xs */
+  font-size: var(--spd-font-size-xs) !important;
   font-weight: 600 !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .finance-settlement-page .settlement-policy-list small {
   color: var(--md-text-muted, #7c8a92) !important;
-  font-size: 10.5px !important;
+  /* L-09 结算策略说明：--spd-font-size-xs（11/13/15px）
+     原为 10.5px，低于全站 11px 下限，现已统一到 --spd-font-size-xs */
+  font-size: var(--spd-font-size-xs) !important;
 }
 
 .finance-settlement-page .settlement-code-list {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 11.5px !important;
+  /* L-07 结算编码列表（等宽）：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 金额列突出 */
 .finance-settlement-page .amount-cell {
   color: var(--spd-primary, #0f534f) !important;
   font-weight: 700 !important;
-  font-size: 13px !important;
+  /* L-06 结算金额：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .finance-settlement-page .numeric-cell {
-  font-size: 12.5px !important;
+  /* L-12 结算数值单元格：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 列宽微调：粘性首列更紧凑 */
@@ -3074,12 +3095,12 @@ watch(() => form.productCode, () => {
 
 .shortage-task-page > .closure-stat-grid article span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .shortage-task-page > .closure-stat-grid article strong {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -3097,7 +3118,7 @@ watch(() => form.productCode, () => {
 
 .shortage-task-page .section-title h3 {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
@@ -3125,9 +3146,9 @@ watch(() => form.productCode, () => {
 
 .shortage-task-page .closure-form-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  line-height: 1.2;
+  line-height: 1;
 }
 
 .shortage-task-page .closure-form-grid input,
@@ -3139,7 +3160,7 @@ watch(() => form.productCode, () => {
   background: var(--md-bg-card, #fff);
   color: var(--md-text, var(--spd-text-primary));
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   box-sizing: border-box;
 }
 
@@ -3167,7 +3188,7 @@ watch(() => form.productCode, () => {
 .shortage-task-page .hospital-action-row .btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .shortage-task-page .hospital-action-row .btn svg {
@@ -3205,7 +3226,7 @@ watch(() => form.productCode, () => {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .shortage-task-page .purchase-table thead th,
@@ -3214,8 +3235,8 @@ watch(() => form.productCode, () => {
   top: 0;
   z-index: 3;
   padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -3226,7 +3247,7 @@ watch(() => form.productCode, () => {
 .shortage-task-page .purchase-table tbody td,
 .shortage-task-page .purchase-detail-table tbody td {
   padding: 8px 12px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -3246,7 +3267,7 @@ watch(() => form.productCode, () => {
 .shortage-task-page .purchase-table tbody td:first-child,
 .shortage-task-page .purchase-detail-table tbody td:first-child {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-xs) !important;
   color: var(--md-text-heading) !important;
   white-space: nowrap;
 }
@@ -3260,8 +3281,10 @@ watch(() => form.productCode, () => {
   padding: 2px 9px;
   border-radius: 999px;
   border: 1px solid transparent;
-  font-size: 11px;
+  /* S-08 status-badge 状态条：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
+  line-height: var(--spd-lh-tight);
   white-space: nowrap;
 }
 
@@ -3283,7 +3306,9 @@ watch(() => form.productCode, () => {
   gap: 4px;
   margin-top: 2px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
+  /* 辅助层说明：--spd-font-size-xs（11/13/15px） */
+  font-size: var(--spd-font-size-xs);
+  line-height: var(--spd-lh-tight);
 }
 
 /* ---------- 加载 / 空状态 ---------- */
@@ -3291,7 +3316,7 @@ watch(() => form.productCode, () => {
   padding: 48px 16px !important;
   text-align: center;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ---------- 提示条 ---------- */
@@ -3302,7 +3327,7 @@ watch(() => form.productCode, () => {
   border-radius: var(--md-radius, 6px);
   color: var(--spd-primary-text);
   background: var(--spd-primary-bg);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 响应式 ---------- */

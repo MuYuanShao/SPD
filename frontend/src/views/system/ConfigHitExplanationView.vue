@@ -266,7 +266,7 @@ onMounted(loadKeys)
           <i class="sys-kpi-icon is-tag"><Tag :size="18" /></i>
           <div>
             <span class="sys-kpi-label">来源配置编号</span>
-            <strong class="sys-kpi-value" style="font-size:15px">
+            <strong class="sys-kpi-value" style="font-size: var(--spd-font-size-lg)">
               {{ explanation.sourceConfigId ? `CFG-${explanation.sourceConfigId}` : '-' }}
             </strong>
             <span class="sys-kpi-hint">当前键的匹配配置编号</span>
@@ -284,7 +284,7 @@ onMounted(loadKeys)
           <i class="sys-kpi-icon is-award"><Award :size="18" /></i>
           <div>
             <span class="sys-kpi-label">匹配状态</span>
-            <strong class="sys-kpi-value" style="font-size:14px">
+            <strong class="sys-kpi-value" style="font-size: var(--spd-font-size-base)">
               {{ explanation.approvalStatus }}
             </strong>
             <span class="sys-kpi-hint">记录匹配结果，非审批进度</span>
@@ -552,14 +552,14 @@ onMounted(loadKeys)
   flex: 1;
 }
 
-.sys-kpi-label { font-size: 12px; font-weight: 500; opacity: 0.85; }
+.sys-kpi-label { font-size: var(--spd-font-size-sm); font-weight: 500; opacity: 0.85; }
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
-.sys-kpi-hint { font-size: 11px; font-weight: 400; line-height: 1.3; opacity: 0.75; }
+.sys-kpi-hint { font-size: var(--spd-font-size-xs); font-weight: 400; line-height: var(--spd-lh-tight); opacity: 0.75; }
 
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
@@ -616,14 +616,14 @@ onMounted(loadKeys)
 
 .sys-form-section-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-form-section-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -636,8 +636,8 @@ onMounted(loadKeys)
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -659,7 +659,7 @@ onMounted(loadKeys)
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }
@@ -680,8 +680,8 @@ onMounted(loadKeys)
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -726,7 +726,7 @@ onMounted(loadKeys)
   to   { transform: rotate(360deg); }
 }
 
-.sys-loading-card p { margin: 0; font-size: 13px; }
+.sys-loading-card p { margin: 0; font-size: var(--spd-font-size-base); }
 
 .sys-error {
   display: flex;
@@ -736,7 +736,7 @@ onMounted(loadKeys)
   border: 1px solid #fca5a5;
   border-radius: 8px;
   color: #991b1b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -788,14 +788,14 @@ onMounted(loadKeys)
 
 .sys-detail-card-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-detail-card-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -805,7 +805,7 @@ onMounted(loadKeys)
   border-radius: 4px;
   padding: 1px 6px;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   color: #475569;
 }
 
@@ -834,7 +834,7 @@ onMounted(loadKeys)
 
 .sys-detail-row dt {
   color: #64748b;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   padding-top: 2px;
   flex-shrink: 0;
@@ -843,14 +843,14 @@ onMounted(loadKeys)
 .sys-detail-row dd {
   margin: 0;
   color: #102033;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   word-break: break-all;
 }
 
 .sys-json-inline {
   font-family: var(--spd-font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #334155;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -886,9 +886,9 @@ onMounted(loadKeys)
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fafdfb;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #334155;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .sys-rule-item:hover { background: #f0fdf9; }
@@ -902,7 +902,7 @@ onMounted(loadKeys)
   border-radius: 999px;
   background: linear-gradient(180deg, #10b981 0%, #059669 100%);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -930,19 +930,19 @@ onMounted(loadKeys)
 
 .sys-table-card-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-table-card-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
 .sys-table-card-meta {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
   white-space: nowrap;
   padding-top: 2px;
@@ -955,7 +955,7 @@ onMounted(loadKeys)
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -966,7 +966,7 @@ onMounted(loadKeys)
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -995,7 +995,7 @@ onMounted(loadKeys)
 }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 .config-value-cell {
   max-width: 200px;
@@ -1003,7 +1003,7 @@ onMounted(loadKeys)
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
 }
 
@@ -1014,8 +1014,8 @@ onMounted(loadKeys)
   border: 1px solid;
   border-radius: 6px;
   padding: 1px 8px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   white-space: nowrap;
   gap: 4px;
 }
@@ -1025,14 +1025,14 @@ onMounted(loadKeys)
   background: #f1f5f9;
   border-color: #e2e8f0;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .sys-tag.is-type {
   color: #047857;
   background: #d1fae5;
   border-color: #6ee7b7;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-tag.is-priority {
@@ -1060,7 +1060,7 @@ onMounted(loadKeys)
   align-items: center;
   border-radius: 6px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border: 1px solid;
 }
@@ -1077,7 +1077,7 @@ onMounted(loadKeys)
   gap: 4px;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 

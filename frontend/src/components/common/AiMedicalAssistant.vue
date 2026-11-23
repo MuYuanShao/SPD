@@ -677,7 +677,7 @@ onBeforeUnmount(() => {
   padding: 0 12px;
   color: #c0313a;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   cursor: pointer;
   transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
@@ -718,7 +718,7 @@ onBeforeUnmount(() => {
   padding: 0 24px 0 18px;
   color: #ffffff;
   font: inherit;
-  font-size: 17px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 800;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease;
@@ -827,13 +827,13 @@ onBeforeUnmount(() => {
 
 .ai-medical-drag-handle .ai-medical-drag-title strong {
   color: #161f38;
-  font-size: 21px;
+  font-size: var(--spd-font-size-xl);
   line-height: 1.1;
 }
 
 .ai-medical-drag-handle .ai-medical-drag-title span {
   color: #7a8298;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .ai-medical-window-actions {
@@ -898,7 +898,7 @@ onBeforeUnmount(() => {
 }
 
 .ai-medical-welcome strong {
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
   color: #1c2540;
 }
 
@@ -941,7 +941,7 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   color: #ffffff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -1003,8 +1003,8 @@ onBeforeUnmount(() => {
 
 .ai-medical-user-bubble p {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
 .ai-medical-user-icon {
@@ -1021,7 +1021,7 @@ onBeforeUnmount(() => {
 .ai-medical-message time {
   margin-top: 6px;
   color: #a1a7b6;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .ai-medical-answer {
@@ -1033,8 +1033,8 @@ onBeforeUnmount(() => {
 .ai-medical-answer p {
   margin: 1px 0 10px;
   color: #404760;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-loose);
 }
 
 .ai-medical-answer ul {
@@ -1050,8 +1050,8 @@ onBeforeUnmount(() => {
 .ai-medical-answer li {
   padding: 11px 12px;
   color: #454d66;
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .ai-medical-answer li + li {
@@ -1072,7 +1072,7 @@ onBeforeUnmount(() => {
   padding: 0 18px;
   color: #ffffff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
@@ -1173,8 +1173,8 @@ onBeforeUnmount(() => {
   padding: 6px 4px 4px;
   color: #27314b;
   font: inherit;
-  font-size: 14px;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
   overflow-y: hidden;
 }
 
@@ -1259,7 +1259,8 @@ onBeforeUnmount(() => {
   display: block;
   margin-top: 9px;
   color: #a0a7b6;
-  font-size: 10px;
+  /* D-04：免责声明属辅助信息（G-10 白名单），取 --spd-font-size-xs 跟随字号档位 */
+  font-size: var(--spd-font-size-xs);
   text-align: center;
 }
 
@@ -1280,7 +1281,7 @@ onBeforeUnmount(() => {
     bottom: 18px;
     min-height: 50px;
     padding: 0 18px 0 14px;
-    font-size: 15px;
+    font-size: var(--spd-font-size-sm);
   }
 
   .ai-medical-panel {

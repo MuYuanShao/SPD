@@ -539,7 +539,7 @@ onMounted(loadDashboard)
   gap: 6px;
   padding: 4px 10px;
   margin-bottom: var(--sp-3);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   color: #1e1b4b;
   background: rgba(255,255,255,0.18);
@@ -550,7 +550,7 @@ onMounted(loadDashboard)
 .wb-hero-eyebrow svg { color: #fde68a; }
 .wb-hero-text h1 {
   margin: 0 0 var(--sp-2);
-  font-size: 26px;
+  font-size: var(--spd-font-size-3xl);
   font-weight: 700;
   letter-spacing: -0.4px;
 }
@@ -563,8 +563,8 @@ onMounted(loadDashboard)
 .wb-hero-text p {
   margin: 0;
   color: rgba(255,255,255,0.78);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
   max-width: 520px;
 }
 
@@ -581,7 +581,7 @@ onMounted(loadDashboard)
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   background: rgba(255,255,255,0.18);
   border: 1px solid rgba(255,255,255,0.3);
@@ -596,7 +596,7 @@ onMounted(loadDashboard)
   gap: 6px;
   height: 32px;
   padding: 0 14px;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   color: #4f46e5;
   background: #fff;
@@ -655,13 +655,13 @@ onMounted(loadDashboard)
 .wb-hero-metrics li[data-theme="violet"] .wb-hero-metrics-icon { background: linear-gradient(135deg, var(--violet-500), var(--violet-600)); }
 
 .wb-hero-metrics-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.wb-hero-metrics-label { color: var(--slate-500); font-size: 12.5px; font-weight: 500; }
+.wb-hero-metrics-label { color: var(--slate-500); font-size: var(--spd-font-size-sm); font-weight: 500; }
 .wb-hero-metrics-body strong {
   display: flex;
   align-items: baseline;
   gap: 4px;
   color: var(--slate-900);
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: -0.3px;
@@ -672,7 +672,7 @@ onMounted(loadDashboard)
 }
 .wb-hero-metrics-body strong em {
   color: var(--slate-400);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-style: normal;
   font-weight: 500;
 }
@@ -698,7 +698,7 @@ onMounted(loadDashboard)
   margin: 0;
   padding: var(--sp-2) var(--sp-3);
   color: var(--rose-600);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   background: var(--rose-50);
   border: 1px solid #fecdd3;
   border-radius: var(--r-md);
@@ -733,7 +733,7 @@ onMounted(loadDashboard)
   gap: 4px;
   align-self: flex-start;
   padding: 2px 10px;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   color: var(--indigo-600);
   background: var(--indigo-50);
@@ -748,14 +748,14 @@ onMounted(loadDashboard)
 .wb-card-title h2 {
   margin: 0;
   color: var(--slate-800);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   line-height: 1.3;
 }
 .wb-card-title p {
   margin: 0;
   color: var(--slate-400);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .wb-card-body { padding: var(--sp-4) var(--sp-5); }
@@ -768,10 +768,10 @@ onMounted(loadDashboard)
   min-height: 100px;
   margin: 0;
   color: var(--slate-400);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   text-align: center;
 }
-.wb-empty-inline { color: var(--slate-400); font-size: 12px; padding: 4px 0; }
+.wb-empty-inline { color: var(--slate-400); font-size: var(--spd-font-size-sm); padding: 4px 0; }
 
 /* ================================================================
  * R2 网格：业务链路（2 列跨） + 7 日 + TOP5
@@ -829,9 +829,9 @@ onMounted(loadDashboard)
   gap: 6px;
   padding: var(--sp-2) var(--sp-2);
   color: var(--slate-800);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  line-height: 1.4;
+  line-height: var(--spd-lh-base);
 }
 .wb-process-dot {
   width: 10px; height: 10px;
@@ -924,7 +924,7 @@ onMounted(loadDashboard)
 
 /* 节点名称 */
 .wb-process-node-text {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   line-height: 1.3;
   text-align: center;
@@ -989,7 +989,7 @@ onMounted(loadDashboard)
 .wb-spark { width: 100%; height: 220px; }
 .wb-spark svg { width: 100%; height: 100%; display: block; }
 .wb-spark-grid line { stroke: var(--slate-100); stroke-width: 1; stroke-dasharray: 3 3; }
-.wb-spark-axis text { fill: var(--slate-400); font-size: 10.5px; }
+.wb-spark-axis text { fill: var(--slate-400); font-size: var(--spd-font-size-xs); }
 .wb-spark-line { fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .wb-spark-line.in  { stroke: var(--indigo-500); }
 .wb-spark-line.out { stroke: var(--teal-500); }
@@ -1001,7 +1001,7 @@ onMounted(loadDashboard)
   align-items: center;
   gap: var(--sp-3);
   color: var(--slate-500);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 .wb-legend span { display: inline-flex; align-items: center; gap: 6px; }
 .wb-legend .dot { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
@@ -1014,7 +1014,7 @@ onMounted(loadDashboard)
 .wb-rank { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-3); }
 .wb-rank li { display: flex; align-items: center; gap: var(--sp-3); }
 .wb-rank-no {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--slate-400);
   font-variant-numeric: tabular-nums;
@@ -1034,13 +1034,13 @@ onMounted(loadDashboard)
 }
 .wb-rank-head strong {
   color: var(--slate-800);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .wb-rank-head span {
   color: var(--indigo-600);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -1064,11 +1064,11 @@ onMounted(loadDashboard)
   padding-top: var(--sp-3);
   border-top: 1px dashed var(--slate-200);
   color: var(--slate-500);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 .wb-rank-total strong {
   color: var(--slate-800);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -1089,17 +1089,17 @@ onMounted(loadDashboard)
   border-radius: var(--r-sm);
 }
 .wb-alert-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); }
-.wb-alert-type { color: #92400e; font-size: 13px; font-weight: 600; }
+.wb-alert-type { color: #92400e; font-size: var(--spd-font-size-sm); font-weight: 600; }
 .wb-alert-list p {
   margin: 0;
   color: #78350f;
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
   overflow-wrap: anywhere;
 }
 .wb-alert-no {
   color: var(--slate-400);
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -1144,11 +1144,11 @@ onMounted(loadDashboard)
 .wb-shortcut-profile > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .wb-shortcut-profile strong {
   color: var(--slate-800);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.wb-shortcut-profile > div > span { color: var(--slate-400); font-size: 12px; }
+.wb-shortcut-profile > div > span { color: var(--slate-400); font-size: var(--spd-font-size-xs); }
 
 .wb-shortcut-list { min-width: 0; padding: var(--sp-3) var(--sp-5) var(--sp-4); }
 .wb-shortcut-head {
@@ -1158,13 +1158,13 @@ onMounted(loadDashboard)
 .wb-shortcut-head h2 {
   margin: 0;
   color: var(--slate-800);
-  font-size: 13px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 .wb-link {
   background: none; border: none; padding: 0;
   color: var(--violet-600);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
 }
 .wb-link:hover { color: var(--violet-500); }
@@ -1177,7 +1177,7 @@ onMounted(loadDashboard)
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 10px;
   color: var(--slate-700);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   text-decoration: none;
   background: #fff;
   border: 1px solid var(--slate-200);
@@ -1202,7 +1202,7 @@ onMounted(loadDashboard)
   display: flex; align-items: center; gap: 6px;
   padding: 6px 8px;
   color: var(--slate-700);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   border-radius: var(--r-sm);
   cursor: pointer;
 }
@@ -1233,26 +1233,26 @@ onMounted(loadDashboard)
 }
 .wb-feed-head strong {
   color: var(--slate-800);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .wb-feed-head em {
   color: var(--slate-400);
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   font-style: normal;
   flex-shrink: 0;
 }
 .wb-feed-body p {
   margin: 0 0 2px;
   color: var(--slate-500);
-  font-size: 12.5px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
   overflow-wrap: anywhere;
 }
 .wb-feed-time {
   color: var(--slate-400);
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1280,7 +1280,7 @@ onMounted(loadDashboard)
 }
 
 @media (max-width: 640px) {
-  .wb-hero-text h1 { font-size: 22px; }
+  .wb-hero-text h1 { font-size: var(--spd-font-size-2xl); }
   .wb-hero-metrics { grid-template-columns: 1fr; }
   .wb-process-row { grid-template-columns: 1fr; gap: var(--sp-2); }
   .wb-process-step { max-width: none; }

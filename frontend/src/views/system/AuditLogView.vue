@@ -521,14 +521,14 @@ watch(() => query.value.bizType, (v) => {
   flex: 1;
 }
 
-.sys-kpi-label { font-size: 12px; font-weight: 500; opacity: 0.85; }
+.sys-kpi-label { font-size: var(--spd-font-size-sm); font-weight: 500; opacity: 0.85; }
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
-.sys-kpi-hint { font-size: 11px; font-weight: 400; line-height: 1.3; opacity: 0.75; }
+.sys-kpi-hint { font-size: var(--spd-font-size-xs); font-weight: 400; line-height: var(--spd-lh-tight); opacity: 0.75; }
 
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
@@ -578,14 +578,14 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-form-section-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-form-section-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -598,8 +598,8 @@ watch(() => query.value.bizType, (v) => {
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -621,7 +621,7 @@ watch(() => query.value.bizType, (v) => {
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }
@@ -642,8 +642,8 @@ watch(() => query.value.bizType, (v) => {
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -686,8 +686,8 @@ watch(() => query.value.bizType, (v) => {
   border: none;
   background: transparent;
   color: #10b981;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -705,7 +705,7 @@ watch(() => query.value.bizType, (v) => {
   border: 1px solid #fca5a5;
   border-radius: 8px;
   color: #991b1b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -727,7 +727,7 @@ watch(() => query.value.bizType, (v) => {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -766,13 +766,13 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-table-card-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-table-card-meta {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -783,7 +783,7 @@ watch(() => query.value.bizType, (v) => {
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -794,7 +794,7 @@ watch(() => query.value.bizType, (v) => {
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -829,7 +829,7 @@ watch(() => query.value.bizType, (v) => {
 .sys-cell-icon.is-muted { background: transparent; color: #94a3b8; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 .audit-remark-cell {
   max-width: 240px;
@@ -846,7 +846,7 @@ watch(() => query.value.bizType, (v) => {
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 1px 8px;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   white-space: nowrap;
   color: #334155;
@@ -861,7 +861,7 @@ watch(() => query.value.bizType, (v) => {
   border: 1px solid;
   border-radius: 6px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -882,7 +882,7 @@ watch(() => query.value.bizType, (v) => {
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -906,7 +906,7 @@ watch(() => query.value.bizType, (v) => {
   padding: 12px 16px;
   border-top: 1px solid #e2e8f0;
   background: #fafdfb;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
   flex-wrap: wrap;
   gap: 12px;
@@ -956,7 +956,7 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -1018,13 +1018,13 @@ watch(() => query.value.bizType, (v) => {
 }
 
 .sys-detail-grid article > div span {
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
   font-weight: 600;
 }
 
 .sys-detail-grid article > div strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #102033;
   font-weight: 600;
   word-break: break-all;
@@ -1043,7 +1043,7 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-diff-card code {
   font-family: var(--spd-font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #334155;
   word-break: break-all;
   background: rgba(255, 255, 255, 0.7);
@@ -1064,11 +1064,11 @@ watch(() => query.value.bizType, (v) => {
 .sys-json pre {
   margin: 0;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #e2e8f0;
   white-space: pre-wrap;
   word-break: break-all;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 /* ---------- 响应式 ---------- */

@@ -351,7 +351,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .cockpit-brand:hover .cockpit-brand-mark { transform: rotate(-12deg) scale(1.06); }
 .cockpit-brand div { display: grid; gap: 4px; }
 .cockpit-brand strong {
-  font-size: 18px;
+  font-size: var(--spd-font-size-lg);
   letter-spacing: .08em;
   background: linear-gradient(90deg, #ffffff, var(--neon-cyan));
   -webkit-background-clip: text;
@@ -359,7 +359,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   color: transparent;
   font-weight: 800;
 }
-.cockpit-brand small { color: var(--text-dim); font-size: 11px; letter-spacing: .14em; }
+.cockpit-brand small { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .14em; }
 
 .cockpit-month {
   display: flex;
@@ -383,7 +383,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .cockpit-month::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
 .cockpit-month::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
 .cockpit-month:focus-within { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px rgba(0, 240, 255, .14), 0 0 22px rgba(0, 240, 255, .25); }
-.cockpit-month span { padding: 0 14px; color: var(--neon-cyan); font-size: 12px; letter-spacing: .12em; font-weight: 700; }
+.cockpit-month span { padding: 0 14px; color: var(--neon-cyan); font-size: var(--spd-font-size-sm); letter-spacing: .12em; font-weight: 700; }
 .cockpit-month input {
   width: 140px;
   height: 100%;
@@ -444,9 +444,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   align-items: flex-end;
   gap: 4px;
 }
-.cockpit-clock span { color: var(--neon-cyan); font-size: 11px; letter-spacing: .18em; }
+.cockpit-clock span { color: var(--neon-cyan); font-size: var(--spd-font-size-xs); letter-spacing: .18em; }
 .cockpit-clock strong {
-  font-size: 30px;
+  font-size: var(--spd-font-size-4xl);
   font-variant-numeric: tabular-nums;
   color: white;
   text-shadow: 0 0 12px var(--neon-cyan), 0 0 24px rgba(0, 240, 255, .55);
@@ -462,7 +462,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   background: linear-gradient(90deg, rgba(255, 77, 109, .14), rgba(255, 77, 109, .04));
   border-radius: 4px;
   padding: 9px 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   letter-spacing: .04em;
   position: relative;
 }
@@ -556,19 +556,19 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .kpi-symbol.amber { color: var(--neon-amber); }
 
 .kpi-body { display: grid; gap: 5px; min-width: 0; }
-.kpi-body p { margin: 0; color: var(--text-dim); font-size: 12px; letter-spacing: .14em; }
+.kpi-body p { margin: 0; color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .14em; }
 .kpi-body strong {
   display: block;
   color: white;
-  font-size: 32px;
+  font-size: var(--spd-font-size-5xl);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
   line-height: 1.1;
   text-shadow: 0 0 16px currentColor;
 }
-.kpi-body strong em { margin-left: 6px; font-size: 13px; font-style: normal; font-weight: 500; color: var(--text-dim); }
-.kpi-body small { color: var(--text-dim); font-size: 12px; letter-spacing: .04em; }
+.kpi-body strong em { margin-left: 6px; font-size: var(--spd-font-size-sm); font-style: normal; font-weight: 500; color: var(--text-dim); }
+.kpi-body small { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .04em; }
 
 .operation-cockpit-page .up { color: var(--neon-red) !important; }
 .operation-cockpit-page .down { color: var(--neon-green) !important; }
@@ -630,7 +630,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   align-items: center;
   gap: 10px;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   letter-spacing: .12em;
   color: white;
   font-weight: 700;
@@ -642,7 +642,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   box-shadow: 0 0 8px var(--neon-cyan);
   border-radius: 1px;
 }
-.cockpit-panel > header > span { color: var(--text-dim); font-size: 12px; letter-spacing: .08em; }
+.cockpit-panel > header > span { color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .08em; }
 
 /* 耗材消费构成 */
 .category-content {
@@ -682,13 +682,13 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   box-shadow: inset 0 0 18px rgba(0, 240, 255, .25), inset 0 0 0 1px var(--panel-stroke);
 }
 .category-donut strong {
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 800;
   color: white;
   text-shadow: 0 0 12px var(--neon-cyan);
   font-variant-numeric: tabular-nums;
 }
-.category-donut span { color: var(--text-dim); font-size: 11px; letter-spacing: .12em; }
+.category-donut span { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .12em; }
 .category-legend { display: grid; gap: 12px; align-content: center; }
 .category-legend .legend-item {
   display: grid;
@@ -703,9 +703,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .category-legend .color-0 { background: var(--neon-blue); color: var(--neon-blue); }
 .category-legend .color-1 { background: var(--neon-cyan); color: var(--neon-cyan); }
 .category-legend .color-2 { background: var(--neon-green); color: var(--neon-green); }
-.category-legend .legend-label { font-size: 13px; color: var(--text-main); letter-spacing: .04em; }
-.category-legend strong { font-size: 15px; font-variant-numeric: tabular-nums; color: white; }
-.category-legend small { grid-column: 3 / 5; color: var(--text-dim); text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
+.category-legend .legend-label { font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
+.category-legend strong { font-size: var(--spd-font-size-base); font-variant-numeric: tabular-nums; color: white; }
+.category-legend small { grid-column: 3 / 5; color: var(--text-dim); text-align: right; font-size: var(--spd-font-size-sm); font-variant-numeric: tabular-nums; }
 
 /* 月度趋势 */
 .trend-chart { height: 236px; padding: 18px 18px 0; display: flex; flex-direction: column; min-height: 0; }
@@ -719,14 +719,15 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   filter: drop-shadow(0 0 6px var(--neon-cyan));
 }
 .trend-chart circle { fill: var(--neon-cyan); stroke: var(--bg-deep); stroke-width: .6; filter: drop-shadow(0 0 4px var(--neon-cyan)); }
-.trend-labels { display: grid; grid-template-columns: repeat(12, 1fr); color: var(--text-dim); font-size: 10px; text-align: center; padding-top: 6px; letter-spacing: .04em; }
+/* M-18 趋势轴标签：承载刻度读数，按 G-9 提升到 --spd-font-size-sm（13px） */
+.trend-labels { display: grid; grid-template-columns: repeat(12, 1fr); color: var(--text-dim); font-size: var(--spd-font-size-sm); text-align: center; padding-top: 6px; letter-spacing: .04em; }
 .trend-panel footer {
   display: flex;
   justify-content: space-between;
   border-top: 1px solid var(--panel-stroke-soft);
   padding: 10px 18px;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   letter-spacing: .08em;
   flex: 0 0 auto;
 }
@@ -741,7 +742,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   gap: 8px;
   padding: 10px 14px 6px 42px;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   letter-spacing: .14em;
   flex: 0 0 auto;
 }
@@ -751,7 +752,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   grid-template-columns: 22px 84px minmax(70px, 1fr) 56px 50px 60px;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   padding: 3px 0;
   position: relative;
 }
@@ -771,7 +772,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   color: #02060f;
   background: var(--neon-cyan);
   font-weight: 800;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 10px var(--neon-cyan);
 }
@@ -816,8 +817,10 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 @keyframes cockpit-shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
 .department-row > span, .department-row > small, .department-row > em { font-variant-numeric: tabular-nums; text-align: right; }
-.department-row > small { color: var(--text-dim); }
-.department-row > em { font-style: normal; font-weight: 700; font-size: 12px; }
+/* <small> 的 UA 默认 font-size: smaller 会让上月金额跌到 10px，
+   低于全站 12px 下限 —— 显式覆盖为辅助层级字号。 */
+.department-row > small { color: var(--text-dim); font-size: var(--spd-font-size-xs); }
+.department-row > em { font-style: normal; font-weight: 700; font-size: var(--spd-font-size-sm); }
 
 /* 重点监控耗材 */
 .focus-panel { grid-column: 1 / 2; }
@@ -843,7 +846,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   top: -20px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 10px;
+  /* 图表数据标签 —— 对应 --spd-chart-font-lg（标准文档 5.4） */
+  font-size: var(--spd-chart-font-lg);
   font-weight: 800;
   color: var(--neon-cyan);
   background: rgba(2, 6, 15, .85);
@@ -853,12 +857,12 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   border: 1px solid var(--panel-stroke-soft);
   text-shadow: 0 0 6px var(--neon-cyan);
 }
-.focus-item > strong { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11px; color: var(--text-main); letter-spacing: .04em; }
+.focus-item > strong { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
 
 /* 耗材分类对比 */
 .compare-panel { grid-column: 2 / 4; }
 .compare-scroll { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-.compare-panel table { width: calc(100% - 28px); margin: 12px 14px 0; border-collapse: collapse; font-size: 12px; }
+.compare-panel table { width: calc(100% - 28px); margin: 12px 14px 0; border-collapse: collapse; font-size: var(--spd-font-size-sm); }
 .compare-panel th, .compare-panel td {
   border: 1px solid var(--panel-stroke-soft);
   padding: 10px 12px;
@@ -877,7 +881,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .compare-panel tbody tr:hover td { background: rgba(0, 240, 255, .05) !important; }
 .compare-panel tbody td:nth-child(2) { color: var(--neon-cyan); font-weight: 700; text-shadow: 0 0 8px rgba(0, 240, 255, .45); }
 .compare-panel tfoot td { color: var(--neon-amber) !important; font-weight: 800; background: linear-gradient(180deg, rgba(255, 184, 77, .12), rgba(255, 184, 77, .02)) !important; text-shadow: 0 0 8px rgba(255, 184, 77, .35); }
-.caliber-note { margin: 10px 16px 12px; color: var(--text-dim); font-size: 11px; letter-spacing: .08em; }
+/* M-19 口径说明：承载统计口径定义，按 G-9 提升到 --spd-font-size-sm（13px） */
+.caliber-note { margin: 10px 16px 12px; color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .08em; }
 
 /* 库存与异常提醒 */
 .alert-panel > header button {
@@ -890,7 +895,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   background: rgba(0, 240, 255, .06);
   padding: 5px 12px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   letter-spacing: .1em;
   cursor: pointer;
   transition: background .2s, border-color .2s, box-shadow .2s;
@@ -915,7 +920,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   color: var(--neon-red);
   background: rgba(255, 77, 109, .14);
   padding: 5px 8px;
-  font-size: 11px;
+  /* D-06：预警条目风险等级标记 —— 承载用户需读取判断的等级语义，
+     按 G-9 / L-7 提升到 --spd-font-size-sm（13/15/17px），不再使用 xs。 */
+  font-size: var(--spd-font-size-sm);
   text-align: center;
   font-weight: 700;
   letter-spacing: .12em;
@@ -923,8 +930,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   text-shadow: 0 0 6px rgba(255, 77, 109, .45);
 }
 .alert-info { display: grid; gap: 4px; min-width: 0; }
-.alert-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-main); }
-.alert-info small { color: var(--text-dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.alert-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--spd-font-size-sm); color: var(--text-main); }
+.alert-info small { color: var(--text-dim); font-size: var(--spd-font-size-xs); font-variant-numeric: tabular-nums; }
 .alert-panel > footer {
   display: flex;
   align-items: center;
@@ -932,12 +939,15 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   border-top: 1px solid var(--panel-stroke-soft);
   padding: 10px 14px;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   letter-spacing: .12em;
   flex: 0 0 auto;
 }
 .alert-panel > footer span { display: flex; align-items: center; gap: 6px; }
 .alert-panel > footer strong { color: var(--neon-red); font-weight: 800; text-shadow: 0 0 6px rgba(255, 77, 109, .5); }
+/* <small> 的 UA 默认 font-size: smaller 会把 11px 再缩到 9.17px，
+   低于全站 12px 下限 —— 显式覆盖为辅助层级字号。 */
+.alert-panel > footer small { font-size: var(--spd-font-size-xs); }
 
 .cockpit-empty {
   grid-column: 1 / -1;
@@ -945,7 +955,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   margin: auto;
   color: var(--text-dim);
   text-align: center;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   letter-spacing: .14em;
   padding: 18px 0;
 }
@@ -955,8 +965,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   .cockpit-header { grid-template-columns: 220px 210px 1fr 200px; }
   .cockpit-grid { grid-template-columns: 1fr 1.28fr 1.05fr; }
   .department-row { grid-template-columns: 20px 70px minmax(55px, 1fr) 50px 46px 54px; gap: 5px; }
-  .cockpit-title h1 { font-size: 26px; }
-  .kpi-body strong { font-size: 28px; }
+  .cockpit-title h1 { font-size: clamp(22px, 2vw, 30px); }
+  .kpi-body strong { font-size: var(--spd-font-size-4xl); }
 }
 
 /* 暗色滚动条 */

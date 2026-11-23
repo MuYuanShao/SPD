@@ -355,7 +355,10 @@ onMounted(loadList)
   min-width: 860px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  /* T-21 打印模板字段表数据：--spd-font-size-base（14/16/18px） */
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  line-height: var(--spd-lh-base);
   color: var(--md-text);
 }
 
@@ -365,8 +368,10 @@ onMounted(loadList)
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  /* T-22 打印模板字段表表头：--spd-font-size-table-head（14/16/18px） */
+  font-size: var(--spd-font-size-table-head);
+  line-height: var(--spd-lh-tight);
   letter-spacing: 0.2px;
   text-align: left;
   white-space: nowrap;
@@ -489,7 +494,8 @@ onMounted(loadList)
 
 .md-print-template-field-value {
   color: var(--md-text-muted);
-  font-size: 12px;
+  /* PR-1 打印模板配置界面字段值：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -512,7 +518,8 @@ onMounted(loadList)
   margin: 0;
   padding: 24px 12px;
   color: var(--md-text-muted);
-  font-size: 13px;
+  /* E-07 打印模板空态：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
   text-align: center;
 }
 

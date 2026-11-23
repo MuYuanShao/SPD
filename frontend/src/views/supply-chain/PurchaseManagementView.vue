@@ -1332,7 +1332,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-tabs button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: var(--md-radius, 6px);
 }
@@ -1353,7 +1353,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-toolbar .btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-toolbar .btn svg {
@@ -1389,25 +1389,25 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .purchase-product-picker-mask .master-table {
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-product-picker-mask .master-table thead th {
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   padding: 10px 12px !important;
 }
 
 .purchase-product-picker-mask .master-table tbody td {
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   padding: 10px 12px !important;
-  line-height: 1.55;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-query-actions .btn {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-query-actions .btn svg {
@@ -1423,12 +1423,12 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: var(--md-radius, 6px);
   color: var(--spd-primary-text);
   background: var(--spd-primary-bg);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .inline-select {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inline-field {
@@ -1436,14 +1436,14 @@ async function handleOrderAttachmentUpload(event: Event) {
   align-items: center;
   gap: 6px;
   color: var(--spd-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .action-hint {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
   margin-left: auto;
 }
 
@@ -1474,14 +1474,14 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-query-grid label > span {
   color: var(--spd-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .purchase-query-grid .md-input,
 .purchase-query-grid .md-select {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
 }
 
@@ -1511,8 +1511,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table {
   min-width: 100%;
   width: 100%;
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-table thead th {
@@ -1520,8 +1520,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   top: 0;
   z-index: 3;
   padding: 10px 12px !important;
-  font-size: 13px !important;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -1531,8 +1531,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-table tbody td {
   padding: 10px 12px !important;
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -1553,14 +1553,14 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-table tbody td small {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   margin-top: 1px;
 }
 
 /* ---------- 单据号 / 金额 ---------- */
 .document-no-cell {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   color: var(--md-text-heading) !important;
   white-space: nowrap;
@@ -1612,7 +1612,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table .status-badge {
   min-height: 20px;
   padding: 0 9px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: 999px;
 }
@@ -1628,7 +1628,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .row-actions .btn-text {
   min-height: 24px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ---------- 履约进度 ---------- */
@@ -1640,7 +1640,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .fulfillment-cell span {
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: var(--md-text-muted, var(--spd-text-tertiary));
 }
 
@@ -1668,7 +1668,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 0 8px;
   border-radius: var(--md-radius-sm, 4px);
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -1691,13 +1691,13 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 999px;
   background: var(--md-bg-muted, var(--spd-bg-page));
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
 
 .item-summary {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .demand-group-items-cell {
@@ -1710,7 +1710,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table .approval-empty {
   padding: 52px 16px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   text-align: center;
 }
 
@@ -1815,7 +1815,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-operation-modal header p {
   margin-bottom: 3px;
   color: #728596;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .order-operation-body {
@@ -1840,7 +1840,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-operation-order span,
 .order-operation-body label > span {
   color: #607587;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .order-operation-body textarea {
@@ -1908,7 +1908,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-attachment-list strong {
   overflow: hidden;
   color: #263f50;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2092,10 +2092,10 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-product-picker-mask header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #0f2a3a;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
 }
 
 .purchase-product-picker-mask header .btn-icon {
@@ -2108,8 +2108,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #f0f7f9;
   color: #52677a;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
   flex-shrink: 0;
 }
 
@@ -2189,12 +2189,12 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-entry-header p {
   margin-bottom: 3px;
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-header h3 {
   color: #15394a;
-  font-size: 20px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .purchase-entry-body {
@@ -2232,13 +2232,13 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-entry-section-heading h4 {
   color: #1a3b4d;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .purchase-entry-section-heading small {
   margin-top: 4px;
   color: #7b8d9d;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-meta-grid {
@@ -2251,7 +2251,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   display: grid;
   gap: 6px;
   color: #425a6b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -2299,7 +2299,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 5px 10px;
   background: #f1f8f7;
   color: #526d6b;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-entry-summary strong {
@@ -2407,7 +2407,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-entry-footer > span {
   color: #718494;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-footer > div {
@@ -2543,13 +2543,13 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-header p {
   margin: 0 0 2px;
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-create-header h3 {
   margin: 0;
   color: #15394a;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 700;
 }
 
@@ -2575,16 +2575,16 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-overview-card small {
   display: block;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   opacity: 0.85;
   margin-bottom: 2px;
 }
 
 .purchase-create-overview-card strong {
   display: block;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2658,14 +2658,14 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-panel-header h4 {
   margin: 0;
   color: #15394a;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
 .purchase-create-panel-header p {
   margin: 2px 0 0;
   color: #7b8d9d;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 左栏：采购信息表单 ---------- */
@@ -2682,7 +2682,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-field {
   display: grid;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #425a6b;
 }
@@ -2707,7 +2707,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   color: #243f50;
   font: inherit;
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -2715,7 +2715,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   min-height: 70px;
   padding: 8px 10px;
   resize: vertical;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-create-field input:focus,
@@ -2733,8 +2733,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: #f5f7ff;
   border-radius: 8px;
   color: #475569;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .purchase-create-tips p { margin: 0 0 4px; color: #1e3a8a; }
@@ -2775,7 +2775,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: transparent;
   color: #102033;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-create-search:focus-within {
@@ -2836,14 +2836,14 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #ecfdf5;
   color: #047857;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .purchase-create-item-label {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   letter-spacing: 0.2px;
 }
@@ -2859,7 +2859,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: #fff;
   color: #102033;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -2876,8 +2876,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-item-meta {
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-create-item-meta.is-placeholder {
@@ -2902,8 +2902,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #fff;
   color: #b91c1c;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -2937,13 +2937,13 @@ async function handleOrderAttachmentUpload(event: Event) {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
 }
 
 .purchase-create-summary-row strong {
   color: #047857;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -2955,7 +2955,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .purchase-create-summary-row.is-total span { color: #065f46; font-weight: 600; }
-.purchase-create-summary-row.is-total strong { color: #064e3b; font-size: 18px; }
+.purchase-create-summary-row.is-total strong { color: #064e3b; font-size: var(--spd-font-size-2xl); }
 
 /* ---------- 底部 ---------- */
 .purchase-create-footer {
@@ -2970,7 +2970,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-footer > span {
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-create-footer > div {
@@ -3041,7 +3041,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .muted-cell {
   display: block;
   color: #718096;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .form-section {
@@ -3049,7 +3049,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .form-section-title {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #1a3b4d;
   margin: 0 0 10px 0;
@@ -3074,7 +3074,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .product-search-hint {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #8899aa;
 }
 
@@ -3084,7 +3084,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   gap: 8px;
   padding: 0 2px;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #66788a;
 }
@@ -3139,9 +3139,9 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .demand-group-items-cell .item-summary {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-base);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight);
   margin-bottom: 4px;
 }
 
@@ -3151,7 +3151,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 12px 16px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
 }
 
@@ -3177,7 +3177,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 999px;
   background: #eef8f6;
   color: #0f766e;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 7px;
   margin-left: 6px;

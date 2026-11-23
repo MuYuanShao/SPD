@@ -1,7 +1,7 @@
 .fli-shell { height: 100dvh; overflow: hidden; color: var(--fli-text); background: var(--fli-background); font-family: var(--el-font-family); }
 .fli-topbar.el-header { display: flex; align-items: center; gap: 24px; padding: 0 24px; height: var(--fli-nav-height); flex-shrink: 0; background: white; border-bottom: 1px solid var(--fli-line); }
 .fli-brand { display: flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 15px; font-weight: 600; color: var(--fli-text); text-decoration: none; }
-.fli-brand small { display: block; margin-top: 5px; color: var(--fli-muted); font-size: 9px; letter-spacing: 1.5px; font-weight: 400; }
+.fli-brand small { display: block; margin-top: 5px; color: var(--fli-muted); font-size: var(--spd-font-size-xs); letter-spacing: 1.5px; font-weight: 400; }
 .fli-brand-symbol { color: var(--fli-brand); font-size: 26px; font-weight: 800; font-style: italic; letter-spacing: -2px; border-right: 1px solid var(--fli-line); padding-right: 12px; }
 .fli-main-menu.el-menu { flex: 1; min-width: 0; border-bottom: 0; --el-menu-horizontal-height: 64px; --el-menu-hover-bg-color: #edf8f6; }
 .fli-main-menu .el-menu-item, .fli-main-menu .el-sub-menu__title { padding: 0 14px; font-size: 13px; }
@@ -45,14 +45,14 @@
 .fli-alert { background: #f3f9f8; border-radius: 4px; padding: 17px 8px; text-align: center; }
 .fli-alert > span { color: var(--fli-text); font-size: 11px; }
 .fli-alert strong { display: block; margin-top: 10px; font-size: 28px; font-weight: 500; color: #009688; }
-.fli-alert small { font-size: 10px; margin-left: 4px; color: var(--fli-muted); }
+.fli-alert small { font-size: var(--spd-font-size-xs); margin-left: 4px; color: var(--fli-muted); }
 .fli-alert-orange { background: #fdf7ef; }.fli-alert-orange strong { color: #c98533; }
 .fli-alert-purple { background: #f7f4fb; }.fli-alert-purple strong { color: #9272c4; }
 .fli-alert-blue { background: #f0f6fc; }.fli-alert-blue strong { color: #5195d9; }
 .fli-chart { width: 100%; min-width: 0; }
 .fli-profile-heading { display: flex; gap: 10px; align-items: center; padding-bottom: 16px; margin-bottom: 13px; border-bottom: 1px solid var(--fli-line); }
 .fli-profile-heading h2 { font-size: 14px; font-weight: 500; }
-.fli-profile-heading p { font-size: 10px; color: var(--fli-muted); margin-top: 7px; }
+.fli-profile-heading p { font-size: var(--spd-font-size-sm); color: var(--fli-muted); margin-top: 7px; }
 .fli-profile-avatar { display: grid; place-items: center; flex-shrink: 0; width: 45px; height: 45px; border-radius: 50%; color: var(--fli-brand); background: #e9f7f3; }
 .fli-shortcuts { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .fli-shortcuts a { font-size: 11px; color: var(--fli-brand-strong); background: #eef8f5; padding: 5px 8px; border: 1px solid #dceee9; border-radius: 3px; text-decoration: none; }
@@ -60,9 +60,9 @@
 .fli-notices .el-timeline-item:last-child { padding-bottom: 0; }
 .fli-notices button { padding: 0; border: 0; background: transparent; text-align: left; color: var(--fli-text); font: inherit; font-size: 12px; cursor: pointer; }
 .fli-notices button:hover { color: var(--fli-brand); }
-.fli-notices .el-timeline-item__timestamp { font-size: 10px; }
+.fli-notices .el-timeline-item__timestamp { font-size: var(--spd-font-size-xs); }
 .fli-banner { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 105px; padding: 16px; border: 1px solid #cbe5df; border-radius: 5px; background: linear-gradient(110deg, #e1f3ed, #f3faf7); color: #268575; }
-.fli-banner strong { font-size: 14px; font-weight: 500; }.fli-banner p { margin-top: 8px; font-size: 10px; }
+.fli-banner strong { font-size: 14px; font-weight: 500; }.fli-banner p { margin-top: 8px; font-size: var(--spd-font-size-sm); }
 .fli-products .el-card__body { padding-top: 0; }
 .fli-product-search { max-width: 285px; }
 .fli-products .el-table { --el-table-header-bg-color: #f7f9fa; font-size: 12px; }

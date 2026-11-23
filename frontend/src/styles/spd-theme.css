@@ -8,12 +8,15 @@
 :root,
 :root[data-theme] {
   /* ============== Typography ============== */
-  /* 字体栈：优先阿里妈妈数黑体（站酷黑体感觉）+ Inter 备用 */
+  /* 字体栈：全站只允许 2 套 —— 业务系统（此处）与登录页（views/login.css）。
+     业务系统字体栈以 --spd-font-family 为唯一入口，由 spd-override.css 强制应用到 body。 */
   --spd-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --spd-font-family-display: "HarmonyOS Sans SC", "Alibaba PuHuiTi", "Source Han Sans SC", "Noto Sans SC", "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --spd-font-family-display: "HarmonyOS Sans SC", "Alibaba PuHuiTi", "Source Han Sans SC", "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --spd-font-family-mono: "SF Mono", "Monaco", "Cascadia Mono", "Roboto Mono", Consolas, monospace;
 
-  /* Ant Design 字号体系 */
+  /* Ant Design 字号体系
+     注意：这里的固定值会被 tokens/typography.css（同名的三档推导值）覆盖，
+     仅作为兜底。业务样式一律引用 var(--spd-font-size-*)，禁止写裸 px 字号。 */
   --spd-font-size-xs: 12px;
   --spd-font-size-sm: 13px;
   --spd-font-size-base: 14px;
@@ -30,10 +33,13 @@
   --spd-font-weight-semibold: 600;
   --spd-font-weight-bold: 700;
 
-  /* 行高 */
-  --spd-line-height-base: 1.5714;
-  --spd-line-height-lg: 1.5;
-  --spd-line-height-sm: 1.66;
+  /* 行高（收敛为 3 档，与 tokens/typography.css 的 --spd-lh-* 对齐）
+     - base 1.5  ：正文默认 / 表格数据 / 输入控件
+     - lg   1.65 ：长段落 / 说明文字 / 弹窗正文
+     - sm   1.35 ：按钮 / 状态条 / 徽标 / 表格单元格 */
+  --spd-line-height-base: 1.5;
+  --spd-line-height-lg: 1.65;
+  --spd-line-height-sm: 1.35;
 
   /* ============== Spacing & Layout ============== */
   /* Ant Design 8px 间距体系 */
@@ -170,7 +176,7 @@
   font-weight: var(--spd-font-weight-bold);
   color: var(--spd-gray-950);
   letter-spacing: -0.5px;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
 }
 
 .text-title-lg {
@@ -197,7 +203,8 @@
 }
 
 .text-tertiary {
-  font-size: 12px;
+  /* 辅助层文字：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-gray-500);
 }
 
@@ -247,7 +254,8 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: var(--spd-font-size-md);
+  /* 卡片标题属区块标题层级：--spd-font-size-lg（--spd-font-size-md 已改为正文强调用途） */
+  font-size: var(--spd-font-size-lg);
   font-weight: var(--spd-font-weight-semibold);
   color: var(--spd-gray-900);
 }
@@ -355,7 +363,8 @@
 }
 
 .spd-stat-value {
-  font-size: var(--spd-font-size-5xl);
+  /* M-04 spd-stat-value（Ant 体系）：--spd-font-size-3xl / 800 */
+  font-size: var(--spd-font-size-3xl);
   font-weight: 800;
   color: var(--spd-gray-900);
   line-height: 1;
@@ -373,7 +382,8 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  /* 辅助层文字：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   margin-top: 8px;
   font-weight: 500;
 }
@@ -435,7 +445,8 @@
 .spd-btn-sm {
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  /* B-06 小号按钮：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   border-radius: var(--spd-radius-sm);
 }
 
@@ -467,9 +478,10 @@
   gap: 4px;
   padding: 3px 10px;
   border-radius: 20px;
-  font-size: 12px;
+  /* S-07 spd-tag 胶囊标签：--spd-font-size-sm / 500 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
   white-space: nowrap;
 }
 
@@ -531,7 +543,8 @@
 }
 
 .spd-search-label {
-  font-size: 12px;
+  /* 筛选标签：--spd-font-size-sm / 500 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   color: var(--spd-gray-600);
   white-space: nowrap;
@@ -642,8 +655,10 @@
 .spd-tab-count {
   background: var(--spd-gray-200);
   color: var(--spd-gray-600);
-  font-size: 11px;
+  /* S-06 Tab 计数徽标：--spd-font-size-xs / 600，单行控件行高 1 */
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
+  line-height: 1;
   padding: 1px 6px;
   border-radius: 10px;
   min-width: 20px;
@@ -725,7 +740,8 @@
 /* 选项：保持 Element Plus 原生的固定高度 + 等高行高，
    文字才能垂直居中；这里不要改 padding，否则会撑偏文字 */
 .el-select-dropdown__item {
-  font-size: var(--spd-font-size-sm);
+  /* O-07 下拉选项：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base);
   height: 34px;
   line-height: 34px;
   padding: 0 32px 0 20px;
@@ -751,7 +767,8 @@
   background: var(--spd-gray-50) !important;
   color: var(--spd-gray-700);
   font-weight: 600;
-  font-size: var(--spd-font-size-sm);
+  /* T-14 表格表头：--spd-font-size-table-head（与数据同档） */
+  font-size: var(--spd-font-size-table-head);
 }
 
 .spd-table :deep(.el-table__cell) {
@@ -778,7 +795,8 @@
 }
 
 .spd-dialog :deep(.el-dialog__title) {
-  font-size: var(--spd-font-size-md);
+  /* O-01 弹窗标题：--spd-font-size-2xl / 600 */
+  font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   color: var(--spd-gray-900);
 }
@@ -808,7 +826,8 @@
 }
 
 .spd-empty-title {
-  font-size: var(--spd-font-size-md);
+  /* E-02 空态标题：--spd-font-size-base / 600 */
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--spd-gray-700);
   margin-bottom: 6px;
@@ -830,7 +849,7 @@
   align-items: flex-start;
   gap: 12px;
   font-size: var(--spd-font-size-sm);
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .spd-alert-icon {
@@ -882,7 +901,8 @@
   padding: 4px 10px;
   border-radius: var(--spd-radius-sm);
   font-family: var(--spd-font-family-mono);
-  font-size: 12px;
+  /* 编码 / 单号 chip：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   letter-spacing: 0.5px;
   font-weight: 500;
 }

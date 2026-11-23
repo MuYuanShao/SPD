@@ -1066,7 +1066,7 @@ async function changeWarehouse() {
 .dept-req-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1095,7 +1095,7 @@ async function changeWarehouse() {
   min-height: 22px;
   padding: 0 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1134,7 +1134,7 @@ async function changeWarehouse() {
 
 .dept-req-filters label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -1149,7 +1149,7 @@ async function changeWarehouse() {
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   outline: none;
 }
 
@@ -1168,7 +1168,7 @@ async function changeWarehouse() {
 .dept-req-filter-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
   white-space: nowrap;
 }
@@ -1210,14 +1210,14 @@ async function changeWarehouse() {
 .dept-req-section-title h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .dept-req-section-title > span {
   margin-left: auto;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1227,7 +1227,7 @@ async function changeWarehouse() {
   margin-left: auto;
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1236,7 +1236,7 @@ async function changeWarehouse() {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .dept-req-table th,
@@ -1256,8 +1256,9 @@ async function changeWarehouse() {
   z-index: 2;
   background: var(--md-bg-subtle, #f6f8fb);
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight);
 }
 
 .dept-req-table td {
@@ -1297,7 +1298,7 @@ async function changeWarehouse() {
 .requisition-catalog-table small {
   margin-top: 2px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .requisition-catalog-table select {
@@ -1307,7 +1308,7 @@ async function changeWarehouse() {
   background: var(--md-bg-card, #fff);
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .requisition-catalog-table .shortage {
@@ -1342,13 +1343,13 @@ async function changeWarehouse() {
 
 .dept-req-selected-head strong {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .dept-req-selected-head span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .dept-req-selected-list {
@@ -1376,7 +1377,7 @@ async function changeWarehouse() {
 
 .dept-req-selected-list label span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   white-space: nowrap;
 }
 
@@ -1387,23 +1388,23 @@ async function changeWarehouse() {
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .selected-code {
   color: var(--md-primary, var(--primary));
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .selected-name {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .selected-spec {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1411,7 +1412,7 @@ async function changeWarehouse() {
 
 .selected-total {
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1448,7 +1449,7 @@ async function changeWarehouse() {
   border: 0;
   border-inline: 1px solid var(--md-border, var(--spd-border-subtle));
   text-align: center;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1497,12 +1498,12 @@ async function changeWarehouse() {
 
 .dept-req-modal > header span {
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-modal > header strong {
   color: #102033;
-  font-size: 18px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .dept-req-modal .dept-req-table-wrap {
@@ -1598,7 +1599,7 @@ async function changeWarehouse() {
 }
 
 .dept-req-smart-dialog :deep(.el-dialog__title) {
-  font-size: 16px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #1f2937;
 }
@@ -1620,7 +1621,7 @@ async function changeWarehouse() {
   min-width: 96px;
   height: 34px;
   padding: 0 18px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: 6px;
 }
 
@@ -1635,7 +1636,7 @@ async function changeWarehouse() {
   background: #f8fafc;
   border-bottom: 1px solid #eef0f4;
   color: #475569;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .smart-toolbar label {
@@ -1650,7 +1651,7 @@ async function changeWarehouse() {
   border: 1px solid #e5e7eb;
   border-radius: 5px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   background: #fff;
   color: #1f2937;
 }
@@ -1770,8 +1771,9 @@ async function changeWarehouse() {
 }
 
 .dept-req-dialog-title > span {
-  font-size: 17px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 600;
+  line-height: 1.3;
   color: #1f2937;
   letter-spacing: 0.2px;
 }
@@ -1788,7 +1790,7 @@ async function changeWarehouse() {
   gap: 4px;
   padding: 0 10px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #1e3a8a;
   background: #eef4ff;
   border-radius: 14px;
@@ -1802,7 +1804,7 @@ async function changeWarehouse() {
 .dept-req-dialog-submit .btn {
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   border-radius: 6px;
 }
 
@@ -1828,9 +1830,9 @@ async function changeWarehouse() {
 }
 
 .dept-req-filterbar-item > span {
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7280;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.3px;
 }
 
@@ -1838,7 +1840,7 @@ async function changeWarehouse() {
 .dept-req-filterbar-item > select {
   height: 30px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #1f2937;
   background: #f8fafc;
   border: 1px solid #e5e7eb;
@@ -1864,7 +1866,7 @@ async function changeWarehouse() {
 .dept-req-filterbar-actions .btn {
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   border-radius: 5px;
 }
 
@@ -1873,7 +1875,7 @@ async function changeWarehouse() {
   flex: 0 0 auto;
   padding: 8px 22px;
   background: #f8fafc;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #475569;
   display: flex;
   align-items: center;
@@ -1921,12 +1923,12 @@ async function changeWarehouse() {
 
 .dept-req-selected-head strong {
   color: #1e3a8a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-selected-head span {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .dept-req-selected-list {
@@ -1945,13 +1947,15 @@ async function changeWarehouse() {
   padding: 6px 8px;
   background: #fff;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
 }
 
 .dept-req-selected-list .selected-code {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
   color: #1e3a8a;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
+  font-variant-numeric: tabular-nums;
   background: #f1f5f9;
   padding: 1px 6px;
   border-radius: 3px;
@@ -1960,13 +1964,13 @@ async function changeWarehouse() {
 .dept-req-selected-list .selected-name {
   color: #1f2937;
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   min-width: 140px;
 }
 
 .dept-req-selected-list .selected-spec {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1977,13 +1981,13 @@ async function changeWarehouse() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7280;
 }
 
 .dept-req-selected-list label select {
   height: 26px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   background: #fff;
@@ -2013,12 +2017,15 @@ async function changeWarehouse() {
   border-left: 1px solid #e5e7eb;
   border-right: 1px solid #e5e7eb;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
+  font-variant-numeric: tabular-nums;
 }
 
 .dept-req-selected-list .selected-total {
   color: #475569;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   min-width: 80px;
 }
 
@@ -2026,7 +2033,7 @@ async function changeWarehouse() {
   background: transparent;
   border: none;
   color: #dc2626;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -2061,7 +2068,7 @@ async function changeWarehouse() {
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #1f2937;
 }
@@ -2071,7 +2078,7 @@ async function changeWarehouse() {
 }
 
 .dept-req-catalog-meta {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
 }
@@ -2087,7 +2094,7 @@ async function changeWarehouse() {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .dept-req-catalog-body thead th {
@@ -2095,9 +2102,10 @@ async function changeWarehouse() {
   top: 0;
   z-index: 1;
   background: #fff;
-  font-weight: 600;
+  font-weight: 700;
   color: #334155;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
+  line-height: var(--spd-lh-tight);
   letter-spacing: 0.2px;
   padding: 8px 10px;
   text-align: left;
@@ -2107,7 +2115,8 @@ async function changeWarehouse() {
 
 .dept-req-catalog-body tbody td {
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
   color: #1f2937;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;

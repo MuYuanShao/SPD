@@ -646,22 +646,22 @@ watch(pageMode, () => {
 }
 
 .sys-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .sys-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   opacity: 0.75;
 }
 
@@ -699,7 +699,7 @@ watch(pageMode, () => {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -763,7 +763,7 @@ watch(pageMode, () => {
   background: transparent;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -797,8 +797,8 @@ watch(pageMode, () => {
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -864,8 +864,8 @@ watch(pageMode, () => {
   border: none;
   background: transparent;
   color: #10b981;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -883,7 +883,7 @@ watch(pageMode, () => {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -910,7 +910,7 @@ watch(pageMode, () => {
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -921,7 +921,7 @@ watch(pageMode, () => {
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -940,7 +940,7 @@ watch(pageMode, () => {
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px; font-size: var(--spd-font-size-base); }
 
 /* 角色 / 编码 tag */
 .sys-tag {
@@ -949,8 +949,8 @@ watch(pageMode, () => {
   border: 1px solid;
   border-radius: 999px;
   padding: 1px 8px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -965,7 +965,7 @@ watch(pageMode, () => {
   background: #f1f5f9;
   border-color: #e2e8f0;
   font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* 状态 badge */
@@ -974,7 +974,7 @@ watch(pageMode, () => {
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -997,7 +997,7 @@ watch(pageMode, () => {
   justify-content: space-between;
   padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1043,7 +1043,7 @@ watch(pageMode, () => {
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -1075,8 +1075,8 @@ watch(pageMode, () => {
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -1092,7 +1092,7 @@ watch(pageMode, () => {
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }
@@ -1116,7 +1116,7 @@ watch(pageMode, () => {
   background: #fff;
   color: #102033;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   resize: vertical;
   min-height: 60px;
@@ -1126,7 +1126,7 @@ watch(pageMode, () => {
 
 .sys-error {
   color: #b91c1c;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   margin: 0;
 }
@@ -1152,7 +1152,7 @@ watch(pageMode, () => {
   gap: 7px;
   padding: 5px 8px;
   border-radius: 5px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #334155;
   font-weight: 500;
   cursor: pointer;

@@ -132,7 +132,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: var(--primary-strong);
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .ai-chat-inputbar {
@@ -150,7 +150,8 @@
   outline: 0;
   color: #102033;
   font: inherit;
-  font-size: 16px;
+  /* 输入控件文字：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
 }
 
 .ai-chat-inputbar input::placeholder {
@@ -262,7 +263,8 @@
 
 .account-info span {
   color: var(--text-muted);
-  font-size: 13px;
+  /* 辅助说明文字：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .account-dropdown button {
@@ -289,8 +291,9 @@
 .topbar h1,
 .detail-heading h2 {
   margin: 0;
-  font-size: 24px;
-  line-height: 1.25;
+  /* P-01 页面主标题：--spd-font-size-3xl */
+  font-size: var(--spd-font-size-3xl);
+  line-height: var(--spd-lh-tight);
   letter-spacing: 0;
 }
 

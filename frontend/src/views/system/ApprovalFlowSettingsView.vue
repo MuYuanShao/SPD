@@ -779,9 +779,9 @@ onMounted(loadAll)
 .sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
 
 .sys-kpi-item > div { display: grid; gap: 2px; min-width: 0; flex: 1; }
-.sys-kpi-label { font-size: 12px; font-weight: 500; opacity: 0.85; }
-.sys-kpi-value { font-size: 18px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-.sys-kpi-hint  { font-size: 11px; font-weight: 400; line-height: 1.3; opacity: 0.75; }
+.sys-kpi-label { font-size: var(--spd-font-size-sm); font-weight: 500; opacity: 0.85; }
+.sys-kpi-value { font-size: var(--spd-font-size-2xl); font-weight: 700; line-height: var(--spd-lh-tight); font-variant-numeric: tabular-nums; }
+.sys-kpi-hint  { font-size: var(--spd-font-size-xs); font-weight: 400; line-height: var(--spd-lh-tight); opacity: 0.75; }
 
 .sys-kpi-item.is-blue   .sys-kpi-label, .sys-kpi-item.is-blue   .sys-kpi-value, .sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
 .sys-kpi-item.is-green  .sys-kpi-label, .sys-kpi-item.is-green  .sys-kpi-value, .sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
@@ -795,7 +795,7 @@ onMounted(loadAll)
   padding: 8px 14px;
   border: none; border-bottom: 2px solid transparent; background: transparent;
   color: var(--spd-text-secondary);
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-size: var(--spd-font-size-base); font-weight: 500; cursor: pointer;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   border-radius: 6px 6px 0 0; white-space: nowrap;
 }
@@ -806,7 +806,7 @@ onMounted(loadAll)
   min-width: 20px; height: 20px;
   border-radius: 999px; padding: 0 6px;
   background: var(--spd-primary); color: #fff;
-  font-size: 11px; font-weight: 700; line-height: 1;
+  font-size: var(--spd-font-size-xs); font-weight: 700; line-height: 1;
 }
 
 /* ---------- 工具栏 ---------- */
@@ -834,7 +834,7 @@ onMounted(loadAll)
 .sys-toolbar-search input {
   flex: 1; min-width: 0; height: 34px;
   border: none; background: transparent; color: #102033;
-  padding: 0 10px; font-size: 13px; font-weight: 500;
+  padding: 0 10px; font-size: var(--spd-font-size-base); font-weight: 500;
 }
 .sys-toolbar-search input::placeholder { color: #94a3b8; }
 .sys-toolbar-search input:focus { outline: none; }
@@ -842,7 +842,7 @@ onMounted(loadAll)
 .sys-toolbar-status {
   border: none; border-left: 1px solid #e2e8f0;
   background: #f8fafc; color: #102033;
-  height: 34px; padding: 0 8px; font-size: 13px; font-weight: 500;
+  height: 34px; padding: 0 8px; font-size: var(--spd-font-size-base); font-weight: 500;
   flex-shrink: 0;
   cursor: pointer;
 }
@@ -855,7 +855,7 @@ onMounted(loadAll)
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-height: 32px; height: 32px; padding: 0 14px;
   border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155;
-  font-size: 13px; font-weight: 500; cursor: pointer;
+  font-size: var(--spd-font-size-base); font-weight: 600; cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .btn:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; color: #1e293b; }
@@ -869,7 +869,7 @@ onMounted(loadAll)
 .btn-text {
   display: inline-flex; align-items: center; gap: 3px;
   border: none; background: transparent; color: #10b981;
-  font-size: 12px; font-weight: 500; cursor: pointer;
+  font-size: var(--spd-font-size-base); font-weight: 600; cursor: pointer;
   padding: 2px 6px; border-radius: 4px; transition: background 0.15s;
 }
 .btn-text:hover { background: #d1fae5; }
@@ -888,7 +888,7 @@ onMounted(loadAll)
 /* ---------- 消息 / 错误 ---------- */
 .sys-msg, .sys-error {
   display: flex; align-items: center; padding: 8px 14px;
-  border-radius: 8px; font-size: 13px;
+  border-radius: 8px; font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 .sys-msg   { background: #f0fdf9; border: 1px solid #6ee7b7; color: #065f46; }
@@ -911,7 +911,7 @@ onMounted(loadAll)
   color: #64748b;
 }
 .sys-empty-icon { color: #cbd5e1; }
-.sys-empty p { margin: 0; font-size: 13px; }
+.sys-empty p { margin: 0; font-size: var(--spd-font-size-base); }
 
 /* ---------- 列表行卡 ---------- */
 .sys-flow-list { display: flex; flex-direction: column; gap: 10px; }
@@ -943,7 +943,7 @@ onMounted(loadAll)
   display: flex; align-items: center; gap: 14px;
   flex-wrap: wrap;
   margin: 8px 0 10px;
-  font-size: 12px; color: #64748b;
+  font-size: var(--spd-font-size-sm); color: #64748b;
 }
 .sys-flow-card-meta > span { display: inline-flex; align-items: center; gap: 4px; }
 .sys-flow-card-meta-icon { display: inline-flex; color: #94a3b8; }
@@ -960,7 +960,7 @@ onMounted(loadAll)
   display: flex; align-items: center; gap: 8px;
   padding: 6px 10px;
   background: #fafdfb; border: 1px solid #e2e8f0; border-radius: 6px;
-  font-size: 12.5px; color: #334155;
+  font-size: var(--spd-font-size-base); color: #334155;
   flex-wrap: wrap;
   position: relative;
 }
@@ -976,18 +976,18 @@ onMounted(loadAll)
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 999px;
   background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0;
+  color: #fff; font-size: var(--spd-font-size-xs); font-weight: 700; flex-shrink: 0;
 }
 
 .sys-flow-step-name { font-weight: 600; color: #102033; }
 .sys-flow-step-approver { color: #475569; }
-.sys-flow-step-stat { color: #94a3b8; margin-left: auto; font-size: 12px; }
+.sys-flow-step-stat { color: #94a3b8; margin-left: auto; font-size: var(--spd-font-size-sm); }
 
 /* ---------- 通用 tag / badge ---------- */
 .sys-tag {
   display: inline-flex; align-items: center;
   border: 1px solid; border-radius: 6px; padding: 1px 8px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
+  font-size: var(--spd-font-size-base); font-weight: 600; white-space: nowrap;
 }
 .sys-tag.is-menu  { color: #1d4ed8; background: #dbeafe; border-color: #93c5fd; }
 .sys-tag.is-node  { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }
@@ -996,7 +996,7 @@ onMounted(loadAll)
 .sys-badge {
   display: inline-flex; align-items: center;
   border-radius: 999px; padding: 2px 10px;
-  font-size: 11.5px; font-weight: 600;
+  font-size: var(--spd-font-size-base); font-weight: 600;
   border: 1px solid;
 }
 .sys-badge.is-active  { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
@@ -1023,8 +1023,8 @@ onMounted(loadAll)
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
 }
-.sys-dialog-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: var(--spd-text-heading); }
-.sys-dialog-header p  { margin: 3px 0 0; font-size: 12px; color: var(--spd-text-tertiary); }
+.sys-dialog-header h3 { margin: 0; font-size: var(--spd-font-size-lg); font-weight: 700; color: var(--spd-text-heading); }
+.sys-dialog-header p  { margin: 3px 0 0; font-size: var(--spd-font-size-sm); color: var(--spd-text-tertiary); }
 
 .sys-dialog-body {
   padding: 16px 20px;
@@ -1046,7 +1046,7 @@ onMounted(loadAll)
 }
 
 .sys-dialog-section-title h4 {
-  margin: 0; font-size: 13px; font-weight: 700; color: var(--spd-text-heading);
+  margin: 0; font-size: var(--spd-font-size-base); font-weight: 700; color: var(--spd-text-heading);
 }
 
 .sys-dialog-section-icon {
@@ -1058,7 +1058,7 @@ onMounted(loadAll)
 
 .sys-dialog-section-meta {
   margin-left: auto;
-  font-size: 12px; color: #64748b;
+  font-size: var(--spd-font-size-sm); color: #64748b;
 }
 .sys-dialog-section-meta strong { color: #047857; font-weight: 700; }
 
@@ -1068,14 +1068,14 @@ onMounted(loadAll)
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 14px;
 }
-.sys-form-grid label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #4b5b66; }
+.sys-form-grid label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: #4b5b66; }
 .sys-form-grid label.sys-form-wide { grid-column: 1 / -1; }
 
 .sys-input, .sys-select {
   width: 100%; min-height: 32px; height: 32px;
   border: 1px solid #cbd5e1; border-radius: 6px;
   background: #fff; color: #102033;
-  padding: 0 10px; font-size: 13px; font-weight: 500;
+  padding: 0 10px; font-size: var(--spd-font-size-base); font-weight: 500;
   transition: border-color 0.15s;
 }
 .sys-input:focus, .sys-select:focus { outline: none; border-color: #94a3b8; }
@@ -1089,18 +1089,18 @@ onMounted(loadAll)
 
 /* 弹窗内表格（紧凑） */
 .sys-table.is-compact th, .sys-table.is-compact td {
-  padding: 6px 8px; font-size: 12.5px;
+  padding: 6px 8px; font-size: var(--spd-font-size-sm);
 }
 
 .sys-table-scroll { overflow-x: auto; }
 
-.sys-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sys-table { width: 100%; border-collapse: collapse; font-size: var(--spd-font-size-base); }
 .sys-table thead tr {
   background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
   border-bottom: 1px solid #6ee7b7;
 }
 .sys-table th {
-  color: #065f46; font-weight: 700; font-size: 12px;
+  color: #065f46; font-weight: 700; font-size: var(--spd-font-size-table-head);
   text-align: left; padding: 10px 12px; white-space: nowrap; letter-spacing: 0.3px;
 }
 .sys-table td {

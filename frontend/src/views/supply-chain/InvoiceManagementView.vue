@@ -410,31 +410,31 @@ onMounted(load)
 }
 
 .invoice-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .invoice-kpi-value {
   color: var(--spd-text-heading, #14213a);
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-2xl);
+  font-weight: 800;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .invoice-kpi-value small {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
   margin-left: 2px;
   opacity: 0.75;
 }
 
 .invoice-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-base);
   opacity: 0.75;
 }
 
@@ -503,14 +503,14 @@ onMounted(load)
 
 .section-title h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading);
 }
 
 .section-title p {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -530,7 +530,7 @@ onMounted(load)
   border-radius: 6px;
   padding: 0 11px;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -547,7 +547,7 @@ onMounted(load)
   border-radius: 6px;
   padding: 0 11px;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   cursor: pointer;
 }
 
@@ -563,7 +563,7 @@ onMounted(load)
   display: grid;
   gap: 6px;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -575,7 +575,7 @@ onMounted(load)
   border-radius: 6px;
   padding: 0 11px;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   color: var(--spd-text-primary);
 }
@@ -633,8 +633,8 @@ onMounted(load)
 .invoice-detail-table th,
 .invoice-detail-table td {
   padding: 9px 12px;
-  font-size: 13px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
   border-bottom: 1px solid #f1f5f9;
   text-align: left;
   white-space: nowrap;
@@ -647,7 +647,7 @@ onMounted(load)
   padding: 10px 12px;
   background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
   color: #065f46;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.2px;
   border-bottom: 1px solid #6ee7b7;
@@ -680,19 +680,19 @@ onMounted(load)
   justify-content: center;
   height: min(500px, 60vh);
   color: var(--spd-text-tertiary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .invoice-cell-stack {
   display: grid;
   gap: 2px;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
 }
 
 .invoice-cell-stack > strong {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -700,7 +700,7 @@ onMounted(load)
 
 .invoice-cell-meta {
   color: #64748b;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
@@ -721,8 +721,8 @@ onMounted(load)
 
 .invoice-detail-table .amount-cell {
   color: #047857;
-  font-weight: 700;
-  font-size: 13.5px;
+  font-weight: 800;
+  font-size: var(--spd-font-size-base);
 }
 
 .invoice-detail-table .col-invoice-no,
@@ -751,8 +751,9 @@ onMounted(load)
   padding: 0 9px;
   border: 1px solid;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
+  line-height: var(--spd-lh-tight);
   white-space: nowrap;
 }
 
@@ -781,8 +782,9 @@ onMounted(load)
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -813,7 +815,7 @@ onMounted(load)
   min-height: 26px;
   height: 26px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* 状态消息 */

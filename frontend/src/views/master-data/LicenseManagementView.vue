@@ -994,7 +994,7 @@ onUnmounted(closePreview)
   padding: 5px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
@@ -1010,7 +1010,7 @@ onUnmounted(closePreview)
 }
 
 .lf-btn-sm {
-  min-height: 26px; padding: 2px 10px; font-size: 12px; border-radius: 6px;
+  min-height: 26px; padding: 2px 10px; font-size: var(--spd-font-size-sm); border-radius: 6px;
 }
 
 .lf-btn-primary {

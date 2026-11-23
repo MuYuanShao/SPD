@@ -62,14 +62,14 @@
 .master-page-title p {
   margin: 0 !important;
   color: rgba(255, 255, 255, 0.78) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   letter-spacing: 0.3px;
 }
 
 .master-page-title h2 {
   margin: 4px 0 6px !important;
   color: #ffffff !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display) !important;
   letter-spacing: -0.2px;
@@ -77,14 +77,14 @@
 
 .master-page-title span {
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .master-page-title small,
 .master-page-title .muted-hint {
   color: rgba(255, 255, 255, 0.7) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .master-page-title .btn {
@@ -155,14 +155,14 @@
 .department-warehouse-catalog-panel .section-title h3 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
 
 .hospital-catalog-panel .section-title.compact h3,
 .supplier-management-panel .section-title.compact h3 {
-  font-size: 15px !important;
+  font-size: var(--spd-font-size-lg) !important;
 }
 
 .hospital-catalog-panel .section-title .muted-hint,
@@ -172,7 +172,7 @@
 .department-management-panel .section-title .muted-hint,
 .department-warehouse-catalog-panel .section-title .muted-hint {
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
   margin-left: 8px;
 }
@@ -197,7 +197,7 @@
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%) !important;
   color: #4f46e5 !important;
   font-weight: 600 !important;
-  font-size: 12.5px !important;
+  font-size: var(--spd-font-size-sm) !important;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s !important;
 }
 
@@ -274,7 +274,7 @@
 .department-action-row .btn {
   min-height: 34px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -351,7 +351,7 @@
   align-items: center;
   gap: 8px;
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
@@ -361,7 +361,7 @@
 .campus-filter-heading small,
 .department-filter-heading small {
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -399,8 +399,8 @@
 .department-warehouse-catalog-query-grid label > span,
 .department-query-grid label > span {
   color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 600;
 }
 
 .hospital-query-grid input,
@@ -424,7 +424,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
   transition: all 0.18s ease;
 }
@@ -476,8 +476,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -557,7 +557,7 @@
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   background: transparent;
   color: var(--spd-text-primary);
   padding: 0;
@@ -575,8 +575,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -639,7 +639,7 @@
   color: var(--spd-text-secondary) !important;
   padding: 0 16px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.18s ease;
@@ -692,7 +692,7 @@
   padding: 12px 16px !important;
   background: var(--spd-bg-container) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-secondary) !important;
   font-weight: 500;
 }
@@ -718,7 +718,7 @@
   border: 1px solid var(--spd-primary-border) !important;
   border-radius: var(--spd-radius-sm, 4px) !important;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
 
@@ -777,8 +777,8 @@
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
   color: var(--md-text-heading) !important;
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
   padding: 10px 12px !important;
   border-bottom: 2px solid var(--md-border-strong) !important;
@@ -877,7 +877,7 @@
   width: 100% !important;
   border-collapse: separate !important;
   border-spacing: 0 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary) !important;
 }
 
@@ -896,8 +896,8 @@
 .department-warehouse-table th {
   background: #fafafa !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   font-family: var(--spd-font-family-display);
   border-bottom: 1px solid var(--spd-border-subtle) !important;
   border-right: 1px solid var(--spd-border-subtle) !important;
@@ -1033,7 +1033,7 @@
 .department-warehouse-code-cell {
   color: var(--spd-text-secondary) !important;
   font-family: var(--spd-font-family-mono) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1045,7 +1045,7 @@
   max-width: 240px;
   overflow: hidden;
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
   font-weight: 600;
 }
@@ -1059,14 +1059,14 @@
 .supplier-contact-cell strong,
 .manufacturer-contact-cell strong {
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
 .supplier-contact-cell span,
 .manufacturer-contact-cell span {
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1081,7 +1081,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
   background: var(--spd-bg-page) !important;
@@ -1097,7 +1097,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   background: var(--spd-primary-bg) !important;
   color: var(--spd-primary-text) !important;
@@ -1126,7 +1126,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -1169,7 +1169,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -1220,7 +1220,7 @@
   color: var(--spd-warning-text, #b25e09);
   border: 1px solid var(--spd-warning-border, #f5c98c);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
 
@@ -1231,7 +1231,7 @@
   background: var(--md-primary-soft);
   color: var(--md-primary-strong);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -1254,7 +1254,7 @@
 .warehouse-dept-cell code {
   color: var(--spd-text-secondary);
   font-family: var(--spd-font-family-mono);
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .warehouse-flag-chip {
@@ -1262,7 +1262,7 @@
   align-items: center;
   padding: 2px 9px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border: 1px solid transparent;
 }
@@ -1289,7 +1289,7 @@
 .warehouse-location-count-cell {
   font-variant-numeric: tabular-nums;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .warehouse-location-count-cell {
@@ -1401,7 +1401,7 @@
 .product-dialog header p {
   margin: 0;
   color: var(--spd-primary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1411,7 +1411,7 @@
 .product-dialog header h3 {
   margin: 5px 0 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
@@ -1454,8 +1454,8 @@
 .product-dialog .form-grid label > span,
 .product-dialog .product-form-grid label > span {
   color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 600;
 }
 
 .product-dialog fieldset input,
@@ -1472,7 +1472,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
   transition: all 0.18s ease;
 }
@@ -1506,8 +1506,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1579,7 +1579,7 @@
 .product-dialog-section h4 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
@@ -1596,7 +1596,7 @@
   align-items: center;
   gap: 6px;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   cursor: pointer;
 }
@@ -1617,8 +1617,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1656,7 +1656,7 @@
   cursor: pointer;
   transition: all 0.15s ease;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .column-setting-item:hover,
@@ -1683,8 +1683,8 @@
 .hospital-product-table thead th {
   background: #fafafa !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600;
-  font-size: 13px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   font-family: var(--spd-font-family-display);
   border-bottom: 1px solid var(--spd-border-subtle) !important;
   border-right: 1px solid var(--spd-border-subtle) !important;
@@ -1766,8 +1766,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1786,7 +1786,7 @@
   border: 1px solid var(--spd-danger-border) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   padding: 16px 20px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .product-detail-error .btn {
@@ -1797,7 +1797,7 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
 }
 
@@ -1805,7 +1805,7 @@
   display: inline-block;
   padding: 4px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-tertiary) !important;
@@ -1846,7 +1846,7 @@
 .product-detail-section-heading h3 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
@@ -1871,14 +1871,14 @@
 .product-detail-field dt {
   margin: 0;
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .product-detail-field dd {
   margin: 0;
   color: var(--spd-text-primary) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   word-break: break-word;
 }
@@ -1901,7 +1901,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .product-attachment-table th,
@@ -1915,9 +1915,9 @@
 .product-attachment-table th {
   background: #fafafa !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600;
+  font-weight: 700;
   font-family: var(--spd-font-family-display);
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
 }
 
 .product-attachment-table tbody tr:hover td {
@@ -1937,7 +1937,7 @@
   border-radius: var(--spd-radius, 6px) !important;
   text-align: center;
   color: var(--spd-text-tertiary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .attachment-preview-dialog {
@@ -1964,7 +1964,7 @@
 .attachment-preview-dialog header h3 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
@@ -1984,7 +1984,7 @@
   padding: 24px;
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ===== Product Form / Batch Edit 表单 ===== */
@@ -2034,8 +2034,8 @@
 
 .product-form-card .form-grid label > span {
   color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 600;
 }
 
 .product-form-card .form-grid input,
@@ -2048,7 +2048,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
   transition: all 0.18s ease;
 }
@@ -2076,8 +2076,8 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  font-size: 14px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -2137,7 +2137,7 @@
   text-align: center !important;
   color: var(--spd-text-tertiary) !important;
   padding: 48px 16px !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   background: var(--spd-bg-page) !important;
   border: 1px dashed var(--spd-border-default) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
@@ -2189,7 +2189,7 @@
   border-radius: 10px !important;
   background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%) !important;
   color: #ffffff !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -2239,7 +2239,7 @@
 .approval-detail-page.product-detail-page .approval-detail-header p {
   margin: 0 !important;
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
   position: relative;
   text-transform: none !important;
@@ -2250,7 +2250,7 @@
 .approval-detail-page.product-detail-page .approval-detail-header h2 {
   margin: 4px 0 6px !important;
   color: #ffffff !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
   position: relative;
@@ -2259,7 +2259,7 @@
 .product-form-page .approval-detail-header span,
 .approval-detail-page.product-detail-page .approval-detail-header span {
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm);
   position: relative;
 }
 
@@ -2295,7 +2295,7 @@
 .product-form-card .section-title h3 {
   margin: 0;
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -2321,7 +2321,7 @@
 
 .product-form-grid span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
 }
 
@@ -2334,7 +2334,7 @@
   padding: 0 10px !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   transition: all 0.18s ease;
   box-sizing: border-box;
   width: 100%;
@@ -2377,7 +2377,7 @@
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
   cursor: pointer;
   box-sizing: border-box;
@@ -2402,7 +2402,7 @@
   margin: 0;
   padding: 8px 24px 16px;
   color: #cf1322;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* 底部操作条 */
@@ -2425,8 +2425,8 @@
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
@@ -2476,8 +2476,8 @@
   border-radius: 999px;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
@@ -2504,7 +2504,7 @@
   border-radius: 10px !important;
   background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
   color: #ffffff !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -2563,7 +2563,7 @@
 .approval-detail-page.product-detail-page .product-detail-section-heading h3 {
   margin: 0;
   color: var(--spd-text-heading) !important;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   font-family: var(--spd-font-family-display);
   display: flex;
@@ -2583,7 +2583,7 @@
 .approval-detail-page.product-detail-page .product-detail-section-heading p {
   margin: 4px 0 0;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading > span {
@@ -2596,11 +2596,9 @@
   min-height: 26px;
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
-  font-size: 12px;
-  font-weight: 500;
 }
 
 /* 字段网格 */
@@ -2625,14 +2623,14 @@
 
 .approval-detail-page.product-detail-page .product-detail-field dt {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .approval-detail-page.product-detail-page .product-detail-field dd {
   margin: 0;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -2646,7 +2644,7 @@
 .approval-detail-page.product-detail-page .product-detail-field.emphasis dd {
   color: #4f46e5 !important;
   font-weight: 700;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* 附件表 */
@@ -2668,17 +2666,17 @@
   padding: 10px 14px !important;
   text-align: left;
   vertical-align: middle;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
   background: transparent;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
   overflow-wrap: anywhere;
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table th {
   background: linear-gradient(180deg, #f0f9ff 0%, #e0e7ff 100%) !important;
   color: var(--spd-text-heading) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display);
   border-bottom: 2px solid color-mix(in srgb, var(--primary, #0d6b63) 30%, transparent) !important;
@@ -2717,7 +2715,7 @@
   align-items: center;
   gap: 4px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
   box-sizing: border-box;
@@ -2750,13 +2748,13 @@
 
 .attachment-preview-empty strong {
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .attachment-preview-empty span {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-detail-page.product-detail-page .product-detail-empty-state {
@@ -2764,7 +2762,7 @@
   color: var(--spd-text-tertiary);
   padding: 32px 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-detail-page.product-detail-page .product-detail-error {
@@ -2776,7 +2774,7 @@
   background: #fff1f0;
   color: #cf1322;
   padding: 16px 18px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-detail-page.product-detail-page .product-detail-error .btn {
@@ -2787,7 +2785,7 @@
   border-radius: var(--spd-radius, 6px);
   background: var(--spd-bg-container);
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2825,7 +2823,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 .approval-detail-page.product-detail-page .standard-page-heading > p {
   margin: 0 !important;
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
   position: relative;
   text-transform: none !important;
@@ -2835,7 +2833,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 .approval-detail-page.product-detail-page .standard-page-heading > h2 {
   margin: 4px 0 6px !important;
   color: #ffffff !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
   position: relative;
@@ -2844,7 +2842,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 
 .approval-detail-page.product-detail-page .standard-page-heading > span {
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   position: relative;
 }
 
@@ -2860,7 +2858,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   color: var(--spd-text-tertiary) !important;
   padding: 32px 16px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* 详情页操作条（彩色渐变 hero bar） */
@@ -2903,7 +2901,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.2) !important;
   color: #ffffff !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
   backdrop-filter: blur(2px);
@@ -2936,7 +2934,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   border-radius: 10px !important;
   background: rgba(255, 255, 255, 0.18) !important;
   color: #ffffff !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;

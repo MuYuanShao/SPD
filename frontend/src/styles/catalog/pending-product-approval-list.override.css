@@ -69,7 +69,7 @@
 .approval-page-title h2 {
   margin: 0 0 6px !important;
   color: #ffffff !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   letter-spacing: -0.2px !important;
   font-family: var(--spd-font-family-display) !important;
@@ -79,8 +79,8 @@
 .approval-page-title p {
   margin: 0 !important;
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 13px !important;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-loose);
   position: relative;
 }
 
@@ -141,7 +141,7 @@
 .approval-metric-card span {
   color: var(--spd-text-secondary) !important;
   font-weight: 500 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -150,9 +150,9 @@
   display: block !important;
   margin-top: 4px !important;
   color: var(--spd-text-heading) !important;
-  font-size: 28px !important;
+  font-size: var(--spd-font-size-4xl) !important;
   font-weight: 700 !important;
-  line-height: 1.2;
+  line-height: 1;
   font-family: var(--spd-font-family-display) !important;
 }
 
@@ -160,8 +160,8 @@
   display: block !important;
   margin-top: 4px !important;
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px !important;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-xs) !important;
+  line-height: var(--spd-lh-tight);
 }
 
 .approval-metric-card.alert strong {
@@ -224,7 +224,7 @@
 
 .approval-sidebar-title h3 {
   margin: 0 !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
   font-family: var(--spd-font-family-display) !important;
@@ -233,8 +233,8 @@
 .approval-sidebar-title p {
   margin: 4px 0 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-tight);
 }
 
 .approval-sidebar-title .el-icon,
@@ -281,7 +281,7 @@
 
 .approval-task-item span {
   font-weight: 600 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: inherit;
 }
 
@@ -293,7 +293,7 @@
   border-radius: 999px;
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   padding: 0 8px;
 }
@@ -339,7 +339,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 6px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
   transition: all 0.18s ease;
   text-align: left;
@@ -360,7 +360,7 @@
 .approval-sub-list em {
   color: var(--spd-text-tertiary) !important;
   font-style: normal;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 
@@ -393,7 +393,7 @@
 .approval-context h3 {
   margin: 0 0 6px !important;
   color: var(--spd-text-heading) !important;
-  font-size: 18px !important;
+  font-size: var(--spd-font-size-xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
   letter-spacing: -0.2px;
@@ -402,8 +402,8 @@
 .approval-context p {
   margin: 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .approval-action-row {
@@ -435,7 +435,7 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   transition: all 0.18s ease;
 }
 
@@ -515,14 +515,14 @@
 
 .approval-field-nav-head strong {
   color: var(--spd-text-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
 
 .approval-field-nav-head span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -538,7 +538,7 @@
   background: transparent;
   border: 0;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--spd-radius-sm, 4px) 4px 0 0;
@@ -586,7 +586,7 @@
   background: var(--spd-bg-page, #f0f2f5);
   border: 1px solid transparent;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.18s ease;
@@ -626,7 +626,7 @@
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
 }
 
@@ -649,7 +649,7 @@
 .approval-wide-table th {
   background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display) !important;
   letter-spacing: 0;
@@ -661,7 +661,7 @@
 
 .approval-wide-table td {
   color: var(--spd-text-primary) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
@@ -736,7 +736,7 @@ thead .approval-sticky-action {
 .approval-product-cell small {
   margin-top: 4px;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-money {
@@ -765,8 +765,8 @@ thead .approval-sticky-action {
   max-width: 240px;
   min-width: 160px;
   color: #fa541c !important;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-tight);
   white-space: normal;
   word-break: break-all;
 }
@@ -779,7 +779,7 @@ thead .approval-sticky-action {
   border-radius: var(--spd-radius-sm, 4px);
   padding: 0 8px;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   background: var(--spd-primary-bg);
   color: var(--primary);
@@ -825,7 +825,7 @@ thead .approval-sticky-action {
   border-radius: 999px;
   padding: 0 10px;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -856,7 +856,7 @@ thead .approval-sticky-action {
   min-height: 22px;
   border-radius: 999px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -900,7 +900,7 @@ thead .approval-sticky-action {
 .approval-row-actions .btn {
   min-height: 28px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   border-radius: var(--spd-radius-sm, 4px);
   border: 1px solid var(--spd-border-default);
   background: var(--spd-bg-container);
@@ -1010,7 +1010,7 @@ thead .approval-sticky-action {
   background: var(--spd-primary-bg) !important;
   border-top: 1px solid color-mix(in srgb, var(--primary) 18%, transparent) !important;
   border-radius: 0 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-primary);
 }
 
@@ -1026,7 +1026,7 @@ thead .approval-sticky-action {
   border-radius: var(--spd-radius-sm, 4px);
   padding: 0 10px;
   min-height: 28px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1057,7 +1057,7 @@ thead .approval-sticky-action {
 
 .approval-empty-state p {
   color: var(--spd-text-tertiary) !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   margin: 0;
 }
 
@@ -1072,7 +1072,7 @@ thead .approval-sticky-action {
   justify-content: space-between;
   padding: 14px 24px !important;
   margin: 0 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-secondary);
   border-top: 1px solid var(--spd-border-subtle);
   background: var(--spd-bg-container);
@@ -1080,7 +1080,7 @@ thead .approval-sticky-action {
 
 .approval-pagination-info {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-pagination-pages {
@@ -1156,7 +1156,7 @@ thead .approval-sticky-action {
   color: var(--spd-text-primary);
   padding: 0 8px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
   text-align: left;
 }
@@ -1174,7 +1174,7 @@ thead .approval-sticky-action {
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
   color: var(--primary);
   border-radius: var(--spd-radius, 6px);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ===== 响应式 ===== */
@@ -1232,7 +1232,7 @@ thead .approval-sticky-action {
   border-radius: 4px !important;
   background: var(--primary) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -1299,7 +1299,7 @@ thead .approval-sticky-action {
   background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 0 10px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
@@ -1374,7 +1374,7 @@ body .approval-create-dialog.approval-create-dialog,
 .approval-create-head p {
   margin: 0 !important;
   color: var(--primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -1383,7 +1383,7 @@ body .approval-create-dialog.approval-create-dialog,
 .approval-create-head h3 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display);
   letter-spacing: -0.2px;
@@ -1444,7 +1444,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 14px 0 8px;
   border-bottom: 1px dashed var(--spd-border-subtle);
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1473,7 +1473,7 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-create-section .supplier-form-grid label > span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
 }
 
@@ -1487,7 +1487,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 0 10px !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   transition: all 0.18s ease;
   box-sizing: border-box;
 }
@@ -1535,7 +1535,7 @@ body .approval-create-dialog.approval-create-dialog,
   border: 1px solid var(--spd-border-default) !important;
   border-radius: var(--spd-radius, 6px) !important;
   padding: 0 10px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: var(--spd-bg-container) !important;
   box-sizing: border-box;
 }
@@ -1561,7 +1561,7 @@ body .approval-create-dialog.approval-create-dialog,
   color: var(--spd-text-primary) !important;
   padding: 8px 10px !important;
   cursor: pointer;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   min-height: 0 !important;
   height: auto !important;
   box-sizing: border-box;
@@ -1576,13 +1576,13 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-source-results button strong {
   color: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .approval-source-results button span {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-source-selected {
@@ -1592,7 +1592,7 @@ body .approval-create-dialog.approval-create-dialog,
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) !important;
   border-radius: var(--spd-radius, 6px) !important;
   color: var(--primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .approval-attachment-summary {
@@ -1607,13 +1607,13 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-attachment-summary strong {
   color: var(--spd-text-heading);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .approval-attachment-summary span {
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-upload-list {
@@ -1630,7 +1630,7 @@ body .approval-create-dialog.approval-create-dialog,
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   padding: 0 10px !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
 }
 
@@ -1656,7 +1656,7 @@ body .approval-create-dialog.approval-create-dialog,
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
   box-sizing: border-box;
 }
@@ -1693,8 +1693,8 @@ body .approval-create-dialog.approval-create-dialog,
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
@@ -1776,8 +1776,8 @@ body .column-settings-dialog.column-settings-dialog {
 .col-settings-tip {
   margin: 0 0 16px;
   color: var(--spd-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .col-settings-grid {
@@ -1797,7 +1797,7 @@ body .column-settings-dialog.column-settings-dialog {
   background: var(--spd-bg-container);
   cursor: pointer;
   transition: all 0.18s ease;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
   box-sizing: border-box;
 }
@@ -1832,14 +1832,14 @@ body .column-settings-dialog.column-settings-dialog {
   font-family: var(--spd-font-family-mono) !important;
   font-variant-numeric: tabular-nums;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .approval-time {
   font-family: var(--spd-font-family-mono) !important;
   font-variant-numeric: tabular-nums;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   white-space: nowrap !important;
 }
 
@@ -1860,7 +1860,7 @@ body .column-settings-dialog.column-settings-dialog {
 .approval-wide-table th {
   background: var(--primary) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   border-right-color: rgba(255, 255, 255, 0.22) !important;
   border-bottom: 0 !important;
@@ -1914,7 +1914,7 @@ thead .approval-sticky-action {
 
 .approval-wide-table td {
   color: var(--spd-text-primary) !important;
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* 左侧固定列内部文字仍保持左对齐，避免长文本难读 */
@@ -1986,7 +1986,7 @@ thead .approval-sticky-action {
 
 .approval-filter-row .ulc-filter-fields label > span {
   color: #405564;
-  font-size: 14px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -2019,7 +2019,7 @@ thead .approval-sticky-action {
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   background: transparent;
   color: var(--spd-text-primary);
 }
@@ -2078,7 +2078,7 @@ thead .approval-sticky-action {
 
 .approval-filter-row .ulc-filter-select .el-select__placeholder,
 .approval-filter-row .ulc-filter-select .el-select__selected-item {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -2102,7 +2102,7 @@ thead .approval-sticky-action {
   border-radius: 4px;
   background: var(--primary);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -2132,7 +2132,7 @@ thead .approval-sticky-action {
   border-radius: 4px;
   background: var(--primary);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
   cursor: pointer;

@@ -43,7 +43,7 @@
   padding: 0 14px;
   justify-content: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   border-radius: var(--md-radius, 6px);
 }
@@ -58,7 +58,7 @@
   border-radius: 999px;
   background: var(--md-bg-muted, #eef1f2);
   color: var(--md-text-muted, #64748b);
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -84,7 +84,7 @@
 .receiving-toolbar .btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-toolbar .btn svg {
@@ -113,22 +113,22 @@
 
 .receiving-query-grid label > span {
   color: var(--md-text-secondary, #567084);
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  line-height: var(--spd-lh-tight);
 }
 
 .receiving-query-grid .md-input,
 .receiving-query-grid .md-select {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* 查询按钮与其他字段底边对齐 */
 .receiving-query-button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-query-button svg {
@@ -169,7 +169,7 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .receiving-page .receiving-table thead th {
@@ -177,8 +177,8 @@
   top: 0;
   z-index: 3;
   padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -188,7 +188,7 @@
 
 .receiving-page .receiving-table tbody td {
   padding: 8px 12px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -205,7 +205,7 @@
 /* ---------- 单据号 / 数量 / 金额 / 时间 ---------- */
 .receiving-page .receiving-table .document-no-cell {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   color: var(--md-text-heading) !important;
   white-space: nowrap;
@@ -236,7 +236,7 @@
 .receiving-page .receiving-table .status-badge {
   min-height: 20px;
   padding: 0 9px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: 999px;
 }
@@ -252,7 +252,7 @@
 .receiving-page .receiving-table .btn-text {
   min-height: 24px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 加载 / 空状态 ---------- */
@@ -261,7 +261,7 @@
   padding: 48px 16px !important;
   text-align: center;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ================================================================
@@ -317,7 +317,7 @@
 .receiving-create-titlebar strong {
   display: inline-flex;
   align-items: center;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #0f172a;
   flex: 0 1 auto;
@@ -370,8 +370,8 @@
 
 .receiving-form-grid label > span {
   color: var(--md-text-secondary, #172b3a);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   text-align: right;
 }
 
@@ -394,7 +394,7 @@
   color: var(--md-text, #102033);
   padding: 0 9px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   box-sizing: border-box;
 }
 
@@ -445,8 +445,8 @@
   background: var(--md-bg-card, #fff);
   color: var(--md-text, #334652);
   font: inherit;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.18s ease;
 }
@@ -503,8 +503,8 @@
   gap: 8px;
   margin-left: auto;
   color: var(--md-text-secondary, #172b3a);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 /* ---------- 明细表格 ---------- */
@@ -529,7 +529,7 @@
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .receiving-detail-sheet th,
@@ -557,8 +557,8 @@
   z-index: 2;
   background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   color: #475569;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
   letter-spacing: 0.02em;
   text-align: left;
   border-bottom: 2px solid #c7d2fe;
@@ -653,7 +653,7 @@
   flex-wrap: wrap;
   gap: 16px;
   color: var(--md-text-secondary, #102033);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -701,14 +701,14 @@
 
 .receiving-detail-header p {
   color: var(--md-text-muted, #607588);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-detail-header h3 {
   margin-top: 2px;
   color: var(--md-text-heading, #0d2f55);
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 17px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
 }
 
@@ -729,12 +729,12 @@
 
 .receiving-detail-meta span {
   color: var(--md-text-muted, #607588);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-detail-meta strong {
   color: var(--md-text-heading, #102033);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -779,7 +779,7 @@
   background: transparent;
   color: var(--md-text, #102033);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .receiving-detail-search:focus-within {
@@ -790,7 +790,7 @@
 .receiving-detail-search-button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-detail-search-button svg {
@@ -802,7 +802,7 @@
 .receiving-detail-count {
   margin-left: auto;
   color: var(--md-text-muted, #607588);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -836,14 +836,14 @@
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading, #47637b);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
 }
 
 .receiving-detail-table td {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .receiving-detail-table tbody tr:nth-child(even) td {
@@ -967,7 +967,7 @@
 }
 
 .item-dialog-titlebar strong {
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #0f172a;
   flex: 0 1 auto;
@@ -1018,8 +1018,8 @@
 
 .item-form-grid label > span {
   color: var(--md-text-secondary, #172b3a);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   text-align: right;
 }
 
@@ -1040,7 +1040,7 @@
   background: var(--md-bg-card, #fff);
   color: inherit;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   box-sizing: border-box;
 }
 
@@ -1088,8 +1088,8 @@
   border-radius: var(--md-radius-sm, 4px);
   background: transparent;
   color: #6366f1;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   cursor: pointer;
   transition: background-color 0.16s ease, color 0.16s ease;
 }
@@ -1108,7 +1108,7 @@
 
 .receiving-detail-sheet .cell-muted {
   color: var(--md-text-muted, #8a97a3);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .receiving-detail-sheet .empty-detail {

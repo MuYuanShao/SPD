@@ -203,8 +203,8 @@ watch(() => props.open, (open) => {
   border: 1px solid #a7f3d0;
 }
 
-.pc-header h3 { margin: 0; font-size: 15px; font-weight: 700; color: #102033; }
-.pc-header p  { margin: 2px 0 0; font-size: 12px; color: #64748b; }
+.pc-header h3 { margin: 0; font-size: var(--spd-font-size-xl); font-weight: 700; color: #102033; }
+.pc-header p  { margin: 2px 0 0; font-size: var(--spd-font-size-sm); color: #64748b; }
 
 .pc-close {
   width: 28px;
@@ -249,13 +249,13 @@ watch(() => props.open, (open) => {
   background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
   border: 1px solid #93c5fd;
   color: #1d4ed8;
-  font-size: 17px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   flex-shrink: 0;
 }
 
 .pc-profile-fields { display: grid; gap: 4px; min-width: 0; flex: 1; }
-.pc-profile-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.pc-profile-row { display: flex; align-items: baseline; gap: 8px; font-size: var(--spd-font-size-base); }
 .pc-profile-row span { color: #64748b; min-width: 62px; }
 .pc-profile-row strong { color: #102033; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -265,13 +265,13 @@ watch(() => props.open, (open) => {
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
   color: #334155;
 }
 
 .pc-form { display: grid; gap: 10px; }
-.pc-form label { display: grid; gap: 5px; font-size: 12px; font-weight: 600; color: #4b5b66; }
+.pc-form label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: #4b5b66; }
 
 .pc-input {
   width: 100%;
@@ -282,7 +282,7 @@ watch(() => props.open, (open) => {
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 .pc-input:focus { outline: none; border-color: #10b981; }
@@ -297,11 +297,11 @@ watch(() => props.open, (open) => {
   border: 1px solid #e2e8f0;
   background: #f8fafc;
   color: #94a3b8;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
 }
 .pc-checks li.is-passed { color: #047857; border-color: #6ee7b7; background: #ecfdf5; }
 
-.pc-error { margin: 0; color: #b91c1c; font-size: 12px; font-weight: 500; }
+.pc-error { margin: 0; color: #b91c1c; font-size: var(--spd-font-size-sm); font-weight: 500; }
 
 .pc-footer {
   display: flex;
@@ -324,7 +324,7 @@ watch(() => props.open, (open) => {
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;

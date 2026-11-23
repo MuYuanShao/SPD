@@ -338,7 +338,7 @@
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
   color: #4f46e5;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-xs);
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
 }
 
@@ -478,7 +478,7 @@
 
 .manufacturer-form-hint {
   color: #7a8b95;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 

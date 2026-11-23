@@ -910,7 +910,7 @@ watch(mode, () => {
 .inventory-page .inventory-query-tabs button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: var(--md-radius, 6px);
 }
@@ -935,20 +935,20 @@ watch(mode, () => {
 
 .inventory-page .inventory-query-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  line-height: var(--spd-lh-tight);
 }
 
 .inventory-page .inventory-query-grid .md-input {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inventory-page .inventory-query-button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inventory-page .inventory-query-button svg {
@@ -984,7 +984,7 @@ watch(mode, () => {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .inventory-page .inventory-table thead th {
@@ -992,8 +992,8 @@ watch(mode, () => {
   top: 0;
   z-index: 3;
   padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -1003,7 +1003,7 @@ watch(mode, () => {
 
 .inventory-page .inventory-table tbody td {
   padding: 8px 12px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -1034,7 +1034,7 @@ watch(mode, () => {
 .inventory-page .stocktaking-title h3 {
   margin: 0;
   color: var(--md-text-heading);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
@@ -1042,7 +1042,7 @@ watch(mode, () => {
   margin-left: auto;
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1053,8 +1053,8 @@ watch(mode, () => {
   background: var(--md-bg-muted, #fafbfc);
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .inventory-page .stocktaking-list-scroll {
@@ -1072,7 +1072,7 @@ watch(mode, () => {
   min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .inventory-page .stocktaking-table thead th {
@@ -1083,8 +1083,8 @@ watch(mode, () => {
   color: var(--md-text-heading) !important;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
@@ -1094,7 +1094,7 @@ watch(mode, () => {
   color: var(--md-text) !important;
   background: var(--md-bg-card, #fff);
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
 }
 
@@ -1136,7 +1136,7 @@ watch(mode, () => {
 /* ---------- 编码列 ---------- */
 .inventory-page .inventory-table .inventory-code-cell {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   white-space: nowrap;
 }
@@ -1182,7 +1182,7 @@ watch(mode, () => {
   padding: 48px 16px !important;
   text-align: center;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ---------- 提示条 ---------- */
@@ -1193,7 +1193,7 @@ watch(mode, () => {
   border-radius: var(--md-radius, 6px);
   color: var(--spd-primary-text);
   background: var(--spd-primary-bg);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 响应式 ---------- */
@@ -1255,7 +1255,7 @@ watch(mode, () => {
   padding: 0 11px;
   background: var(--md-bg-card, #fff);
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* =====================================================================
@@ -1284,7 +1284,7 @@ watch(mode, () => {
 
 .stocktaking-sheet-dialog > header p {
   margin: 0 0 2px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   color: #1677ff;
@@ -1293,7 +1293,7 @@ watch(mode, () => {
 
 .stocktaking-sheet-dialog > header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #172033;
 }
@@ -1323,7 +1323,7 @@ watch(mode, () => {
 }
 
 .stocktaking-sheet-dialog .supplier-form-grid label > span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #475569;
 }
@@ -1334,7 +1334,7 @@ watch(mode, () => {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #1f2937;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1364,13 +1364,13 @@ watch(mode, () => {
 }
 
 .stocktaking-scope-head strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #1d4ed8;
 }
 
 .stocktaking-scope-head span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1388,7 +1388,7 @@ watch(mode, () => {
   border: 1px solid #c7d2fe;
   border-radius: 999px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #1e293b;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1413,7 +1413,7 @@ watch(mode, () => {
   flex-wrap: wrap;
   gap: 6px;
   min-height: 22px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1431,7 +1431,7 @@ watch(mode, () => {
   display: inline-flex;
   align-items: center;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   color: #1d4ed8;
   background: #dbeafe;
@@ -1470,7 +1470,7 @@ watch(mode, () => {
   min-width: 1200px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .stocktaking-detail-table thead th {
@@ -1478,8 +1478,8 @@ watch(mode, () => {
   top: 0;
   z-index: 2;
   padding: 10px 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   color: #1e293b !important;
   background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
   border-bottom: 1px solid #c7d2fe !important;
@@ -1491,7 +1491,7 @@ watch(mode, () => {
   padding: 9px 14px !important;
   border-bottom: 1px solid #f1f5f9 !important;
   color: #334155 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: #fff;
   vertical-align: middle;
 }
@@ -1513,7 +1513,7 @@ watch(mode, () => {
 
 .stocktaking-detail-table .stocktaking-code-cell {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: #475569 !important;
   white-space: nowrap;
 }
@@ -1522,7 +1522,7 @@ watch(mode, () => {
   padding: 56px 16px !important;
   text-align: center;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-sheet-dialog .dialog-actions {
@@ -1541,7 +1541,7 @@ watch(mode, () => {
   min-width: 100px;
   height: 34px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   border-radius: 6px;
 }

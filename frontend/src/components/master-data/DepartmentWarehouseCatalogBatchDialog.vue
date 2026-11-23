@@ -569,7 +569,7 @@ function toggleAllFiltered() {
 
 .product-name {
   color: var(--bcd-text);
-  font-weight: 650;
+  font-weight: 700;
 }
 
 .product-option.is-disabled {

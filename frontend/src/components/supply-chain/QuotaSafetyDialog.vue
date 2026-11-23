@@ -283,7 +283,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .qs-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
@@ -291,7 +291,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 .qs-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -301,7 +301,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   border-radius: 999px;
   background: rgba(34, 197, 94, 0.3);
   color: #dcfce7;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -342,7 +342,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-form-header strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #334155;
 }
@@ -361,7 +361,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
   font-weight: 500;
 }
@@ -377,7 +377,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   border-radius: 6px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 
@@ -438,7 +438,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   padding: 8px 10px;
   text-align: left;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   cursor: pointer;
 }
 
@@ -448,13 +448,13 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 .qs-warehouse-results li button small {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .qs-warehouse-empty {
   color: #6b7c8f;
   padding: 8px 10px;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .qs-warehouse-hint {
@@ -462,7 +462,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   align-items: center;
   gap: 4px;
   color: #0d9488;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   padding-top: 2px;
 }
@@ -506,7 +506,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   border-radius: 7px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 110px;
 }
@@ -528,7 +528,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   min-width: 1180px;
   border-collapse: collapse;
   table-layout: fixed;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
 }
 
@@ -538,8 +538,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   z-index: 2;
   padding: 9px 12px;
   text-align: left;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
   letter-spacing: 0.3px;
   color: #ffffff;
   background: linear-gradient(135deg, #475569, #334155);
@@ -610,7 +610,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .cell-code {
   color: #0f6f78;
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-base);
 }
 
 .cell-qty {
@@ -620,14 +620,14 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   background: rgba(99, 102, 241, 0.1);
   color: #4f46e5;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .status-badge {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -652,7 +652,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   padding: 5px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
@@ -668,7 +668,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-btn-sm {
-  min-height: 28px; padding: 3px 12px; font-size: 12px;
+  min-height: 28px; padding: 3px 12px; font-size: var(--spd-font-size-sm);
 }
 
 .qs-btn-primary {

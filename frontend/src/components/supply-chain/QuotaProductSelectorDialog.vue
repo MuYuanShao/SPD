@@ -155,7 +155,7 @@ function priceText(value: unknown) {
 .qps-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
@@ -163,7 +163,7 @@ function priceText(value: unknown) {
 
 .qps-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -200,7 +200,7 @@ function priceText(value: unknown) {
   border-radius: 8px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 140px;
 }
@@ -221,7 +221,7 @@ function priceText(value: unknown) {
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
 }
 
@@ -231,8 +231,8 @@ function priceText(value: unknown) {
   z-index: 2;
   padding: 10px 14px;
   text-align: left;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
   letter-spacing: 0.3px;
   color: #ffffff;
   background: linear-gradient(135deg, #475569, #334155);
@@ -270,7 +270,7 @@ function priceText(value: unknown) {
 .cell-code {
   color: #0f6f78;
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-base);
 }
 
 .qps-empty {
@@ -294,7 +294,7 @@ function priceText(value: unknown) {
   padding: 5px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
@@ -308,7 +308,7 @@ function priceText(value: unknown) {
 .qps-btn-sm {
   min-height: 28px;
   padding: 3px 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .qps-btn-primary {

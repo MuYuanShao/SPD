@@ -231,7 +231,7 @@
   display: block;
   margin-top: 2px;
   color: #70828d;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .department-organization-cell,
@@ -261,7 +261,7 @@
   min-height: 22px;
   border-radius: 999px;
   padding: 0 7px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
 }
 
@@ -280,7 +280,7 @@
 .department-finance-cell code {
   color: #526b76;
   font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .department-contact-cell span {
@@ -482,7 +482,7 @@
 
 .department-form-hint {
   color: #7a8b95;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 

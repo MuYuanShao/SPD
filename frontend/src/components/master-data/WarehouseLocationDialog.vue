@@ -259,7 +259,7 @@ const emit = defineEmits<{
 
 .warehouse-location-title p {
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
@@ -267,7 +267,7 @@ const emit = defineEmits<{
 
 .warehouse-location-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -276,7 +276,7 @@ const emit = defineEmits<{
   display: inline-block;
   margin-top: 6px;
   padding: 3px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   background: rgba(255, 255, 255, 0.18);
   border-radius: 999px;
   color: #ffffff;
@@ -316,7 +316,7 @@ const emit = defineEmits<{
 
 .warehouse-location-form .section-title.compact h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #172b3a;
 }
@@ -326,7 +326,7 @@ const emit = defineEmits<{
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.15));
   color: #b45309;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
 
@@ -334,7 +334,7 @@ const emit = defineEmits<{
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
   font-weight: 500;
 }
@@ -347,7 +347,7 @@ const emit = defineEmits<{
   border-radius: 6px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 
@@ -380,7 +380,7 @@ const emit = defineEmits<{
   padding: 5px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
@@ -520,7 +520,7 @@ const emit = defineEmits<{
 
 .product-result-option .product-spec {
   color: #6b7c8f;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -530,7 +530,7 @@ const emit = defineEmits<{
   margin: 0;
   padding: 12px;
   color: #6b7c8f;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   text-align: center;
 }
 
@@ -556,7 +556,7 @@ const emit = defineEmits<{
 }
 
 .warehouse-location-tools strong {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #172b3a;
 }
@@ -566,7 +566,7 @@ const emit = defineEmits<{
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12));
   color: #4f46e5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   margin-right: auto;
 }
@@ -583,7 +583,7 @@ const emit = defineEmits<{
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
 }
 
@@ -593,8 +593,8 @@ const emit = defineEmits<{
   z-index: 2;
   padding: 10px 12px;
   text-align: left;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
   letter-spacing: 0.3px;
   color: #ffffff;
   background: linear-gradient(135deg, #475569 0%, #334155 100%);
@@ -657,7 +657,7 @@ const emit = defineEmits<{
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border: 1px solid transparent;
 }
@@ -685,7 +685,7 @@ const emit = defineEmits<{
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   background: rgba(34, 197, 94, 0.12);
   color: #15803d;
@@ -716,7 +716,7 @@ const emit = defineEmits<{
   padding: 3px 12px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;

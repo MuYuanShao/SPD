@@ -298,16 +298,16 @@ onMounted(async () => {
 .ledger-filter label > span,
 .advanced-filters label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
 }
 
 .ledger-filter .md-input,
 .ledger-filter .md-select,
 .advanced-filters .md-input {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .ledger-filter-actions {
@@ -320,7 +320,7 @@ onMounted(async () => {
 .ledger-filter-actions .md-btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .ledger-filter-actions .md-btn svg {
@@ -370,7 +370,7 @@ onMounted(async () => {
   border-radius: var(--md-radius, 6px);
   background: var(--md-bg-muted, var(--spd-bg-page));
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .ledger-summary strong {
@@ -383,7 +383,7 @@ onMounted(async () => {
 
 .muted-hint {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 表格 ---------- */
@@ -412,7 +412,7 @@ onMounted(async () => {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .inventory-ledger-page .ledger-table thead th {
@@ -420,8 +420,8 @@ onMounted(async () => {
   top: 0;
   z-index: 3;
   padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -431,7 +431,7 @@ onMounted(async () => {
 
 .inventory-ledger-page .ledger-table tbody td {
   padding: 8px 12px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -453,7 +453,7 @@ onMounted(async () => {
   left: 0;
   z-index: 2;
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text-heading) !important;
 }
 
@@ -487,7 +487,7 @@ onMounted(async () => {
 
 .ledger-table .code-cell {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   white-space: nowrap;
 }
 
@@ -513,7 +513,7 @@ onMounted(async () => {
   display: block;
   margin-top: 1px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 /* ---------- 出库 / 调价 标识 ---------- */
@@ -531,7 +531,7 @@ onMounted(async () => {
   border-radius: 999px;
   background: var(--md-primary-soft, #e8f1ef);
   color: var(--md-primary-strong, var(--md-primary, #0d6b63));
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -582,12 +582,12 @@ onMounted(async () => {
 .detail-grid span,
 .trace-list span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .detail-grid strong {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   word-break: break-all;
 }
@@ -622,7 +622,7 @@ onMounted(async () => {
 
 .trace-list strong {
   font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--md-text-heading, var(--spd-text-heading));
 }
 
@@ -632,7 +632,7 @@ onMounted(async () => {
   background: var(--md-bg-muted, var(--spd-bg-page));
   border-radius: var(--md-radius, 6px);
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

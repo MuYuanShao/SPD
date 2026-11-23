@@ -1,4 +1,4 @@
-.approval-config-page {
+﻿.approval-config-page {
   display: grid;
   gap: 10px;
 }
@@ -244,7 +244,7 @@
   background: #2e63e6;
   color: #ffffff;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-timeline-node strong {

@@ -220,7 +220,7 @@
   display: block;
   margin-top: 2px;
   color: #70828d;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .campus-address-cell {
@@ -441,7 +441,7 @@
 
 .campus-form-hint {
   color: #7a8b95;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 

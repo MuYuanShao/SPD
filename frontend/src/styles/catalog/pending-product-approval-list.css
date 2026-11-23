@@ -707,7 +707,7 @@
 .approval-wide-table th {
   color: #516679;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
@@ -785,7 +785,7 @@ thead .approval-sticky-action {
 
 .approval-product-cell strong {
   color: #17293b;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-product-cell small {
@@ -795,7 +795,7 @@ thead .approval-sticky-action {
 
 .approval-money {
   color: #0f766e;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-risk-chip {
@@ -805,7 +805,7 @@ thead .approval-sticky-action {
   border-radius: 999px;
   padding: 0 8px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   white-space: nowrap;
 }
 

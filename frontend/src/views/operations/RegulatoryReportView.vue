@@ -352,8 +352,8 @@ onMounted(() => void loadReport())
   gap: 5px;
   min-width: 0;
   color: #4b5b66;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 .report-filters input,
 .report-filters select {
@@ -365,6 +365,7 @@ onMounted(() => void loadReport())
   color: #102033;
   padding: 0 10px;
   font: inherit;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 .report-filters input:focus,
@@ -398,9 +399,9 @@ onMounted(() => void loadReport())
   border: 1px solid var(--spd-line, #e6ecef);
   border-radius: 10px;
   color: #455463;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
-.report-summary strong { color: #102033; font-size: 16px; font-weight: 800; }
+.report-summary strong { color: #102033; font-size: var(--spd-font-size-lg); font-weight: 800; }
 .report-summary .primary-text { color: var(--spd-primary, #1f8d7a); }
 .report-summary .danger-text { color: #b42318; }
 .report-summary .warning-text { color: #a15c08; font-weight: 800; }
@@ -417,18 +418,18 @@ onMounted(() => void loadReport())
 }
 .report-table {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 .report-table :deep(th .cell) {
   color: #294b52;
-  font-weight: 800;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
 }
 .report-table :deep(.cell-sub) {
   display: block;
   margin-top: 2px;
   color: #72848f;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 .report-table :deep(.progress-cell) {
   display: grid;
@@ -450,7 +451,7 @@ onMounted(() => void loadReport())
 }
 .report-table :deep(.progress-cell strong) {
   color: #23565a;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   text-align: right;
 }
 .report-table :deep(.status-pill) {
@@ -462,8 +463,8 @@ onMounted(() => void loadReport())
   color: #087268;
   padding: 0 8px;
   font-style: normal;
-  font-weight: 800;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: var(--spd-font-size-base);
 }
 .report-table :deep(.status-pill.neutral) {
   background: #eef3f5;
@@ -471,7 +472,7 @@ onMounted(() => void loadReport())
 }
 .report-table :deep(.positive-text) { color: #087268; }
 .report-table :deep(.danger-text) { color: #b42318; }
-.report-table :deep(.strong-number) { color: #102033; font-weight: 900; }
+.report-table :deep(.strong-number) { color: #102033; font-weight: 800; }
 .report-table :deep(.warning-text) { color: #a15c08; font-weight: 800; }
 
 @media (max-width: 1480px) {

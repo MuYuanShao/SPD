@@ -418,29 +418,29 @@ onMounted(() => void loadReport())
 }
 
 .report-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .report-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .report-kpi-value small {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
   margin-left: 2px;
   opacity: 0.75;
 }
 
 .report-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   opacity: 0.75;
 }
 
@@ -505,14 +505,14 @@ onMounted(() => void loadReport())
 
 .section-title h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading);
 }
 
 .section-title p {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -546,8 +546,8 @@ onMounted(() => void loadReport())
   gap: 5px;
   min-width: 0;
   color: #4b5b66;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .report-filters input,
@@ -561,6 +561,7 @@ onMounted(() => void loadReport())
   color: #102033;
   padding: 0 10px;
   font: inherit;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -590,7 +591,7 @@ onMounted(() => void loadReport())
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #455463;
   white-space: nowrap;
@@ -622,7 +623,7 @@ onMounted(() => void loadReport())
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #455463;
 }
 
@@ -632,7 +633,7 @@ onMounted(() => void loadReport())
 
 .report-summary strong {
   color: #102033;
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -654,7 +655,7 @@ onMounted(() => void loadReport())
   border-radius: 999px;
   border: 1px solid;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -696,7 +697,7 @@ onMounted(() => void loadReport())
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -738,7 +739,7 @@ onMounted(() => void loadReport())
 
 .reconciliation-table {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .reconciliation-table :deep(th) {
@@ -749,7 +750,7 @@ onMounted(() => void loadReport())
 .reconciliation-table :deep(th .cell) {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
 }
 
@@ -774,7 +775,7 @@ onMounted(() => void loadReport())
   display: block;
   margin-top: 2px;
   color: #64748b;
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -794,7 +795,7 @@ onMounted(() => void loadReport())
   border: 1px solid;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   white-space: nowrap;
 }

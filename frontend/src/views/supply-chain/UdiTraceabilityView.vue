@@ -797,14 +797,14 @@ function eventTone(event: UdiTraceEvent) {
 .scan-card-head strong {
   display: block;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .scan-card-head small {
   display: block;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .scan-form {
@@ -845,7 +845,7 @@ function eventTone(event: UdiTraceEvent) {
   background: transparent;
   color: var(--spd-text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .scan-clear {
@@ -871,7 +871,7 @@ function eventTone(event: UdiTraceEvent) {
 .scan-reset {
   height: 40px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: 8px;
   white-space: nowrap;
@@ -928,7 +928,7 @@ function eventTone(event: UdiTraceEvent) {
 
 .filter-card-head strong {
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -947,8 +947,8 @@ function eventTone(event: UdiTraceEvent) {
 
 .filter-card-grid label > span {
   color: var(--spd-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .filter-card-grid select {
@@ -958,7 +958,7 @@ function eventTone(event: UdiTraceEvent) {
   border-radius: 6px;
   background: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -988,7 +988,7 @@ function eventTone(event: UdiTraceEvent) {
   background: #fff;
   color: var(--spd-text-secondary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   white-space: nowrap;
   cursor: pointer;
@@ -1102,14 +1102,14 @@ function eventTone(event: UdiTraceEvent) {
 .quota-card-head strong {
   display: block;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .quota-card-head small {
   display: block;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .quota-card-tag {
@@ -1118,7 +1118,7 @@ function eventTone(event: UdiTraceEvent) {
   margin-left: auto;
   padding: 2px 10px;
   color: #b45309;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   background: #fef3c7;
   border: 1px solid #fde68a;
@@ -1145,7 +1145,7 @@ function eventTone(event: UdiTraceEvent) {
   gap: 4px;
   padding: 1px 8px;
   width: max-content;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   border-radius: 4px;
 }
@@ -1169,7 +1169,7 @@ function eventTone(event: UdiTraceEvent) {
   border-radius: 6px;
   background: #fff;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1193,7 +1193,7 @@ function eventTone(event: UdiTraceEvent) {
   min-width: 130px;
   height: 38px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: 8px;
   white-space: nowrap;
@@ -1230,7 +1230,7 @@ function eventTone(event: UdiTraceEvent) {
   border-radius: var(--spd-radius-sm, 6px);
   background: var(--spd-primary-bg);
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .form-message.is-info {
@@ -1272,7 +1272,7 @@ function eventTone(event: UdiTraceEvent) {
   padding: 6px 12px;
   border: 1px solid;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   background: #fff;
   transition: transform 0.1s ease;
 }
@@ -1297,7 +1297,7 @@ function eventTone(event: UdiTraceEvent) {
 .udi-summary-value {
   margin-left: auto;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1407,7 +1407,7 @@ function eventTone(event: UdiTraceEvent) {
 .udi-panel-header h3 {
   margin: 0;
   color: var(--spd-text-heading);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
@@ -1418,20 +1418,20 @@ function eventTone(event: UdiTraceEvent) {
   gap: 6px;
   margin-top: 4px;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .trace-code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--spd-text-heading);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .detail-loading-tag {
   padding: 2px 8px;
   color: #1d4ed8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   background: #dbeafe;
   border-radius: 999px;
 }
@@ -1448,7 +1448,7 @@ function eventTone(event: UdiTraceEvent) {
   gap: 4px;
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.15s ease;
@@ -1593,13 +1593,13 @@ function eventTone(event: UdiTraceEvent) {
 
 .timeline-head strong {
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .timeline-head small {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1609,7 +1609,7 @@ function eventTone(event: UdiTraceEvent) {
   gap: 10px;
   margin: 4px 0 0;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .timeline-meta span {
@@ -1623,7 +1623,7 @@ function eventTone(event: UdiTraceEvent) {
   margin-top: 4px;
   padding: 4px 8px;
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-style: normal;
   background: #f8fafc;
   border-left: 2px solid #cbd5e1;
@@ -1654,7 +1654,7 @@ function eventTone(event: UdiTraceEvent) {
   min-height: 28px;
   padding: 4px 0;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1668,7 +1668,7 @@ function eventTone(event: UdiTraceEvent) {
   margin: 0;
   padding: 4px 0;
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   overflow-wrap: anywhere;
 }
@@ -1680,7 +1680,7 @@ function eventTone(event: UdiTraceEvent) {
 
 .detail-list dd small {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -1688,13 +1688,13 @@ function eventTone(event: UdiTraceEvent) {
   display: block;
   width: 100%;
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .detail-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   color: #475569 !important;
 }
 
@@ -1711,7 +1711,7 @@ function eventTone(event: UdiTraceEvent) {
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1723,7 +1723,7 @@ function eventTone(event: UdiTraceEvent) {
   padding: 0 8px;
   border: 1px solid;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1804,7 +1804,7 @@ table {
   min-width: 1100px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 thead th {
@@ -1812,8 +1812,8 @@ thead th {
   top: 0;
   z-index: 2;
   padding: 10px 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   color: #1e293b !important;
   background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
   border-bottom: 1px solid #c7d2fe !important;
@@ -1825,7 +1825,7 @@ tbody td {
   padding: 10px 14px !important;
   border-bottom: 1px solid #f1f5f9 !important;
   color: #334155 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
   background: #fff;
 }
@@ -1854,7 +1854,7 @@ tbody tr.selected:hover td {
 
 .cell-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: #475569 !important;
 }
 
@@ -1862,14 +1862,14 @@ td small {
   display: block;
   margin-top: 3px;
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
 .last-event {
   display: block;
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -1886,8 +1886,8 @@ td small {
   height: 28px;
   padding: 0 10px;
   color: #1d4ed8;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   background: #dbeafe;
   border: 1px solid #bfdbfe;
   border-radius: 999px;

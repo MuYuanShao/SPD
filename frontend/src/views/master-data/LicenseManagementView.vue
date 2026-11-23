@@ -1071,8 +1071,8 @@ onUnmounted(closePreview)
   background: var(--md-bg-page, #f5f7f8);
   color: var(--md-text, #1d2a35);
   font-family: var(--md-font, "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
 .license-tabs {
@@ -1091,7 +1091,7 @@ onUnmounted(closePreview)
   background: transparent;
   padding: 0 16px;
   min-height: 34px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
   cursor: pointer;
   border-radius: 6px;
@@ -1136,7 +1136,7 @@ onUnmounted(closePreview)
   padding: 8px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 .license-search input:focus {
   outline: none;
@@ -1144,8 +1144,8 @@ onUnmounted(closePreview)
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1677ff) 15%, transparent);
 }
 
-.license-message { color: #047857; font-size: 13px; margin: 0 0 8px; }
-.license-error { color: #b91c1c; font-size: 13px; margin: 0 0 8px; }
+.license-message { color: #047857; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
+.license-error { color: #b91c1c; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
 
 .license-pagination {
   display: flex;
@@ -1153,7 +1153,7 @@ onUnmounted(closePreview)
   align-items: center;
   gap: 12px;
   padding: 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1192,7 +1192,7 @@ onUnmounted(closePreview)
 .lf-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
@@ -1200,7 +1200,7 @@ onUnmounted(closePreview)
 
 .lf-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1208,7 +1208,7 @@ onUnmounted(closePreview)
 .lf-dialog-tag {
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 .lf-dialog-tag-renew {
@@ -1249,9 +1249,9 @@ onUnmounted(closePreview)
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .lf-field.wide { grid-column: 1 / -1; }
@@ -1265,7 +1265,7 @@ onUnmounted(closePreview)
   border-radius: 6px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 .lf-field input:focus,
@@ -1277,7 +1277,7 @@ onUnmounted(closePreview)
 }
 .lf-field input[readonly] { background: #f0f3f5; color: #6b7c8f; cursor: not-allowed; }
 .lf-field textarea { min-height: 60px; resize: vertical; }
-.lf-field small { color: #94a3b8; font-size: 11px; }
+.lf-field small { color: #94a3b8; font-size: var(--spd-font-size-xs); }
 
 .lf-remark { }
 
@@ -1316,7 +1316,7 @@ onUnmounted(closePreview)
   border-radius: 6px;
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   cursor: pointer;
   transition: background 0.15s;
@@ -1329,13 +1329,13 @@ onUnmounted(closePreview)
   gap: 8px;
   padding-top: 6px;
   border-top: 1px solid #eef2f5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
 }
 
 .lf-owner-empty {
   color: #6b7c8f;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   margin: 0;
 }
 
@@ -1347,7 +1347,7 @@ onUnmounted(closePreview)
   gap: 4px;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   background: rgba(34,197,94,0.12);
   color: #15803d;
@@ -1375,16 +1375,16 @@ onUnmounted(closePreview)
 }
 .lf-upload-header > span {
   color: #475569;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
-.lf-upload-header > small { color: #94a3b8; font-size: 12px; }
+.lf-upload-header > small { color: #94a3b8; font-size: var(--spd-font-size-sm); }
 
 .lf-upload-success {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #15803d;
   margin: 0;
 }
@@ -1413,12 +1413,12 @@ onUnmounted(closePreview)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
 }
 
 .lf-file-size {
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1426,7 +1426,7 @@ onUnmounted(closePreview)
 
 .lf-upload-hint {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .lf-dialog-message {
@@ -1477,14 +1477,14 @@ onUnmounted(closePreview)
 .la-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
 }
 .la-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1521,7 +1521,7 @@ onUnmounted(closePreview)
 }
 .la-upload-row span {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .la-attachment-items {
@@ -1551,14 +1551,14 @@ onUnmounted(closePreview)
   min-width: 0;
 }
 .la-attachment-info strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .la-attachment-info span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
 }
 
@@ -1603,7 +1603,7 @@ onUnmounted(closePreview)
   color: #cbd5e1;
 }
 .la-preview-placeholder p {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #94a3b8;
 }
 
@@ -1641,14 +1641,14 @@ onUnmounted(closePreview)
 .lh-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
 }
 .lh-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1689,7 +1689,7 @@ onUnmounted(closePreview)
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15));
   color: #4f46e5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -1698,13 +1698,13 @@ onUnmounted(closePreview)
   border-radius: 999px;
   background: rgba(245,158,11,0.12);
   color: #b45309;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .lh-revision-op,
 .lh-revision-time {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7c8f;
 }
 
@@ -1722,7 +1722,7 @@ onUnmounted(closePreview)
 }
 
 .lh-rev-label {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   font-weight: 600;
   text-transform: uppercase;
@@ -1730,7 +1730,7 @@ onUnmounted(closePreview)
 }
 
 .lh-rev-value {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   font-weight: 500;
 }
@@ -1744,7 +1744,7 @@ onUnmounted(closePreview)
 
 .lh-rev-no-files {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .status-badge {
@@ -1752,7 +1752,7 @@ onUnmounted(closePreview)
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   background: rgba(34,197,94,0.12);
   color: #15803d;

@@ -233,7 +233,7 @@ onBeforeUnmount(() => {
   background: var(--fli-surface, #ffffff);
   color: var(--fli-text, #1f2937);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   line-height: 1;
   transition: all 0.18s ease;
   user-select: none;
@@ -304,13 +304,13 @@ onBeforeUnmount(() => {
 }
 
 .spd-theme-panel-title {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--fli-text, #1f2937);
 }
 
 .spd-theme-panel-sub {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--fli-muted, #6b7280);
 }
 
@@ -319,7 +319,7 @@ onBeforeUnmount(() => {
   border: none;
   background: transparent;
   padding: 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--fli-brand, #0f766e);
   cursor: pointer;
 }
@@ -379,7 +379,7 @@ onBeforeUnmount(() => {
 
 .spd-palette-current code {
   font-family: var(--spd-font-family-mono, monospace);
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   padding: 1px 6px;
   border-radius: 4px;
   background: #f1f5f6;
@@ -451,13 +451,13 @@ onBeforeUnmount(() => {
 }
 
 .spd-theme-card-name {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: var(--fli-text, #1f2937);
 }
 
 .spd-theme-card-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--fli-muted, #6b7280);
   white-space: nowrap;
   overflow: hidden;
@@ -517,7 +517,7 @@ onBeforeUnmount(() => {
 }
 
 .spd-fontsize-name {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: var(--fli-text, #1f2937);
   display: inline-flex;
@@ -526,13 +526,13 @@ onBeforeUnmount(() => {
 }
 
 .spd-fontsize-name small {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   color: var(--fli-muted, #6b7280);
 }
 
 .spd-fontsize-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--fli-muted, #6b7280);
   white-space: nowrap;
   overflow: hidden;

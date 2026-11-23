@@ -625,7 +625,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   border-radius: 6px 6px 0 0;
   background: transparent;
   color: var(--spd-text-secondary, #607285);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
@@ -689,14 +689,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-filter-head strong {
   display: block;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .charge-filter-head small {
   display: block;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .charge-query-grid {
@@ -717,8 +717,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   align-items: center;
   gap: 4px;
   color: var(--spd-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .charge-query-grid label > span :deep(svg) {
@@ -737,7 +737,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   background: var(--spd-bg-container);
   color: var(--spd-text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -775,7 +775,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 4px;
   height: 34px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   border-radius: 6px;
 }
@@ -833,7 +833,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   border: 1px solid;
   border-radius: 999px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   transition: transform 0.1s ease;
 }
 
@@ -857,7 +857,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-summary-value {
   margin-left: auto;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -968,14 +968,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-section-title h3 {
   margin: 0;
   color: var(--spd-text-heading);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .charge-section-title p {
   margin: 2px 0 0;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .charge-section-title-right {
@@ -991,7 +991,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 4px;
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.15s ease;
@@ -1097,7 +1097,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   min-width: 1780px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .charge-detail-table thead th {
@@ -1105,8 +1105,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   top: 0;
   z-index: 2;
   padding: 10px 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   color: #1e293b !important;
   background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
   border-bottom: 1px solid #c7d2fe !important;
@@ -1119,7 +1119,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   padding: 10px 14px !important;
   border-bottom: 1px solid #f1f5f9 !important;
   color: #334155 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: #fff;
   vertical-align: top;
 }
@@ -1159,7 +1159,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 .charge-cell-stack strong {
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -1167,7 +1167,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-biz-no {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: #1d4ed8 !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
 }
 
@@ -1177,7 +1177,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 3px;
   margin-top: 1px;
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -1189,7 +1189,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
   color: #475569 !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .numeric-cell {
@@ -1200,18 +1200,18 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 .numeric-cell strong {
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .charge-money {
   color: #475569;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .charge-amount strong {
   color: #b91c1c;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
@@ -1224,7 +1224,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   align-items: center;
   padding: 1px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1267,7 +1267,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   height: 200px;
   padding: 32px 16px;
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   background: #fafbfc;
 }
 
@@ -1316,21 +1316,21 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-detail-label {
   flex: 0 0 auto;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .charge-detail-value {
   min-width: 0;
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .charge-amount-strong {
   color: #b91c1c !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
 }
 

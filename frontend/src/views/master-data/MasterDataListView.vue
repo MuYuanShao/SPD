@@ -3397,7 +3397,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   --el-fill-color-lighter: #f8fafc;
   overflow: visible;
   border-radius: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table__inner-wrapper) {
@@ -3441,7 +3441,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .department-warehouse-catalog-list-card :deep(.el-table .cell) {
   padding: 0;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table__fixed),
@@ -3508,8 +3508,8 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-hospital-filter:not(.spd-unified-list) label > span {
   color: var(--md-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .md-hospital-filter-actions {
@@ -3561,13 +3561,13 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-column-settings-head strong {
   color: var(--md-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .md-column-settings-head small {
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .md-column-settings-foot {
@@ -3593,7 +3593,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-column-setting-item span {
   color: var(--md-text);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ===== 医院目录表格 ===== */
@@ -3631,7 +3631,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--md-text);
 }
 
@@ -3641,8 +3641,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
   padding: 10px 12px;
   border-bottom: 2px solid var(--md-border-strong);
@@ -3738,7 +3738,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 .md-row-actions .md-btn-text {
   min-height: 26px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -3756,8 +3756,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   background: var(--md-bg-page);
   color: var(--md-text);
   font-family: var(--md-font);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
 .md-partner-page .master-table-card {
@@ -3826,8 +3826,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
   padding: 10px 12px;
   border-bottom: 2px solid var(--md-border-strong);
@@ -3968,14 +3968,14 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .catalog-drawer .drawer-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: #fff;
 }
 
 .catalog-drawer .drawer-head p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: rgba(255, 255, 255, 0.85);
   font-family: ui-monospace, Consolas, monospace;
 }
@@ -4012,7 +4012,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   align-items: center;
   gap: 8px;
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--cat-dark);
 }
@@ -4038,14 +4038,14 @@ function warehouseFlagChipClass(enabled: unknown) {
 .catalog-drawer .d-item > span {
   display: block;
   color: var(--cat-deep);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   margin-bottom: 3px;
   font-weight: 600;
 }
 
 .catalog-drawer .d-item > strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--cat-text);
   word-break: break-all;
@@ -4068,7 +4068,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 .catalog-drawer .tag {
   padding: 4px 13px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   background: #fff;
   color: var(--cat-text2);

@@ -1904,9 +1904,17 @@ textarea:focus-visible {
     box-shadow 0.16s ease, opacity 0.16s ease !important;
 }
 
-.main-area :where(.btn-icon, .btn-text, .btn-link, button) {
+/* B-05 / B-08：文字按钮走 --spd-font-size-base，链接式按钮走 --spd-font-size-sm
+   （各自在 components/buttons.css 内定义，此处不得再统一覆盖成 base） */
+.main-area :where(.btn-icon, .btn-text, button) {
   font-family: inherit;
   font-size: var(--btn-font-size);
+  vertical-align: middle;
+}
+
+.main-area :where(.btn-link) {
+  font-family: inherit;
+  font-size: var(--spd-font-size-sm);
   vertical-align: middle;
 }
 

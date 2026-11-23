@@ -685,8 +685,9 @@ const emit = defineEmits<{
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
   font-size: var(--spd-font-size-base);
-  font-weight: 600;
+  font-weight: 400;
   background: rgba(34, 197, 94, 0.12);
   color: #15803d;
   border: 1px solid rgba(34, 197, 94, 0.3);

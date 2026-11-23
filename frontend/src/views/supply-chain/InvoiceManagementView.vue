@@ -750,8 +750,9 @@ onMounted(load)
   padding: 0 9px;
   border: 1px solid;
   border-radius: 999px;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
   font-size: var(--spd-font-size-base);
-  font-weight: 600;
+  font-weight: 400;
   line-height: var(--spd-lh-tight);
   white-space: nowrap;
 }

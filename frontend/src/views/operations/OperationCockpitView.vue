@@ -408,7 +408,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 .cockpit-title h1 {
   margin: 0;
-  font-size: clamp(26px, 2.4vw, 38px);
+  /* M-15 驾驶舱主标题：--spd-font-size-5xl（38/40/42px），跟随字号档位 */
+  font-size: var(--spd-font-size-5xl);
   letter-spacing: .22em;
   font-weight: 800;
   background: linear-gradient(180deg, #ffffff 0%, var(--neon-cyan) 60%, var(--neon-blue) 100%);
@@ -965,7 +966,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   .cockpit-header { grid-template-columns: 220px 210px 1fr 200px; }
   .cockpit-grid { grid-template-columns: 1fr 1.28fr 1.05fr; }
   .department-row { grid-template-columns: 20px 70px minmax(55px, 1fr) 50px 46px 54px; gap: 5px; }
-  .cockpit-title h1 { font-size: clamp(22px, 2vw, 30px); }
+  /* M-15 窄屏降档：改用 -4xl 令牌，仍跟随字号档位 */
+  .cockpit-title h1 { font-size: var(--spd-font-size-4xl); }
   .kpi-body strong { font-size: var(--spd-font-size-4xl); }
 }
 

@@ -3267,7 +3267,7 @@ watch(() => form.productCode, () => {
   border: 1px solid transparent;
   /* S-08 status-badge 状态条：--spd-font-size-base（14/16/18px） */
   font-size: var(--spd-font-size-base);
-  font-weight: 600;
+  font-weight: 400;
   line-height: var(--spd-lh-tight);
   white-space: nowrap;
 }

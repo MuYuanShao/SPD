@@ -1710,8 +1710,9 @@ function eventTone(event: UdiTraceEvent) {
   min-height: 24px;
   padding: 0 10px;
   border-radius: 999px;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
   font-size: var(--spd-font-size-base);
-  font-weight: 600;
+  font-weight: 400;
   white-space: nowrap;
 }
 

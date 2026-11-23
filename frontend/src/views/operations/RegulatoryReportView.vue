@@ -459,7 +459,8 @@ onMounted(() => void loadReport())
   color: #087268;
   padding: 0 8px;
   font-style: normal;
-  font-weight: 600;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
+  font-weight: 400;
   font-size: var(--spd-font-size-base);
 }
 .report-table :deep(.status-pill.neutral) {

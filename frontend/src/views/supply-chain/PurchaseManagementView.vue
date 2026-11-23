@@ -1611,8 +1611,9 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table .status-badge {
   min-height: 20px;
   padding: 0 9px;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
   font-size: var(--spd-font-size-base);
-  font-weight: 600;
+  font-weight: 400;
   border-radius: 999px;
 }
 

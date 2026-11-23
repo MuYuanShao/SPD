@@ -80,7 +80,9 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-weight: 700;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
 }
 
 .status-badge.enabled {

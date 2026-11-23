@@ -259,8 +259,9 @@ function toggleAllFiltered() {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
-  font-size: var(--spd-font-size-base);
-  font-weight: 700;
+  /* 与 .catalog-dialog-kicker 统一：--spd-font-size-sm + 字重 800 */
+  font-size: var(--spd-font-size-sm);
+  font-weight: 800;
 }
 
 .batch-catalog-header h3 {
@@ -321,7 +322,8 @@ function toggleAllFiltered() {
 
 .batch-catalog-scope-heading strong {
   color: var(--bcd-text);
-  font-size: var(--spd-font-size-lg);
+  /* 与 .catalog-dialog-section-heading strong 统一为 --spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -334,7 +336,8 @@ function toggleAllFiltered() {
   display: grid;
   gap: 7px;
   color: #4f6477;
-  font-weight: 700;
+  /* 与 .catalog-dialog-form label 对齐：字重 500 */
+  font-weight: 500;
 }
 
 .batch-catalog-fields select {
@@ -369,6 +372,8 @@ function toggleAllFiltered() {
   align-items: center;
   gap: 6px;
   color: var(--bcd-primary);
+  /* 与 .batch-catalog-scope-heading strong 统一：--spd-font-size-sm + 字重 700 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
   white-space: nowrap;
 }

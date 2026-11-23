@@ -331,7 +331,8 @@
 .catalog-dialog > header > div > h3 {
   margin: 0;
   color: #102033;
-  font-size: var(--spd-font-size-xl);
+  /* O-02 自绘弹窗标题：--spd-font-size-2xl，与批量维护弹窗标题一致 */
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
   line-height: var(--spd-lh-tight);
 }

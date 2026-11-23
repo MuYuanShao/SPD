@@ -33,19 +33,16 @@ const configs = {
     code: 'supplier-delivery-ledger',
     title: '供应商供货明细台账',
     crumb: '运营与决策 / 报表中心 / 供应链合规',
-    description: '按已完成验收的合格数量及对应批次采购价统计的供应商供货明细。',
   },
   centralized: {
     code: 'centralized-procurement-progress',
     title: '集采执行进度报表',
     crumb: '运营与决策 / 报表中心 / 集采与医保',
-    description: '按集采任务年度起始日至筛选截止日的验收合格数量计算累计采购量与完成率。',
   },
   inventory: {
     code: 'inventory-movement-summary',
     title: '全院物资进销存汇总表',
     crumb: '运营与决策 / 报表中心 / 进销存汇总',
-    description: '每日 00:00 生成前一业务日快照，期初沿用前日结存，期间发生额按库存流水增量汇总。',
   },
 } as const
 const config = computed(() => configs[reportType.value])
@@ -146,7 +143,6 @@ onMounted(() => void loadReport())
     <MdPageHeader
       :crumb="config.crumb"
       :title="config.title"
-      :description="config.description"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadReport"

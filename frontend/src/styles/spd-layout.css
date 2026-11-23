@@ -155,8 +155,9 @@
 }
 
 .spd-menu-caret {
-  /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸） */
-  font-size: 11px !important;
+  /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸）
+     D-18：改为令牌，取消裸 px 11px */
+  font-size: var(--spd-font-size-xs) !important;
   color: var(--spd-text-tertiary);
   margin-left: 2px;
   transition: transform 0.2s ease;
@@ -588,7 +589,7 @@
 
 .spd-mini-nav-group-caret {
   /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸） */
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-text-tertiary);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -814,7 +815,7 @@
   height: 16px;
   border-radius: 4px;
   /* 页签关闭按钮：装饰性图标，尺寸固定（白名单：图标尺寸） */
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-text-tertiary);
   transition: all 0.15s;
   margin-left: 2px;

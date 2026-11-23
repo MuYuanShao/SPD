@@ -1484,6 +1484,7 @@ textarea:focus-visible {
     width: 58px;
     height: 58px;
     margin-top: 6px;
+    /* 圆形「SPD」装饰水印徽标，尺寸固定（白名单：装饰元素尺寸） */
     font-size: 15px;
   }
 

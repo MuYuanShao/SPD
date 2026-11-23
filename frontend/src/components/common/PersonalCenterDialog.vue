@@ -213,6 +213,7 @@ watch(() => props.open, (open) => {
   border-radius: 6px;
   background: transparent;
   color: #64748b;
+  /* 关闭按钮图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
   line-height: 1;
   cursor: pointer;

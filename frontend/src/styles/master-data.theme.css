@@ -77,9 +77,12 @@
   --md-shadow-2: 0 4px 12px -2px rgba(13, 93, 74, 0.08), 0 2px 6px -2px rgba(13, 93, 74, 0.04);
   --md-shadow-3: 0 12px 32px -4px rgba(13, 93, 74, 0.16), 0 4px 12px -4px rgba(13, 93, 74, 0.08);
 
-  /* === 字号 === */
-  --md-font: -apple-system, "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-font-mono: "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* === 字体 ===
+     D-17 字体栈收敛：原为独立的 --md-font / --md-font-mono 两套，
+     现统一指向 --spd-font-family / --spd-font-family-mono，
+     全站业务字体栈唯一来源为 spd-theme.css 的 --spd-font-family。 */
+  --md-font: var(--spd-font-family);
+  --md-font-mono: var(--spd-font-family-mono);
 }
 
 /* ===================================================================

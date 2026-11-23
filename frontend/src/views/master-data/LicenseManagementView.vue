@@ -437,7 +437,6 @@ onUnmounted(closePreview)
     <MdPageHeader
       crumb="基础数据管理"
       title="证照管理"
-      description="集中管理商品、供应商、厂家的证照与合同，支持附件上传与阅览。"
     />
 
     <div class="license-tabs">
@@ -1070,7 +1069,7 @@ onUnmounted(closePreview)
   width: 100%;
   background: var(--md-bg-page, #f5f7f8);
   color: var(--md-text, #1d2a35);
-  font-family: var(--md-font, "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif);
+  font-family: var(--spd-font-family);
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-base);
 }

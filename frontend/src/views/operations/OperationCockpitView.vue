@@ -272,7 +272,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
     radial-gradient(ellipse 50% 40% at 50% 50%, rgba(0, 240, 255, .08), transparent 70%),
     linear-gradient(180deg, #02060f 0%, #050a1a 50%, #02060f 100%);
   padding: 18px 22px 22px;
-  font-family: "Microsoft YaHei UI", "Source Han Sans CN", sans-serif;
+  font-family: var(--spd-font-family);
   position: relative;
   overflow: hidden;
 }

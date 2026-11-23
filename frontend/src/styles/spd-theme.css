@@ -269,6 +269,7 @@
   align-items: center;
   justify-content: center;
   color: white;
+  /* 卡片头部图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
 }
 
@@ -335,6 +336,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 统计卡图标尺寸固定（白名单：图标尺寸） */
   font-size: 24px;
   flex-shrink: 0;
   position: relative;
@@ -820,6 +822,7 @@
 }
 
 .spd-empty-icon {
+  /* 空态装饰图标尺寸固定（白名单：图标尺寸） */
   font-size: 48px;
   color: var(--spd-gray-300);
   margin-bottom: 16px;
@@ -853,6 +856,7 @@
 }
 
 .spd-alert-icon {
+  /* 提示条图标尺寸固定（白名单：图标尺寸） */
   font-size: 18px;
   flex-shrink: 0;
   margin-top: 1px;

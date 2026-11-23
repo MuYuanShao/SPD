@@ -233,7 +233,6 @@ onMounted(async () => {
     <MdPageHeader
       crumb="供应链业务"
       title="冷链监控"
-      description="登记冷链温度异常，并查看冷链异常事件记录。"
       :loading="loading"
       @refresh="refresh"
     />
@@ -800,7 +799,7 @@ onMounted(async () => {
 }
 
 .cold-biz-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #0e7490 !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;

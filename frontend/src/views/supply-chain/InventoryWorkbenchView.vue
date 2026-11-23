@@ -234,12 +234,6 @@ const title = computed(() => {
   if (mode.value === 'price') return '价格调整'
   return '库存管理'
 })
-const subtitle = computed(() => {
-  if (mode.value === 'events') return '单独追踪入库、出库、盘点、调价等库存事件，保留账务追溯链路。'
-  if (mode.value === 'stocktaking') return '盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。'
-  if (mode.value === 'price') return '批次调价只影响未消耗库存价值，不覆盖历史消耗、结算和计费事实。'
-  return '全院库存余额集中展示，按库房、商品、系统批次查看可用、锁定和隔离库存。'
-})
 
 /** 盘点单状态徽标配色：草稿待复核、已复核归档 */
 function stocktakingTone(status: unknown) {
@@ -375,7 +369,6 @@ watch(mode, () => {
       v-else-if="mode === 'price'"
       crumb="结算与财务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -384,7 +377,6 @@ watch(mode, () => {
       v-else
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1135,7 +1127,7 @@ watch(mode, () => {
 
 /* ---------- 编码列 ---------- */
 .inventory-page .inventory-table .inventory-code-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   white-space: nowrap;
@@ -1171,7 +1163,7 @@ watch(mode, () => {
 
 .inventory-page .inventory-table .inventory-money-cell {
   text-align: right;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   color: var(--md-text) !important;
   white-space: nowrap;
@@ -1512,7 +1504,7 @@ watch(mode, () => {
 }
 
 .stocktaking-detail-table .stocktaking-code-cell {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   color: #475569 !important;
   white-space: nowrap;

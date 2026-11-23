@@ -762,7 +762,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-if="isHospitalCatalog" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="医院商品目录"
-        description="维护本院正式可用商品，次要字段收进详情抽屉。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1133,7 +1132,6 @@ function warehouseFlagChipClass(enabled: unknown) {
       <MdPageHeader
         v-if="!isPartnerCombined"
         title="供应商管理"
-        description="维护供应商档案，统一管理名称、类型、联系人、信用代码与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1186,7 +1184,6 @@ function warehouseFlagChipClass(enabled: unknown) {
       <MdPageHeader
         v-if="!isPartnerCombined"
         title="厂家管理"
-        description="维护生产厂家档案，统一管理名称、生产许可证号、联系人与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1238,7 +1235,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isCampusManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="院区管理"
-        description="维护医院院区档案，统一管理编码、名称、地址与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1290,7 +1286,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isDepartmentManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="科室管理"
-        description="维护医院科室档案，统一管理编码、类型、关联库房与状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1362,7 +1357,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isDepartmentWarehouseCatalog" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="科室库房目录"
-        description="维护科室与库房的商品目录关系，按科室、库房、商品、状态快速检索。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1423,7 +1417,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isWarehouseManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="库房 / 货位管理"
-        description="维护医院库房与货位档案，按库房名称、编码、状态快速检索。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -4054,7 +4047,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   margin: 4px 0 0;
   font-size: var(--spd-font-size-sm);
   color: rgba(255, 255, 255, 0.85);
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .catalog-drawer .drawer-close {
@@ -4129,7 +4122,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 }
 
 .catalog-drawer .d-item > strong.mono {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .catalog-drawer .d-item.full {

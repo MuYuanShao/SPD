@@ -164,7 +164,6 @@ onMounted(load)
     <MdPageHeader
       crumb="结算与财务"
       title="发票管理"
-      description="供应商发票登记、核验及结算关联均实时写入 MySQL。"
       :loading="loading"
       @refresh="load"
     />
@@ -708,7 +707,7 @@ onMounted(load)
 }
 
 .invoice-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #475569;
 }
 

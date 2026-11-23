@@ -87,6 +87,7 @@
 }
 
 .spd-hero-eyebrow .el-icon {
+  /* 顶部副标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 13px;
 }
 
@@ -174,6 +175,7 @@
   background: var(--spd-primary-bg, color-mix(in srgb, var(--primary) 10%, transparent));
   color: var(--primary);
   border-radius: var(--spd-radius-sm, 4px);
+  /* 模块标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
   flex-shrink: 0;
 }
@@ -286,6 +288,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 模块卡图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
   color: #ffffff;
   flex-shrink: 0;
@@ -391,6 +394,7 @@
   display: flex !important;
   align-items: center;
   justify-content: center;
+  /* 子模块图标尺寸固定（白名单：图标尺寸） */
   font-size: 12px;
   color: #ffffff;
   flex-shrink: 0;

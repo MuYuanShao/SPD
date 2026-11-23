@@ -89,11 +89,6 @@ const permissionForm = reactive({
 const selectedUser = computed(() => users.value.find(item => item.userId === selectedUserIds.value[0]))
 const selectedRole = computed(() => roles.value.find(item => item.roleId === selectedRoleIds.value[0]))
 const title = computed(() => pageMode.value === 'role' ? '角色权限' : '用户管理')
-const subtitle = computed(() =>
-  pageMode.value === 'role'
-    ? '维护角色、菜单按钮权限与数据权限范围。'
-    : '维护系统账号、所属科室、角色分配与密码重置。'
-)
 const userStats = computed(() => [
   { icon: 'user', theme: 'blue',   label: '总用户数',     value: users.value.length,                                    hint: '当前筛选条件下' },
   { icon: 'check', theme: 'green', label: '启用用户',     value: users.value.filter(item => item.status === 1).length,   hint: '账号正常' },
@@ -304,7 +299,6 @@ watch(pageMode, () => {
 
     <MdPageHeader
       :title="title"
-      :description="subtitle"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadAll"
@@ -964,7 +958,7 @@ watch(pageMode, () => {
   color: #334155;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
 }
 

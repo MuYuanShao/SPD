@@ -207,7 +207,6 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
     <MdPageHeader
       crumb="供应链业务"
       title="收费耗材明细查询"
-      description="按患者、商品、日期、唯一码、厂家供应商等条件查询高值耗材计费明细"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1165,7 +1164,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 }
 
 .charge-biz-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #1d4ed8 !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
@@ -1187,7 +1186,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 }
 
 .charge-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-family: var(--spd-font-family-mono) !important;
   color: #475569 !important;
   font-size: var(--spd-font-size-base) !important;
 }

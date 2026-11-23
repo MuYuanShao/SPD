@@ -24,7 +24,9 @@
   --el-border-color: var(--fli-line);
   --el-border-color-light: var(--fli-line);
   --el-text-color-primary: var(--fli-text);
-  --el-font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  /* D-17 字体栈收敛：Element Plus 字体跟随业务统一字体栈，
+     全站业务字体唯一来源为 --spd-font-family（spd-theme.css 定义）。 */
+  --el-font-family: var(--spd-font-family);
 }
 
 /* fli-* 静态 token（非主题相关） */

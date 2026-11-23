@@ -227,7 +227,6 @@ watch(() => query.value.bizType, (v) => {
     <MdPageHeader
       crumb="专项与合规"
       title="系统操作记录"
-      description="按操作人、业务类型和时间查询系统操作记录，查看业务单据和变更详情。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadList"
@@ -851,7 +850,7 @@ watch(() => query.value.bizType, (v) => {
   white-space: nowrap;
   color: #334155;
   background: #f1f5f9;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* 操作类型 chip（语义色） */
@@ -1042,7 +1041,7 @@ watch(() => query.value.bizType, (v) => {
 .sys-diff-card .sys-table tbody tr.is-changed:hover td { background: #fde68a !important; }
 
 .sys-diff-card code {
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: #334155;
   word-break: break-all;
@@ -1063,7 +1062,7 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-json pre {
   margin: 0;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: #e2e8f0;
   white-space: pre-wrap;

@@ -17,7 +17,7 @@
   --el-color-primary-light-9: #edf7f5;
   --el-font-size-base: 14px;
   --el-component-size: 36px;
-  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  font-family: var(--spd-font-family);
 }
 .main-area {
   container: workspace / inline-size;

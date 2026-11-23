@@ -203,7 +203,6 @@ onMounted(loadConfigs)
 
     <MdPageHeader
       title="系统配置"
-      description="为基础信息、流程、权限、参数、审计、数据和系统集成提供统一配置中心。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadConfigs"
@@ -819,7 +818,7 @@ onMounted(loadConfigs)
   color: #334155;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -889,7 +888,7 @@ onMounted(loadConfigs)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: #475569;
 }
@@ -1005,7 +1004,7 @@ onMounted(loadConfigs)
   font-weight: 500;
   resize: vertical;
   min-height: 80px;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .sys-textarea:focus { outline: none; border-color: #cbd5e1; }

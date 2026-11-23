@@ -191,7 +191,7 @@
 
 .catalog-code-cell {
   color: #0958d9;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
 }

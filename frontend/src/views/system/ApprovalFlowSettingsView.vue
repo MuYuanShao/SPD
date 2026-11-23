@@ -457,7 +457,6 @@ onMounted(loadAll)
 
     <MdPageHeader
       title="审批流设置"
-      description="维护各业务菜单的审批节点、参与角色、人员与数据隔离范围。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadAll"

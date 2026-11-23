@@ -213,7 +213,6 @@ const canWrite = computed(() => authStore.canWrite('department-warehouse-catalog
   <section class="master-page master-page--aligned spd-night-page spd-unified-list">
     <MdPageHeader
       title="科室库房目录"
-      description="维护科室与库房的商品目录关系，按科室、库房、商品、状态快速检索。"
       :loading="loading"
       @refresh="loadPage"
     />

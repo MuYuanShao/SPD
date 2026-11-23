@@ -122,7 +122,6 @@ onMounted(loadRecords)
     <MdPageHeader
       crumb="供应链业务"
       title="拣配记录"
-      description="集中查询中心库拣配出库及科室签收记录"
       :loading="loading"
       @refresh="loadRecords"
     />

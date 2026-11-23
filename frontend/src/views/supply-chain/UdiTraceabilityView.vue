@@ -357,7 +357,6 @@ function eventTone(event: UdiTraceEvent) {
     <MdPageHeader
       crumb="专项与合规"
       title="UDI / 唯一码追溯"
-      description="高值耗材以手麻/手术系统计费回传作为库存扣减和追溯触发点，低值定数包按包码、标签码追溯。"
       :loading="loading"
       @refresh="loadRecords"
     />
@@ -1422,7 +1421,7 @@ function eventTone(event: UdiTraceEvent) {
 }
 
 .trace-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   color: var(--spd-text-heading);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
@@ -1693,7 +1692,7 @@ function eventTone(event: UdiTraceEvent) {
 }
 
 .detail-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-family: var(--spd-font-family-mono) !important;
   font-size: var(--spd-font-size-sm) !important;
   color: #475569 !important;
 }
@@ -1853,7 +1852,7 @@ tbody tr.selected:hover td {
 }
 
 .cell-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-family: var(--spd-font-family-mono) !important;
   font-size: var(--spd-font-size-base) !important;
   color: #475569 !important;
 }

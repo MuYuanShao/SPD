@@ -71,7 +71,6 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
     <MdPageHeader
       crumb="运营与决策 / 报表中心 / 进销存明细"
       title="进销存商品明细"
-      description="按库存记录查询商品、批次有效期及库位。"
       :loading="loading"
       :show-refresh="false"
       @refresh="refresh"

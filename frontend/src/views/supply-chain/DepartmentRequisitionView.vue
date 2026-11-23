@@ -590,7 +590,6 @@ async function changeWarehouse() {
     <MdPageHeader
       crumb="供应链业务"
       title="科室申领"
-      description="统一申请散货、定数包和高值耗材"
       :loading="loading"
       @refresh="refreshCurrentView"
     />
@@ -1952,7 +1951,7 @@ async function changeWarehouse() {
 }
 
 .dept-req-selected-list .selected-code {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #1e3a8a;
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;

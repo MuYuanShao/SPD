@@ -207,7 +207,7 @@
 .manufacturer-table .manufacturer-code-cell,
 .manufacturer-table .manufacturer-license-cell {
   color: #31515e;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -231,7 +231,7 @@
   background: #eef8f6;
   padding: 0 9px;
   color: #0b665f;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
 }

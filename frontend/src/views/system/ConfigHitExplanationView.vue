@@ -178,7 +178,6 @@ onMounted(loadKeys)
 
     <MdPageHeader
       title="配置命中说明"
-      description="按配置项分别核对范围匹配、继承来源和冲突；匹配结果不代表业务执行状态。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadExplanation"
@@ -804,7 +803,7 @@ onMounted(loadKeys)
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   padding: 1px 6px;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   color: #475569;
 }
@@ -849,7 +848,7 @@ onMounted(loadKeys)
 }
 
 .sys-json-inline {
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: #334155;
   background: #f8fafc;
@@ -1002,7 +1001,7 @@ onMounted(loadKeys)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: #475569;
 }
@@ -1024,7 +1023,7 @@ onMounted(loadKeys)
   color: #334155;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -1039,7 +1038,7 @@ onMounted(loadKeys)
   color: #1d4ed8;
   background: #dbeafe;
   border-color: #93c5fd;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .sys-tag.is-level {

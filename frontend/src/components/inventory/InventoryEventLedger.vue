@@ -149,7 +149,6 @@ onMounted(async () => {
     <MdPageHeader
       crumb="供应链业务 / 库存账务"
       title="库存交易流水"
-      description="按事件发生时快照查询不可变库存事实，主表始终一条事件一行。"
       :loading="loading"
       @refresh="load"
     />
@@ -376,7 +375,7 @@ onMounted(async () => {
 .ledger-summary strong {
   margin-left: 5px;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
@@ -452,7 +451,7 @@ onMounted(async () => {
   position: sticky;
   left: 0;
   z-index: 2;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   color: var(--md-text-heading) !important;
 }
@@ -480,13 +479,13 @@ onMounted(async () => {
 /* ---------- 数字 / 编码列（此前未定义，本次补齐） ---------- */
 .ledger-table .number-cell {
   text-align: right;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .ledger-table .code-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   white-space: nowrap;
 }
@@ -621,7 +620,7 @@ onMounted(async () => {
 }
 
 .trace-list strong {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
   color: var(--md-text-heading, var(--spd-text-heading));
 }

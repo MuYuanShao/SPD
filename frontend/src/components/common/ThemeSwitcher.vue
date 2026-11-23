@@ -378,7 +378,7 @@ onBeforeUnmount(() => {
 }
 
 .spd-palette-current code {
-  font-family: var(--spd-font-family-mono, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   padding: 1px 6px;
   border-radius: 4px;

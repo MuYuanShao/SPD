@@ -163,7 +163,7 @@
   border-radius: 8px;
   background: #f8fafb;
   padding: 8px;
-  font-family: Consolas, "Courier New", monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   font-weight: 500;
 }

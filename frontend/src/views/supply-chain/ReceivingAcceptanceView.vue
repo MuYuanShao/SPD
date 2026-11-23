@@ -414,7 +414,6 @@ onMounted(() => {
     <MdPageHeader
       crumb="供应链业务"
       title="收货验收"
-      description="验收合格数量审核后入库；不合格数量保留记录但不影响库存。"
       :loading="loading"
       @refresh="loadData"
     />

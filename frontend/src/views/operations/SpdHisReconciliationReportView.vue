@@ -175,7 +175,6 @@ onMounted(() => void loadReport())
     <MdPageHeader
       crumb="运营与决策 / 报表中心 / 医保合规与 DRG"
       title="SPD 消耗 - HIS 收费核对对账报表"
-      description="SPD 实际消耗数据与 HIS 收费明细按患者、耗材、科室及自然日核对，患者信息仅脱敏展示。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadReport"

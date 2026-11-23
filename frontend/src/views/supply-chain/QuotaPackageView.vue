@@ -2795,7 +2795,7 @@ watch(
 .pt-row-meta {
   color: var(--pt-text-tertiary);
   font-size: var(--spd-font-size-xs);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   margin-left: 0;
   white-space: nowrap;
   flex-basis: 100%;
@@ -3207,13 +3207,13 @@ watch(
 
 /* 单元格内容 */
 .lbl-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   letter-spacing: -0.1px;
 }
 
 .lbl-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--lbl-text);
@@ -3699,13 +3699,13 @@ watch(
 
 /* 单元格 */
 .evt-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: var(--evt-text-2);
 }
 
 .evt-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--evt-text);
@@ -3717,7 +3717,7 @@ watch(
   border: 1px solid var(--evt-border-soft);
   border-radius: 4px;
   background: var(--evt-head);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   color: var(--evt-text-2);
 }
@@ -4263,7 +4263,7 @@ th.snp-col-num {
 
 /* 单元格内容 */
 .snp-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: var(--snp-text-2);
 }
@@ -4286,7 +4286,7 @@ th.snp-col-num {
   border: 1px solid var(--snp-border-soft);
   border-radius: 4px;
   background: var(--snp-head);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   color: var(--snp-text-2);
 }
@@ -4312,7 +4312,7 @@ th.snp-col-num {
   height: 22px;
   padding: 0 8px;
   border-radius: 4px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   white-space: nowrap;
 }
@@ -4792,7 +4792,7 @@ th.snp-col-num {
 
 /* 单元格内容 */
 .tpl-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--tpl-text);
@@ -5334,7 +5334,7 @@ th.snp-col-num {
 
 /* 单元格内容 */
 .saf-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: var(--saf-text-2);
 }
@@ -5345,7 +5345,7 @@ th.snp-col-num {
 }
 
 .saf-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
   color: var(--saf-text);
 }

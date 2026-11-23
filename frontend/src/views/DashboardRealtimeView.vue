@@ -1100,7 +1100,7 @@ onMounted(loadDashboard)
 .wb-alert-no {
   color: var(--slate-400);
   font-size: var(--spd-font-size-xs);
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* ================================================================

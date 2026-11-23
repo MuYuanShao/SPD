@@ -426,6 +426,7 @@
   width: 20px;
   height: 20px;
   border-radius: 6px;
+  /* 信息卡图标尺寸固定（白名单：图标尺寸） */
   font-size: 13px;
 }
 
@@ -521,6 +522,7 @@
   padding: 10px 12px;
 }
 
+/* 资质项前的装饰性字形图标，尺寸固定（白名单：图标尺寸） */
 .qual-item .q-icon { flex-shrink: 0; margin-top: 1px; font-size: 18px; line-height: 1; }
 .qual-item .q-body { display: grid; gap: 2px; }
 .qual-item .q-body .qlabel { color: #64748b; font-size: var(--spd-font-size-xs); font-weight: 600; }
@@ -693,6 +695,7 @@
   width: 28px;
   height: 28px;
   border-radius: 8px;
+  /* 区块标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 15px;
 }
 

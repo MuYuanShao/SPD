@@ -240,6 +240,7 @@
 .approval-sidebar-title .el-icon,
 .approval-sidebar-title > svg {
   color: var(--primary) !important;
+  /* 侧栏标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
 }
 

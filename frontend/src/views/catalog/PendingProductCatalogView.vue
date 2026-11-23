@@ -598,7 +598,6 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
   <section class="approval-page spd-unified-list">
     <MdPageHeader
       title="待审批目录"
-      description="审核商品准入、信息变更、资质更新与价格调整申请。"
       :loading="loading"
       @refresh="loadApplications"
     />

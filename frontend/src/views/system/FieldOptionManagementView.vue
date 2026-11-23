@@ -213,7 +213,6 @@ onMounted(() => loadFields(true))
 
     <MdPageHeader
       title="字段管理"
-      description="维护所有表格中下拉选字段的选项，支持新增、修改与停用。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadFields(false)"
@@ -792,7 +791,7 @@ onMounted(() => loadFields(true))
 .sys-field-side-meta {
   font-size: var(--spd-font-size-xs);
   color: #94a3b8;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* ---------- 表格 ---------- */
@@ -834,7 +833,7 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   padding: 1px 6px;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   color: #475569;
 }
@@ -888,7 +887,7 @@ onMounted(() => loadFields(true))
   white-space: nowrap;
   color: #334155;
   background: #f1f5f9;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* 状态 badge */

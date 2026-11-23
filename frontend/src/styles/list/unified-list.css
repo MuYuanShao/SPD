@@ -243,7 +243,7 @@
 /* T-05 单元格等宽（编码）：--spd-font-size-base / 400 */
 .spd-unified-list .ulc-mono {
   color: var(--spd-c-text-secondary);
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base, 14px);
   font-weight: 400;
   line-height: var(--spd-lh-tight, 1.35);

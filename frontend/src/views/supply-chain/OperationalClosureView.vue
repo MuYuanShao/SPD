@@ -199,15 +199,6 @@ const titleMap: Record<string, string> = {
   'high-value': '高值使用计费基础'
 }
 const title = computed(() => pageCode.value === 'red-flush-management' ? '红冲管理' : titleMap[type.value])
-const subtitle = computed(() => {
-  if (type.value === 'red-flush') return '展示反消耗生成并持久化到数据库的红冲记录。'
-  if (type.value === 'settlement') return '按库存批次固化的结算点自动生成明细，财务复核即可。'
-  if (type.value === 'risk') return '登记冷链异常与召回隔离事件，形成合规追踪入口。'
-  if (type.value === 'pda') return '模拟 PDA 离线作业补传，记录设备、作业类型与回放状态。'
-  if (type.value === 'delivery') return '中心库按科室申领单拣配定数包，绑定申领明细后出一级库。'
-  if (type.value === 'consumption') return '面向科室库房的扫码消耗工作台，支持定数包、UDI、唯一码登记及反消耗追溯。'
-  return '围绕库存、申领、配送、消耗和财务事实形成可追溯业务流水。'
-})
 const stats = computed(() => [
   { label: '缺货任务', value: summary.value.shortageTasks ?? 0 },
   { label: '待签收配送', value: summary.value.pendingDeliveries ?? 0 },
@@ -977,7 +968,6 @@ watch(() => form.productCode, () => {
       v-if="type === 'shortage'"
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -986,7 +976,6 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'delivery'"
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -995,7 +984,6 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'consumption'"
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1004,7 +992,6 @@ watch(() => form.productCode, () => {
       <MdPageHeader
         crumb="供应链业务"
         :title="title"
-        :description="subtitle"
         :loading="loading"
         @refresh="loadData"
       >
@@ -1025,7 +1012,6 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'high-value'"
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1034,7 +1020,6 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'settlement'"
       crumb="结算与财务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1043,7 +1028,6 @@ watch(() => form.productCode, () => {
       v-else-if="type === 'red-flush'"
       crumb="结算与财务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -2251,7 +2235,7 @@ watch(() => form.productCode, () => {
   padding: 16px 20px 24px;
   color: var(--consumption-text);
   background: transparent;
-  font-family: "Segoe UI Variable", "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family: var(--spd-font-family);
 }
 
 .consumption-saas-page > .md-header {
@@ -2884,7 +2868,7 @@ watch(() => form.productCode, () => {
 }
 
 .finance-settlement-page .settlement-code-list {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   /* L-07 结算编码列表（等宽）：--spd-font-size-xs（11/13/15px） */
   font-size: var(--spd-font-size-xs) !important;
   font-variant-numeric: tabular-nums;
@@ -3266,7 +3250,7 @@ watch(() => form.productCode, () => {
 /* 单据号等宽、数量金额右对齐 */
 .shortage-task-page .purchase-table tbody td:first-child,
 .shortage-task-page .purchase-detail-table tbody td:first-child {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs) !important;
   color: var(--md-text-heading) !important;
   white-space: nowrap;

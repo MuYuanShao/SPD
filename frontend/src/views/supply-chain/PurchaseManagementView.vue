@@ -249,7 +249,6 @@ async function handleOrderAttachmentUpload(event: Event) {
     <MdPageHeader
       crumb="供应链业务"
       title="采购管理"
-      description="需求池、采购计划、采购订单、订单跟踪按子流程拆分；验收入库按最新医院目录采购价生成系统批次单价。"
       :loading="loading"
       @refresh="loadData"
     />
@@ -1559,7 +1558,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 /* ---------- 单据号 / 金额 ---------- */
 .document-no-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   color: var(--md-text-heading) !important;
@@ -1567,7 +1566,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .purchase-plan-amount {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--md-primary-strong, var(--spd-text-heading));
@@ -2365,7 +2364,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-code-cell {
   width: 130px;
   color: #52697a;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .purchase-product-cell {

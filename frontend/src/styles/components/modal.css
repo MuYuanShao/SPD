@@ -451,6 +451,7 @@
 }
 .el-dialog__headerbtn .el-dialog__close {
   color: var(--modal-color-primary);
+  /* 弹窗关闭按钮图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
   line-height: 1;
 }
@@ -1042,6 +1043,7 @@
 }
 .el-dialog__headerbtn .el-dialog__close {
   color: #6366f1 !important;
+  /* 弹窗关闭按钮图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px !important;
   line-height: 1 !important;
 }

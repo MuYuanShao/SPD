@@ -213,7 +213,7 @@
 .department-code-cell,
 .department-source-cell {
   color: #31515e;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
@@ -279,7 +279,7 @@
 
 .department-finance-cell code {
   color: #526b76;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
 }
 

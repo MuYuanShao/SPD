@@ -204,7 +204,7 @@
 
 /* ---------- 单据号 / 数量 / 金额 / 时间 ---------- */
 .receiving-page .receiving-table .document-no-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   color: var(--md-text-heading) !important;
@@ -219,7 +219,7 @@
 
 .receiving-page .receiving-table .receiving-amount-cell {
   text-align: right;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--md-primary-strong, var(--md-primary, #0d6b63));
@@ -707,7 +707,7 @@
 .receiving-detail-header h3 {
   margin-top: 2px;
   color: var(--md-text-heading, #0d2f55);
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
 }

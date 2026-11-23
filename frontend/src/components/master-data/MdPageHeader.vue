@@ -6,8 +6,6 @@ defineProps<{
   crumb?: string
   /** 主标题，如 "医院目录" */
   title: string
-  /** 副标题（说明） */
-  description?: string
   /** 加载状态 */
   loading?: boolean
   /** 是否显示刷新按钮，默认 true */

@@ -204,6 +204,7 @@
 
 .process-arrow {
   color: #c3ccd5;
+  /* 流程箭头为装饰性字符，尺寸固定（白名单：装饰元素尺寸） */
   font-size: 24px;
   text-align: center;
 }

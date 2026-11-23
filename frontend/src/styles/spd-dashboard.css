@@ -60,6 +60,7 @@
 }
 
 .spd-modules-title .el-icon {
+  /* 模块标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
   color: var(--spd-primary);
 }
@@ -159,6 +160,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 模块卡图标尺寸固定（白名单：图标尺寸） */
   font-size: 22px;
   flex-shrink: 0;
 }
@@ -240,6 +242,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 子模块图标尺寸固定（白名单：图标尺寸） */
   font-size: 14px;
   color: white;
   transition: transform 0.2s;
@@ -329,6 +332,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* KPI 图标尺寸固定（白名单：图标尺寸） */
   font-size: 24px;
   flex-shrink: 0;
 }
@@ -337,6 +341,7 @@
   .spd-kpi-icon-wrapper {
     width: 56px;
     height: 56px;
+    /* KPI 图标尺寸固定（白名单：图标尺寸） */
     font-size: 28px;
     border-radius: 14px;
   }
@@ -542,6 +547,7 @@
 
 .spd-card-title .el-icon {
   color: var(--spd-primary);
+  /* 卡片标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 18px;
 }
 
@@ -903,6 +909,7 @@
 }
 
 .spd-chart-card .spd-card-title .el-icon {
+  /* 图表卡标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
 }
 
@@ -983,6 +990,7 @@
 }
 
 .spd-todo-card .spd-card-title .el-icon {
+  /* 待办卡标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
 }
 
@@ -1111,6 +1119,7 @@
 }
 
 .spd-loading-mask .spd-loading-spinner {
+  /* 加载动画图标尺寸固定（白名单：图标尺寸） */
   font-size: 48px;
   color: var(--spd-primary);
   margin-bottom: 16px;

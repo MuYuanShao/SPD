@@ -32,7 +32,7 @@ final class ProductApprovalMapper {
                 "申请人" + rs.getLong("submit_by"),
                 rs.getTimestamp("submit_time").toLocalDateTime().format(FORMATTER),
                 rs.getString("current_step_name") != null && status != null && status.startsWith("pending")
-                        ? rs.getString("current_step_name") + "待审批" : toStatusLabel(status),
+                        ? rs.getString("current_step_name") : toStatusLabel(status),
                 toStatusTone(status),
                 "pending_initial".equals(status),
                 rs.getString("product_code"),

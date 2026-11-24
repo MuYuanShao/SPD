@@ -63,7 +63,7 @@ export interface PendingProductApplicationRow {
 
 export interface PendingProductApplicationPage {
   typeCounts: PendingProductTypeCount[]
-  summary?: { typeCounts?: PendingProductTypeCount[] }
+  summary?: { typeCounts?: PendingProductTypeCount[]; statusOptions?: string[] }
   rows: PendingProductApplicationRow[]
   total: number
   page: number
@@ -193,9 +193,9 @@ export interface PendingProductSourcePage {
   size: number
 }
 
-export async function fetchPendingProductApplications(type: string, scope = 'todo', keyword = '', mineStatus = 'pending', page = 1, size = 25) {
+export async function fetchPendingProductApplications(type: string, scope = 'todo', keyword = '', mineStatus = 'pending', page = 1, size = 25, approvalStep = '') {
   return getData<PendingProductApplicationPage>('/pending-product-applications', {
-    params: { type, scope, keyword, mineStatus, page, size }
+    params: { type, scope, keyword, mineStatus, page, size, approvalStep }
   })
 }
 
@@ -284,10 +284,12 @@ export async function approvePendingProductApplication(applicationNo: string, ac
   )
 }
 
+/** Submits independently committed approvals and returns success counts and failed application numbers. */
 export async function batchApprovePendingProductApplications(applicationNos: string[], action: string, opinion: string) {
-  return putData<{ successCount: number; failCount: number }>(
+  return putData<{ successCount: number; failCount: number; failedNos?: string[] }>(
     '/pending-product-applications/batch-action',
-    { applicationNos, action, opinion }
+    { applicationNos, action, opinion },
+    { timeout: 120000 }
   )
 }
 

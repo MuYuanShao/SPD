@@ -90,7 +90,7 @@ class InventoryMovementServiceTest {
         var deductions = service.consumeAvailableFifo(1L, 2L, new BigDecimal("3"),
                 "department_consumption_out", "department_consumption", 99L, "test");
         assertThat(deductions).containsExactly(new InventoryMovementService.InventoryDeduction(
-                21L, new BigDecimal("3"), new BigDecimal("6")));
+                21L, new BigDecimal("3"), new BigDecimal("6"), 77L));
         verify(jdbcTemplate, never()).update(contains("available_qty = available_qty -"), any(), eq(10L), any());
         verify(inventoryEventService).record(any());
     }
@@ -157,7 +157,7 @@ class InventoryMovementServiceTest {
                 1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery");
 
         assertThat(deductions).containsExactly(new InventoryMovementService.InventoryDeduction(
-                20L, requestedQty, new BigDecimal("5.0000")));
+                20L, requestedQty, new BigDecimal("5.0000"), 77L));
         ArgumentCaptor<String> fifoSql = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate, org.mockito.Mockito.times(2)).queryForList(fifoSql.capture(), eq(1L), eq(2L));
         assertThat(fifoSql.getAllValues()).allSatisfy(sql -> assertThat(sql).contains("FOR UPDATE"));
@@ -220,8 +220,8 @@ class InventoryMovementServiceTest {
                 1L, 2L, requestedQty, "delivery_out", "delivery_order", 99L, "sign delivery");
 
         assertThat(deductions).containsExactly(
-                new InventoryMovementService.InventoryDeduction(20L, firstQty, new BigDecimal("5.0000")),
-                new InventoryMovementService.InventoryDeduction(21L, secondQty, new BigDecimal("6.0000")));
+                new InventoryMovementService.InventoryDeduction(20L, firstQty, new BigDecimal("5.0000"), 77L),
+                new InventoryMovementService.InventoryDeduction(21L, secondQty, new BigDecimal("6.0000"), 78L));
         ArgumentCaptor<InventoryEventCommand> events = ArgumentCaptor.forClass(InventoryEventCommand.class);
         verify(inventoryEventService, org.mockito.Mockito.times(2)).record(events.capture());
         assertThat(events.getAllValues()).extracting(InventoryEventCommand::batchId).containsExactly(20L, 21L);

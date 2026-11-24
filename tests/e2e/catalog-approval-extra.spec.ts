@@ -123,6 +123,64 @@ test('A详情延迟返回不能覆盖已经显示的B详情', async ({ page }) =
   await expect(page.locator('.approval-detail-header h2')).toContainText('SP-APP-002')
 })
 
+test('待审批目录使用配置节点名称并按节点进行整表筛选', async ({ page }) => {
+  await setupApproval(page)
+  const listPath = '**/api/pending-product-applications?*'
+  await page.route(listPath, route => {
+    const query = new URL(route.request().url()).searchParams
+    const all = [
+      { no: 'FLOW-001', type: '新品准入', product: '采购办待审商品', status: '采购办审批' },
+      { no: 'FLOW-002', type: '新品准入', product: '医保待审商品', status: '医保审批' }
+    ]
+    const step = query.get('approvalStep')
+    const rows = step ? all.filter(row => row.status === step) : all
+    return route.fulfill({ json: envelope({
+      rows, total: rows.length, page: 1, size: 25, typeCounts: [],
+      summary: { statusOptions: ['采购办审批', '医保审批'] }
+    }) })
+  })
+  await page.goto('/features/pending-product-catalog')
+  const table = page.locator('.approval-wide-table')
+  await expect(table.getByText('FLOW-001', { exact: true }).first()).toBeVisible()
+  await page.locator('label').filter({ has: page.getByRole('combobox', { name: '审批状态' }) })
+    .locator('.el-select__wrapper').click()
+  await expect(page.getByRole('option', { name: '采购办审批' })).toBeVisible()
+  const request = page.waitForRequest(url => url.url().includes('approvalStep=') && !!new URL(url.url()).searchParams.get('approvalStep'))
+  await page.getByRole('option', { name: '医保审批' }).click()
+  expect(Object.fromEntries(new URL((await request).url()).searchParams)).toMatchObject({ approvalStep: '医保审批', page: '1' })
+  await expect(table.getByText('FLOW-002', { exact: true }).first()).toBeVisible()
+  await expect(table.getByText('FLOW-001', { exact: true })).toHaveCount(0)
+})
+
+test('跨页勾选 26 条审批单并在请求中断后核对状态', async ({ page }) => {
+  const state = await setupApproval(page, { count: 26 })
+  const submissions: string[][] = []
+  await page.route('**/api/pending-product-applications/batch-action', async route => {
+    submissions.push(route.request().postDataJSON().applicationNos)
+    await route.abort('timedout')
+  })
+  await page.goto('/features/pending-product-catalog')
+  const table = page.locator('.approval-wide-table')
+  await expect(table.getByText(state.application(25), { exact: true }).first()).toBeVisible()
+  await table.locator('thead input[type=checkbox]').check()
+  await page.locator('.md-pagination .btn-next').click()
+  await expect(table.getByText(state.application(26), { exact: true }).first()).toBeVisible()
+  await table.locator('thead input[type=checkbox]').check()
+  await expect(page.getByText('已选择 26 条', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '批量通过', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  const preview = dialog.getByRole('table', { name: '批量审批明细' })
+  await expect(preview.locator('tbody tr')).toHaveCount(26)
+  await expect(preview.getByRole('row', { name: new RegExp(state.application(1)) })).not.toContainText('暂无商品信息')
+  await expect(preview.getByRole('columnheader', { name: 'UDI 编码' })).toHaveCount(1)
+  await dialog.getByRole('button', { name: '确认通过 26 条', exact: true }).click()
+  await expect(dialog.getByRole('alert')).toContainText('未收到完整审批结果')
+  await expect(dialog.getByText(/SP-APP-026 · 待初审/)).toBeVisible()
+  await expect(dialog.getByRole('button', { name: '确认通过 26 条', exact: true })).toHaveCount(0)
+  expect(submissions).toEqual([Array.from({ length: 26 }, (_, index) => state.application(index + 1))])
+  expect(new Set(state.detailReads).size).toBe(26)
+})
+
 for (const successCount of [0, 1, 2]) {
   test(`批量结果成功${successCount}条时准确显示部分失败并按需刷新医院目录`, async ({ page }) => {
     const state = await setupApproval(page)
@@ -130,7 +188,8 @@ for (const successCount of [0, 1, 2]) {
     await page.route('**/api/pending-product-applications/batch-action', async route => {
       requests++
       await new Promise(resolve => setTimeout(resolve, 200))
-      await route.fulfill({ json: envelope({ successCount, failCount: 2 - successCount }) })
+      await route.fulfill({ json: envelope({ successCount, failCount: 2 - successCount,
+        failedNos: Array.from({ length: 2 - successCount }, (_, index) => state.application(successCount + index + 1)) }) })
     })
     await page.goto('/features/hospital-product-catalog')
     await expect(page.getByText('原有目录商品', { exact: true })).toBeVisible()
@@ -138,9 +197,10 @@ for (const successCount of [0, 1, 2]) {
     await openApprovalMenu(page)
     await page.locator('.approval-wide-table thead input[type=checkbox]').check()
     await page.getByRole('button', { name: '批量通过', exact: true }).click()
-    await page.getByRole('dialog').getByRole('button', { name: '确认', exact: true }).click()
+    await page.getByRole('dialog').getByRole('button', { name: '确认通过 2 条', exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(page.getByText(`已审批通过 ${successCount} 条${successCount < 2 ? `，${2 - successCount} 条操作失败` : ''}`, { exact: true })).toBeVisible()
+    if (successCount < 2) await expect(page.getByText(`已选择 ${2 - successCount} 条`, { exact: true })).toBeVisible()
     expect(requests).toBe(1)
     expect(state.listReads()).toBeGreaterThan(1)
     await page.locator('.spd-tabbar-tab').filter({ hasText: '医院目录' }).click()

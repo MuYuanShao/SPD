@@ -82,7 +82,7 @@ class OperationalConsumptionModuleTest {
         mockExistingDepartment(20L);
         mockProduct(BigDecimal.valueOf(15));
         when(support.consumeAvailableFifo(eq(20L), eq(100L), eq(BigDecimal.TEN), anyString(), anyString(), anyLong(), anyString()))
-                .thenReturn(List.of(new SupplyChainSupport.InventoryDeduction(300L, BigDecimal.TEN, BigDecimal.valueOf(15))));
+                .thenReturn(List.of(new SupplyChainSupport.InventoryDeduction(300L, BigDecimal.TEN, BigDecimal.valueOf(15), 77L)));
         when(support.nextNo(DocumentKind.DEPARTMENT_CONSUMPTION)).thenReturn("XH20260601001");
         mockGeneratedKey(88L);
 
@@ -99,7 +99,7 @@ class OperationalConsumptionModuleTest {
         verify(support).consumeAvailableFifo(eq(20L), eq(100L), eq(BigDecimal.TEN),
                 eq("department_consumption_out"), eq("department_consumption"), eq(88L), anyString());
         verify(jdbcTemplate).update(contains("INSERT INTO department_consumption_item"),
-                eq(88L), eq(100L), eq(300L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(150)));
+                eq(88L), eq(100L), eq(300L), eq(BigDecimal.TEN), eq(BigDecimal.valueOf(15)), eq(BigDecimal.valueOf(150)), eq(77L));
         var creator = org.mockito.ArgumentCaptor.forClass(PreparedStatementCreator.class);
         verify(jdbcTemplate).update(creator.capture(), any(KeyHolder.class));
         var connection = org.mockito.Mockito.mock(java.sql.Connection.class);

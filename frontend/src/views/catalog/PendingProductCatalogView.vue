@@ -22,6 +22,7 @@ import { usePendingProductCatalogNavigation } from '../../composables/usePending
 import { usePendingProductCatalogPagination } from '../../composables/usePendingProductCatalogPagination'
 import {
   fetchPendingProductApplications,
+  fetchPendingProductApplicationDetail,
   fetchPendingProductPartnerOptions,
   fetchPendingProductSourceDetail,
   fetchPendingProductSourceProducts,
@@ -132,8 +133,8 @@ const error = ref('')
 const keyword = ref('')
 /** 申请类型筛选：与左侧审批队列联动 */
 const approvalTypeFilter = ref('')
-/** 审批状态筛选：后端暂不支持该维度，改为前端本地过滤 */
 const approvalStatusFilter = ref('')
+const approvalStatusOptions = ref<string[]>([])
 const message = ref('')
 const showCreateModal = ref(false)
 const totalItems = ref(0)
@@ -362,7 +363,10 @@ const { currentPage, pageSize, changePage, changePageSize, resetPage } =
   })
 
 function toggleAllRows() {
-  selectedNos.value = allVisibleSelected.value ? [] : rows.value.map((row) => row.no)
+  const visible = new Set(rows.value.map(row => row.no))
+  selectedNos.value = allVisibleSelected.value
+    ? selectedNos.value.filter(no => !visible.has(no))
+    : [...new Set([...selectedNos.value, ...visible])]
 }
 
 const {
@@ -370,6 +374,11 @@ const {
   showBatchApproveModal,
   batchApproveAction,
   batchApproveOpinion,
+  batchApproveError,
+  uncertainNos,
+  checkingStatuses,
+  checkedStatuses,
+  checkBatchStatuses,
   openBatchApprove,
   confirmBatchApprove
 } = usePendingProductBatchApproval({
@@ -377,6 +386,7 @@ const {
   error,
   message,
   batchApprove: batchApprovePendingProductApplications,
+  readStatus: fetchPendingProductApplicationDetail,
   reload: loadApplications
 })
 
@@ -414,6 +424,49 @@ const approvalCols = useListColumns({
   defaults: APPROVAL_COL_DEFAULTS
 })
 
+const batchLeadingWidths = {
+  type: 108, applicant: 78, time: 168, productCode: 112, supplier: 125, purchasePrice: 82, risk: 120
+}
+const batchLeadingColumns = Object.keys(batchLeadingWidths) as Array<keyof typeof batchLeadingWidths>
+const batchColumns = [
+  ...batchLeadingColumns.map(key => ({
+    ...APPROVAL_COL_DEFAULTS.find(column => column.key === key)!,
+    width: batchLeadingWidths[key]
+  })),
+  ...APPROVAL_COL_DEFAULTS.filter(column => !Object.hasOwn(batchLeadingWidths, column.key))
+]
+const batchActionText = computed(() => ({
+  approve: '通过', return: '退回修改', reject: '驳回'
+}[batchApproveAction.value]))
+
+const selectedApprovalRows = ref(new Map<string, PendingProductApplicationRow>())
+watch([selectedNos, rows], ([numbers, visibleRows]) => {
+  const selected = new Set(numbers)
+  const next = new Map(selectedApprovalRows.value)
+  for (const no of next.keys()) {
+    if (!selected.has(no)) next.delete(no)
+  }
+  for (const row of visibleRows) {
+    if (selected.has(row.no)) next.set(row.no, row)
+  }
+  selectedApprovalRows.value = next
+})
+const batchRows = computed(() => selectedNos.value.map(no => ({
+  no,
+  row: selectedApprovalRows.value.get(no)
+})))
+
+function batchApprovalCell(row: PendingProductApplicationRow, key: string) {
+  switch (key) {
+    case 'type': return row.type
+    case 'time': return approvalTimeText(row)
+    case 'createTime': return formatDateTime(row.createTime)
+    case 'updateTime': return formatDateTime(row.updateTime)
+    case 'changeSummary': return row.changeSummary || '-'
+    default: return approvalWideField(row, key)
+  }
+}
+
 const isColVisible = (key: string) => approvalCols.isColumnVisible(key)
 const approvalColWidth = (key: string) => approvalCols.columnWidth(key)
 const startApprovalColDrag = (key: string, event: MouseEvent) => approvalCols.startColumnDrag(key, event)
@@ -439,6 +492,11 @@ function resetApprovalFilter() {
   keyword.value = ''
   approvalStatusFilter.value = ''
   approvalTypeFilter.value = activeScope.value === 'todo' ? activeTypeKey.value : ''
+  applyApprovalFilter()
+}
+
+function applyApprovalFilter() {
+  selectedNos.value = []
   currentPage.value = 1
   void loadApplications()
 }
@@ -474,19 +532,6 @@ function approvalStatusChipClass(tone?: string): string {
   return map[tone ?? ''] ?? 'is-neutral'
 }
 
-/** 审批状态本地过滤：仅保留匹配状态的行 */
-const filteredRows = computed(() => {
-  const status = approvalStatusFilter.value
-  if (!status) return rows.value
-  return rows.value.filter((row) => row.status === status)
-})
-
-/** 本地过滤后的总数（状态筛选不改变分页总数口径） */
-const displayTotal = computed(() => {
-  if (!approvalStatusFilter.value) return totalItems.value
-  return filteredRows.value.length
-})
-
 /** 表格最小宽度 = 固定列（勾选 48 + 审批单号 170 + 商品 250 + 操作 250）+ 各可见数据列宽之和 */
 const FIXED_COL_WIDTH = 48 + 170 + 250 + 250
 const approvalTableMinWidth = computed(() => {
@@ -507,7 +552,8 @@ async function loadApplications() {
       keyword.value,
       activeMineStatus.value,
       currentPage.value,
-      pageSize.value
+      pageSize.value,
+      approvalStatusFilter.value
     )
     if (request !== requestVersion || !active.value) return
     const lastPage = Math.max(1, Math.ceil(data.total / pageSize.value))
@@ -520,7 +566,7 @@ async function loadApplications() {
     rows.value = data.rows
     typeCounts.value = data.summary?.typeCounts ?? data.typeCounts
     totalItems.value = data.total
-    selectedNos.value = []
+    approvalStatusOptions.value = data.summary?.statusOptions ?? []
   } catch (err) {
     if (request !== requestVersion || !active.value) return
     needsReload = true
@@ -561,6 +607,8 @@ onMounted(() => {
   document.addEventListener('click', handleOutsideClick)
 })
 watch([activeTypeKey, activeScope, activeMineStatus], () => {
+  selectedNos.value = []
+  approvalStatusFilter.value = ''
   resetPage()
   // 侧边栏切换类型时，同步顶部申请类型筛选框
   if (activeScope.value === 'todo') {
@@ -570,6 +618,7 @@ watch([activeTypeKey, activeScope, activeMineStatus], () => {
   }
   void loadApplications()
 })
+watch([keyword, approvalStatusFilter], () => { selectedNos.value = [] })
 watch(() => refreshStore.applicationsVersion, () => {
   needsReload = true
   if (active.value && route.name === 'pending-product-catalog' && !batchApproveLoading.value) void loadApplications()
@@ -658,7 +707,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
         <StatusMessage :message="message" tone="info" />
 
         <!-- 筛选区：与统一列表其他页面保持一致（字段 + 重置/查询） -->
-        <form class="approval-filter-row md-hospital-filter ulc-filter" @submit.prevent="currentPage = 1; loadApplications()">
+        <form class="approval-filter-row md-hospital-filter ulc-filter" @submit.prevent="applyApprovalFilter">
           <div class="ulc-filter-fields">
             <label>
               <span>审批单号 / 商品名称</span>
@@ -688,10 +737,10 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
             </label>
             <label>
               <span>审批状态</span>
-              <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable class="ulc-filter-select" aria-label="审批状态">
+              <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable class="ulc-filter-select" aria-label="审批状态"
+                @change="applyApprovalFilter">
                 <el-option label="全部状态" value="" />
-                <el-option label="初审中" value="初审中" />
-                <el-option label="复审中" value="复审中" />
+                <el-option v-for="name in approvalStatusOptions" :key="name" :label="name" :value="name" />
               </el-select>
             </label>
           </div>
@@ -860,7 +909,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
               <tr v-else-if="error">
                 <td :colspan="approvalTableSpan"><StatusMessage :message="error" tone="error" /></td>
               </tr>
-              <tr v-for="row in filteredRows" v-else :key="row.no">
+              <tr v-for="row in rows" v-else :key="row.no">
                 <td class="approval-col-check">
                   <input v-model="selectedNos" type="checkbox" :value="row.no" />
                 </td>
@@ -1012,34 +1061,79 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 
     <Teleport to="body">
     <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="!batchApproveLoading && (showBatchApproveModal = false)">
-      <section class="supplier-dialog product-dialog large" role="dialog" aria-modal="true">
+      <section class="supplier-dialog product-dialog batch-approval-dialog" role="dialog" aria-modal="true" aria-labelledby="batch-approval-title">
         <header>
           <div>
-            <p>批量审批</p>
-            <h3>{{ { approve: '批量通过', return: '批量退回修改', reject: '批量驳回' }[batchApproveAction] }}</h3>
+            <h3 id="batch-approval-title">批量{{ batchActionText }}</h3>
           </div>
           <button class="btn-icon" type="button" aria-label="关闭" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">
             <X :size="18" />
           </button>
         </header>
-        <form @submit.prevent="confirmBatchApprove">
-          <div class="approval-create-section">
-            <p style="margin:0 0 12px;color:#475569;">已选择 <strong>{{ selectedNos.length }}</strong> 条审批单</p>
-            <label>
-              <span>审批意见</span>
-              <textarea
-                v-model="batchApproveOpinion"
-                :disabled="batchApproveLoading"
-                :placeholder="batchApproveAction === 'return' ? '请填写退回修改原因（必填）' : batchApproveAction === 'reject' ? '请填写驳回理由（必填）' : '填写审批意见（选填）'"
-                rows="4"
-                :required="batchApproveAction !== 'approve'"
-              />
-            </label>
+        <form class="batch-approval-form" @submit.prevent="confirmBatchApprove">
+          <div class="batch-approval-body">
+            <p class="batch-approval-count">已选择 <strong>{{ uncertainNos.length || selectedNos.length }}</strong> 条审批单</p>
+            <StatusMessage :message="batchApproveError" tone="error" role="alert" />
+            <div v-if="uncertainNos.length" class="batch-approval-status-list" aria-label="审批单当前状态">
+              <p v-if="checkingStatuses" role="status">正在核对审批单状态…</p>
+              <ul v-else>
+                <li v-for="item in checkedStatuses" :key="item.no">
+                  {{ item.no }} · {{ item.status }}<template v-if="item.updateTime"> · {{ item.updateTime }}</template>
+                </li>
+              </ul>
+            </div>
+            <template v-else>
+              <div class="batch-approval-scroll" role="region" aria-label="所选审批单" tabindex="0">
+                <table class="batch-approval-table" aria-label="批量审批明细">
+                  <thead>
+                    <tr>
+                      <th scope="col">审批单号</th>
+                      <th scope="col">商品名称 / 规格</th>
+                      <th v-for="column in batchColumns" :key="column.key" scope="col" :style="{ minWidth: column.width + 'px' }">
+                        {{ column.label }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="{ no, row } in batchRows" :key="no">
+                      <th scope="row">{{ no }}</th>
+                      <template v-if="row">
+                        <td>{{ row.product }} / {{ row.specModel || '-' }}</td>
+                        <td v-for="column in batchColumns" :key="column.key">
+                          <span v-if="column.key === 'type'" class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span>
+                          <template v-else-if="column.key === 'risk'">
+                            <span v-for="label in approvalRiskLabels(row)" :key="label" class="ulc-chip" :class="approvalRiskChipClass(label)">{{ label }}</span>
+                          </template>
+                          <template v-else>{{ batchApprovalCell(row, column.key) }}</template>
+                        </td>
+                      </template>
+                      <template v-else>
+                        <td>暂无商品信息</td>
+                        <td v-for="column in batchColumns" :key="column.key">—</td>
+                      </template>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="batch-approval-hint">横向滚动查看全部字段</p>
+              <label class="batch-approval-opinion">
+                <span>审批意见{{ batchApproveAction === 'approve' ? '（选填）' : '（必填）' }}</span>
+                <textarea
+                  v-model="batchApproveOpinion"
+                  :disabled="batchApproveLoading"
+                  :placeholder="batchApproveAction === 'return' ? '请填写退回修改原因' : batchApproveAction === 'reject' ? '请填写驳回理由' : '请输入审批意见'"
+                  rows="3"
+                  :required="batchApproveAction !== 'approve'"
+                />
+              </label>
+            </template>
           </div>
           <div class="dialog-actions">
             <button class="btn" type="button" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">取消</button>
-            <button class="btn btn-primary" type="submit" :disabled="batchApproveLoading">
-              <Send :size="18" /> {{ batchApproveLoading ? '提交中...' : '确认' }}
+            <button v-if="uncertainNos.length" class="btn btn-primary" type="button"
+              :disabled="checkingStatuses" @click="checkBatchStatuses">刷新核对</button>
+            <button v-else class="btn btn-primary" type="submit" :disabled="batchApproveLoading || !selectedNos.length">
+              {{ batchApproveLoading ? '提交中...' : `确认${batchActionText} ${selectedNos.length} 条` }}
             </button>
           </div>
         </form>
@@ -1253,3 +1347,123 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
     </Teleport>
   </section>
 </template>
+
+<style scoped>
+.supplier-dialog.product-dialog.batch-approval-dialog {
+  width: min(94vw, 1720px);
+  max-width: 100%;
+}
+
+.batch-approval-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.batch-approval-body {
+  overflow: auto;
+  padding: 16px clamp(12px, 2vw, 32px) 20px;
+  font-size: 14px;
+}
+
+.batch-approval-count {
+  margin: 0 0 16px;
+}
+
+.batch-approval-scroll {
+  --number-width: 160px;
+  --product-width: 230px;
+  max-height: 45vh;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+.batch-approval-table {
+  border-spacing: 0;
+  min-width: 100%;
+  text-align: left;
+}
+
+.batch-approval-table :is(th, td) {
+  box-sizing: border-box;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e9edf2;
+  background: #fff;
+  white-space: pre-wrap;
+}
+
+.batch-approval-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #eef2f6;
+}
+
+.batch-approval-table tr > :first-child {
+  position: sticky;
+  left: 0;
+  min-width: var(--number-width);
+  max-width: var(--number-width);
+}
+
+.batch-approval-table tr > :nth-child(2) {
+  position: sticky;
+  left: var(--number-width);
+  min-width: var(--product-width);
+  max-width: var(--product-width);
+  overflow-wrap: anywhere;
+  box-shadow: 3px 0 4px #0f172a12;
+}
+
+.batch-approval-table tbody tr > :nth-child(-n + 2) {
+  z-index: 1;
+}
+
+.batch-approval-table thead tr > :nth-child(-n + 2) {
+  z-index: 3;
+}
+
+.batch-approval-table tbody th {
+  font-weight: normal;
+  overflow-wrap: anywhere;
+}
+
+.batch-approval-hint {
+  margin: 8px 0 16px;
+  color: #475569;
+}
+
+.batch-approval-opinion {
+  display: grid;
+  gap: 6px;
+}
+
+.batch-approval-opinion textarea {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 5px;
+  font: inherit;
+  resize: vertical;
+}
+
+@media (max-width: 640px) {
+  .batch-approval-scroll {
+    --number-width: 125px;
+    --product-width: 135px;
+  }
+
+  .batch-approval-table tr > :nth-child(2) {
+    left: auto;
+    box-shadow: none;
+  }
+}
+
+.batch-approval-status-list {
+  max-height: 40vh;
+  overflow: auto;
+}
+</style>

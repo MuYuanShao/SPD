@@ -1215,6 +1215,7 @@ class ProductApprovalServiceTest {
             // Assert
             assertThat(result.get("successCount")).isEqualTo(2);
             assertThat(result.get("failCount")).isEqualTo(1);
+            assertThat(result).containsEntry("failedNos", List.of("APP003"));
         }
 
         @Test

@@ -67,6 +67,11 @@ import org.slf4j.LoggerFactory;
  */
 @Service
 public class ProductApprovalService {
+    private static final String CURRENT_CATALOG_STEP = """
+            (SELECT r.step_name FROM pending_product_approval_route_step r
+              WHERE r.application_id = a.application_id AND r.approval_round = a.approval_round
+                AND r.route_status = 'pending' ORDER BY r.route_order LIMIT 1)
+            """.strip();
 
     private static final Logger log = LoggerFactory.getLogger(ProductApprovalService.class);
 
@@ -243,6 +248,13 @@ public class ProductApprovalService {
             args.add("%" + keyword.trim() + "%");
         }
 
+        List<String> statusOptions = approvalStatusOptions(applicationType, scope, whereClause.toString(), args);
+        String approvalStep = params.get("approvalStep");
+        if (!isBlank(approvalStep)) {
+            whereClause.append(" AND ").append(CURRENT_CATALOG_STEP).append(" = ?");
+            args.add(approvalStep.trim());
+        }
+
         Long total = jdbcTemplate.queryForObject("""
                         SELECT COUNT(*)
                         FROM pending_product_application a
@@ -267,15 +279,13 @@ public class ProductApprovalService {
                                a.is_chargeable, a.purchase_price, a.purchase_unit, a.udi_code,
                                a.is_quota_managed, a.is_key_monitored,
                                a.approval_status, a.submit_by, a.submit_time, a.create_time, a.update_time,
-                               (SELECT r.step_name FROM pending_product_approval_route_step r
-                                 WHERE r.application_id=a.application_id AND r.approval_round=a.approval_round
-                                   AND r.route_status='pending' ORDER BY r.route_order LIMIT 1) AS current_step_name
+                               %s AS current_step_name
                         FROM pending_product_application a
                         LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
                         %s
                         ORDER BY a.submit_time DESC, a.application_id DESC
                         LIMIT ? OFFSET ?
-                        """.formatted(whereClause),
+                        """.formatted(CURRENT_CATALOG_STEP, whereClause),
                 (rs, rowNum) -> ProductApprovalMapper.mapRow(rs),
                 queryArgs.toArray()
         );
@@ -332,8 +342,7 @@ public class ProductApprovalService {
                 operator.userId()
         );
 
-        return new PendingProductApplicationPage(
-                List.of(
+        List<PendingProductTypeCount> typeCounts = List.of(
                         new PendingProductTypeCount("new", "新品准入", counts.getOrDefault("新品准入", 0)),
                         new PendingProductTypeCount("change", "信息变更", counts.getOrDefault("信息变更", 0)),
                         new PendingProductTypeCount("qualification", "资质更新", counts.getOrDefault("资质更新", 0)),
@@ -343,12 +352,38 @@ public class ProductApprovalService {
                         new PendingProductTypeCount("mine-returned", "退回修改目录", mineCounts.getOrDefault("mine_returned", 0)),
                         new PendingProductTypeCount("mine-approved", "审批通过目录", mineCounts.getOrDefault("mine_approved", 0)),
                         new PendingProductTypeCount("handled", "已处理/抄送", handledCount == null ? 0 : handledCount)
-                ),
+                );
+        return new PendingProductApplicationPage(
+                typeCounts,
                 rows,
                 total == null ? 0 : total,
                 pageReq.page(),
-                pageReq.size()
+                pageReq.size(),
+                Map.of("typeCounts", typeCounts, "statusOptions", statusOptions)
         );
+    }
+
+    private List<String> approvalStatusOptions(String applicationType, String scope, String where, List<Object> args) {
+        var names = new java.util.LinkedHashSet<String>();
+        if ("todo".equals(scope)) {
+            boolean price = "价格调整".equals(applicationType);
+            // Active configured steps stay selectable even when no application is at that step.
+            names.addAll(jdbcTemplate.queryForList("""
+                    SELECT s.step_name
+                    FROM approval_flow af JOIN approval_flow_step s ON s.flow_id = af.flow_id
+                    WHERE af.feature_code = ? AND af.node_code = ? AND af.status = 1 AND af.deleted = 0 AND s.status = 1
+                    ORDER BY af.flow_id, s.step_order, s.step_id
+                    """, String.class, price ? CatalogApprovalRouteService.PRICE_FEATURE : CatalogApprovalRouteService.CATALOG_FEATURE,
+                    price ? CatalogApprovalRouteService.PRICE_NODE : CatalogApprovalRouteService.INITIAL_NODE));
+        }
+        // A submitted application keeps its frozen step name even after flow configuration changes.
+        names.addAll(jdbcTemplate.queryForList("""
+                SELECT DISTINCT %s AS stepName
+                FROM pending_product_application a LEFT JOIN supplier s ON s.supplier_id = a.supplier_id
+                %s
+                HAVING stepName IS NOT NULL ORDER BY stepName
+                """.formatted(CURRENT_CATALOG_STEP, where), String.class, args.toArray()));
+        return names.stream().filter(name -> !isBlank(name)).toList();
     }
 
     /**
@@ -532,7 +567,7 @@ public class ProductApprovalService {
 
     public Map<String, Object> batchProcessAction(List<String> applicationNos, PendingProductApprovalActionRequest request) {
         int successCount = 0;
-        int failCount = 0;
+        List<String> failedNos = new ArrayList<>();
         for (String applicationNo : applicationNos) {
             try {
                 if (transactionExecutor == null) {
@@ -542,11 +577,11 @@ public class ProductApprovalService {
                 }
                 successCount++;
             } catch (Exception e) {
-                failCount++;
+                failedNos.add(applicationNo);
                 log.warn("Batch action failed for {}: {}", applicationNo, e.getMessage());
             }
         }
-        return Map.of("successCount", successCount, "failCount", failCount);
+        return Map.of("successCount", successCount, "failCount", failedNos.size(), "failedNos", failedNos);
     }
 
     @Transactional

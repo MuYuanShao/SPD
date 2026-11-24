@@ -6,8 +6,10 @@
    - 中（large）  ：16px 基准，约放大 114%，默认档，适合日常办公
    - 大（xlarge）  ：18px 基准，约放大 129%，适合视力偏弱或高分辨率远距使用
 
-   切换方式：在 <html> 上写入 data-font-size="standard|large|xlarge"，
+   切换方式：在 <html> 上写入 data-font-size="standard|xlarge"，
    所有字号均由此处的基准推导，整站等比缩放。
+   默认档「中」不写属性（applyFontSize 会移除属性），
+   因此 :root 的基准值必须就是「中」的 16px。
 
    本文件在 spd-theme.css 之后引入，因此这里的 --spd-font-size-* 定义
    会覆盖 spd-theme.css 中的同名固定值，从而让既有样式自动跟随档位。
@@ -16,8 +18,11 @@
    ===================================================================== */
 
 :root {
-  /* 基准字号：所有 --spd-font-size-* 均由此推导 */
-  --spd-fs-base: 14px;
+  /* 基准字号：所有 --spd-font-size-* 均由此推导
+     默认档 =「中」(16px)，与 DEFAULT_FONT_SIZE = 'large' 对应。
+     注意：applyFontSize() 在默认档会**移除** data-font-size 属性，
+     因此「无属性」必须落在默认档上，否则默认档会退化成「小」。 */
+  --spd-fs-base: 16px;
 
   /* 登录页字体栈（独立体系）
      登录页不参与字号档位缩放，字体栈与业务系统 --spd-font-family 隔离。
@@ -34,14 +39,16 @@
   --spd-lh-loose: 1.65;
 
   /* 表格单元格上下留白（大字号下略微放大，保持呼吸感） */
-  --spd-table-cell-padding-y: 10px;
-}
-
-:root[data-font-size='large'] {
-  --spd-fs-base: 16px;
   --spd-table-cell-padding-y: 12px;
 }
 
+/* 「小」档 —— 常规显示器 · 密度优先 */
+:root[data-font-size='standard'] {
+  --spd-fs-base: 14px;
+  --spd-table-cell-padding-y: 10px;
+}
+
+/* 「大」档 —— 视力偏弱 · 高分辨率远距 */
 :root[data-font-size='xlarge'] {
   --spd-fs-base: 18px;
   --spd-table-cell-padding-y: 13px;

@@ -129,7 +129,14 @@ export function applyPrimaryColor(color: string) {
   root.style.setProperty('--theme-focus', mixColor(color, [255, 255, 255], 0.3))
 }
 
-/** 将字号档位写入 <html data-font-size>，驱动整站字号体系 */
+/**
+ * 将字号档位写入 <html data-font-size>，驱动整站字号体系。
+ *
+ * 默认档「中」不写属性（removeAttribute），
+ * 因此 tokens/typography.css 中 :root 的基准字号就是「中」的 16px，
+ * :root[data-font-size='standard'] 为「小」14px，
+ * :root[data-font-size='xlarge'] 为「大」18px。
+ */
 export function applyFontSize(id: FontSizeId) {
   if (typeof document === 'undefined') return
   const root = document.documentElement

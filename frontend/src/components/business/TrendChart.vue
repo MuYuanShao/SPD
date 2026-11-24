@@ -117,8 +117,8 @@ function render() {
 /* =====================================================================
  * 订阅字号档位变化
  * ---------------------------------------------------------------------
- * 档位由 <html data-font-size="standard|large|xlarge"> 驱动
- * （stores/theme.ts 的 applyFontSize）。标准档位下该属性被 removeAttribute，
+ * 档位由 <html data-font-size="standard|xlarge"> 驱动
+ * （stores/theme.ts 的 applyFontSize）。默认档「中」会被 removeAttribute，
  * 因此监听 attributeFilter 即可覆盖全部三档。
  * ===================================================================== */
 let fontSizeObserver: MutationObserver | undefined

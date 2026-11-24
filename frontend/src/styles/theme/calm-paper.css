@@ -1,5 +1,5 @@
 /* =====================================================================
-   方案 E · 静墨宣纸（Calm Ink Paper）
+   方案 E · 静墨宣纸（Calm Ink Paper）—— 全局配色方案
    ---------------------------------------------------------------------
    设计目标：长时间注视不疲劳、整体克制、配色统一不杂。
 
@@ -15,7 +15,8 @@
    5. 状态条底色透明度从 0.4 降到 0.14，避免满屏色块；
    6. 全局色相收敛到 5 个以内：墨青（主）+ 松绿 / 赭石 / 灰蓝 / 中灰。
 
-   作用域：与其它方案完全隔离，仅在 <html data-spd-theme="calm-paper"> 下生效。
+   作用域：<html data-spd-theme="calm-paper">，由顶栏主题切换器里的
+   「配色方案」全局设置并持久化，全站所有页面立即生效。
    ===================================================================== */
 
 /* =====================================================================
@@ -898,15 +899,22 @@
 }
 
 :root[data-spd-theme='calm-paper'] .spd-theme-card,
-:root[data-spd-theme='calm-paper'] .spd-fontsize-card {
+:root[data-spd-theme='calm-paper'] .spd-fontsize-card,
+:root[data-spd-theme='calm-paper'] .spd-scheme-card {
   background: var(--spd-bg-container) !important;
   border-color: var(--spd-border-default) !important;
   color: var(--spd-text-primary) !important;
 }
 
 :root[data-spd-theme='calm-paper'] .spd-theme-card-name,
-:root[data-spd-theme='calm-paper'] .spd-fontsize-name {
+:root[data-spd-theme='calm-paper'] .spd-fontsize-name,
+:root[data-spd-theme='calm-paper'] .spd-scheme-card-name {
   color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='calm-paper'] .spd-theme-card-hint,
+:root[data-spd-theme='calm-paper'] .spd-scheme-card-hint {
+  color: var(--spd-text-tertiary) !important;
 }
 
 :root[data-spd-theme='calm-paper'] .spd-fontsize-sample {

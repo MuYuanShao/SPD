@@ -39,12 +39,24 @@
 @import "./layout/content-surface.css";
 /* 列宽策略：方案 B（自适应填充），由 feature/ui-col-b-auto-fit 分支引入 */
 @import "./layout/column-strategy-b.css";
-/* 暗夜黑配色方案（科室库房目录独立页面）
-   仅在 <html data-theme="night-black"> 下生效，不影响其它页面配色。 */
+/* 全局配色方案 · 暗夜黑（浅字暗底 + 琥珀金）
+   仅在 <html data-spd-theme="night-black"> 下生效，由顶栏主题切换器切换，全站生效。 */
 @import "./theme/night-black.css";
-/* 方案 E「静墨宣纸」（科室库房目录独立页面）
-   仅在 <html data-spd-theme="calm-paper"> 下生效，不影响其它页面配色。 */
+/* 全局配色方案 · 静墨宣纸（暖白低墨量）
+   仅在 <html data-spd-theme="calm-paper"> 下生效，由顶栏主题切换器切换，全站生效。 */
 @import "./theme/calm-paper.css";
+
+/* 全局配色方案的浏览器原生控件策略：
+   「暗夜黑」是深色底，需要把滚动条、表单控件、焦点环也切到深色，
+   否则页面上会残留亮白的系统滚动条与白色下拉面板。
+   属性由 stores/theme.ts 的 applyScheme() 写在 <html> 上。 */
+:root[data-color-scheme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-color-scheme='light'] {
+  color-scheme: light;
+}
 
 :root {
     color-scheme: light;

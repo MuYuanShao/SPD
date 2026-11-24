@@ -11,35 +11,7 @@ import {
 
 const PARTNER_COMBINED_CODE = 'supplier-manufacturer-management'
 
-/**
- * 主数据工作台支持的「配色方案独立路由」。
- *
- * 每个方案页与浅色原版共用同一份数据与同一套后端接口，
- * 但使用独立视图组件与独立路由名，因此主数据工作台需要额外识别它们。
- *
- * - routeName：路由名（与 router/index.ts 中的 name 一致）
- * - code：方案在功能目录中的编码（用于顶部页签显示中文名）
- * - masterCode：方案实际访问的主数据类型（与浅色原版一致）
- */
-export const MASTER_DATA_SCHEME_ROUTES = [
-  {
-    routeName: 'department-warehouse-catalog-night',
-    code: 'department-warehouse-catalog-night',
-    masterCode: 'department-warehouse-catalog'
-  },
-  {
-    routeName: 'department-warehouse-catalog-calm',
-    code: 'department-warehouse-catalog-calm',
-    masterCode: 'department-warehouse-catalog'
-  }
-] as const
-
-/** 按路由名查找方案配置 */
-export function masterDataSchemeByRouteName(routeName: string) {
-  return MASTER_DATA_SCHEME_ROUTES.find((scheme) => scheme.routeName === routeName)
-}
-
-export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) {
+export function useMasterDataWorkbench() {
   const route = useRoute()
   const router = useRouter()
   const refreshStore = useCatalogApprovalRefreshStore()
@@ -145,9 +117,8 @@ export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) 
     status: ''
   })
 
-  const routeCode = ref(options.codeOverride ?? String(route.params.code ?? ''))
+  const routeCode = ref(String(route.params.code ?? ''))
   watch(() => route.fullPath, () => {
-    if (options.codeOverride) return
     if (route.name === 'master-data-list') routeCode.value = String(route.params.code ?? '')
   })
   const partnerTab = ref<'supplier' | 'manufacturer'>(route.query.tab === 'manufacturer' ? 'manufacturer' : 'supplier')
@@ -163,11 +134,7 @@ export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) 
   const isManufacturerManagement = computed(() => code.value === 'manufacturer-management')
   const isCampusManagement = computed(() => code.value === 'campus-management')
   const isDepartmentManagement = computed(() => code.value === 'department-management')
-  const isDepartmentWarehouseCatalog = computed(
-    () =>
-      code.value === 'department-warehouse-catalog' ||
-      MASTER_DATA_SCHEME_ROUTES.some((scheme) => scheme.code === code.value)
-  )
+  const isDepartmentWarehouseCatalog = computed(() => code.value === 'department-warehouse-catalog')
   const isWarehouseManagement = computed(() => code.value === 'warehouse-location-management')
   const selectableRows = computed(
     () =>
@@ -303,13 +270,11 @@ export function useMasterDataWorkbench(options: { codeOverride?: string } = {}) 
   /**
    * 当前组件是否处于「允许加载主数据」的路由上。
    *
-   * 浅色原版走 `master-data-list` 路由；
-   * 配色方案页走各自的独立路由，通过 codeOverride 复用同一份工作台逻辑。
+   * 主数据列表统一走 `master-data-list` 通配路由；
+   * 配色方案（静墨宣纸 / 暗夜黑）现已是全局主题，不再有独立路由。
    */
   function isWorkbenchRoute() {
-    if (route.name === 'master-data-list') return true
-    if (!options.codeOverride) return false
-    return MASTER_DATA_SCHEME_ROUTES.some((scheme) => scheme.routeName === route.name)
+    return route.name === 'master-data-list'
   }
 
   async function loadPage() {

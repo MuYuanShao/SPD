@@ -661,25 +661,35 @@ tableWidth    = 1673px
 containerWidth = 1676px     /* 差值 3px 为滚动条占位，无留白 */
 ```
 
-### 12.5 主题隔离机制
+### 12.5 配色方案隔离机制（已升级为全局切换）
 
 暗夜黑通过**独立属性** `data-spd-theme="night-black"` 挂在 `<html>` 上，
 与用户主题切换器使用的 `data-theme`（`medical-blue` / `warm-yellow` / `forest-green`）**完全隔离**：
 
 - 顶栏切换用户主色**不会**覆盖暗夜黑方案；
-- 离开该页面时属性被清除，浅色页面样式零污染（实测浅色页 `data-spd-theme = null`，表头底色仍为青玉 `rgb(31,111,109)`）；
 - 颜色全部使用**字面色值**，不引用会被主题切换器以内联样式覆盖的 `--theme-primary` 等变量。
+
+> **2026-11-24 变更**：暗夜黑与静墨宣纸原为科室库房目录的独立页面分支
+> （各自一个 `.vue` 视图 + 一条路由 + 一个功能目录条目）。
+> 现已升级为**全局配色方案**：两套 CSS 本来就是挂在 `:root[data-spd-theme=...]`
+> 上的全局样式，只是被页面级「进入时接管 / 离开时还原」逻辑限制在单页内。
+> 现在该属性由 `stores/theme.ts` 的 `applyScheme()` 统一写入并持久化，
+> 顶栏主题切换器新增「配色方案」分组（标准白 / 静墨宣纸 / 暗夜黑），
+> 选中后**全站所有页面立即生效**，不再需要切换网址。
+> 旧的 `/features/department-warehouse-catalog-night` 与
+> `/features/department-warehouse-catalog-calm` 通过 `featureCatalogRedirects`
+> 重定向回 `/features/department-warehouse-catalog`，旧链接不会失效。
 
 ### 12.6 与浅色页共用的能力
 
-暗夜黑页复用同一套业务逻辑与数据源，功能与浅色版**完全对齐**：
+暗夜黑方案复用同一套业务逻辑与数据源，功能与浅色版**完全对齐**：
 
 - 同一后端接口 `/api/master-data/department-warehouse-catalogs`；
 - 同一套列宽算法（`useListColumns`，`fitMode: 'hybrid'`）、列权重配置与表头分隔线样式；
 - 同一套筛选（科室 / 库房 / 商品 / 状态）、分页、列设置、批量维护、增删改停启用；
 - 同一套三档字号系统（标准 / 大 / 特大）。
 
-方案页与浅色原版通过不同路由访问，评审时可在两个地址之间切换同屏对照。
+方案通过顶栏主题切换器实时切换，评审时可在同一地址同屏对照。
 
 ### 12.7 复现
 
@@ -805,11 +815,17 @@ npm run dev:frontend
 # 打开 http://localhost:1820/features/department-warehouse-catalog-calm
 ```
 
-### 13.10 三个方案页并存一览
+### 13.10 三套配色方案并存一览（已升级为全局切换）
 
-| 分支 | 路由 | 方案 | 定位 |
-| --- | --- | --- | --- |
-| `feature/ui-dark-night` | `/features/department-warehouse-catalog-night` | D 暗夜黑 | 夜间值班、值班室暗环境 |
-| `feature/ui-calm-paper` | `/features/department-warehouse-catalog-calm` | E 静墨宣纸 | 长时间连续值守、降低视觉负载 |
-| 浅色原版 | `/features/department-warehouse-catalog` | A 青玉（默认） | 明亮环境常规使用 |
+> **2026-11-24 变更**：三套方案不再各自占用独立网址与独立视图文件。
+> 现在统一在顶栏主题切换器的「配色方案」分组里切换，**全站生效**。
+
+| 方案 | 切换方式 | 定位 |
+| --- | --- | --- |
+| D 暗夜黑 | 顶栏主题切换器 →「配色方案」→ 暗夜黑 | 夜间值班、值班室暗环境 |
+| E 静墨宣纸 | 顶栏主题切换器 →「配色方案」→ 静墨宣纸 | 长时间连续值守、降低视觉负载 |
+| 标准白（默认） | 顶栏主题切换器 →「配色方案」→ 标准白 | 明亮环境常规使用 |
+
+配色方案与「主色调色板」「主题风格」「界面字号」是**四个正交维度**，可自由组合，
+选择结果写入 `localStorage`（`spd.theme.scheme`）并持久化。
 

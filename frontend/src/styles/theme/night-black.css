@@ -1,5 +1,5 @@
 /* =====================================================================
-   暗夜黑（Night Black）主题 —— 科室库房目录页专用配色方案
+   暗夜黑（Night Black）—— 全局配色方案
    ---------------------------------------------------------------------
    设计目标：
    1. 以「暗夜黑」为基底：内容区用近黑的深灰蓝，避免纯黑造成的
@@ -12,9 +12,11 @@
       次级文字降到 60% 左右，保证层次又不喧宾夺主。
 
    作用域说明：
-   - 本文件只在 <html data-spd-theme="night-black"> 下生效，
-     与用户主题切换器使用的 data-theme 完全隔离，
-     不会污染用户在顶栏选择的主题，也不会被主题切换器覆盖；
+   - 本文件在 <html data-spd-theme="night-black"> 下生效；
+     该属性由顶栏主题切换器里的「配色方案」全局设置并持久化，
+     全站所有页面立即切换，不再是某个页面的专属配色；
+   - 与用户主题切换器使用的 data-theme 完全隔离，
+     不会污染用户在顶栏选择的主色，两者是正交的维度；
    - 配色全部使用**字面色值**，不引用 --theme-primary 等会被
      主题切换器以内联样式覆盖的变量，确保暗夜黑方案始终是琥珀金。
    ===================================================================== */
@@ -686,20 +688,28 @@
 }
 
 :root[data-spd-theme='night-black'] .spd-theme-card,
-:root[data-spd-theme='night-black'] .spd-fontsize-card {
+:root[data-spd-theme='night-black'] .spd-fontsize-card,
+:root[data-spd-theme='night-black'] .spd-scheme-card {
   background: var(--spd-bg-container) !important;
   border-color: var(--spd-border-default) !important;
   color: var(--spd-text-primary) !important;
 }
 
 :root[data-spd-theme='night-black'] .spd-theme-card:hover,
-:root[data-spd-theme='night-black'] .spd-fontsize-card:hover {
+:root[data-spd-theme='night-black'] .spd-fontsize-card:hover,
+:root[data-spd-theme='night-black'] .spd-scheme-card:hover {
   background: var(--spd-primary-bg) !important;
 }
 
 :root[data-spd-theme='night-black'] .spd-theme-card-name,
-:root[data-spd-theme='night-black'] .spd-fontsize-name {
+:root[data-spd-theme='night-black'] .spd-fontsize-name,
+:root[data-spd-theme='night-black'] .spd-scheme-card-name {
   color: var(--spd-text-primary) !important;
+}
+
+:root[data-spd-theme='night-black'] .spd-theme-card-hint,
+:root[data-spd-theme='night-black'] .spd-scheme-card-hint {
+  color: var(--spd-text-tertiary) !important;
 }
 
 :root[data-spd-theme='night-black'] .spd-fontsize-sample {

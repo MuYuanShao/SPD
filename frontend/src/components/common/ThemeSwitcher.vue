@@ -3,12 +3,14 @@ import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Check, Palette } from '@lucide/vue'
 import {
   THEMES,
+  SCHEMES,
   PALETTE_COLORS,
   FONT_SIZES,
   DEFAULT_PRIMARY_COLOR,
   DEFAULT_FONT_SIZE,
   useThemeStore,
   type ThemeId,
+  type SchemeId,
   type FontSizeId
 } from '../../stores/theme'
 
@@ -20,6 +22,9 @@ const panelRef = ref<HTMLElement | null>(null)
 const active = computed(() => THEMES.find((t) => t.id === themeStore.current) ?? THEMES[0])
 const activePalette = computed(
   () => PALETTE_COLORS.find((c) => c.color === themeStore.primaryColor) ?? PALETTE_COLORS[0]
+)
+const activeScheme = computed(
+  () => SCHEMES.find((s) => s.id === themeStore.scheme) ?? SCHEMES[0]
 )
 const activeFontSize = computed(
   () => FONT_SIZES.find((f) => f.id === themeStore.fontSize) ?? FONT_SIZES[0]
@@ -34,6 +39,12 @@ function pickTheme(id: ThemeId) {
 function pickColor(color: string) {
   if (themeStore.primaryColor !== color) {
     themeStore.setPrimaryColor(color)
+  }
+}
+
+function pickScheme(id: SchemeId) {
+  if (themeStore.scheme !== id) {
+    themeStore.setScheme(id)
   }
 }
 
@@ -183,6 +194,36 @@ onBeforeUnmount(() => {
         <div class="spd-theme-panel-sub spd-palette-current">
           当前字号：<strong>{{ activeFontSize.name }}</strong>
           <code>{{ activeFontSize.base }}</code>
+        </div>
+
+        <!-- 配色方案：静墨宣纸 / 暗夜黑 / 标准白（全站生效） -->
+        <div class="spd-theme-panel-header spd-theme-panel-header--second">
+          <span class="spd-theme-panel-title">配色方案</span>
+          <span class="spd-theme-panel-sub">全站生效 · 自动保存</span>
+        </div>
+
+        <div class="spd-scheme-grid" role="radiogroup" aria-label="配色方案">
+          <button
+            v-for="s in SCHEMES"
+            :key="s.id"
+            type="button"
+            role="radio"
+            :aria-checked="s.id === themeStore.scheme"
+            :class="['spd-scheme-card', { 'is-active': s.id === themeStore.scheme }]"
+            @click="pickScheme(s.id)"
+          >
+            <span class="spd-scheme-card-preview" :style="{ background: s.swatch }">
+              <Check v-if="s.id === themeStore.scheme" :size="18" class="spd-scheme-card-check" />
+            </span>
+            <span class="spd-scheme-card-meta">
+              <span class="spd-scheme-card-name">{{ s.name }}</span>
+              <span class="spd-scheme-card-hint">{{ s.hint }}</span>
+            </span>
+          </button>
+        </div>
+
+        <div class="spd-theme-panel-sub spd-palette-current">
+          当前配色方案：<strong>{{ activeScheme.name }}</strong>
         </div>
 
         <!-- 主题风格 -->
@@ -384,6 +425,84 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   background: #f1f5f6;
   color: #526b78;
+}
+
+/* 配色方案卡片网格 */
+.spd-scheme-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.spd-scheme-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 8px;
+  border: 1px solid var(--fli-line, #e5e7eb);
+  border-radius: 10px;
+  background: var(--fli-surface, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  font: inherit;
+  color: inherit;
+}
+
+.spd-scheme-card:hover {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
+  transform: translateX(2px);
+}
+
+.spd-scheme-card.is-active {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
+  box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
+}
+
+.spd-scheme-card-preview {
+  position: relative;
+  width: 56px;
+  height: 40px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease;
+}
+
+.spd-scheme-card:hover .spd-scheme-card-preview {
+  transform: scale(1.04);
+}
+
+.spd-scheme-card-check {
+  color: #ffffff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.spd-scheme-card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spd-scheme-card-name {
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  color: var(--fli-text, #1f2937);
+}
+
+.spd-scheme-card-hint {
+  font-size: var(--spd-font-size-xs);
+  color: var(--fli-muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 主题卡片网格 */

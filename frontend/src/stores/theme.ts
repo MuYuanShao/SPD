@@ -60,10 +60,55 @@ export const THEMES: ThemeDefinition[] = [
   }
 ]
 
+/* ============== 配色方案（Scheme） ==============
+   与上面的「主题风格」是两件事：
+   - 主题风格（data-theme）：只改主色相，页面骨架完全相同；
+   - 配色方案（data-spd-theme）：整体视觉体系（底色、表格、状态条、弹窗），
+     例如「静墨宣纸」取消竖网格线、「暗夜黑」反转为浅字暗底。
+
+   配色方案是**全局**的：选中后写入 <html data-spd-theme="...">，
+   全站所有页面立即生效，并持久化到 localStorage。
+   与 data-theme 完全隔离，两者可以自由组合。 */
+export type SchemeId = 'default' | 'calm-paper' | 'night-black'
+
+export interface SchemeDefinition {
+  id: SchemeId
+  name: string
+  hint: string
+  /** 主题切换器里的预览色块（线性渐变） */
+  swatch: string
+  /** 是否为深色底（影响浏览器滚动条与表单控件的渲染策略） */
+  dark?: boolean
+}
+
+export const SCHEMES: SchemeDefinition[] = [
+  {
+    id: 'default',
+    name: '标准白',
+    hint: '默认清爽 · 竖线网格 + 斑马纹',
+    swatch: 'linear-gradient(135deg, #ffffff 0%, #eef3f5 100%)'
+  },
+  {
+    id: 'calm-paper',
+    name: '静墨宣纸',
+    hint: '暖白低墨量 · 长时间注视不疲劳',
+    swatch: 'linear-gradient(135deg, #fdfbf7 0%, #e7edeb 100%)'
+  },
+  {
+    id: 'night-black',
+    name: '暗夜黑',
+    hint: '浅字暗底 · 琥珀金强调',
+    swatch: 'linear-gradient(135deg, #131920 0%, #d8a24a 100%)',
+    dark: true
+  }
+]
+
 const STORAGE_KEY = 'spd.theme'
 const PRIMARY_STORAGE_KEY = 'spd.theme.primary'
 const FONT_SIZE_STORAGE_KEY = 'spd.theme.fontSize'
+const SCHEME_STORAGE_KEY = 'spd.theme.scheme'
 const DEFAULT_THEME: ThemeId = 'medical-blue'
+const DEFAULT_SCHEME: SchemeId = 'default'
 
 /* ============== 字号档位 ==============
    面向 30 岁以上用户，提供小 / 中 / 大三档。
@@ -186,6 +231,19 @@ function readStoredFontSize(): FontSizeId {
   return DEFAULT_FONT_SIZE
 }
 
+function readStoredScheme(): SchemeId {
+  if (typeof window === 'undefined') return DEFAULT_SCHEME
+  try {
+    const raw = window.localStorage.getItem(SCHEME_STORAGE_KEY)
+    if (raw && SCHEMES.some((s) => s.id === raw)) {
+      return raw as SchemeId
+    }
+  } catch {
+    // 忽略 localStorage 异常
+  }
+  return DEFAULT_SCHEME
+}
+
 function applyTheme(theme: ThemeId) {
   if (typeof document === 'undefined') return
   if (theme === DEFAULT_THEME) {
@@ -195,9 +253,32 @@ function applyTheme(theme: ThemeId) {
   }
 }
 
-// 启动时立刻应用持久化主题、主色与字号，避免出现「无主题→主题」闪烁
+/**
+ * 将全局配色方案写入 <html data-spd-theme>，驱动全站视觉体系。
+ *
+ * 与 applyTheme（data-theme）完全隔离：
+ * - data-theme 只改主色相；
+ * - data-spd-theme 改整体底色、表格、状态条、弹窗等视觉体系。
+ *
+ * 「暗夜黑」是深色底，需要额外同步 color-scheme，
+ * 让浏览器把滚动条、表单控件、焦点环也切到深色。
+ */
+function applyScheme(scheme: SchemeId) {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  const definition = SCHEMES.find((s) => s.id === scheme)
+  if (scheme === DEFAULT_SCHEME || !definition) {
+    root.removeAttribute('data-spd-theme')
+  } else {
+    root.setAttribute('data-spd-theme', scheme)
+  }
+  root.setAttribute('data-color-scheme', definition?.dark ? 'dark' : 'light')
+}
+
+// 启动时立刻应用持久化主题、主色、配色方案与字号，避免出现「无主题→主题」闪烁
 applyTheme(readStoredTheme())
 applyPrimaryColor(readStoredPrimaryColor())
+applyScheme(readStoredScheme())
 applyFontSize(readStoredFontSize())
 
 export const useThemeStore = defineStore('theme', {
@@ -205,17 +286,23 @@ export const useThemeStore = defineStore('theme', {
     current: readStoredTheme(),
     /** 当前业务主色（来自调色板） */
     primaryColor: readStoredPrimaryColor(),
+    /** 当前全局配色方案（data-spd-theme） */
+    scheme: readStoredScheme(),
     /** 当前字号档位 */
     fontSize: readStoredFontSize()
   }),
   getters: {
     palette: () => PALETTE_COLORS,
     fontSizes: () => FONT_SIZES,
+    schemes: () => SCHEMES,
     currentPaletteColor(state): PaletteColor {
       return (
         PALETTE_COLORS.find((c) => c.color === state.primaryColor) ??
         PALETTE_COLORS[0]
       )
+    },
+    currentScheme(state): SchemeDefinition {
+      return SCHEMES.find((s) => s.id === state.scheme) ?? SCHEMES[0]
     },
     currentFontSize(state): FontSizeDefinition {
       return FONT_SIZES.find((f) => f.id === state.fontSize) ?? FONT_SIZES[0]
@@ -241,6 +328,16 @@ export const useThemeStore = defineStore('theme', {
         // 忽略写入失败
       }
     },
+    /** 切换全局配色方案（静墨宣纸 / 暗夜黑 / 标准白） */
+    setScheme(scheme: SchemeId) {
+      this.scheme = scheme
+      applyScheme(scheme)
+      try {
+        window.localStorage.setItem(SCHEME_STORAGE_KEY, scheme)
+      } catch {
+        // 忽略写入失败
+      }
+    },
     /** 切换字号档位（小 / 中 / 大） */
     setFontSize(id: FontSizeId) {
       this.fontSize = id
@@ -254,6 +351,7 @@ export const useThemeStore = defineStore('theme', {
     init() {
       applyTheme(this.current)
       applyPrimaryColor(this.primaryColor)
+      applyScheme(this.scheme)
       applyFontSize(this.fontSize)
     }
   }

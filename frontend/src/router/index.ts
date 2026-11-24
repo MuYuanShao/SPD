@@ -15,10 +15,6 @@ const AccessDeniedView = () => import('../views/AccessDeniedView.vue')
 const PendingProductCatalogView = () => import('../views/catalog/PendingProductCatalogView.vue')
 const PendingProductApprovalDetailView = () => import('../views/catalog/PendingProductApprovalDetailView.vue')
 const MasterDataListView = () => import('../views/master-data/MasterDataListView.vue')
-const DepartmentWarehouseCatalogNightView = () =>
-  import('../views/master-data/DepartmentWarehouseCatalogNightView.vue')
-const DepartmentWarehouseCatalogCalmView = () =>
-  import('../views/master-data/DepartmentWarehouseCatalogCalmView.vue')
 const ProductDetailView = () => import('../views/master-data/ProductDetailView.vue')
 const DepartmentRequisitionView = () => import('../views/supply-chain/DepartmentRequisitionView.vue')
 const PurchaseManagementView = () => import('../views/supply-chain/PurchaseManagementView.vue')
@@ -226,24 +222,6 @@ export const router = createRouter({
       name: 'user-role-management',
       component: UserRoleManagementView,
       meta: { requiresAuth: true }
-    },
-    {
-      // 科室库房目录 · 暗夜黑配色方案
-      // 与浅色原版共用同一后端接口与业务逻辑，仅配色不同，独立路由独立视图。
-      // 必须声明在 master-data-list 通配路由之前，否则会被通配路由先匹配。
-      path: '/features/department-warehouse-catalog-night',
-      name: 'department-warehouse-catalog-night',
-      component: DepartmentWarehouseCatalogNightView,
-      meta: { requiresAuth: true, featureCode: 'department-warehouse-catalog-night' }
-    },
-    {
-      // 科室库房目录 · 方案 E「静墨宣纸」
-      // 与浅色原版共用同一后端接口与业务逻辑，仅视觉表现不同，独立路由独立视图。
-      // 必须声明在 master-data-list 通配路由之前，否则会被通配路由先匹配。
-      path: '/features/department-warehouse-catalog-calm',
-      name: 'department-warehouse-catalog-calm',
-      component: DepartmentWarehouseCatalogCalmView,
-      meta: { requiresAuth: true, featureCode: 'department-warehouse-catalog-calm' }
     },
     {
       path: `/features/:code(${featureCodePattern('master-data-list')})`,

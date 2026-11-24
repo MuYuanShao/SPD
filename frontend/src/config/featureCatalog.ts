@@ -105,9 +105,12 @@ export interface FeatureCatalogEntry {
 /**
  * 菜单权限别名。
  *
- * 「科室库房目录（暗夜黑）」与「科室库房目录（静墨宣纸）」是同一功能的
- * 设计方案页，不新增独立权限点：拥有原「科室库房目录」菜单权限的用户即可访问，
+ * 「科室库房目录（暗夜黑）」与「科室库房目录（静墨宣纸）」曾是同一功能的
+ * 独立设计方案页，不新增独立权限点：拥有原「科室库房目录」菜单权限的用户即可访问，
  * 避免为配色方案单独配置一套角色权限。
+ *
+ * 这两套配色现已是**全局配色方案**（在顶栏主题切换器里切换），
+ * 旧网址会自动重定向到「科室库房目录」，因此别名仅用于兼容旧链接。
  */
 export const featureMenuPermissionAliases: Record<string, string> = {
   'department-warehouse-catalog-night': 'department-warehouse-catalog',
@@ -254,26 +257,6 @@ export const featureCatalog = [
     title: '科室库房目录',
     icon: 'layers-3',
     routeTarget: '/features/department-warehouse-catalog',
-    viewFamily: 'master-data-list',
-    chunkFamily: 'master-data'
-  },
-  {
-    // 暗夜黑配色方案页：功能与「科室库房目录」一致，仅配色不同。
-    // 不进主菜单（避免污染正式导航），通过顶部页签 / 直达链接进入。
-    code: 'department-warehouse-catalog-night',
-    title: '科室库房目录（暗夜黑）',
-    icon: 'moon-star',
-    routeTarget: '/features/department-warehouse-catalog-night',
-    viewFamily: 'master-data-list',
-    chunkFamily: 'master-data'
-  },
-  {
-    // 方案 E「静墨宣纸」：功能与「科室库房目录」一致，仅视觉表现不同。
-    // 不进主菜单（避免污染正式导航），通过顶部页签 / 直达链接进入。
-    code: 'department-warehouse-catalog-calm',
-    title: '科室库房目录（静墨宣纸）',
-    icon: 'scroll-text',
-    routeTarget: '/features/department-warehouse-catalog-calm',
     viewFamily: 'master-data-list',
     chunkFamily: 'master-data'
   },
@@ -767,7 +750,11 @@ export const featureCatalogRedirects = [
   { from: 'pda-offline-records', to: 'pda-offline-record' },
   { from: 'product-catalog', to: '/' },
   { from: 'report-center', to: 'spd-his-reconciliation-report' },
-  { from: 'quota-package-template', to: 'quota-template-maintenance' }
+  { from: 'quota-package-template', to: 'quota-template-maintenance' },
+  // 「暗夜黑」「静墨宣纸」曾是科室库房目录的独立配色方案页，
+  // 现已升级为全局配色方案（在顶栏主题切换器里切换），旧网址重定向回科室库房目录。
+  { from: 'department-warehouse-catalog-night', to: 'department-warehouse-catalog' },
+  { from: 'department-warehouse-catalog-calm', to: 'department-warehouse-catalog' }
 ] as const
 
 export const featureViewNodeGroups = {

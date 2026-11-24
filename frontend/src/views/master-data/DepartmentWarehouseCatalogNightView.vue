@@ -18,6 +18,7 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
 import { Ban, ChevronDown, Columns3, ListPlus, Pencil, Plus, RefreshCw, Search, Trash2 } from '@lucide/vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import {
   useMasterDataWorkbench
 } from '../../composables/useMasterDataWorkbench'
@@ -177,6 +178,15 @@ const catalogCols = useListColumns({
 
 const isCatalogColVisible = (key: string) => catalogCols.isColumnVisible(key)
 const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
+
+/**
+ * 「操作」列统一固定规则（与其它基础数据管理页一致）：
+ * 可见列数不超过阈值(8)时不固定，超过才固定在右侧。
+ */
+const actionColumnFix = useActionColumnFix()
+const catalogActionFixed = computed(() =>
+  catalogCols.visibleColumnCount.value + 2 > actionColumnFix.threshold ? 'right' : undefined
+)
 
 /** el-table 引用：供 useListColumns 测量容器宽度做按比例铺满 */
 const catalogTableRef = catalogCols.tableRef
@@ -502,7 +512,7 @@ const canWrite = computed(() => authStore.canWrite('department-warehouse-catalog
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" align="center" fixed="right" v-bind="catalogCols.columnBinding('actions')">
+          <el-table-column label="操作" align="center" :fixed="catalogActionFixed" v-bind="catalogCols.columnBinding('actions')">
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>

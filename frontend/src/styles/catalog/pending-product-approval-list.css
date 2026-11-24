@@ -699,9 +699,20 @@
   border-bottom: 1px solid #edf2f4;
   padding: 10px 12px;
   text-align: left;
-  text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* 表头保持单行；单元格文字超长换行（不截断） */
+.approval-wide-table th {
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.approval-wide-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-wide-table th {
@@ -748,8 +759,11 @@
 .approval-product-cell strong,
 .approval-product-cell small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-product-cell strong {

@@ -162,6 +162,20 @@
   line-height: var(--spd-lh-tight, 1.35);
 }
 
+/* ===== 超长文本换行（而不是省略号截断） =====
+   Element Plus 的 show-overflow-tooltip 会给 .cell 加上
+   white-space: nowrap + text-overflow: ellipsis + overflow: hidden，
+   导致长字段被截断。这里统一覆盖为「换行」，
+   保证信息完整；需要鼠标提示的字段由各自的 title 属性提供。 */
+.spd-unified-list .ulc-table td.el-table__cell .cell,
+.spd-unified-list .ulc-table td.el-table__cell .cell .el-tooltip__trigger {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 /* 操作列：单元格内容强制单行，按钮不折行 */
 .spd-unified-list .ulc-table td.el-table__cell:has(.ulc-actions) .cell {
   white-space: nowrap;
@@ -205,6 +219,24 @@
   align-items: center;
   gap: 3px;
   max-width: 100%;
+  /* 堆叠内的每一行都允许超长时换行，不截断 */
+  min-width: 0;
+}
+
+/* ===== 单元格内的普通文本：超长自动换行 =====
+   需求：列表里的文字超过列宽就换行，而不是被截断成省略号。
+   Element Plus 默认给 .cell 的是 white-space: nowrap + overflow: hidden，
+   这里统一改回「正常换行」，让内容始终完整可读。 */
+.spd-unified-list .ulc-table td.el-table__cell .cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: var(--spd-lh-tight, 1.35);
+}
+
+/* .cell 直接包裹文本时（未使用 .ulc-cell-stack），同样允许换行 */
+.spd-unified-list .ulc-table td.el-table__cell > .cell {
+  white-space: normal;
 }
 
 /* ===== 长文本列（商品名称 / 生产厂家 等） =====
@@ -229,6 +261,33 @@
   /* T-04 单元格次级说明：--spd-font-size-sm / 500 */
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 500;
+}
+
+/* ===== 拼接文本（单价 + 单位 等） =====
+   ---------------------------------------------------------------------
+   需求：「0.50 个」这类**拼接**的内容不要一上来就换行 ——
+   它是一个整体，只有整体确实超过列宽时才折行。
+   实现：外层是一个块，内层片段用 inline 排布，
+   两段文字自然排在同一行；整体放不下时才由外层折行。 */
+.spd-unified-list .ulc-joined {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 拼接文本的内层片段：始终保持在一行内，不单独折行 */
+.spd-unified-list .ulc-joined > span {
+  display: inline;
+  white-space: nowrap;
+}
+
+/* 拼接文本里的次级片段（如单位）：与主值之间留一个间隔
+   用 margin 而不是空格字符，避免 HTML 折叠空白导致间隔消失 */
+.spd-unified-list .ulc-joined > span + span {
+  margin-left: 4px;
 }
 
 .spd-unified-list .ulc-inline-tags {

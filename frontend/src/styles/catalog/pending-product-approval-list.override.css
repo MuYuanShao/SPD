@@ -646,9 +646,23 @@
   padding: var(--spd-table-cell-padding-y, 10px) 8px !important;
   line-height: var(--spd-lh-tight, 1.35);
   text-align: left;
-  text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* 表头保持单行（列名不长，超长反而难读） */
+.approval-wide-table th {
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ===== 单元格文字超长换行 =====
+   与标准列表页（科室库房目录）一致：文字超过列宽就换行，
+   而不是被截断成省略号，保证内容完整可读。 */
+.approval-wide-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-wide-table th {
@@ -722,11 +736,15 @@
 }
 
 /* ===== 单元格内容 ===== */
+/* 商品名称与规格：超长换行，不截断 */
 .approval-product-cell strong,
 .approval-product-cell small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
   text-align: center;
 }
 
@@ -749,13 +767,18 @@
 }
 
 .approval-no {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
   color: var(--primary) !important;
   font-weight: 700;
   font-family: var(--spd-font-family-mono);
+  /* 单号过长时换行，不截断 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .approval-no svg {

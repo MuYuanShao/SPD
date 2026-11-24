@@ -6,6 +6,7 @@ import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import { useNotify } from '../../composables/useNotify'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { formatDateTime } from '../../utils/dateTime'
 import {
   createLicense,
@@ -392,6 +393,15 @@ const licenseTableRef = licenseCols.tableRef
 const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
 const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
 
+/**
+ * 「操作」列统一固定规则（与其它基础数据管理页一致）：
+ * 可见列数不超过阈值(8)时不固定，超过才固定在右侧。
+ */
+const actionColumnFix = useActionColumnFix()
+const licenseActionFixed = computed(() =>
+  licenseCols.visibleColumnCount.value + 1 > actionColumnFix.threshold ? 'right' : undefined
+)
+
 /** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
 function licenseStatusChipClass(row: LicenseRow) {
   return statusText(row) === '有效' ? 'is-success' : 'is-warning'
@@ -633,7 +643,7 @@ onUnmounted(closePreview)
             <span class="ulc-tag">{{ row.attachmentCount ?? 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :min-width="300" align="center" fixed="right">
+        <el-table-column label="操作" :min-width="300" align="center" :fixed="licenseActionFixed">
           <template #default="{ row }">
             <div class="ulc-actions">
               <button

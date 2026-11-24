@@ -31,6 +31,7 @@ import { useHospitalProductManagement } from '../../composables/useHospitalProdu
 import { useMasterDataExchange } from '../../composables/useMasterDataExchange'
 import { useMasterDataWorkbench } from '../../composables/useMasterDataWorkbench'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { formatDateTime } from '../../utils/dateTime'
 import { useOrganizationMasterData } from '../../composables/useOrganizationMasterData'
 import { useSpdConfirm } from '../../composables/useSpdConfirm'
@@ -675,6 +676,26 @@ const isManufacturerColVisible = (key: string) => manufacturerCols.isColumnVisib
 const manufacturerColWidth = (key: string) => manufacturerCols.columnWidth(key)
 
 /**
+ * ===== 「操作」列统一固定规则 =====
+ * ---------------------------------------------------------------------
+ * 所有基础数据管理列表页共用同一套策略：
+ * 可见列数不超过阈值(8)时，操作列**不固定**，随表格一起滚动；
+ * 超过阈值才固定在右侧，保证横向滚动时操作按钮始终可见。
+ *
+ * 这样各页面表现完全一致，列少时也不会白白多出一列固定区。
+ */
+const actionColumnFix = useActionColumnFix()
+
+/**
+ * 计算「操作」列的 fixed 绑定。
+ * @param visibleDataColumns 可见数据列数（不含选择列与操作列本身）
+ * @param extraColumns 额外固定占位的列数（如选择列）
+ */
+function actionFixedBinding(visibleDataColumns: number, extraColumns = 0) {
+  return visibleDataColumns + extraColumns + 1 > actionColumnFix.threshold ? 'right' : undefined
+}
+
+/**
  * 维护来源状态条配色：不同来源用不同颜色区分。
  * 后端可能返回原始枚举（manual / system / warehouse_binding），
  * 也可能返回已翻译中文（手工维护 / 系统生成），这里两种都覆盖。
@@ -1002,8 +1023,9 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong" :title="String((row as Record<string, unknown>).name)">{{ (row as Record<string, unknown>).name ?? '-' }}</span>
-                  <span class="ulc-mono">{{ (row as Record<string, unknown>).code }}</span>
+                  <!-- 商品名称与编码各自超长时单独换行 -->
+                  <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).name ?? '-' }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ (row as Record<string, unknown>).code }}</span>
                   <span class="ulc-inline-tags">
                     <span v-for="tag in hospitalAttrTags(row as Record<string, unknown>)" :key="tag.text" class="ulc-tag" :class="{ 'is-hot': tag.hot }">{{ tag.text }}</span>
                   </span>
@@ -1034,8 +1056,9 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong" :title="String((row as Record<string, unknown>).manufacturer ?? '-')">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</span>
-                  <span class="ulc-sub" :title="String((row as Record<string, unknown>).supplier ?? '-')">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
+                  <!-- 厂家与供应商是两个独立字段，各自超长时单独换行 -->
+                  <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
                 </div>
               </template>
             </el-table-column>
@@ -1051,8 +1074,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ (row as Record<string, unknown>).price ?? '-' }}</span>
-                  <span class="ulc-sub">{{ String((row as Record<string, unknown>).unit ?? '') }}</span>
+                  <!-- 单价与单位是一个整体：整体放得下就保持一行，整体超出列宽才折行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ (row as Record<string, unknown>).price ?? '-' }}</span>
+                    <span class="ulc-sub">{{ String((row as Record<string, unknown>).unit ?? '') }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -1102,7 +1128,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).updateTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="300" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="300"
+              align="center"
+              :fixed="actionFixedBinding(hospitalCols.visibleColumnCount.value, 1)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action is-outline" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
@@ -1774,8 +1805,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.contactName || '-' }}</span>
-                  <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  <!-- 联系人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.contactName || '-' }}</span>
+                    <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -1833,7 +1867,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="220"
+              align="center"
+              :fixed="actionFixedBinding(supplierCols.visibleColumnCount.value)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2047,8 +2086,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.contactName || '-' }}</span>
-                  <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  <!-- 联系人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.contactName || '-' }}</span>
+                    <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -2092,7 +2134,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="220"
+              align="center"
+              :fixed="actionFixedBinding(manufacturerCols.visibleColumnCount.value)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2239,7 +2286,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name || '-' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
                   <span class="ulc-sub">组织基础档案</span>
                 </div>
               </template>
@@ -2269,8 +2316,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.manager || '-' }}</span>
-                  <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  <!-- 负责人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.manager || '-' }}</span>
+                    <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -2326,7 +2376,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="220"
+              align="center"
+              :fixed="actionFixedBinding(campusCols.visibleColumnCount.value)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2511,7 +2566,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name }}</span>
                   <span class="ulc-sub">{{ row.deptAttribute || '科室档案' }}</span>
                 </div>
               </template>
@@ -2527,7 +2582,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.campus || '未归属院区' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.campus || '未归属院区' }}</span>
                   <div class="ulc-inline-tags">
                     <span class="ulc-tag">{{ row.deptType || '-' }}</span>
                     <span class="ulc-tag">{{ row.deptAttribute || '-' }}</span>
@@ -2546,8 +2601,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.financeDept || '-' }}</span>
-                  <span class="ulc-sub ulc-mono">{{ row.financeDeptCode || '-' }}</span>
+                  <!-- 财务科室与编码是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.financeDept || '-' }}</span>
+                    <span class="ulc-sub ulc-mono">{{ row.financeDeptCode || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -2562,8 +2620,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.manager || '-' }}</span>
-                  <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  <!-- 负责人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.manager || '-' }}</span>
+                    <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -2647,7 +2708,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="260"
+              align="center"
+              :fixed="actionFixedBinding(departmentCols.visibleColumnCount.value)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action" @click="openEditDepartment(row, false)">编辑</button>
@@ -2800,9 +2866,9 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
-                <span class="ulc-strong">{{ row.deptName || '-' }}</span>
-                <span class="ulc-sub">{{ row.warehouseName ? `库房名称：${row.warehouseName}` : '未关联库房' }}</span>
-                <span class="ulc-sub">库房等级：{{ row.warehouseType || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.deptName || '-' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">{{ row.warehouseName ? `库房名称：${row.warehouseName}` : '未关联库房' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">库房等级：{{ row.warehouseType || '-' }}</span>
               </div>
             </template>
           </el-table-column>
@@ -2915,7 +2981,12 @@ function warehouseFlagChipClass(enabled: unknown) {
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" align="center" fixed="right" v-bind="catalogCols.columnBinding('actions')">
+          <el-table-column
+            label="操作"
+            align="center"
+            :fixed="actionFixedBinding(catalogCols.visibleColumnCount.value, 1)"
+            v-bind="catalogCols.columnBinding('actions')"
+          >
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
@@ -3092,7 +3163,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name || '-' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
                   <span v-if="row.needsDepartmentFix" class="ulc-chip is-warning">需补科室</span>
                 </div>
               </template>
@@ -3135,8 +3206,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.dept || '-' }}</span>
-                  <span v-if="row.deptCode" class="ulc-sub ulc-mono">{{ row.deptCode }}</span>
+                  <!-- 科室与编码是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.dept || '-' }}</span>
+                    <span v-if="row.deptCode" class="ulc-sub ulc-mono">{{ row.deptCode }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
@@ -3238,7 +3312,12 @@ function warehouseFlagChipClass(enabled: unknown) {
                 <span class="ulc-strong">{{ row.locationCount ?? 0 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+            <el-table-column
+              label="操作"
+              :min-width="260"
+              align="center"
+              :fixed="actionFixedBinding(warehouseCols.visibleColumnCount.value)"
+            >
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button

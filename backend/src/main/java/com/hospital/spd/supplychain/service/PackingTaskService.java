@@ -897,6 +897,8 @@ public class PackingTaskService {
             jdbcTemplate.update("UPDATE quota_package_label SET status = 'void', version = version + 1 WHERE label_id = ?", labelId);
             writePackageEvent(labelId, "terminate_to_loose", statusBefore, "void",
                     (BigDecimal) label.get("packageQuantity"), reason);
+            traceFlowService.transitionLabel(labelId, "unpacked", "quota_unpack", "打包任务终止自动解包",
+                    String.valueOf(task.get("taskNo")), null, null, reason, 30);
         }
         return restoredLooseQty;
     }

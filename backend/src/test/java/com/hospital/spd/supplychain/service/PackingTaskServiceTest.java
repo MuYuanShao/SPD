@@ -330,6 +330,10 @@ class PackingTaskServiceTest {
                         List.of(Map.of("batchId", 201L, "sourceQty", BigDecimal.TEN, "warehouseId", 1L))
                 );
         when(support.nextNo(eq(DocumentKind.QUOTA_PACKAGE_EVENT))).thenReturn("EVT001", "EVT002");
+        when(jdbcTemplate.queryForMap(contains("WHERE qpl.label_id = ?"), eq(10L)))
+                .thenReturn(Map.of("traceCodeId", 110L));
+        when(jdbcTemplate.queryForMap(contains("WHERE qpl.label_id = ?"), eq(11L)))
+                .thenReturn(Map.of("traceCodeId", 111L));
 
         Map<String, Object> result = service.terminateTask("DB2026060800001", new PackageActionRequest("terminate"));
 
@@ -339,6 +343,13 @@ class PackingTaskServiceTest {
                 eq("quota_terminate_in"), eq("quota_packing_task"), eq(1L), eq("terminate"));
         verify(support).receiveAvailable(eq(1L), eq(100L), eq(201L), eq(BigDecimal.TEN),
                 eq("quota_terminate_in"), eq("quota_packing_task"), eq(1L), eq("terminate"));
+        for (long traceId : List.of(110L, 111L)) {
+            verify(jdbcTemplate).update(contains("UPDATE udi_trace_code"), eq("unpacked"), eq("void"),
+                    isNull(), isNull(), anyString(), eq("打包任务终止自动解包"), eq(traceId));
+            verify(jdbcTemplate).update(contains("INSERT INTO udi_trace_event"), eq(traceId), anyString(),
+                    eq("quota_unpack"), eq("打包任务终止自动解包"), eq("DB2026060800001"),
+                    isNull(), isNull(), anyString(), eq("terminate"), eq(30));
+        }
         verify(support).writeAudit(eq("quota_package"), eq("terminate_quota_pack_task"), anyLong(), anyString(), anyString());
     }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onActivated, onMounted, reactive, ref } from 'vue'
 import {
   AlertTriangle,
   ArrowRight,
@@ -324,10 +324,8 @@ function printDetail() {
   window.print()
 }
 
-onMounted(async () => {
-  await loadOptions()
-  await loadRecords()
-})
+onMounted(loadOptions)
+onActivated(loadRecords)
 
 const eventDotTone: Record<string, string> = {
   sign: 'green',

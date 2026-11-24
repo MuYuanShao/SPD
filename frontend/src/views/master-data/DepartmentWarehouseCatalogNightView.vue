@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 /**
  * 科室库房目录 —— 暗夜黑配色方案（独立页面）
  * ---------------------------------------------------------------------
@@ -15,7 +15,7 @@
  *    该属性与用户主题切换器使用的 data-theme 完全隔离，
  *    切换器里的主色 / 主题不会被本方案覆盖，离开页面自动还原。
  */
-import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted } from 'vue'
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, watch } from 'vue'
 import { Ban, ChevronDown, Columns3, ListPlus, Pencil, Plus, RefreshCw, Search, Trash2 } from '@lucide/vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
@@ -181,15 +181,25 @@ const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
 
 /**
  * 「操作」列统一固定规则（与其它基础数据管理页一致）：
- * 可见列数不超过阈值(8)时不固定，超过才固定在右侧。
+ * **表格出现横向滚动条时才固定；没有滚动条时不固定。**
  */
-const actionColumnFix = useActionColumnFix()
-const catalogActionFixed = computed(() =>
-  catalogCols.visibleColumnCount.value + 2 > actionColumnFix.threshold ? 'right' : undefined
-)
+const catalogActionFix = useActionColumnFix()
+
+/**
+ * 绑定到 el-table-column 的 fixed 属性。
+ *
+ * 注意：必须摊平成顶层 computed。
+ * setup 返回的普通对象不会被 Vue 模板自动解包，
+ * 模板里写 catalogActionFix.actionFixedBinding 拿到的是
+ * ComputedRef 对象本身而不是值，Element Plus 会当成「不固定」。
+ */
+const catalogActionFixed = computed(() => catalogActionFix.actionFixedBinding.value)
 
 /** el-table 引用：供 useListColumns 测量容器宽度做按比例铺满 */
 const catalogTableRef = catalogCols.tableRef
+
+/** 表格渲染完成后开始观察横向溢出 */
+watch(catalogTableRef, (tableRef) => catalogActionFix.observe(tableRef), { flush: 'post' })
 
 /* ============== 展示辅助 ============== */
 const CATALOG_SOURCE_CHIP_CLASS: Record<string, string> = {

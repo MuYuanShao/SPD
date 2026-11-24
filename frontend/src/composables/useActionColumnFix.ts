@@ -5,41 +5,62 @@
  *
  * 规则：
  * ------------------------------------------------------------------
- * 1. 当表格的**可见列数不超过阈值**时，操作列**不固定**，
- *    跟其它列一样随表格一起滚动。
- * 2. 当可见列数**超过阈值**时，操作列才固定在右侧，
- *    保证用户横向滚动时始终能看到操作按钮。
+ * **表格出现横向滚动条时才固定操作列；没有滚动条时不固定。**
  *
- * 为什么要有阈值：
+ * 为什么这样更合理：
  * ------------------------------------------------------------------
- * 列不多时，固定右侧会白白占掉一列宽度，还会让表头与内容出现
- * 两层「固定列」副本（Element Plus 会额外渲染 .el-table__fixed-right），
- * 视觉上像是多了一列。只有列多到横向滚动不可避免时，固定才有意义。
+ * 1. 没有横向滚动时，操作列本来就在视野里，固定它毫无意义 ——
+ *    反而会让 Element Plus 额外渲染一份 .el-table__fixed-right 副本，
+ *    视觉上像是凭空多了一列。
+ * 2. 出现横向滚动时，用户往右看数据时操作按钮会滚出视野，
+ *    此时固定右侧才能保证「随时能点操作」。
+ * 3. 判定依据是**实际是否溢出**，而不是列数 —— 列宽会随拖拽、
+ *    窗口大小、主题、字号档位变化，用列数判断容易与实际不符。
  *
- * 阈值取 8：基础数据管理各页面的列数在 6~12 之间，
- * 8 能把「列少不固定、列多固定」这条线划在同一处，
- * 各页面表现完全一致。
+ * 横向滚动容器是哪一层：
+ * ------------------------------------------------------------------
+ * Element Plus 2.x 的表格把横向滚动放在内部的 el-scrollbar 上：
+ *   .el-table__body-wrapper > .el-scrollbar__wrap   （真正的滚动容器）
+ * 注意 .el-table__body-wrapper 自己是 overflow-x: hidden，
+ * scrollWidth 永远等于 clientWidth，**不能**用它判断是否溢出。
+ * 老版本没有 el-scrollbar 时才回退到 .el-table__body-wrapper。
  */
-import { computed, ref } from 'vue'
-
-/** 默认阈值：可见列数超过该值才固定操作列 */
-export const ACTION_COLUMN_FIX_THRESHOLD = 8
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 export interface ActionColumnFixOptions {
-  /** 阈值，默认 ACTION_COLUMN_FIX_THRESHOLD */
-  threshold?: number
+  /**
+   * 溢出的判定余量（px）。
+   * 留 1px 避免亚像素误差导致反复切换。
+   */
+  tolerance?: number
+}
+
+/** 在表格根节点里定位真正的横向滚动容器 */
+function resolveScrollContainer(root: HTMLElement): HTMLElement | null {
+  const scrollbarWrap = root.querySelector(
+    '.el-table__body-wrapper .el-scrollbar__wrap'
+  ) as HTMLElement | null
+  if (scrollbarWrap) return scrollbarWrap
+  const body = root.querySelector('.el-table__body-wrapper') as HTMLElement | null
+  return body
 }
 
 export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
-  const threshold = options.threshold ?? ACTION_COLUMN_FIX_THRESHOLD
-  /** 参与判定的可见列数（含选择列与操作列） */
-  const visibleColumnCount = ref(0)
+  const tolerance = options.tolerance ?? 1
+  /** 表格是否出现横向滚动 */
+  const hasHorizontalScroll = ref(false)
+  /** 已挂载的观察器与监听 */
+  let resizeObserver: ResizeObserver | null = null
+  let scrollElement: HTMLElement | null = null
+  let mutationObserver: MutationObserver | null = null
+  /** 表格根节点：用于在表格重绘后重新定位滚动容器 */
+  let tableRoot: HTMLElement | null = null
 
   /**
    * 是否固定操作列。
-   * 可见列数超过阈值才固定；列数不足时保持普通列。
+   * 有横向滚动才固定。
    */
-  const actionFixed = computed(() => visibleColumnCount.value > threshold)
+  const actionFixed = computed(() => hasHorizontalScroll.value)
 
   /**
    * 绑定到 el-table-column 的 fixed 属性。
@@ -47,33 +68,92 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
    */
   const actionFixedBinding = computed(() => (actionFixed.value ? 'right' : undefined))
 
-  /**
-   * 记录当前表格的可见列数。
-   * @param count 可见列数（含选择列与操作列本身）
-   */
-  function setVisibleColumnCount(count: number) {
-    visibleColumnCount.value = Number.isFinite(count) ? count : 0
+  /** 读取当前横向滚动容器的溢出状态 */
+  function measure(el: HTMLElement | null | undefined) {
+    if (!el) return
+    hasHorizontalScroll.value = el.scrollWidth - el.clientWidth > tolerance
   }
 
   /**
-   * 从表格 DOM 反推可见列数。
-   * 用于列设置里勾选/取消列之后重新判定。
+   * 绑定滚动事件到新的容器（容器被替换时重新绑定）。
    */
-  function syncFromTable(tableEl: { $el?: HTMLElement } | null | undefined) {
+  function bindContainer(container: HTMLElement | null) {
+    if (container === scrollElement) return
+    if (scrollElement) {
+      scrollElement.removeEventListener('scroll', onScroll)
+    }
+    scrollElement = container
+    if (!container) return
+    measure(container)
+    container.addEventListener('scroll', onScroll, { passive: true })
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver?.disconnect()
+      resizeObserver = new ResizeObserver(() => measure(scrollElement))
+      resizeObserver.observe(container)
+    }
+  }
+
+  /**
+   * 从表格 DOM 找到横向滚动容器并开始观察。
+   * @param tableEl el-table 的组件实例
+   */
+  function observe(tableEl: { $el?: HTMLElement } | null | undefined) {
     const root = tableEl?.$el
     if (!root) return
-    const header = root.querySelector('.el-table__header')
-    if (!header) return
-    const count = header.querySelectorAll('th:not(.el-table__placeholder)').length
-    setVisibleColumnCount(count)
+    tableRoot = root
+    bindContainer(resolveScrollContainer(root))
+    // 列设置里勾选/取消列、拖拽列宽都会改变布局，用 MutationObserver 兜底重新测量
+    if (typeof MutationObserver !== 'undefined' && !mutationObserver) {
+      mutationObserver = new MutationObserver(() => {
+        if (!tableRoot) return
+        // 表格重绘后滚动容器可能被替换，重新定位
+        bindContainer(resolveScrollContainer(tableRoot))
+        measure(scrollElement)
+      })
+      mutationObserver.observe(root, { childList: true, subtree: true, characterData: true })
+    }
   }
 
+  function onScroll() {
+    measure(scrollElement)
+  }
+
+  function detach() {
+    resizeObserver?.disconnect()
+    resizeObserver = null
+    mutationObserver?.disconnect()
+    mutationObserver = null
+    if (scrollElement) {
+      scrollElement.removeEventListener('scroll', onScroll)
+    }
+    scrollElement = null
+    tableRoot = null
+  }
+
+  /** 表格重排后重新测量（列宽拖拽、字号切换、窗口缩放） */
+  function refresh() {
+    if (tableRoot) {
+      bindContainer(resolveScrollContainer(tableRoot))
+    }
+    measure(scrollElement)
+  }
+
+  onMounted(() => {
+    // 表格可能尚未渲染完成，延后再测一次
+    requestAnimationFrame(refresh)
+    setTimeout(refresh, 300)
+  })
+
+  onBeforeUnmount(() => {
+    detach()
+  })
+
   return {
-    threshold,
-    visibleColumnCount,
+    hasHorizontalScroll,
     actionFixed,
     actionFixedBinding,
-    setVisibleColumnCount,
-    syncFromTable
+    observe,
+    refresh,
+    measure
   }
 }

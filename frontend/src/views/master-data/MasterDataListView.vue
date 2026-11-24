@@ -1,4 +1,4 @@
-<script setup lang="ts">
+﻿<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Ban,
@@ -679,21 +679,55 @@ const manufacturerColWidth = (key: string) => manufacturerCols.columnWidth(key)
  * ===== 「操作」列统一固定规则 =====
  * ---------------------------------------------------------------------
  * 所有基础数据管理列表页共用同一套策略：
- * 可见列数不超过阈值(8)时，操作列**不固定**，随表格一起滚动；
- * 超过阈值才固定在右侧，保证横向滚动时操作按钮始终可见。
+ * **表格出现横向滚动条时才固定操作列；没有滚动条时不固定。**
  *
- * 这样各页面表现完全一致，列少时也不会白白多出一列固定区。
+ * 没有横向滚动时操作列本来就在视野里，固定它反而会让
+ * Element Plus 多渲染一份 .el-table__fixed-right 副本（像是多了一列）；
+ * 出现横向滚动时才固定，保证用户往右看数据时操作按钮始终可见。
+ *
+ * 判定依据是实际溢出，而不是列数 —— 列宽会随拖拽、窗口大小、
+ * 主题与字号档位变化，用列数判断容易与实际不符。
+ *
+ * 每个页面有自己的表格，因此各用一个实例分别观察自己的滚动容器。
  */
-const actionColumnFix = useActionColumnFix()
+const hospitalActionFix = useActionColumnFix()
+const supplierActionFix = useActionColumnFix()
+const manufacturerActionFix = useActionColumnFix()
+const campusActionFix = useActionColumnFix()
+const departmentActionFix = useActionColumnFix()
+const catalogActionFix = useActionColumnFix()
+const warehouseActionFix = useActionColumnFix()
 
 /**
- * 计算「操作」列的 fixed 绑定。
- * @param visibleDataColumns 可见数据列数（不含选择列与操作列本身）
- * @param extraColumns 额外固定占位的列数（如选择列）
+ * 绑定到 el-table-column 的 fixed 属性。
+ *
+ * 注意：这里必须摊平成顶层 computed。
+ * setup 返回的普通对象不会被 Vue 模板自动解包，
+ * 模板里写 hospitalActionFix.actionFixedBinding 拿到的是
+ * ComputedRef 对象本身而不是值，Element Plus 会当成「不固定」。
  */
-function actionFixedBinding(visibleDataColumns: number, extraColumns = 0) {
-  return visibleDataColumns + extraColumns + 1 > actionColumnFix.threshold ? 'right' : undefined
-}
+const hospitalActionFixed = computed(() => hospitalActionFix.actionFixedBinding.value)
+const supplierActionFixed = computed(() => supplierActionFix.actionFixedBinding.value)
+const manufacturerActionFixed = computed(() => manufacturerActionFix.actionFixedBinding.value)
+const campusActionFixed = computed(() => campusActionFix.actionFixedBinding.value)
+const departmentActionFixed = computed(() => departmentActionFix.actionFixedBinding.value)
+const catalogActionFixed = computed(() => catalogActionFix.actionFixedBinding.value)
+const warehouseActionFixed = computed(() => warehouseActionFix.actionFixedBinding.value)
+
+/** 表格渲染完成后开始观察横向溢出 */
+watch(
+  [hospitalTableRef, supplierTableRef, manufacturerTableRef, campusTableRef, departmentTableRef, catalogTableRef, warehouseTableRef],
+  () => {
+    hospitalActionFix.observe(hospitalTableRef.value)
+    supplierActionFix.observe(supplierTableRef.value)
+    manufacturerActionFix.observe(manufacturerTableRef.value)
+    campusActionFix.observe(campusTableRef.value)
+    departmentActionFix.observe(departmentTableRef.value)
+    catalogActionFix.observe(catalogTableRef.value)
+    warehouseActionFix.observe(warehouseTableRef.value)
+  },
+  { flush: 'post' }
+)
 
 /**
  * 维护来源状态条配色：不同来源用不同颜色区分。
@@ -1132,7 +1166,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="300"
               align="center"
-              :fixed="actionFixedBinding(hospitalCols.visibleColumnCount.value, 1)"
+              :fixed="hospitalActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">
@@ -1871,7 +1905,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="220"
               align="center"
-              :fixed="actionFixedBinding(supplierCols.visibleColumnCount.value)"
+              :fixed="supplierActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">
@@ -2138,7 +2172,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="220"
               align="center"
-              :fixed="actionFixedBinding(manufacturerCols.visibleColumnCount.value)"
+              :fixed="manufacturerActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">
@@ -2380,7 +2414,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="220"
               align="center"
-              :fixed="actionFixedBinding(campusCols.visibleColumnCount.value)"
+              :fixed="campusActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">
@@ -2712,7 +2746,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="260"
               align="center"
-              :fixed="actionFixedBinding(departmentCols.visibleColumnCount.value)"
+              :fixed="departmentActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">
@@ -2984,7 +3018,7 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table-column
             label="操作"
             align="center"
-            :fixed="actionFixedBinding(catalogCols.visibleColumnCount.value, 1)"
+            :fixed="catalogActionFixed"
             v-bind="catalogCols.columnBinding('actions')"
           >
             <template #default="{ row }">
@@ -3316,7 +3350,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               label="操作"
               :min-width="260"
               align="center"
-              :fixed="actionFixedBinding(warehouseCols.visibleColumnCount.value)"
+              :fixed="warehouseActionFixed"
             >
               <template #default="{ row }">
                 <div class="ulc-actions">

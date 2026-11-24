@@ -1,5 +1,5 @@
-<script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+﻿<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { Check, Columns3, ChevronDown, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
@@ -395,12 +395,22 @@ const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
 
 /**
  * 「操作」列统一固定规则（与其它基础数据管理页一致）：
- * 可见列数不超过阈值(8)时不固定，超过才固定在右侧。
+ * **表格出现横向滚动条时才固定；没有滚动条时不固定。**
  */
-const actionColumnFix = useActionColumnFix()
-const licenseActionFixed = computed(() =>
-  licenseCols.visibleColumnCount.value + 1 > actionColumnFix.threshold ? 'right' : undefined
-)
+const licenseActionFix = useActionColumnFix()
+
+/**
+ * 绑定到 el-table-column 的 fixed 属性。
+ *
+ * 注意：必须摊平成顶层 computed。
+ * setup 返回的普通对象不会被 Vue 模板自动解包，
+ * 模板里写 licenseActionFix.actionFixedBinding 拿到的是
+ * ComputedRef 对象本身而不是值，Element Plus 会当成「不固定」。
+ */
+const licenseActionFixed = computed(() => licenseActionFix.actionFixedBinding.value)
+
+/** 表格渲染完成后开始观察横向溢出 */
+watch(licenseTableRef, (tableRef) => licenseActionFix.observe(tableRef), { flush: 'post' })
 
 /** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
 function licenseStatusChipClass(row: LicenseRow) {

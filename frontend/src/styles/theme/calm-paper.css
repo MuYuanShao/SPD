@@ -898,7 +898,6 @@
   color: var(--spd-text-tertiary) !important;
 }
 
-:root[data-spd-theme='calm-paper'] .spd-theme-card,
 :root[data-spd-theme='calm-paper'] .spd-fontsize-card,
 :root[data-spd-theme='calm-paper'] .spd-scheme-card {
   background: var(--spd-bg-container) !important;
@@ -906,13 +905,11 @@
   color: var(--spd-text-primary) !important;
 }
 
-:root[data-spd-theme='calm-paper'] .spd-theme-card-name,
 :root[data-spd-theme='calm-paper'] .spd-fontsize-name,
 :root[data-spd-theme='calm-paper'] .spd-scheme-card-name {
   color: var(--spd-text-primary) !important;
 }
 
-:root[data-spd-theme='calm-paper'] .spd-theme-card-hint,
 :root[data-spd-theme='calm-paper'] .spd-scheme-card-hint {
   color: var(--spd-text-tertiary) !important;
 }

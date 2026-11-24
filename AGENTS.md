@@ -123,13 +123,11 @@ Do not add large top overview/stat cards to business pages unless the user expli
 
 Visual appearance is switched globally from the top-bar theme switcher, never by URL or by a separate page file.
 
-Four orthogonal dimensions, all owned by `frontend/src/stores/theme.ts` and persisted to `localStorage`:
+Two orthogonal dimensions, both owned by `frontend/src/stores/theme.ts` and persisted to `localStorage`:
 
 | Dimension | Attribute | Options |
 | --- | --- | --- |
-| Primary color (调色板) | inline `--theme-primary` on `:root` | 青玉 / 医疗蓝 / 森林绿 / 暖阳橙 / 玫瑰粉 / 靛青蓝 / 岩板灰 |
-| Theme style (主题风格) | `data-theme` on `<html>` | 医疗蓝 / 暖意黄 / 森林绿 |
-| Color scheme (配色方案) | `data-spd-theme` on `<html>` | 标准白 / 静墨宣纸 / 暗夜黑 |
+| Color scheme (配色方案) | `data-spd-theme` on `<html>` | 标准白 (default) / 静墨宣纸 / 暗夜黑 |
 | Font size (界面字号) | `data-font-size` on `<html>` | 小 (14px) / 中 (16px, default) / 大 (18px) |
 
 Rules:
@@ -137,7 +135,7 @@ Rules:
 - A color scheme is a whole-site visual system (background, table grid, status chips, dialogs). Its CSS lives in `frontend/src/styles/theme/*.css`, scoped to `:root[data-spd-theme='...']`.
 - Never create a per-theme view file, route, or feature-catalog entry to expose a color scheme. Adding a scheme means adding it to `SCHEMES` in the theme store and writing one scoped CSS file.
 - When a scheme replaces a former dedicated page, keep the old URL working by adding an entry to `featureCatalogRedirects` in `frontend/src/config/featureCatalog.ts` rather than deleting the route outright.
-- `data-theme` (theme style) and `data-spd-theme` (color scheme) are independent and must not override each other.
+- The primary brand color is fixed (青玉 `#1f6f6d`) and lives in `frontend/src/styles/theme.css` under `:root`. There is no user-facing primary-color palette and no `data-theme` style switch. Do not reintroduce either without an explicit product request.
 
 ## Product Boundaries
 

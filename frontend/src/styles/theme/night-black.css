@@ -687,7 +687,6 @@
   color: var(--spd-text-tertiary) !important;
 }
 
-:root[data-spd-theme='night-black'] .spd-theme-card,
 :root[data-spd-theme='night-black'] .spd-fontsize-card,
 :root[data-spd-theme='night-black'] .spd-scheme-card {
   background: var(--spd-bg-container) !important;
@@ -695,19 +694,16 @@
   color: var(--spd-text-primary) !important;
 }
 
-:root[data-spd-theme='night-black'] .spd-theme-card:hover,
 :root[data-spd-theme='night-black'] .spd-fontsize-card:hover,
 :root[data-spd-theme='night-black'] .spd-scheme-card:hover {
   background: var(--spd-primary-bg) !important;
 }
 
-:root[data-spd-theme='night-black'] .spd-theme-card-name,
 :root[data-spd-theme='night-black'] .spd-fontsize-name,
 :root[data-spd-theme='night-black'] .spd-scheme-card-name {
   color: var(--spd-text-primary) !important;
 }
 
-:root[data-spd-theme='night-black'] .spd-theme-card-hint,
 :root[data-spd-theme='night-black'] .spd-scheme-card-hint {
   color: var(--spd-text-tertiary) !important;
 }

@@ -97,6 +97,29 @@ export interface UseListColumnsOptions {
     /** 比例分配时的上限 */
     maxWidth?: number
   }>
+  /**
+   * 可拖拽调宽的「操作」列。
+   * ---------------------------------------------------------------------
+   * 与 fixedColumns 的区别：
+   * - fixedColumns 只参与宽度分配，**不提供拖拽手柄**（Element Plus
+   *   的 fixed="right" 列由框架托管，表头与单元格天然对齐）。
+   * - actionColumn 用于**原生 <table>** 场景：操作列不再用
+   *   `position: sticky; right: 0` 固定在右侧，而是与其它数据列一样
+   *   随表格横向滚动，并提供与数据列完全一致的拖拽热区。
+   *
+   * 背景：原生表格里用 sticky 固定右端时，表头单元格会停在原位，
+   * 而单元格被吸到视口右缘，两者错位 —— 表头与按钮对不上列。
+   * 让操作列回归普通列，是唯一能保证「表头与内容永远同列」的做法。
+   */
+  actionColumn?: {
+    key: string
+    label: string
+    width: number
+    /** 拖拽下限 */
+    minWidth?: number
+    /** 拖拽上限 */
+    maxWidth?: number
+  }
 }
 
 /**
@@ -144,6 +167,37 @@ export function useListColumns(options: UseListColumnsOptions) {
   const tableRef = ref<any>(null)
   /** 自适应模式下的容器可用宽度（px） */
   const containerWidth = ref(0)
+
+  /* ===== 可拖拽的「操作」列 =====
+     与普通数据列一样支持拖拽调宽并持久化，
+     但不进入「列设置」面板（不提供显隐开关）。 */
+  const actionColumnMin = options.actionColumn?.minWidth ?? 120
+  const actionColumnMax = options.actionColumn?.maxWidth ?? 480
+  const actionColumnWidth = ref(readActionColumnWidth())
+
+  function readActionColumnWidth(): number {
+    const fallback = options.actionColumn?.width ?? 200
+    if (!options.actionColumn) return fallback
+    try {
+      const raw = localStorage.getItem(`${options.storageKey}::action`)
+      const parsed = raw ? Number(JSON.parse(raw)) : NaN
+      if (Number.isFinite(parsed)) {
+        return Math.min(actionColumnMax, Math.max(actionColumnMin, parsed))
+      }
+    } catch {
+      /* 忽略读取失败 */
+    }
+    return fallback
+  }
+
+  function persistActionColumnWidth() {
+    if (!options.actionColumn) return
+    try {
+      localStorage.setItem(`${options.storageKey}::action`, JSON.stringify(actionColumnWidth.value))
+    } catch {
+      /* 忽略持久化失败 */
+    }
+  }
 
   const visibleColumns = computed(() => columns.value.filter((column) => column.visible))
   const visibleColumnCount = computed(() => visibleColumns.value.length)
@@ -364,6 +418,10 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   function columnWidth(key: string) {
+    // 可拖拽的「操作」列单独维护宽度
+    if (options.actionColumn && key === options.actionColumn.key) {
+      return actionColumnWidth.value
+    }
     const computed = effectiveWidths.value[key]
     if (typeof computed === 'number') return computed
     // 固定列（如「操作」列）不在 columns 中，回退到其自身基准宽度
@@ -434,6 +492,40 @@ export function useListColumns(options: UseListColumnsOptions) {
   let dragState: { key: string; startX: number; startWidth: number } | null = null
 
   /**
+   * 「操作」列的列宽拖拽。
+   * ---------------------------------------------------------------------
+   * 与数据列的手感完全一致（同样的热区位置、同样的拖拽过程），
+   * 区别只在于宽度单独存储，不混入列设置面板的宽度池。
+   */
+  function startActionColumnDrag(event: MouseEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    const startWidth = actionColumnWidth.value
+    dragState = { key: 'action', startX: event.clientX, startWidth }
+    document.body.style.userSelect = 'none'
+    document.body.style.cursor = 'col-resize'
+    const onMove = (moveEvent: MouseEvent) => {
+      if (!dragState) return
+      const delta = moveEvent.clientX - dragState.startX
+      actionColumnWidth.value = Math.min(
+        actionColumnMax,
+        Math.max(actionColumnMin, dragState.startWidth + delta)
+      )
+      persistActionColumnWidth()
+    }
+    const onUp = () => {
+      dragState = null
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      persistActionColumnWidth()
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  /**
    * 列宽拖拽（供原生 HTML 表格使用）。
    * ---------------------------------------------------------------------
    * 拖拽热区放在列的标准右边框上（透明元素覆盖在边框位置），
@@ -441,6 +533,11 @@ export function useListColumns(options: UseListColumnsOptions) {
    * 因此表头分割线始终与下方各行的列分隔线完全对齐。
    */
   function startColumnDrag(key: string, event: MouseEvent) {
+    // 「操作」列走独立分支：宽度不进入 columns，自行持久化
+    if (options.actionColumn && key === options.actionColumn.key) {
+      startActionColumnDrag(event)
+      return
+    }
     const column = columns.value.find((item) => item.key === key)
     if (!column) return
     event.preventDefault()

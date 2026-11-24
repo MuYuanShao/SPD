@@ -1150,15 +1150,22 @@ onUnmounted(closePreview)
 .license-search input {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+  /* 与标准列表页一致：控件总高 38px（box-sizing 统一后由 min-height 决定） */
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 12px;
+  /* 与标准列表页（科室库房目录）一致：边框走 --ulc-border 令牌 */
+  border: 1px solid var(--ulc-border, #d5e0e5);
+  border-radius: var(--ulc-radius, 4px);
+  background: var(--ulc-bg-container, #fff);
+  color: var(--spd-text-primary);
   font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 .license-search input:focus {
   outline: none;
-  border-color: var(--primary, #1677ff);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1677ff) 15%, transparent);
+  border-color: var(--ulc-primary, #1f6f6d);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ulc-primary, #1f6f6d) 15%, transparent);
 }
 
 .license-message { color: #047857; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }

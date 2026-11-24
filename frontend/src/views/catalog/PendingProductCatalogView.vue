@@ -411,7 +411,16 @@ const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
 
 const approvalCols = useListColumns({
   storageKey: 'spd-pending-product-approval-cols-v1',
-  defaults: APPROVAL_COL_DEFAULTS
+  defaults: APPROVAL_COL_DEFAULTS,
+  /**
+   * 「操作」列与其它数据列完全一致：
+   * 不再用 `position: sticky; right: 0` 固定在右侧，
+   * 而是随表格横向滚动，并提供同样的拖拽热区。
+   *
+   * 原因：原生表格里 sticky 固定右端时，表头单元格停在原位、
+   * 单元格被吸到视口右缘，两者错位 —— 表头与按钮对不上列。
+   */
+  actionColumn: { key: 'action', label: '操作', width: 250, minWidth: 160, maxWidth: 480 }
 })
 
 const isColVisible = (key: string) => approvalCols.isColumnVisible(key)
@@ -447,7 +456,7 @@ const approvalColGroup = computed(() => {
   for (const column of approvalCols.visibleColumns.value) {
     cols.push({ key: column.key, width: approvalColWidth(column.key) })
   }
-  cols.push({ key: 'action', width: 250 })
+  cols.push({ key: 'action', width: approvalColWidth('action') })
   return cols
 })
 
@@ -518,11 +527,11 @@ const displayTotal = computed(() => {
   return filteredRows.value.length
 })
 
-/** 表格最小宽度 = 固定列（勾选 48 + 审批单号 170 + 商品 250 + 操作 250）+ 各可见数据列宽之和 */
-const FIXED_COL_WIDTH = 48 + 170 + 250 + 250
+/** 表格最小宽度 = 固定列（勾选 48 + 审批单号 170 + 商品 250）+ 各可见数据列宽之和 + 操作列宽 */
+const FIXED_COL_WIDTH = 48 + 170 + 250
 const approvalTableMinWidth = computed(() => {
   const dynamicWidth = approvalCols.visibleColumns.value.reduce((sum, col) => sum + col.width, 0)
-  return FIXED_COL_WIDTH + dynamicWidth
+  return FIXED_COL_WIDTH + dynamicWidth + approvalColWidth('action')
 })
 
 async function loadApplications() {
@@ -911,7 +920,10 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   <span class="ulc-th-text">变更记录</span>
                   <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('changeSummary', $event)" />
                 </th>
-                <th class="approval-sticky-action">操作</th>
+                <th class="approval-col-action">
+                  <span class="ulc-th-text">操作</span>
+                  <i class="ulc-col-resizer" title="拖动调节列宽" @mousedown="startApprovalColDrag('action', $event)" />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -975,7 +987,7 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   </span>
                 </td>
                 <td v-if="isColVisible('changeSummary')" class="approval-change-summary"><span class="ulc-strong">{{ row.changeSummary || '-' }}</span></td>
-                <td class="approval-sticky-action">
+                <td class="approval-col-action">
                   <div class="ulc-actions">
                     <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
                     <RouterLink

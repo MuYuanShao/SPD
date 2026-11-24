@@ -718,48 +718,15 @@
   background: #f7fbfc;
 }
 
-.approval-sticky-check,
-.approval-sticky-no,
-.approval-sticky-product,
-.approval-sticky-action {
-  position: sticky;
-  z-index: 2;
-  background: #ffffff;
-}
-
-thead .approval-sticky-check,
-thead .approval-sticky-no,
-thead .approval-sticky-product,
-thead .approval-sticky-action {
-  z-index: 3;
-  background: #f1f5f8;
-}
-
-.approval-sticky-check {
-  left: 0;
-  width: 46px;
-  text-align: center !important;
-  box-shadow: 8px 0 12px rgba(16, 32, 51, 0.04);
-}
-
-.approval-sticky-no {
-  left: 46px;
-  width: 150px;
-}
-
-.approval-sticky-product {
-  left: 196px;
-  width: 230px;
-  box-shadow: 10px 0 16px rgba(16, 32, 51, 0.06);
-}
-
-.approval-sticky-action {
-  right: 0;
-  width: 250px;
-  min-width: 250px;
-  text-align: right !important;
-  box-shadow: -10px 0 16px rgba(16, 32, 51, 0.06);
-}
+/* ---------------------------------------------------------------------
+ * 旧版 sticky 列样式（.approval-sticky-check / -no / -product / -action）已移除。
+ * ---------------------------------------------------------------------
+ * 当前表格不使用左侧或右侧固定列：
+ * - 左侧三列（勾选 / 审批单号 / 商品名称）与其它列一样随表格横向滚动；
+ * - 「操作」列同样是普通列，并提供与数据列一致的拖拽热区。
+ * 原先的右侧 sticky 操作列会让表头停在原位、单元格被吸到视口右缘，
+ * 横向滚动后表头与按钮对不上列，故一并去掉。
+ * --------------------------------------------------------------------- */
 
 .approval-change-summary {
   max-width: 240px;
@@ -772,8 +739,9 @@ thead .approval-sticky-action {
   word-break: break-all;
 }
 
-.approval-wide-table th:not(.approval-sticky-check):not(.approval-sticky-no):not(.approval-sticky-product):not(.approval-sticky-action):not(.approval-change-summary),
-.approval-wide-table td:not(.approval-sticky-check):not(.approval-sticky-no):not(.approval-sticky-product):not(.approval-sticky-action):not(.approval-change-summary) {
+/* 普通数据列的兜底宽度（<colgroup> 已显式声明宽度，此处仅作补充） */
+.approval-wide-table th:not(.approval-change-summary),
+.approval-wide-table td:not(.approval-change-summary) {
   width: 120px;
 }
 

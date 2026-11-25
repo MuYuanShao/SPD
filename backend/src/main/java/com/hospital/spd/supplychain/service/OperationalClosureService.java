@@ -100,6 +100,11 @@ public class OperationalClosureService {
         return readModel.redFlushOptions();
     }
 
+    @Transactional(readOnly = true)
+    public Map<String, Object> redFlushDetail(String flushNo) {
+        return readModel.redFlushDetail(flushNo);
+    }
+
     public Map<String, Object> requisitionDetails(String requisitionNo) {
         return readModel.requisitionDetails(requisitionNo);
     }

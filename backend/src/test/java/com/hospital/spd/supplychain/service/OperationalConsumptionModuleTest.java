@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -145,7 +146,7 @@ class OperationalConsumptionModuleTest {
                 .thenReturn(List.of());
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
                 .thenReturn(1);
-        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+        mockRedFlushSnapshot();
 
         Map<String, Object> result = module.reverseConsumption("XH001");
 
@@ -155,12 +156,13 @@ class OperationalConsumptionModuleTest {
         InOrder ordered = inOrder(jdbcTemplate, support);
         ordered.verify(jdbcTemplate).queryForMap(contains("FROM product WHERE product_id"), eq(100L));
         ordered.verify(jdbcTemplate).queryForMap(contains("FROM department_consumption"), eq("XH001"));
-        ordered.verify(support).receiveAvailable(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
-                eq("department_consumption_reverse_in"), eq("department_consumption"), eq(1L), anyString());
-        ordered.verify(jdbcTemplate).update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001"));
         ordered.verify(support).nextNo(DocumentKind.CONSUMPTION_RED_FLUSH);
         ordered.verify(jdbcTemplate).update(contains("INSERT INTO consumption_red_flush"),
                 eq("FXH20260601001"), eq("XH001"));
+        ordered.verify(jdbcTemplate).update(contains("SET affected_settlements"), eq(1L), eq("FXH20260601001"));
+        ordered.verify(support).receiveAvailable(eq(20L), eq(100L), eq(300L), eq(BigDecimal.TEN),
+                eq("department_consumption_reverse_in"), eq("department_consumption"), eq(1L), anyString());
+        ordered.verify(jdbcTemplate).update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001"));
         ordered.verify(support).writeAudit(eq("operational_closure"), eq("reverse_consumption"),
                 eq(1L), eq("XH001"), eq("reverse consumption red flush"));
     }
@@ -187,7 +189,10 @@ class OperationalConsumptionModuleTest {
         when(jdbcTemplate.queryForMap(contains("FROM department_consumption"), eq("XH001")))
                 .thenReturn(Map.of("consumptionId", 1L, "warehouseId", 20L, "deptId", 10L, "warehouseDeptId", 10L, "status", "confirmed"));
         when(jdbcTemplate.queryForList(contains("SELECT sb.settlement_id"), eq(1L)))
-                .thenReturn(List.of(Map.of("settlementId", 77L, "status", "pending_confirm")));
+                .thenReturn(List.of(Map.of("settlementId", 77L, "settlementNo", "JS77", "status", "pending_confirm")));
+        when(jdbcTemplate.queryForList(contains("FROM supplier_invoice"), eq(Long.class), eq(77L))).thenReturn(List.of());
+        when(jdbcTemplate.queryForList(contains("FROM business_approval_run"), eq(String.class),
+                eq("settlement-reconciliation:settlement-confirm:JS77"))).thenReturn(List.of());
         when(jdbcTemplate.queryForList(contains("FROM department_consumption_item"), eq(1L)))
                 .thenReturn(List.of(Map.of("productId", 100L, "batchId", 300L, "quantity", BigDecimal.TEN)));
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
@@ -195,7 +200,7 @@ class OperationalConsumptionModuleTest {
         when(jdbcTemplate.update(contains("DELETE sbi FROM settlement_bill_item sbi"), eq(1L))).thenReturn(1);
         when(jdbcTemplate.update(contains("UPDATE settlement_bill sb"), eq(77L))).thenReturn(1);
         when(jdbcTemplate.update(contains("DELETE FROM settlement_bill"), eq(77L))).thenReturn(1);
-        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+        mockRedFlushSnapshot();
 
         module.reverseConsumption("XH001");
 
@@ -255,13 +260,19 @@ class OperationalConsumptionModuleTest {
                 .thenReturn(99L);
         when(jdbcTemplate.update(contains("UPDATE department_consumption SET status = 'reversed'"), eq("XH001")))
                 .thenReturn(1);
-        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+        mockRedFlushSnapshot();
 
         module.reverseConsumption("XH001");
 
         verify(quotaPackageTraceFlowService).reverseConsumption(55L, "XH001");
         verify(support).linkInventoryEventTraceCodes(99L, List.of(
                 new com.hospital.spd.common.service.InventoryEventCommand.TraceLink(77L, "quota_package", BigDecimal.TEN)));
+    }
+
+    private void mockRedFlushSnapshot() {
+        when(support.nextNo(DocumentKind.CONSUMPTION_RED_FLUSH)).thenReturn("FXH20260601001");
+        doReturn(1).when(jdbcTemplate).update(contains("INSERT INTO consumption_red_flush"), eq("FXH20260601001"), eq("XH001"));
+        doReturn(1).when(jdbcTemplate).update(contains("SET affected_settlements"), eq(1L), eq("FXH20260601001"));
     }
 
     private void mockExistingDepartment(Long deptId) {

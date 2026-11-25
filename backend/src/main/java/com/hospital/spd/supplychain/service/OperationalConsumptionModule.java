@@ -173,7 +173,7 @@ public class OperationalConsumptionModule {
         Long warehouseId = ((Number) consumption.get("warehouseId")).longValue();
         // Lock all related bills before inspecting status; a concurrent confirmation must serialize here.
         List<Map<String, Object>> settlements = jdbcTemplate.queryForList("""
-                SELECT sb.settlement_id AS settlementId, sb.status
+                SELECT sb.settlement_id AS settlementId, sb.settlement_no AS settlementNo, sb.status
                   FROM settlement_bill sb
                  WHERE EXISTS (
                      SELECT 1 FROM settlement_bill_item sbi
@@ -191,7 +191,34 @@ public class OperationalConsumptionModule {
         for (Map<String, Object> bill : settlements) {
             List<Long> invoices = jdbcTemplate.queryForList("SELECT invoice_id FROM supplier_invoice WHERE settlement_id = ? FOR UPDATE", Long.class, bill.get("settlementId"));
             if (!invoices.isEmpty()) throw new IllegalArgumentException("该消耗结算单已关联发票，不能直接反消耗。请联系财务核对关联发票和结算单并处理");
+            List<String> approvals = jdbcTemplate.queryForList(
+                    "SELECT document_key FROM business_approval_run WHERE document_key = ? FOR UPDATE",
+                    String.class, "settlement-reconciliation:settlement-confirm:" + bill.get("settlementNo"));
+            if (!approvals.isEmpty()) throw new IllegalArgumentException("该消耗的结算单已开始审批，不能直接反消耗");
         }
+        String reverseNo = support.nextNo(CONSUMPTION_RED_FLUSH);
+        jdbcTemplate.update("""
+                INSERT INTO consumption_red_flush (flush_no, source_consumption_no, flush_type, status, remark)
+                VALUES (?, ?, 'reverse_consumption', 'approved', 'reverse consumption red flush')
+                """, reverseNo, consumptionNo);
+        jdbcTemplate.update("""
+                UPDATE consumption_red_flush
+                   SET affected_settlements = (
+                       SELECT COALESCE(JSON_ARRAYAGG(JSON_OBJECT(
+                               'settlementNo', impacted.settlement_no, 'removedAmount', impacted.removed_amount
+                           )), JSON_ARRAY())
+                         FROM (
+                               SELECT sb.settlement_no, SUM(sbi.amount) AS removed_amount
+                                 FROM settlement_bill sb
+                                 JOIN settlement_bill_item sbi ON sbi.settlement_id = sb.settlement_id
+                                 JOIN department_consumption_item dci ON dci.item_id = sbi.source_biz_id
+                                WHERE dci.consumption_id = ? AND sbi.source_biz_type = 'department_consumption_item'
+                                  AND sb.status = 'pending_confirm'
+                                GROUP BY sb.settlement_no
+                         ) impacted
+                   )
+                 WHERE flush_no = ?
+                """, consumptionId, reverseNo);
         if ("quota_package_label".equals(String.valueOf(consumption.get("relatedBizType")))
                 && consumption.get("relatedBizId") instanceof Number labelId) {
             quotaPackageTraceFlowService.reverseConsumption(labelId.longValue(), consumptionNo);
@@ -244,11 +271,6 @@ public class OperationalConsumptionModule {
         if (updated != 1) {
             throw new IllegalArgumentException("消耗记录已被处理，请刷新后重试");
         }
-        String reverseNo = support.nextNo(CONSUMPTION_RED_FLUSH);
-        jdbcTemplate.update("""
-                INSERT INTO consumption_red_flush (flush_no, source_consumption_no, flush_type, status, remark)
-                VALUES (?, ?, 'reverse_consumption', 'approved', 'reverse consumption red flush')
-                """, reverseNo, consumptionNo);
         support.writeAudit("operational_closure", "reverse_consumption", consumptionId, consumptionNo, "reverse consumption red flush");
         return Map.of("flushNo", reverseNo, "status", "approved");
     }

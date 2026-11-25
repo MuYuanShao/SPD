@@ -81,6 +81,14 @@ export function fetchRedFlushOptions() {
   }>('/operational-closure/red-flush/options')
 }
 
+export function fetchRedFlushDetail(flushNo: string) {
+  return getData<{
+    record: { flushNo: string; sourceNo: string; deptName?: string; warehouseName?: string; settlementDetailsCaptured: boolean | number }
+    items: Array<{ eventId: number; productCode?: string; productName?: string; batchNo?: string; quantity: number; unit?: string }>
+    settlements: Array<{ settlementNo: string; removedAmount: number }>
+  }>(`/operational-closure/red-flush/${encodeURIComponent(flushNo)}`)
+}
+
 /** 获取独立的拣配记录台账，沿用拣配配送只读权限。 */
 export async function fetchPickingRecords(params: Record<string, string> = {}) {
   return fetchClosureList('delivery', params)

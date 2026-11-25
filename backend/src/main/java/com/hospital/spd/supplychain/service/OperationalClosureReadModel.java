@@ -202,6 +202,25 @@ public class OperationalClosureReadModel {
                            p.product_name AS productName, dci.quantity, dci.unit_price AS unitPrice, dci.amount,
                            dci.requisition_type AS requisitionType,
                            COALESCE(requisition_option.option_label, dci.requisition_type) AS requisitionTypeLabel,
+                           IF(dc.status = 'confirmed', (
+                               SELECT CASE MAX(CASE
+                                   WHEN sb.status = 'confirmed' THEN 3
+                                   WHEN si.invoice_id IS NOT NULL THEN 2
+                                   WHEN approval.document_key IS NOT NULL THEN 1
+                                   ELSE 0 END)
+                                   WHEN 3 THEN '原消耗已确认结算'
+                                   WHEN 2 THEN '关联结算单已关联发票'
+                                   WHEN 1 THEN '关联结算单已开始审批'
+                               END
+                                 FROM department_consumption_item original
+                                 JOIN settlement_bill_item sbi ON sbi.source_biz_type = 'department_consumption_item'
+                                   AND sbi.source_biz_id = original.item_id
+                                 JOIN settlement_bill sb ON sb.settlement_id = sbi.settlement_id
+                                 LEFT JOIN supplier_invoice si ON si.settlement_id = sb.settlement_id
+                                 LEFT JOIN business_approval_run approval
+                                   ON approval.document_key = CONCAT('settlement-reconciliation:settlement-confirm:', sb.settlement_no)
+                                WHERE original.consumption_id = dc.consumption_id
+                           ), NULL) AS reverseBlockedReason,
                            dc.status, DATE_FORMAT(dc.consume_time, '%Y-%m-%d %H:%i') AS createTime
                       FROM department_consumption dc
                       JOIN sys_dept sd ON sd.dept_id = dc.dept_id
@@ -422,6 +441,43 @@ public class OperationalClosureReadModel {
                   FROM sys_dept d JOIN warehouse w ON w.dept_id = d.dept_id AND w.deleted = 0
                 """ + where + " ORDER BY w.warehouse_name, w.warehouse_id", args.toArray());
         return Map.of("departments", departments, "warehouses", warehouses);
+    }
+
+    public Map<String, Object> redFlushDetail(String flushNo) {
+        StringBuilder where = new StringBuilder(" WHERE flush.flush_no = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(flushNo);
+        requisitionAccess.appendScope(where, args, "dc.dept_id", "dc.consume_by");
+        var headers = jdbcTemplate.queryForList("""
+                SELECT flush.flush_no AS flushNo, flush.source_consumption_no AS sourceNo,
+                       dc.consumption_id AS consumptionId, d.dept_name AS deptName,
+                       w.warehouse_name AS warehouseName, flush.status,
+                       flush.affected_settlements IS NOT NULL AS settlementDetailsCaptured
+                  FROM consumption_red_flush flush
+                  LEFT JOIN department_consumption dc ON dc.consumption_no = flush.source_consumption_no
+                  LEFT JOIN sys_dept d ON d.dept_id = dc.dept_id
+                  LEFT JOIN warehouse w ON w.warehouse_id = dc.warehouse_id
+                """ + where, args.toArray());
+        if (headers.isEmpty()) throw new IllegalArgumentException("红冲单不存在或无权查看");
+        var header = headers.get(0);
+        var items = jdbcTemplate.queryForList("""
+                SELECT e.event_id AS eventId, p.product_code AS productCode, p.product_name AS productName,
+                       b.system_batch_no AS batchNo, e.qty_change AS quantity, p.unit
+                  FROM inventory_event e
+                  LEFT JOIN inventory_batch b ON b.batch_id = e.batch_id
+                  LEFT JOIN product p ON p.product_id = e.product_id
+                 WHERE e.source_biz_type = 'department_consumption' AND e.source_biz_id = ?
+                   AND e.event_type = 'department_consumption_reverse_in'
+                 ORDER BY e.event_id
+                """, header.get("consumptionId"));
+        var settlements = jdbcTemplate.queryForList("""
+                SELECT detail.settlement_no AS settlementNo, detail.removed_amount AS removedAmount
+                  FROM consumption_red_flush flush, JSON_TABLE(COALESCE(flush.affected_settlements, JSON_ARRAY()),
+                       '$[*]' COLUMNS (settlement_no VARCHAR(50) PATH '$.settlementNo',
+                                       removed_amount DECIMAL(18,4) PATH '$.removedAmount')) detail
+                 WHERE flush.flush_no = ? ORDER BY detail.settlement_no
+                """, flushNo);
+        return Map.of("record", header, "items", items, "settlements", settlements);
     }
 
     private Map<String, Object> redFlushRecords(Map<String, String> params, PageRequest pageReq) {

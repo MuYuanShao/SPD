@@ -18,6 +18,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
 
@@ -43,6 +44,7 @@ class InventoryAuditMysqlTest {
     @Autowired OperationalDeliveryModule delivery;
     @Autowired ReceivingOrderService receiving;
     @Autowired StockReturnService stockReturns;
+    @Autowired OperationalClosureReadModel closureReadModel;
     String code;
     long productId, warehouseId, batchId;
 
@@ -241,10 +243,26 @@ class InventoryAuditMysqlTest {
 
     @Test void reversingOneConsumptionPreservesOtherItemsAndExactSharedBillTotal() {
         long bill = sharedSettlement();
-        consumption.reverseConsumption(code + "-X1");
+        String billNo = jdbc.queryForObject("SELECT settlement_no FROM settlement_bill WHERE settlement_id = ?", String.class, bill);
+        var result = consumption.reverseConsumption(code + "-X1");
         assertThat(quantity("available_qty")).isEqualByComparingTo("3");
         assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE settlement_id = ?", bill)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT total_amount FROM settlement_bill WHERE settlement_id = ?", BigDecimal.class, bill)).isEqualByComparingTo("20");
+        var detail = closureReadModel.redFlushDetail((String) result.get("flushNo"));
+        assertThat(detail.get("items")).asList().hasSize(1);
+        assertThat(detail.get("settlements")).asList()
+                .containsExactly(Map.of("settlementNo", billNo, "removedAmount", new BigDecimal("10.0000")));
+    }
+
+    @Test void approvalInProgressBlocksConsumptionReversal() {
+        long bill = sharedSettlement();
+        String billNo = jdbc.queryForObject("SELECT settlement_no FROM settlement_bill WHERE settlement_id = ?", String.class, bill);
+        jdbc.update("INSERT INTO business_approval_run (document_key,current_order,status) VALUES (?,2,'pending')",
+                "settlement-reconciliation:settlement-confirm:" + billNo);
+        assertThatThrownBy(() -> consumption.reverseConsumption(code + "-X1")).hasMessageContaining("已开始审批");
+        assertThat(quantity("available_qty")).isEqualByComparingTo("2");
+        assertThat(id("SELECT COUNT(*) FROM settlement_bill_item WHERE settlement_id = ?", bill)).isEqualTo(2);
+        assertThat(id("SELECT COUNT(*) FROM consumption_red_flush WHERE source_consumption_no = ?", code + "-X1")).isZero();
     }
 
     @Test void signedHighValueCanBeConsumedAndSettledWithoutBillingCallback() {

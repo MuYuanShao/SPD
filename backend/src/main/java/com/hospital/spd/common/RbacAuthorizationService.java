@@ -195,7 +195,7 @@ public class RbacAuthorizationService {
         String featureCode;
         if (path.equals("/operational-closure/overview") || path.equals("/operational-closure/options")) {
             featureCode = "operational-closure";
-        } else if (path.equals("/operational-closure/red-flush/options") && "GET".equals(verb)) {
+        } else if (path.matches("/operational-closure/red-flush/[^/]+") && "GET".equals(verb)) {
             featureCode = "red-flush-management";
         } else if (path.startsWith("/operational-closure/lists/")) {
             String type = path.substring("/operational-closure/lists/".length()).split("/")[0];

@@ -1291,7 +1291,7 @@ test('反消耗确认使用选中原单并在红冲台账展示结果', async ({
   let attempts = 0
   await page.route('**/api/operational-closure/lists/consumption?*', route => route.fulfill({
     json: { code: 0, data: { page: 1, size: 20, total: 2, rows: [
-      { bizNo: 'XH-A', status: 'confirmed' },
+      { bizNo: 'XH-A', status: 'confirmed', reverseBlockedReason: '关联结算单已开始审批' },
       { bizNo: 'XH-B', status: attempts === 2 ? 'reversed' : 'confirmed' }
     ] } }
   }))
@@ -1315,8 +1315,16 @@ test('反消耗确认使用选中原单并在红冲台账展示结果', async ({
       { deptCode: 'D-B', warehouseId: 20, warehouseName: '乙科库房' }
     ]
   } } }))
+  await page.route('**/api/operational-closure/red-flush/FXH-B', route => route.fulfill({ json: { code: 0, data: {
+    record: { flushNo: 'FXH-B', sourceNo: 'XH-B', settlementDetailsCaptured: true },
+    items: [{ eventId: 1, productCode: 'PC-01', productName: '测试耗材', batchNo: 'B-01', quantity: 2, unit: '支' }],
+    settlements: [{ settlementNo: 'JS-01', removedAmount: 20 }]
+  } } }))
   await page.goto('/features/department-consumption')
   await login(page)
+  const blocked = page.getByRole('row').filter({ hasText: 'XH-A' })
+  await expect(blocked).toContainText('关联结算单已开始审批')
+  await expect(blocked.getByRole('button', { name: '反消耗', exact: true })).toHaveCount(0)
   const reverse = page.getByRole('row').filter({ hasText: 'XH-B' }).getByRole('button', { name: '反消耗', exact: true })
   const prompt = page.getByRole('dialog', { name: '确认反消耗' })
   await reverse.click()
@@ -1350,6 +1358,11 @@ test('反消耗确认使用选中原单并在红冲台账展示结果', async ({
   await filters.getByRole('button', { name: '查询' }).click()
   expect(Object.fromEntries(new URL((await requested).url()).searchParams)).toMatchObject({ deptCode: 'D-B', warehouseId: '20', page: '1' })
   await expect(record.getByText('已冲销', { exact: true })).toBeVisible()
+  await record.getByRole('button', { name: '查看明细' }).click()
+  const detail = page.getByRole('dialog', { name: '红冲明细' })
+  await expect(detail.getByText('B-01', { exact: true })).toBeVisible()
+  await expect(detail.getByText('JS-01', { exact: true })).toBeVisible()
+  await expect(detail.getByText('20.0000', { exact: true })).toBeVisible()
 })
 
 test('结算对账支持组合查询和服务端科室排序', async ({ page }) => {

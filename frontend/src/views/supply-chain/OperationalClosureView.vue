@@ -47,6 +47,7 @@ import {
   fetchClosureOptions,
   fetchClosureOverview,
   fetchRedFlushOptions,
+  fetchRedFlushDetail,
   fetchServerPagedClosureList,
   fetchPickingLooseStock,
   fetchPickingPackageLabelDetail,
@@ -300,6 +301,27 @@ const redFlushOptions = ref<Awaited<ReturnType<typeof fetchRedFlushOptions>>>({ 
 const redFlushFilters = reactive({ deptCode: '', warehouseId: '' })
 const appliedRedFlushFilters = ref({ ...redFlushFilters })
 const redFlushError = ref('')
+const redFlushDetailOpen = ref(false)
+const redFlushDetailLoading = ref(false)
+const redFlushDetailError = ref('')
+const redFlushDetail = ref<Awaited<ReturnType<typeof fetchRedFlushDetail>>>()
+let redFlushDetailVersion = 0
+
+async function openRedFlushDetail(row: Record<string, unknown>) {
+  const version = ++redFlushDetailVersion
+  redFlushDetailOpen.value = true
+  redFlushDetail.value = undefined
+  redFlushDetailError.value = ''
+  redFlushDetailLoading.value = true
+  try {
+    const detail = await fetchRedFlushDetail(String(row.bizNo))
+    if (version === redFlushDetailVersion) redFlushDetail.value = detail
+  } catch (error) {
+    if (version === redFlushDetailVersion) redFlushDetailError.value = apiErrorText(error, '红冲明细加载失败')
+  } finally {
+    if (version === redFlushDetailVersion) redFlushDetailLoading.value = false
+  }
+}
 const redFlushWarehouses = computed(() =>
   redFlushOptions.value.warehouses.filter(item => item.deptCode === redFlushFilters.deptCode))
 const {
@@ -1069,7 +1091,7 @@ async function runAction(action: string, row?: Record<string, unknown>): Promise
 
 async function confirmConsumptionReversal(row: Record<string, unknown>) {
   const sourceNo = String(row.bizNo || '').trim()
-  if (!sourceNo || row.status !== 'confirmed' || reversingConsumption.value
+  if (!sourceNo || row.status !== 'confirmed' || row.reverseBlockedReason || reversingConsumption.value
     || !auth.hasPermission('reverse-consumption:write')) return
   reversingConsumption.value = true
   try {
@@ -1404,6 +1426,40 @@ watch(recallBusinessType, () => {
         </div>
       </article>
     </div>
+
+    <el-dialog v-model="redFlushDetailOpen" title="红冲明细" width="min(880px, 94vw)" append-to-body>
+      <StatusMessage :message="redFlushDetailError" tone="error" role="alert" />
+      <EmptyState v-if="redFlushDetailLoading" message="正在加载红冲明细…" />
+      <template v-else-if="redFlushDetail">
+        <p>红冲单 {{ redFlushDetail.record.flushNo }} · 原消耗单 {{ redFlushDetail.record.sourceNo }}</p>
+        <p>{{ redFlushDetail.record.deptName || '—' }} · {{ redFlushDetail.record.warehouseName || '—' }}</p>
+        <h4>库存回补明细</h4>
+        <div v-if="redFlushDetail.items.length" class="table-scroll">
+          <table class="master-table">
+            <thead><tr><th>商品编码</th><th>商品名称</th><th>系统批号</th><th>回补数量</th><th>单位</th></tr></thead>
+            <tbody>
+              <tr v-for="item in redFlushDetail.items" :key="item.eventId">
+                <td>{{ item.productCode || '—' }}</td><td>{{ item.productName || '—' }}</td>
+                <td>{{ item.batchNo || '—' }}</td><td>{{ item.quantity }}</td><td>{{ item.unit || '—' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <EmptyState v-else message="暂无关联库存回补记录" />
+        <h4>撤销的待确认结算明细</h4>
+        <div v-if="redFlushDetail.settlements.length" class="table-scroll">
+          <table class="master-table">
+            <thead><tr><th>原结算单号</th><th>撤销金额（元）</th></tr></thead>
+            <tbody>
+              <tr v-for="bill in redFlushDetail.settlements" :key="bill.settlementNo">
+                <td>{{ bill.settlementNo }}</td><td>{{ Number(bill.removedAmount).toFixed(4) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <EmptyState v-else :message="redFlushDetail.record.settlementDetailsCaptured ? '本次红冲未撤销结算明细' : '历史红冲未保存结算影响明细'" />
+      </template>
+    </el-dialog>
 
     <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
       <form @submit.prevent="submitRecallDialog">
@@ -2071,11 +2127,11 @@ watch(recallBusinessType, () => {
         </div>
         <table class="master-table purchase-table">
           <thead>
-            <tr><th>红冲单号</th><th>原消耗单号</th><th>科室</th><th>库房</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
+            <tr><th>红冲单号</th><th>原消耗单号</th><th>科室</th><th>库房</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th><th>操作</th></tr>
           </thead>
           <tbody>
-            <tr v-if="loading"><td colspan="8"><EmptyState message="正在加载红冲记录..." /></td></tr>
-            <tr v-else-if="!rows.length"><td colspan="8"><EmptyState :message="redFlushError ? '红冲记录加载失败' : '暂无红冲记录'" /></td></tr>
+            <tr v-if="loading"><td colspan="9"><EmptyState message="正在加载红冲记录..." /></td></tr>
+            <tr v-else-if="!rows.length"><td colspan="9"><EmptyState :message="redFlushError ? '红冲记录加载失败' : '暂无红冲记录'" /></td></tr>
             <tr v-for="row in rows" v-else :key="String(row.bizNo)">
               <td>{{ row.bizNo }}</td>
               <td>{{ row.sourceNo || '-' }}</td>
@@ -2085,6 +2141,7 @@ watch(recallBusinessType, () => {
               <td>{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</td>
               <td>{{ formatDateTime(row.createTime) }}</td>
               <td>{{ row.remark === 'reverse consumption red flush' ? '反消耗红冲' : row.remark || '-' }}</td>
+              <td><button class="md-btn-text" type="button" @click="openRedFlushDetail(row)">查看明细</button></td>
             </tr>
           </tbody>
         </table>
@@ -2188,7 +2245,10 @@ watch(recallBusinessType, () => {
               <td>{{ row.createTime || '-' }}</td>
               <td>
                 <div class="row-actions">
-                  <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
+                  <span v-if="type === 'consumption' && row.reverseBlockedReason && auth.hasPermission('reverse-consumption:write')">
+                    {{ row.reverseBlockedReason }}
+                  </span>
+                  <button v-else-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
                     type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
                     <RotateCcw :size="15" />
                     反消耗

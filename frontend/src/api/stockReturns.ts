@@ -24,7 +24,7 @@ export const fetchStockReturnOptions = () => getData<{
 export const fetchStockReturnCandidates = (params: Record<string, string | number | undefined>) =>
   getData<ReturnCandidate[]>('/stock-returns/candidates', { params })
 export const fetchStockReturns = () => getData<ReturnRecord[]>('/stock-returns')
-export const fetchWarehouseReturnQueue = async (params: { page: number; size: number }) =>
+export const fetchWarehouseReturnQueue = async (params: { page: number; size: number; status?: string }) =>
   getServerPage<PageResult<ReturnRecord>>('/stock-returns/picking-queue/page', { params })
 export const submitStockReturn = (request: ReturnRequest) =>
   postData<{ returnNo: string; status: string }>('/stock-returns', request, { freeTextFields: ['reason'] })

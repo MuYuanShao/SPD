@@ -1,4 +1,4 @@
-import { getData, putData } from './http'
+import { getData, postData, putData } from './http'
 
 export interface PrintTemplateField {
   code: string
@@ -30,16 +30,22 @@ export interface PrintTemplatePayload {
   remark?: string
 }
 
+const templateTextOptions = { freeTextFields: ['templateName', 'fieldsJson', 'remark'] }
+
 export function fetchPrintTemplates() {
   return getData<PrintTemplateRow[]>('/print-templates')
 }
 
-export function fetchPrintTemplate(templateType: string) {
-  return getData<PrintTemplateRow>(`/print-templates/${templateType}`)
+export function fetchActiveLabelPrintTemplates() {
+  return getData<{ templates: PrintTemplateRow[]; defaultTemplateId: number }>('/print-templates/label-print')
 }
 
-export function updatePrintTemplate(templateType: string, payload: PrintTemplatePayload) {
-  return putData<{ templateType: string }>(`/print-templates/${templateType}`, payload)
+export function updatePrintTemplate(id: number, payload: PrintTemplatePayload) {
+  return putData<{ id: number }>(`/print-templates/by-id/${id}`, payload, templateTextOptions)
+}
+
+export function createPrintTemplate(templateCode: string, config: PrintTemplatePayload) {
+  return postData<{ templateCode: string }>('/print-templates', { templateCode, ...config }, templateTextOptions)
 }
 
 /** 解析模板字段 JSON，返回可编辑的字段数组。 */

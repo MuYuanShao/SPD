@@ -12,6 +12,54 @@ async function login(page: import('@playwright/test').Page) {
   await page.getByRole('button', { name: /^登\s*录$/ }).click()
 }
 
+test('冷链异常允许登记零度并在弹窗中展示提交失败原因', async ({ page }) => {
+  const base = '**/api/operational-closure'
+  await page.route('**/api/system-notices/login-delivery?*', route => route.fulfill({ json: { code: 0, data: null } }))
+  await page.route(url => url.pathname.endsWith('/operational-closure/cold-chain/options'), route => {
+    const query = new URL(route.request().url()).searchParams
+    return route.fulfill({ json: { code: 0, data: {
+      warehouses: [{ warehouseName: query.get('warehouseKeyword') === '中心库 A' ? '中心库 A' : '其他库房' }],
+      products: [{ productCode: query.get('productKeyword') === 'COLD-01' ? 'COLD-01' : 'OTHER-01',
+        productName: '冷链耗材', specModel: '', unit: '件' }]
+    } } })
+  })
+  let attempts = 0
+  await page.route(`${base}/lists/cold-chain?*`, route =>
+    route.fulfill({ json: { code: 0, data: {
+      rows: attempts === 2 ? [{ bizNo: 'COLD-TEST', temperature: 0, status: 'pending_dispose' }] : [],
+      total: attempts === 2 ? 1 : 0, page: 1, size: 20
+    } } }))
+  await page.route(`${base}/cold-chain/exceptions`, route => {
+    expect(route.request().postDataJSON()).toEqual({
+      warehouseName: '中心库 A', productCode: 'COLD-01', temperature: 0, severity: 'high'
+    })
+    attempts++
+    return route.fulfill(attempts === 1
+      ? { status: 403, json: { code: 403, message: '中心库 A 的登记权限已变更' } }
+      : { json: { code: 0, data: { eventNo: 'COLD-TEST', status: 'pending_dispose' } } })
+  })
+  await page.goto('/features/cold-chain-monitoring')
+  await login(page)
+  await page.getByRole('button', { name: '登记异常', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: '登记冷链异常' })
+  const save = dialog.getByRole('button', { name: '保存异常' })
+  await save.click()
+  await expect(dialog.getByRole('alert')).toHaveText('请填写库房、商品和有效温度')
+  await dialog.getByRole('combobox', { name: '库房', exact: true }).fill('中心库 A')
+  await page.getByRole('option', { name: '中心库 A', exact: true }).click()
+  await dialog.getByRole('combobox', { name: '商品', exact: true }).fill('COLD-01')
+  await page.getByRole('option', { name: '冷链耗材 / COLD-01', exact: true }).click()
+  await dialog.getByRole('spinbutton').fill('0')
+  await save.click()
+  await expect(dialog.getByRole('alert')).toHaveText('中心库 A 的登记权限已变更')
+  await expect(dialog.getByRole('spinbutton')).toHaveValue('0')
+  await save.click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByText('冷链异常已登记（COLD-TEST）')).toBeVisible()
+  await expect(page.getByRole('row').filter({ hasText: 'COLD-TEST' }).locator('.cold-temp strong')).toHaveText('0')
+  expect(attempts).toBe(2)
+})
+
 test('公告加载失败可重试，同一公告只分配给一次登录', async ({ browser }) => {
   const firstSession = await browser.newContext()
   const secondSession = await browser.newContext()
@@ -106,12 +154,26 @@ test('打印模板新增字段在按钮旁显示校验和添加结果', async ({
     paperWidthMm: 40, paperHeightMm: 60, status: 1,
     fieldsJson: JSON.stringify([{ code: 'labelNo', label: '标签号', enabled: true }])
   }
-  await page.route('**/api/print-templates', route => route.fulfill({ json: { code: 0, data: [fixture] } }))
-  await page.route('**/api/print-templates/quota_label', route => {
+  const templates = [fixture]
+  await page.route('**/api/print-templates', route => {
+    if (route.request().method() === 'POST') {
+      const { templateCode, ...config } = route.request().postDataJSON()
+      expect(templateCode).toBe('test-label')
+      expect(config.templateName).toBe('新 标签模板')
+      expect(JSON.parse(config.fieldsJson)).toContainEqual({ code: 'footer', label: '页脚', enabled: true, value: 'Printed by SPD' })
+      templates.push({ ...fixture, ...config, templateCode, id: 2 })
+      return route.fulfill({ json: { code: 0, data: { templateCode } } })
+    }
+    return route.fulfill({ json: { code: 0, data: templates } })
+  })
+  await page.route('**/api/print-templates/by-id/1', route => {
     const payload = route.request().postDataJSON()
     expect(route.request().method()).toBe('PUT')
     expect(JSON.parse(payload.fieldsJson)).toContainEqual({ code: 'operator', label: '操作员', enabled: true })
-    return route.fulfill({ json: { code: 0, data: { templateType: 'quota_label' } } })
+    expect(payload.templateName).toBe('已修改 标签模板')
+    expect(payload.paperWidthMm).toBe(0.5)
+    Object.assign(fixture, payload)
+    return route.fulfill({ json: { code: 0, data: { id: 1 } } })
   })
   await page.goto('/features/print-template-settings')
   await login(page)
@@ -147,8 +209,21 @@ test('打印模板新增字段在按钮旁显示校验和添加结果', async ({
   await expect(alert).toHaveText('该字段编码已存在')
   await expect(alert).toBeInViewport()
   await expect(operator).toHaveCount(1)
+  await dialog.getByLabel('模板名称').fill('已修改 标签模板')
+  const paperWidth = dialog.getByRole('spinbutton', { name: '纸张宽度（mm）' })
+  await paperWidth.fill('1000000')
+  await dialog.getByRole('button', { name: '保存模板' }).click()
+  await expect(dialog.getByText('纸张宽度和高度须为 0.01 至 999999.99 mm，最多两位小数')).toBeVisible()
+  await paperWidth.fill('0.50')
   await dialog.getByRole('button', { name: '保存模板' }).click()
   await expect(dialog).toBeHidden()
+  await expect(page.getByText('已修改 标签模板', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '新建模板', exact: true }).click()
+  await dialog.getByLabel('模板编码').fill('test-label')
+  await dialog.getByLabel('模板名称').fill('新 标签模板')
+  await dialog.getByRole('button', { name: '保存模板' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByText('新 标签模板', { exact: true })).toBeVisible()
 })
 
 test('管理员可提交含空格和换行的公告并收到发布提示', async ({ page }) => {
@@ -660,8 +735,12 @@ test('科室退库预占后在拣配配送确认', async ({ page }) => {
     }
     return route.fulfill({ json: { code: 0, data: pending ? [order] : [] } })
   })
-  await page.route('**/api/stock-returns/picking-queue/page?*', route =>
-    route.fulfill({ json: { code: 0, data: { rows: pending ? [order] : [], total: pending ? 1 : 0, page: 1, size: 20 } } }))
+  await page.route('**/api/stock-returns/picking-queue/page?*', route => {
+    const status = new URL(route.request().url()).searchParams.get('status')
+    const record = pending ? order : { ...order, status: 'confirmed', confirmTime: '2026-11-25 09:00:00' }
+    const rows = status === 'all' || status === record.status ? [record] : []
+    return route.fulfill({ json: { code: 0, data: { rows, total: rows.length, page: 1, size: 20 } } })
+  })
   await page.route('**/api/stock-returns/TH-TEST/warehouse-confirm', route => {
     expect(route.request().method()).toBe('PUT')
     pending = false
@@ -695,9 +774,20 @@ test('科室退库预占后在拣配配送确认', async ({ page }) => {
   await page.locator('.spd-side-nav').getByText('拣配配送', { exact: true }).click()
   await page.getByRole('tab', { name: '科室退货确认' }).click()
   const pendingRow = page.getByRole('row').filter({ hasText: 'TH-TEST' })
+  await expect(pendingRow.getByRole('cell', { name: '待确认', exact: true })).toBeVisible()
   await pendingRow.getByRole('button', { name: '确认退库' }).click()
   await page.getByRole('dialog', { name: '确认科室退库' }).getByRole('button', { name: '确认退库' }).click()
-  await expect(pendingRow).toHaveCount(0)
+  await expect(pendingRow.getByRole('cell', { name: '已确认', exact: true })).toBeVisible()
+  await expect(pendingRow.getByRole('cell', { name: '2026-11-25 09:00:00' })).toBeVisible()
+  await expect(pendingRow.getByRole('button', { name: '确认退库' })).toHaveCount(0)
+  await page.getByRole('combobox', { name: '退库状态' }).press('Enter')
+  const filteredReturns = page.waitForResponse(response => {
+    const url = new URL(response.url())
+    return url.pathname.endsWith('/stock-returns/picking-queue/page') && url.searchParams.get('status') === 'confirmed'
+  })
+  await page.getByRole('option', { name: '已确认', exact: true }).click()
+  await filteredReturns
+  await expect(pendingRow).toBeVisible()
   expect(pending).toBeFalsy()
 })
 

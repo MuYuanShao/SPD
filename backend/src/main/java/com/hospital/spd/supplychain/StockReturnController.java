@@ -50,7 +50,7 @@ public class StockReturnController {
 
     @GetMapping("/picking-queue/page")
     public ApiResponse<PageResponse<Map<String, Object>>> queuePage(@RequestParam Map<String, String> params) {
-        return ApiResponse.ok(returns.pickingQueue(PageRequest.from(params)));
+        return ApiResponse.ok(returns.pickingQueue(PageRequest.from(params), params.getOrDefault("status", "pending_confirm")));
     }
 
     @PostMapping

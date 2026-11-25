@@ -27,8 +27,10 @@ import {
   X
 } from '@lucide/vue'
 import PaginationControls from '../../components/common/PaginationControls.vue'
+import StatusMessage from '../../components/common/StatusMessage.vue'
 import TableStateRow from '../../components/common/TableStateRow.vue'
 import { useAuthStore } from '../../stores/auth'
+import { fetchActiveLabelPrintTemplates, type PrintTemplateRow } from '../../api/printTemplates'
 import { fetchMasterDataPage } from '../../api/masterData'
 import { useQuotaPackageDataLoader } from '../../composables/useQuotaPackageDataLoader'
 import { useQuotaPackagePagination } from '../../composables/useQuotaPackagePagination'
@@ -82,6 +84,14 @@ const templates = ref<QuotaTemplateRow[]>([])
 const safetyRows = ref<QuotaSafetyRow[]>([])
 const tasks = ref<PackingTaskRow[]>([])
 const labels = ref<PackageLabelRow[]>([])
+const labelPrintTemplates = ref<PrintTemplateRow[]>([])
+const labelPrintTemplateId = ref<number | ''>('')
+const labelPrintTemplateError = ref('')
+const labelPrintPending = ref(false)
+let labelPrintCatalogVersion = 0
+const selectedLabelPrintTemplate = computed(() =>
+  labelPrintTemplates.value.find(row => row.id === labelPrintTemplateId.value)
+)
 const events = ref<Record<string, unknown>[]>([])
 const warehouses = ref<Array<{ warehouseName: string; warehouseType: string }>>([])
 const candidates = ref<Array<Record<string, unknown>>>([])
@@ -313,7 +323,24 @@ const { loadData: loadQuotaPackageData, invalidateLoad, templateQuery } = useQuo
 })
 
 async function loadData() {
-  await loadQuotaPackageData()
+  await Promise.all([loadQuotaPackageData(), loadLabelPrintTemplates()])
+}
+
+async function loadLabelPrintTemplates() {
+  if (packageSection.value !== 'quota-label-unpack' || !authStore.hasPermission('quota-package-label:print')) return
+  const version = ++labelPrintCatalogVersion
+  try {
+    const catalog = await fetchActiveLabelPrintTemplates()
+    if (version === labelPrintCatalogVersion) {
+      labelPrintTemplates.value = catalog.templates
+      labelPrintTemplateError.value = ''
+    }
+    return catalog
+  } catch {
+    if (version === labelPrintCatalogVersion) {
+      labelPrintTemplateError.value = '打印模板加载失败，已保留当前选择，请重试'
+    }
+  }
 }
 
 function resetTemplateQuery() {
@@ -687,6 +714,24 @@ const {
   reload: loadData,
   showGeneratedLabels
 })
+
+async function printLabelWithTemplate(row: PackageLabelRow) {
+  if (labelPrintPending.value) return
+  labelPrintPending.value = true
+  try {
+    const catalog = await loadLabelPrintTemplates()
+    if (!catalog) return
+    const templateId = labelPrintTemplateId.value || catalog.defaultTemplateId
+    const template = catalog.templates.find(item => item.id === templateId)
+    if (templateId && !template) {
+      labelPrintTemplateError.value = '所选打印模板已停用或不可用，请重新选择'
+      return
+    }
+    await printLabel(row, template)
+  } finally {
+    labelPrintPending.value = false
+  }
+}
 
 /* =====================================================================
    统一反馈出口
@@ -1544,6 +1589,19 @@ watch(
           </div>
         </div>
 
+        <div v-if="authStore.hasPermission('quota-package-label:print')" class="lbl-print-template">
+          <label class="lbl-field">
+            <span>打印模板</span>
+            <select v-model="labelPrintTemplateId" :disabled="labelPrintPending" @change="labelPrintTemplateError = ''">
+              <option value="">默认打印模板</option>
+              <option v-if="labelPrintTemplateId && !selectedLabelPrintTemplate" :value="labelPrintTemplateId" disabled>原选模板不可用</option>
+              <option v-for="template in labelPrintTemplates" :key="template.id" :value="template.id">
+                {{ template.templateName }}（{{ template.templateCode }}）
+              </option>
+            </select>
+          </label>
+          <StatusMessage :message="labelPrintTemplateError" tone="error" role="alert" />
+        </div>
         <!-- 标签列表 -->
         <div class="lbl-scroll">
           <table class="lbl-table">
@@ -1608,7 +1666,8 @@ watch(
                       v-if="(row.status === 'pending_print' || row.status === 'available') && authStore.hasPermission('quota-package-label:print')"
                       class="lbl-act"
                       type="button"
-                      @click="printLabel(row)"
+                      :disabled="labelPrintPending"
+                      @click="printLabelWithTemplate(row)"
                     >
                       <Printer :size="14" />
                       {{ row.status === 'pending_print' ? '打印' : '重打' }}
@@ -3047,7 +3106,13 @@ watch(
   line-height: 1.3;
 }
 
-.lbl-field input {
+.lbl-print-template {
+  max-width: 300px;
+  margin: 0 16px 12px;
+}
+
+.lbl-field input,
+.lbl-field select {
   height: 30px;
   padding: 0 9px;
   border: 1px solid var(--lbl-border);

@@ -636,7 +636,7 @@ class OperationalClosureServiceTest {
     void shouldReturnOptions() {
         when(jdbcTemplate.queryForList(contains("FROM sys_dept"))).thenReturn(List.of(Map.of("deptName", "外科")));
         when(jdbcTemplate.queryForList(contains("FROM warehouse"))).thenReturn(List.of(Map.of("warehouseName", "主仓库")));
-        when(jdbcTemplate.queryForList(contains("FROM product p"))).thenReturn(List.of(Map.of("productCode", "PC001")));
+        when(jdbcTemplate.queryForList(contains("FROM product WHERE"))).thenReturn(List.of(Map.of("productCode", "PC001")));
         when(jdbcTemplate.queryForList(contains("FROM inventory_balance bal"))).thenReturn(List.of(Map.of("availableQty", BigDecimal.TEN)));
 
         Map<String, Object> result = service.options();
@@ -646,6 +646,19 @@ class OperationalClosureServiceTest {
                 .containsKey("warehouses")
                 .containsKey("products")
                 .containsKey("balances");
+    }
+
+    @Test
+    void coldChainOptionsSearchActiveWarehousesAndProductsBeforeLimitingResults() {
+        var warehouses = List.<Map<String, Object>>of(Map.of("warehouseName", "中心库 A"));
+        var products = List.<Map<String, Object>>of(Map.of("productCode", "COLD-OLD"));
+        when(jdbcTemplate.queryForList(contains("AND (LOCATE(?, warehouse_name)"),
+                eq("中心库 A"), eq("中心库 A"), eq("中心库 A"), eq("中心库 A"))).thenReturn(warehouses);
+        when(jdbcTemplate.queryForList(contains("AND (LOCATE(?, product_code)"),
+                eq("COLD-OLD"), eq("COLD-OLD"), eq("COLD-OLD"), eq("COLD-OLD"))).thenReturn(products);
+
+        assertThat(service.coldChainOptions(" 中心库 A ", " COLD-OLD "))
+                .containsEntry("warehouses", warehouses).containsEntry("products", products);
     }
     @SuppressWarnings("unchecked")
     private static List<Map<String, Object>> rows(Map<String, Object> page) {

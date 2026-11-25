@@ -8,6 +8,7 @@ public record PrintTemplateUpsertRequest(
         BigDecimal paperWidthMm,
         BigDecimal paperHeightMm,
         Integer status,
-        String remark
+        String remark,
+        String templateCode
 ) {
 }

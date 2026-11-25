@@ -20,26 +20,33 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import {
   createColdChainException,
   fetchClosureList,
-  fetchClosureOptions,
-  type ClosureOptions
+  fetchColdChainOptions,
+  type ColdChainOptions
 } from '../../api/operationalClosure'
 import { useNotify } from '../../composables/useNotify'
+import { useAuthStore } from '../../stores/auth'
+import { formatApiErrorText } from '../../utils/chineseDisplay'
 
 const notify = useNotify()
+const auth = useAuthStore()
 
 
 const loading = ref(false)
 const submitting = ref(false)
 const exceptionOpen = ref(false)
-const message = ref('')
-const messageTone = ref<'info' | 'success' | 'warning' | 'error'>('info')
+const formError = ref('')
+const optionsError = ref('')
+const optionsLoading = ref(false)
 const rows = ref<Record<string, unknown>[]>([])
-const options = ref<ClosureOptions>({
-  departments: [],
+const options = ref<ColdChainOptions>({
   warehouses: [],
-  products: [],
-  balances: []
+  products: []
 })
+const searchedWarehouses = ref<ColdChainOptions['warehouses'] | null>(null)
+const searchedProducts = ref<ColdChainOptions['products'] | null>(null)
+const rememberedProduct = ref<ColdChainOptions['products'][number]>()
+const searchLoading = reactive({ warehouse: false, product: false })
+const searchVersion = { warehouse: 0, product: 0 }
 const currentPage = ref(1)
 const pageSize = ref(20)
 const totalItems = ref(0)
@@ -53,14 +60,21 @@ const filterForm = reactive({
 const form = reactive({
   warehouseName: '',
   productCode: '',
-  temperature: '',
-  severity: 'high',
-  note: ''
+  temperature: '' as number | '',
+  severity: 'high'
 })
 
 const selectedProduct = computed(() =>
-  options.value.products.find((product) => product.productCode === form.productCode)
+  searchedProducts.value?.find((product) => product.productCode === form.productCode)
+    ?? options.value.products.find((product) => product.productCode === form.productCode)
+    ?? (rememberedProduct.value?.productCode === form.productCode ? rememberedProduct.value : undefined)
 )
+
+function apiErrorText(error: unknown, fallback: string) {
+  const message = (error as { response?: { data?: { message?: string } } } | null)?.response?.data?.message
+  const text = message || (error instanceof Error ? error.message : '')
+  return /\p{Script=Han}/u.test(text) ? text : formatApiErrorText(text, fallback)
+}
 
 function severityText(value: unknown) {
   const status = String(value || '')
@@ -105,16 +119,43 @@ function statusTone(value: unknown): 'warning' | 'info' | 'gray' {
   return 'gray'
 }
 
-function pushMessage(text: string, tone: 'info' | 'success' | 'warning' | 'error' = 'info') {
-  message.value = text
-  messageTone.value = tone
+async function loadOptions() {
+  if (optionsLoading.value) return
+  optionsLoading.value = true
+  optionsError.value = ''
+  try {
+    options.value = await fetchColdChainOptions()
+    if (!form.warehouseName) form.warehouseName = options.value.warehouses[0]?.warehouseName || ''
+    if (!form.productCode) form.productCode = options.value.products[0]?.productCode || ''
+  } catch (error) {
+    optionsError.value = apiErrorText(error, '加载库房和商品失败，请重试')
+  } finally {
+    optionsLoading.value = false
+  }
 }
 
-async function loadOptions() {
-  options.value = await fetchClosureOptions()
-  if (!form.warehouseName) form.warehouseName = options.value.warehouses[0]?.warehouseName || ''
-  if (!form.productCode) form.productCode = options.value.products[0]?.productCode || ''
-  if (!filterForm.warehouseName) filterForm.warehouseName = options.value.warehouses[0]?.warehouseName || ''
+async function searchOptions(kind: 'warehouse' | 'product', query: string) {
+  const version = ++searchVersion[kind]
+  const keyword = query.trim()
+  if (!keyword) {
+    if (kind === 'warehouse') searchedWarehouses.value = null
+    else searchedProducts.value = null
+    searchLoading[kind] = false
+    return
+  }
+  searchLoading[kind] = true
+  formError.value = ''
+  try {
+    const result = await fetchColdChainOptions(kind === 'warehouse'
+      ? { warehouseKeyword: keyword } : { productKeyword: keyword })
+    if (version !== searchVersion[kind]) return
+    if (kind === 'warehouse') searchedWarehouses.value = result.warehouses
+    else searchedProducts.value = result.products
+  } catch (error) {
+    if (version === searchVersion[kind]) formError.value = apiErrorText(error, '选项搜索失败，请重试')
+  } finally {
+    if (version === searchVersion[kind]) searchLoading[kind] = false
+  }
 }
 
 async function loadData() {
@@ -127,7 +168,7 @@ async function loadData() {
     rows.value = page.rows
     totalItems.value = page.total
   } catch (error) {
-    pushMessage(error instanceof Error ? error.message : '冷链异常记录加载失败', 'error')
+    notify.error(apiErrorText(error, '冷链异常记录加载失败'))
   } finally {
     loading.value = false
   }
@@ -150,22 +191,29 @@ async function resetFilter() {
   await loadData()
 }
 
-async function resetForm() {
+function resetForm() {
+  void searchOptions('warehouse', '')
+  void searchOptions('product', '')
+  rememberedProduct.value = undefined
   form.warehouseName = options.value.warehouses[0]?.warehouseName || ''
   form.productCode = options.value.products[0]?.productCode || ''
   form.temperature = ''
   form.severity = 'high'
-  form.note = ''
+  formError.value = ''
 }
 
 function openExceptionDialog() {
   resetForm()
   exceptionOpen.value = true
+  if (optionsError.value) void loadOptions()
 }
 
 async function submitException() {
-  if (!form.warehouseName || !form.productCode || !form.temperature) {
-    pushMessage('请填写库房、商品和温度', 'warning')
+  if (submitting.value || optionsLoading.value || optionsError.value) return
+  formError.value = ''
+  const temperature = Number(form.temperature)
+  if (!form.warehouseName || !form.productCode || form.temperature === '' || !Number.isFinite(temperature)) {
+    formError.value = '请填写库房、商品和有效温度'
     return
   }
   submitting.value = true
@@ -173,15 +221,15 @@ async function submitException() {
     const result = await createColdChainException({
       warehouseName: form.warehouseName,
       productCode: form.productCode,
-      temperature: form.temperature,
+      temperature,
       severity: form.severity
     })
     exceptionOpen.value = false
     currentPage.value = 1
     await loadData()
-    pushMessage(`冷链异常已登记：${result.eventNo || ''}`, 'success')
+    notify.success(`冷链异常已登记${result.eventNo ? `（${result.eventNo}）` : ''}`)
   } catch (error) {
-    pushMessage(error instanceof Error ? error.message : '冷链异常登记失败', 'error')
+    formError.value = apiErrorText(error, '冷链异常登记失败')
   } finally {
     submitting.value = false
   }
@@ -222,9 +270,9 @@ const summary = computed(() => {
   ]
 })
 
-onMounted(async () => {
-  await loadOptions()
-  await loadData()
+onMounted(() => {
+  void loadOptions()
+  void loadData()
 })
 </script>
 
@@ -267,6 +315,7 @@ onMounted(async () => {
         </div>
         <div class="cold-panel-actions">
           <button
+            v-if="auth.canWrite('cold-chain-monitoring')"
             class="btn cold-register-btn"
             type="button"
             @click="openExceptionDialog"
@@ -360,7 +409,7 @@ onMounted(async () => {
               <td>
                 <span class="cold-temp" :class="`is-${severityTone(row.severity)}`">
                   <component :is="severityIcon(row.severity)" :size="14" />
-                  <strong>{{ row.temperature || '-' }}</strong>
+                  <strong>{{ row.temperature ?? '-' }}</strong>
                   <em>℃</em>
                 </span>
               </td>
@@ -393,23 +442,27 @@ onMounted(async () => {
       />
     </section>
 
-    <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body class="cold-chain-dialog">
+    <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body class="cold-chain-dialog"
+      :close-on-click-modal="!submitting" :close-on-press-escape="!submitting" :show-close="!submitting">
       <div class="cold-chain-form">
         <label>
           <span class="cold-form-tag is-warehouse"><Warehouse :size="12" /> 库房</span>
-          <select v-model="form.warehouseName">
-            <option v-for="warehouse in options.warehouses" :key="warehouse.warehouseName" :value="warehouse.warehouseName">
-              {{ warehouse.warehouseName }}
-            </option>
-          </select>
+          <el-select v-model="form.warehouseName" aria-label="库房" filterable remote
+            :remote-method="(query: string) => searchOptions('warehouse', query)" :loading="searchLoading.warehouse"
+            placeholder="搜索库房名称或编码" no-data-text="暂无匹配库房">
+            <el-option v-for="warehouse in searchedWarehouses ?? options.warehouses" :key="warehouse.warehouseName"
+              :value="warehouse.warehouseName" :label="warehouse.warehouseName" />
+          </el-select>
         </label>
         <label>
           <span class="cold-form-tag is-product"><Package :size="12" /> 商品</span>
-          <select v-model="form.productCode">
-            <option v-for="product in options.products" :key="product.productCode" :value="product.productCode">
-              {{ product.productName }} / {{ product.productCode }}
-            </option>
-          </select>
+          <el-select v-model="form.productCode" aria-label="商品" filterable remote
+            :remote-method="(query: string) => searchOptions('product', query)" :loading="searchLoading.product"
+            @change="rememberedProduct = selectedProduct"
+            placeholder="搜索商品名称或编码" no-data-text="暂无匹配商品">
+            <el-option v-for="product in searchedProducts ?? options.products" :key="product.productCode"
+              :value="product.productCode" :label="`${product.productName} / ${product.productCode}`" />
+          </el-select>
         </label>
         <label>
           <span class="cold-form-tag is-temp"><Thermometer :size="12" /> 当前温度（℃）</span>
@@ -428,11 +481,14 @@ onMounted(async () => {
         <span class="cold-form-tag is-product"><Package :size="12" /> 当前商品</span>
         {{ selectedProduct.productName }}，规格 {{ selectedProduct.specModel || '-' }}，单位 {{ selectedProduct.unit || '-' }}
       </p>
+      <StatusMessage :message="optionsError || formError" tone="error" role="alert" />
+      <StatusMessage v-if="optionsLoading" message="正在加载库房和商品…" tone="info" role="status" />
       <div class="cold-chain-dialog-actions">
-        <button class="btn btn-primary cold-dialog-save" type="button" :disabled="submitting" @click="submitException">
+        <button class="btn btn-primary cold-dialog-save" type="button" :disabled="submitting || optionsLoading || Boolean(optionsError)" @click="submitException">
           <CheckCircle2 :size="16" />
           {{ submitting ? '保存中...' : '保存异常' }}
         </button>
+        <button v-if="optionsError" class="btn" type="button" @click="loadOptions">重新加载选项</button>
         <button class="btn cold-dialog-reset" type="button" :disabled="submitting" @click="resetForm">
           重置
         </button>
@@ -1031,8 +1087,7 @@ td small {
   border: 1px solid #fde68a;
 }
 
-.cold-chain-form select,
-.cold-chain-form input {
+.cold-chain-form label > input {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -1048,8 +1103,7 @@ td small {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-.cold-chain-form select:focus,
-.cold-chain-form input:focus {
+.cold-chain-form label > input:focus {
   border-color: #1677ff;
   box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
 }

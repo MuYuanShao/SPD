@@ -51,6 +51,29 @@ class RbacAuthorizationServiceTest {
     private final RbacAuthorizationService service = new RbacAuthorizationService(jdbcTemplate);
 
     @Test
+    void labelPrinterCanReadActiveTemplatesAndPrintWithoutTemplateManagementPermission() {
+        stubPermissions(50L, List.of("quota-label-unpack", "quota-package-label:print"));
+        stubPermissions(51L, List.of("quota-label-unpack"));
+        assertThat(service.isAllowed(50L, List.of(), "GET", "/api/print-templates/label-print")).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "PUT", "/api/quota-packages/labels/QA/print")).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "GET", "/api/print-templates")).isFalse();
+        assertThat(service.isAllowed(50L, List.of(), "POST", "/api/print-templates")).isFalse();
+        assertThat(service.isAllowed(51L, List.of(), "GET", "/api/print-templates/label-print")).isFalse();
+        assertThat(service.isAllowed(51L, List.of(), "PUT", "/api/quota-packages/labels/QA/print")).isFalse();
+    }
+
+    @Test
+    void coldChainOptionsAndRegistrationUseColdChainPermissions() {
+        stubPermissions(50L, List.of("cold-chain-monitoring", "cold-chain-monitoring:write"));
+        stubPermissions(51L, List.of("cold-chain-monitoring"));
+        String prefix = "/api/operational-closure/cold-chain";
+        assertThat(service.isAllowed(50L, List.of(), "GET", prefix + "/options")).isTrue();
+        assertThat(service.isAllowed(50L, List.of(), "POST", prefix + "/exceptions")).isTrue();
+        assertThat(service.isAllowed(51L, List.of(), "GET", prefix + "/options")).isTrue();
+        assertThat(service.isAllowed(51L, List.of(), "POST", prefix + "/exceptions")).isFalse();
+    }
+
+    @Test
     void recallReceiptQueueAndConfirmationRequirePickingWritePermission() {
         stubPermissions(50L, List.of("picking-delivery:write"));
         stubPermissions(51L, List.of("picking-delivery", "recall-isolation:write"));

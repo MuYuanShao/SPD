@@ -17,10 +17,12 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Type;
+import java.util.Set;
 
 /** Checks JSON string values before Jackson binds or coerces them. */
 @ControllerAdvice
 public class WriteFieldRequestAdvice extends RequestBodyAdviceAdapter {
+    private static final Set<String> PRINT_TEMPLATE_TEXT_FIELDS = Set.of("templateName", "fieldsJson", "remark");
     private final ObjectMapper mapper;
     private final HttpServletRequest request;
 
@@ -41,9 +43,20 @@ public class WriteFieldRequestAdvice extends RequestBodyAdviceAdapter {
     public HttpInputMessage beforeBodyRead(HttpInputMessage input, MethodParameter parameter, Type targetType,
                                           Class<? extends HttpMessageConverter<?>> converterType) throws IOException {
         byte[] body = input.getBody().readAllBytes();
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        boolean printTemplateWrite = ("POST".equals(request.getMethod()) && "/print-templates".equals(path))
+                || ("PUT".equals(request.getMethod()) && path.startsWith("/print-templates/"));
+        boolean coldChainWrite = "POST".equals(request.getMethod())
+                && "/operational-closure/cold-chain/exceptions".equals(path);
         try (JsonParser parser = mapper.getFactory().createParser(body)) {
             while (parser.nextToken() != null) {
                 if (parser.currentToken() == JsonToken.VALUE_STRING) {
+                    var context = parser.getParsingContext();
+                    if (context.inObject() && context.getParent().inRoot()) {
+                        String field = context.getCurrentName();
+                        if ((printTemplateWrite && PRINT_TEMPLATE_TEXT_FIELDS.contains(field))
+                                || (coldChainWrite && "warehouseName".equals(field))) continue;
+                    }
                     WriteFieldWhitespace.requireValid(parser.getText());
                 }
             }

@@ -84,6 +84,10 @@ public class OperationalClosureService {
         return readModel.requisitionOptions();
     }
 
+    public Map<String, Object> coldChainOptions(String warehouseKeyword, String productKeyword) {
+        return readModel.coldChainOptions(warehouseKeyword, productKeyword);
+    }
+
     public java.util.List<Map<String, Object>> requisitionWarehouses(String deptCode) {
         return readModel.requisitionWarehouses(deptCode);
     }

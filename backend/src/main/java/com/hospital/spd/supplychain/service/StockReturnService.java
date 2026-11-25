@@ -68,19 +68,33 @@ public class StockReturnService {
     }
 
     public List<Map<String, Object>> records(boolean queue) {
-        return queryReturns(queue, null).rows();
+        return queryReturns(queue, null, "pending_confirm").rows();
     }
 
     @Transactional(readOnly = true)
     public PageResponse<Map<String, Object>> pickingQueue(PageRequest page) {
-        return queryReturns(true, page);
+        return pickingQueue(page, "pending_confirm");
     }
 
-    private PageResponse<Map<String, Object>> queryReturns(boolean queue, PageRequest page) {
+    @Transactional(readOnly = true)
+    public PageResponse<Map<String, Object>> pickingQueue(PageRequest page, String status) {
+        if (!List.of("all", "pending_confirm", "confirmed", "cancelled").contains(status)) {
+            throw new IllegalArgumentException("无效的科室退货状态");
+        }
+        return queryReturns(true, page, status);
+    }
+
+    private PageResponse<Map<String, Object>> queryReturns(boolean queue, PageRequest page, String status) {
         StringBuilder where = new StringBuilder(" WHERE 1=1");
         List<Object> args = new ArrayList<>();
         access.appendScope(where, args, "r.dept_id", "r.created_by");
-        if (queue) where.append(" AND r.return_kind='department' AND r.status='pending_confirm'");
+        if (queue) {
+            where.append(" AND r.return_kind='department'");
+            if (!"all".equals(status)) {
+                where.append(" AND r.status=?");
+                args.add(status);
+            }
+        }
         String from = """
                   FROM stock_return_order r JOIN warehouse w ON w.warehouse_id=r.source_warehouse_id
                   LEFT JOIN warehouse target ON target.warehouse_id=r.destination_warehouse_id

@@ -505,8 +505,21 @@ function useDeliveryQueue<T>(fetchPage: (params: { page: number; size: number })
   return reactive({ result, loading, error, load })
 }
 
-const returnQueue = useDeliveryQueue(fetchWarehouseReturnQueue, '待确认退库单加载失败')
+const departmentReturnStatuses = {
+  pending_confirm: { label: '待确认', tone: 'pending' },
+  confirmed: { label: '已确认', tone: 'enabled' },
+  cancelled: { label: '已取消', tone: '' }
+}
+const departmentReturnStatus = ref('all')
+const returnQueue = useDeliveryQueue(
+  params => fetchWarehouseReturnQueue({ ...params, status: departmentReturnStatus.value }),
+  '科室退库单加载失败'
+)
 const recallQueue = useDeliveryQueue(fetchPendingRecallReceipts, '召回待签收列表加载失败')
+
+function departmentReturnBadge(status: string) {
+  return departmentReturnStatuses[status as keyof typeof departmentReturnStatuses] ?? { label: '未知状态', tone: '' }
+}
 
 function refreshDeliveryTab() {
   if (deliveryTab.value === 'returns') return returnQueue.load()
@@ -521,7 +534,7 @@ function changeDeliveryTab(tab: DeliveryTab) {
 }
 
 async function confirmDepartmentReturn(row: ReturnRecord) {
-  if (confirmingWarehouseReturn.value || !auth.canWrite('picking-delivery')) return
+  if (row.status !== 'pending_confirm' || confirmingWarehouseReturn.value || !auth.canWrite('picking-delivery')) return
   confirmingWarehouseReturn.value = row.returnNo
   try {
     try {
@@ -1809,18 +1822,26 @@ watch(recallBusinessType, () => {
 
     <section v-else-if="deliveryTab === 'returns' && auth.canWrite('picking-delivery')"
       id="delivery-panel-returns" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-returns">
+      <div class="department-return-filter">
+        <el-select v-model="departmentReturnStatus" aria-label="退库状态" @change="returnQueue.load(1)">
+          <el-option value="all" label="全部状态" />
+          <el-option v-for="(status, key) in departmentReturnStatuses" :key="key" :value="key" :label="status.label" />
+        </el-select>
+      </div>
       <StatusMessage :message="returnQueue.error" tone="error" role="alert" />
       <div class="table-scroll">
         <table class="master-table">
-          <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>状态</th><th>确认时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-for="row in returnQueue.result.rows" :key="row.returnNo">
               <td>{{ row.returnNo }}</td><td>{{ row.sourceWarehouse }}</td><td>{{ row.destinationWarehouse }}</td>
               <td>{{ row.quantity }}</td><td>{{ row.createTime }}</td>
-              <td><button type="button" class="md-btn md-btn-primary" :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
-                @click="confirmDepartmentReturn(row)">确认退库</button></td>
+              <td><span class="status-badge" :class="departmentReturnBadge(row.status).tone">{{ departmentReturnBadge(row.status).label }}</span></td>
+              <td>{{ row.confirmTime || '—' }}</td>
+              <td><button v-if="row.status === 'pending_confirm'" type="button" class="md-btn md-btn-primary" :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
+                @click="confirmDepartmentReturn(row)">确认退库</button><span v-else>—</span></td>
             </tr>
-            <tr v-if="!returnQueue.result.rows.length && !returnQueue.error"><td colspan="6"><EmptyState :message="returnQueue.loading ? '正在加载待确认退库单…' : '暂无待确认科室退库'" /></td></tr>
+            <tr v-if="!returnQueue.result.rows.length && !returnQueue.error"><td colspan="8"><EmptyState :message="returnQueue.loading ? '正在加载科室退库单…' : '暂无符合条件的科室退库单'" /></td></tr>
           </tbody>
         </table>
       </div>
@@ -3854,6 +3875,11 @@ watch(recallBusinessType, () => {
   height: 2px;
   background: currentColor;
   content: '';
+}
+
+.department-return-filter {
+  width: 160px;
+  margin-bottom: 12px;
 }
 
 .delivery-confirmation-panel .master-table thead th {

@@ -14,6 +14,7 @@ import {
   type PackingTaskRow
 } from '../api/quotaPackages'
 import { printQuotaLabel } from '../utils/zebraBrowserPrint'
+import type { PrintTemplateRow } from '../api/printTemplates'
 import { useAuthStore } from '../stores/auth'
 
 type PackingTaskForm = {
@@ -187,10 +188,10 @@ export function useQuotaPackingTaskActions(options: {
     }
   }
 
-  async function printLabel(row: PackageLabelRow) {
+  async function printLabel(row: PackageLabelRow, template?: PrintTemplateRow) {
     try {
       const operator = auth.currentUser?.realName?.trim() || auth.username
-      const printerName = await printQuotaLabel(row, operator)
+      const printerName = await printQuotaLabel(row, operator, template)
       const result = await printPackageLabel(row.labelNo)
       setResult(`${result.labelNo} 已发送至${printerName}，打印次数 ${result.printCount}`)
       await options.reload()

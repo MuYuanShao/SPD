@@ -185,6 +185,13 @@ public class OperationalClosureController {
         return ApiResponse.ok(service.uploadPda(request));
     }
 
+    @GetMapping("/cold-chain/options")
+    public ApiResponse<Map<String, Object>> coldChainOptions(
+            @RequestParam(defaultValue = "") String warehouseKeyword,
+            @RequestParam(defaultValue = "") String productKeyword) {
+        return ApiResponse.ok(service.coldChainOptions(warehouseKeyword, productKeyword));
+    }
+
     @PostMapping("/cold-chain/exceptions")
     public ApiResponse<Map<String, Object>> coldChainException(@Valid @RequestBody ColdChainExceptionRequest request) {
         return ApiResponse.ok(service.coldChainException(request));

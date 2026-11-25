@@ -26,6 +26,15 @@ export async function fetchClosureOptions() {
   return getData<ClosureOptions>('/operational-closure/options')
 }
 
+export type ColdChainOptions = {
+  warehouses: Pick<ClosureOptions['warehouses'][number], 'warehouseName'>[]
+  products: Pick<ClosureOptions['products'][number], 'productCode' | 'productName' | 'specModel' | 'unit'>[]
+}
+
+export function fetchColdChainOptions(params?: { warehouseKeyword?: string; productKeyword?: string }) {
+  return getData<ColdChainOptions>('/operational-closure/cold-chain/options', { params })
+}
+
 export async function fetchDepartmentRequisitionOptions() {
   return getData<ClosureOptions>('/operational-closure/requisitions/options')
 }
@@ -297,7 +306,8 @@ export async function uploadPdaOffline(payload: Record<string, unknown>) {
 export async function createColdChainException(payload: Record<string, unknown>) {
   return postData<Record<string, unknown>>(
     '/operational-closure/cold-chain/exceptions',
-    payload
+    payload,
+    { freeTextFields: ['warehouseName'] }
   )
 }
 

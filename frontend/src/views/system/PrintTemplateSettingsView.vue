@@ -9,6 +9,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, Plus, RotateCcw, Trash2 } from '@lucide/vue'
 import {
+  createPrintTemplate,
   fetchPrintTemplates,
   parseTemplateFields,
   updatePrintTemplate,
@@ -21,6 +22,10 @@ import MdFormDialog from '../../components/master-data/MdFormDialog.vue'
 import MdFormSection from '../../components/master-data/MdFormSection.vue'
 import MdStatus from '../../components/master-data/MdStatus.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import { defaultPrintConfig } from '../../utils/zebraBrowserPrint'
+import { useAuthStore } from '../../stores/auth'
+
+const auth = useAuthStore()
 
 const rows = ref<PrintTemplateRow[]>([])
 const loading = ref(false)
@@ -29,6 +34,7 @@ const error = ref('')
 const showEditor = ref(false)
 const editing = ref<PrintTemplateRow | null>(null)
 const fields = ref<PrintTemplateField[]>([])
+const templateCode = ref('')
 const templateName = ref('')
 const paperWidthMm = ref(40)
 const paperHeightMm = ref(60)
@@ -36,6 +42,7 @@ const status = ref(1)
 const remark = ref('')
 const saving = ref(false)
 const formError = ref('')
+const saveFeedback = ref<HTMLElement>()
 const newFieldCode = ref('')
 const newFieldLabel = ref('')
 const newFieldError = ref('')
@@ -44,6 +51,10 @@ const fieldFeedback = ref<HTMLElement>()
 
 watch([newFieldError, newFieldFeedback], () => {
   fieldFeedback.value?.scrollIntoView({ block: 'nearest' })
+}, { flush: 'post' })
+
+watch(formError, error => {
+  if (error) saveFeedback.value?.scrollIntoView({ block: 'nearest' })
 }, { flush: 'post' })
 
 const paperPresets = [
@@ -73,14 +84,15 @@ async function loadList() {
   }
 }
 
-function openEditor(row: PrintTemplateRow) {
+function openEditor(row: PrintTemplateRow | null) {
   editing.value = row
-  templateName.value = row.templateName
-  paperWidthMm.value = Number(row.paperWidthMm) || 40
-  paperHeightMm.value = Number(row.paperHeightMm) || 60
-  status.value = Number(row.status ?? 1)
-  remark.value = row.remark ?? ''
-  fields.value = parseTemplateFields(row.fieldsJson)
+  templateCode.value = row?.templateCode ?? ''
+  templateName.value = row?.templateName ?? ''
+  paperWidthMm.value = Number(row?.paperWidthMm) || 40
+  paperHeightMm.value = Number(row?.paperHeightMm) || 60
+  status.value = Number(row?.status ?? 1)
+  remark.value = row?.remark ?? ''
+  fields.value = row ? parseTemplateFields(row.fieldsJson) : defaultPrintConfig().fields
   resetNewField()
   formError.value = ''
   showEditor.value = true
@@ -135,23 +147,40 @@ function removeField(field: PrintTemplateField) {
   newFieldFeedback.value = ''
 }
 
+function setFixedFieldValue(field: PrintTemplateField, event: Event) {
+  const value = (event.target as HTMLInputElement).value
+  field.value = value || undefined
+}
+
 async function saveTemplate() {
-  if (!editing.value) return
+  if (saving.value || !auth.canWrite('print-template-settings')) return
+  if (!editing.value && !/^[\w-]{1,50}$/.test(templateCode.value.trim())) {
+    formError.value = '模板编码须为 1 至 50 位字母、数字、下划线或短横线'
+    return
+  }
   if (!templateName.value.trim()) {
     formError.value = '模板名称为必填项'
+    return
+  }
+  if (![paperWidthMm.value, paperHeightMm.value].every(value =>
+    Number.isFinite(value) && value >= 0.01 && value <= 999999.99 && Math.round(value * 100) / 100 === value
+  )) {
+    formError.value = '纸张宽度和高度须为 0.01 至 999999.99 mm，最多两位小数'
     return
   }
   saving.value = true
   formError.value = ''
   try {
-    await updatePrintTemplate(editing.value.templateType, {
+    const payload = {
       templateName: templateName.value.trim(),
       fieldsJson: JSON.stringify(fields.value),
       paperWidthMm: paperWidthMm.value,
       paperHeightMm: paperHeightMm.value,
       status: status.value,
       remark: remark.value.trim()
-    })
+    }
+    if (editing.value) await updatePrintTemplate(editing.value.id, payload)
+    else await createPrintTemplate(templateCode.value.trim(), payload)
     showEditor.value = false
     await loadList()
   } catch (err) {
@@ -169,6 +198,11 @@ onMounted(loadList)
     <p v-if="error" class="md-error">{{ error }}</p>
 
     <MdDataTableCard :meta-count="`共 ${rows.length} 个模板`" :loading="loading">
+      <template #toolbar>
+        <button v-if="auth.canWrite('print-template-settings')" class="md-btn md-btn-primary" type="button" @click="openEditor(null)">
+          <Plus :size="15" /> 新建模板
+        </button>
+      </template>
       <MdEmptyState v-if="loading" text="正在加载打印模板..." :loading="true" />
       <MdEmptyState v-else-if="error" :text="error" />
       <div v-else class="md-print-template-table-wrap">
@@ -209,7 +243,7 @@ onMounted(loadList)
               <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
               <td class="md-print-template-action-cell">
                 <div class="md-row-actions">
-                  <button class="md-btn-text" type="button" @click="openEditor(row)">
+                  <button v-if="auth.canWrite('print-template-settings')" class="md-btn-text" type="button" @click="openEditor(row)">
                     调整模板
                   </button>
                 </div>
@@ -217,7 +251,7 @@ onMounted(loadList)
             </tr>
             <tr v-if="!rows.length">
               <td :colspan="9">
-                <MdEmptyState text="暂无打印模板" hint="打印模板由定数包标签初始化生成" />
+                <MdEmptyState text="暂无打印模板" />
               </td>
             </tr>
           </tbody>
@@ -225,24 +259,31 @@ onMounted(loadList)
       </div>
     </MdDataTableCard>
 
+    <Teleport to="body">
     <MdFormDialog
       :open="showEditor"
       size="lg"
-      :title="editing?.templateName || '打印模板调整'"
-      :subtitle="editing ? `${editing.templateCode} · ${templateTypeText(editing)}` : ''"
+      :title="editing ? '调整模板' : '新建模板'"
+      :subtitle="editing ? `${editing.templateCode} · ${templateTypeText(editing)}` : '定数包标签'"
       :loading="saving"
       save-text="保存模板"
-      @close="showEditor = false"
+      @close="!saving && (showEditor = false)"
       @save="saveTemplate"
     >
       <div class="md-print-template-dialog-body">
-        <p v-if="formError" class="md-error">{{ formError }}</p>
+        <div v-if="formError" ref="saveFeedback">
+          <StatusMessage :message="formError" tone="error" role="alert" />
+        </div>
 
         <MdFormSection title="基本信息">
           <div class="md-form-grid">
+            <label v-if="!editing">
+              <span>模板编码 <em class="md-required">*</em></span>
+              <input v-model.trim="templateCode" class="md-input" maxlength="50" required />
+            </label>
             <label>
               <span>模板名称 <em class="md-required">*</em></span>
-              <input v-model.trim="templateName" class="md-input" required />
+              <input v-model.trim="templateName" class="md-input" maxlength="100" required />
             </label>
             <label>
               <span>纸张预设</span>
@@ -255,11 +296,11 @@ onMounted(loadList)
             </label>
             <label>
               <span>纸张宽度（mm）</span>
-              <input v-model.number="paperWidthMm" class="md-input" type="number" min="1" step="0.5" required />
+              <input v-model.number="paperWidthMm" class="md-input" type="number" min="0.01" max="999999.99" step="0.01" required />
             </label>
             <label>
               <span>纸张高度（mm）</span>
-              <input v-model.number="paperHeightMm" class="md-input" type="number" min="1" step="0.5" required />
+              <input v-model.number="paperHeightMm" class="md-input" type="number" min="0.01" max="999999.99" step="0.01" required />
             </label>
             <label>
               <span>状态</span>
@@ -270,7 +311,7 @@ onMounted(loadList)
             </label>
             <label class="wide">
               <span>备注</span>
-              <textarea v-model.trim="remark" class="md-textarea" rows="2" />
+              <textarea v-model.trim="remark" class="md-textarea" rows="2" maxlength="500" />
             </label>
           </div>
         </MdFormSection>
@@ -296,9 +337,8 @@ onMounted(loadList)
               </label>
               <span class="md-cell-mono md-print-template-field-code">{{ field.code }}</span>
               <input v-model.trim="field.label" class="md-input md-print-template-field-label" aria-label="字段名称" />
-              <span class="md-print-template-field-value">
-                {{ field.value !== undefined ? `固定值：${field.value}` : '动态字段' }}
-              </span>
+              <input class="md-input md-print-template-field-value" :value="field.value"
+                :aria-label="`固定值 ${field.code}`" placeholder="留空取动态值" @input="setFixedFieldValue(field, $event)" />
               <div class="md-print-template-field-actions">
                 <button
                   class="md-btn-icon md-btn-sm"
@@ -330,12 +370,14 @@ onMounted(loadList)
             </div>
             <p v-if="!fields.length" class="md-print-template-field-empty">该模板暂无可用字段</p>
           </div>
-          <form class="md-print-template-add-field" @submit.prevent="addField">
+          <div class="md-print-template-add-field">
             <input v-model.trim="newFieldCode" class="md-input" aria-label="新字段编码"
               :aria-invalid="Boolean(newFieldError)" :aria-describedby="newFieldError ? 'print-template-field-error' : undefined"
-              placeholder="新字段编码，如 operator" @input="newFieldError = ''; newFieldFeedback = ''" />
-            <input v-model.trim="newFieldLabel" class="md-input" aria-label="新字段名称" placeholder="新字段名称，如 操作员" />
-            <button class="md-btn md-btn-primary" type="submit">
+              placeholder="新字段编码，如 operator" @input="newFieldError = ''; newFieldFeedback = ''"
+              @keydown.enter.prevent="addField" />
+            <input v-model.trim="newFieldLabel" class="md-input" aria-label="新字段名称" placeholder="新字段名称，如 操作员"
+              @keydown.enter.prevent="addField" />
+            <button class="md-btn md-btn-primary" type="button" @click="addField">
               <Plus :size="15" />
               <span>新增字段</span>
             </button>
@@ -347,10 +389,11 @@ onMounted(loadList)
               <StatusMessage id="print-template-field-error" :message="newFieldError" tone="error" role="alert" />
               <StatusMessage :message="newFieldFeedback" tone="success" role="status" />
             </div>
-          </form>
+          </div>
         </MdFormSection>
       </div>
     </MdFormDialog>
+    </Teleport>
   </section>
 </template>
 

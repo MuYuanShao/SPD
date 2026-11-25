@@ -1,5 +1,5 @@
 import type { PackageLabelRow } from '../api/quotaPackages'
-import { fetchPrintTemplate, parseTemplateFields, type PrintTemplateField } from '../api/printTemplates'
+import { parseTemplateFields, type PrintTemplateField, type PrintTemplateRow } from '../api/printTemplates'
 
 type ZebraPrinterDevice = {
   name?: string
@@ -27,23 +27,13 @@ export interface QuotaLabelPrintConfig {
   paperHeightMm: number
 }
 
-/**
- * 读取当前启用的定数包标签打印模板配置，加载失败时回退为默认模板。
- */
-export async function loadQuotaLabelPrintConfig(): Promise<QuotaLabelPrintConfig> {
-  try {
-    const template = await fetchPrintTemplate('quota_label')
-    if (template) {
-      return {
-        fields: parseTemplateFields(template.fieldsJson),
-        paperWidthMm: Number(template.paperWidthMm) || 40,
-        paperHeightMm: Number(template.paperHeightMm) || 60
-      }
-    }
-  } catch {
-    // 配置不可用时使用默认模板
+function quotaLabelPrintConfig(template?: PrintTemplateRow): QuotaLabelPrintConfig {
+  if (!template) return defaultPrintConfig()
+  return {
+    fields: parseTemplateFields(template.fieldsJson),
+    paperWidthMm: Number(template.paperWidthMm) || 40,
+    paperHeightMm: Number(template.paperHeightMm) || 60
   }
-  return defaultPrintConfig()
 }
 
 export function defaultPrintConfig(): QuotaLabelPrintConfig {
@@ -91,8 +81,8 @@ function switchValue(code: string, row: PackageLabelRow) {
  * 优先使用工作站已注入的 Zebra Browser Print；未安装时降级为浏览器打印。
  * 打印字段与纸张尺寸取自打印模板调整中的配置。
  */
-export async function printQuotaLabel(row: PackageLabelRow, operator: string) {
-  const config = await loadQuotaLabelPrintConfig()
+export async function printQuotaLabel(row: PackageLabelRow, operator: string, template?: PrintTemplateRow) {
+  const config = quotaLabelPrintConfig(template)
   if (window.BrowserPrint) {
     const printer = await getDefaultPrinter(window.BrowserPrint)
     await sendToPrinter(printer, buildQuotaLabelZpl(row, config, operator))

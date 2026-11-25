@@ -80,20 +80,8 @@ public class OperationalClosureReadModel {
         List<Map<String, Object>> departments = deptArgs.isEmpty()
                 ? jdbcTemplate.queryForList(departmentsSql)
                 : jdbcTemplate.queryForList(departmentsSql, deptArgs.toArray());
-        List<Map<String, Object>> warehouses = jdbcTemplate.queryForList("""
-                SELECT warehouse_name AS warehouseName, warehouse_type AS warehouseType
-                  FROM warehouse WHERE deleted = 0 AND status = 1 ORDER BY warehouse_id LIMIT 80
-                """);
-        List<Map<String, Object>> products = jdbcTemplate.queryForList("""
-                SELECT p.product_code AS productCode, p.product_name AS productName, p.spec_model AS specModel,
-                       p.unit, p.purchase_price AS purchasePrice,
-                       CASE p.is_high_value WHEN 1 THEN 'yes' ELSE 'no' END AS highValue,
-                       CASE p.is_cold_chain WHEN 1 THEN 'yes' ELSE 'no' END AS coldChain
-                  FROM product p
-                 WHERE p.deleted = 0 AND p.status = 1
-                 ORDER BY p.product_id DESC
-                 LIMIT 200
-                """);
+        List<Map<String, Object>> warehouses = warehouseOptions("", true);
+        List<Map<String, Object>> products = productOptions("", true);
         List<Map<String, Object>> balances = jdbcTemplate.queryForList("""
                 SELECT w.warehouse_name AS warehouseName, p.product_code AS productCode, p.product_name AS productName,
                        ib.system_batch_no AS systemBatchNo, ib.batch_unit_price AS batchUnitPrice,
@@ -107,6 +95,38 @@ public class OperationalClosureReadModel {
                  LIMIT 120
                 """);
         return Map.of("departments", departments, "warehouses", warehouses, "products", products, "balances", balances);
+    }
+
+    public Map<String, Object> coldChainOptions(String warehouseKeyword, String productKeyword) {
+        return Map.of("warehouses", warehouseOptions(warehouseKeyword.strip(), false),
+                "products", productOptions(productKeyword.strip(), false));
+    }
+
+    private List<Map<String, Object>> warehouseOptions(String keyword, boolean includeType) {
+        String columns = "warehouse_name AS warehouseName" + (includeType ? ", warehouse_type AS warehouseType" : "");
+        String sql = "SELECT " + columns + " FROM warehouse WHERE deleted = 0 AND status = 1";
+        if (keyword.isEmpty()) return jdbcTemplate.queryForList(sql + " ORDER BY warehouse_id LIMIT 80");
+        return jdbcTemplate.queryForList(sql + """
+                 AND (LOCATE(?, warehouse_name) > 0 OR LOCATE(?, warehouse_code) > 0)
+                 ORDER BY CASE WHEN warehouse_code = ? THEN 0 WHEN warehouse_name = ? THEN 1 ELSE 2 END, warehouse_id
+                 LIMIT 80
+                """, keyword, keyword, keyword, keyword);
+    }
+
+    private List<Map<String, Object>> productOptions(String keyword, boolean includeDetails) {
+        String columns = "product_code AS productCode, product_name AS productName, spec_model AS specModel, unit";
+        if (includeDetails) columns += """
+                , purchase_price AS purchasePrice,
+                  CASE is_high_value WHEN 1 THEN 'yes' ELSE 'no' END AS highValue,
+                  CASE is_cold_chain WHEN 1 THEN 'yes' ELSE 'no' END AS coldChain
+                """;
+        String sql = "SELECT " + columns + " FROM product WHERE deleted = 0 AND status = 1";
+        if (keyword.isEmpty()) return jdbcTemplate.queryForList(sql + " ORDER BY product_id DESC LIMIT 200");
+        return jdbcTemplate.queryForList(sql + """
+                 AND (LOCATE(?, product_code) > 0 OR LOCATE(?, product_name) > 0)
+                 ORDER BY CASE WHEN product_code = ? THEN 0 WHEN product_name = ? THEN 1 ELSE 2 END, product_id DESC
+                 LIMIT 200
+                """, keyword, keyword, keyword, keyword);
     }
 
     /** Lightweight, data-scoped options for the department requisition entry page. */

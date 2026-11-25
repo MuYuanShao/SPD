@@ -337,6 +337,11 @@ class InventoryAuditMysqlTest {
         assertThat(jdbc.queryForObject("SELECT available_qty FROM inventory_balance WHERE warehouse_id=? AND batch_id=?",
                 BigDecimal.class, center, batchId)).isEqualByComparingTo("2");
         assertThat(stockReturns.records(true)).noneMatch(row -> no.equals(row.get("returnNo")));
+        var confirmedReturns = stockReturns.pickingQueue(new PageRequest(1, 1, 0), "confirmed");
+        assertThat(confirmedReturns.rows()).singleElement().satisfies(row -> {
+            assertThat(row).containsEntry("returnNo", no).containsEntry("status", "confirmed");
+            assertThat(row.get("confirmTime")).isNotNull();
+        });
     }
 
     @Test void departmentReturnKeepsThePackageAndDoesNotDoubleCountLooseStockAtCenter() {

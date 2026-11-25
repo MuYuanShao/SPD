@@ -61,13 +61,14 @@ class OperationalClosureReadModelTest {
     void shouldReturnOptions() {
         when(jdbcTemplate.queryForList(contains("FROM sys_dept"))).thenReturn(List.of(Map.of("deptName", "Surgery")));
         when(jdbcTemplate.queryForList(contains("FROM warehouse"))).thenReturn(List.of(Map.of("warehouseName", "Main")));
-        when(jdbcTemplate.queryForList(contains("FROM product p"))).thenReturn(List.of(Map.of("productCode", "PC001")));
+        var products = List.of(Map.<String, Object>of("productCode", "PC001"));
+        when(jdbcTemplate.queryForList(contains("FROM product WHERE"))).thenReturn(products);
         when(jdbcTemplate.queryForList(contains("FROM inventory_balance bal")))
                 .thenReturn(List.of(Map.of("availableQty", BigDecimal.TEN)));
 
         Map<String, Object> result = readModel.options();
 
-        assertThat(result).containsKeys("departments", "warehouses", "products", "balances");
+        assertThat(result).containsKeys("departments", "warehouses", "balances").containsEntry("products", products);
     }
 
     @Test

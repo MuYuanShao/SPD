@@ -1,0 +1,57 @@
+{
+  "entries": [
+    {
+      "file": "medical-saas.css",
+      "rules": [
+        {
+          "re": "background: linear-gradient\\(115deg, #ffffff 0%, #ffffff 76%, #f1f7ff 100%\\) !important;",
+          "rep": "background: linear-gradient(115deg, var(--spd-p-bg) 0%, var(--spd-p-bg) 76%, var(--spd-p-primary-soft) 100%) !important;"
+        },
+        {
+          "re": "box-shadow: 0 2px 8px rgba\\(31, 50, 79, 0\\.035\\) !important;",
+          "rep": "box-shadow: var(--spd-p-shadow-1) !important;"
+        },
+        {
+          "re": "border-color: #d8dee8 !important;",
+          "rep": "border-color: var(--spd-p-border) !important;"
+        },
+        {
+          "re": "background-color: #ffffff;",
+          "rep": "background-color: var(--spd-p-bg);"
+        },
+        {
+          "re": "border-color: #d7dde7;",
+          "rep": "border-color: var(--spd-p-border);"
+        },
+        {
+          "re": "color: #33415c;",
+          "rep": "color: var(--spd-p-text);"
+        },
+        {
+          "re": "box-shadow: 0 2px 5px rgba\\(22, 119, 255, 0\\.16\\);",
+          "rep": "box-shadow: var(--spd-p-shadow-btn-primary);"
+        },
+        {
+          "re": "color: #ffffff;",
+          "rep": "color: var(--spd-p-text-on-primary);"
+        },
+        {
+          "re": "border-color: #e5eaf0 !important;",
+          "rep": "border-color: var(--spd-p-border) !important;"
+        },
+        {
+          "re": "border: 1px solid #e5eaf0;",
+          "rep": "border: 1px solid var(--spd-p-border);"
+        },
+        {
+          "re": "border: 1px solid #e3e8ef !important;",
+          "rep": "border: 1px solid var(--spd-p-border) !important;"
+        },
+        {
+          "re": "box-shadow: 0 16px 48px rgba\\(23, 32, 51, 0\\.14\\) !important;",
+          "rep": "box-shadow: var(--spd-p-shadow-dialog) !important;"
+        }
+      ]
+    }
+  ]
+}

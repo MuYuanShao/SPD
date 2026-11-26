@@ -14,7 +14,7 @@
   gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 16px;
 }
 
@@ -23,7 +23,7 @@
 }
 
 .config-summary-grid strong {
-  color: #06152b;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-2xl);
 }
 
@@ -39,7 +39,7 @@
   gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 12px;
 }
 
@@ -52,7 +52,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #334652;
+  color: var(--spd-p-text);
   padding: 8px 10px;
   font: inherit;
   text-align: left;
@@ -61,7 +61,7 @@
 
 .config-type-panel button.active,
 .config-type-panel button:hover {
-  background: #dff3ef;
+  background: var(--spd-p-primary-bg);
   color: var(--primary-strong);
 }
 
@@ -92,7 +92,8 @@
 .config-value-cell {
   max-width: 280px;
   overflow: hidden;
-  color: #607285;
+  /* 配置值文字：中性（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
   text-overflow: ellipsis;
 }
 
@@ -100,8 +101,8 @@
   min-height: 150px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 10px;
   font: inherit;
   resize: vertical;
@@ -135,7 +136,7 @@
 .config-hit-card {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 18px;
 }
 
@@ -147,21 +148,21 @@
 }
 
 .config-hit-card dt {
-  color: #8b99aa;
+  color: var(--spd-p-text-muted);
 }
 
 .config-hit-card dd {
   margin: 0;
-  color: #102033;
+  color: var(--spd-p-text);
   font-weight: 700;
 }
 
 .json-value {
   max-height: 96px;
   overflow: auto;
-  border: 1px solid #edf2f4;
+  border: 1px solid var(--spd-p-bg-muted);
   border-radius: 8px;
-  background: #f8fafb;
+  background: var(--spd-p-bg-muted);
   padding: 8px;
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
@@ -173,9 +174,9 @@
   gap: 12px;
   margin: 0;
   padding-left: 22px;
-  color: #334652;
+  color: var(--spd-p-text);
 }
 
 .master-table tr.hit-row {
-  background: #eef8f6;
+  background: var(--spd-p-primary-bg);
 }

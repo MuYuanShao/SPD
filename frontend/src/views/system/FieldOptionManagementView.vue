@@ -88,7 +88,7 @@ async function loadFields(keepSelection = true) {
     }
     await loadOptions()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '字段列表加载失败'
+    notify.error(err instanceof Error ? err.message : '字段列表加载失败')
   } finally {
     loading.value = false
   }
@@ -103,7 +103,7 @@ async function loadOptions() {
     options.value = await fetchFieldOptions(activeFieldKey.value)
   } catch (err) {
     options.value = []
-    error.value = err instanceof Error ? err.message : '选项加载失败'
+    notify.error(err instanceof Error ? err.message : '选项加载失败')
   }
 }
 
@@ -191,7 +191,7 @@ async function submitDialog() {
     dialogOpen.value = false
     await loadFields(false)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '保存失败'
+    notify.error(err instanceof Error ? err.message : '保存失败')
   }
 }
 
@@ -203,7 +203,7 @@ async function handleRemoveOption(option: FieldOption) {
     notify.success('选项已删除')
     await loadFields(false)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '删除失败'
+    notify.error(err instanceof Error ? err.message : '删除失败')
   }
 }
 
@@ -290,17 +290,19 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
         />
       </div>
       <div class="sys-toolbar-actions">
-        <button class="btn" type="button" @click="resetFilter"><RefreshCw :size="15" /> 重置</button>
+        <SpdButton label="重置" tone="neutral" @click="resetFilter">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
         <i class="sys-toolbar-sep"></i>
-        <button class="btn" type="button" @click="openNewFieldDialog"><Plus :size="15" /> 新增字段</button>
-        <button
-          v-if="activeField"
-          class="btn btn-primary"
-          type="button"
-          @click="openNewOptionDialog"
-        >
-          <Plus :size="15" /> 新增选项
-        </button>
+        <SpdButton label="新增字段" tone="primary" @click="openNewFieldDialog">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
+        <SpdButton label="新增选项" tone="primary" v-if="activeField"
+         
+         
+          @click="openNewOptionDialog">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
       </div>
     </div>
 
@@ -343,26 +345,22 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
                   <MdDataTableCard class="master-table-card">
           <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="fieldOptionColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="fieldOptionCols.settingsOpen.value = !fieldOptionCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: fieldOptionCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="fieldOptionColSettingsAnchorRef"
+               
+               
+                @click="fieldOptionCols.settingsOpen.value = !fieldOptionCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="fieldOptionCols.settingsOpen.value"
                 ref="fieldOptionColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': fieldOptionColSettingsPop.align.value === 'right', 'is-align-up': fieldOptionColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': fieldOptionColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': fieldOptionColSettingsPop.maxHeight.value + 'px' }"
+                :style="fieldOptionColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="fieldOptionCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="fieldOptionCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in fieldOptionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -377,7 +375,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="fieldOptionCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="fieldOptionCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -535,7 +533,9 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
       <div class="sys-dialog">
         <div class="sys-dialog-header">
           <h3>{{ dialogMode === 'edit-option' ? '编辑选项' : dialogMode === 'new-field' ? '新增字段' : '新增选项' }}</h3>
-          <button class="btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="dialogOpen = false">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
         </div>
         <div class="sys-dialog-body">
           <div class="sys-form-grid">
@@ -573,8 +573,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
           </div>
         </div>
         <div class="sys-dialog-footer">
-          <button class="btn" type="button" @click="dialogOpen = false">取消</button>
-          <button class="btn btn-primary" type="button" @click="submitDialog"><Save :size="15" /> 保存</button>
+          <SpdButton label="取消" tone="neutral" @click="dialogOpen = false"></SpdButton>
+          <SpdButton label="保存" tone="success" @click="submitDialog">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
         </div>
       </div>
     </div>
@@ -618,31 +620,31 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sys-kpi-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .sys-kpi-item.is-blue {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
+  background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%);
+  border-color: var(--spd-p-info-border);
 }
 .sys-kpi-item.is-green {
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%);
+  border-color: var(--spd-p-success);
 }
 .sys-kpi-item.is-red {
-  background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
-  border-color: #fca5a5;
+  background: linear-gradient(180deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-border) 100%);
+  border-color: var(--spd-p-danger-border);
 }
 .sys-kpi-item.is-orange {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
+  background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%);
+  border-color: var(--spd-p-warning-border);
 }
 
 .sys-kpi-icon {
@@ -652,15 +654,15 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green  .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-red    .sys-kpi-icon { color: #b91c1c; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
+.sys-kpi-item.is-blue   .sys-kpi-icon { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-icon { color: var(--spd-p-success-strong); }
+.sys-kpi-item.is-red    .sys-kpi-icon { color: var(--spd-p-danger-strong); }
+.sys-kpi-item.is-orange .sys-kpi-icon { color: var(--spd-p-warning-text); }
 
 .sys-kpi-item > div {
   display: grid;
@@ -691,16 +693,16 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
-.sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
+.sys-kpi-item.is-blue   .sys-kpi-hint { color: var(--spd-p-info-strong); }
 .sys-kpi-item.is-green  .sys-kpi-label,
 .sys-kpi-item.is-green  .sys-kpi-value,
-.sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
+.sys-kpi-item.is-green  .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-red    .sys-kpi-label,
 .sys-kpi-item.is-red    .sys-kpi-value,
-.sys-kpi-item.is-red    .sys-kpi-hint { color: #7f1d1d; }
+.sys-kpi-item.is-red    .sys-kpi-hint { color: var(--spd-p-danger-strong); }
 .sys-kpi-item.is-orange .sys-kpi-label,
 .sys-kpi-item.is-orange .sys-kpi-value,
-.sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
+.sys-kpi-item.is-orange .sys-kpi-hint { color: var(--spd-p-warning-strong); }
 
 /* ---------- 工具栏 ---------- */
 .sys-toolbar-panel {
@@ -708,10 +710,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   flex-wrap: wrap;
 }
 
@@ -719,9 +721,9 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   display: flex;
   align-items: center;
   gap: 0;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
   overflow: hidden;
   flex: 0 0 280px;
   min-width: 0;
@@ -733,9 +735,9 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 34px;
   height: 34px;
-  color: #64748b;
-  background: #f8fafc;
-  border-right: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border-right: 1px solid var(--spd-p-border);
   flex-shrink: 0;
 }
 
@@ -745,13 +747,13 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   height: 34px;
   border: none;
   background: transparent;
-  color: #102033;
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
-.sys-toolbar-search input::placeholder { color: #94a3b8; }
+.sys-toolbar-search input::placeholder { color: var(--spd-p-text-muted); }
 .sys-toolbar-search input:focus { outline: none; }
 
 .sys-toolbar-actions {
@@ -764,7 +766,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 .sys-toolbar-sep {
   width: 1px;
   height: 22px;
-  background: #e2e8f0;
+  background: var(--spd-p-border);
   margin: 0 4px;
 }
 
@@ -777,10 +779,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -788,9 +790,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .btn:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  color: #1e293b;
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-text-muted);
+  /* 悬停文字：深色（此前误用与背景同色，悬停时文字完全不可见） */
+  color: var(--spd-p-text-strong);
 }
 
 .btn:disabled {
@@ -799,15 +802,15 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-icon {
@@ -819,14 +822,15 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .btn-icon:hover {
-  background: #f1f5f9;
-  color: #334155;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-strong);
 }
 
 .btn-text {
@@ -835,7 +839,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   gap: 3px;
   border: none;
   background: transparent;
-  color: #10b981;
+  color: var(--spd-p-success);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -844,15 +848,15 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   transition: background 0.15s;
 }
 
-.btn-text:hover { background: #d1fae5; }
+.btn-text:hover { background: var(--spd-p-success-bg); }
 
 .btn-text-danger {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
 }
 
 .btn-text-danger:hover {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 消息条 ---------- */
@@ -860,24 +864,24 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-error {
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 左右双栏 ---------- */
@@ -889,10 +893,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .sys-field-side {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -903,8 +907,8 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .sys-field-side-icon {
@@ -914,8 +918,8 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .sys-field-side-header h4 {
@@ -934,7 +938,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   height: 22px;
   border-radius: 999px;
   background: var(--spd-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 6px;
@@ -961,19 +965,19 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   padding: 9px 10px;
   text-align: left;
   cursor: pointer;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 
 .sys-field-side-item:hover {
-  background: #f0fdf9;
-  color: #047857;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .sys-field-side-item.active {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-color: #6ee7b7;
-  color: #065f46;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-color: var(--spd-p-success);
+  color: var(--spd-p-primary-strong);
   font-weight: 600;
 }
 
@@ -984,17 +988,17 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 
 .sys-field-side-meta {
   font-size: var(--spd-font-size-xs);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-family: var(--spd-font-family-mono);
 }
 
 /* ---------- 表格 ---------- */
 .sys-table-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   display: flex;
   flex-direction: column;
 }
@@ -1004,8 +1008,8 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
   gap: 12px;
 }
 
@@ -1023,13 +1027,14 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .sys-table-card-header code {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
   border-radius: 4px;
   padding: 1px 6px;
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-table-scroll { overflow-x: auto; }
@@ -1041,12 +1046,12 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-bottom: 1px solid var(--spd-p-success);
 }
 
 .sys-table th {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
   text-align: left;
@@ -1057,30 +1062,31 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 
 .sys-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
+  border-bottom: 1px solid var(--spd-p-text-strong);
+  color: var(--spd-p-text-secondary);
   vertical-align: middle;
 }
 
-.sys-table tbody tr:nth-child(even) td { background: #fafdfb; }
-.sys-table tbody tr:hover td { background: #ecfdf5 !important; }
+.sys-table tbody tr:nth-child(even) td { background: var(--spd-p-bg); }
+.sys-table tbody tr:hover td { background: var(--spd-p-primary-bg) !important; }
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
+.muted { color: var(--spd-p-text-muted); padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 /* 选项值 monospace tag */
 .sys-tag.is-code {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 1px 8px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
   white-space: nowrap;
-  color: #334155;
-  background: #f1f5f9;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
   font-family: var(--spd-font-family-mono);
 }
 
@@ -1095,15 +1101,15 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 }
 
 .sys-badge.is-active {
-  color: #065f46;
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success);
 }
 
 .sys-badge.is-stopped {
-  color: #991b1b;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 /* ---------- 弹窗 ---------- */
@@ -1114,14 +1120,14 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 50%, transparent);
   backdrop-filter: blur(2px);
 }
 
 .sys-dialog {
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: var(--spd-radius-lg, 14px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--spd-p-shadow-dialog);
   width: 100%;
   max-width: 520px;
   max-height: 88vh;
@@ -1141,7 +1147,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-dialog-header h3 {
@@ -1164,8 +1170,8 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 /* ---------- 表单 ---------- */
@@ -1180,7 +1186,7 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   gap: 5px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-form-grid label.wide { grid-column: 1 / -1; }
@@ -1190,10 +1196,10 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -1203,12 +1209,13 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
 .sys-input:focus,
 .sys-select:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
 }
 
 .sys-input:read-only {
-  background: #f1f5f9;
-  color: #94a3b8;
+  /* 只读态：浅底 + 弱化文字（此前误用近黑底，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
   cursor: not-allowed;
 }
 

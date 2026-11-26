@@ -7,6 +7,7 @@ import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
@@ -208,6 +209,17 @@ const regulatoryColSettingsPop = useColSettingsPopover({
 function inputDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
 }
+/**
+ * 中选标识 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 后端返回「中选」/「非中选」；中选用 success，非中选保持中性灰。
+ */
+function selectedFlagTone(value: unknown): SpdStatusChipTone {
+  const text = String(value ?? '').trim()
+  if (!text) return 'neutral'
+  if (text === '中选' || text === '是' || text === 'true' || text === '1') return 'success'
+  if (text === '非中选' || text === '否' || text === 'false' || text === '0') return 'neutral'
+  return 'neutral'
+}
 function number(value: unknown) { return Number(value || 0) }
 function quantity(value: unknown) { return number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 }) }
 function amount(value: unknown) { return number(value).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
@@ -367,10 +379,18 @@ onMounted(() => {
         </template>
       </div>
       <div class="report-actions">
-        <button class="btn btn-primary" type="button" :disabled="loading" @click="applyQuery"><Search :size="16" />查询</button>
-        <button class="btn" type="button" :disabled="loading" @click="resetQuery"><RefreshCw :size="16" />重置</button>
-        <button class="btn" type="button" :disabled="loading || exporting" @click="exportExcel"><FileSpreadsheet :size="16" />导出 Excel</button>
-        <button class="btn" type="button" :disabled="loading" @click="exportPdf"><Download :size="16" />导出 PDF</button>
+        <SpdButton label="查询" tone="primary" :disabled="loading" @click="applyQuery">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="重置" tone="neutral" :disabled="loading" @click="resetQuery">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="导出 Excel" tone="primary" :disabled="loading || exporting" @click="exportExcel">
+          <template #icon><FileSpreadsheet :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="导出 PDF" tone="primary" :disabled="loading" @click="exportPdf">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
       </div>
     </section>
 
@@ -404,26 +424,22 @@ onMounted(() => {
         <!-- 查询 / 重置 / 导出 按钮保留在页面上方工具区，
              表格工具条只承载列设置，避免同一动作出现两处。 -->
         <div class="ulc-col-settings">
-          <button
-            ref="regulatoryColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="activeCols.settingsOpen.value = !activeCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: activeCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="regulatoryColSettingsAnchorRef"
+           
+           
+            @click="activeCols.settingsOpen.value = !activeCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="activeCols.settingsOpen.value"
             ref="regulatoryColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': regulatoryColSettingsPop.align.value === 'right', 'is-align-up': regulatoryColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': regulatoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': regulatoryColSettingsPop.maxHeight.value + 'px' }"
+            :style="regulatoryColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="activeCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="activeCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in activeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -438,7 +454,7 @@ onMounted(() => {
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="activeCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="activeCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -767,7 +783,7 @@ onMounted(() => {
             <template #header>
               <span class="ulc-th-text">中选标识</span>
             </template>
-            <template #default="{ row }"><em class="status-pill">{{ row.selectedFlag }}</em></template>
+            <template #default="{ row }"><SpdStatusChip :tone="selectedFlagTone(row.selectedFlag)">{{ row.selectedFlag }}</SpdStatusChip></template>
           </el-table-column>
           <el-table-column
             column-key="departmentConsumptionQuantity"
@@ -977,7 +993,7 @@ onMounted(() => {
             <template #header>
               <span class="ulc-th-text">物资属性</span>
             </template>
-            <template #default="{ row }"><em class="status-pill neutral">{{ row.materialAttribute }}</em></template>
+            <template #default="{ row }"><SpdStatusChip tone="neutral">{{ row.materialAttribute }}</SpdStatusChip></template>
           </el-table-column>
         </el-table>
       </div>
@@ -1025,10 +1041,10 @@ onMounted(() => {
   align-items: end;
   gap: 14px;
   padding: 14px 16px;
-  background: #fff;
-  border: 1px solid var(--spd-line, #e6ecef);
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-line, var(--spd-p-border-subtle));
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .report-filters {
   display: grid;
@@ -1040,7 +1056,7 @@ onMounted(() => {
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -1048,10 +1064,10 @@ onMounted(() => {
 .report-filters select {
   width: 100%;
   min-height: 36px;
-  border: 1px solid var(--spd-line, #dbe5ec);
+  border: 1px solid var(--spd-line, var(--spd-p-border));
   border-radius: 7px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font: inherit;
   font-size: var(--spd-font-size-base);
@@ -1060,8 +1076,8 @@ onMounted(() => {
 .report-filters input:focus,
 .report-filters select:focus {
   outline: none;
-  border-color: var(--spd-primary, #1f8d7a);
-  box-shadow: 0 0 0 3px rgba(31, 141, 122, 0.16);
+  border-color: var(--spd-primary, var(--spd-p-primary));
+  box-shadow: var(--spd-p-shadow-1);
 }
 .date-range {
   display: grid;
@@ -1069,7 +1085,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
 }
-.date-range i { color: #72848f; font-style: normal; }
+.date-range i { color: var(--spd-p-text-muted); font-style: normal; }
 .report-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1084,65 +1100,60 @@ onMounted(() => {
   gap: 12px 22px;
   min-height: 44px;
   padding: 8px 16px;
-  background: #fff;
-  border: 1px solid var(--spd-line, #e6ecef);
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-line, var(--spd-p-border-subtle));
   border-radius: 10px;
-  color: #455463;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-base);
 }
-.report-summary strong { color: #102033; font-size: var(--spd-font-size-lg); font-weight: 800; }
-.report-summary .primary-text { color: var(--spd-primary, #1f8d7a); }
-.report-summary .danger-text { color: #b42318; }
-.report-summary .warning-text { color: #a15c08; font-weight: 800; }
+.report-summary strong { color: var(--spd-p-text); font-size: var(--spd-font-size-lg); font-weight: 800; }
+.report-summary .primary-text { color: var(--spd-primary, var(--spd-p-primary)); }
+.report-summary .danger-text { color: var(--spd-p-danger-strong); }
+.report-summary .warning-text { color: var(--spd-p-warning-text); font-weight: 800; }
 
 /* ---------- 表格 ----------
    表头 / 斑马纹 / 拖拽热区等通用外观由 unified-list.css 的
    .spd-unified-list .ulc-table 提供，这里只保留本页特有的
    完成率进度条、状态徽标与数值强调样式。 */
+/* 完成率单元格：进度条 + 百分比**同一行**、垂直居中。
+   旧写法 `grid-template-columns: minmax(80px, 1fr) 56px` 把百分比
+   固定在 56px 列里，内容稍长（如 106.67%）就换行，
+   行高随之从 22px 变成 43px —— 用户报「完成率这一列没有对齐文字，
+   文字没有在同一行」。
+   现在改为 `minmax(0, 1fr) auto`：进度条吃掉剩余宽度，
+   百分比按内容自适应宽度并靠右（justify-self: end），
+   因此永远与进度条同处一行。 */
 .ulc-table :deep(.progress-cell) {
   display: grid;
-  grid-template-columns: minmax(80px, 1fr) 56px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+  white-space: nowrap;
 }
 .ulc-table :deep(.progress-cell > span) {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #dbe8ea;
+  background: var(--spd-p-primary-border);
 }
 .ulc-table :deep(.progress-cell > span i) {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #16867d;
+  background: var(--spd-p-primary-hover);
 }
 .ulc-table :deep(.progress-cell strong) {
-  color: #23565a;
+  color: var(--spd-p-primary-strong);
   font-size: var(--spd-font-size-base);
-  text-align: right;
+  font-weight: 700;
+  /* 由栅格把它推到行尾，而不是靠 text-align: right（那会与换行叠加） */
+  justify-self: end;
+  white-space: nowrap;
 }
-.ulc-table :deep(.status-pill) {
-  display: inline-flex;
-  align-items: center;
-  min-height: 24px;
-  border-radius: 5px;
-  background: #e7f5f2;
-  color: #087268;
-  padding: 0 8px;
-  font-style: normal;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-weight: 400;
-  font-size: var(--spd-font-size-base);
-}
-.ulc-table :deep(.status-pill.neutral) {
-  background: #eef3f5;
-  color: #49616d;
-}
-.ulc-table :deep(.positive-text) { color: #087268; }
-.ulc-table :deep(.danger-text) { color: #b42318; }
-.ulc-table :deep(.strong-number) { color: #102033; font-weight: 800; }
-.ulc-table :deep(.warning-text) { color: #a15c08; font-weight: 800; }
+.ulc-table :deep(.positive-text) { color: var(--spd-p-primary); }
+.ulc-table :deep(.danger-text) { color: var(--spd-p-danger-strong); }
+.ulc-table :deep(.strong-number) { color: var(--spd-p-text); font-weight: 800; }
+.ulc-table :deep(.warning-text) { color: var(--spd-p-warning-text); font-weight: 800; }
 
 @media (max-width: 1480px) {
   .report-toolbar { grid-template-columns: 1fr; }
@@ -1160,8 +1171,8 @@ onMounted(() => {
 @media print {
   .sidebar, .topbar, .report-toolbar, .report-page > .md-header, .hospital-pagination { display: none !important; }
   .app-shell { display: block !important; height: auto !important; }
-  .main-area { overflow: visible !important; padding: 0 !important; background: #fff !important; }
+  .main-area { overflow: visible !important; padding: 0 !important; background: var(--spd-p-bg) !important; }
   .report-page { padding: 0 !important; }
-  .report-summary, .md-table-card { box-shadow: none; border-color: #ccc; }
+  .report-summary, .md-table-card { box-shadow: none; border-color: var(--spd-p-text-secondary); }
 }
 </style>

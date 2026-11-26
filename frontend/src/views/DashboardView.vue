@@ -61,7 +61,7 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
       <el-col :xs="24" :sm="24" :md="7">
         <el-card shadow="never" class="fli-panel fli-profile">
           <div class="fli-profile-heading"><span class="fli-profile-avatar"><UserRound :size="26" /></span><div><h2>{{ auth.currentUser?.realName || auth.username }}，您好</h2><p>欢迎使用医用耗材精益管理平台</p></div></div>
-          <div class="fli-panel-heading"><h3>可用功能</h3><el-button link type="primary" @click="configuring = true">设置</el-button></div>
+          <div class="fli-panel-heading"><h3>可用功能</h3><SpdButton label="设置" variant="text" tone="neutral" @click="configuring = true"></SpdButton></div>
           <div class="fli-shortcuts"><RouterLink v-for="item in shortcuts" :key="item.code" :to="featureRouteTarget(item.code)">{{ item.title }}</RouterLink><span v-if="!shortcuts.length">暂无已选功能</span></div>
         </el-card>
         <el-card shadow="never" class="fli-panel">
@@ -71,10 +71,10 @@ function showTodo(item: TodoItem) { detail.value = { title: item.title, content:
         <aside class="fli-banner"><HeartPulse :size="38" :stroke-width="1.3" /><div><strong>精益管理 · 守护健康</strong><p>让每一份耗材，服务每一份安心</p></div></aside>
       </el-col>
     </el-row>
-    <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template></el-dialog>
+    <el-dialog :model-value="Boolean(detail)" :title="detail?.title" width="min(520px, 92vw)" @close="detail = undefined"><p>{{ detail?.content }}</p><template #footer><SpdButton label="知道了" tone="primary" @click="detail = undefined"></SpdButton></template></el-dialog>
     <el-dialog v-model="configuring" title="选择常用功能" width="min(640px, 92vw)">
       <el-checkbox-group v-model="selectedCodes" class="fli-feature-options"><el-checkbox v-for="item in availablePages" :key="item.code" :value="item.code">{{ item.title }}</el-checkbox></el-checkbox-group>
-      <template #footer><el-button type="primary" @click="configuring = false">完成</el-button></template>
+      <template #footer><SpdButton label="完成" @click="configuring = false"></SpdButton></template>
     </el-dialog>
   </section>
 </template>

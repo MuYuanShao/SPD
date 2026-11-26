@@ -82,9 +82,9 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
           <h3>{{ mode === 'create' ? '新增科室安全量' : '编辑科室安全量' }}</h3>
           <span v-if="mode !== 'create'" class="qs-dialog-tag">编辑模式</span>
         </div>
-        <button class="qs-btn qs-btn-ghost" type="button" aria-label="关闭" @click="$emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton label="" tone="primary" aria-label="关闭" @click="$emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <div class="qs-dialog-body">
@@ -116,9 +116,9 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
                   @keydown.enter.prevent="warehouseDropdownOpen = true"
                   @focus="warehouseDropdownOpen = true"
                 />
-                <button class="qs-btn qs-btn-info qs-btn-icon" type="button" title="搜索库房" @click="warehouseDropdownOpen = true">
-                  <Search :size="15" />
-                </button>
+                <SpdButton label="" tone="primary" icon-only title="搜索库房" @click="warehouseDropdownOpen = true">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
               </div>
               <ul v-if="warehouseDropdownOpen" class="qs-warehouse-results">
                 <li v-for="warehouse in filteredWarehouses" :key="warehouse.name">
@@ -147,11 +147,11 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
           </div>
 
           <div class="qs-form-actions">
-            <button class="qs-btn qs-btn-secondary" type="button" @click="$emit('close')">取消</button>
-            <button class="qs-btn qs-btn-primary" type="button" @click="$emit('submit')">
-              <Save :size="15" />
-              {{ mode === 'create' ? '保存安全量' : '保存修改' }}
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="$emit('close')"></SpdButton>
+            <SpdButton tone="primary" @click="$emit('submit')">
+          <template #icon><Save :size="15" /></template>
+          {{ mode === 'create' ? '保存安全量' : '保存修改' }}
+        </SpdButton>
           </div>
         </div>
 
@@ -165,10 +165,9 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
             <input v-model="catalogQuery.templateCode" placeholder="模板编码" @keydown.enter="$emit('change-page', 1)" />
             <input v-model="catalogQuery.templateName" placeholder="模板名称" @keydown.enter="$emit('change-page', 1)" />
             <input v-model="catalogQuery.productName" placeholder="商品名称" @keydown.enter="$emit('change-page', 1)" />
-            <button class="qs-btn qs-btn-info qs-btn-sm" type="button" @click="$emit('change-page', 1)">
-              <Search :size="14" />
-              搜索
-            </button>
+            <SpdButton label="搜索" @click="$emit('change-page', 1)">
+          <template #icon><Search :size="14" /></template>
+        </SpdButton>
           </div>
 
           <div class="qs-catalog-table-wrap">
@@ -210,15 +209,15 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
                   <td :title="row.specModel">{{ row.specModel || '-' }}</td>
                   <td><span class="cell-qty">{{ row.quantity }} {{ row.unit }}</span></td>
                   <td>
-                    <span class="status-badge" :class="row.status === '禁用' || row.status === 'disabled' ? 'disabled' : 'enabled'">
-                      {{ formatStatusText(row.status) }}
-                    </span>
+                    <SpdStatusChip
+                      :tone="row.status === '禁用' || row.status === 'disabled' ? 'neutral' : 'success'"
+                      :label="formatStatusText(row.status)"
+                    />
                   </td>
                   <td class="col-action">
-                    <button class="qs-btn qs-btn-primary qs-btn-sm" type="button" @click="$emit('select-template', row)">
-                      <Check :size="12" />
-                      选择
-                    </button>
+                    <SpdButton label="选择" @click="$emit('select-template', row)">
+          <template #icon><Check :size="12" /></template>
+        </SpdButton>
                   </td>
                 </tr>
                 <tr v-if="!filteredCount">
@@ -255,10 +254,10 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   min-height: 760px !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -268,8 +267,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
   flex-shrink: 0;
 }
 
@@ -293,14 +292,14 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .qs-dialog-tag {
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.3);
-  color: #dcfce7;
+  background: color-mix(in srgb, var(--spd-p-success) 30%, transparent);
+  color: var(--spd-p-primary-bg);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -329,22 +328,22 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .qs-form-section {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e1e9ee;
-  background: #f9fbfc;
+  border-right: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-muted);
   overflow: hidden;
 }
 
 .qs-form-header {
   padding: 12px 18px;
-  border-bottom: 1px solid #e1e9ee;
-  background: linear-gradient(135deg, #f8fafc, #eef2f7);
+  border-bottom: 1px solid var(--spd-p-border);
+  background: linear-gradient(135deg, var(--spd-p-bg-muted), var(--spd-p-bg-muted));
   flex-shrink: 0;
 }
 
 .qs-form-header strong {
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
 }
 
 .qs-form-fields {
@@ -362,7 +361,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   flex-direction: column;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 500;
 }
 
@@ -373,23 +372,23 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .qs-field input {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .qs-field input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qs-input-readonly {
-  background: #f0f3f5;
-  color: #6b7c8f;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   cursor: not-allowed;
 }
 
@@ -417,10 +416,10 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   right: 0;
   max-height: 200px;
   overflow: auto;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
   padding: 4px;
   list-style: none;
   margin: 0;
@@ -434,7 +433,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #25384a;
+  color: var(--spd-p-text);
   padding: 8px 10px;
   text-align: left;
   font: inherit;
@@ -443,16 +442,16 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-warehouse-results li button:hover {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .qs-warehouse-results li button small {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
 .qs-warehouse-empty {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   padding: 8px 10px;
   font-size: var(--spd-font-size-sm);
 }
@@ -461,7 +460,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   display: flex;
   align-items: center;
   gap: 4px;
-  color: #0d9488;
+  color: var(--spd-p-primary-hover);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
   padding-top: 2px;
@@ -473,8 +472,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 18px;
-  border-top: 1px solid #e1e9ee;
-  background: #f5f8fa;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-subtle);
   flex-shrink: 0;
 }
 
@@ -493,8 +492,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   align-items: center;
   gap: 8px;
   padding: 12px 14px;
-  background: #ffffff;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg);
+  border-bottom: 1px solid var(--spd-p-border);
   flex-wrap: wrap;
   flex-shrink: 0;
 }
@@ -502,10 +501,10 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .qs-catalog-toolbar input {
   min-height: 34px;
   padding: 4px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 110px;
@@ -513,8 +512,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 .qs-catalog-toolbar input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qs-catalog-table-wrap {
@@ -529,7 +528,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   border-collapse: collapse;
   table-layout: fixed;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .qs-catalog-table thead th {
@@ -541,8 +540,8 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #475569, #334155);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary), var(--spd-p-text-secondary));
   white-space: nowrap;
 }
 
@@ -553,7 +552,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 
 .qs-catalog-table tbody td {
   padding: 8px 12px;
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   vertical-align: middle;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -561,7 +560,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-catalog-table tbody tr:nth-child(even) td {
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .qs-catalog-row {
@@ -570,15 +569,15 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-catalog-row:hover td {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .qs-catalog-row.selected td {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 8%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 8%, transparent));
 }
 
 .qs-catalog-row.selected td:first-child {
-  border-left: 3px solid #6366f1;
+  border-left: 3px solid var(--spd-p-primary);
 }
 
 .qs-catalog-table tbody td.col-action {
@@ -594,13 +593,13 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 .qs-empty {
   padding: 32px 14px;
   text-align: center;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
 }
 
 .qs-catalog-pagination {
   padding: 10px 14px;
-  background: #f5f8fa;
-  border-top: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-top: 1px solid var(--spd-p-border);
   flex-shrink: 0;
 }
 
@@ -608,7 +607,7 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
    Shared cells
    ============================================================ */
 .cell-code {
-  color: #0f6f78;
+  color: var(--spd-p-primary);
   font-weight: 700;
   font-size: var(--spd-font-size-base);
 }
@@ -617,29 +616,10 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
   display: inline-block;
   padding: 1px 8px;
   border-radius: 4px;
-  background: rgba(99, 102, 241, 0.1);
-  color: #4f46e5;
+  background: color-mix(in srgb, var(--spd-p-info) 10%, transparent);
+  color: var(--spd-p-primary);
   font-weight: 700;
   font-size: var(--spd-font-size-base);
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-}
-
-.status-badge.enabled {
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-}
-
-.status-badge.disabled {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
 }
 
 /* ============================================================
@@ -673,46 +653,46 @@ function selectWarehouse(warehouse: { name: string; dept: string; deptCode: stri
 }
 
 .qs-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qs-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qs-btn-secondary {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(13, 148, 136, 0.1));
-  color: #0d9488;
-  border-color: rgba(20, 184, 166, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 10%, transparent), color-mix(in srgb, var(--spd-p-success-text) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-primary) 20%, transparent);
 }
 
 .qs-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(20, 184, 166, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qs-btn-info {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(14, 165, 233, 0.1));
-  color: #0891b2;
-  border-color: rgba(6, 182, 212, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-success-text) 10%, transparent), color-mix(in srgb, var(--spd-p-info) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-success-text) 20%, transparent);
 }
 
 .qs-btn-info:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(6, 182, 212, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-info));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qs-btn-ghost {
   width: 32px; min-height: 32px; padding: 0; justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 
-.qs-btn-ghost:hover { background: rgba(255, 255, 255, 0.3); }
+.qs-btn-ghost:hover { background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent); }
 </style>

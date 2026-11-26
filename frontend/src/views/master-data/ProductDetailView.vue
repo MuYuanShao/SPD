@@ -182,10 +182,9 @@ watch(productCode, () => { if (active) void loadDetail() })
 
 <template>
   <main class="approval-detail-page product-detail-page">
-    <button class="btn product-detail-back" type="button" @click="returnToCatalog">
-      <ArrowLeft :size="16" aria-hidden="true" />
-      返回医院目录
-    </button>
+    <SpdButton label="返回医院目录" tone="primary" class="product-detail-back" @click="returnToCatalog">
+          <template #icon><ArrowLeft :size="16" aria-hidden="true" /></template>
+        </SpdButton>
 
     <p v-if="loading" class="approval-empty" role="status" aria-live="polite">
       正在加载商品详情...
@@ -193,7 +192,7 @@ watch(productCode, () => { if (active) void loadDetail() })
     <div v-else-if="error" class="product-detail-error" role="alert">
       <strong>商品详情加载失败</strong>
       <span>{{ error }}</span>
-      <button class="btn" type="button" @click="loadDetail">重新加载</button>
+      <SpdButton label="重新加载" @click="loadDetail"></SpdButton>
     </div>
 
     <template v-else-if="detail">
@@ -205,23 +204,15 @@ watch(productCode, () => { if (active) void loadDetail() })
           {{ detail.statusLabel }}
         </span>
         <div class="product-detail-toolbar-actions">
-          <button
-            class="btn"
-            type="button"
-            @click="returnToCatalog"
-          >
-            <ArrowLeft :size="15" aria-hidden="true" />
-            返回列表
-          </button>
-          <button
-            v-if="auth.canWrite('hospital-product-catalog')"
-            class="btn btn-primary"
-            type="button"
-            @click="router.push({ name: 'master-data-list', params: { code: 'hospital-product-catalog' }, query: { ...route.query, editProduct: productCode } })"
-          >
-            <Pencil :size="15" aria-hidden="true" />
-            编辑商品
-          </button>
+          <SpdButton label="返回列表" @click="returnToCatalog">
+          <template #icon><ArrowLeft :size="15" aria-hidden="true" /></template>
+        </SpdButton>
+          <SpdButton label="编辑商品" tone="primary" v-if="auth.canWrite('hospital-product-catalog')"
+           
+           
+            @click="router.push({ name: 'master-data-list', params: { code: 'hospital-product-catalog' }, query: { ...route.query, editProduct: productCode } })">
+          <template #icon><Pencil :size="15" aria-hidden="true" /></template>
+        </SpdButton>
         </div>
       </div>
 
@@ -309,9 +300,9 @@ watch(productCode, () => { if (active) void loadDetail() })
               <p>{{ previewFile.category }}</p>
               <h3>{{ previewFile.fileName }}</h3>
             </div>
-            <button class="btn-icon" type="button" aria-label="关闭附件预览" @click="closeAttachment">
-              <X :size="18" aria-hidden="true" />
-            </button>
+            <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭附件预览" @click="closeAttachment">
+              <template #icon><X :size="18" /></template>
+            </SpdButton>
           </header>
           <p v-if="previewLoading" role="status">正在读取附件...</p>
           <p v-else-if="previewError" role="alert">{{ previewError }}</p>
@@ -350,7 +341,7 @@ watch(productCode, () => { if (active) void loadDetail() })
 }
 
 button:focus-visible {
-  outline: 3px solid rgba(8, 127, 113, 0.28);
+  outline: 3px solid color-mix(in srgb, var(--spd-p-primary-strong) 28%, transparent);
   outline-offset: 2px;
 }
 

@@ -1,0 +1,184 @@
+/* =====================================================================
+ * SPD 文字过长省略 + 悬浮提示（Text Overflow · 全站唯一出处）
+ * =====================================================================
+ * 用户诉求（硬约束）：
+ *   「文字过长导致列宽无法容纳时，或者其他表单无法容纳时，
+ *     使用省略号，悬浮上去出现一个tip来显示完整文字就好」
+ *
+ * ---------------------------------------------------------------------
+ * 【本文件提供三层能力，全站复用】
+ *
+ *   1) .spd-ellipsis
+ *      单行省略：超长文本截断为「…」。
+ *
+ *   2) .spd-ellipsis-multi
+ *      多行夹断：最多 N 行（默认 2 行），超出部分省略。
+ *
+ *   3) .spd-ellipsis-cell
+ *      表格单元格专用：`max-width: 0` + `width: 100%` 的经典技巧，
+ *      让 flex / table 布局下的单元格真正产生省略号
+ *      （父级 table-layout: auto 时，仅靠 overflow:hidden 不会省略）。
+ *
+ * ---------------------------------------------------------------------
+ * 【悬浮提示（tip）有两种交付方式，可混用】
+ *
+ *   A) CSS-only 提示（无需 JS，零依赖，适合纯样式表格 / 原生 DOM）
+ *      在元素上写 data-tip="完整文字"：
+ *        <span class="spd-ellipsis" data-tip="这是一段很长的完整文字">…</span>
+ *      悬浮时由 ::after 渲染提示气泡。
+ *
+ *   B) Element Plus el-tooltip（可交互、可定位到鼠标、样式更稳）
+ *      适用于 Vue 模板中可编辑的位置：
+ *        <el-tooltip :content="fullText" placement="top" :show-after="200">
+ *          <span class="spd-ellipsis">{{ fullText }}</span>
+ *        </el-tooltip>
+ *
+ *   两者都遵循「**能显示完整文字**」这一条原则：
+ *   Element Plus 表格列可直接用 show-overflow-tooltip 打开内置提示。
+ *
+ * ---------------------------------------------------------------------
+ * 【颜色规范】
+ *   全部取自 tokens/colors.css / tokens/palette.css 已登记的令牌，
+ *   本文件不写任何 hex / rgb / 具名颜色，
+ *   因此三套配色方案（标准白 / 静墨宣纸 / 暗夜黑）自动适配。
+ * ===================================================================== */
+
+/* =====================================================================
+ * 1. 单行省略（.spd-ellipsis）
+ * ===================================================================== */
+.spd-ellipsis {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 行内用法（例如嵌在句子里的字段名） */
+span.spd-ellipsis,
+a.spd-ellipsis,
+b.spd-ellipsis,
+strong.spd-ellipsis {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+/* =====================================================================
+ * 2. 多行夹断（.spd-ellipsis-multi）
+ * ---------------------------------------------------------------------
+ * 默认 2 行；可用 --spd-ellipsis-lines 覆盖行数。
+ * 需要 WebKit 前缀：-webkit-line-clamp 目前只在 Blink / WebKit 实现。
+ * ===================================================================== */
+.spd-ellipsis-multi {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--spd-ellipsis-lines, 2);
+  line-clamp: var(--spd-ellipsis-lines, 2);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  /* 多行夹断必须允许换行，否则 clamp 不生效 */
+  white-space: normal;
+}
+
+/* =====================================================================
+ * 3. 表格单元格省略（.spd-ellipsis-cell）
+ * ---------------------------------------------------------------------
+ * 表格单元格里的文本省略。
+ *
+ * ⚠️ 关于 `max-width: 0`：
+ *   那是 **table 布局**下的经典技巧（配合 width:100% 让内容盒受列宽约束）。
+ *   但 Element Plus 的 .cell 是 **flex 容器**，
+ *   在 flex 里用 max-width:0 会把内容盒直接压成 0（只剩内边距），
+ *   状态条 / 按钮会被挤成一条线。
+ *   因此这里采用更通用的写法：
+ *     - width: 100% + min-width: 0  →  填满父级且允许收缩；
+ *     - overflow: hidden + text-overflow: ellipsis  →  超出即省略。
+ *   在真正的 table-layout: fixed 表格里，
+ *   父级 td 已有固定宽度，width:100% 同样收敛。
+ * ===================================================================== */
+.spd-ellipsis-cell {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================================
+ * 4. CSS-only 悬浮提示（data-tip）
+ * ---------------------------------------------------------------------
+ * 纯样式实现，无需 JS、无需额外依赖：
+ *   .spd-ellipsis[data-tip]:hover::after { content: attr(data-tip); }
+ *
+ * 【关键：为什么这里不写 position: relative】
+ *   省略号元素本身需要 `overflow: hidden` 才能产生「…」，
+ *   而 overflow:hidden 会裁掉所有溢出的后代 —— 包括 ::after 气泡。
+ *   但按 CSS 规范，**绝对定位元素只会被其「包含块链」上的
+ *   overflow:hidden 祖先裁切**。
+ *   因此这里刻意让提示元素保持 `position: static`：
+ *     - ::after 的包含块 = 最近的**已定位祖先**；
+ *     - 表格里 Element Plus 已给 `td.el-table__cell` 设了
+ *       `position: relative`（见 el-table.css），且 td 的 overflow 是 visible；
+ *     - 因此气泡能溢出省略号元素、也不会被单元格裁掉。
+ *   换言之：气泡能溢出省略号元素，但不会溢出单元格。
+ *
+ * 【因此调用方需要保证】
+ *   最近的已定位祖先的 overflow 不是 hidden。
+ *   表格场景：Element Plus 的 td.el-table__cell 天然满足；
+ *              其它场景请给直接父容器加 position:relative。
+ *
+ * ⚠️ 重要：包含块**不能**是 .cell
+ *   .cell 必须保持 Element Plus 的 `overflow: hidden`，
+ *   否则 `show-overflow-tooltip` 的内置提示无法通过
+ *   `scrollWidth > clientWidth` 判断出溢出，提示就永远不出现。
+ *   所以 .cell 一律保持 position: static，让气泡的包含块落在 td 上。
+ *
+ * 【适用类名】
+ *   .spd-ellipsis / .spd-ellipsis-cell / .spd-ellipsis-multi
+ *   以及统一列表的 .ulc-wrap-text（全站长文本列的统一类名）。
+ * ===================================================================== */
+.spd-ellipsis[data-tip],
+.spd-ellipsis-cell[data-tip],
+.spd-ellipsis-multi[data-tip],
+.ulc-wrap-text[data-tip] {
+  cursor: help;
+  /* 刻意不成为定位基准：让 ::after 气泡的包含块落到
+     已定位的 td.el-table__cell（overflow: visible）上，
+     气泡才能溢出 .cell 的 overflow:hidden 而不被裁掉。 */
+  position: static;
+}
+
+.spd-ellipsis[data-tip]:hover::after,
+.spd-ellipsis-cell[data-tip]:hover::after,
+.spd-ellipsis-multi[data-tip]:hover::after,
+.ulc-wrap-text[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 70;
+  display: block;
+  max-width: 280px;
+  padding: 6px 10px;
+  border: 1px solid var(--spd-p-border);
+  border-radius: var(--spd-p-control-radius);
+  /* 气泡底色 / 文字色全部取自令牌，三套方案自动适配 */
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-strong);
+  box-shadow: var(--spd-p-shadow-2);
+  font-size: var(--spd-font-size-sm);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
+  text-align: left;
+  /* 提示本身是普通文本块，不应再被省略 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+  pointer-events: none;
+}

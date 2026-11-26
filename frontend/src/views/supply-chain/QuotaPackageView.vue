@@ -3,9 +3,9 @@ import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch }
 import { Teleport } from 'vue'
 import { packageReferencePrice } from '../../utils/quotaPackagePricing'
 import { useRoute, useRouter } from 'vue-router'
-import { ElDialog, ElMessage, ElOption, ElSelect } from 'element-plus'
+import { ElDialog, ElOption, ElSelect } from 'element-plus'
+import { notifyError as notifyErrorShared, notifyWarning } from '../../composables/useNotify'
 import {
-  AlertCircle,
   ArchiveRestore,
   ArrowRight,
   Ban,
@@ -695,7 +695,11 @@ function notifySuccess(text: string) {
 
 function notifyError(text: string, tone: 'error' | 'warning' = 'error') {
   packingFeedback.value = ''
-  ElMessage({ message: text, type: tone, duration: 4000, showClose: true })
+  if (tone === 'warning') {
+    notifyWarning(text, { duration: 4000, showClose: true })
+    return
+  }
+  notifyErrorShared(text, { duration: 4000, showClose: true })
 }
 
 watch(actionResult, (result) => {
@@ -705,6 +709,16 @@ watch(actionResult, (result) => {
   } else {
     notifyError(result.text, result.tone)
   }
+})
+
+/**
+ * 加载失败 → 通用消息接口弹出。
+ * 原来失败会渲染一条 .pt-load-error 内联错误面板（带「重试」按钮），
+ * 既占版面又与全站反馈方式不一致；这里改为统一抛 Element Plus 消息。
+ */
+watch(loadError, (message) => {
+  if (!message) return
+  notifyErrorShared(message)
 })
 
 async function submitPackingTask() {
@@ -1142,13 +1156,9 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 </script>
 
 <template><section class="md-partner-page quota-package-page spd-unified-list">
-    <!-- 全局横幅已移除：所有操作反馈统一走 ElMessage（失败/警告）
-         或当前子菜单的就地提示条（成功），不会跨菜单残留。 -->
-    <div v-if="loadError" class="pt-load-error">
-      <AlertCircle :size="15" />
-      <span>{{ loadError }}</span>
-      <button type="button" class="btn-text" @click="loadData">重试</button>
-    </div>
+    <!-- 全局横幅已移除：所有操作反馈统一走通用消息接口（Element Plus ElMessage，失败/警告）
+         或当前子菜单的就地提示条（成功），不会跨菜单残留。
+         请求失败同样以消息弹层抛出，不再渲染 .pt-load-error 内联错误面板。 -->
 
     <template v-if="mode === 'template'">
       <section v-if="packageSection === 'quota-template-maintenance'" class="tpl-card">
@@ -1175,80 +1185,63 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <input v-model.trim="query.productName" type="search" placeholder="模糊查询商品名称" autocomplete="off" />
           </label>
           <div class="tpl-filter-actions">
-            <button class="tpl-btn" type="button" :disabled="loading || !hasTemplateQuery" @click="resetTemplateQuery">
-              <RefreshCw :size="15" />
-              重置
-            </button>
-            <button class="tpl-btn tpl-btn-primary" type="submit" :disabled="loading">
-              <Search :size="16" />
-              查询
-            </button>
+            <SpdButton label="重置" tone="neutral" :disabled="loading || !hasTemplateQuery" @click="resetTemplateQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
+            <SpdButton label="查询" tone="primary" type="submit" :disabled="loading">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
           </div>
         </form>
 
         <div class="tpl-toolbar">
           <div class="tpl-toolbar-main">
-            <button
-              v-if="authStore.hasPermission('quota-template-maintenance:write')"
-              class="tpl-btn tpl-btn-primary"
-              type="button"
+            <SpdButton label="新增" tone="primary" v-if="authStore.hasPermission('quota-template-maintenance:write')"
+             
+             
               aria-label="新增定数包模板"
               title="新增定数包模板"
-              @click="openCreateTemplate"
-            >
-              <Plus :size="16" />
-              新增
-            </button>
-            <button
-              v-if="authStore.hasPermission('quota-template-maintenance:write')"
-              class="tpl-btn"
-              type="button"
+              @click="openCreateTemplate">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="修改" tone="primary" v-if="authStore.hasPermission('quota-template-maintenance:write')"
+             
+             
               :disabled="selectedTemplateCodes.length !== 1"
-              @click="openEditTemplate()"
-            >
-              <Edit3 :size="16" />
-              修改
-            </button>
-            <button
-              v-if="authStore.hasPermission('quota-template-maintenance:write')"
-              class="tpl-btn tpl-btn-danger"
-              type="button"
+              @click="openEditTemplate()">
+          <template #icon><Edit3 :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="停用" tone="danger" v-if="authStore.hasPermission('quota-template-maintenance:write')"
+             
+             
               :disabled="!selectedTemplateCodes.length"
-              @click="disableSelectedTemplates()"
-            >
-              <Ban :size="16" />
-              停用
-            </button>
-            <button
-              v-if="authStore.hasPermission('quota-template-maintenance:write')"
-              class="tpl-btn"
-              type="button"
+              @click="disableSelectedTemplates()">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="启用" tone="success" v-if="authStore.hasPermission('quota-template-maintenance:write')"
+             
+             
               :disabled="!selectedTemplateCodes.length"
-              @click="enableSelectedTemplates()"
-            >
-              <CheckCircle2 :size="16" />
-              启用
-            </button>
+              @click="enableSelectedTemplates()">
+          <template #icon><CheckCircle2 :size="16" /></template>
+        </SpdButton>
             <details class="tpl-import">
               <summary class="tpl-btn">
                 <Upload :size="16" />
                 导入
               </summary>
               <div class="tpl-import-menu">
-                <button type="button" @click="downloadTemplateImportFile">
-                  <FileDown :size="16" />
-                  导入模板下载
-                </button>
-                <button type="button" @click="triggerTemplateImport">
-                  <Upload :size="16" />
-                  上传模板导入
-                </button>
+                <SpdButton label="导入模板下载" tone="neutral" @click="downloadTemplateImportFile">
+                  <template #icon><FileDown :size="16" /></template>
+                </SpdButton>
+                <SpdButton label="上传模板导入" tone="neutral" @click="triggerTemplateImport">
+                  <template #icon><Upload :size="16" /></template>
+                </SpdButton>
               </div>
             </details>
-            <button class="tpl-btn" type="button" @click="exportTemplates">
-              <Download :size="16" />
-              导出
-            </button>
+            <SpdButton label="导出" tone="neutral" @click="exportTemplates">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
             <input ref="importInput" class="tpl-file-input" type="file" accept=".csv" @change="handleTemplateImport" />
           </div>
         </div>
@@ -1256,26 +1249,22 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="quotaTemplateColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="quotaTemplateCols.settingsOpen.value = !quotaTemplateCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: quotaTemplateCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="quotaTemplateColSettingsAnchorRef"
+             
+             
+              @click="quotaTemplateCols.settingsOpen.value = !quotaTemplateCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="quotaTemplateCols.settingsOpen.value"
               ref="quotaTemplateColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': quotaTemplateColSettingsPop.align.value === 'right', 'is-align-up': quotaTemplateColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': quotaTemplateColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaTemplateColSettingsPop.maxHeight.value + 'px' }"
+              :style="quotaTemplateColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="quotaTemplateCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaTemplateCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in quotaTemplateCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1290,7 +1279,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="quotaTemplateCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="quotaTemplateCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1612,30 +1601,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               />
             </label>
             <div class="pt-form-actions">
-              <button
-                class="pt-btn pt-btn-ghost"
-                type="button"
-                @click="searchReceivingLooseStock"
-              >
-                <Search :size="14" />
-                <span>查询散货</span>
-              </button>
-              <button
-                class="pt-btn"
-                type="button"
-                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
-                @click="doAllocateFromReceiving(false)"
-              >
-                分配
-              </button>
-              <button
-                class="pt-btn pt-btn-primary"
-                type="button"
-                :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
-                @click="doAllocateFromReceiving(true)"
-              >
-                全部打包分配
-              </button>
+              <SpdButton label="查询散货" tone="primary" @click="searchReceivingLooseStock">
+          <template #icon><Search :size="14" /></template>
+        </SpdButton>
+              <SpdButton label="分配" tone="primary" :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
+                @click="doAllocateFromReceiving(false)"></SpdButton>
+              <SpdButton label="全部打包分配" tone="primary" :disabled="!allocateTaskNo || !receivingNo || !looseStockRows.length"
+                @click="doAllocateFromReceiving(true)"></SpdButton>
             </div>
           </div>
 
@@ -1651,26 +1623,22 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                         <MdDataTableCard>
               <template #toolbar>
               <div class="ulc-col-settings">
-                <button
-                  ref="quotaLooseStockColSettingsAnchorRef"
-                  type="button"
-                  class="md-btn md-btn-primary"
-                  @click="quotaLooseStockCols.settingsOpen.value = !quotaLooseStockCols.settingsOpen.value"
-                >
-                  <Columns3 :size="16" />
-                  <span>列设置</span>
-                  <ChevronDown :size="14" :class="{ rotated: quotaLooseStockCols.settingsOpen.value }" />
-                </button>
+                <SpdButton label="列设置" tone="neutral" ref="quotaLooseStockColSettingsAnchorRef"
+                 
+                 
+                  @click="quotaLooseStockCols.settingsOpen.value = !quotaLooseStockCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
                 <div
                   v-if="quotaLooseStockCols.settingsOpen.value"
                   ref="quotaLooseStockColSettingsPopRef"
                   class="ulc-col-settings-pop"
                   :class="{ 'is-align-right': quotaLooseStockColSettingsPop.align.value === 'right', 'is-align-up': quotaLooseStockColSettingsPop.vertical.value === 'up' }"
-                  :style="{ '--ulc-pop-offset-y': quotaLooseStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLooseStockColSettingsPop.maxHeight.value + 'px' }"
+                  :style="quotaLooseStockColSettingsPop.popStyle.value"
                 >
                   <header>
                     <strong>列展示设置</strong>
-                    <button type="button" class="ulc-link" @click="quotaLooseStockCols.resetColumns()">恢复默认</button>
+                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLooseStockCols.resetColumns()"></SpdButton>
                   </header>
                   <div class="ulc-col-settings-list">
                     <label v-for="col in quotaLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1685,7 +1653,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                     </label>
                   </div>
                   <footer>
-                    <button type="button" class="ulc-action" @click="quotaLooseStockCols.settingsOpen.value = false">确定</button>
+                    <SpdButton label="确定" tone="primary" @click="quotaLooseStockCols.settingsOpen.value = false"></SpdButton>
                   </footer>
                 </div>
               </div>
@@ -1800,26 +1768,22 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                         <MdDataTableCard>
               <template #toolbar>
               <div class="ulc-col-settings">
-                <button
-                  ref="quotaReceivingAllocColSettingsAnchorRef"
-                  type="button"
-                  class="md-btn md-btn-primary"
-                  @click="quotaReceivingAllocCols.settingsOpen.value = !quotaReceivingAllocCols.settingsOpen.value"
-                >
-                  <Columns3 :size="16" />
-                  <span>列设置</span>
-                  <ChevronDown :size="14" :class="{ rotated: quotaReceivingAllocCols.settingsOpen.value }" />
-                </button>
+                <SpdButton label="列设置" tone="neutral" ref="quotaReceivingAllocColSettingsAnchorRef"
+                 
+                 
+                  @click="quotaReceivingAllocCols.settingsOpen.value = !quotaReceivingAllocCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
                 <div
                   v-if="quotaReceivingAllocCols.settingsOpen.value"
                   ref="quotaReceivingAllocColSettingsPopRef"
                   class="ulc-col-settings-pop"
                   :class="{ 'is-align-right': quotaReceivingAllocColSettingsPop.align.value === 'right', 'is-align-up': quotaReceivingAllocColSettingsPop.vertical.value === 'up' }"
-                  :style="{ '--ulc-pop-offset-y': quotaReceivingAllocColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaReceivingAllocColSettingsPop.maxHeight.value + 'px' }"
+                  :style="quotaReceivingAllocColSettingsPop.popStyle.value"
                 >
                   <header>
                     <strong>列展示设置</strong>
-                    <button type="button" class="ulc-link" @click="quotaReceivingAllocCols.resetColumns()">恢复默认</button>
+                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaReceivingAllocCols.resetColumns()"></SpdButton>
                   </header>
                   <div class="ulc-col-settings-list">
                     <label v-for="col in quotaReceivingAllocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1834,7 +1798,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                     </label>
                   </div>
                   <footer>
-                    <button type="button" class="ulc-action" @click="quotaReceivingAllocCols.settingsOpen.value = false">确定</button>
+                    <SpdButton label="确定" tone="primary" @click="quotaReceivingAllocCols.settingsOpen.value = false"></SpdButton>
                   </footer>
                 </div>
               </div>
@@ -1958,14 +1922,14 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <div class="pt-form-field pt-template-controls">
               <span class="pt-form-label">打包模板 <em class="pt-form-required">*</em></span>
               <div class="pt-template-controls-actions">
-                <button type="button" class="pt-btn pt-btn-ghost" :disabled="taskLoading" @click="openTemplateSelector">
-                  <Search :size="14" />
-                  {{ selectedPackingTemplate ? '更换打包模板' : '选择打包模板' }}
-                </button>
-                <button v-if="selectedPackingTemplate" type="button" class="pt-btn pt-btn-ghost"
+                <SpdButton tone="primary" :disabled="taskLoading" @click="openTemplateSelector">
+          <template #icon><Search :size="14" /></template>
+          {{ selectedPackingTemplate ? '更换打包模板' : '选择打包模板' }}
+        </SpdButton>
+                <SpdButton label="清除" tone="primary" v-if="selectedPackingTemplate"
                   :disabled="taskLoading" @click="clearPackingTemplate">
-                  <X :size="14" /> 清除
-                </button>
+          <template #icon><X :size="14" /></template>
+        </SpdButton>
               </div>
             </div>
             <label class="pt-form-field">
@@ -2026,18 +1990,16 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             </label>
           </div>
           <div class="pt-form-actions">
-              <button type="button" class="pt-btn pt-btn-ghost" :disabled="taskLoading" @click="packingCreateOpen = false">取消</button>
-              <button
-                v-if="authStore.hasPermission('quota-packing-task:create')"
-                type="button"
-                class="pt-btn pt-btn-primary"
+              <SpdButton label="取消" tone="neutral" :disabled="taskLoading" @click="packingCreateOpen = false"></SpdButton>
+              <SpdButton tone="primary" v-if="authStore.hasPermission('quota-packing-task:create')"
+               
+               
                 :disabled="taskLoading || !selectedPackingTemplate || !packingForm.warehouseName"
                 :title="!packingForm.templateCode ? '请先选择打包模板' : '创建打包任务'"
-                @click="submitPackingTask"
-              >
-                <Save :size="14" />
-                <span>{{ taskLoading ? '创建中...' : '确认创建' }}</span>
-              </button>
+                @click="submitPackingTask">
+          <template #icon><Save :size="14" /></template>
+          <span>{{ taskLoading ? '创建中...' : '确认创建' }}</span>
+        </SpdButton>
             </div>
           </div>
           </ElDialog>
@@ -2071,26 +2033,22 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                     <MdDataTableCard>
             <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="quotaPackingTaskColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="quotaPackingTaskCols.settingsOpen.value = !quotaPackingTaskCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: quotaPackingTaskCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="quotaPackingTaskColSettingsAnchorRef"
+               
+               
+                @click="quotaPackingTaskCols.settingsOpen.value = !quotaPackingTaskCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="quotaPackingTaskCols.settingsOpen.value"
                 ref="quotaPackingTaskColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': quotaPackingTaskColSettingsPop.align.value === 'right', 'is-align-up': quotaPackingTaskColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': quotaPackingTaskColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaPackingTaskColSettingsPop.maxHeight.value + 'px' }"
+                :style="quotaPackingTaskColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="quotaPackingTaskCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaPackingTaskCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in quotaPackingTaskCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2105,7 +2063,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="quotaPackingTaskCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="quotaPackingTaskCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -2416,14 +2374,12 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <input v-model="query.deptName" placeholder="模糊查询科室" />
           </label>
           <div class="lbl-filter-actions">
-            <button class="lbl-btn lbl-btn-primary" type="button" :disabled="loading" @click="loadData">
-              <Search :size="16" />
-              查询
-            </button>
-            <button class="lbl-btn" type="button" :disabled="loading || !hasLabelQuery" @click="resetLabelQuery">
-              <RefreshCw :size="15" />
-              重置
-            </button>
+            <SpdButton label="查询" tone="primary" :disabled="loading" @click="loadData">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="重置" tone="neutral" :disabled="loading || !hasLabelQuery" @click="resetLabelQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
           </div>
         </div>
 
@@ -2431,26 +2387,22 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="quotaLabelColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="quotaLabelCols.settingsOpen.value = !quotaLabelCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: quotaLabelCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="quotaLabelColSettingsAnchorRef"
+             
+             
+              @click="quotaLabelCols.settingsOpen.value = !quotaLabelCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="quotaLabelCols.settingsOpen.value"
               ref="quotaLabelColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': quotaLabelColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': quotaLabelColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLabelColSettingsPop.maxHeight.value + 'px' }"
+              :style="quotaLabelColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="quotaLabelCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLabelCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in quotaLabelCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2465,7 +2417,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="quotaLabelCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="quotaLabelCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -2711,40 +2663,34 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             </select>
           </label>
           <div class="evt-filter-actions">
-            <button class="evt-btn evt-btn-primary" type="button" :disabled="loading" @click="onEventQuerySubmit">
-              <Search :size="16" />
-              查询
-            </button>
-            <button class="evt-btn" type="button" :disabled="loading || !hasEventQuery" @click="resetEventQuery">
-              <RefreshCw :size="15" />
-              重置
-            </button>
+            <SpdButton label="查询" tone="primary" :disabled="loading" @click="onEventQuerySubmit">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="重置" tone="neutral" :disabled="loading || !hasEventQuery" @click="resetEventQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
           </div>
         </div>
 
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="quotaLabelEventColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="quotaLabelEventCols.settingsOpen.value = !quotaLabelEventCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: quotaLabelEventCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="quotaLabelEventColSettingsAnchorRef"
+             
+             
+              @click="quotaLabelEventCols.settingsOpen.value = !quotaLabelEventCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="quotaLabelEventCols.settingsOpen.value"
               ref="quotaLabelEventColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': quotaLabelEventColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelEventColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': quotaLabelEventColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLabelEventColSettingsPop.maxHeight.value + 'px' }"
+              :style="quotaLabelEventColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="quotaLabelEventCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLabelEventCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in quotaLabelEventCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2759,7 +2705,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="quotaLabelEventCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="quotaLabelEventCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -2944,40 +2890,34 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <input v-model="query.warehouseName" placeholder="模糊查询库房" @keyup.enter="onSnapshotQuery" />
           </label>
           <div class="snp-filter-actions">
-            <button class="snp-btn snp-btn-primary" type="button" :disabled="loading" @click="onSnapshotQuery">
-              <Search :size="16" />
-              查询
-            </button>
-            <button class="snp-btn" type="button" :disabled="loading || !hasSnapshotQuery" @click="resetSnapshotQuery">
-              <RefreshCw :size="15" />
-              重置
-            </button>
+            <SpdButton label="查询" tone="primary" :disabled="loading" @click="onSnapshotQuery">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="重置" tone="neutral" :disabled="loading || !hasSnapshotQuery" @click="resetSnapshotQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
           </div>
         </div>
 
         <MdDataTableCard>
           <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="quotaSnapshotColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="quotaSnapshotCols.settingsOpen.value = !quotaSnapshotCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: quotaSnapshotCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="quotaSnapshotColSettingsAnchorRef"
+               
+               
+                @click="quotaSnapshotCols.settingsOpen.value = !quotaSnapshotCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="quotaSnapshotCols.settingsOpen.value"
                 ref="quotaSnapshotColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': quotaSnapshotColSettingsPop.align.value === 'right', 'is-align-up': quotaSnapshotColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': quotaSnapshotColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaSnapshotColSettingsPop.maxHeight.value + 'px' }"
+                :style="quotaSnapshotColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="quotaSnapshotCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaSnapshotCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in quotaSnapshotCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2992,7 +2932,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="quotaSnapshotCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="quotaSnapshotCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -3096,41 +3036,34 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             </div>
           </div>
           <div class="saf-toolbar-actions">
-            <button
-              v-if="authStore.hasPermission('quota-safety-stock:write')"
-              class="saf-btn saf-btn-primary"
-              type="button"
-              @click="openSafetyDialog()"
-            >
-              <Plus :size="16" />
-              新增维护
-            </button>
-            <button
-              v-if="authStore.hasPermission('quota-safety-stock:write')"
-              class="saf-btn"
-              type="button"
+            <SpdButton label="新增维护" tone="primary" v-if="authStore.hasPermission('quota-safety-stock:write')"
+             
+             
+              @click="openSafetyDialog()">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+            <SpdButton tone="primary" v-if="authStore.hasPermission('quota-safety-stock:write')"
+             
+             
               :disabled="safetyImporting"
-              @click="triggerSafetyImport"
-            >
-              <Upload :size="16" />
-              {{ safetyImporting ? '导入中' : '导入' }}
-            </button>
+              @click="triggerSafetyImport">
+          <template #icon><Upload :size="16" /></template>
+          {{ safetyImporting ? '导入中' : '导入' }}
+        </SpdButton>
             <details class="saf-import">
               <summary class="saf-btn">
                 <FileDown :size="16" />
                 导入模板
               </summary>
               <div class="saf-import-menu">
-                <button type="button" @click="downloadSafetyImportFile">
-                  <FileDown :size="16" />
-                  下载导入模板
-                </button>
+                <SpdButton label="下载导入模板" tone="neutral" @click="downloadSafetyImportFile">
+                  <template #icon><FileDown :size="16" /></template>
+                </SpdButton>
               </div>
             </details>
-            <button class="saf-btn" type="button" @click="exportSafetyRows">
-              <Download :size="16" />
-              导出
-            </button>
+            <SpdButton label="导出" tone="neutral" @click="exportSafetyRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
             <input
               ref="safetyImportInput"
               class="saf-file-input"
@@ -3158,40 +3091,34 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <input v-model="query.productName" placeholder="模糊查询商品名称" @keyup.enter="onSafetyQuery" />
           </label>
           <div class="saf-filter-actions">
-            <button class="saf-btn" type="button" :disabled="loading || !hasSafetyQuery" @click="resetSafetyQuery">
-              <RefreshCw :size="15" />
-              重置
-            </button>
-            <button class="saf-btn saf-btn-primary" type="button" :disabled="loading" @click="onSafetyQuery">
-              <Search :size="16" />
-              查询
-            </button>
+            <SpdButton label="重置" tone="neutral" :disabled="loading || !hasSafetyQuery" @click="resetSafetyQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
+            <SpdButton label="查询" tone="primary" :disabled="loading" @click="onSafetyQuery">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
           </div>
         </div>
 
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="quotaSafetyColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="quotaSafetyCols.settingsOpen.value = !quotaSafetyCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: quotaSafetyCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="quotaSafetyColSettingsAnchorRef"
+             
+             
+              @click="quotaSafetyCols.settingsOpen.value = !quotaSafetyCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="quotaSafetyCols.settingsOpen.value"
               ref="quotaSafetyColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': quotaSafetyColSettingsPop.align.value === 'right', 'is-align-up': quotaSafetyColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': quotaSafetyColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaSafetyColSettingsPop.maxHeight.value + 'px' }"
+              :style="quotaSafetyColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="quotaSafetyCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaSafetyCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in quotaSafetyCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3206,7 +3133,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="quotaSafetyCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="quotaSafetyCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -3447,9 +3374,9 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
             <h3>{{ templateDialogMode === 'create' ? '新增定数包模板' : '修改定数包模板' }}</h3>
             <span v-if="templateDialogMode !== 'create'" class="qtd-dialog-tag">编辑模式</span>
           </div>
-          <button class="qtd-btn qtd-btn-ghost" type="button" aria-label="关闭" @click="templateDialogOpen = false">
-            <X :size="18" />
-          </button>
+          <SpdButton label="" tone="primary" aria-label="关闭" @click="templateDialogOpen = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="qtd-dialog-body">
           <div class="qtd-form-grid">
@@ -3473,9 +3400,9 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               <span>商品编码</span>
               <div class="qtd-input-with-btn">
                 <input v-model="templateForm.productCode" readonly placeholder="点击右侧按钮选择已启用定数管理的商品" />
-                <button class="qtd-btn qtd-btn-info qtd-btn-icon" type="button" title="选择商品" @click="openProductSelector">
-                  <Search :size="16" />
-                </button>
+                <SpdButton label="" tone="primary" icon-only title="选择商品" @click="openProductSelector">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
               </div>
             </label>
 
@@ -3522,11 +3449,10 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
           </div>
           <p v-if="templateError" class="qtd-error">{{ templateError }}</p>
           <div class="qtd-dialog-actions">
-            <button class="qtd-btn qtd-btn-secondary" type="button" @click="templateDialogOpen = false">取消</button>
-            <button class="qtd-btn qtd-btn-primary" type="button" @click="submitTemplate">
-              <Save :size="16" />
-              保存
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="templateDialogOpen = false"></SpdButton>
+            <SpdButton label="保存" tone="success" @click="submitTemplate">
+          <template #icon><Save :size="16" /></template>
+        </SpdButton>
           </div>
         </div>
       </section>
@@ -3563,19 +3489,19 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 <style scoped>
 .pt-page {
   /* 跟随全局主题色（theme.css → --fli-brand → --primary） */
-  --pt-primary: var(--primary, var(--fli-brand, #0f766e));
-  --pt-primary-dark: var(--primary-strong, var(--fli-brand-strong, #115e59));
-  --pt-primary-soft: color-mix(in srgb, var(--pt-primary) 8%, #ffffff);
+  --pt-primary: var(--primary, var(--fli-brand, var(--spd-p-primary)));
+  --pt-primary-dark: var(--primary-strong, var(--fli-brand-strong, var(--spd-p-primary-strong)));
+  --pt-primary-soft: color-mix(in srgb, var(--pt-primary) 8%, var(--spd-p-bg));
   --pt-primary-glow: color-mix(in srgb, var(--pt-primary) 15%, transparent);
-  --pt-bg-page: #f5f7f8;
-  --pt-bg-card: #ffffff;
-  --pt-bg-muted: #f8faf9;
-  --pt-border: color-mix(in srgb, var(--pt-primary) 14%, #e2e8e5);
-  --pt-border-subtle: color-mix(in srgb, var(--pt-primary) 8%, #eef2f0);
-  --pt-text: #1d2a35;
-  --pt-text-secondary: #5a6b78;
-  --pt-text-tertiary: #8a98a5;
-  --pt-shadow: 0 1px 3px var(--pt-primary-glow), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --pt-bg-page: var(--spd-p-bg-subtle);
+  --pt-bg-card: var(--spd-p-bg);
+  --pt-bg-muted: var(--spd-p-bg-page);
+  --pt-border: color-mix(in srgb, var(--pt-primary) 14%, var(--spd-p-primary-bg));
+  --pt-border-subtle: color-mix(in srgb, var(--pt-primary) 8%, var(--spd-p-bg-muted));
+  --pt-text: var(--spd-p-text);
+  --pt-text-secondary: var(--spd-p-text-muted);
+  --pt-text-tertiary: var(--spd-p-text-muted);
+  --pt-shadow: 0 1px 3px var(--pt-primary-glow), 0 1px 2px color-mix(in srgb, var(--spd-p-text-strong) 4%, transparent);
   --pt-shadow-md: 0 4px 14px var(--pt-primary-glow);
   --pt-radius: 8px;
   --pt-radius-sm: 4px;
@@ -3707,7 +3633,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .pt-form-required {
-  color: #dc2626;
+  color: var(--spd-p-danger);
   font-style: normal;
   font-weight: 700;
 }
@@ -3724,35 +3650,6 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 
 .pt-input.pt-template-readonly {
   background: var(--pt-bg-muted);
-}
-
-/* ===== 加载失败（保留重试入口）===== */
-.pt-load-error {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 6px;
-  background: color-mix(in srgb, #dc2626 8%, #ffffff);
-  color: #b91c1c;
-  font-size: var(--spd-font-size-sm);
-  font-weight: 500;
-  border: 1px solid color-mix(in srgb, #dc2626 24%, #ffffff);
-}
-
-.pt-load-error > svg {
-  flex: 0 0 auto;
-}
-
-.pt-load-error .btn-text {
-  margin-left: auto;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  text-decoration: underline;
-  cursor: pointer;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
 }
 
 /* ===== 表单内联反馈 ===== */
@@ -3772,13 +3669,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .pt-feedback-success {
-  background: color-mix(in srgb, #16a34a 8%, #ffffff);
-  color: #15803d;
+  background: color-mix(in srgb, var(--spd-p-success) 8%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
 }
 
 .pt-feedback-error {
-  background: color-mix(in srgb, #dc2626 8%, #ffffff);
-  color: #b91c1c;
+  background: color-mix(in srgb, var(--spd-p-danger) 8%, var(--spd-p-bg));
+  color: var(--spd-p-danger-strong);
 }
 
 .pt-input,
@@ -3899,14 +3796,14 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 .pt-btn-primary {
   background: var(--pt-primary);
   border-color: var(--pt-primary);
-  color: #ffffff;
+  color: var(--spd-p-bg);
   box-shadow: 0 1px 0 var(--pt-primary-glow) inset;
 }
 
 .pt-btn-primary:hover:not(:disabled) {
   background: var(--pt-primary-dark);
   border-color: var(--pt-primary-dark);
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .pt-btn-ghost {
@@ -4058,27 +3955,28 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .pt-badge-green {
-  background: #dcfce7;
-  color: #16a34a;
-  border-color: #bbf7d0;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-success);
+  border-color: var(--spd-p-success-border);
 }
 
 .pt-badge-blue {
-  background: #dbeafe;
-  color: #2563eb;
-  border-color: #bfdbfe;
+  background: var(--spd-p-border);
+  color: var(--spd-p-info);
+  border-color: var(--spd-p-info-border);
 }
 
 .pt-badge-orange {
-  background: #fef3c7;
-  color: #d97706;
-  border-color: #fde68a;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning);
+  border-color: var(--spd-p-warning-border);
 }
 
 .pt-badge-gray {
-  background: #f1f5f9;
-  color: #64748b;
-  border-color: #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
+  border-color: var(--spd-p-border);
 }
 
 /* ===== Row actions ===== */
@@ -4114,11 +4012,11 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .pt-btn-text-danger {
-  color: #dc2626;
+  color: var(--spd-p-danger);
 }
 
 .pt-btn-text-danger:hover {
-  background: #fee2e2;
+  background: var(--spd-p-danger-bg);
 }
 
 .pt-row-meta {
@@ -4208,16 +4106,16 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
    设计取向：密集、便于批量扫读与打印/解包操作，不做营销式大卡片。
    ===================================================================== */
 .lbl-panel {
-  --lbl-primary: var(--pt-primary, #0f766e);
-  --lbl-danger: #c0352b;
-  --lbl-warn: #b45309;
-  --lbl-ok: #087f5b;
-  --lbl-border: color-mix(in srgb, var(--lbl-primary) 13%, #e3e9e7);
-  --lbl-border-soft: color-mix(in srgb, var(--lbl-primary) 7%, #eef2f1);
-  --lbl-head: #f4f8f7;
-  --lbl-text: #17262f;
-  --lbl-text-2: #5b6c78;
-  --lbl-text-3: #8c9aa4;
+  --lbl-primary: var(--pt-primary, var(--spd-p-primary));
+  --lbl-danger: var(--spd-p-danger);
+  --lbl-warn: var(--spd-p-warning-text);
+  --lbl-ok: var(--spd-p-success-text);
+  --lbl-border: color-mix(in srgb, var(--lbl-primary) 13%, var(--spd-p-primary-bg));
+  --lbl-border-soft: color-mix(in srgb, var(--lbl-primary) 7%, var(--spd-p-bg-muted));
+  --lbl-head: var(--spd-p-bg-subtle);
+  --lbl-text: var(--spd-p-text-strong);
+  --lbl-text-2: var(--spd-p-text-muted);
+  --lbl-text-3: var(--spd-p-text-muted);
 
   display: flex;
   flex-direction: column;
@@ -4225,8 +4123,8 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   min-width: 0;
   border: 1px solid var(--lbl-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(23, 38, 47, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 12px 14px 14px;
 }
 
@@ -4242,9 +4140,9 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .lbl-banner-ok {
-  border: 1px solid color-mix(in srgb, var(--lbl-ok) 26%, #fff);
-  background: color-mix(in srgb, var(--lbl-ok) 8%, #fff);
-  color: #076c4e;
+  border: 1px solid color-mix(in srgb, var(--lbl-ok) 26%, var(--spd-p-bg));
+  background: color-mix(in srgb, var(--lbl-ok) 8%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
 }
 
 .lbl-banner > svg {
@@ -4276,7 +4174,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--lbl-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--lbl-primary) 10%, var(--spd-p-bg));
   color: var(--lbl-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lbl-primary) 14%, transparent);
 }
@@ -4319,7 +4217,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   gap: 1px;
   min-width: 68px;
   padding: 5px 12px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .lbl-stat-label {
@@ -4379,7 +4277,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 9px;
   border: 1px solid var(--lbl-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--lbl-text);
   font-size: var(--spd-font-size-base);
   font-family: inherit;
@@ -4388,7 +4286,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .lbl-field input::placeholder {
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 .lbl-field input:focus {
@@ -4411,7 +4309,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 12px;
   border: 1px solid var(--lbl-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--lbl-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -4438,13 +4336,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 .lbl-btn-primary {
   border-color: var(--lbl-primary);
   background: var(--lbl-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .lbl-btn-primary:hover:not(:disabled) {
-  border-color: var(--pt-primary-dark, #115e59);
-  background: var(--pt-primary-dark, #115e59);
-  color: #fff;
+  border-color: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  background: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 表格 ---------- */
@@ -4453,7 +4351,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   max-height: min(58vh, 620px);
   border: 1px solid var(--lbl-border-soft);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .lbl-table {
@@ -4468,13 +4366,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f2f8f7, #eaf2f1);
+  background: linear-gradient(180deg, var(--spd-p-text-strong), var(--spd-p-primary-bg));
 }
 
 .lbl-table th {
   padding: 9px 12px;
   border-bottom: 1px solid var(--lbl-border);
-  color: #4d6472;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   text-align: left;
@@ -4483,7 +4381,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 
 .lbl-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #eef3f2;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   color: var(--lbl-text);
   vertical-align: middle;
 }
@@ -4497,7 +4395,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .lbl-row:hover td {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 .lbl-row:has(.lbl-status.is-void) td:not(.lbl-col-no):not(.lbl-col-status) {
@@ -4599,9 +4497,10 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .lbl-print.is-zero {
-  border-color: #eef1f2;
-  background: #fafbfb;
-  color: #b3bec5;
+  border-color: var(--spd-p-bg-muted);
+  background: var(--spd-p-row-stripe);
+  /* 零值弱化文字：可读的中性灰（此前误用浅色底令牌作文字，对比度仅 1.07:1） */
+  color: var(--spd-p-text-muted);
 }
 
 /* ---------- 状态徽标 ---------- */
@@ -4627,21 +4526,21 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .lbl-status.is-pending {
-  background: color-mix(in srgb, var(--lbl-warn) 12%, #fff);
+  background: color-mix(in srgb, var(--lbl-warn) 12%, var(--spd-p-bg));
   color: var(--lbl-warn);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lbl-warn) 22%, transparent);
 }
 
 .lbl-status.is-available {
-  background: color-mix(in srgb, var(--lbl-ok) 12%, #fff);
+  background: color-mix(in srgb, var(--lbl-ok) 12%, var(--spd-p-bg));
   color: var(--lbl-ok);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--lbl-ok) 20%, transparent);
 }
 
 .lbl-status.is-void {
-  background: #f2f4f5;
-  color: #8d9aa3;
-  box-shadow: inset 0 0 0 1px #e6eaec;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 行内操作 ---------- */
@@ -4659,7 +4558,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--lbl-primary) 24%, transparent);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--lbl-primary) 7%, #fff);
+  background: color-mix(in srgb, var(--lbl-primary) 7%, var(--spd-p-bg));
   color: var(--lbl-primary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -4675,18 +4574,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 
 .lbl-act:hover {
   border-color: var(--lbl-primary);
-  background: color-mix(in srgb, var(--lbl-primary) 14%, #fff);
+  background: color-mix(in srgb, var(--lbl-primary) 14%, var(--spd-p-bg));
 }
 
 .lbl-act-danger {
   border-color: color-mix(in srgb, var(--lbl-danger) 24%, transparent);
-  background: color-mix(in srgb, var(--lbl-danger) 7%, #fff);
+  background: color-mix(in srgb, var(--lbl-danger) 7%, var(--spd-p-bg));
   color: var(--lbl-danger);
 }
 
 .lbl-act-danger:hover {
   border-color: var(--lbl-danger);
-  background: color-mix(in srgb, var(--lbl-danger) 14%, #fff);
+  background: color-mix(in srgb, var(--lbl-danger) 14%, var(--spd-p-bg));
 }
 
 .lbl-act-none {
@@ -4744,17 +4643,17 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
    核心诉求：一眼看清「发生了什么类型的事件 → 状态怎么流转 → 数量怎么动」。
    ===================================================================== */
 .evt-panel {
-  --evt-primary: var(--pt-primary, #0f766e);
-  --evt-danger: #c0352b;
-  --evt-warn: #b45309;
-  --evt-ok: #087f5b;
-  --evt-info: #1d6fa5;
-  --evt-border: color-mix(in srgb, var(--evt-primary) 13%, #e3e9e7);
-  --evt-border-soft: color-mix(in srgb, var(--evt-primary) 7%, #eef2f1);
-  --evt-head: #f4f8f7;
-  --evt-text: #17262f;
-  --evt-text-2: #5b6c78;
-  --evt-text-3: #8c9aa4;
+  --evt-primary: var(--pt-primary, var(--spd-p-primary));
+  --evt-danger: var(--spd-p-danger);
+  --evt-warn: var(--spd-p-warning-text);
+  --evt-ok: var(--spd-p-success-text);
+  --evt-info: var(--spd-p-info-text);
+  --evt-border: color-mix(in srgb, var(--evt-primary) 13%, var(--spd-p-primary-bg));
+  --evt-border-soft: color-mix(in srgb, var(--evt-primary) 7%, var(--spd-p-bg-muted));
+  --evt-head: var(--spd-p-bg-subtle);
+  --evt-text: var(--spd-p-text-strong);
+  --evt-text-2: var(--spd-p-text-muted);
+  --evt-text-3: var(--spd-p-text-muted);
 
   display: flex;
   flex-direction: column;
@@ -4762,8 +4661,8 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   min-width: 0;
   border: 1px solid var(--evt-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(23, 38, 47, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 12px 14px 14px;
 }
 
@@ -4792,7 +4691,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--evt-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--evt-primary) 10%, var(--spd-p-bg));
   color: var(--evt-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-primary) 14%, transparent);
 }
@@ -4830,7 +4729,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   gap: 1px;
   min-width: 76px;
   padding: 5px 12px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .evt-stat-label {
@@ -4880,7 +4779,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 9px;
   border: 1px solid var(--evt-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--evt-text);
   font-size: var(--spd-font-size-base);
   font-family: inherit;
@@ -4894,7 +4793,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .evt-field input::placeholder {
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 .evt-field input:focus,
@@ -4918,7 +4817,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 12px;
   border: 1px solid var(--evt-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--evt-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -4945,13 +4844,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 .evt-btn-primary {
   border-color: var(--evt-primary);
   background: var(--evt-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .evt-btn-primary:hover:not(:disabled) {
-  border-color: var(--pt-primary-dark, #115e59);
-  background: var(--pt-primary-dark, #115e59);
-  color: #fff;
+  border-color: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  background: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 表格 ---------- */
@@ -4960,7 +4859,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   max-height: min(58vh, 620px);
   border: 1px solid var(--evt-border-soft);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .evt-table {
@@ -4975,13 +4874,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f2f8f7, #eaf2f1);
+  background: linear-gradient(180deg, var(--spd-p-text-strong), var(--spd-p-primary-bg));
 }
 
 .evt-table th {
   padding: 9px 12px;
   border-bottom: 1px solid var(--evt-border);
-  color: #4d6472;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   text-align: left;
@@ -4990,7 +4889,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 
 .evt-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #eef3f2;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   color: var(--evt-text);
   vertical-align: middle;
 }
@@ -5004,7 +4903,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .evt-row:hover td {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 /* 列宽：min-width + 自动撑开 */
@@ -5085,37 +4984,37 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .evt-type.is-pack {
-  background: color-mix(in srgb, var(--evt-primary) 11%, #fff);
+  background: color-mix(in srgb, var(--evt-primary) 11%, var(--spd-p-bg));
   color: var(--evt-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-primary) 20%, transparent);
 }
 
 .evt-type.is-print {
-  background: color-mix(in srgb, #6b4fbb 11%, #fff);
-  color: #5b3fa8;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #6b4fbb 20%, transparent);
+  background: color-mix(in srgb, var(--spd-p-info) 11%, var(--spd-p-bg));
+  color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .evt-type.is-info {
-  background: color-mix(in srgb, var(--evt-info) 11%, #fff);
+  background: color-mix(in srgb, var(--evt-info) 11%, var(--spd-p-bg));
   color: var(--evt-info);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-info) 20%, transparent);
 }
 
 .evt-type.is-ok {
-  background: color-mix(in srgb, var(--evt-ok) 12%, #fff);
+  background: color-mix(in srgb, var(--evt-ok) 12%, var(--spd-p-bg));
   color: var(--evt-ok);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-ok) 20%, transparent);
 }
 
 .evt-type.is-warn {
-  background: color-mix(in srgb, var(--evt-warn) 12%, #fff);
+  background: color-mix(in srgb, var(--evt-warn) 12%, var(--spd-p-bg));
   color: var(--evt-warn);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-warn) 22%, transparent);
 }
 
 .evt-type.is-danger {
-  background: color-mix(in srgb, var(--evt-danger) 11%, #fff);
+  background: color-mix(in srgb, var(--evt-danger) 11%, var(--spd-p-bg));
   color: var(--evt-danger);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-danger) 22%, transparent);
 }
@@ -5133,7 +5032,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   height: 22px;
   padding: 0 8px;
   border-radius: 4px;
-  background: #f3f5f6;
+  background: var(--spd-p-bg-muted);
   color: var(--evt-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -5141,28 +5040,28 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .evt-flow-node.is-after {
-  background: color-mix(in srgb, var(--evt-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--evt-primary) 10%, var(--spd-p-bg));
   color: var(--evt-primary);
   font-weight: 600;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-primary) 18%, transparent);
 }
 
 .evt-flow-node.is-after.is-void {
-  background: #f2f4f5;
-  color: #8d9aa3;
-  box-shadow: inset 0 0 0 1px #e6eaec;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .evt-flow-node.is-empty {
   background: transparent;
   color: var(--evt-text-3);
   font-style: italic;
-  box-shadow: inset 0 0 0 1px #e9edee;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .evt-flow-arrow {
   flex: 0 0 auto;
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 /* ---------- 数量变化 ---------- */
@@ -5181,13 +5080,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .evt-qty.is-plus {
-  background: color-mix(in srgb, var(--evt-ok) 12%, #fff);
+  background: color-mix(in srgb, var(--evt-ok) 12%, var(--spd-p-bg));
   color: var(--evt-ok);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-ok) 20%, transparent);
 }
 
 .evt-qty.is-minus {
-  background: color-mix(in srgb, var(--evt-warn) 12%, #fff);
+  background: color-mix(in srgb, var(--evt-warn) 12%, var(--spd-p-bg));
   color: var(--evt-warn);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evt-warn) 22%, transparent);
 }
@@ -5248,15 +5147,15 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
    核心诉求：按批次核对可打包散货，突出「还有多少」「还能用多久」。
    ===================================================================== */
 .snp-panel {
-  --snp-primary: var(--pt-primary, #0f766e);
-  --snp-danger: #c0352b;
-  --snp-warn: #b45309;
-  --snp-border: color-mix(in srgb, var(--snp-primary) 13%, #e3e9e7);
-  --snp-border-soft: color-mix(in srgb, var(--snp-primary) 7%, #eef2f1);
-  --snp-head: #f4f8f7;
-  --snp-text: #17262f;
-  --snp-text-2: #5b6c78;
-  --snp-text-3: #8c9aa4;
+  --snp-primary: var(--pt-primary, var(--spd-p-primary));
+  --snp-danger: var(--spd-p-danger);
+  --snp-warn: var(--spd-p-warning-text);
+  --snp-border: color-mix(in srgb, var(--snp-primary) 13%, var(--spd-p-primary-bg));
+  --snp-border-soft: color-mix(in srgb, var(--snp-primary) 7%, var(--spd-p-bg-muted));
+  --snp-head: var(--spd-p-bg-subtle);
+  --snp-text: var(--spd-p-text-strong);
+  --snp-text-2: var(--spd-p-text-muted);
+  --snp-text-3: var(--spd-p-text-muted);
 
   display: flex;
   flex-direction: column;
@@ -5264,8 +5163,8 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   min-width: 0;
   border: 1px solid var(--snp-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(23, 38, 47, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 12px 14px 14px;
 }
 
@@ -5294,7 +5193,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--snp-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--snp-primary) 10%, var(--spd-p-bg));
   color: var(--snp-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--snp-primary) 14%, transparent);
 }
@@ -5332,7 +5231,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   gap: 1px;
   min-width: 78px;
   padding: 5px 12px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .snp-stat-label {
@@ -5382,7 +5281,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 9px;
   border: 1px solid var(--snp-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--snp-text);
   font-size: var(--spd-font-size-base);
   font-family: inherit;
@@ -5392,7 +5291,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .snp-field input::placeholder {
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 .snp-field input:focus {
@@ -5415,7 +5314,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 0 12px;
   border: 1px solid var(--snp-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--snp-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -5447,13 +5346,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 .snp-btn-primary {
   border-color: var(--snp-primary);
   background: var(--snp-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .snp-btn-primary:hover:not(:disabled) {
-  border-color: var(--pt-primary-dark, #115e59);
-  background: var(--pt-primary-dark, #115e59);
-  color: #fff;
+  border-color: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  background: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 显示列面板 ---------- */
@@ -5469,7 +5368,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   height: 17px;
   padding: 0 5px;
   border-radius: 9px;
-  background: color-mix(in srgb, var(--snp-primary) 12%, #fff);
+  background: color-mix(in srgb, var(--snp-primary) 12%, var(--spd-p-bg));
   color: var(--snp-primary);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
@@ -5488,8 +5387,8 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   padding: 8px;
   border: 1px solid var(--snp-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(23, 38, 47, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .snp-columns-item {
@@ -5528,7 +5427,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   max-height: min(58vh, 620px);
   border: 1px solid var(--snp-border-soft);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .snp-table {
@@ -5543,13 +5442,13 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f2f8f7, #eaf2f1);
+  background: linear-gradient(180deg, var(--spd-p-text-strong), var(--spd-p-primary-bg));
 }
 
 .snp-table th {
   padding: 9px 12px;
   border-bottom: 1px solid var(--snp-border);
-  color: #4d6472;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   text-align: left;
@@ -5558,7 +5457,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 
 .snp-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #eef3f2;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   color: var(--snp-text);
   vertical-align: middle;
 }
@@ -5572,7 +5471,7 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
 }
 
 .snp-row:hover td {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 /* 列对齐与宽度：min-width + 自动撑开 */
@@ -5653,25 +5552,25 @@ th.snp-col-num {
 }
 
 .snp-expire.is-normal {
-  background: #f3f5f6;
+  background: var(--spd-p-bg-muted);
   color: var(--snp-text-2);
 }
 
 .snp-expire.is-warning {
-  background: color-mix(in srgb, var(--snp-warn) 10%, #fff);
+  background: color-mix(in srgb, var(--snp-warn) 10%, var(--spd-p-bg));
   color: var(--snp-warn);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--snp-warn) 20%, transparent);
 }
 
 .snp-expire.is-critical {
-  background: color-mix(in srgb, #c2410c 12%, #fff);
-  color: #c2410c;
+  background: color-mix(in srgb, var(--spd-p-warning-strong) 12%, var(--spd-p-bg));
+  color: var(--spd-p-warning-strong);
   font-weight: 600;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #c2410c 24%, transparent);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .snp-expire.is-expired {
-  background: color-mix(in srgb, var(--snp-danger) 12%, #fff);
+  background: color-mix(in srgb, var(--snp-danger) 12%, var(--spd-p-bg));
   color: var(--snp-danger);
   font-weight: 600;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--snp-danger) 26%, transparent);
@@ -5680,7 +5579,7 @@ th.snp-col-num {
 .snp-expire.is-unknown {
   background: transparent;
   color: var(--snp-text-3);
-  box-shadow: inset 0 0 0 1px #e9edee;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 空状态 ---------- */
@@ -5741,14 +5640,14 @@ th.snp-col-num {
    「哪个模板、多少数量、是否启用、什么版本」。
    ===================================================================== */
 .tpl-card {
-  --tpl-primary: var(--pt-primary, #0f766e);
-  --tpl-danger: #c0352b;
-  --tpl-border: color-mix(in srgb, var(--tpl-primary) 13%, #e3e9e7);
-  --tpl-border-soft: color-mix(in srgb, var(--tpl-primary) 7%, #eef2f1);
-  --tpl-head: #f4f8f7;
-  --tpl-text: #17262f;
-  --tpl-text-2: #5b6c78;
-  --tpl-text-3: #8c9aa4;
+  --tpl-primary: var(--pt-primary, var(--spd-p-primary));
+  --tpl-danger: var(--spd-p-danger);
+  --tpl-border: color-mix(in srgb, var(--tpl-primary) 13%, var(--spd-p-primary-bg));
+  --tpl-border-soft: color-mix(in srgb, var(--tpl-primary) 7%, var(--spd-p-bg-muted));
+  --tpl-head: var(--spd-p-bg-subtle);
+  --tpl-text: var(--spd-p-text-strong);
+  --tpl-text-2: var(--spd-p-text-muted);
+  --tpl-text-3: var(--spd-p-text-muted);
 
   display: flex;
   flex-direction: column;
@@ -5756,8 +5655,8 @@ th.snp-col-num {
   min-width: 0;
   border: 1px solid var(--tpl-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(23, 38, 47, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 12px 14px 14px;
 }
 
@@ -5767,10 +5666,10 @@ th.snp-col-num {
   align-items: center;
   gap: 7px;
   padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--tpl-primary) 26%, #fff);
+  border: 1px solid color-mix(in srgb, var(--tpl-primary) 26%, var(--spd-p-bg));
   border-radius: 6px;
-  background: color-mix(in srgb, var(--tpl-primary) 8%, #fff);
-  color: #076c4e;
+  background: color-mix(in srgb, var(--tpl-primary) 8%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
@@ -5810,7 +5709,7 @@ th.snp-col-num {
   padding: 0 9px;
   border: 1px solid var(--tpl-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--tpl-text);
   font-size: var(--spd-font-size-base);
   font-family: inherit;
@@ -5820,7 +5719,7 @@ th.snp-col-num {
 }
 
 .tpl-field input::placeholder {
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 .tpl-field input:focus {
@@ -5844,7 +5743,7 @@ th.snp-col-num {
   padding: 0 12px;
   border: 1px solid var(--tpl-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--tpl-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -5876,24 +5775,24 @@ th.snp-col-num {
 .tpl-btn-primary {
   border-color: var(--tpl-primary);
   background: var(--tpl-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .tpl-btn-primary:hover:not(:disabled) {
-  border-color: var(--pt-primary-dark, #115e59);
-  background: var(--pt-primary-dark, #115e59);
-  color: #fff;
+  border-color: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  background: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 .tpl-btn-danger {
-  border-color: color-mix(in srgb, var(--tpl-danger) 28%, #fff);
-  background: color-mix(in srgb, var(--tpl-danger) 7%, #fff);
+  border-color: color-mix(in srgb, var(--tpl-danger) 28%, var(--spd-p-bg));
+  background: color-mix(in srgb, var(--tpl-danger) 7%, var(--spd-p-bg));
   color: var(--tpl-danger);
 }
 
 .tpl-btn-danger:hover:not(:disabled) {
   border-color: var(--tpl-danger);
-  background: color-mix(in srgb, var(--tpl-danger) 14%, #fff);
+  background: color-mix(in srgb, var(--tpl-danger) 14%, var(--spd-p-bg));
   color: var(--tpl-danger);
 }
 
@@ -5933,8 +5832,8 @@ th.snp-col-num {
 }
 
 .tpl-chip.is-primary {
-  border-color: color-mix(in srgb, var(--tpl-primary) 26%, #fff);
-  background: color-mix(in srgb, var(--tpl-primary) 10%, #fff);
+  border-color: color-mix(in srgb, var(--tpl-primary) 26%, var(--spd-p-bg));
+  background: color-mix(in srgb, var(--tpl-primary) 10%, var(--spd-p-bg));
   color: var(--tpl-primary);
 }
 
@@ -5954,8 +5853,8 @@ th.snp-col-num {
   padding: 6px;
   border: 1px solid var(--tpl-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(23, 38, 47, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .tpl-import-menu button {
@@ -5994,7 +5893,7 @@ th.snp-col-num {
   max-height: min(58vh, 620px);
   border: 1px solid var(--tpl-border-soft);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .tpl-table {
@@ -6009,13 +5908,13 @@ th.snp-col-num {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f2f8f7, #eaf2f1);
+  background: linear-gradient(180deg, var(--spd-p-text-strong), var(--spd-p-primary-bg));
 }
 
 .tpl-table th {
   padding: 9px 12px;
   border-bottom: 1px solid var(--tpl-border);
-  color: #4d6472;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   text-align: left;
@@ -6024,7 +5923,7 @@ th.snp-col-num {
 
 .tpl-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #eef3f2;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   color: var(--tpl-text);
   vertical-align: middle;
 }
@@ -6038,31 +5937,31 @@ th.snp-col-num {
 }
 
 .tpl-row:hover td {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 /* sticky 列必须显式给背景（tr 本身无背景），否则横向滚动时下方内容会透出 */
 .tpl-row:hover td.tpl-col-select,
 .tpl-row:hover td.tpl-col-actions {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 .tpl-row.is-selected td {
-  background: color-mix(in srgb, var(--tpl-primary) 7%, #fff);
+  background: color-mix(in srgb, var(--tpl-primary) 7%, var(--spd-p-bg));
 }
 
 .tpl-row.is-selected td.tpl-col-select,
 .tpl-row.is-selected td.tpl-col-actions {
-  background: color-mix(in srgb, var(--tpl-primary) 7%, #fff);
+  background: color-mix(in srgb, var(--tpl-primary) 7%, var(--spd-p-bg));
 }
 
 .tpl-row.is-selected:hover td {
-  background: color-mix(in srgb, var(--tpl-primary) 11%, #fff);
+  background: color-mix(in srgb, var(--tpl-primary) 11%, var(--spd-p-bg));
 }
 
 .tpl-row.is-selected:hover td.tpl-col-select,
 .tpl-row.is-selected:hover td.tpl-col-actions {
-  background: color-mix(in srgb, var(--tpl-primary) 11%, #fff);
+  background: color-mix(in srgb, var(--tpl-primary) 11%, var(--spd-p-bg));
 }
 
 /* 勾选列：固定在左侧，横向滚动时始终可见 */
@@ -6072,12 +5971,12 @@ th.snp-col-num {
   z-index: 1;
   min-width: 44px;
   text-align: center;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .tpl-table thead .tpl-col-select {
   z-index: 4;
-  background: #eaf2f1;
+  background: var(--spd-p-primary-bg);
 }
 
 .tpl-col-select input {
@@ -6094,13 +5993,13 @@ th.snp-col-num {
   right: 0;
   z-index: 1;
   min-width: 208px;
-  background: #fff;
+  background: var(--spd-p-bg);
   box-shadow: -1px 0 0 var(--tpl-border-soft);
 }
 
 .tpl-table thead .tpl-col-actions {
   z-index: 4;
-  background: #eaf2f1;
+  background: var(--spd-p-primary-bg);
 }
 
 /* 其余列宽：min-width + 自动撑开 */
@@ -6199,15 +6098,15 @@ th.snp-col-num {
 }
 
 .tpl-status.is-enabled {
-  background: color-mix(in srgb, #087f5b 12%, #fff);
-  color: #087f5b;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #087f5b 20%, transparent);
+  background: color-mix(in srgb, var(--spd-p-success-text) 12%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .tpl-status.is-disabled {
-  background: #f2f4f5;
-  color: #8d9aa3;
-  box-shadow: inset 0 0 0 1px #e6eaec;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 行内操作 */
@@ -6225,7 +6124,7 @@ th.snp-col-num {
   padding: 0 9px;
   border: 1px solid var(--tpl-border-soft);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--tpl-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -6241,25 +6140,25 @@ th.snp-col-num {
 
 .tpl-act:hover {
   border-color: color-mix(in srgb, var(--tpl-primary) 45%, var(--tpl-border));
-  background: color-mix(in srgb, var(--tpl-primary) 8%, #fff);
+  background: color-mix(in srgb, var(--tpl-primary) 8%, var(--spd-p-bg));
   color: var(--tpl-primary);
 }
 
 .tpl-act-primary {
-  border-color: color-mix(in srgb, var(--tpl-primary) 26%, #fff);
-  background: color-mix(in srgb, var(--tpl-primary) 9%, #fff);
+  border-color: color-mix(in srgb, var(--tpl-primary) 26%, var(--spd-p-bg));
+  background: color-mix(in srgb, var(--tpl-primary) 9%, var(--spd-p-bg));
   color: var(--tpl-primary);
 }
 
 .tpl-act-danger {
   border-color: color-mix(in srgb, var(--tpl-danger) 24%, transparent);
-  background: color-mix(in srgb, var(--tpl-danger) 7%, #fff);
+  background: color-mix(in srgb, var(--tpl-danger) 7%, var(--spd-p-bg));
   color: var(--tpl-danger);
 }
 
 .tpl-act-danger:hover {
   border-color: var(--tpl-danger);
-  background: color-mix(in srgb, var(--tpl-danger) 14%, #fff);
+  background: color-mix(in srgb, var(--tpl-danger) 14%, var(--spd-p-bg));
   color: var(--tpl-danger);
 }
 
@@ -6304,13 +6203,13 @@ th.snp-col-num {
    核心诉求：安全量决定补货触发，重点是「区间是否合理、是否启用」。
    ===================================================================== */
 .saf-card {
-  --saf-primary: var(--pt-primary, #0f766e);
-  --saf-border: color-mix(in srgb, var(--saf-primary) 13%, #e3e9e7);
-  --saf-border-soft: color-mix(in srgb, var(--saf-primary) 7%, #eef2f1);
-  --saf-head: #f4f8f7;
-  --saf-text: #17262f;
-  --saf-text-2: #5b6c78;
-  --saf-text-3: #8c9aa4;
+  --saf-primary: var(--pt-primary, var(--spd-p-primary));
+  --saf-border: color-mix(in srgb, var(--saf-primary) 13%, var(--spd-p-primary-bg));
+  --saf-border-soft: color-mix(in srgb, var(--saf-primary) 7%, var(--spd-p-bg-muted));
+  --saf-head: var(--spd-p-bg-subtle);
+  --saf-text: var(--spd-p-text-strong);
+  --saf-text-2: var(--spd-p-text-muted);
+  --saf-text-3: var(--spd-p-text-muted);
 
   display: flex;
   flex-direction: column;
@@ -6318,8 +6217,8 @@ th.snp-col-num {
   min-width: 0;
   border: 1px solid var(--saf-border);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(23, 38, 47, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 12px 14px 14px;
 }
 
@@ -6329,10 +6228,10 @@ th.snp-col-num {
   align-items: center;
   gap: 7px;
   padding: 8px 12px;
-  border: 1px solid color-mix(in srgb, var(--saf-primary) 26%, #fff);
+  border: 1px solid color-mix(in srgb, var(--saf-primary) 26%, var(--spd-p-bg));
   border-radius: 6px;
-  background: color-mix(in srgb, var(--saf-primary) 8%, #fff);
-  color: #076c4e;
+  background: color-mix(in srgb, var(--saf-primary) 8%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
@@ -6366,7 +6265,7 @@ th.snp-col-num {
   width: 34px;
   height: 34px;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--saf-primary) 10%, #fff);
+  background: color-mix(in srgb, var(--saf-primary) 10%, var(--spd-p-bg));
   color: var(--saf-primary);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--saf-primary) 14%, transparent);
 }
@@ -6443,7 +6342,7 @@ th.snp-col-num {
   padding: 0 9px;
   border: 1px solid var(--saf-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--saf-text);
   font-size: var(--spd-font-size-base);
   font-family: inherit;
@@ -6453,7 +6352,7 @@ th.snp-col-num {
 }
 
 .saf-field input::placeholder {
-  color: #a9b6bf;
+  color: var(--spd-p-text-secondary);
 }
 
 .saf-field input:focus {
@@ -6477,7 +6376,7 @@ th.snp-col-num {
   padding: 0 12px;
   border: 1px solid var(--saf-border);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--saf-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -6509,13 +6408,13 @@ th.snp-col-num {
 .saf-btn-primary {
   border-color: var(--saf-primary);
   background: var(--saf-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .saf-btn-primary:hover:not(:disabled) {
-  border-color: var(--pt-primary-dark, #115e59);
-  background: var(--pt-primary-dark, #115e59);
-  color: #fff;
+  border-color: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  background: var(--pt-primary-dark, var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 导入模板菜单 ---------- */
@@ -6534,8 +6433,8 @@ th.snp-col-num {
   padding: 6px;
   border: 1px solid var(--saf-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(23, 38, 47, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .saf-import-menu button {
@@ -6574,7 +6473,7 @@ th.snp-col-num {
   max-height: min(58vh, 620px);
   border: 1px solid var(--saf-border-soft);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .saf-table {
@@ -6589,13 +6488,13 @@ th.snp-col-num {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f2f8f7, #eaf2f1);
+  background: linear-gradient(180deg, var(--spd-p-text-strong), var(--spd-p-primary-bg));
 }
 
 .saf-table th {
   padding: 9px 12px;
   border-bottom: 1px solid var(--saf-border);
-  color: #4d6472;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   text-align: left;
@@ -6604,7 +6503,7 @@ th.snp-col-num {
 
 .saf-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #eef3f2;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   color: var(--saf-text);
   vertical-align: middle;
 }
@@ -6618,12 +6517,12 @@ th.snp-col-num {
 }
 
 .saf-row:hover td {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 /* sticky 列必须显式给背景（tr 本身无背景），否则横向滚动时下方内容会透出 */
 .saf-row:hover td.saf-col-actions {
-  background: #f7fbfa;
+  background: var(--spd-p-bg-page);
 }
 
 /* 操作列：固定在右侧 */
@@ -6632,13 +6531,13 @@ th.snp-col-num {
   right: 0;
   z-index: 1;
   min-width: 92px;
-  background: #fff;
+  background: var(--spd-p-bg);
   box-shadow: -1px 0 0 var(--saf-border-soft);
 }
 
 .saf-table thead .saf-col-actions {
   z-index: 4;
-  background: #eaf2f1;
+  background: var(--spd-p-primary-bg);
 }
 
 /* 列宽：min-width + 自动撑开 */
@@ -6720,7 +6619,7 @@ th.snp-col-num {
   min-width: 54px;
   height: 6px;
   border-radius: 3px;
-  background: #eef2f1;
+  background: var(--spd-p-bg-muted);
   overflow: hidden;
 }
 
@@ -6728,7 +6627,7 @@ th.snp-col-num {
   display: block;
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, var(--saf-primary), color-mix(in srgb, var(--saf-primary) 55%, #14b8a6));
+  background: linear-gradient(90deg, var(--saf-primary), color-mix(in srgb, var(--saf-primary) 55%, var(--spd-p-primary)));
 }
 
 .saf-range-text {
@@ -6762,15 +6661,15 @@ th.snp-col-num {
 }
 
 .saf-status.is-enabled {
-  background: color-mix(in srgb, #087f5b 12%, #fff);
-  color: #087f5b;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #087f5b 20%, transparent);
+  background: color-mix(in srgb, var(--spd-p-success-text) 12%, var(--spd-p-bg));
+  color: var(--spd-p-success-text);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .saf-status.is-disabled {
-  background: #f2f4f5;
-  color: #8d9aa3;
-  box-shadow: inset 0 0 0 1px #e6eaec;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 行内操作 */
@@ -6788,7 +6687,7 @@ th.snp-col-num {
   padding: 0 9px;
   border: 1px solid var(--saf-border-soft);
   border-radius: 5px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--saf-text-2);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
@@ -6804,7 +6703,7 @@ th.snp-col-num {
 
 .saf-act:hover {
   border-color: color-mix(in srgb, var(--saf-primary) 45%, var(--saf-border));
-  background: color-mix(in srgb, var(--saf-primary) 8%, #fff);
+  background: color-mix(in srgb, var(--saf-primary) 8%, var(--spd-p-bg));
   color: var(--saf-primary);
 }
 
@@ -6850,10 +6749,10 @@ th.snp-col-num {
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -6863,8 +6762,8 @@ th.snp-col-num {
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 .qtd-dialog-title {
@@ -6887,14 +6786,14 @@ th.snp-col-num {
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .qtd-dialog-tag {
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(34, 197, 94, 0.3);
-  color: #dcfce7;
+  background: color-mix(in srgb, var(--spd-p-success) 30%, transparent);
+  color: var(--spd-p-primary-bg);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
@@ -6912,8 +6811,8 @@ th.snp-col-num {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px 18px;
   padding: 20px 24px 12px;
-  background: #f5f8fa;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border);
   overflow-y: auto;
 }
 
@@ -6929,7 +6828,7 @@ th.snp-col-num {
   flex-direction: column;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 600;
 }
 
@@ -6941,23 +6840,23 @@ th.snp-col-num {
 .qtd-field select {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .qtd-field input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qtd-field input[readonly] {
-  background: #f0f3f5;
-  color: #6b7c8f;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   cursor: not-allowed;
 }
 
@@ -6975,10 +6874,10 @@ th.snp-col-num {
 .qtd-error {
   margin: 10px 24px 0;
   padding: 8px 12px;
-  background: rgba(220, 38, 38, 0.08);
-  border: 1px solid rgba(220, 38, 38, 0.2);
+  background: color-mix(in srgb, var(--spd-p-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-danger) 20%, transparent);
   border-radius: 6px;
-  color: #dc2626;
+  color: var(--spd-p-danger);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -6987,8 +6886,8 @@ th.snp-col-num {
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 24px 18px;
-  background: #f5f8fa;
-  border-top: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-top: 1px solid var(--spd-p-border);
 }
 
 /* ============================================================
@@ -7018,37 +6917,37 @@ th.snp-col-num {
 }
 
 .qtd-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .qtd-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qtd-btn-secondary {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(13, 148, 136, 0.1));
-  color: #0d9488; border-color: rgba(20, 184, 166, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 10%, transparent), color-mix(in srgb, var(--spd-p-success-text) 10%, transparent));
+  color: var(--spd-p-primary-hover); border-color: color-mix(in srgb, var(--spd-p-primary) 20%, transparent);
 }
 .qtd-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
-  color: #fff; box-shadow: 0 4px 10px -4px rgba(20, 184, 166, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg); box-shadow: var(--spd-p-shadow-2);
 }
 
 .qtd-btn-info {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(14, 165, 233, 0.1));
-  color: #0891b2; border-color: rgba(6, 182, 212, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-success-text) 10%, transparent), color-mix(in srgb, var(--spd-p-info) 10%, transparent));
+  color: var(--spd-p-primary-hover); border-color: color-mix(in srgb, var(--spd-p-success-text) 20%, transparent);
 }
 .qtd-btn-info:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
-  color: #fff; box-shadow: 0 4px 10px -4px rgba(6, 182, 212, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-info));
+  color: var(--spd-p-bg); box-shadow: var(--spd-p-shadow-2);
 }
 
 .qtd-btn-ghost {
   width: 32px; min-height: 32px; padding: 0; justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff; border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg); border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
-.qtd-btn-ghost:hover { background: rgba(255, 255, 255, 0.3); }
+.qtd-btn-ghost:hover { background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent); }
 </style>

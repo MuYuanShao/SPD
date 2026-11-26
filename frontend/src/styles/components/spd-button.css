@@ -1,0 +1,372 @@
+/* =====================================================================
+ * SpdButton · 通用按钮样式（唯一视觉来源）
+ * ---------------------------------------------------------------------
+ * 产品要求（硬约束）：
+ *   1. **相同文本的按钮必须像素级一致** —— 颜色 / 变体 / 尺寸全部由
+ *      config/buttonStyle.ts 的注册表按 label 确定性推导；
+ *   2. **按钮大小必须一致** —— 高度、内边距、边框宽度、圆角全部取自
+ *      styles/tokens/palette.css 的「控件几何」一节，
+ *      solid / ghost / text / link 四种变体与 icon-only 全部同高；
+ *   3. **颜色统一** —— 全部取自 styles/tokens/palette.css，
+ *      三套配色方案（标准白 / 静墨宣纸 / 暗夜黑）自动适配；
+ *   4. **字号统一** —— 由 styles/components/button-typography.css 的
+ *      L1 / L2 层级决定，本文件不再写任何 px 字号。
+ *
+ * 引入位置：styles/main.css 中**排在 components/button-typography.css 之后**，
+ *   以便压过各业务页 scoped 样式里分散的字号覆盖。
+ * ===================================================================== */
+
+/* =====================================================================
+ * 1. 结构与尺寸（几何全部来自 palette.css）
+ * ===================================================================== */
+.spd-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spd-p-control-gap);
+  box-sizing: border-box;
+  /* 关键：height 锁死（不是 min-height），保证任何变体/语义色都同高 */
+  height: var(--spd-p-control-height);
+  min-height: var(--spd-p-control-height);
+  min-width: var(--spd-p-btn-min-width, 0);
+  padding: 0 var(--spd-p-control-padding-x);
+  border: var(--spd-p-control-border-width) solid transparent;
+  border-radius: var(--spd-p-control-radius);
+  background: transparent;
+  font-family: inherit;
+  font-weight: var(--spd-p-btn-font-weight);
+  line-height: 1;
+  text-align: center;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  vertical-align: middle;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    opacity 0.15s ease,
+    transform 0.05s ease;
+}
+
+/* L1 层级：实心 / 描边按钮与正文同档（14 / 16 / 18px） */
+.spd-btn {
+  font-size: var(--spd-button-font-size, var(--spd-font-size-base));
+}
+
+/* L2 层级：纯文字 / 链接型按钮弱一档（13 / 15 / 17px） */
+.spd-btn--variant-text,
+.spd-btn--variant-link {
+  font-size: var(--spd-button-font-size-compact, var(--spd-font-size-sm));
+}
+
+/* size 变体：几何与 default 完全一致（用户要求「按钮大小必须一致」），
+   仅保留类名以便调用方表达意图（以及未来若真需要紧凑档时集中调整）。 */
+.spd-btn--size-small {
+  height: var(--spd-p-control-height-sm);
+  min-height: var(--spd-p-control-height-sm);
+  padding: 0 var(--spd-p-control-padding-x-sm);
+  gap: var(--spd-p-control-gap-sm);
+}
+
+.spd-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+/* 图标按钮（纯图标，无文字）：与实心按钮同高的正方形 */
+.spd-btn--icon-only {
+  width: var(--spd-p-btn-icon-size);
+  min-width: var(--spd-p-btn-icon-size);
+  padding: 0;
+}
+
+/* 加载中 */
+.spd-btn.is-loading {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.spd-btn.is-loading .spd-btn__label {
+  opacity: 0.9;
+}
+
+/* 禁用 */
+.spd-btn:disabled,
+.spd-btn.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+  transform: none;
+}
+
+/* 焦点可见：统一取主色焦点环 */
+.spd-btn:focus-visible {
+  outline: var(--spd-p-focus-width) solid var(--spd-p-focus);
+  outline-offset: var(--spd-p-focus-offset);
+}
+
+/* 图标与文字的排布 */
+.spd-btn__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.spd-btn__label {
+  display: inline-block;
+  min-width: 0;
+}
+
+/* =====================================================================
+ * 2. 语义色调（tone）· solid 变体
+ * ---------------------------------------------------------------------
+ * 默认形态（variant="solid"）采用与 .ulc-action 同一套「状态条」规格：
+ *   1px 边框 + 0.4 透明度底色 + 深色文字。
+ * hover / active 底色由 palette.css 用 color-mix() 与**表面令牌**混合，
+ * 因此标准白 / 静墨宣纸 / 暗夜黑三套方案自动适配，无需额外覆写。
+ * ===================================================================== */
+
+/* ---- primary（主操作） ---- */
+.spd-btn--tone-primary {
+  border-color: var(--spd-p-btn-primary-border);
+  background: var(--spd-p-btn-primary-bg);
+  color: var(--spd-p-btn-primary-text);
+}
+
+.spd-btn--tone-primary:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-primary-hover-bg);
+  border-color: var(--spd-p-btn-primary-border);
+}
+
+.spd-btn--tone-primary:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-primary-active-bg);
+}
+
+/* ---- success（通过 / 启用 / 保存） ---- */
+.spd-btn--tone-success {
+  border-color: var(--spd-p-btn-success-border);
+  background: var(--spd-p-btn-success-bg);
+  color: var(--spd-p-btn-success-text);
+}
+
+.spd-btn--tone-success:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-success-hover-bg);
+}
+
+.spd-btn--tone-success:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-success-active-bg);
+}
+
+/* ---- danger（删除 / 停用 / 驳回） ---- */
+.spd-btn--tone-danger {
+  border-color: var(--spd-p-btn-danger-border);
+  background: var(--spd-p-btn-danger-bg);
+  color: var(--spd-p-btn-danger-text);
+}
+
+.spd-btn--tone-danger:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-danger-hover-bg);
+}
+
+.spd-btn--tone-danger:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-danger-active-bg);
+}
+
+/* ---- warning（提醒 / 预警 / 待处理） ---- */
+.spd-btn--tone-warning {
+  border-color: var(--spd-p-btn-warning-border);
+  background: var(--spd-p-btn-warning-bg);
+  color: var(--spd-p-btn-warning-text);
+}
+
+.spd-btn--tone-warning:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-warning-hover-bg);
+}
+
+.spd-btn--tone-warning:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-warning-active-bg);
+}
+
+/* ---- info（查看 / 详情） ---- */
+.spd-btn--tone-info {
+  border-color: var(--spd-p-btn-info-border);
+  background: var(--spd-p-btn-info-bg);
+  color: var(--spd-p-btn-info-text);
+}
+
+.spd-btn--tone-info:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-info-hover-bg);
+}
+
+.spd-btn--tone-info:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-info-active-bg);
+}
+
+/* ---- neutral（取消 / 关闭 / 导出） ---- */
+.spd-btn--tone-neutral {
+  border-color: var(--spd-p-btn-neutral-border);
+  background: var(--spd-p-btn-neutral-bg);
+  color: var(--spd-p-btn-neutral-text);
+}
+
+.spd-btn--tone-neutral:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-neutral-hover-bg);
+}
+
+.spd-btn--tone-neutral:active:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-neutral-active-bg);
+}
+
+/* =====================================================================
+ * 3. 变体（variant）
+ * ---------------------------------------------------------------------
+ * solid  = 默认，浅底 + 边框 + 深色文字（与行内操作按钮同一规格）
+ * ghost  = 透明底 + 有色边框 + 有色文字
+ * text   = 纯文字，无背景无边框
+ * link   = 下划线链接样式
+ *
+ * 四种变体**高度完全一致**（都取 --spd-p-control-height），
+ * 只是 padding / 背景 / 边框不同。
+ * ===================================================================== */
+
+/* ---- ghost ---- */
+.spd-btn--variant-ghost {
+  background: var(--spd-p-btn-primary-ghost-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-primary {
+  border-color: var(--spd-p-btn-primary-ghost-border);
+  background: var(--spd-p-btn-primary-ghost-bg);
+  color: var(--spd-p-btn-primary-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-success {
+  border-color: var(--spd-p-btn-success-ghost-border);
+  background: var(--spd-p-btn-success-ghost-bg);
+  color: var(--spd-p-btn-success-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-danger {
+  border-color: var(--spd-p-btn-danger-ghost-border);
+  background: var(--spd-p-btn-danger-ghost-bg);
+  color: var(--spd-p-btn-danger-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-warning {
+  border-color: var(--spd-p-btn-warning-ghost-border);
+  background: var(--spd-p-btn-warning-ghost-bg);
+  color: var(--spd-p-btn-warning-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-info {
+  border-color: var(--spd-p-btn-info-ghost-border);
+  background: var(--spd-p-btn-info-ghost-bg);
+  color: var(--spd-p-btn-info-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-neutral {
+  border-color: var(--spd-p-btn-neutral-ghost-border);
+  background: var(--spd-p-btn-neutral-ghost-bg);
+  color: var(--spd-p-btn-neutral-ghost-text);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-primary:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-primary-ghost-hover-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-success:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-success-ghost-hover-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-danger:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-danger-ghost-hover-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-warning:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-warning-ghost-hover-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-info:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-info-ghost-hover-bg);
+}
+
+.spd-btn--variant-ghost.spd-btn--tone-neutral:hover:not(:disabled):not(.is-loading) {
+  background: var(--spd-p-btn-neutral-ghost-hover-bg);
+}
+
+/* ---- text（纯文字） ---- */
+.spd-btn--variant-text {
+  border-color: transparent;
+  background: transparent;
+  font-weight: var(--spd-p-btn-font-weight);
+}
+
+.spd-btn--variant-text.spd-btn--tone-primary { color: var(--spd-p-btn-primary-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-success { color: var(--spd-p-btn-success-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-danger { color: var(--spd-p-btn-danger-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-warning { color: var(--spd-p-btn-warning-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-info { color: var(--spd-p-btn-info-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-neutral { color: var(--spd-p-btn-neutral-text-variant-text); }
+
+.spd-btn--variant-text:hover:not(:disabled):not(.is-loading) {
+  background: transparent;
+  opacity: 0.78;
+}
+
+/* ---- link（下划线链接） ---- */
+.spd-btn--variant-link {
+  display: inline-flex;
+  border-color: transparent;
+  background: transparent;
+  border-radius: var(--spd-p-control-radius);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.spd-btn--variant-link.spd-btn--tone-primary { color: var(--spd-p-btn-primary-link-text); }
+.spd-btn--variant-link.spd-btn--tone-success { color: var(--spd-p-btn-success-link-text); }
+.spd-btn--variant-link.spd-btn--tone-danger { color: var(--spd-p-btn-danger-link-text); }
+.spd-btn--variant-link.spd-btn--tone-warning { color: var(--spd-p-btn-warning-link-text); }
+.spd-btn--variant-link.spd-btn--tone-info { color: var(--spd-p-btn-info-link-text); }
+.spd-btn--variant-link.spd-btn--tone-neutral { color: var(--spd-p-btn-neutral-link-text); }
+
+.spd-btn--variant-link:hover:not(:disabled):not(.is-loading) {
+  background: transparent;
+  opacity: 0.78;
+}
+
+/* =====================================================================
+ * 4. 加载指示器
+ * ===================================================================== */
+.spd-btn__spinner {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spd-btn-spin 0.6s linear infinite;
+}
+
+@keyframes spd-btn-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spd-btn__spinner {
+    animation-duration: 1.4s;
+  }
+}
+
+/* =====================================================================
+ * 5. 主题适配
+ * ---------------------------------------------------------------------
+ * 标准白 / 静墨宣纸 / 暗夜黑 三套方案各自重定义了 --spd-c-* 令牌，
+ * 而本文件的颜色全部取自 palette.css（由 --spd-c-* 派生），
+ * 因此**自动跟随**，此处不再写任何 scheme 专属覆盖，
+ * 也不再出现 `var(--spd-p-bg)` 硬混合（那会在暗夜黑下产生亮斑）。
+ * ===================================================================== */

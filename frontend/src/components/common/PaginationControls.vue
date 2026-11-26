@@ -91,28 +91,22 @@ function submitJump() {
         <input v-model="sizeInput" type="number" aria-label="每页条数" min="1" :max="maxPageSize" :disabled="loading" @blur="submitSize" />
         条
       </form>
-      <button class="btn btn-sm" type="button" :disabled="page <= 1 || loading" @click="changePage(page - 1)">
-        上一页
-      </button>
-      <button
-        v-for="visiblePage in visiblePages"
+      <SpdButton label="上一页" :disabled="page <= 1 || loading" @click="changePage(page - 1)"></SpdButton>
+      <SpdButton tone="primary" size="small" v-for="visiblePage in visiblePages"
         :key="visiblePage"
-        class="btn btn-sm"
+       
         :class="{ 'btn-primary': visiblePage === page }"
-        type="button"
+       
         :disabled="loading"
-        @click="changePage(visiblePage)"
-      >
-        {{ visiblePage }}
-      </button>
-      <button class="btn btn-sm" type="button" :disabled="page >= totalPages || loading" @click="changePage(page + 1)">
-        下一页
-      </button>
+        @click="changePage(visiblePage)">
+          {{ visiblePage }}
+        </SpdButton>
+      <SpdButton label="下一页" :disabled="page >= totalPages || loading" @click="changePage(page + 1)"></SpdButton>
       <form class="hospital-page-jump" @submit.prevent="submitJump">
         <span>跳至</span>
         <input v-model="jumpInput" type="number" min="1" :max="totalPages" :disabled="loading" />
         <span>页</span>
-        <button class="btn btn-sm" type="submit" :disabled="loading">跳转</button>
+        <SpdButton label="跳转" tone="primary" size="small" type="submit" :disabled="loading"></SpdButton>
       </form>
     </div>
   </footer>

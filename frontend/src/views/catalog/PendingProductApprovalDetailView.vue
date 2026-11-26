@@ -15,6 +15,7 @@ import {
 import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import type { PartnerOption } from '../../api/masterData'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -78,6 +79,20 @@ const currentApprovalNode = computed(() =>
 )
 
 const approveButtonText = computed(() => `${currentApprovalNode.value}通过`)
+
+/**
+ * 审批状态 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 待审批（pending_initial / pending_final / pending_step_N / routing）→ warning；
+ * 审批通过 → success；驳回 → danger；退回修改 → neutral。
+ */
+const approvalStatusChipTone = (status: unknown): SpdStatusChipTone => {
+  const s = String(status || '')
+  if (s === 'approved') return 'success'
+  if (s === 'rejected') return 'danger'
+  if (s === 'returned') return 'neutral'
+  if (s.startsWith('pending') || s === 'routing') return 'warning'
+  return 'neutral'
+}
 
 const editForm = reactive({
   applicationType: '',
@@ -561,51 +576,39 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <h2>{{ detail.productName }}</h2>
           </div>
           <div class="approval-actions">
-            <button v-if="detail.canResubmit" type="button" class="btn btn-warning" @click="openResubmitModal">
-              {{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}
-            </button>
-            <button
-              v-if="isPendingApprovalStatus(detail.approvalStatus)"
-              type="button"
-              class="btn btn-danger"
+            <SpdButton tone="primary" v-if="detail.canResubmit" @click="openResubmitModal">
+          {{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}
+        </SpdButton>
+            <SpdButton label="驳回" tone="danger" v-if="isPendingApprovalStatus(detail.approvalStatus)"
+             
+             
               @click="submitAction('reject')"
-              :disabled="submitting || saving || !detail.canApprove"
-            >
-              驳回
-            </button>
-            <button
-              v-if="isPendingApprovalStatus(detail.approvalStatus)"
-              type="button"
-              class="btn btn-warning"
+              :disabled="submitting || saving || !detail.canApprove"></SpdButton>
+            <SpdButton label="退回修改" tone="primary" v-if="isPendingApprovalStatus(detail.approvalStatus)"
+             
+             
               @click="submitAction('return')"
-              :disabled="submitting || saving || !detail.canApprove"
-            >
-              退回修改
-            </button>
-            <button
-              v-if="isEditing && isDirty"
-              type="button"
-              class="btn btn-primary save-btn"
+              :disabled="submitting || saving || !detail.canApprove"></SpdButton>
+            <SpdButton tone="primary" class="save-btn" v-if="isEditing && isDirty"
+             
+             
               @click="saveChanges"
-              :disabled="saving || submitting"
-            >
-              <Save :size="17" />
-              {{ saving ? '保存中...' : '保存修改' }}
-            </button>
-            <button
-              v-if="isPendingApprovalStatus(detail.approvalStatus)"
-              type="button"
-              class="btn btn-primary"
+              :disabled="saving || submitting">
+          <template #icon><Save :size="17" /></template>
+          {{ saving ? '保存中...' : '保存修改' }}
+        </SpdButton>
+            <SpdButton tone="primary" v-if="isPendingApprovalStatus(detail.approvalStatus)"
+             
+             
               @click="submitAction('approve')"
-              :disabled="submitting || saving || !detail.canApprove"
-            >
-              <CheckCircle2 :size="17" />
-              {{ approveButtonText }}
-            </button>
+              :disabled="submitting || saving || !detail.canApprove">
+          <template #icon><CheckCircle2 :size="17" /></template>
+          {{ approveButtonText }}
+        </SpdButton>
           </div>
         </div>
         <div class="approval-header-meta">
-          <span class="status-pill">{{ detail.statusLabel }}</span>
+          <SpdStatusChip :tone="approvalStatusChipTone(detail.approvalStatus)" :label="detail.statusLabel" />
           <span class="sep">|</span>
           <span>{{ detail.applicationNo }}</span>
           <span class="sep">·</span>
@@ -635,11 +638,11 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
         </div>
       </header>
 
-      <p v-if="saveMessage" class="inline-message" style="background:#f0fdf4;border-color:#86efac;color:#166534;">{{ saveMessage }}</p>
+      <p v-if="saveMessage" class="inline-message" style="background:var(--spd-p-primary-bg);border-color:var(--spd-p-success-border);color:var(--spd-p-success-strong);">{{ saveMessage }}</p>
       <p v-if="saveError" class="inline-message error">{{ saveError }}</p>
       <p v-if="actionMessage" class="inline-message">{{ actionMessage }}</p>
       <p v-if="actionError" class="inline-message error">{{ actionError }}</p>
-      <p v-if="detail.returnReason" class="inline-message" style="background:#fff7ed;border-color:#fed7aa;color:#c2410c;">退回原因：{{ detail.returnReason }}</p>
+      <p v-if="detail.returnReason" class="inline-message" style="background:var(--spd-p-warning-bg);border-color:var(--spd-p-warning-border);color:var(--spd-p-warning-strong);">退回原因：{{ detail.returnReason }}</p>
       <p v-if="detail.rejectReason" class="inline-message error">驳回原因：{{ detail.rejectReason }}</p>
 
       <!-- ═══ 3-Column Info Grid ═══ -->
@@ -782,7 +785,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </tbody>
           </table>
         </div>
-        <p v-else class="muted" style="margin:8px 0 0;color:#94a3b8;">未检测到与医院目录当前数据的差异。</p>
+        <p v-else class="muted" style="margin:8px 0 0;color:var(--spd-p-text-muted);">未检测到与医院目录当前数据的差异。</p>
       </section>
 
       <!-- ═══ Approval Opinion ═══ -->
@@ -817,9 +820,9 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <p>{{ detail.applicationNo }}</p>
               <h3>{{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}</h3>
             </div>
-            <button class="btn-icon" type="button" aria-label="关闭" :disabled="submitting || saving" @click="closeResubmitModal">
-              <X :size="18" />
-            </button>
+            <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="submitting || saving" @click="closeResubmitModal">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
           </header>
           <form class="supplier-form-grid" @submit.prevent="submitResubmitForm">
             <template v-if="!detail.enableOnly">
@@ -877,8 +880,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             </template>
             <label class="wide"><span>{{ detail.enableOnly ? '重新提交说明' : '修改说明' }}</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填" /></label>
             <div class="dialog-actions">
-              <button class="btn" type="button" :disabled="submitting || saving" @click="closeResubmitModal">取消</button>
-              <button class="btn btn-primary" type="submit" :disabled="submitting || saving">重新提交</button>
+              <SpdButton label="取消" tone="neutral" :disabled="submitting || saving" @click="closeResubmitModal"></SpdButton>
+              <SpdButton label="重新提交" tone="primary" type="submit" :disabled="submitting || saving"></SpdButton>
             </div>
           </form>
         </section>
@@ -895,19 +898,20 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 .edit-input {
   width: 100%;
   padding: 4px 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   font-size: var(--spd-font-size-base);
   line-height: 1.5;
-  color: #1e293b;
-  background: #fff;
+  /* 输入文字：深色（此前误用浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
+  background: var(--spd-p-bg);
   transition: border-color .2s;
   box-sizing: border-box;
 }
 .edit-input:focus {
   outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 2px rgba(59,130,246,.15);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .edit-input[type="number"] {
   text-align: right;
@@ -920,8 +924,8 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   padding: 2px 8px;
   font-size: var(--spd-font-size-base);
   border-radius: 4px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-muted);
   cursor: pointer;
   user-select: none;
 }
@@ -962,7 +966,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 
 .opinion-tip {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }

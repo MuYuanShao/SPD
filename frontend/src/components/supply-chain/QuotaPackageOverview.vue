@@ -27,10 +27,9 @@ defineEmits<{
       <h2>{{ title }}</h2>
       <small>{{ subtitle }}</small>
     </div>
-    <button class="btn" type="button" @click="$emit('refresh')">
-      <RefreshCw :size="17" />
-      刷新
-    </button>
+    <SpdButton label="刷新" tone="neutral" @click="$emit('refresh')">
+          <template #icon><RefreshCw :size="17" /></template>
+        </SpdButton>
   </div>
 
   <div class="foundation-stat-grid quota-stat-grid">

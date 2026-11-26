@@ -38,7 +38,7 @@ import {
   Columns3,
   ChevronDown
 } from '@lucide/vue'
-import { useNotify } from '../../composables/useNotify'
+import { useNotify, notifyError, resolveErrorMessage } from '../../composables/useNotify'
 
 const notify = useNotify()
 
@@ -107,6 +107,8 @@ const totalItems = ref(0)
 const historyPage = ref(1)
 const historySize = ref(20)
 const historyTotal = ref(0)
+/** 历史申领单加载失败：统一用通用消息接口抛出，不渲染内联错误面板 */
+const historyLoadError = ref('')
 const {
   filters: historyFilters, filterError: historyFilterError, apply: applyHistoryFilters,
   reset: resetHistoryFilters, load: loadRequisitionOrders, beginRequest: beginHistoryRequest
@@ -115,7 +117,7 @@ const {
   page: historyPage,
   size: historySize,
   loading,
-  loadError: error,
+  loadError: historyLoadError,
   errorMessage: '科室申领记录加载失败',
   isActive: () => !requisitionStarted.value,
   fetchPage: params => fetchServerPagedClosureList('requisition', params),
@@ -207,7 +209,7 @@ async function loadOptions() {
     }
     await loadLinkedWarehouses()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '科室选项加载失败'
+    notifyError(resolveErrorMessage(err, '科室选项加载失败'))
   } finally {
     optionsLoading.value = false
   }
@@ -235,7 +237,7 @@ async function loadLinkedWarehouses() {
     filters.warehouseId = linkedWarehouses.value[0]?.warehouseId ?? ''
     selectDefaultSourceWarehouse()
   } catch (err) {
-    if (request === warehouseRequestVersion) error.value = err instanceof Error ? err.message : '收货库房加载失败'
+    if (request === warehouseRequestVersion) notifyError(resolveErrorMessage(err, '收货库房加载失败'))
   } finally {
     if (request === warehouseRequestVersion) optionsLoading.value = false
   }
@@ -296,7 +298,7 @@ async function loadCatalog() {
     })
   } catch (err) {
     if (requestVersion !== catalogRequestVersion || !requisitionStarted.value) return
-    error.value = err instanceof Error ? err.message : '科室申领目录加载失败'
+    notifyError(resolveErrorMessage(err, '科室申领目录加载失败'))
   } finally {
     if (requestVersion === catalogRequestVersion) loading.value = false
   }
@@ -491,7 +493,7 @@ async function submitSelectedRequisitions() {
     await loadCatalog()
     await loadRequisitionOrders()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '科室申领提交失败'
+    notifyError(resolveErrorMessage(err, '科室申领提交失败'))
   } finally {
     submitting.value = false
   }
@@ -532,7 +534,7 @@ async function openSmartReplenishment() {
     smartAnalysisId.value = result.analysisId
     smartRows.value = result.rows.map((row) => ({ ...row, selected: Number(row.recommendedQty || 0) > 0 }))
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '智能补货分析失败'
+    notifyError(resolveErrorMessage(err, '智能补货分析失败'))
     smartOpen.value = false
   } finally {
     smartLoading.value = false
@@ -561,7 +563,7 @@ async function generateSmartRequisitions() {
     smartOpen.value = false
     await loadRequisitionOrders()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '智能补货生成申领单失败'
+    notifyError(resolveErrorMessage(err, '智能补货生成申领单失败'))
   } finally {
     smartGenerating.value = false
   }
@@ -633,6 +635,15 @@ const deptReqOrdersColBinding = (key: string) => deptReqOrdersCols.columnBinding
  */
 const deptReqOrdersActionFix = useActionColumnFix()
 const deptReqOrdersActionFixed = computed(() => deptReqOrdersActionFix.actionFixedBinding.value)
+
+/**
+ * 历史申领单加载失败 → 通用消息接口抛出（Element Plus 消息弹层），
+ * 不再在页面上方渲染一条内联错误条。
+ */
+watch(historyLoadError, (message) => {
+  if (!message) return
+  notifyError(message)
+})
 
 watch(
   [deptReqOrdersTableRef],
@@ -795,12 +806,11 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
         <div class="dept-req-section-title">
           <History :size="18" />
           <h3>历史申领单</h3>
-          <button v-if="canCreateRequisition" class="btn btn-primary md-btn md-btn-primary dept-req-create-btn" type="button" @click="startRequisition">
-            <UserPlus :size="16" />
-            新增申领
-          </button>
+          <SpdButton label="新增申领" tone="primary" class="dept-req-create-btn" v-if="canCreateRequisition" @click="startRequisition">
+          <template #icon><UserPlus :size="16" /></template>
+        </SpdButton>
         </div>
-        <form class="dept-req-filters" aria-label="历史申领单查询" @submit.prevent="applyHistoryFilters">
+        <SpdFilterBar aria-label="历史申领单查询" @submit="applyHistoryFilters" @reset="resetHistoryFilters">
           <label><span>开始日期</span><input v-model="historyFilters.dateFrom" type="date" /></label>
           <label><span>结束日期</span><input v-model="historyFilters.dateTo" type="date" /></label>
           <label>
@@ -821,35 +831,27 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               <option value="departmentDesc">科室名称降序</option>
             </select>
           </label>
-          <div class="dept-req-filter-actions">
-            <button class="btn" type="button" @click="resetHistoryFilters"><RotateCcw :size="16" /> 重置</button>
-            <button class="btn btn-primary" type="submit"><Search :size="16" /> 查询</button>
-          </div>
-        </form>
+        </SpdFilterBar>
         <StatusMessage :message="historyFilterError" tone="error" role="alert" />
               <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="deptReqOrdersColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="deptReqOrdersCols.settingsOpen.value = !deptReqOrdersCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: deptReqOrdersCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="deptReqOrdersColSettingsAnchorRef"
+           
+           
+            @click="deptReqOrdersCols.settingsOpen.value = !deptReqOrdersCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="deptReqOrdersCols.settingsOpen.value"
             ref="deptReqOrdersColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': deptReqOrdersColSettingsPop.align.value === 'right', 'is-align-up': deptReqOrdersColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': deptReqOrdersColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqOrdersColSettingsPop.maxHeight.value + 'px' }"
+            :style="deptReqOrdersColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="deptReqOrdersCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqOrdersCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in deptReqOrdersCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -864,7 +866,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="deptReqOrdersCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="deptReqOrdersCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -1043,14 +1045,12 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               <ShoppingCart :size="14" />
               已选 <strong>{{ selectedItems.length }}</strong> 条
             </span>
-            <button class="btn md-btn" type="button" :disabled="loading || optionsLoading || submitting || !!warehouseSetupMessage" @click="openSmartReplenishment">
-              <AlertTriangle :size="14" />
-              智能补货
-            </button>
-            <button class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="loading || submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
-              <ShoppingCart :size="14" />
-              提交申领
-            </button>
+            <SpdButton label="智能补货" tone="primary" :disabled="loading || optionsLoading || submitting || !!warehouseSetupMessage" @click="openSmartReplenishment">
+          <template #icon><AlertTriangle :size="14" /></template>
+        </SpdButton>
+            <SpdButton label="提交申领" tone="primary" :disabled="loading || submitting || selectedItems.length === 0" @click="submitSelectedRequisitions">
+          <template #icon><ShoppingCart :size="14" /></template>
+        </SpdButton>
           </div>
         </div>
       </template>
@@ -1113,14 +1113,12 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
           <input v-model.trim="filters.manufacturerName" placeholder="生产厂家" />
         </label>
         <div class="dept-req-filterbar-actions">
-          <button class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="loading" @click="searchCatalog">
-            <Search :size="14" />
-            查询
-          </button>
-          <button class="btn md-btn" type="button" :disabled="loading || submitting" @click="resetFilters">
-            <RotateCcw :size="14" />
-            重置
-          </button>
+          <SpdButton label="查询" tone="primary" :disabled="loading" @click="searchCatalog">
+          <template #icon><Search :size="14" /></template>
+        </SpdButton>
+          <SpdButton label="重置" tone="neutral" :disabled="loading || submitting" @click="resetFilters">
+          <template #icon><RotateCcw :size="14" /></template>
+        </SpdButton>
         </div>
       </div>
 
@@ -1154,15 +1152,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               </select>
             </label>
             <div class="qty-stepper">
-              <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
+              <SpdButton variant="text" :icon-only="true" aria-label="减少申领数量" :disabled="submitting" @click="stepQuantity(item, -1)">
+                <template #icon><Minus :size="12" /></template>
+              </SpdButton>
               <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
-              <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+              <SpdButton variant="text" :icon-only="true" aria-label="增加申领数量" :disabled="submitting" @click="stepQuantity(item, 1)">
+                <template #icon><Plus :size="12" /></template>
+              </SpdButton>
             </div>
             <span class="selected-total">{{ baseQtyByMode(item) }} {{ item.baseUnit }}</span>
-            <button class="btn-text btn-text-danger" type="button" :disabled="submitting" @click="removeFromSelection(item)">
-              <X :size="14" />
-              移除
-            </button>
+            <SpdButton label="移除" :disabled="submitting" @click="removeFromSelection(item)">
+              <template #icon><X :size="14" /></template>
+            </SpdButton>
           </li>
         </ul>
       </div>
@@ -1177,26 +1178,22 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
                   <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="deptReqProductsColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="deptReqProductsCols.settingsOpen.value = !deptReqProductsCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: deptReqProductsCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="deptReqProductsColSettingsAnchorRef"
+             
+             
+              @click="deptReqProductsCols.settingsOpen.value = !deptReqProductsCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="deptReqProductsCols.settingsOpen.value"
               ref="deptReqProductsColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': deptReqProductsColSettingsPop.align.value === 'right', 'is-align-up': deptReqProductsColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': deptReqProductsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqProductsColSettingsPop.maxHeight.value + 'px' }"
+              :style="deptReqProductsColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="deptReqProductsCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqProductsCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in deptReqProductsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1211,7 +1208,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="deptReqProductsCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="deptReqProductsCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1366,10 +1363,14 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
                 </template>
                 <template #default="{ row }">
                   <div class="qty-stepper">
-                      <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(row, -1)"><Minus :size="12" /></button>
-                      <input v-integer-quantity v-model.number="row.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(row)" />
-                      <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(row, 1)"><Plus :size="12" /></button>
-                    </div>
+                    <SpdButton variant="text" :icon-only="true" aria-label="减少申领数量" :disabled="submitting" @click="stepQuantity(row, -1)">
+                      <template #icon><Minus :size="12" /></template>
+                    </SpdButton>
+                    <input v-integer-quantity v-model.number="row.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(row)" />
+                    <SpdButton variant="text" :icon-only="true" aria-label="增加申领数量" :disabled="submitting" @click="stepQuantity(row, 1)">
+                      <template #icon><Plus :size="12" /></template>
+                    </SpdButton>
+                  </div>
                     <small>{{ unitByMode(row) }}</small>
                     <small v-if="row.quantity > availableByMode(row)" class="shortage">超过当前可用库存，按实际需求申领</small>
                 </template>
@@ -1486,35 +1487,30 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
             <span id="requisition-detail-title">{{ approvalMode ? '科室申领审批' : '科室请购明细' }}</span>
             <strong>{{ activeRequisitionNo }}</strong>
           </div>
-          <button class="btn btn-sm" type="button" :disabled="!!approvingRequisitionNo" @click="closeDetails">
-            <X :size="16" />
-            关闭
-          </button>
+          <SpdButton label="关闭" :disabled="!!approvingRequisitionNo" @click="closeDetails">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
         </header>
         <StatusMessage :message="approvalError" tone="error" />
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="deptReqDetailColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="deptReqDetailCols.settingsOpen.value = !deptReqDetailCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: deptReqDetailCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="deptReqDetailColSettingsAnchorRef"
+             
+             
+              @click="deptReqDetailCols.settingsOpen.value = !deptReqDetailCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="deptReqDetailCols.settingsOpen.value"
               ref="deptReqDetailColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': deptReqDetailColSettingsPop.align.value === 'right', 'is-align-up': deptReqDetailColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': deptReqDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqDetailColSettingsPop.maxHeight.value + 'px' }"
+              :style="deptReqDetailColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="deptReqDetailCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqDetailCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in deptReqDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1529,7 +1525,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="deptReqDetailCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="deptReqDetailCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1731,9 +1727,11 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
           </div>
         </MdDataTableCard>
         <footer v-if="approvalMode" class="dept-req-approval-actions">
-          <button class="btn" type="button" :disabled="!!approvingRequisitionNo" @click="closeDetails">取消</button>
-          <button class="btn btn-primary" type="button" :disabled="detailLoading || !detailRows.length || !!approvingRequisitionNo"
-            @click="confirmApproval">{{ approvingRequisitionNo ? '审批中…' : '确认通过' }}</button>
+          <SpdButton label="取消" tone="neutral" :disabled="!!approvingRequisitionNo" @click="closeDetails"></SpdButton>
+          <SpdButton tone="primary" :disabled="detailLoading || !detailRows.length || !!approvingRequisitionNo"
+            @click="confirmApproval">
+          {{ approvingRequisitionNo ? '审批中…' : '确认通过' }}
+        </SpdButton>
         </footer>
       </section>
     </div>
@@ -1754,26 +1752,22 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="deptReqSmartColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="deptReqSmartCols.settingsOpen.value = !deptReqSmartCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: deptReqSmartCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="deptReqSmartColSettingsAnchorRef"
+           
+           
+            @click="deptReqSmartCols.settingsOpen.value = !deptReqSmartCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="deptReqSmartCols.settingsOpen.value"
             ref="deptReqSmartColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': deptReqSmartColSettingsPop.align.value === 'right', 'is-align-up': deptReqSmartColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': deptReqSmartColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqSmartColSettingsPop.maxHeight.value + 'px' }"
+            :style="deptReqSmartColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="deptReqSmartCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqSmartCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in deptReqSmartCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1788,7 +1782,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="deptReqSmartCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="deptReqSmartCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -1924,10 +1918,10 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
       </MdDataTableCard>
       <template #footer>
         <div class="dept-req-smart-footer">
-          <button class="btn" type="button" :disabled="smartGenerating" @click="smartOpen = false">取消</button>
-          <button class="btn btn-primary" type="button" :disabled="smartLoading || smartGenerating" @click="generateSmartRequisitions">
-            {{ smartGenerating ? '正在生成...' : '确认并生成申领单' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" :disabled="smartGenerating" @click="smartOpen = false"></SpdButton>
+          <SpdButton tone="primary" :disabled="smartLoading || smartGenerating" @click="generateSmartRequisitions">
+          {{ smartGenerating ? '正在生成...' : '确认并生成申领单' }}
+        </SpdButton>
         </div>
       </template>
     </ElDialog>
@@ -1983,7 +1977,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   gap: 8px;
   margin: 0;
   padding: 10px 14px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
   color: var(--md-text-secondary, var(--spd-text-secondary));
@@ -2005,84 +1999,31 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .dept-req-tags .blue {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 8%, #ffffff);
-  color: var(--md-primary-deep, #0958d9);
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 8%, var(--spd-p-bg));
+  color: var(--md-primary-deep, var(--spd-p-info-strong));
 }
 
 .dept-req-tags .yellow {
-  background: #fff7d6;
-  color: #92600e;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning);
 }
 
 .dept-req-tags .orange {
-  background: #ffedd5;
-  color: #9a3412;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-danger-text);
 }
 
 /* ---------- 查询区 ---------- */
-.dept-req-filters {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px 14px;
-  padding: 16px 18px;
-  background: var(--md-bg-card, #fff);
-  border: 1px solid var(--md-border, var(--spd-border-subtle));
-  border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
-}
-
-.dept-req-filters label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.dept-req-filters label > span {
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-}
-
-.dept-req-filters :is(input, select) {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 32px;
-  height: 32px;
-  padding: 0 10px;
-  color: var(--md-text, var(--spd-text-primary));
-  background: var(--md-bg-card, #fff);
-  border: 1px solid var(--md-border, var(--spd-border-subtle));
-  border-radius: var(--spd-radius-sm, 6px);
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  outline: none;
-}
-
-.dept-req-filters :is(input, select):focus {
-  border-color: var(--md-primary, var(--primary));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary, var(--primary)) 14%, transparent);
-}
-
-.dept-req-filter-actions {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.dept-req-filter-actions .btn {
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  border-radius: var(--spd-radius-sm, 6px);
-  white-space: nowrap;
-}
+/* 历史申领单查询区已迁移为统一筛选栏组件 <SpdFilterBar>：
+   栅格列数 / 换行规则 / 控件高度 / 标签排版 / 操作区位置
+   统一由 styles/components/spd-filter-bar.css 的「标准规则」提供，
+   本页不再覆写（原先写死 32px，与标准 --spd-p-field-height 34px 不一致）。 */
 
 .dept-req-submit-btn {
   margin-left: auto;
   border-color: var(--md-primary, var(--primary)) !important;
   background: var(--md-primary, var(--primary)) !important;
-  color: #fff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .dept-req-submit-btn:disabled {
@@ -2093,10 +2034,10 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .dept-req-table-wrap {
   min-width: 0;
   overflow: auto;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .dept-req-section-title {
@@ -2107,7 +2048,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 8px;
   padding: 14px 16px 12px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
   color: var(--md-primary, var(--primary));
 }
@@ -2127,13 +2068,11 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 /* 段标题右侧的主操作：新增申领 / 智能补货 */
+/* 「新增申领 / 智能生成」按钮：完全服从 SpdButton 统一几何，
+   仅保留靠右布局，不再覆盖高度 / 内边距 / 字号 / 圆角。 */
 .dept-req-create-btn,
 .dept-req-smart-btn {
   margin-left: auto;
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  border-radius: var(--spd-radius-sm, 6px);
 }
 
 /* ---------- 表格：md 密度 ---------- */
@@ -2159,7 +2098,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 46px;
   z-index: 2;
-  background: var(--md-bg-subtle, #f6f8fb);
+  background: var(--md-bg-subtle, var(--spd-p-bg-subtle));
   color: var(--md-text-secondary, var(--spd-text-secondary));
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
@@ -2168,23 +2107,23 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 
 .dept-req-table td {
   color: var(--md-text, var(--spd-text-primary));
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
 }
 
 .dept-req-table tbody tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--md-bg-subtle, #f6f8fb) 46%, #ffffff);
+  background: color-mix(in srgb, var(--md-bg-subtle, var(--spd-p-bg-subtle)) 46%, var(--spd-p-bg));
 }
 
 .dept-req-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, #ffffff);
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, var(--spd-p-bg));
 }
 
 .dept-req-table tr.selected td {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 9%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 9%, var(--spd-p-bg)) !important;
 }
 
 .dept-req-table tr.low:not(.selected) td {
-  background: #fff7ed !important;
+  background: var(--spd-p-warning-bg) !important;
 }
 
 .requisition-order-table {
@@ -2210,14 +2149,14 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   min-height: 30px;
   padding: 0 8px;
   color: var(--md-text, var(--spd-text-primary));
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font-size: var(--spd-font-size-sm);
 }
 
 .requisition-catalog-table .shortage {
-  color: #c2410c;
+  color: var(--spd-p-warning-strong);
 }
 
 :deep(.hospital-pagination) {
@@ -2230,10 +2169,10 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .dept-req-selected {
   margin: 0;
   overflow: hidden;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .dept-req-selected-head {
@@ -2242,7 +2181,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle));
 }
 
@@ -2289,7 +2228,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .dept-req-selected-list select {
   padding: 4px 6px;
   color: var(--md-text, var(--spd-text-primary));
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
@@ -2335,14 +2274,17 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .qty-stepper button {
   display: grid;
   place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 30px;
   height: 30px;
   border: 0;
-  background: var(--md-bg-subtle, #f6f8fb);
+  background: var(--md-bg-subtle, var(--spd-p-bg-subtle));
   cursor: pointer;
 }
 
 .qty-stepper button:hover {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 10%, #ffffff);
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 10%, var(--spd-p-bg));
 }
 
 .qty-stepper input {
@@ -2367,7 +2309,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: center;
   padding: 28px;
-  background: rgba(15, 23, 42, 0.36);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 36%, transparent);
 }
 
 .dept-req-modal {
@@ -2377,10 +2319,10 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   max-width: min(1320px, 94vw);
   max-height: 82vh;
   overflow: hidden;
-  background: #ffffff;
-  border: 1px solid #dbe5ec;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: 14px;
-  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  box-shadow: var(--spd-p-shadow-dialog);
 }
 
 .dept-req-modal > header {
@@ -2390,8 +2332,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   justify-content: space-between;
   padding: 16px 18px;
   gap: 16px;
-  background: #f5f9fd;
-  border-bottom: 1px solid #e6edf3;
+  background: var(--spd-p-info-bg);
+  border-bottom: 1px solid var(--spd-p-text);
 }
 
 .dept-req-modal > header div {
@@ -2402,12 +2344,12 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .dept-req-modal > header span {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-modal > header strong {
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-lg);
 }
 
@@ -2425,9 +2367,9 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   min-height: 30px;
   margin-inline-end: 4px;
   padding: 3px 5px;
-  border: 1px solid #b7c8d8;
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: inherit;
   font: inherit;
   text-align: center;
@@ -2441,7 +2383,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .dept-req-approval-quantity:focus-visible {
-  outline: 2px solid var(--primary, #1677df);
+  outline: 2px solid var(--primary, var(--spd-p-info));
   outline-offset: 2px;
 }
 
@@ -2451,8 +2393,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid #e6edf3;
-  background: #f5f9fd;
+  border-top: 1px solid var(--spd-p-text);
+  background: var(--spd-p-info-bg);
 }
 
 .requisition-detail-table {
@@ -2468,7 +2410,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .requisition-detail-table td small {
-  color: #52677a;
+  color: var(--spd-p-text-secondary);
 }
 
 .requisition-detail-table th {
@@ -2494,24 +2436,25 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   min-height: 480px;
   display: flex;
   flex-direction: column;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .dept-req-smart-dialog :deep(.el-dialog__header) {
   padding: 14px 22px;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   flex: 0 0 auto;
 }
 
 .dept-req-smart-dialog :deep(.el-dialog__title) {
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #1f2937;
+  /* 标题文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
 }
 
 .dept-req-smart-dialog :deep(.el-dialog__footer) {
   padding: 12px 22px;
-  border-top: 1px solid #eef0f4;
+  border-top: 1px solid var(--spd-p-bg-muted);
   flex: 0 0 auto;
 }
 
@@ -2538,9 +2481,9 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   gap: 16px;
   padding: 10px 22px;
   margin: 0;
-  background: #f8fafc;
-  border-bottom: 1px solid #eef0f4;
-  color: #475569;
+  background: var(--spd-p-bg-muted);
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -2553,16 +2496,17 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .smart-toolbar select {
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--spd-p-border);
   border-radius: 5px;
   font: inherit;
   font-size: var(--spd-font-size-sm);
-  background: #fff;
-  color: #1f2937;
+  background: var(--spd-p-bg);
+  /* 输入文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
 }
 
 .smart-toolbar span {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
 .smart-table-wrap {
@@ -2572,7 +2516,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   margin: 0;
   border: none;
   border-radius: 0;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .smart-table {
@@ -2591,38 +2535,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .smart-table .shortage {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
   font-weight: 600;
 }
 
 /* ---------- 响应式 ---------- */
-@media (max-width: 1100px) {
-  .dept-req-filters {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  }
-}
-
 @media (max-width: 760px) {
   .dept-req-page {
     padding: 12px 12px 20px;
   }
 
-  .dept-req-filters,
   .dept-req-selected {
     padding: 14px;
-  }
-
-  .dept-req-filters {
-    grid-template-columns: 1fr;
-  }
-
-  .dept-req-filter-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .dept-req-filter-actions .btn {
-    width: 100%;
   }
 
   .dept-req-submit-btn {
@@ -2644,7 +2568,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 
 .dept-req-dialog :deep(.el-dialog__header) {
   padding: 0;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
 }
 
 .dept-req-dialog :deep(.el-dialog__title) {
@@ -2679,7 +2603,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   line-height: var(--spd-lh-tight);
-  color: #1f2937;
+  /* 标题文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
   letter-spacing: 0.2px;
 }
 
@@ -2696,13 +2621,13 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   padding: 0 10px;
   height: 28px;
   font-size: var(--spd-font-size-sm);
-  color: #1e3a8a;
-  background: #eef4ff;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-info-bg);
   border-radius: 14px;
 }
 
 .dept-req-selected-count strong {
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
   font-weight: 700;
 }
 
@@ -2721,8 +2646,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: flex-end;
   gap: 10px;
   padding: 12px 22px;
-  background: #fff;
-  border-bottom: 1px solid #eef0f4;
+  background: var(--spd-p-bg);
+  border-bottom: 1px solid var(--spd-p-bg-muted);
 }
 
 .dept-req-filterbar-item {
@@ -2736,7 +2661,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 
 .dept-req-filterbar-item > span {
   font-size: var(--spd-font-size-sm);
-  color: #6b7280;
+  color: var(--spd-p-text-muted);
   font-weight: 600;
   letter-spacing: 0.3px;
 }
@@ -2746,9 +2671,10 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   height: 30px;
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
-  color: #1f2937;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  /* 输入文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
   border-radius: 5px;
   transition: border-color 0.15s, background 0.15s;
   min-width: 0;
@@ -2756,8 +2682,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 
 .dept-req-filterbar-item > input:focus,
 .dept-req-filterbar-item > select:focus {
-  border-color: #3b82f6;
-  background: #fff;
+  border-color: var(--spd-p-info);
+  background: var(--spd-p-bg);
   outline: none;
 }
 
@@ -2779,18 +2705,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .dept-req-summary {
   flex: 0 0 auto;
   padding: 8px 22px;
-  background: #f8fafc;
+  background: var(--spd-p-bg-muted);
   font-size: var(--spd-font-size-sm);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   display: flex;
   align-items: center;
   gap: 6px;
-  border-bottom: 1px solid #eef0f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
 }
 
 .dept-req-summary-ok {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-primary-bg);
   padding: 4px 10px;
   border-radius: 4px;
   display: inline-flex;
@@ -2799,7 +2725,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .dept-req-summary-hint {
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -2813,7 +2739,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   flex: 0 0 auto;
   margin: 10px 22px 0 22px;
   padding: 10px 14px;
-  background: #eef4ff;
+  background: var(--spd-p-info-bg);
   border-radius: 8px;
   max-height: 200px;
   overflow: auto;
@@ -2827,12 +2753,12 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 }
 
 .dept-req-selected-head strong {
-  color: #1e3a8a;
+  color: var(--spd-p-info-strong);
   font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-selected-head span {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-xs);
 }
 
@@ -2850,7 +2776,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 10px;
   padding: 6px 8px;
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: 6px;
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-tight);
@@ -2858,23 +2784,25 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 
 .dept-req-selected-list .selected-code {
   font-family: var(--spd-font-family-mono);
-  color: #1e3a8a;
+  /* 浅底深字（此前是近黑底配蓝字，几乎不可见且偏蓝） */
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
-  background: #f1f5f9;
+  background: var(--spd-p-bg-muted);
   padding: 1px 6px;
   border-radius: 3px;
 }
 
 .dept-req-selected-list .selected-name {
-  color: #1f2937;
+  /* 商品名：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
   font-weight: 600;
   font-size: var(--spd-font-size-base);
   min-width: 140px;
 }
 
 .dept-req-selected-list .selected-spec {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   flex: 1 1 auto;
   overflow: hidden;
@@ -2887,47 +2815,49 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #6b7280;
+  color: var(--spd-p-text-muted);
 }
 
 .dept-req-selected-list label select {
   height: 26px;
   font-size: var(--spd-font-size-sm);
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--spd-p-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--spd-p-bg);
   padding: 0 6px;
 }
 
 .dept-req-selected-list .qty-stepper {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--spd-p-border);
   border-radius: 4px;
   overflow: hidden;
 }
 
-.dept-req-selected-list .qty-stepper .btn-text {
+.dept-req-selected-list .qty-stepper .spd-btn {
   width: 22px;
+  min-width: 22px;
   height: 22px;
+  min-height: 22px;
   background: transparent;
   border: none;
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .dept-req-selected-list .qty-stepper input {
   width: 56px;
   height: 22px;
   border: none;
-  border-left: 1px solid #e5e7eb;
-  border-right: 1px solid #e5e7eb;
+  border-left: 1px solid var(--spd-p-border);
+  border-right: 1px solid var(--spd-p-border);
   text-align: center;
   font-size: var(--spd-font-size-base);
   font-variant-numeric: tabular-nums;
 }
 
 .dept-req-selected-list .selected-total {
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -2937,7 +2867,7 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
 .dept-req-selected-list .btn-text-danger {
   background: transparent;
   border: none;
-  color: #dc2626;
+  color: var(--spd-p-danger);
   font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
@@ -2952,9 +2882,9 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   display: flex;
   flex-direction: column;
   margin: 10px 22px 14px 22px;
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   overflow: hidden;
 }
 
@@ -2964,8 +2894,8 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #eef0f4;
+  background: var(--spd-p-bg-muted);
+  border-bottom: 1px solid var(--spd-p-bg-muted);
 }
 
 .dept-req-catalog-head h3 {
@@ -2975,16 +2905,17 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   margin: 0;
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
-  color: #1f2937;
+  /* 标题文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
 }
 
 .dept-req-catalog-head h3 svg {
-  color: #2563eb;
+  color: var(--spd-p-info);
 }
 
 .dept-req-catalog-meta {
   font-size: var(--spd-font-size-xs);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -3006,15 +2937,15 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-weight: 700;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-table-head);
   line-height: var(--spd-lh-tight);
   letter-spacing: 0.2px;
   padding: 8px 10px;
   text-align: left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
   white-space: nowrap;
 }
 
@@ -3022,21 +2953,22 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
   padding: 7px 10px;
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-tight);
-  color: #1f2937;
-  border-bottom: 1px solid #f1f5f9;
+  /* 表格正文：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
+  border-bottom: 1px solid var(--spd-p-text-strong);
   vertical-align: middle;
 }
 
 .dept-req-catalog-body tbody tr:hover {
-  background: #f8fafc;
+  background: var(--spd-p-bg-muted);
 }
 
 .dept-req-catalog-body tbody tr.selected {
-  background: #eff6ff;
+  background: var(--spd-p-info-bg);
 }
 
 .dept-req-catalog-body tbody tr.low {
-  background: #fef2f2;
+  background: var(--spd-p-danger-bg);
 }
 
 /* ---------- 数字列：居中 + 等宽数字 ----------

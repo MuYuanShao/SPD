@@ -90,7 +90,9 @@ watch(() => props.open, (open) => {
             <p>维护当前登录账号信息与登录密码</p>
           </div>
         </div>
-        <button class="pc-close" type="button" aria-label="关闭" @click="close">×</button>
+        <SpdButton icon-only variant="ghost" tone="neutral" aria-label="关闭" type="button" @click="close">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
       </header>
 
       <div class="pc-body">
@@ -141,10 +143,8 @@ watch(() => props.open, (open) => {
       </div>
 
       <footer class="pc-footer">
-        <button class="pc-btn" type="button" @click="close">取消</button>
-        <button class="pc-btn is-primary" type="button" :disabled="!canSubmit" @click="submit">
-          {{ submitting ? '提交中…' : '确认修改' }}
-        </button>
+        <SpdButton label="取消" tone="neutral" @click="close"></SpdButton>
+        <SpdButton label="确认修改" tone="primary" :disabled="!canSubmit || submitting" :loading="submitting" @click="submit"></SpdButton>
       </footer>
       </div>
     </div>
@@ -159,7 +159,7 @@ watch(() => props.open, (open) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.45);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 45%, transparent);
   backdrop-filter: blur(2px);
 }
 
@@ -170,9 +170,9 @@ watch(() => props.open, (open) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.22);
+  box-shadow: var(--spd-p-shadow-dialog);
   animation: pc-in 0.2s ease;
 }
 
@@ -187,7 +187,7 @@ watch(() => props.open, (open) => {
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .pc-header-title { display: flex; align-items: center; gap: 10px; }
@@ -198,13 +198,13 @@ watch(() => props.open, (open) => {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-success-strong);
+  border: 1px solid var(--spd-p-success-border);
 }
 
-.pc-header h3 { margin: 0; font-size: var(--spd-font-size-xl); font-weight: 700; color: #102033; }
-.pc-header p  { margin: 2px 0 0; font-size: var(--spd-font-size-sm); color: #64748b; }
+.pc-header h3 { margin: 0; font-size: var(--spd-font-size-xl); font-weight: 700; color: var(--spd-p-text); }
+.pc-header p  { margin: 2px 0 0; font-size: var(--spd-font-size-sm); color: var(--spd-p-text-secondary); }
 
 .pc-close {
   width: 28px;
@@ -212,13 +212,14 @@ watch(() => props.open, (open) => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   /* 关闭按钮图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
 }
-.pc-close:hover { background: #f1f5f9; color: #334155; }
+/* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+.pc-close:hover { background: var(--spd-p-bg-muted); color: var(--spd-p-text-strong); }
 
 .pc-body {
   padding: 16px 20px;
@@ -235,9 +236,9 @@ watch(() => props.open, (open) => {
   align-items: center;
   gap: 14px;
   padding: 12px 14px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--spd-p-bg-muted);
 }
 
 .pc-avatar {
@@ -247,9 +248,9 @@ watch(() => props.open, (open) => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border: 1px solid #93c5fd;
-  color: #1d4ed8;
+  background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%);
+  border: 1px solid var(--spd-p-info-border);
+  color: var(--spd-p-info-strong);
   font-size: var(--spd-font-size-lg);
   font-weight: 700;
   flex-shrink: 0;
@@ -257,8 +258,8 @@ watch(() => props.open, (open) => {
 
 .pc-profile-fields { display: grid; gap: 4px; min-width: 0; flex: 1; }
 .pc-profile-row { display: flex; align-items: baseline; gap: 8px; font-size: var(--spd-font-size-base); }
-.pc-profile-row span { color: #64748b; min-width: 62px; }
-.pc-profile-row strong { color: #102033; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-profile-row span { color: var(--spd-p-text-secondary); min-width: 62px; }
+.pc-profile-row strong { color: var(--spd-p-text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .pc-section { display: grid; gap: 10px; }
 .pc-section h4 {
@@ -268,25 +269,25 @@ watch(() => props.open, (open) => {
   margin: 0;
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
 }
 
 .pc-form { display: grid; gap: 10px; }
-.pc-form label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: #4b5b66; }
+.pc-form label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: var(--spd-p-text-secondary); }
 
 .pc-input {
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
-.pc-input:focus { outline: none; border-color: #10b981; }
+.pc-input:focus { outline: none; border-color: var(--spd-p-success); }
 
 .pc-checks { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .pc-checks li {
@@ -295,14 +296,14 @@ watch(() => props.open, (open) => {
   gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  color: #94a3b8;
+  border: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-xs);
 }
-.pc-checks li.is-passed { color: #047857; border-color: #6ee7b7; background: #ecfdf5; }
+.pc-checks li.is-passed { color: var(--spd-p-success-strong); border-color: var(--spd-p-success); background: var(--spd-p-primary-bg); }
 
-.pc-error { margin: 0; color: #b91c1c; font-size: var(--spd-font-size-sm); font-weight: 500; }
+.pc-error { margin: 0; color: var(--spd-p-danger-strong); font-size: var(--spd-font-size-sm); font-weight: 500; }
 
 .pc-footer {
   display: flex;
@@ -310,8 +311,8 @@ watch(() => props.open, (open) => {
   justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .pc-btn {
@@ -321,22 +322,22 @@ watch(() => props.open, (open) => {
   min-height: 32px;
   height: 32px;
   padding: 0 16px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.pc-btn:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; }
+.pc-btn:hover:not(:disabled) { background: var(--spd-p-bg-muted); border-color: var(--spd-p-text-muted); }
 .pc-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .pc-btn.is-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
-.pc-btn.is-primary:hover:not(:disabled) { background: linear-gradient(180deg, #059669 0%, #047857 100%); }
+.pc-btn.is-primary:hover:not(:disabled) { background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%); }
 </style>

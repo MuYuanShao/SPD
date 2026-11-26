@@ -660,9 +660,9 @@ onBeforeUnmount(() => {
   gap: 10px;
   margin: 8px 0 4px;
   padding: 6px 8px 6px 6px;
-  border: 1px dashed #c5cdec;
+  border: 1px dashed var(--spd-p-border-strong);
   border-radius: 10px;
-  background: linear-gradient(135deg, #f7f5ff 0%, #f0f4ff 100%);
+  background: linear-gradient(135deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-info-bg) 100%);
 }
 
 .ai-image-remove {
@@ -672,10 +672,10 @@ onBeforeUnmount(() => {
   min-height: 28px;
   border: 0;
   border-radius: 999px;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(60, 75, 130, 0.12), inset 0 0 0 1px #e1e6f3;
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 0 12px;
-  color: #c0313a;
+  color: var(--spd-p-danger-text);
   font: inherit;
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
@@ -684,9 +684,9 @@ onBeforeUnmount(() => {
 }
 
 .ai-image-remove:hover {
-  background: linear-gradient(135deg, #fff1f1 0%, #ffe2e2 100%);
-  color: #a7212a;
-  box-shadow: 0 4px 10px rgba(192, 49, 58, 0.22), inset 0 0 0 1px #f3a8a8;
+  background: linear-gradient(135deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-bg) 100%);
+  color: var(--spd-p-danger-text);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -711,12 +711,12 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 10px;
   min-height: 56px;
-  border: 2px solid rgba(255, 255, 255, 0.92);
+  border: 2px solid color-mix(in srgb, var(--spd-p-bg) 92%, transparent);
   border-radius: 999px;
-  background: linear-gradient(105deg, #6f47e8 0%, #467df5 100%);
-  box-shadow: 0 10px 30px rgba(64, 82, 209, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  background: linear-gradient(105deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-3);
   padding: 0 24px 0 18px;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   font: inherit;
   font-size: var(--spd-font-size-lg);
   font-weight: 800;
@@ -726,13 +726,13 @@ onBeforeUnmount(() => {
 
 .ai-medical-fab:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 34px rgba(64, 82, 209, 0.42), inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .ai-medical-fab:focus-visible,
 .ai-medical-panel button:focus-visible,
 .ai-medical-panel textarea:focus-visible {
-  outline: 3px solid rgba(78, 106, 244, 0.32);
+  outline: 3px solid color-mix(in srgb, var(--spd-p-info) 32%, transparent);
   outline-offset: 2px;
 }
 
@@ -764,11 +764,11 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(420px, calc(100vw - 28px));
-  border: 1px solid #e3e7f2;
+  border: 1px solid var(--spd-p-border);
   border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff 0%, #fbfbff 100%);
-  box-shadow: 0 24px 70px rgba(18, 31, 75, 0.24);
-  color: #17203a;
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-bg-subtle) 100%);
+  box-shadow: var(--spd-p-shadow-dialog);
+  color: var(--spd-p-text);
   overflow: hidden;
 }
 
@@ -781,9 +781,9 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   min-height: 86px;
-  border-bottom: 1px solid #eceef6;
+  border-bottom: 1px solid var(--spd-p-info-bg);
   /* Subtle gradient anchors the header visually and matches the FAB / CTA. */
-  background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 60%, #ffffff 100%);
+  background: linear-gradient(135deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-info-bg) 60%, var(--spd-p-bg) 100%);
   padding: 18px 20px;
   cursor: default;
   -webkit-user-select: none;
@@ -801,7 +801,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   background: transparent;
   padding: 6px 10px;
-  color: #27314b;
+  color: var(--spd-p-text-secondary);
   font: inherit;
   text-align: left;
   cursor: grab;
@@ -809,14 +809,14 @@ onBeforeUnmount(() => {
 }
 
 .ai-medical-drag-handle:hover {
-  background: #ffffff;
-  box-shadow: 0 4px 14px rgba(82, 96, 199, 0.14), inset 0 0 0 1px rgba(140, 124, 240, 0.22);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-drag-handle:active {
   cursor: grabbing;
-  background: #ffffff;
-  box-shadow: 0 6px 18px rgba(82, 96, 199, 0.22), inset 0 0 0 1px rgba(140, 124, 240, 0.32);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-drag-handle .ai-medical-drag-title {
@@ -826,13 +826,13 @@ onBeforeUnmount(() => {
 }
 
 .ai-medical-drag-handle .ai-medical-drag-title strong {
-  color: #161f38;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-xl);
   line-height: var(--spd-lh-tight);
 }
 
 .ai-medical-drag-handle .ai-medical-drag-title span {
-  color: #7a8298;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -847,42 +847,42 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 34px;
   height: 34px;
-  border: 1px solid #e1e6f3;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: #ffffff;
-  color: #4b546e;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(48, 60, 110, 0.06);
+  box-shadow: var(--spd-p-shadow-1);
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease,
     box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .ai-medical-window-actions button:hover {
-  background: linear-gradient(135deg, #f0edff 0%, #eaf0ff 100%);
-  border-color: #b9acf3;
-  color: #4b40c8;
-  box-shadow: 0 4px 12px rgba(82, 96, 199, 0.18);
+  background: linear-gradient(135deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  border-color: var(--spd-p-info-border);
+  color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-2);
   transform: translateY(-1px);
 }
 
 /* Close button on hover gets a destructive tint for affordance. */
 .ai-medical-window-actions button[aria-label="关闭AI医护助手"]:hover {
-  background: linear-gradient(135deg, #fff1f1 0%, #ffe2e2 100%);
-  border-color: #f3a8a8;
-  color: #c0313a;
-  box-shadow: 0 4px 12px rgba(192, 49, 58, 0.22);
+  background: linear-gradient(135deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-bg) 100%);
+  border-color: var(--spd-p-danger-border);
+  color: var(--spd-p-danger-text);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-window-actions button:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(48, 60, 110, 0.1);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .ai-medical-content {
   min-height: 0;
   overflow-y: auto;
   padding: 18px 20px 24px;
-  scrollbar-color: #cbd3e7 transparent;
+  scrollbar-color: var(--spd-p-border-strong) transparent;
 }
 
 .ai-medical-welcome {
@@ -891,15 +891,16 @@ onBeforeUnmount(() => {
   gap: 11px;
   margin-bottom: 18px;
   padding: 12px 14px;
-  border: 1px solid #ece6ff;
+  border: 1px solid var(--spd-p-info-bg);
   border-radius: 12px;
-  background: linear-gradient(135deg, #f6f3ff 0%, #f0f4ff 100%);
-  box-shadow: 0 3px 12px rgba(82, 96, 199, 0.08);
+  background: linear-gradient(135deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-info-bg) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-welcome strong {
   font-size: var(--spd-font-size-base);
-  color: #1c2540;
+  /* 强调文字：深色（此前误用浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
 }
 
 .ai-medical-avatar {
@@ -909,16 +910,16 @@ onBeforeUnmount(() => {
   width: 38px;
   height: 38px;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6f47e8 0%, #467df5 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 10px rgba(64, 82, 199, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-avatar.compact {
   width: 30px;
   height: 30px;
   border-radius: 10px;
-  box-shadow: 0 3px 8px rgba(64, 82, 199, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .ai-medical-quick-grid {
@@ -936,10 +937,10 @@ onBeforeUnmount(() => {
   min-height: 64px;
   border: 1px solid transparent;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6f47e8 0%, #467df5 100%);
-  box-shadow: 0 6px 16px rgba(64, 82, 209, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
   padding: 12px 14px;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   font: inherit;
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
@@ -950,19 +951,19 @@ onBeforeUnmount(() => {
 
 .ai-medical-quick-grid button :deep(svg) {
   flex: 0 0 auto;
-  color: #ffffff;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
+  color: var(--spd-p-bg);
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--spd-p-text-strong) 18%, transparent));
 }
 
 .ai-medical-quick-grid button:hover {
   transform: translateY(-2px);
-  background: linear-gradient(135deg, #7d56f3 0%, #5289fb 100%);
-  box-shadow: 0 12px 24px rgba(64, 82, 209, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .ai-medical-quick-grid button:active {
   transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(64, 82, 209, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-quick-grid button:disabled {
@@ -973,7 +974,7 @@ onBeforeUnmount(() => {
 
 .ai-medical-quick-grid button span {
   min-width: 0;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -993,12 +994,12 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 9px;
   max-width: 100%;
-  border: 1px solid #e1d8ff;
+  border: 1px solid var(--spd-p-info-bg);
   border-radius: 10px 10px 2px 10px;
-  background: linear-gradient(135deg, #f1efff 0%, #ebe7ff 100%);
-  box-shadow: 0 3px 10px rgba(82, 96, 199, 0.1);
+  background: linear-gradient(135deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  box-shadow: var(--spd-p-shadow-2);
   padding: 10px 12px;
-  color: #31385a;
+  color: var(--spd-p-text-secondary);
 }
 
 .ai-medical-user-bubble p {
@@ -1014,13 +1015,13 @@ onBeforeUnmount(() => {
   width: 27px;
   height: 27px;
   border-radius: 999px;
-  background: #ffffff;
-  color: #5f65e8;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-info);
 }
 
 .ai-medical-message time {
   margin-top: 6px;
-  color: #a1a7b6;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-xs);
 }
 
@@ -1032,16 +1033,16 @@ onBeforeUnmount(() => {
 
 .ai-medical-answer p {
   margin: 1px 0 10px;
-  color: #404760;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-loose);
 }
 
 .ai-medical-answer ul {
   margin: 0;
-  border: 1px solid #edf0f6;
+  border: 1px solid var(--spd-p-bg-muted);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 0;
   list-style: none;
   overflow: hidden;
@@ -1049,13 +1050,13 @@ onBeforeUnmount(() => {
 
 .ai-medical-answer li {
   padding: 11px 12px;
-  color: #454d66;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-base);
 }
 
 .ai-medical-answer li + li {
-  border-top: 1px solid #eef0f6;
+  border-top: 1px solid var(--spd-p-bg-muted);
 }
 
 .ai-medical-link {
@@ -1067,10 +1068,10 @@ onBeforeUnmount(() => {
   margin-top: 12px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(105deg, #6f47e8 0%, #467df5 100%);
-  box-shadow: 0 6px 16px rgba(64, 82, 209, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  background: linear-gradient(105deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
   padding: 0 18px;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   font: inherit;
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
@@ -1080,18 +1081,18 @@ onBeforeUnmount(() => {
 
 .ai-medical-link:hover {
   transform: translateY(-1px);
-  background: linear-gradient(105deg, #7d56f3 0%, #5289fb 100%);
-  box-shadow: 0 10px 22px rgba(64, 82, 209, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  background: linear-gradient(105deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .ai-medical-link:active {
   transform: translateY(0);
-  box-shadow: 0 4px 10px rgba(64, 82, 209, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-composer {
-  border-top: 1px solid #eceef5;
-  background: #ffffff;
+  border-top: 1px solid var(--spd-p-info-bg);
+  background: var(--spd-p-bg);
   padding: 14px 16px 12px;
 }
 
@@ -1102,23 +1103,23 @@ onBeforeUnmount(() => {
   grid-template-columns: 40px minmax(0, 1fr) 40px;
   align-items: end;
   column-gap: 8px;
-  border: 1px solid #dde2ed;
+  border: 1px solid var(--spd-p-border);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 8px 8px 8px 6px;
-  box-shadow: 0 2px 12px rgba(30, 45, 90, 0.05);
+  box-shadow: var(--spd-p-shadow-2);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .ai-medical-input-wrap:focus-within {
-  border-color: #8ea2fa;
-  box-shadow: 0 4px 16px rgba(64, 82, 209, 0.14);
+  border-color: var(--spd-p-info-border);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-medical-input-wrap.is-generating {
-  background: #fafbff;
-  border-color: #c8bcf3;
-  box-shadow: 0 4px 16px rgba(64, 82, 209, 0.16), inset 0 0 0 1px rgba(200, 188, 243, 0.55);
+  background: var(--spd-p-bg-subtle);
+  border-color: var(--spd-p-info-border);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-upload-btn {
@@ -1126,23 +1127,23 @@ onBeforeUnmount(() => {
   place-items: center;
   width: 36px;
   height: 36px;
-  border: 1px solid #e1e6f3;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: #f5f6fc;
-  color: #5560a0;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-info);
   cursor: pointer;
   transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .ai-upload-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #f0edff 0%, #eaf0ff 100%);
-  border-color: #b9acf3;
-  color: #4b40c8;
-  box-shadow: inset 0 0 0 1px #c8bcf3;
+  background: linear-gradient(135deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  border-color: var(--spd-p-info-border);
+  color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .ai-upload-btn:active:not(:disabled) {
-  background: #e7e2ff;
+  background: var(--spd-p-info-bg);
 }
 
 .ai-upload-btn:disabled {
@@ -1171,7 +1172,7 @@ onBeforeUnmount(() => {
   outline: 0;
   background: transparent;
   padding: 6px 4px 4px;
-  color: #27314b;
+  color: var(--spd-p-text-secondary);
   font: inherit;
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-base);
@@ -1179,7 +1180,7 @@ onBeforeUnmount(() => {
 }
 
 .ai-medical-input-wrap textarea::placeholder {
-  color: #9ca4b6;
+  color: var(--spd-p-text-muted);
 }
 
 .ai-send-btn {
@@ -1189,28 +1190,28 @@ onBeforeUnmount(() => {
   height: 40px;
   border: 0;
   border-radius: 12px;
-  background: linear-gradient(135deg, #6f47e8 0%, #467df5 100%);
-  box-shadow: 0 4px 12px rgba(64, 82, 209, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
+  color: var(--spd-p-bg);
   cursor: pointer;
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, opacity 0.18s ease;
 }
 
 .ai-send-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: linear-gradient(135deg, #7d56f3 0%, #5289fb 100%);
-  box-shadow: 0 8px 18px rgba(64, 82, 209, 0.38), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .ai-send-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 3px 8px rgba(64, 82, 209, 0.32), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .ai-send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-  background: linear-gradient(135deg, #b3b6c8 0%, #9aa1bb 100%);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary) 0%, var(--spd-p-text-muted) 100%);
   box-shadow: none;
 }
 
@@ -1223,9 +1224,9 @@ onBeforeUnmount(() => {
   height: 40px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #4b40c8 0%, #3b6df0 100%);
-  box-shadow: 0 4px 14px rgba(64, 82, 209, 0.34), inset 0 0 0 2px rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
+  color: var(--spd-p-bg);
   cursor: pointer;
   animation: ai-stop-pulse 1.4s ease-in-out infinite;
   transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
@@ -1233,8 +1234,8 @@ onBeforeUnmount(() => {
 
 .ai-stop-btn:hover {
   transform: scale(1.06);
-  background: linear-gradient(135deg, #c4384b 0%, #e0623b 100%);
-  box-shadow: 0 8px 18px rgba(196, 56, 75, 0.36), inset 0 0 0 2px rgba(255, 255, 255, 0.28);
+  background: linear-gradient(135deg, var(--spd-p-danger) 0%, var(--spd-p-danger) 100%);
+  box-shadow: var(--spd-p-shadow-2);
   animation: none;
 }
 
@@ -1244,21 +1245,17 @@ onBeforeUnmount(() => {
 
 @keyframes ai-stop-pulse {
   0%, 100% {
-    box-shadow: 0 4px 14px rgba(64, 82, 209, 0.34),
-      inset 0 0 0 2px rgba(255, 255, 255, 0.22),
-      0 0 0 0 rgba(111, 71, 232, 0.35);
+    box-shadow: var(--spd-p-shadow-2);
   }
   50% {
-    box-shadow: 0 4px 14px rgba(64, 82, 209, 0.34),
-      inset 0 0 0 2px rgba(255, 255, 255, 0.22),
-      0 0 0 8px rgba(111, 71, 232, 0);
+    box-shadow: var(--spd-p-shadow-2);
   }
 }
 
 .ai-medical-composer small {
   display: block;
   margin-top: 9px;
-  color: #a0a7b6;
+  color: var(--spd-p-text-muted);
   /* D-04：免责声明属辅助信息（G-10 白名单），取 --spd-font-size-xs 跟随字号档位 */
   font-size: var(--spd-font-size-xs);
   text-align: center;

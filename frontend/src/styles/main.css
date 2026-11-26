@@ -2,6 +2,11 @@
 @import "./spd-theme.css";
 /* 设计令牌：颜色（唯一颜色来源）与字号（三档） */
 @import "./tokens/colors.css";
+/* 全站配色规范（唯一可用颜色登记表）
+   必须排在 tokens/colors.css 之后（由 --spd-c-* 派生）、
+   button-typography.css / spd-button.css 之前（按钮样式消费它），
+   并早于主题文件（三套方案各自重定义 --spd-c-*，本文件自动适配）。 */
+@import "./tokens/palette.css";
 @import "./tokens/typography.css";
 @import "./spd-layout.css";
 @import "./spd-dashboard.css";
@@ -35,6 +40,36 @@
 /* 统一列表样式（斑马纹带边框表格 / 列设置 / 状态条 / 4px 圆角按钮）
    全局引入，保证所有采用 .spd-unified-list 的页面样式一致 */
 @import "./list/unified-list.css";
+/* 按钮字号统一规范（唯一来源）
+   必须排在 spd-override.css / unified-list.css 之后：
+   这些文件各自写死了 el-button / .btn / .ulc-action / .md-btn 的字号，
+   由本文件在最后统一收口，避免以后再次漂移。
+   颜色 / 圆角 / 阴影仍由各自原文件负责，本文件只管字号。 */
+@import "./components/button-typography.css";
+/* 通用按钮组件 SpdButton 的样式（唯一视觉来源）
+   必须排在 components/button-typography.css 之后：
+   按钮字号层级由 button-typography.css 收口（L1 / L2），
+   本文件只负责颜色 / 圆角 / 边框 / 尺寸，颜色全部取自 tokens/colors.css，
+   三套配色方案（标准白 / 静墨宣纸 / 暗夜黑）自动适配。 */
+@import "./components/spd-button.css";
+/* 统一筛选栏组件 SpdFilterBar 的样式（唯一视觉来源 + 全站筛选标准规则）
+   必须排在 components/spd-button.css 之后：
+   筛选区的操作按钮复用 SpdButton，筛选控件高度统一取 --spd-p-field-height。 */
+@import "./components/spd-filter-bar.css";
+/* 全站通用状态条组件 SpdStatusChip 的样式（唯一视觉来源）
+   排在 spd-filter-bar.css 之后：状态条几何 / 色调令牌与筛选栏同源，
+   本文件同时把 .ulc-chip / .status-pill / .status-badge / .md-status
+   收敛到同一规格（迁移期兼容别名），保证列表状态条全站一致。 */
+@import "./components/spd-status-chip.css";
+/* 全站文字过长省略 + 悬浮提示（唯一出处）
+   排在 spd-status-chip.css 之后：提供 .spd-ellipsis / .spd-ellipsis-multi /
+   .spd-ellipsis-cell 三个工具类，以及 data-tip 纯 CSS 悬浮提示气泡。
+   颜色全部取自 tokens/palette.css，三套配色方案自动适配。 */
+@import "./components/spd-text-overflow.css";
+/* 【注意】全站输入控件统一规格（components/spd-input.css）
+   **不在此处引入** —— 它必须排在 styles/responsive-medical.css 之后，
+   才能把该文件里 .main-area 内 input 的 36px !important 规则压回 34px。
+   引入位置见 src/main.ts（responsive-medical.css 之后）。 */
 /* 内容区整体渐变背景 + 卡片圆角规范（放在最后，收口所有 override） */
 @import "./layout/content-surface.css";
 /* 列宽策略：方案 B（自适应填充），由 feature/ui-col-b-auto-fit 分支引入 */
@@ -63,34 +98,34 @@
   /* 字体栈收敛：统一使用业务系统栈 --spd-font-family（唯一入口）。
      登录页独立字体栈见 styles/views/login.css，不参与档位缩放。 */
   font-family: var(--spd-font-family);
-  color: #1b2733;
-  background: #f5f7f8;
-  --surface: #ffffff;
-  --line: #dce4e8;
-  --text-muted: #667987;
-  --primary: #0f766e;
-  --primary-strong: #115e59;
-  --accent: #b45309;
-  --danger: #b42318;
-  --focus: #2563eb;
-  --medical-mint: #eaf8f4;
-  --medical-aqua: #d7f0ee;
-  --medical-warm: #fff7ed;
-  --medical-warm-strong: #f59e0b;
-  --tech-blue: #2563eb;
-  --shadow-soft: 0 16px 48px rgba(15, 83, 79, 0.09);
+  color: var(--spd-p-text);
+  background: var(--spd-p-bg-page);
+  --surface: var(--spd-p-bg);
+  --line: var(--spd-p-border);
+  --text-muted: var(--spd-p-text-muted);
+  --primary: var(--spd-p-primary);
+  --primary-strong: var(--spd-p-primary-strong);
+  --accent: var(--spd-p-warning);
+  --danger: var(--spd-p-danger);
+  --focus: var(--spd-p-focus);
+  --medical-mint: var(--spd-p-primary-soft);
+  --medical-aqua: var(--spd-p-code-chip-bg);
+  --medical-warm: var(--spd-p-warning-bg);
+  --medical-warm-strong: var(--spd-p-warning);
+  --tech-blue: var(--spd-p-info);
+  --shadow-soft: var(--spd-p-shadow-3);
   /* Sidebar system tokens */
   --sidebar-width: 280px;
   --sidebar-collapsed-width: 64px;
-  --sidebar-bg: #fbfcfc;
+  --sidebar-bg: var(--spd-p-bg);
   --sidebar-padding-x: 24px;
   --sidebar-padding-y: 24px;
   --sidebar-collapsed-padding-x: 10px;
   --sidebar-collapsed-padding-y: 16px;
   /* Button system tokens */
   --btn-font-weight: 700;
-  /* B-01 主按钮文字：--spd-font-size-base */
-  --btn-font-size: var(--spd-font-size-base);
+  /* B-01 主按钮文字：L1 层级（唯一来源：components/button-typography.css） */
+  --btn-font-size: var(--spd-button-font-size, var(--spd-font-size-base));
   --btn-radius: 8px;
   --btn-min-h: 40px;
   --btn-min-h-sm: 40px;
@@ -98,10 +133,10 @@
   --btn-gap: 10px;
   --btn-padding-x: 16px;
   --btn-padding-x-sm: 16px;
-  --btn-text-color: #334652;
-  --btn-primary-text: #ffffff;
+  --btn-text-color: var(--spd-p-text);
+  --btn-primary-text: var(--spd-p-text-on-primary);
   --btn-danger-text: var(--danger);
-  --btn-text-muted: var(--text-muted, #667987);
+  --btn-text-muted: var(--text-muted, var(--spd-p-text-muted));
 }
 
 * {
@@ -116,16 +151,16 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--spd-p-scrollbar-thumb);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--spd-p-scrollbar-thumb-hover);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--spd-p-scrollbar-thumb) var(--spd-p-scrollbar-track);
 }
 
 html,
@@ -169,18 +204,9 @@ textarea:focus-visible {
   outline-offset: 2px;
 }
 
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  padding: 0 12px;
-  background: var(--surface);
-  color: #334652;
-  white-space: nowrap;
-}
+/* 状态条已统一迁移到通用组件 <SpdStatusChip>
+   （styles/components/spd-status-chip.css）：几何与配色由令牌统一提供，
+   这里不再保留全局 .status-pill 覆盖，避免与通用组件打架。 */
 
 .master-page {
   display: grid;
@@ -202,7 +228,7 @@ textarea:focus-visible {
 
 .master-page-title h2 {
   margin: 4px 0 8px;
-  color: #06152b;
+  color: var(--spd-p-text-strong);
   /* P-01 页面主标题：--spd-font-size-3xl */
   font-size: var(--spd-font-size-3xl);
 }
@@ -262,7 +288,7 @@ textarea:focus-visible {
 
 .standard-empty-state {
   margin: 0;
-  color: #8b99aa;
+  color: var(--spd-p-text-muted);
 }
 
 .standard-empty-state.is-center {
@@ -316,6 +342,14 @@ textarea:focus-visible {
   gap: 10px;
 }
 
+/* 动作区为空时不占位：
+   用户诉求「class 为 .hospital-action-row 下面这个空白的边框直接删掉」。
+   空容器一旦带上边框 / 背景，就会在筛选栏下方留下一条空白条带；
+   这里直接让它不渲染，避免任何页面出现空的动作区色块。 */
+.hospital-action-row:empty {
+  display: none !important;
+}
+
 .batch-edit-menu {
   position: relative;
 }
@@ -338,8 +372,8 @@ textarea:focus-visible {
   gap: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 12px 28px rgba(27, 39, 51, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
   padding: 10px;
 }
 
@@ -360,8 +394,8 @@ textarea:focus-visible {
   width: min(760px, 100%);
   max-height: min(86vh, 820px);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 16px 48px rgba(6, 21, 43, 0.24);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: auto;
 }
 
@@ -389,7 +423,7 @@ textarea:focus-visible {
 
 .supplier-dialog header h3 {
   margin-top: 4px;
-  color: #06152b;
+  color: var(--spd-p-text-strong);
 }
 
 .supplier-dialog header button {
@@ -399,7 +433,7 @@ textarea:focus-visible {
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   cursor: pointer;
 }
 
@@ -421,7 +455,7 @@ textarea:focus-visible {
 }
 
 .supplier-form-grid span {
-  color: #607285;
+  color: var(--spd-p-text-secondary);
   /* R-05 自绘弹窗表单标签：--spd-font-size-sm / 700 */
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
@@ -432,15 +466,15 @@ textarea:focus-visible {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font: inherit;
 }
 
 .supplier-form-grid input[readonly] {
-  background: #f6f8fa;
-  color: #607285;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
   cursor: not-allowed;
 }
 
@@ -449,9 +483,9 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  border: 1px solid #e3ebf1;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #f8fafb;
+  background: var(--spd-p-bg-subtle);
   padding: 10px;
 }
 
@@ -473,55 +507,8 @@ textarea:focus-visible {
   padding-top: 14px;
 }
 
-.hospital-query-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(150px, 1fr));
-  gap: 12px;
-  border-top: 1px solid #edf2f4;
-  padding-top: 14px;
-}
-
-.hospital-query-grid.supplier-query-grid {
-  grid-template-columns: repeat(3, minmax(180px, 1fr)) auto;
-}
-
-.hospital-query-grid.department-query-grid {
-  grid-template-columns: repeat(5, minmax(170px, 1fr)) auto;
-  align-items: end;
-}
-
-.department-panel {
-  gap: 10px;
-}
-
-.hospital-query-grid label {
-  display: grid;
-  gap: 6px;
-}
-
-.hospital-query-grid span {
-  color: #607285;
-  /* R-05 自绘弹窗表单标签：--spd-font-size-sm / 700 */
-  font-size: var(--spd-font-size-sm);
-  font-weight: 700;
-}
-
-.hospital-query-grid input,
-.hospital-query-grid select {
-  min-height: 36px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #ffffff;
-  padding: 0 10px;
-  color: #102033;
-  font: inherit;
-}
-
-.hospital-query-actions {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-}
+/* 筛选区已统一改用 SpdFilterBar 组件（styles/components/spd-filter-bar.css），
+   不再保留 .hospital-query-grid 这套自造筛选栅格。 */
 
 .master-table-card {
   border: 1px solid var(--line);
@@ -538,19 +525,19 @@ textarea:focus-visible {
 }
 
 .master-table thead {
-  background: #f6f8fa;
+  background: var(--spd-p-row-header-bg);
 }
 
 .master-table th,
 .master-table td {
-  border-bottom: 1px solid #edf2f4;
+  border-bottom: 1px solid var(--spd-p-cell-border);
   padding: 13px 14px;
   text-align: left;
   white-space: nowrap;
 }
 
 .master-table th {
-  color: #607285;
+  color: var(--spd-p-text-secondary);
   /* T-14 表格表头：--spd-font-size-table-head / 700（与数据同档） */
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
@@ -594,23 +581,23 @@ textarea:focus-visible {
 }
 
 .panel-icon.ok {
-  color: #047857;
-  background: #dff7ea;
+  color: var(--spd-p-success-text);
+  background: var(--spd-p-state-success-bg);
 }
 
 .panel-icon.info {
-  color: #0369a1;
-  background: #e0f2fe;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-state-info-bg);
 }
 
 .panel-icon.trace {
-  color: #7c3aed;
-  background: #eee7ff;
+  color: var(--spd-p-neutral-text);
+  background: var(--spd-p-neutral-surface-2);
 }
 
 .panel-icon.warn {
-  color: var(--accent);
-  background: #fff4db;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-state-warning-bg);
 }
 
 .workflow-band,
@@ -633,7 +620,7 @@ textarea:focus-visible {
 }
 
 .breadcrumb-line strong {
-  color: #334652;
+  color: var(--spd-p-text);
   /* D-16 面包屑当前项：非法字重 550 → 600 */
   font-weight: 600;
 }
@@ -662,7 +649,7 @@ textarea:focus-visible {
 .feature-row {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f8fbfb;
+  background: var(--spd-p-row-stripe);
 }
 
 .flow-line span {
@@ -686,7 +673,7 @@ textarea:focus-visible {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 14px;
-  background: #fbfdfd;
+  background: var(--spd-p-bg-page);
 }
 
 .module-card:hover {
@@ -765,14 +752,14 @@ textarea:focus-visible {
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   cursor: pointer;
   color: var(--primary);
   flex-shrink: 0;
 }
 
 .search-trigger:hover {
-  background: #f0f9f7;
+  background: var(--spd-p-primary-soft);
   border-color: var(--primary);
 }
 
@@ -780,8 +767,8 @@ textarea:focus-visible {
   width: min(900px, 94%);
   max-height: min(80vh, 700px);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 16px 48px rgba(6, 21, 43, 0.24);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-dialog);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -805,8 +792,8 @@ textarea:focus-visible {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font: inherit;
 }
@@ -821,7 +808,7 @@ textarea:focus-visible {
 }
 
 .clickable-row:hover {
-  background: #f5f9fc;
+  background: var(--spd-p-row-hover);
 }
 
 .packing-template-info {
@@ -829,7 +816,7 @@ textarea:focus-visible {
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #f8fafb;
+  background: var(--spd-p-bg-subtle);
   padding: 14px 16px;
   margin-top: 10px;
 }
@@ -838,7 +825,7 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #102033;
+  color: var(--spd-p-text);
   /* 次级说明：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
@@ -864,7 +851,7 @@ textarea:focus-visible {
 .info-label {
   /* 辅助层标签：--spd-font-size-xs */
   font-size: var(--spd-font-size-xs);
-  color: #7a8b9a;
+  color: var(--spd-p-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -872,7 +859,7 @@ textarea:focus-visible {
 .info-value {
   /* 数据值：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
-  color: #102033;
+  color: var(--spd-p-text);
   font-weight: 500;
 }
 
@@ -882,7 +869,7 @@ textarea:focus-visible {
   gap: 6px;
   /* 次级说明：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
-  color: #4a5a6a;
+  color: var(--spd-p-text-secondary);
   white-space: nowrap;
   cursor: pointer;
   user-select: none;
@@ -901,7 +888,7 @@ textarea:focus-visible {
   margin-top: 18px;
   border-left: 3px solid var(--primary);
   padding: 12px 14px;
-  background: #eef8f6;
+  background: var(--spd-p-primary-soft);
 }
 
 .architecture-note p,
@@ -930,24 +917,8 @@ textarea:focus-visible {
   gap: 18px;
 }
 
-.hospital-query-grid.purchase-query-grid {
-  grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
-}
-
-.hospital-query-grid.quota-query-grid {
-  grid-template-columns: repeat(5, minmax(140px, 1fr)) auto;
-}
-
-.hospital-query-grid.quota-form-grid {
-  grid-template-columns: repeat(6, minmax(130px, 1fr)) auto;
-}
-
 .quota-stat-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.hospital-query-grid.closure-form-grid {
-  grid-template-columns: repeat(6, minmax(130px, 1fr));
 }
 
 .closure-stat-grid {
@@ -976,7 +947,7 @@ textarea:focus-visible {
   gap: 10px;
   border-bottom: 1px solid var(--line);
   padding: 14px 18px;
-  color: #34495f;
+  color: var(--spd-p-text-secondary);
   /* I-06 补货分析汇总：--spd-font-size-base / 700 */
   font-size: var(--spd-font-size-base);
   font-weight: 700;
@@ -985,7 +956,7 @@ textarea:focus-visible {
 .analysis-summary span {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f7fafc;
+  background: var(--spd-p-bg-page);
   padding: 8px 10px;
 }
 
@@ -998,9 +969,9 @@ textarea:focus-visible {
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 0 9px;
-  color: #06152b;
+  color: var(--spd-p-text-strong);
   font: inherit;
   /* I-08 拣配数量输入：--spd-font-size-base / 800 */
   font-size: var(--spd-font-size-base);
@@ -1018,7 +989,7 @@ textarea:focus-visible {
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   overflow: hidden;
 }
 
@@ -1037,7 +1008,7 @@ textarea:focus-visible {
 }
 
 .picking-panel tr.selected td {
-  background: #e8f7f5;
+  background: var(--spd-p-row-selected);
 }
 
 .package-label-link {
@@ -1056,8 +1027,8 @@ textarea:focus-visible {
   padding: 1px 6px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #f5f9fb;
-  color: #0f6f78;
+  background: var(--spd-p-code-chip-bg);
+  color: var(--spd-p-code-chip-text);
   /* S-09 包标签 chip：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
@@ -1086,13 +1057,13 @@ textarea:focus-visible {
 }
 
 .package-detail-info label span {
-  color: #64748b;
+  color: var(--spd-p-text-muted);
   /* 字段标签：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
 
 .package-detail-info label strong {
-  color: #172b3a;
+  color: var(--spd-p-text-strong);
   /* 数据值：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
   overflow-wrap: anywhere;
@@ -1126,19 +1097,20 @@ textarea:focus-visible {
   display: grid;
   gap: 3px;
   padding: 8px 10px;
-  border: 1px solid #dbeafe;
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 6px;
-  background: #eff6ff;
+  background: var(--spd-p-state-info-bg);
 }
 
 .consumption-resolved strong {
-  color: #1e40af;
+  color: var(--spd-p-text-secondary);
   /* 次级说明：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
 
 .consumption-resolved small {
-  color: #3b82f6;
+  /* 辅助说明文字：中性次级文字（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-muted);
   /* 辅助层：--spd-font-size-xs */
   font-size: var(--spd-font-size-xs);
 }
@@ -1158,7 +1130,7 @@ textarea:focus-visible {
 
 .stocktaking-scope-picker {
   margin: 14px 16px;
-  border: 1px solid #dbe8ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -1167,18 +1139,18 @@ textarea:focus-visible {
   display: grid;
   gap: 3px;
   padding: 12px 14px;
-  background: #f5f9fb;
-  border-bottom: 1px solid #e5eef2;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border-subtle);
 }
 
 .stocktaking-scope-head strong {
-  color: #172b3a;
+  color: var(--spd-p-text-strong);
   /* I-01 盘点范围标题：--spd-font-size-base / 700 */
   font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-scope-head span {
-  color: #6b7c8f;
+  color: var(--spd-p-text-muted);
   /* I-02 盘点范围说明：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
@@ -1195,9 +1167,9 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  color: #33485c;
+  color: var(--spd-p-text);
   cursor: pointer;
 }
 
@@ -1215,15 +1187,15 @@ textarea:focus-visible {
   flex-wrap: wrap;
   gap: 6px;
   padding: 10px 14px;
-  border-top: 1px solid #e5eef2;
-  background: #fbfdfe;
-  color: #6b7c8f;
+  border-top: 1px solid var(--spd-p-border-subtle);
+  background: var(--spd-p-bg-page);
+  color: var(--spd-p-text-muted);
   /* I-03 盘点已选提示：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-selected em {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
   font-style: normal;
 }
 
@@ -1231,8 +1203,8 @@ textarea:focus-visible {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 999px;
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-state-success-bg);
+  color: var(--spd-p-state-success-text);
   /* S-10 盘点范围 chip：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm);
 }
@@ -1253,7 +1225,7 @@ textarea:focus-visible {
 .stocktaking-qty-input {
   width: 110px;
   padding: 5px 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border);
   border-radius: 5px;
   font: inherit;
   /* I-04 盘点数量输入：--spd-font-size-base（数量输入框必须 14px） */
@@ -1261,12 +1233,12 @@ textarea:focus-visible {
 }
 
 .stocktaking-detail-table .profit {
-  color: #047857;
+  color: var(--spd-p-success-text);
   font-weight: 700;
 }
 
 .stocktaking-detail-table .loss {
-  color: #b91c1c;
+  color: var(--spd-p-danger-text);
   font-weight: 700;
 }
 
@@ -1276,23 +1248,11 @@ textarea:focus-visible {
   }
 }
 
-.hospital-query-grid .wide-field {
-  grid-column: span 2;
-}
-
 .purchase-table {
   min-width: 1240px;
 }
 
-.status-badge.pending {
-  background: #fff4e6;
-  color: #d9480f;
-}
-
-.status-badge.warning {
-  background: #fff9db;
-  color: #9a6700;
-}
+/* 状态条已统一迁移到通用组件 <SpdStatusChip>，此处不再保留旧修饰类覆盖。 */
 
 .reservation-panel {
   display: grid;
@@ -1310,7 +1270,7 @@ textarea:focus-visible {
 }
 
 .empty-cell {
-  color: #7a8b9a;
+  color: var(--spd-p-text-muted);
   text-align: center;
 }
 
@@ -1354,7 +1314,7 @@ textarea:focus-visible {
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 0 10px;
   font: inherit;
 }
@@ -1362,7 +1322,7 @@ textarea:focus-visible {
 .purchase-detail-summary {
   justify-content: flex-start;
   margin-bottom: 14px;
-  color: #52677a;
+  color: var(--spd-p-text-secondary);
   font-weight: 700;
 }
 
@@ -1500,18 +1460,12 @@ textarea:focus-visible {
     font-size: 15px;
   }
 
-  .quota-page .quota-stat-grid,
-  .quota-page .hospital-query-grid.quota-query-grid,
-  .hospital-query-grid.quota-form-grid {
+  .quota-page .quota-stat-grid {
     grid-template-columns: 1fr;
   }
 
   .main-area:has(.quota-page) .topbar {
     padding: 10px;
-  }
-
-  .receiving-page .hospital-query-grid.purchase-query-grid {
-    grid-template-columns: 1fr;
   }
 
   .main-area:has(.receiving-page) .topbar {
@@ -1556,8 +1510,8 @@ textarea:focus-visible {
   min-height: 42px;
   padding: 8px 14px;
   border-top: 1px solid var(--line);
-  background: linear-gradient(90deg, #f4f9fa 0%, #ffffff 72%);
-  color: #244b52;
+  background: linear-gradient(90deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-bg) 72%);
+  color: var(--spd-p-accent-text);
   /* L-01 结算汇总条：--spd-font-size-base / 800 */
   font-size: var(--spd-font-size-base);
   font-weight: 800;
@@ -1581,7 +1535,7 @@ textarea:focus-visible {
   overflow: auto;
   max-height: min(64vh, 740px);
   border-top: 1px solid var(--line);
-  scrollbar-color: #9ab9be #eef4f5;
+  scrollbar-color: var(--spd-p-scrollbar-thumb) var(--spd-p-scrollbar-track);
 }
 
 .closure-page .settlement-detail-table {
@@ -1605,9 +1559,9 @@ textarea:focus-visible {
   top: 0;
   z-index: 4;
   padding-block: 10px;
-  background: #eaf3f5;
-  box-shadow: inset 0 -1px 0 #c8dadd;
-  color: #23464d;
+  background: var(--spd-p-row-header-bg);
+  box-shadow: inset 0 -1px 0 var(--spd-p-border-strong);
+  color: var(--spd-p-row-header-text);
   /* L-03 结算明细表头：--spd-font-size-table-head / 700 */
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
@@ -1619,11 +1573,11 @@ textarea:focus-visible {
 }
 
 .settlement-detail-table tbody tr:nth-child(even) {
-  background: #fbfdfd;
+  background: var(--spd-p-row-stripe);
 }
 
 .settlement-detail-table tbody tr:hover {
-  background: #f1f8f8;
+  background: var(--spd-p-row-hover);
 }
 
 .settlement-detail-table .settlement-col-document {
@@ -1633,21 +1587,21 @@ textarea:focus-visible {
   width: 190px;
   min-width: 190px;
   max-width: 190px;
-  background: #fff;
-  box-shadow: 9px 0 14px -14px rgba(15, 54, 64, 0.85);
+  background: var(--spd-p-bg);
+  box-shadow: 9px 0 14px -14px var(--spd-p-shadow-color);
 }
 
 .settlement-detail-table tbody tr:nth-child(even) .settlement-col-document {
-  background: #fbfdfd;
+  background: var(--spd-p-row-stripe);
 }
 
 .settlement-detail-table tbody tr:hover .settlement-col-document {
-  background: #f1f8f8;
+  background: var(--spd-p-row-hover);
 }
 
 .settlement-detail-table thead .settlement-col-document {
   z-index: 6;
-  background: #deedef;
+  background: var(--spd-p-row-header-bg);
 }
 
 .settlement-detail-table .settlement-col-location {
@@ -1720,22 +1674,22 @@ textarea:focus-visible {
   width: 112px;
   min-width: 112px;
   max-width: 112px;
-  background: #fff;
+  background: var(--spd-p-bg);
   text-align: center;
-  box-shadow: -9px 0 14px -14px rgba(15, 54, 64, 0.85);
+  box-shadow: -9px 0 14px -14px var(--spd-p-shadow-color);
 }
 
 .settlement-detail-table tbody tr:nth-child(even) .settlement-col-action {
-  background: #fbfdfd;
+  background: var(--spd-p-row-stripe);
 }
 
 .settlement-detail-table tbody tr:hover .settlement-col-action {
-  background: #f1f8f8;
+  background: var(--spd-p-row-hover);
 }
 
 .settlement-detail-table thead .settlement-col-action {
   z-index: 6;
-  background: #deedef;
+  background: var(--spd-p-row-header-bg);
 }
 
 .settlement-detail-table .numeric-cell {
@@ -1748,7 +1702,7 @@ textarea:focus-visible {
 }
 
 .settlement-detail-table .amount-cell {
-  color: #087268;
+  color: var(--spd-p-accent-text);
   font-weight: 800;
 }
 
@@ -1767,12 +1721,12 @@ textarea:focus-visible {
 }
 
 .settlement-cell-stack > strong {
-  color: #173f47;
+  color: var(--spd-p-text-strong);
   font-weight: 800;
 }
 
 .settlement-cell-meta {
-  color: #667f84;
+  color: var(--spd-p-text-muted);
   /* L-05 结算明细元信息：--spd-font-size-xs */
   font-size: var(--spd-font-size-xs);
 }
@@ -1786,7 +1740,7 @@ textarea:focus-visible {
 
 .settlement-policy-list b,
 .settlement-code-list b {
-  color: #557278;
+  color: var(--spd-p-text-secondary);
   /* L-08 结算策略标记：--spd-font-size-xs / 600 */
   font-size: var(--spd-font-size-xs);
   font-weight: 600;
@@ -1794,7 +1748,7 @@ textarea:focus-visible {
 
 .settlement-policy-list small {
   overflow: hidden;
-  color: #759096;
+  color: var(--spd-p-text-muted);
   /* L-09 结算策略说明：--spd-font-size-xs */
   font-size: var(--spd-font-size-xs);
   text-overflow: ellipsis;
@@ -1821,24 +1775,24 @@ textarea:focus-visible {
   justify-content: center;
   gap: 5px;
   min-width: 72px;
-  border: 1px solid #78bbb5;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 7px;
-  background: #e7f6f4;
+  background: var(--spd-p-primary-bg);
   padding: 6px 10px;
-  color: #075f59;
+  color: var(--spd-p-accent-text);
   font-weight: 800;
   cursor: pointer;
   transition: background-color 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
 .settlement-confirm-btn:hover {
-  border-color: #3f9e96;
-  background: #d8f0ed;
+  border-color: var(--spd-p-primary);
+  background: var(--spd-p-primary-hover);
   transform: translateY(-1px);
 }
 
 .settlement-confirm-btn:focus-visible {
-  outline: 3px solid rgba(24, 137, 126, 0.2);
+  outline: 3px solid var(--spd-p-focus-ring);
   outline-offset: 2px;
 }
 
@@ -1846,7 +1800,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: #52747a;
+  color: var(--spd-p-text-secondary);
   /* L-11 结算已确认标记：--spd-font-size-sm / 700 */
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
@@ -1906,7 +1860,7 @@ textarea:focus-visible {
   padding: 0 var(--btn-padding-x) !important;
   border-radius: var(--btn-radius) !important;
   font-family: inherit;
-  font-size: var(--btn-font-size) !important;
+  font-size: var(--spd-button-font-size) !important;
   font-weight: 600;
   line-height: 1;
   vertical-align: middle;
@@ -1916,17 +1870,30 @@ textarea:focus-visible {
     box-shadow 0.16s ease, opacity 0.16s ease !important;
 }
 
-/* B-05 / B-08：文字按钮走 --spd-font-size-base，链接式按钮走 --spd-font-size-sm
-   （各自在 components/buttons.css 内定义，此处不得再统一覆盖成 base） */
-.main-area :where(.btn-icon, .btn-text, button) {
+/* B-05 / B-08：文字按钮与链接式按钮属于 L2 层级（比实心按钮弱一档），
+   各自在 components/button-typography.css 内收口，此处不得再统一覆盖成 L1。
+   图标按钮（.btn-icon）无文字，字号跟随 L1 基准。 */
+.main-area :where(.btn-icon) {
   font-family: inherit;
-  font-size: var(--btn-font-size);
+  font-size: var(--spd-button-font-size-icon);
+  vertical-align: middle;
+}
+
+.main-area :where(.btn-text) {
+  font-family: inherit;
+  font-size: var(--spd-button-font-size-compact);
+  vertical-align: middle;
+}
+
+.main-area :where(button) {
+  font-family: inherit;
+  font-size: var(--spd-button-font-size);
   vertical-align: middle;
 }
 
 .main-area :where(.btn-link) {
   font-family: inherit;
-  font-size: var(--spd-font-size-sm);
+  font-size: var(--spd-button-font-size-compact);
   vertical-align: middle;
 }
 
@@ -1956,16 +1923,11 @@ textarea:focus-visible {
   margin: 0;
   padding: 0 var(--btn-padding-x);
   border-radius: var(--btn-radius);
-  font-size: var(--btn-font-size);
+  font-size: var(--spd-button-font-size);
   line-height: 1;
   transform: none !important;
   transition: color 0.16s ease, background-color 0.16s ease, border-color 0.16s ease,
     box-shadow 0.16s ease, opacity 0.16s ease;
-}
-
-.purchase-page:has(.inventory-query-tabs) .hospital-query-grid.purchase-query-grid,
-.purchase-page .hospital-catalog-panel > .section-title + .hospital-query-grid.purchase-query-grid {
-  align-items: end;
 }
 
 .purchase-page:has(.inventory-query-tabs) .purchase-query-grid > .btn,

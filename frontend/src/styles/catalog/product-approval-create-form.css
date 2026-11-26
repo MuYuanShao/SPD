@@ -38,7 +38,7 @@
   margin: 0;
   padding: 10px 0 8px;
   border-bottom: 1px solid var(--line);
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-lg);
   font-weight: 800;
 }
@@ -52,12 +52,12 @@
 .approval-create-actions {
   flex: none;
   border-top: 1px solid var(--line);
-  background: #fbfcfd;
+  background: var(--spd-p-bg);
   padding: 8px 18px;
   position: sticky;
   bottom: 0;
   z-index: 2;
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .approval-create-actions .btn,
@@ -81,18 +81,19 @@
   display: grid;
   gap: 8px;
   margin-top: 12px;
-  border: 1px dashed #c9d7e3;
+  border: 1px dashed var(--spd-p-border-strong);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 12px;
 }
 
 .approval-attachment-summary strong {
-  color: #102033;
+  color: var(--spd-p-text);
 }
 
 .approval-attachment-summary span {
-  color: #607285;
+  /* 次级说明文字：中性（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
 }
 
 .approval-upload-list {
@@ -103,10 +104,10 @@
 
 .approval-upload-list button {
   min-height: 30px;
-  border: 1px solid #dbe5ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 999px;
-  background: #f6f8fa;
-  color: #102033;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-text);
   padding: 0 10px;
   cursor: pointer;
 }
@@ -122,7 +123,7 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 2px 8px rgba(27, 39, 51, 0.08);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 20px;
 }
 
@@ -143,7 +144,8 @@
 }
 
 .product-form-grid span {
-  color: #607285;
+  /* 表单字段名：中性（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
@@ -154,14 +156,15 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 0 10px;
-  color: #102033;
+  color: var(--spd-p-text);
   font: inherit;
-  background: #ffffff;
+  background: var(--spd-p-bg);
 }
 
 .product-form-grid input[readonly] {
-  background: #f6f8fa;
-  color: #607285;
+  background: var(--spd-p-bg-subtle);
+  /* 只读输入文字：深色（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
   cursor: not-allowed;
 }
 
@@ -178,8 +181,8 @@
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfdfd;
-  color: #334652;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-weight: 700;
 }
@@ -188,7 +191,7 @@
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  border-top: 1px solid #edf2f4;
+  border-top: 1px solid var(--spd-p-bg-muted);
   padding-top: 16px;
 }
 
@@ -203,7 +206,7 @@
   align-items: center;
   min-height: 30px;
   border-radius: 8px;
-  background: #eef8f6;
+  background: var(--spd-p-primary-bg);
   color: var(--primary-strong);
   padding: 0 10px;
   font-weight: 700;

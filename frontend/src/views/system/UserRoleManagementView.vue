@@ -433,22 +433,46 @@ const roleListColSettingsPop = useColSettingsPopover({
         />
       </div>
       <div class="sys-toolbar-actions">
-        <button class="btn btn-primary" type="button" @click="loadAll"><Search :size="15" /> 查询</button>
-        <button class="btn" type="button" @click="loadAll"><RefreshCw :size="15" /> 重置</button>
+        <SpdButton label="查询" tone="primary" @click="loadAll">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
+        <SpdButton label="重置" tone="neutral" @click="loadAll">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
         <i class="sys-toolbar-sep"></i>
         <template v-if="pageMode === 'user'">
-          <button v-if="authStore.hasPermission('user:create')" class="btn" type="button" @click="openUserCreate"><Plus :size="15" /> 新增用户</button>
-          <button v-if="authStore.hasPermission('user:update')" class="btn" type="button" @click="openUserEdit()"><Pencil :size="15" /> 编辑</button>
-          <button v-if="authStore.hasPermission('user:delete')" class="btn btn-danger" type="button" @click="removeUsers"><Trash2 :size="15" /> 删除</button>
-          <button v-if="authStore.hasPermission('user:reset-password')" class="btn" type="button" @click="resetPasswords"><KeyRound :size="15" /> 重置密码</button>
-          <button v-if="authStore.hasPermission('user:assign-role')" class="btn" type="button" @click="openUserRoleAssign"><UserCheck :size="15" /> 分配角色</button>
+          <SpdButton label="新增用户" tone="primary" v-if="authStore.hasPermission('user:create')" @click="openUserCreate">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.hasPermission('user:update')" @click="openUserEdit()">
+          <template #icon><Pencil :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.hasPermission('user:delete')" @click="removeUsers">
+          <template #icon><Trash2 :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="重置密码" tone="warning" v-if="authStore.hasPermission('user:reset-password')" @click="resetPasswords">
+          <template #icon><KeyRound :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="分配角色" tone="primary" v-if="authStore.hasPermission('user:assign-role')" @click="openUserRoleAssign">
+          <template #icon><UserCheck :size="15" /></template>
+        </SpdButton>
         </template>
         <template v-else>
-          <button v-if="authStore.hasPermission('role:create')" class="btn" type="button" @click="openRoleCreate"><Plus :size="15" /> 新增角色</button>
-          <button v-if="authStore.hasPermission('role:update')" class="btn" type="button" @click="openRoleEdit()"><Pencil :size="15" /> 编辑</button>
-          <button v-if="authStore.hasPermission('role:delete')" class="btn btn-danger" type="button" @click="removeRoles"><Trash2 :size="15" /> 删除</button>
-          <button v-if="authStore.hasPermission('role:assign-permission')" class="btn" type="button" @click="openPermissionAssign"><ShieldCheck :size="15" /> 分配权限</button>
-          <button v-if="authStore.hasPermission('role:data-permission')" class="btn" type="button" @click="openDataPermission"><Database :size="15" /> 数据权限</button>
+          <SpdButton label="新增角色" tone="primary" v-if="authStore.hasPermission('role:create')" @click="openRoleCreate">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.hasPermission('role:update')" @click="openRoleEdit()">
+          <template #icon><Pencil :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.hasPermission('role:delete')" @click="removeRoles">
+          <template #icon><Trash2 :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="分配权限" tone="primary" v-if="authStore.hasPermission('role:assign-permission')" @click="openPermissionAssign">
+          <template #icon><ShieldCheck :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="数据权限" tone="primary" v-if="authStore.hasPermission('role:data-permission')" @click="openDataPermission">
+          <template #icon><Database :size="15" /></template>
+        </SpdButton>
         </template>
       </div>
     </div>
@@ -462,26 +486,22 @@ const roleListColSettingsPop = useColSettingsPopover({
       <MdDataTableCard v-if="pageMode === 'user'" class="master-table-card">
           <template #toolbar>
             <div class="ulc-col-settings">
-              <button
+              <SpdButton
                 ref="userListColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="userListCols.settingsOpen.value = !userListCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: userListCols.settingsOpen.value }" />
-              </button>
+                label="列设置"
+                @click="userListCols.settingsOpen.value = !userListCols.settingsOpen.value">
+                <template #icon><Columns3 :size="16" /></template>
+              </SpdButton>
               <div
                 v-if="userListCols.settingsOpen.value"
                 ref="userListColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': userListColSettingsPop.align.value === 'right', 'is-align-up': userListColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': userListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': userListColSettingsPop.maxHeight.value + 'px' }"
+                :style="userListColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="userListCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="userListCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in userListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -496,7 +516,7 @@ const roleListColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="userListCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="userListCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -690,26 +710,22 @@ const roleListColSettingsPop = useColSettingsPopover({
       <MdDataTableCard v-else class="master-table-card">
           <template #toolbar>
             <div class="ulc-col-settings">
-              <button
+              <SpdButton
                 ref="roleListColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="roleListCols.settingsOpen.value = !roleListCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: roleListCols.settingsOpen.value }" />
-              </button>
+                label="列设置"
+                @click="roleListCols.settingsOpen.value = !roleListCols.settingsOpen.value">
+                <template #icon><Columns3 :size="16" /></template>
+              </SpdButton>
               <div
                 v-if="roleListCols.settingsOpen.value"
                 ref="roleListColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': roleListColSettingsPop.align.value === 'right', 'is-align-up': roleListColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': roleListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': roleListColSettingsPop.maxHeight.value + 'px' }"
+                :style="roleListColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="roleListCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="roleListCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in roleListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -724,7 +740,7 @@ const roleListColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="roleListCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="roleListCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -910,7 +926,9 @@ const roleListColSettingsPop = useColSettingsPopover({
               : '数据权限'
             }}
           </h3>
-          <button class="btn-icon" type="button" @click="modal = null"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="modal = null">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
         </div>
         <div class="sys-dialog-body">
 
@@ -961,12 +979,22 @@ const roleListColSettingsPop = useColSettingsPopover({
 
         </div>
         <div class="sys-dialog-footer">
-          <button class="btn" type="button" @click="modal = null">取消</button>
-          <button v-if="modal === 'user'" class="btn btn-primary" type="button" @click="saveUser"><Save :size="15" /> 保存</button>
-          <button v-else-if="modal === 'role'" class="btn btn-primary" type="button" @click="saveRole"><Save :size="15" /> 保存</button>
-          <button v-else-if="modal === 'user-role'" class="btn btn-primary" type="button" @click="saveUserRoles"><Save :size="15" /> 保存</button>
-          <button v-else-if="modal === 'role-permission'" class="btn btn-primary" type="button" @click="saveRolePermissions"><Save :size="15" /> 保存</button>
-          <button v-else class="btn btn-primary" type="button" @click="saveDataPermission"><Save :size="15" /> 保存</button>
+          <SpdButton label="取消" tone="neutral" @click="modal = null"></SpdButton>
+          <SpdButton label="保存" tone="success" v-if="modal === 'user'" @click="saveUser">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="保存" tone="success" v-else-if="modal === 'role'" @click="saveRole">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="保存" tone="success" v-else-if="modal === 'user-role'" @click="saveUserRoles">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="保存" tone="success" v-else-if="modal === 'role-permission'" @click="saveRolePermissions">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="保存" tone="success" v-else @click="saveDataPermission">
+          <template #icon><Save :size="15" /></template>
+        </SpdButton>
         </div>
       </div>
     </div>
@@ -1011,44 +1039,44 @@ const roleListColSettingsPop = useColSettingsPopover({
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sys-kpi-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 /* ① 蓝色：总用户数 / 总角色数 */
 .sys-kpi-item.is-blue {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
+  background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%);
+  border-color: var(--spd-p-info-border);
 }
 
 /* ② 绿色：启用用户 / 启用角色 */
 .sys-kpi-item.is-green {
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%);
+  border-color: var(--spd-p-success);
 }
 
 /* ③ 红色：停用用户 */
 .sys-kpi-item.is-red {
-  background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
-  border-color: #fca5a5;
+  background: linear-gradient(180deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-border) 100%);
+  border-color: var(--spd-p-danger-border);
 }
 
 /* ④ 紫色：已分配角色 / 关联用户 */
 .sys-kpi-item.is-purple {
-  background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%);
-  border-color: #c4b5fd;
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  border-color: var(--spd-p-info-border);
 }
 
 /* 橙色：权限点 */
 .sys-kpi-item.is-orange {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
+  background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%);
+  border-color: var(--spd-p-warning-border);
 }
 
 .sys-kpi-icon {
@@ -1058,16 +1086,16 @@ const roleListColSettingsPop = useColSettingsPopover({
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green  .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-red    .sys-kpi-icon { color: #b91c1c; }
-.sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
+.sys-kpi-item.is-blue   .sys-kpi-icon { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-icon { color: var(--spd-p-success-strong); }
+.sys-kpi-item.is-red    .sys-kpi-icon { color: var(--spd-p-danger-strong); }
+.sys-kpi-item.is-purple .sys-kpi-icon { color: var(--spd-p-primary); }
+.sys-kpi-item.is-orange .sys-kpi-icon { color: var(--spd-p-warning-text); }
 
 .sys-kpi-item > div {
   display: grid;
@@ -1099,19 +1127,19 @@ const roleListColSettingsPop = useColSettingsPopover({
 /* 文字颜色 */
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
-.sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
+.sys-kpi-item.is-blue   .sys-kpi-hint { color: var(--spd-p-info-strong); }
 .sys-kpi-item.is-green  .sys-kpi-label,
 .sys-kpi-item.is-green  .sys-kpi-value,
-.sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
+.sys-kpi-item.is-green  .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-red    .sys-kpi-label,
 .sys-kpi-item.is-red    .sys-kpi-value,
-.sys-kpi-item.is-red    .sys-kpi-hint { color: #7f1d1d; }
+.sys-kpi-item.is-red    .sys-kpi-hint { color: var(--spd-p-danger-strong); }
 .sys-kpi-item.is-purple .sys-kpi-label,
 .sys-kpi-item.is-purple .sys-kpi-value,
-.sys-kpi-item.is-purple .sys-kpi-hint { color: #4c1d95; }
+.sys-kpi-item.is-purple .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-orange .sys-kpi-label,
 .sys-kpi-item.is-orange .sys-kpi-value,
-.sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
+.sys-kpi-item.is-orange .sys-kpi-hint { color: var(--spd-p-warning-strong); }
 
 /* ---------- Tab ---------- */
 .sys-tabs {
@@ -1139,13 +1167,13 @@ const roleListColSettingsPop = useColSettingsPopover({
 
 .sys-tab:hover {
   color: var(--spd-primary);
-  background: #f0fdf9;
+  background: var(--spd-p-primary-bg);
 }
 
 .sys-tab.active {
   color: var(--spd-primary);
   border-bottom-color: var(--spd-primary);
-  background: #f0fdf9;
+  background: var(--spd-p-primary-bg);
   font-weight: 600;
 }
 
@@ -1155,10 +1183,10 @@ const roleListColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   flex-wrap: wrap;
 }
 
@@ -1166,9 +1194,9 @@ const roleListColSettingsPop = useColSettingsPopover({
   display: flex;
   align-items: center;
   gap: 0;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
   overflow: hidden;
   flex: 0 0 280px;
   min-width: 0;
@@ -1180,9 +1208,9 @@ const roleListColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 34px;
   height: 34px;
-  color: #64748b;
-  background: #f8fafc;
-  border-right: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border-right: 1px solid var(--spd-p-border);
   flex-shrink: 0;
 }
 
@@ -1192,13 +1220,13 @@ const roleListColSettingsPop = useColSettingsPopover({
   height: 34px;
   border: none;
   background: transparent;
-  color: #102033;
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
-.sys-toolbar-search input::placeholder { color: #94a3b8; }
+.sys-toolbar-search input::placeholder { color: var(--spd-p-text-muted); }
 .sys-toolbar-search input:focus { outline: none; }
 
 .sys-toolbar-actions {
@@ -1211,7 +1239,7 @@ const roleListColSettingsPop = useColSettingsPopover({
 .sys-toolbar-sep {
   width: 1px;
   height: 22px;
-  background: #e2e8f0;
+  background: var(--spd-p-border);
   margin: 0 4px;
 }
 
@@ -1224,10 +1252,10 @@ const roleListColSettingsPop = useColSettingsPopover({
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -1235,9 +1263,10 @@ const roleListColSettingsPop = useColSettingsPopover({
 }
 
 .btn:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
-  color: #1e293b;
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-text-muted);
+  /* 悬停文字：深色（此前误用与背景同色，悬停时文字完全不可见） */
+  color: var(--spd-p-text-strong);
 }
 
 .btn:disabled {
@@ -1246,27 +1275,27 @@ const roleListColSettingsPop = useColSettingsPopover({
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-danger {
-  color: #b91c1c;
-  border-color: #fca5a5;
-  background: #fff;
+  color: var(--spd-p-danger-strong);
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-bg);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #fee2e2;
-  border-color: #f87171;
-  color: #991b1b;
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger);
+  color: var(--spd-p-danger-strong);
 }
 
 .btn-icon {
@@ -1278,14 +1307,15 @@ const roleListColSettingsPop = useColSettingsPopover({
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
 .btn-icon:hover {
-  background: #f1f5f9;
-  color: #334155;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-strong);
 }
 
 .btn-text {
@@ -1294,7 +1324,7 @@ const roleListColSettingsPop = useColSettingsPopover({
   gap: 3px;
   border: none;
   background: transparent;
-  color: #10b981;
+  color: var(--spd-p-success);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -1303,19 +1333,19 @@ const roleListColSettingsPop = useColSettingsPopover({
   transition: background 0.15s;
 }
 
-.btn-text:hover { background: #d1fae5; }
+.btn-text:hover { background: var(--spd-p-success-bg); }
 
 /* ---------- 消息条 ---------- */
 .sys-msg {
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 内容区 ---------- */
@@ -1329,11 +1359,11 @@ const roleListColSettingsPop = useColSettingsPopover({
 .sys-table-card {
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-table-scroll { overflow-x: auto; }
@@ -1345,12 +1375,12 @@ const roleListColSettingsPop = useColSettingsPopover({
 }
 
 .sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-bottom: 1px solid var(--spd-p-success);
 }
 
 .sys-table th {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
   text-align: left;
@@ -1361,17 +1391,17 @@ const roleListColSettingsPop = useColSettingsPopover({
 
 .sys-table td {
   padding: 9px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
+  border-bottom: 1px solid var(--spd-p-text-strong);
+  color: var(--spd-p-text-secondary);
   vertical-align: middle;
 }
 
-.sys-table tbody tr:nth-child(even) td { background: #fafdfb; }
-.sys-table tbody tr:hover td { background: #ecfdf5 !important; }
+.sys-table tbody tr:nth-child(even) td { background: var(--spd-p-bg); }
+.sys-table tbody tr:hover td { background: var(--spd-p-primary-bg) !important; }
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px; font-size: var(--spd-font-size-base); }
+.muted { color: var(--spd-p-text-muted); padding: 32px; font-size: var(--spd-font-size-base); }
 
 /* 角色 / 编码 tag */
 .sys-tag {
@@ -1392,15 +1422,16 @@ const roleListColSettingsPop = useColSettingsPopover({
 }
 
 .sys-tag.is-role {
-  color: #6d28d9;
-  background: #ede9fe;
-  border-color: #c4b5fd;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-info-bg);
+  border-color: var(--spd-p-info-border);
 }
 
 .sys-tag.is-code {
-  color: #334155;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border);
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
   /* 角色编码是长英文标识，需要在断点处折行 */
@@ -1418,15 +1449,15 @@ const roleListColSettingsPop = useColSettingsPopover({
 }
 
 .sys-badge.is-active {
-  color: #065f46;
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success);
 }
 
 .sys-badge.is-stopped {
-  color: #991b1b;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 /* 分页 */
@@ -1435,12 +1466,12 @@ const roleListColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--spd-p-text-strong);
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
-.sys-pagination strong { color: #102033; font-weight: 700; }
+.sys-pagination strong { color: var(--spd-p-text); font-weight: 700; }
 
 /* ---------- 弹窗 ---------- */
 .sys-dialog-mask {
@@ -1450,14 +1481,14 @@ const roleListColSettingsPop = useColSettingsPopover({
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 50%, transparent);
   backdrop-filter: blur(2px);
 }
 
 .sys-dialog {
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: var(--spd-radius-lg, 14px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--spd-p-shadow-dialog);
   width: 100%;
   max-width: 520px;
   max-height: 88vh;
@@ -1477,7 +1508,7 @@ const roleListColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-dialog-header h3 {
@@ -1500,8 +1531,8 @@ const roleListColSettingsPop = useColSettingsPopover({
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 /* ---------- 表单 ---------- */
@@ -1516,7 +1547,7 @@ const roleListColSettingsPop = useColSettingsPopover({
   gap: 5px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-form-grid label.wide { grid-column: 1 / -1; }
@@ -1526,10 +1557,10 @@ const roleListColSettingsPop = useColSettingsPopover({
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -1539,21 +1570,22 @@ const roleListColSettingsPop = useColSettingsPopover({
 .sys-input:focus,
 .sys-select:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
 }
 
 .sys-input:disabled {
-  background: #f1f5f9;
-  color: #94a3b8;
+  /* 禁用态：浅底 + 弱化文字（此前误用近黑底，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-muted);
   cursor: not-allowed;
 }
 
 .sys-textarea {
   width: 100%;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 8px 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -1561,10 +1593,10 @@ const roleListColSettingsPop = useColSettingsPopover({
   min-height: 60px;
 }
 
-.sys-textarea:focus { outline: none; border-color: #cbd5e1; }
+.sys-textarea:focus { outline: none; border-color: var(--spd-p-border-strong); }
 
 .sys-error {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
   margin: 0;
@@ -1578,8 +1610,8 @@ const roleListColSettingsPop = useColSettingsPopover({
   max-height: 220px;
   overflow-y: auto;
   padding: 10px;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
 }
 
@@ -1592,14 +1624,14 @@ const roleListColSettingsPop = useColSettingsPopover({
   padding: 5px 8px;
   border-radius: 5px;
   font-size: var(--spd-font-size-base);
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s;
 }
 
-.sys-perm-checkboxes label:hover { background: #d1fae5; color: #047857; }
-.sys-perm-checkboxes label input[type="checkbox"] { accent-color: #10b981; width: 15px; height: 15px; }
+.sys-perm-checkboxes label:hover { background: var(--spd-p-success-bg); color: var(--spd-p-success-strong); }
+.sys-perm-checkboxes label input[type="checkbox"] { accent-color: var(--spd-p-success); width: 15px; height: 15px; }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 1200px) {

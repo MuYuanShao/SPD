@@ -6,6 +6,7 @@ import {
   CopyPlus,
   Eye,
   PackageCheck,
+  PackagePlus,
   Pencil,
   Plus,
   Save,
@@ -24,6 +25,7 @@ import {
 } from '../../api/receivingOrders'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchFieldOptions, type FieldOption } from '../../api/fieldOptions'
@@ -285,10 +287,14 @@ function statusLabel(status: string) {
   return statusOptions.find((item) => item.value === status)?.label ?? formatStatusText(status)
 }
 
-function statusTone(status: string) {
-  if (status === 'approved') return 'enabled'
-  if (status === 'rejected') return 'disabled'
-  return 'pending'
+/**
+ * 收货验收状态 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 已验收 → success；已驳回 → danger；其余（待收货等）→ warning。
+ */
+function statusTone(status: string): SpdStatusChipTone {
+  if (status === 'approved') return 'success'
+  if (status === 'rejected') return 'danger'
+  return 'warning'
 }
 
 async function loadData() {
@@ -505,18 +511,7 @@ const receivingListColSettingsPop = useColSettingsPopover({
         </button>
       </div>
 
-      <div class="hospital-action-row receiving-toolbar">
-        <button v-if="canCreate" class="btn btn-primary md-btn md-btn-primary" type="button" :disabled="optionsLoading" @click="openCreateModal">
-          <PackageCheck :size="18" />
-          新增收货
-        </button>
-        <button class="btn md-btn" type="button" @click="searchOrders">
-          <Search :size="17" />
-          收货单查询
-        </button>
-      </div>
-
-      <div class="hospital-query-grid receiving-query-grid">
+      <SpdFilterBar @submit="searchOrders">
         <label><span>收货单号</span><input v-model="query.receivingNo" class="md-input" placeholder="RK2026..." /></label>
         <label><span>采购订单</span><input v-model="query.purchaseOrderNo" class="md-input" placeholder="CG2026..." /></label>
         <label><span>供应商</span><input v-model="query.supplierName" class="md-input" placeholder="模糊查询供应商" /></label>
@@ -530,10 +525,25 @@ const receivingListColSettingsPop = useColSettingsPopover({
           <span>当前范围</span>
           <input value="待验收（草稿）" disabled />
         </label>
-        <button class="btn btn-primary md-btn md-btn-primary receiving-query-button" type="button" @click="searchOrders">
-          <Search :size="16" />
-          查询
-        </button>
+      </SpdFilterBar>
+
+      <!-- 动作条：左侧「业务动作」标题，右侧动作按钮同行左右分列
+           （flex space-between），不再使用带边框背景的 .hospital-action-row。 -->
+      <div class="spd-action-bar">
+        <div class="spd-action-bar__main">
+          <div class="section-title">
+            <PackageCheck :size="20" />
+            <h3>业务动作</h3>
+          </div>
+        </div>
+        <div class="spd-action-bar__aside">
+          <SpdButton label="新增收货" tone="primary" v-if="canCreate" :disabled="optionsLoading" @click="openCreateModal">
+            <template #icon><PackagePlus :size="18" /></template>
+          </SpdButton>
+          <SpdButton label="收货单查询" tone="primary" @click="searchOrders">
+            <template #icon><Search :size="17" /></template>
+          </SpdButton>
+        </div>
       </div>
 
             <MdDataTableCard
@@ -543,26 +553,22 @@ const receivingListColSettingsPop = useColSettingsPopover({
             >
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="receivingListColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="receivingListCols.settingsOpen.value = !receivingListCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: receivingListCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="receivingListColSettingsAnchorRef"
+           
+           
+            @click="receivingListCols.settingsOpen.value = !receivingListCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="receivingListCols.settingsOpen.value"
             ref="receivingListColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': receivingListColSettingsPop.align.value === 'right', 'is-align-up': receivingListColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': receivingListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': receivingListColSettingsPop.maxHeight.value + 'px' }"
+            :style="receivingListColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="receivingListCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="receivingListCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in receivingListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -577,7 +583,7 @@ const receivingListColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="receivingListCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="receivingListCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -696,7 +702,7 @@ const receivingListColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span :class="['status-badge', statusTone(row.receivingStatus)]">{{ statusLabel(row.receivingStatus) }}</span>
+                <SpdStatusChip :tone="statusTone(row.receivingStatus)" :label="statusLabel(row.receivingStatus)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -789,7 +795,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
       <section class="supplier-modal purchase-modal receiving-create-modal" role="dialog" aria-modal="true" aria-labelledby="receiving-create-title" @keydown.esc="confirmCloseCreateModal">
         <div class="receiving-create-titlebar">
           <strong id="receiving-create-title">{{ editingReceivingNo ? `修改 ${editingReceivingNo}` : '新增收货单' }}</strong>
-          <button type="button" class="btn-icon" aria-label="关闭" @click="confirmCloseCreateModal"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="confirmCloseCreateModal">
+            <template #icon><X :size="18" /></template>
+          </SpdButton>
         </div>
 
         <div class="receiving-create-body">
@@ -849,9 +857,15 @@ const receivingListColSettingsPop = useColSettingsPopover({
           </div>
 
           <div class="receiving-entry-toolbar">
-            <button type="button" class="teal-action" @click="openCreateItemDialog"><Plus :size="16" /> 新增明细</button>
-            <button type="button" class="teal-action danger" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="deleteSelectedItems"><Trash2 :size="16" /> 删除勾选</button>
-            <button type="button" class="teal-action" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="copySelectedItems"><CopyPlus :size="16" /> 复制细单</button>
+            <SpdButton label="新增明细" tone="primary" @click="openCreateItemDialog">
+              <template #icon><Plus :size="16" /></template>
+            </SpdButton>
+            <SpdButton label="删除勾选" tone="danger" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="deleteSelectedItems">
+              <template #icon><Trash2 :size="16" /></template>
+            </SpdButton>
+            <SpdButton label="复制细单" tone="primary" :disabled="!selectedItemIndexes.length" title="请先勾选明细" @click="copySelectedItems">
+              <template #icon><CopyPlus :size="16" /></template>
+            </SpdButton>
             <label class="barcode-field">
               <span>商品码扫描</span>
               <input v-model="scanCode" placeholder="扫描或录入商品码" @keyup.enter="scanProduct" />
@@ -909,9 +923,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
                     <td colspan="13">
                       <div class="empty-detail">
                         <EmptyState message="暂无收货明细，请点击「新增明细」按钮添加" />
-                        <button type="button" class="teal-action solid" @click="openCreateItemDialog">
-                          <Plus :size="16" /> 立即新增
-                        </button>
+                        <SpdButton label="立即新增" tone="primary" @click="openCreateItemDialog">
+                          <template #icon><Plus :size="16" /></template>
+                        </SpdButton>
                       </div>
                     </td>
                   </tr>
@@ -929,18 +943,15 @@ const receivingListColSettingsPop = useColSettingsPopover({
             <span>不合格:{{ createTotals.unqualifiedQuantity.toString() }}</span>
           </div>
           <div class="receiving-footer-actions">
-            <button class="teal-action solid" type="button" :disabled="submitting || quantityMismatch" @click="submitCreate">
-              <Save :size="16" />
-              {{ submitting ? '保存中...' : '保存' }}
-            </button>
-            <button v-if="!editingReceivingNo" class="teal-action solid" type="button" :disabled="submitting || quantityMismatch" @click="submitCreateAndContinue">
-              <Save :size="16" />
-              保存并继续
-            </button>
-            <button class="teal-action dark" type="button" @click="confirmCloseCreateModal">
-              <X :size="16" />
-              取消
-            </button>
+            <SpdButton label="保存" tone="success" :disabled="submitting || quantityMismatch" :loading="submitting" @click="submitCreate">
+              <template #icon><Save :size="16" /></template>
+            </SpdButton>
+            <SpdButton v-if="!editingReceivingNo" label="保存并继续" tone="success" :disabled="submitting || quantityMismatch" @click="submitCreateAndContinue">
+              <template #icon><Save :size="16" /></template>
+            </SpdButton>
+            <SpdButton label="取消" tone="neutral" @click="confirmCloseCreateModal">
+              <template #icon><X :size="16" /></template>
+            </SpdButton>
           </div>
         </div>
       </section>
@@ -954,7 +965,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
           <strong id="item-dialog-title">
             {{ itemDialogMode === 'edit' ? '编辑收货明细' : itemDialogMode === 'copy' ? '复制收货明细' : '新增收货明细' }}
           </strong>
-          <button type="button" class="btn-icon" aria-label="关闭" @click="closeItemDialog"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="closeItemDialog">
+            <template #icon><X :size="18" /></template>
+          </SpdButton>
         </div>
         <div class="item-dialog-body">
           <div class="item-form-grid">
@@ -999,12 +1012,12 @@ const receivingListColSettingsPop = useColSettingsPopover({
           <StatusMessage v-if="itemDialogError" :message="itemDialogError" tone="error" />
         </div>
         <div class="item-dialog-footer">
-          <button class="teal-action dark" type="button" @click="closeItemDialog">
-            <X :size="16" /> 取消
-          </button>
-          <button class="teal-action solid" type="button" @click="saveItemDialog">
-            <Save :size="16" /> 保存明细
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="closeItemDialog">
+            <template #icon><X :size="16" /></template>
+          </SpdButton>
+          <SpdButton label="保存明细" tone="success" @click="saveItemDialog">
+            <template #icon><Save :size="16" /></template>
+          </SpdButton>
         </div>
       </section>
     </div>
@@ -1018,7 +1031,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
             <p>收货验收单</p>
             <h3 id="receiving-detail-title">{{ detail.order.receivingNo }}</h3>
           </div>
-          <button type="button" class="btn btn-sm" @click="detail = null"><X :size="18" /> 关闭</button>
+          <SpdButton label="关闭" @click="detail = null">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
 
         <div class="receiving-detail-meta">
@@ -1051,10 +1066,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
               @keyup.enter="searchDetailItems"
             />
           </label>
-          <button class="btn btn-primary btn-sm receiving-detail-search-button" type="button" :disabled="detailLoading" @click="searchDetailItems">
-            <Search :size="16" />
-            查询
-          </button>
+          <SpdButton label="查询" class="receiving-detail-search-button" :disabled="detailLoading" @click="searchDetailItems">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
           <span class="receiving-detail-count">
             共 {{ detail.total }} 个品种，第 {{ detail.page }} / {{ Math.max(Math.ceil(detail.total / detailSize), 1) }} 页
           </span>

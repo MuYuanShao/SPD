@@ -46,9 +46,9 @@ function priceText(value: unknown) {
           <p>定数包模板维护</p>
           <h3>选择商品</h3>
         </div>
-        <button class="qps-btn qps-btn-ghost" type="button" aria-label="关闭" @click="closeDialog">
-          <X :size="18" />
-        </button>
+        <SpdButton label="" tone="primary" aria-label="关闭" @click="closeDialog">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <div class="qps-dialog-body">
@@ -57,10 +57,9 @@ function priceText(value: unknown) {
             <input v-model="productQuery.productCode" placeholder="商品编码" @keyup.enter="emit('search')" />
             <input v-model="productQuery.productName" placeholder="商品名称" @keyup.enter="emit('search')" />
           </div>
-          <button class="qps-btn qps-btn-primary" type="button" @click="emit('search')">
-            <Search :size="15" />
-            查询
-          </button>
+          <SpdButton label="查询" tone="primary" @click="emit('search')">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
         </div>
 
         <div class="qps-table-wrap">
@@ -94,10 +93,9 @@ function priceText(value: unknown) {
                 <td>{{ priceText(row.price) }}</td>
                 <td>{{ row.unit || '-' }}</td>
                 <td class="col-action">
-                  <button class="qps-btn qps-btn-primary qps-btn-sm" type="button" @click="emit('select', row)">
-                    <Check :size="13" />
-                    选择
-                  </button>
+                  <SpdButton label="选择" @click="emit('select', row)">
+          <template #icon><Check :size="13" /></template>
+        </SpdButton>
                 </td>
               </tr>
               <tr v-if="!loading && !products.length">
@@ -128,10 +126,10 @@ function priceText(value: unknown) {
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -141,8 +139,8 @@ function priceText(value: unknown) {
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 .qps-dialog-title {
@@ -165,7 +163,7 @@ function priceText(value: unknown) {
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .qps-dialog-body {
@@ -181,8 +179,8 @@ function priceText(value: unknown) {
   align-items: center;
   gap: 12px;
   padding: 14px 18px;
-  background: #f5f8fa;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border);
   flex-wrap: wrap;
 }
 
@@ -196,10 +194,10 @@ function priceText(value: unknown) {
 .qps-search-group input {
   min-height: 36px;
   padding: 5px 12px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 140px;
@@ -207,8 +205,8 @@ function priceText(value: unknown) {
 
 .qps-search-group input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qps-table-wrap {
@@ -222,7 +220,7 @@ function priceText(value: unknown) {
   border-collapse: collapse;
   table-layout: auto;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .qps-table thead th {
@@ -234,8 +232,8 @@ function priceText(value: unknown) {
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #475569, #334155);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary), var(--spd-p-text-secondary));
   white-space: nowrap;
 }
 
@@ -246,12 +244,12 @@ function priceText(value: unknown) {
 
 .qps-table tbody td {
   padding: 9px 14px;
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   vertical-align: middle;
 }
 
 .qps-table tbody tr:nth-child(even) td {
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .qps-table tbody tr {
@@ -260,7 +258,7 @@ function priceText(value: unknown) {
 }
 
 .qps-table tbody tr:hover td {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .qps-table tbody td.col-action {
@@ -268,7 +266,7 @@ function priceText(value: unknown) {
 }
 
 .cell-code {
-  color: #0f6f78;
+  color: var(--spd-p-primary);
   font-weight: 700;
   font-size: var(--spd-font-size-base);
 }
@@ -276,13 +274,13 @@ function priceText(value: unknown) {
 .qps-empty {
   padding: 32px 14px;
   text-align: center;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
 }
 
 .qps-pagination {
   padding: 12px 18px;
-  background: #f5f8fa;
-  border-top: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-top: 1px solid var(--spd-p-border);
 }
 
 /* Buttons */
@@ -312,14 +310,14 @@ function priceText(value: unknown) {
 }
 
 .qps-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qps-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qps-btn-ghost {
@@ -327,12 +325,12 @@ function priceText(value: unknown) {
   min-height: 32px;
   padding: 0;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 
 .qps-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 </style>

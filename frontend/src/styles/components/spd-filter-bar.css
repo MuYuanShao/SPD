@@ -1,0 +1,413 @@
+/* =====================================================================
+ * SpdFilterBar · 统一筛选栏样式（唯一视觉来源）
+ * =====================================================================
+ * 本文件是**全站筛选栏的标准规则（唯一出处）**。
+ * 组件：frontend/src/components/common/SpdFilterBar.vue
+ *
+ * ---------------------------------------------------------------------
+ * 【标准规则 · 一句话】
+ *   筛选栏 = 「自适应字段栅格」+「右侧固定操作区」；
+ *   字段宽度按 minmax 下限换行，操作区永远不参与栅格列分配。
+ * ---------------------------------------------------------------------
+ *
+ * 【标准规则 1：字段宽度 / 换行规则】
+ *   栅格：`grid-template-columns: repeat(auto-fit, minmax(<下限>, 1fr))`
+ *   - 下限 `--spd-filter-min-width` = 160px
+ *     —— 单个字段的**最小**宽度。低于 160px 时「商品编码 + 占位符」会被截断，
+ *        因此 160px 是可读性的下限。
+ *   - 1fr —— 剩余空间在同行字段之间**等分**。
+ *   - 换行由「容器可用宽度 ÷ 160px」自动决定，**不写死媒体查询**：
+ *       可用宽度 ≥ 160×N+间距×(N-1) → 一行放 N 个字段
+ *       否则自动少放一个，逐级递减，直到 1 个（独占整行）。
+ *     换算（含 16px 列间距）：
+ *       N=1 →  ≥ 160px
+ *       N=2 →  ≥ 336px
+ *       N=3 →  ≥ 512px
+ *       N=4 →  ≥ 688px
+ *       N=5 →  ≥ 864px
+ *       N=6 →  ≥ 1040px
+ *       N=7 →  ≥ 1216px
+ *       N=8 →  ≥ 1392px
+ *     即：**每多放一个字段，容器至少再宽 176px**。
+ *   - 断点补充（覆盖极端窄屏）：
+ *       ≤ 760px —— 强制单列（`minmax(0, 1fr)`），字段占满整行；
+ *       ≤ 420px —— 标签与控件仍为上下结构（不改为左右），保证标签可读。
+ *   - 需要固定列数时用组件的 `fieldsPerRow` prop，
+ *     写入 `--spd-filter-columns` 覆盖 auto-fit（少数例外场景）。
+ *
+ * 【标准规则 2：按钮（操作区）放在哪里】
+ *   - 操作区是**独立的 flex 区域**，永远**不进入**字段栅格，
+ *     因此「重置 / 查询」按钮永远不会被挤到下一行，也不会被压缩。
+ *   - 宽屏（> 760px）：操作区固定在**字段栅格的右侧**，
+ *     垂直方向与字段标签**底对齐**（align-self: end），
+ *     按钮整体靠右（justify-content: flex-end）。
+ *   - 窄屏（≤ 760px）：操作区变成**独占一整行**，宽度 100%，
+ *     内部仍靠右对齐（不居中、不拉伸按钮）。
+ *   - 按钮顺序：**「重置」→「查询」**（查询在右，为主动作）；
+ *     存在折叠能力时「更多 / 收起」排在最左。
+ *   - 按钮统一使用 SpdButton（全站唯一按钮组件），本文件不定义按钮配色。
+ *
+ * 【标准规则 3：字段高度】
+ *   - 所有筛选输入控件高度**严格等于** `--spd-p-field-height`（= 34px）。
+ *   - Element Plus 控件：`.el-input__wrapper` / `.el-select__wrapper`
+ *     使用 `height` + `box-sizing: border-box` 锁死；
+ *   - 原生控件：`input` / `select`（含 .md-input / .md-select）
+ *     同样使用 `height` + `box-sizing: border-box` 锁死；
+ *   - 禁止使用 min-height（内容撑高会造成高度漂移）。
+ *
+ * 【标准规则 4：标签】
+ *   - 标签在控件**上方**（纵向排布），全站一致；
+ *   - 标签字号取 `--spd-font-size-sm`，字重 600；
+ *   - 标签宽度默认自适应；传 `labelWidth` 时统一对齐。
+ * ===================================================================== */
+
+/* 筛选栏的栅格参数统一取自 tokens/palette.css 的「筛选栏布局角色」，
+   避免同一组数值在两处重复声明造成漂移。
+   见 styles/tokens/palette.css → 8. 筛选栏布局角色。 */
+
+/* =====================================================================
+ * 1. 外框
+ * ===================================================================== */
+.spd-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--spd-filter-gap-y) var(--spd-filter-actions-gap);
+  padding: 16px 18px;
+  border: 1px solid var(--spd-p-border);
+  border-radius: 12px;
+  background: var(--spd-p-bg);
+  min-width: 0;
+}
+
+/* =====================================================================
+ * 2. 字段栅格（标准规则 1 的落点）
+ * ===================================================================== */
+.spd-filter-bar__fields {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--spd-filter-min-width)), 1fr)
+  );
+  gap: var(--spd-filter-gap-y) var(--spd-filter-gap-x);
+  flex: 1 1 0%;
+  min-width: 0;
+}
+
+/* 显式列数覆盖（fieldsPerRow prop） */
+.spd-filter-bar[style*='--spd-filter-columns'] .spd-filter-bar__fields {
+  grid-template-columns: repeat(var(--spd-filter-columns, 4), minmax(0, 1fr));
+}
+
+/* =====================================================================
+ * 3. 字段（标签 + 控件）
+ * ===================================================================== */
+.spd-filter-bar__fields > label,
+.spd-filter-bar__fields > .spd-filter-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  align-content: start;
+}
+
+/* 标签：控件上方，全站统一排版（标准规则 4） */
+.spd-filter-bar__fields > label > span,
+.spd-filter-bar__fields > .spd-filter-field > span {
+  color: var(--spd-p-field-label);
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  line-height: var(--spd-lh-base);
+  text-align: var(--spd-filter-label-align, start);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* 固定标签宽度（labelWidth prop） */
+.spd-filter-bar[style*='--spd-filter-label-width'] .spd-filter-bar__fields > label > span,
+.spd-filter-bar[style*='--spd-filter-label-width'] .spd-filter-bar__fields > .spd-filter-field > span {
+  width: var(--spd-filter-label-width);
+  max-width: var(--spd-filter-label-width);
+}
+
+/* 标签对齐（labelAlign prop） */
+.spd-filter-bar[style*='--spd-filter-label-align-end'] .spd-filter-bar__fields > label > span,
+.spd-filter-bar[style*='--spd-filter-label-align-end'] .spd-filter-bar__fields > .spd-filter-field > span {
+  text-align: end;
+}
+
+/* =====================================================================
+ * 4. 控件高度（标准规则 3 的落点）
+ * ---------------------------------------------------------------------
+ * 全部使用 height + box-sizing: border-box 锁死 --spd-p-field-height，
+ * 保证同一页面内所有筛选控件**像素级同高**。
+ * ===================================================================== */
+.spd-filter-bar .el-input__wrapper,
+.spd-filter-bar .el-select__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+}
+
+.spd-filter-bar .el-input__wrapper {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
+}
+
+.spd-filter-bar .el-input__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
+}
+
+.spd-filter-bar .el-input__wrapper.is-focus,
+.spd-filter-bar .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-focus-border) inset,
+    0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+.spd-filter-bar .el-select__wrapper {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
+}
+
+.spd-filter-bar .el-select__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
+}
+
+/* 控件字号统一走排版令牌 */
+.spd-filter-bar .el-input__inner,
+.spd-filter-bar .el-select__placeholder,
+.spd-filter-bar .el-select__selected-item,
+.spd-filter-bar input,
+.spd-filter-bar select {
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  line-height: var(--spd-lh-base);
+}
+
+.spd-filter-bar .el-input__inner::placeholder,
+.spd-filter-bar input::placeholder,
+.spd-filter-bar textarea::placeholder {
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  color: var(--spd-p-field-placeholder);
+}
+
+/* 禁用态 */
+.spd-filter-bar .el-input.is-disabled .el-input__wrapper,
+.spd-filter-bar .el-select__wrapper.is-disabled {
+  background: var(--spd-p-field-disabled-bg);
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-disabled-border) inset;
+}
+
+.spd-filter-bar .el-input.is-disabled .el-input__inner,
+.spd-filter-bar .el-select__wrapper.is-disabled .el-select__placeholder {
+  color: var(--spd-p-field-disabled-text);
+}
+
+/* el-select 撑满字段宽度 */
+.spd-filter-bar .el-select {
+  width: 100%;
+}
+
+/* 原生输入框 / 下拉（.md-input / .md-select） */
+.spd-filter-bar input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+.spd-filter-bar select,
+.spd-filter-bar .md-input,
+.spd-filter-bar .md-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  padding: 0 var(--spd-p-field-padding-x);
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  color: var(--spd-p-field-text);
+  font-family: inherit;
+  line-height: var(--spd-lh-base);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.spd-filter-bar input:not([type='checkbox']):not([type='radio']):not([type='hidden']):hover,
+.spd-filter-bar select:hover,
+.spd-filter-bar .md-input:hover,
+.spd-filter-bar .md-select:hover {
+  border-color: var(--spd-p-field-border-hover);
+}
+
+.spd-filter-bar input:not([type='checkbox']):not([type='radio']):not([type='hidden']):focus,
+.spd-filter-bar select:focus,
+.spd-filter-bar .md-input:focus,
+.spd-filter-bar .md-select:focus {
+  outline: none;
+  border-color: var(--spd-p-field-focus-border);
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+.spd-filter-bar input:disabled,
+.spd-filter-bar select:disabled,
+.spd-filter-bar .md-input:disabled,
+.spd-filter-bar .md-select:disabled {
+  background: var(--spd-p-field-disabled-bg);
+  border-color: var(--spd-p-field-disabled-border);
+  color: var(--spd-p-field-disabled-text);
+  cursor: not-allowed;
+}
+
+/* =====================================================================
+ * 5. 操作区（标准规则 2 的落点）
+ * ---------------------------------------------------------------------
+ * 操作区是独立 flex 区域，不进入字段栅格。
+ * ===================================================================== */
+.spd-filter-bar__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spd-p-control-gap);
+  flex: 0 0 auto;
+  align-self: end;
+  white-space: nowrap;
+}
+
+/* 「更多 / 收起」箭头翻转 */
+.spd-filter-bar__actions .rotated {
+  transform: rotate(180deg);
+}
+
+/* =====================================================================
+ * 7. 全局覆盖收口
+ * ---------------------------------------------------------------------
+ * styles/responsive-medical.css 位于 main.css **之后**引入，
+ * 其中有一条针对 .main-area 内所有 input / select / .el-input__wrapper 的
+ * 全局高度规则（min-height: 36px !important）。
+ *
+ * 若不在此收口，筛选栏控件高度会被那条全局规则压到 36px，
+ * 与 --spd-p-field-height（34px）不一致 —— 「筛选框高度必须一样」就会破功。
+ *
+ * 因此这里用同样的 !important + 更高特指度把筛选栏控件拉回标准高度。
+ * 特指度说明：.main-area 内选择器为 (0,2,1)；此处为 (0,3,1)，稳压。
+ * ===================================================================== */
+.main-area .spd-filter-bar input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+.main-area .spd-filter-bar select,
+.main-area .spd-filter-bar .el-input__wrapper,
+.main-area .spd-filter-bar .el-select__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height) !important;
+  min-height: var(--spd-p-field-height) !important;
+  max-height: var(--spd-p-field-height) !important;
+  border-radius: var(--spd-p-field-radius) !important;
+  font-size: var(--spd-font-size-base) !important;
+}
+
+/* 主题适配：三套方案下筛选栏外壳与标签同样取自令牌 */
+:root[data-spd-theme='night-black'] .spd-filter-bar,
+:root[data-spd-theme='calm-paper'] .spd-filter-bar {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-default) !important;
+}
+
+/* =====================================================================
+ * 6. 窄屏（标准规则 1 / 2 的断点补充）
+ * ---------------------------------------------------------------------
+ * 注意：媒体查询条件不支持 var()，此处必须写字面量 760px，
+ * 它必须与 tokens/palette.css 的 --spd-filter-narrow-breakpoint 保持一致。
+ * scripts/verify-filter-bar.mjs 会校验两者是否同步。
+ * ===================================================================== */
+@media (max-width: 760px) {
+  .spd-filter-bar {
+    gap: var(--spd-filter-gap-y);
+  }
+
+  .spd-filter-bar__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* 操作区独占整行，仍靠右对齐 */
+  .spd-filter-bar__actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
+
+/* =====================================================================
+ * 7. 动作条（Action Bar）—— 业务动作 + 次要动作同行，左右分列
+ * ---------------------------------------------------------------------
+ * 用户诉求：
+ *   「智能补货分析这个按钮不要单独一行，和业务动作在一行，
+ *     使用 flex 布局的 space-between 分别在两边对齐就好，
+ *     很多出现这种情况的页面都要这么调整，使得整体样式统一」
+ *
+ * 因此全站统一采用同一个动作条容器：
+ *   - 左侧：业务动作（标题 / 提示 / 主按钮组）
+ *   - 右侧：次要动作（例如「智能补货分析」）
+ *   - 布局：display:flex + justify-content: space-between + align-items:center
+ *   - 窄屏（≤ 760px）：折行堆叠，避免右侧动作被压扁。
+ *
+ * 结构约定（各页面照此写即可）：
+ *   <div class=spd-action-bar>
+ *     <div class=spd-action-bar__main>…业务动作…</div>
+ *     <div class=spd-action-bar__aside>…次要动作…</div>
+ *   </div>
+ * ===================================================================== */
+.spd-action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spd-space-4);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 左侧：业务动作主体（标题 + 提示 + 按钮组） */
+.spd-action-bar__main {
+  display: flex;
+  align-items: center;
+  gap: var(--spd-space-3);
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* 右侧：次要动作（不参与左侧布局，独立贴右） */
+.spd-action-bar__aside {
+  display: flex;
+  align-items: center;
+  gap: var(--spd-space-2);
+  flex-wrap: wrap;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* 动作条内的分区标题（.section-title / .md-section-title 等）：
+   标题进入动作条后，自身的下边框与外边距一律取消 ——
+   分隔线与间距由动作条统一承担，避免同一行出现两条横线。 */
+.spd-action-bar .section-title,
+.spd-action-bar .consumption-section-title,
+.spd-action-bar .delivery-section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+@media (max-width: 760px) {
+  .spd-action-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .spd-action-bar__aside {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+
+/* =====================================================================
+ * 8. 动作条与筛选栏的相邻间距
+ * ---------------------------------------------------------------------
+ * 动作条紧跟在筛选栏下方时，两者之间保留一行呼吸空间，
+ * 避免筛选栏边框与动作条边框叠在一起形成双线。
+ * ===================================================================== */
+.spd-filter-bar + .spd-action-bar {
+  margin-top: var(--spd-space-3);
+}

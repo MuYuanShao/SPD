@@ -234,11 +234,13 @@ onMounted(async () => {
         <label><span>库房</span><input v-model.trim="query.warehouseName" class="md-input" placeholder="库房名称" /></label>
         <label><span>商品</span><input v-model.trim="query.productName" class="md-input" placeholder="商品名称" /></label>
         <div class="ledger-filter-actions">
-          <button class="btn btn-primary md-btn md-btn-primary" type="submit" :disabled="loading"><Search :size="15" />查询</button>
-          <button class="btn md-btn" type="button" @click="reset">重置</button>
-          <button class="btn md-btn advanced-toggle" :class="{ active: advancedOpen || hasAdvancedFilter }" type="button" :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
-            <SlidersHorizontal :size="15" />高级筛选<span v-if="hasAdvancedFilter" class="filter-dot" aria-label="高级筛选已启用"></span>
-          </button>
+          <SpdButton label="查询" tone="primary" type="submit" :disabled="loading">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="重置" tone="neutral" @click="reset"></SpdButton>
+          <SpdButton label="高级筛选" class="advanced-toggle" :class="{ active: advancedOpen || hasAdvancedFilter }" :aria-expanded="advancedOpen" @click="advancedOpen = !advancedOpen">
+          <template #icon><SlidersHorizontal :size="15" /></template>
+        </SpdButton>
         </div>
         <div v-if="advancedOpen" class="advanced-filters">
           <label><span>科室</span><input v-model.trim="query.deptName" class="md-input" placeholder="科室名称" /></label>
@@ -265,26 +267,22 @@ onMounted(async () => {
       <MdDataTableCard class="ledger-table-card">
         <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="ledgerColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="ledgerCols.settingsOpen.value = !ledgerCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: ledgerCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="ledgerColSettingsAnchorRef"
+             
+             
+              @click="ledgerCols.settingsOpen.value = !ledgerCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="ledgerCols.settingsOpen.value"
               ref="ledgerColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': ledgerColSettingsPop.align.value === 'right', 'is-align-up': ledgerColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': ledgerColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ledgerColSettingsPop.maxHeight.value + 'px' }"
+              :style="ledgerColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="ledgerCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ledgerCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in ledgerCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -299,7 +297,7 @@ onMounted(async () => {
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="ledgerCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="ledgerCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -541,10 +539,10 @@ onMounted(async () => {
   gap: 12px;
   min-width: 0;
   padding: 14px 16px 16px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 表格卡片与外层面板之间留出呼吸感 */
@@ -630,7 +628,7 @@ onMounted(async () => {
   grid-template-columns: repeat(4, minmax(150px, 1fr));
   gap: 10px 14px;
   padding: 12px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
 }
@@ -716,8 +714,8 @@ onMounted(async () => {
   align-items: center;
   padding: 2px 9px;
   border-radius: 999px;
-  background: var(--md-primary-soft, #e8f1ef);
-  color: var(--md-primary-strong, var(--md-primary, #0d6b63));
+  background: var(--md-primary-soft, var(--spd-p-primary-bg));
+  color: var(--md-primary-strong, var(--md-primary, var(--spd-p-primary)));
   font-size: var(--spd-font-size-xs);
   font-weight: 600;
   white-space: nowrap;
@@ -725,18 +723,18 @@ onMounted(async () => {
 
 /* 调价事件：橙色系，与主色区分 */
 .event-type-chip.valuation {
-  background: var(--spd-warning-bg, #fff4e5);
-  color: var(--spd-warning-text, #9a5b00);
+  background: var(--spd-warning-bg, var(--spd-p-warning-bg));
+  color: var(--spd-warning-text, var(--spd-p-warning-text));
 }
 
 /* 调价事件整行标记：橙色系底色，与主色区分。
    el-table 的斑马纹与 hover 也需要一并压过，因此用 !important。 */
 .inventory-ledger-page .ulc-table .el-table__row.valuation-row td.el-table__cell {
-  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 45%, white) !important;
+  background: color-mix(in srgb, var(--spd-warning-bg, var(--spd-p-warning-bg)) 45%, var(--spd-p-bg)) !important;
 }
 
 .inventory-ledger-page .ulc-table .el-table__row.valuation-row:hover td.el-table__cell {
-  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 70%, white) !important;
+  background: color-mix(in srgb, var(--spd-warning-bg, var(--spd-p-warning-bg)) 70%, var(--spd-p-bg)) !important;
 }
 
 /* 操作列：按钮单行不换行 */
@@ -765,8 +763,8 @@ onMounted(async () => {
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  border-top: 1px solid var(--md-border-soft, #e7ebf0);
-  border-left: 1px solid var(--md-border-soft, #e7ebf0);
+  border-top: 1px solid var(--md-border-soft, var(--spd-p-text));
+  border-left: 1px solid var(--md-border-soft, var(--spd-p-text));
   border-radius: var(--md-radius, 6px);
   overflow: hidden;
 }
@@ -775,8 +773,8 @@ onMounted(async () => {
   display: grid;
   gap: 5px;
   padding: 11px;
-  border-right: 1px solid var(--md-border-soft, #e7ebf0);
-  border-bottom: 1px solid var(--md-border-soft, #e7ebf0);
+  border-right: 1px solid var(--md-border-soft, var(--spd-p-text));
+  border-bottom: 1px solid var(--md-border-soft, var(--spd-p-text));
 }
 
 .detail-grid span,
@@ -816,7 +814,7 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 16px;
   padding: 10px 12px;
-  border: 1px solid var(--md-border-soft, #e7ebf0);
+  border: 1px solid var(--md-border-soft, var(--spd-p-text));
   border-radius: var(--md-radius, 6px);
 }
 

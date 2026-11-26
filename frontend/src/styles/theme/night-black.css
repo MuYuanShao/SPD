@@ -257,7 +257,7 @@
   --spd-c-text: #e8edf3;
   --spd-c-text-strong: #f2f6fa;
   --spd-c-text-secondary: #a7b3c0;
-  --spd-c-text-muted: #78838f;
+  --spd-c-text-muted: #8b96a2;
   --spd-c-text-on-primary: #16110a;
 
   --spd-c-bg: #131920;
@@ -280,7 +280,7 @@
   --spd-c-success-soft: #14251d;
   --spd-c-success-border: #2a4a3a;
 
-  --spd-c-disabled: #7a8794;
+  --spd-c-disabled: #8a97a4;
   --spd-c-disabled-soft: #1b232d;
   --spd-c-disabled-border: #2c3744;
 
@@ -296,14 +296,23 @@
   --spd-c-info-soft: #14212c;
   --spd-c-info-border: #26404f;
 
-  /* —— 状态条底色：改为与暗底混合，透明度仍为 0.4 —— */
-  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 40%, #131920);
-  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 40%, #131920);
-  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 40%, #131920);
-  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 40%, #131920);
-  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 40%, #131920);
-  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 40%, #131920);
-  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 40%, #131920);
+  /* 中性石板：表头 / 次级说明文字档位（暗底上的中性浅灰，非蓝） */
+  --spd-c-slate: #9aa6b2;
+  --spd-c-slate-soft: #1c232b;
+  --spd-c-slate-border: #333d47;
+
+  /* —— 状态条底色：与暗底混合，透明度 0.14 ——
+     暗底（#131920）上若按 0.4 混合，色块会被语义色主导，
+     文字对比度只有 2.92~3.51:1（低于 WCAG AA 4.5:1）。
+     收到 0.14 后各档均 ≥ 4.55:1（成功 6.12 / 警告 6.51 / 危险 4.55 /
+     信息 5.43 / 禁用 4.80），且底色仍是「暗底淡染」而不是实心深色块。 */
+  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 14%, var(--spd-c-bg));
+  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 14%, var(--spd-c-bg));
 }
 
 /* =====================================================================
@@ -331,7 +340,7 @@
 
 :root[data-spd-theme='night-black'] .spd-logo-icon {
   background: linear-gradient(135deg, var(--spd-primary), var(--spd-primary-dark)) !important;
-  color: #16110a !important;
+  color: var(--spd-c-text-on-primary) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--spd-primary) 28%, transparent);
 }
 
@@ -351,7 +360,7 @@
 :root[data-spd-theme='night-black'] .spd-menu-dropdown {
   background: var(--spd-bg-elevated) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
 }
 
 :root[data-spd-theme='night-black'] .spd-dropdown-link {
@@ -414,27 +423,25 @@
   background: var(--spd-bg-surface) !important;
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--spd-p-shadow-1);
   border-radius: 12px !important;
 }
 
 /* 筛选区 */
-:root[data-spd-theme='night-black'] .ulc-filter,
-:root[data-spd-theme='night-black'] .md-hospital-filter,
+:root[data-spd-theme='night-black'] .spd-filter-bar,
 :root[data-spd-theme='night-black'] .catalog-filter-panel {
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-default) !important;
 }
 
-:root[data-spd-theme='night-black'] .ulc-filter label > span,
-:root[data-spd-theme='night-black'] .md-hospital-filter label > span {
+:root[data-spd-theme='night-black'] .spd-filter-bar__fields label > span {
   color: var(--spd-text-secondary) !important;
 }
 
 /* 输入框 / 下拉：暗底 */
 :root[data-spd-theme='night-black'] .md-input,
-:root[data-spd-theme='night-black'] .ulc-filter input,
-:root[data-spd-theme='night-black'] .ulc-filter select,
+:root[data-spd-theme='night-black'] .spd-filter-bar input,
+:root[data-spd-theme='night-black'] .spd-filter-bar select,
 :root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid input,
 :root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid select {
   background: var(--spd-bg-page) !important;
@@ -443,13 +450,13 @@
 }
 
 :root[data-spd-theme='night-black'] .md-input::placeholder,
-:root[data-spd-theme='night-black'] .ulc-filter input::placeholder {
+:root[data-spd-theme='night-black'] .spd-filter-bar input::placeholder {
   color: var(--spd-text-placeholder) !important;
 }
 
 :root[data-spd-theme='night-black'] .md-input:focus,
-:root[data-spd-theme='night-black'] .ulc-filter input:focus,
-:root[data-spd-theme='night-black'] .ulc-filter select:focus,
+:root[data-spd-theme='night-black'] .spd-filter-bar input:focus,
+:root[data-spd-theme='night-black'] .spd-filter-bar select:focus,
 :root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid input:focus,
 :root[data-spd-theme='night-black'] .department-warehouse-catalog-query-grid select:focus {
   border-color: var(--spd-primary) !important;
@@ -468,7 +475,7 @@
 }
 
 :root[data-spd-theme='night-black'] .el-select-dropdown__item {
-  color: var(--spd-text-regular, #c3ccd6) !important;
+  color: var(--spd-text-regular, var(--spd-c-text-secondary)) !important;
 }
 
 :root[data-spd-theme='night-black'] .el-select-dropdown__item.is-hovering {
@@ -483,7 +490,7 @@
 :root[data-spd-theme='night-black'] .spd-unified-list .ulc-table-wrap {
   background: var(--spd-bg-surface) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 表头：深色底 + 琥珀金分隔线（拖拽提示线必须清晰） */
@@ -558,7 +565,7 @@
 }
 
 :root[data-spd-theme='night-black'] .spd-unified-list .md-table-toolbar .md-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--spd-c-primary) 26%, #131920) !important;
+  background: var(--spd-p-primary-bg) !important;
   color: var(--spd-c-primary-strong) !important;
 }
 
@@ -574,31 +581,13 @@
   color: var(--spd-c-warning-text) !important;
 }
 
-/* 筛选区按钮 */
-:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn,
-:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn {
-  background: var(--spd-c-disabled-soft) !important;
-  color: var(--spd-c-text-secondary) !important;
-  border: 1px solid var(--spd-c-border) !important;
-  box-shadow: none !important;
-}
+/* 筛选区按钮统一走 SpdButton（全站唯一按钮组件），
+   配色由 styles/components/spd-button.css 负责，
+   在三套配色方案下自动适配，此处不再另写一套 .md-btn 覆盖。 */
 
-:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn-primary,
-:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary {
-  background: var(--spd-primary) !important;
-  color: #16110a !important;
-  border-color: var(--spd-primary) !important;
-}
-
-:root[data-spd-theme='night-black'] .spd-unified-list .ulc-filter-actions .md-btn-primary:hover:not(:disabled),
-:root[data-spd-theme='night-black'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary:hover:not(:disabled) {
-  background: var(--spd-primary-strong) !important;
-  color: #16110a !important;
-}
-
-/* 行内操作按钮 / 状态条：沿用令牌规格（4px 圆角 + 1px 边框 + 0.4 底色） */
-:root[data-spd-theme='night-black'] .spd-unified-list .ulc-action,
-:root[data-spd-theme='night-black'] .spd-unified-list .ulc-chip {
+/* 行内操作按钮：沿用令牌规格（4px 圆角 + 1px 边框 + 0.4 底色）
+   状态条由通用组件 <SpdStatusChip> 承担，三套方案自动适配。 */
+:root[data-spd-theme='night-black'] .spd-unified-list .ulc-action {
   box-shadow: none;
 }
 
@@ -613,7 +602,7 @@
 :root[data-spd-theme='night-black'] .ulc-col-settings-pop {
   background: var(--spd-bg-elevated) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -650,7 +639,7 @@
 
 :root[data-spd-theme='night-black'] .el-pager li.is-active {
   background: var(--spd-primary) !important;
-  color: #16110a !important;
+  color: var(--spd-c-text-on-primary) !important;
 }
 
 :root[data-spd-theme='night-black'] .el-pagination .btn-prev,
@@ -675,7 +664,7 @@
 :root[data-spd-theme='night-black'] .spd-theme-panel {
   background: var(--spd-bg-elevated) !important;
   border-color: var(--spd-border-default) !important;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
 }
 
 :root[data-spd-theme='night-black'] .spd-theme-panel-title {
@@ -719,7 +708,7 @@
 
 /* 滚动条 */
 :root[data-spd-theme='night-black'] ::-webkit-scrollbar-thumb {
-  background: #303b47;
+  background: var(--spd-c-border-strong);
 }
 
 :root[data-spd-theme='night-black'] ::-webkit-scrollbar-thumb:hover {

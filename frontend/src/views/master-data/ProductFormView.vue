@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { notifyError } from '../../composables/useNotify'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, CheckCircle2, ClipboardList, PackagePlus, Save } from '@lucide/vue'
 import {
@@ -152,12 +153,11 @@ async function loadDetailForEdit() {
   if (!editMode.value) return
 
   loading.value = true
-  error.value = ''
   try {
     const detail = await fetchHospitalProductDetail(productCode.value)
     assignDetail(detail)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '耗材信息加载失败'
+    notifyError(err instanceof Error ? err.message : '耗材信息加载失败')
   } finally {
     loading.value = false
   }
@@ -195,7 +195,7 @@ async function submitForm() {
     ElMessage.success('保存成功，已提交审批')
     router.push({ name: 'pending-product-approval-detail', params: { applicationNo: result.applicationNo } })
   } catch (err) {
-    error.value = err instanceof Error ? err.message : editMode.value ? '修改耗材失败' : '新增耗材失败'
+    notifyError(err instanceof Error ? err.message : editMode.value ? '修改耗材失败' : '新增耗材失败')
   } finally {
     saving.value = false
   }
@@ -209,10 +209,9 @@ onMounted(() => {
 
 <template>
   <section class="product-form-page">
-    <button class="btn" type="button" @click="router.back()">
-      <ArrowLeft :size="17" />
-      返回医院目录
-    </button>
+    <SpdButton label="返回医院目录" tone="primary" @click="router.back()">
+          <template #icon><ArrowLeft :size="17" /></template>
+        </SpdButton>
 
     <p v-if="loading" class="approval-empty">正在加载耗材信息...</p>
 
@@ -377,11 +376,11 @@ onMounted(() => {
 
       <p v-if="error" class="error-text">{{ error }}</p>
       <div class="product-form-actions">
-        <button class="btn" type="button" @click="router.back()">取消</button>
-        <button class="btn btn-primary" type="submit" :disabled="saving">
-          <Save :size="17" />
+        <SpdButton label="取消" tone="neutral" @click="router.back()"></SpdButton>
+        <SpdButton tone="success" type="submit" :disabled="saving">
+          <template #icon><Save :size="17" /></template>
           {{ saving ? '保存中...' : '保存' }}
-        </button>
+        </SpdButton>
       </div>
     </form>
   </section>

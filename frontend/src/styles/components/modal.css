@@ -13,60 +13,45 @@
 
 :root {
   --modal-radius: 14px;
-  --modal-shadow:
-    0 24px 64px -16px rgba(15, 23, 42, 0.32),
-    0 8px 20px -6px rgba(99, 102, 241, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.06);
-  /* 弹窗内容区背景：极浅蓝紫渐变（不再纯白也不再灰） */
-  --modal-fg: #0f172a;
-  --modal-muted: #475569;
-  --modal-line: #e0e7ff;
+  /* 弹窗浮层阴影：统一由调色板派生，三套配色方案自动适配 */
+  --modal-shadow: var(--spd-p-shadow-dialog);
+  /* 弹窗内容区背景：主色淡底渐变（不再纯白也不再灰） */
+  --modal-fg: var(--spd-p-text-strong);
+  --modal-muted: var(--spd-p-text-secondary);
+  --modal-line: var(--spd-p-border);
 
-  /* 5 套主题色（按业务语义分配，避免一眼黑灰） */
-  --modal-color-primary: #6366f1;     /* 靛蓝 - 主色，商品/通用 */
-  --modal-color-primary-soft: #eef2ff;
-  --modal-color-primary-deep: #4338ca;
+  /* 语义色：全部映射到全站调色板（tokens/palette.css），
+     弹窗不再维护「靛蓝 / 紫 / 粉」第二套配色。 */
+  --modal-color-primary: var(--spd-p-primary);
+  --modal-color-primary-soft: var(--spd-p-primary-bg);
+  --modal-color-primary-deep: var(--spd-p-primary-strong);
 
-  --modal-color-info: #06b6d4;        /* 青蓝 - 信息/查询 */
-  --modal-color-info-soft: #ecfeff;
-  --modal-color-info-deep: #0e7490;
+  --modal-color-info: var(--spd-p-info);
+  --modal-color-info-soft: var(--spd-p-info-bg);
+  --modal-color-info-deep: var(--spd-p-info-strong);
 
-  --modal-color-success: #10b981;     /* 翠绿 - 通过/确认 */
-  --modal-color-success-soft: #ecfdf5;
-  --modal-color-success-deep: #047857;
+  --modal-color-success: var(--spd-p-success);
+  --modal-color-success-soft: var(--spd-p-success-bg);
+  --modal-color-success-deep: var(--spd-p-success-strong);
 
-  --modal-color-warning: #f59e0b;     /* 琥珀 - 警示/退回 */
-  --modal-color-warning-soft: #fffbeb;
-  --modal-color-warning-deep: #b45309;
+  --modal-color-warning: var(--spd-p-warning);
+  --modal-color-warning-soft: var(--spd-p-warning-bg);
+  --modal-color-warning-deep: var(--spd-p-warning-strong);
 
-  --modal-color-danger: #ef4444;      /* 玫红 - 驳回/删除 */
-  --modal-color-danger-soft: #fef2f2;
-  --modal-color-danger-deep: #b91c1c;
-
-  --modal-color-violet: #8b5cf6;      /* 紫罗兰 */
-  --modal-color-violet-soft: #f5f3ff;
-  --modal-color-violet-deep: #6d28d9;
-
-  --modal-color-pink: #ec4899;        /* 粉色 */
-  --modal-color-pink-soft: #fdf2f8;
-  --modal-color-pink-deep: #be185d;
-
-  --modal-color-teal: #14b8a6;        /* 蓝绿 */
-  --modal-color-teal-soft: #f0fdfa;
-  --modal-color-teal-deep: #0f766e;
+  --modal-color-danger: var(--spd-p-danger);
+  --modal-color-danger-soft: var(--spd-p-danger-bg);
+  --modal-color-danger-deep: var(--spd-p-danger-strong);
 
   --modal-accent: var(--modal-color-primary);
   --modal-accent-soft: var(--modal-color-primary-soft);
 
-  /* 默认：靛蓝+紫+粉三色渐变 + 头部柔和彩色 */
+  /* 头部 / 主体 / 底部：主色淡底渐变 */
   --modal-head-bg: linear-gradient(135deg,
-    #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%);
+    var(--spd-p-primary-soft) 0%, var(--spd-p-bg) 100%);
   --modal-body-bg: linear-gradient(180deg,
-    #fafbff 0%, #f5f3ff 100%);
+    var(--spd-p-bg) 0%, var(--spd-p-bg-subtle) 100%);
   --modal-foot-bg: linear-gradient(180deg,
-    #f5f3ff 0%, #ede9fe 100%);
-  --modal-stripe-bg: linear-gradient(90deg,
-    #6366f1 0%, #8b5cf6 25%, #ec4899 50%, #f59e0b 75%, #10b981 100%);
+    var(--spd-p-bg-subtle) 0%, var(--spd-p-bg-muted) 100%);
 }
 
 /* ================================================================
@@ -83,7 +68,7 @@
   position: fixed;
   inset: 0;            /* 铺满全屏，modal 用 padding 避开顶部 */
   z-index: 99999;
-  background: rgba(6, 21, 43, 0.45);
+  background: var(--spd-p-overlay);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
   display: flex;
@@ -227,7 +212,7 @@
   display: inline-block;
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, var(--modal-accent), #8b5cf6);
+  background: var(--spd-p-accent-bar-gradient);
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -280,9 +265,9 @@
 .manufacturer-modal-head .btn-icon:hover,
 .supplier-modal-head .btn-icon:hover,
 .campus-modal-head .btn-icon:hover {
-  color: #fff;
-  background: #ef4444;
-  border-color: #ef4444;
+  color: var(--spd-p-text-on-primary);
+  background: var(--spd-p-danger);
+  border-color: var(--spd-p-danger);
   transform: rotate(90deg);
 }
 
@@ -425,7 +410,7 @@
   display: inline-block;
   width: 4px;
   height: 16px;
-  background: linear-gradient(180deg, var(--modal-accent), #8b5cf6);
+  background: var(--spd-p-accent-bar-gradient);
   border-radius: 2px;
   flex-shrink: 0;
 }
@@ -444,9 +429,9 @@
   transition: all 0.15s ease;
 }
 .el-dialog__headerbtn:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  background: var(--spd-p-danger) !important;
   border-color: transparent !important;
-  color: #fff !important;
+  color: var(--spd-p-text-on-primary) !important;
   transform: translateY(-50%) rotate(90deg);
 }
 .el-dialog__headerbtn .el-dialog__close {
@@ -456,7 +441,7 @@
   line-height: 1;
 }
 .el-dialog__headerbtn:hover .el-dialog__close {
-  color: #fff;
+  color: var(--spd-p-text-on-primary);
 }
 
 .el-dialog__body {
@@ -503,18 +488,18 @@
 
 /* 弹窗中按钮主题色 */
 .el-dialog .el-button--primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 6px 16px -4px rgba(139, 92, 246, 0.5);
+  background: var(--spd-p-btn-primary-bg);
+  border-color: var(--spd-p-btn-primary-border);
+  color: var(--spd-p-btn-primary-text);
+  box-shadow: var(--spd-p-shadow-btn-primary);
   transition: all 0.18s ease;
 }
 .el-dialog .el-button--primary:hover {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%);
-  border-color: transparent;
-  color: #fff;
+  background: var(--spd-p-btn-primary-hover-bg);
+  border-color: var(--spd-p-btn-primary-border);
+  color: var(--spd-p-btn-primary-text);
   transform: translateY(-1px);
-  box-shadow: 0 10px 22px -6px rgba(139, 92, 246, 0.6);
+  box-shadow: var(--spd-p-shadow-btn-primary);
 }
 .el-dialog .el-button--primary:active {
   transform: translateY(0);
@@ -522,26 +507,26 @@
 
 /* 弹窗中危险按钮（驳回/删除） */
 .el-dialog .el-button--danger {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 6px 16px -4px rgba(239, 68, 68, 0.5);
+  background: var(--spd-p-btn-danger-bg);
+  border-color: var(--spd-p-btn-danger-border);
+  color: var(--spd-p-btn-danger-text);
+  box-shadow: var(--spd-p-shadow-btn-danger);
 }
 .el-dialog .el-button--danger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%);
-  color: #fff;
+  background: var(--spd-p-btn-danger-hover-bg);
+  color: var(--spd-p-btn-danger-text);
   transform: translateY(-1px);
 }
 
 /* 弹窗中成功按钮（通过/确认） */
 .el-dialog .el-button--success {
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: 0 6px 16px -4px rgba(16, 185, 129, 0.5);
+  background: var(--spd-p-btn-success-bg);
+  border-color: var(--spd-p-btn-success-border);
+  color: var(--spd-p-btn-success-text);
+  box-shadow: var(--spd-p-shadow-btn-success);
 }
 .el-dialog .el-dialog__footer .el-button:not(.el-button--primary):not(.el-button--danger):not(.el-button--success) {
-  background: #fff;
+  background: var(--spd-p-bg);
   border-color: var(--modal-line);
   color: var(--modal-fg);
 }
@@ -650,8 +635,8 @@
 .attachment-preview-mask.modal-primary .foundation-modal,
 .attachment-preview-mask.modal-primary .manufacturer-modal,
 .attachment-preview-mask.modal-primary .campus-modal {
-  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%);
-  border: 1px solid #e0e7ff;
+  background: var(--modal-body-bg);
+  border: 1px solid var(--modal-line);
 }
 
 /* INFO（青蓝） */
@@ -671,8 +656,8 @@
 .attachment-preview-mask.modal-info .foundation-modal,
 .attachment-preview-mask.modal-info .manufacturer-modal,
 .attachment-preview-mask.modal-info .campus-modal {
-  background: linear-gradient(180deg, #f0fdff 0%, #e0f7ff 100%);
-  border: 1px solid #a5f3fc;
+  background: var(--spd-p-info-bg);
+  border: 1px solid var(--spd-p-info-border);
 }
 .modal-mask.modal-info .modal-heading,
 .modal-mask.modal-info .approval-create-head,
@@ -692,7 +677,7 @@
 .attachment-preview-mask.modal-info .manufacturer-modal-head,
 .attachment-preview-mask.modal-info .supplier-modal-head,
 .attachment-preview-mask.modal-info .campus-modal-head {
-  background: linear-gradient(135deg, #ecfeff 0%, #cffafe 50%, #a5f3fc 100%);
+  background: var(--spd-p-info-bg);
 }
 .modal-mask.modal-info .modal-heading::before,
 .modal-mask.modal-info .approval-create-head::before,
@@ -712,7 +697,7 @@
 .attachment-preview-mask.modal-info .manufacturer-modal-head::before,
 .attachment-preview-mask.modal-info .supplier-modal-head::before,
 .attachment-preview-mask.modal-info .campus-modal-head::before {
-  background: linear-gradient(90deg, #06b6d4 0%, #0ea5e9 50%, #3b82f6 100%);
+  background: var(--spd-p-accent-bar-horizontal);
 }
 
 /* SUCCESS（翠绿青） */
@@ -732,8 +717,8 @@
 .attachment-preview-mask.modal-success .foundation-modal,
 .attachment-preview-mask.modal-success .manufacturer-modal,
 .attachment-preview-mask.modal-success .campus-modal {
-  background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%);
-  border: 1px solid #86efac;
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 .modal-mask.modal-success .modal-heading,
 .modal-mask.modal-success .approval-create-head,
@@ -753,7 +738,7 @@
 .attachment-preview-mask.modal-success .manufacturer-modal-head,
 .attachment-preview-mask.modal-success .supplier-modal-head,
 .attachment-preview-mask.modal-success .campus-modal-head {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%);
+  background: var(--spd-p-success-bg);
 }
 .modal-mask.modal-success .modal-heading::before,
 .modal-mask.modal-success .approval-create-head::before,
@@ -773,7 +758,7 @@
 .attachment-preview-mask.modal-success .manufacturer-modal-head::before,
 .attachment-preview-mask.modal-success .supplier-modal-head::before,
 .attachment-preview-mask.modal-success .campus-modal-head::before {
-  background: linear-gradient(90deg, #10b981 0%, #14b8a6 50%, #06b6d4 100%);
+  background: var(--spd-p-accent-bar-horizontal);
 }
 
 /* WARNING（琥珀粉） */
@@ -793,8 +778,8 @@
 .attachment-preview-mask.modal-warning .foundation-modal,
 .attachment-preview-mask.modal-warning .manufacturer-modal,
 .attachment-preview-mask.modal-warning .campus-modal {
-  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
-  border: 1px solid #fcd34d;
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
 }
 .modal-mask.modal-warning .modal-heading,
 .modal-mask.modal-warning .approval-create-head,
@@ -814,7 +799,7 @@
 .attachment-preview-mask.modal-warning .manufacturer-modal-head,
 .attachment-preview-mask.modal-warning .supplier-modal-head,
 .attachment-preview-mask.modal-warning .campus-modal-head {
-  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 50%, #fed7aa 100%);
+  background: var(--spd-p-warning-bg);
 }
 .modal-mask.modal-warning .modal-heading::before,
 .modal-mask.modal-warning .approval-create-head::before,
@@ -834,7 +819,7 @@
 .attachment-preview-mask.modal-warning .manufacturer-modal-head::before,
 .attachment-preview-mask.modal-warning .supplier-modal-head::before,
 .attachment-preview-mask.modal-warning .campus-modal-head::before {
-  background: linear-gradient(90deg, #f59e0b 0%, #f97316 50%, #ec4899 100%);
+  background: var(--spd-p-accent-bar-horizontal);
 }
 
 /* DANGER（玫红橙） */
@@ -854,8 +839,8 @@
 .attachment-preview-mask.modal-danger .foundation-modal,
 .attachment-preview-mask.modal-danger .manufacturer-modal,
 .attachment-preview-mask.modal-danger .campus-modal {
-  background: linear-gradient(180deg, #fef2f2 0%, #ffe4e6 100%);
-  border: 1px solid #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 .modal-mask.modal-danger .modal-heading,
 .modal-mask.modal-danger .approval-create-head,
@@ -875,7 +860,7 @@
 .attachment-preview-mask.modal-danger .manufacturer-modal-head,
 .attachment-preview-mask.modal-danger .supplier-modal-head,
 .attachment-preview-mask.modal-danger .campus-modal-head {
-  background: linear-gradient(135deg, #fef2f2 0%, #fecaca 50%, #fda4af 100%);
+  background: var(--spd-p-danger-bg);
 }
 .modal-mask.modal-danger .modal-heading::before,
 .modal-mask.modal-danger .approval-create-head::before,
@@ -895,13 +880,13 @@
 .attachment-preview-mask.modal-danger .manufacturer-modal-head::before,
 .attachment-preview-mask.modal-danger .supplier-modal-head::before,
 .attachment-preview-mask.modal-danger .campus-modal-head::before {
-  background: linear-gradient(90deg, #ef4444 0%, #f97316 50%, #ec4899 100%);
+  background: var(--spd-p-accent-bar-horizontal);
 }
 
 /* ================================================================
  * 终极 !important 覆盖层
  *   解决 medical-saas.css / spd-override.css 中 !important
- *   把 .el-dialog 强制设成 #ffffff、el-overlay 居中的问题
+ *   把 .el-dialog 强制设成 var(--spd-p-bg)、el-overlay 居中的问题
  *   这段必须在所有 SPD 业务样式之后加载
  * ================================================================ */
 
@@ -923,7 +908,7 @@
   position: fixed !important;
   inset: 0 !important;                /* 铺满全屏，弹窗自身用 padding 避开顶栏 */
   z-index: 99999 !important;
-  background: rgba(6, 21, 43, 0.45) !important;
+  background: var(--spd-p-overlay) !important;
   backdrop-filter: blur(3px) !important;
   -webkit-backdrop-filter: blur(3px) !important;
   display: flex !important;
@@ -953,12 +938,10 @@
   width: min(1280px, calc(100vw - 64px)) !important;
   max-width: calc(100vw - 64px) !important;
   max-height: min(calc(100vh - 15vh - 50px - 48px), 75vh) !important;
-  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
-  border: 1px solid #e0e7ff !important;
+  background: var(--modal-body-bg) !important;
+  border: 1px solid var(--modal-line) !important;
   border-radius: 14px !important;
-  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.32),
-              0 8px 20px -6px rgba(99, 102, 241, 0.18),
-              0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: var(--spd-p-shadow-dialog) !important;
   overflow: hidden !important;
   display: flex !important;
   flex-direction: column !important;
@@ -974,8 +957,8 @@
 .el-dialog__header {
   padding: 18px 22px !important;
   margin: 0 !important;
-  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%) !important;
-  border-bottom: 1px solid #e0e7ff !important;
+  background: var(--modal-head-bg) !important;
+  border-bottom: 1px solid var(--modal-line) !important;
   flex-shrink: 0 !important;
   border-top-left-radius: 14px !important;
   border-top-right-radius: 14px !important;
@@ -988,7 +971,7 @@
 .el-dialog__title {
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
-  color: #0f172a !important;
+  color: var(--spd-p-text-strong) !important;
   letter-spacing: -0.2px !important;
   line-height: var(--spd-lh-tight) !important;
   display: flex !important;
@@ -1002,7 +985,7 @@
   display: inline-block !important;
   width: 4px !important;
   height: 18px !important;
-  background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%) !important;
+  background: var(--spd-p-accent-bar-gradient) !important;
   border-radius: 2px !important;
   flex-shrink: 0 !important;
 }
@@ -1012,8 +995,8 @@
   flex: 1 1 auto !important;
   min-height: 0 !important;
   padding: 20px 22px !important;
-  color: #0f172a !important;
-  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
+  color: var(--spd-p-text-strong) !important;
+  background: var(--modal-body-bg) !important;
   overflow: auto !important;
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-base) !important;
@@ -1022,8 +1005,8 @@
 /* 5) el-dialog footer（彩色，淡紫渐变） */
 .el-dialog__footer {
   padding: 14px 22px !important;
-  background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%) !important;
-  border-top: 1px solid #e0e7ff !important;
+  background: var(--modal-foot-bg) !important;
+  border-top: 1px solid var(--modal-line) !important;
   flex-shrink: 0 !important;
 }
 
@@ -1036,74 +1019,74 @@
   width: 32px !important;
   height: 32px !important;
   padding: 0 !important;
-  background: #eef2ff !important;
-  border: 1px solid #e0e7ff !important;
+  background: var(--spd-p-primary-bg) !important;
+  border: 1px solid var(--modal-line) !important;
   border-radius: 8px !important;
   transition: all 0.15s ease !important;
 }
 .el-dialog__headerbtn .el-dialog__close {
-  color: #6366f1 !important;
+  color: var(--spd-p-primary-text) !important;
   /* 弹窗关闭按钮图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px !important;
   line-height: 1 !important;
 }
 .el-dialog__headerbtn:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  background: var(--spd-p-danger) !important;
   border-color: transparent !important;
   transform: translateY(-50%) rotate(90deg) !important;
 }
 .el-dialog__headerbtn:hover .el-dialog__close {
-  color: #fff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
-/* 7) el-dialog 内部主按钮彩色渐变 */
+/* 7) el-dialog 内部主按钮（取调色板语义色） */
 .el-dialog .el-button--primary,
 .el-message-box .el-button--primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #ec4899 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 6px 16px -4px rgba(139, 92, 246, 0.5) !important;
+  background: var(--spd-p-btn-primary-bg) !important;
+  border-color: var(--spd-p-btn-primary-border) !important;
+  color: var(--spd-p-btn-primary-text) !important;
+  box-shadow: var(--spd-p-shadow-btn-primary) !important;
   transition: all 0.18s ease !important;
 }
 .el-dialog .el-button--primary:hover,
 .el-dialog .el-button--primary:focus,
 .el-message-box .el-button--primary:hover,
 .el-message-box .el-button--primary:focus {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 50%, #db2777 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
+  background: var(--spd-p-btn-primary-hover-bg) !important;
+  border-color: var(--spd-p-btn-primary-border) !important;
+  color: var(--spd-p-btn-primary-text) !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 10px 22px -6px rgba(139, 92, 246, 0.6) !important;
+  box-shadow: var(--spd-p-shadow-btn-primary) !important;
 }
 
 .el-dialog .el-button--danger,
 .el-message-box .el-button--danger {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 6px 16px -4px rgba(239, 68, 68, 0.5) !important;
+  background: var(--spd-p-btn-danger-bg) !important;
+  border-color: var(--spd-p-btn-danger-border) !important;
+  color: var(--spd-p-btn-danger-text) !important;
+  box-shadow: var(--spd-p-shadow-btn-danger) !important;
 }
 .el-dialog .el-button--danger:hover,
 .el-message-box .el-button--danger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #ea580c 100%) !important;
-  color: #fff !important;
+  background: var(--spd-p-btn-danger-hover-bg) !important;
+  color: var(--spd-p-btn-danger-text) !important;
   transform: translateY(-1px) !important;
 }
 
 .el-dialog .el-button--success {
-  background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 6px 16px -4px rgba(16, 185, 129, 0.5) !important;
+  background: var(--spd-p-btn-success-bg) !important;
+  border-color: var(--spd-p-btn-success-border) !important;
+  color: var(--spd-p-btn-success-text) !important;
+  box-shadow: var(--spd-p-shadow-btn-success) !important;
 }
 
 /* 修正 el-message-box 在 SPD 主题下的可读性：
  * 标题/正文/默认按钮文字/取消按钮背景等关键文本必须有足够对比度 */
 .el-message-box {
-  background: #ffffff !important;
-  color: #1f1f1f !important;
+  background: var(--spd-p-bg) !important;
+  color: var(--spd-p-text-strong) !important;
   border-radius: 12px !important;
-  box-shadow: 0 12px 32px -4px rgba(15, 23, 42, 0.18) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
   padding: 4px 0 !important;
 }
 .el-message-box__header {
@@ -1114,12 +1097,12 @@
 .el-message-box__message p,
 .el-message-box__container,
 .el-message-box__content {
-  color: #1f1f1f !important;
+  color: var(--spd-p-text-strong) !important;
 }
 .el-message-box__title {
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
-  color: #0f172a !important;
+  color: var(--spd-p-text-strong) !important;
   line-height: 1.5 !important;
 }
 .el-message-box__content {
@@ -1128,12 +1111,12 @@
 .el-message-box__message {
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-loose) !important;
-  color: #334155 !important;
+  color: var(--spd-p-text) !important;
   padding: 0 !important;
 }
 .el-message-box__message p {
   margin: 0 !important;
-  color: #334155 !important;
+  color: var(--spd-p-text) !important;
 }
 .el-message-box__btns {
   padding: 8px 24px 20px !important;
@@ -1147,35 +1130,35 @@
   border-radius: 8px !important;
 }
 .el-message-box__btns .el-button.el-button--default {
-  background: #ffffff !important;
-  border-color: #cbd5e1 !important;
-  color: #1f1f1f !important;
+  background: var(--spd-p-bg) !important;
+  border-color: var(--spd-p-border) !important;
+  color: var(--spd-p-text-strong) !important;
   box-shadow: none !important;
 }
 .el-message-box__btns .el-button.el-button--default:hover {
-  border-color: #1890ff !important;
-  color: #1890ff !important;
-  background: #ffffff !important;
+  border-color: var(--spd-p-primary) !important;
+  color: var(--spd-p-primary) !important;
+  background: var(--spd-p-bg) !important;
 }
 .el-message-box__btns .el-button.el-button--primary {
-  background: #1890ff !important;
-  border-color: #1890ff !important;
-  color: #ffffff !important;
+  background: var(--spd-p-primary) !important;
+  border-color: var(--spd-p-primary) !important;
+  color: var(--spd-p-text-on-primary) !important;
   box-shadow: none !important;
 }
 .el-message-box__btns .el-button.el-button--primary:hover {
-  background: #096dd9 !important;
-  border-color: #096dd9 !important;
-  color: #ffffff !important;
+  background: var(--spd-p-primary-strong) !important;
+  border-color: var(--spd-p-primary-strong) !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 .el-message-box__close {
-  color: #64748b !important;
+  color: var(--spd-p-text-muted) !important;
 }
 .el-message-box__close:hover {
-  color: #1f1f1f !important;
+  color: var(--spd-p-text-strong) !important;
 }
 
-/* 8) 自绘弹窗 - 强制彩色（覆盖 medical-saas.css 的 #ffffff !important） */
+/* 8) 自绘弹窗 - 强制彩色（覆盖 medical-saas.css 的 var(--spd-p-bg) !important） */
 .supplier-modal,
 .product-dialog,
 .approval-create-dialog,
@@ -1195,12 +1178,10 @@
   position: relative !important;
   display: flex !important;
   flex-direction: column !important;
-  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
-  border: 1px solid #e0e7ff !important;
+  background: var(--modal-body-bg) !important;
+  border: 1px solid var(--modal-line) !important;
   border-radius: 14px !important;
-  box-shadow: 0 24px 64px -16px rgba(15, 23, 42, 0.32),
-              0 8px 20px -6px rgba(99, 102, 241, 0.18),
-              0 2px 6px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: var(--spd-p-shadow-dialog) !important;
   /* 高度上限：60vh 紧凑模式 + 48px 留白，让弹窗明显位于视口中央 */
   max-height: min(60vh, calc(100vh - 48px)) !important;
   overflow: hidden !important;
@@ -1233,8 +1214,8 @@
 .manufacturer-modal-head,
 .supplier-modal-head,
 .campus-modal-head {
-  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 50%, #fdf2f8 100%) !important;
-  border-bottom: 1px solid #e0e7ff !important;
+  background: var(--modal-head-bg) !important;
+  border-bottom: 1px solid var(--modal-line) !important;
 }
 .modal-heading::before,
 .approval-create-head::before,
@@ -1258,8 +1239,8 @@
 .manufacturer-modal-foot,
 .supplier-modal-foot,
 .campus-modal-foot {
-  background: linear-gradient(180deg, #f5f3ff 0%, #ede9fe 100%) !important;
-  border-top: 1px solid #e0e7ff !important;
+  background: var(--modal-foot-bg) !important;
+  border-top: 1px solid var(--modal-line) !important;
 }
 
 /* 11) 自绘弹窗 body - 彩色 */
@@ -1272,8 +1253,8 @@
 .manufacturer-modal-body,
 .supplier-modal-body,
 .campus-modal-body {
-  background: linear-gradient(180deg, #fafbff 0%, #f5f3ff 100%) !important;
-  color: #0f172a !important;
+  background: var(--modal-body-bg) !important;
+  color: var(--spd-p-text-strong) !important;
 }
 
 /* 12) 自绘弹窗关闭按钮 - 彩色 */
@@ -1286,9 +1267,9 @@
 .manufacturer-modal-head .btn-icon,
 .supplier-modal-head .btn-icon,
 .campus-modal-head .btn-icon {
-  background: #eef2ff !important;
-  border: 1px solid #e0e7ff !important;
-  color: #6366f1 !important;
+  background: var(--spd-p-primary-bg) !important;
+  border: 1px solid var(--modal-line) !important;
+  color: var(--spd-p-primary-text) !important;
 }
 .modal-heading button.btn-icon:hover,
 .approval-create-head .btn-icon:hover,
@@ -1299,7 +1280,7 @@
 .manufacturer-modal-head .btn-icon:hover,
 .supplier-modal-head .btn-icon:hover,
 .campus-modal-head .btn-icon:hover {
-  background: linear-gradient(135deg, #ef4444 0%, #f97316 100%) !important;
+  background: var(--spd-p-danger) !important;
   border-color: transparent !important;
-  color: #fff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }

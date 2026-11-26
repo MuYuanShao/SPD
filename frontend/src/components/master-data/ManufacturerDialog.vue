@@ -45,14 +45,9 @@ const emit = defineEmits<{
             带 <span class="required-mark">*</span> 的字段为必填项，许可证与联系资料可按实际档案补充。
           </p>
         </div>
-        <button
-          class="btn-icon manufacturer-dialog-close"
-          type="button"
-          aria-label="关闭厂家弹窗"
-          @click="emit('close')"
-        >
-          <X :size="18" />
-        </button>
+        <SpdButton :icon-only="true" class="manufacturer-dialog-close" aria-label="关闭厂家弹窗" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
       <form class="supplier-form-grid manufacturer-dialog-form" @submit.prevent="emit('save')">
         <section class="manufacturer-form-section" aria-labelledby="manufacturer-basic-heading">
@@ -134,10 +129,10 @@ const emit = defineEmits<{
         </section>
 
         <div class="manufacturer-dialog-actions">
-          <button class="btn" type="button" @click="emit('close')">取消</button>
-          <button type="submit" class="btn btn-primary">
-            {{ mode === 'create' ? '创建厂家' : '保存修改' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="emit('close')"></SpdButton>
+          <SpdButton tone="primary" type="submit">
+          {{ mode === 'create' ? '创建厂家' : '保存修改' }}
+        </SpdButton>
         </div>
       </form>
     </section>

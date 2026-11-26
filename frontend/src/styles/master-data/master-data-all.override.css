@@ -30,10 +30,9 @@
 
 .master-page-title {
   background: var(--md-bg-header) !important;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
-              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  box-shadow: var(--spd-p-shadow-1);
   padding: 18px 24px !important;
   display: flex !important;
   align-items: center !important;
@@ -50,8 +49,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, var(--spd-p-primary)) 28%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
 
@@ -61,14 +60,14 @@
 
 .master-page-title p {
   margin: 0 !important;
-  color: rgba(255, 255, 255, 0.78) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 78%, transparent) !important;
   font-size: var(--spd-font-size-sm) !important;
   letter-spacing: 0.3px;
 }
 
 .master-page-title h2 {
   margin: 4px 0 6px !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display) !important;
@@ -76,28 +75,28 @@
 }
 
 .master-page-title span {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-loose);
 }
 
 .master-page-title small,
 .master-page-title .muted-hint {
-  color: rgba(255, 255, 255, 0.7) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 70%, transparent) !important;
   font-size: var(--spd-font-size-sm);
 }
 
 .master-page-title .btn {
-  background: rgba(255, 255, 255, 0.16) !important;
-  border-color: rgba(255, 255, 255, 0.32) !important;
-  color: #ffffff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 16%, transparent) !important;
+  border-color: color-mix(in srgb, var(--spd-p-bg) 32%, transparent) !important;
+  color: var(--spd-p-bg) !important;
   backdrop-filter: blur(2px);
 }
 
 .master-page-title .btn:hover {
-  background: rgba(255, 255, 255, 0.28) !important;
-  border-color: rgba(255, 255, 255, 0.5) !important;
-  color: #ffffff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 28%, transparent) !important;
+  border-color: color-mix(in srgb, var(--spd-p-bg) 50%, transparent) !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== Catalog Panel（业务操作容器） ===== */
@@ -194,8 +193,8 @@
   padding: 4px 10px !important;
   border: 1px solid transparent !important;
   border-radius: 8px !important;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%) !important;
-  color: #4f46e5 !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 10%, transparent) 0%, color-mix(in srgb, var(--spd-p-primary-strong) 10%, transparent) 100%) !important;
+  color: var(--spd-p-primary) !important;
   font-weight: 600 !important;
   font-size: var(--spd-font-size-sm) !important;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s !important;
@@ -210,10 +209,10 @@
 .department-warehouse-catalog-table .btn-text:hover,
 .hospital-product-table .btn-text:hover,
 .license-table .btn-text:hover {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%) !important;
+  color: var(--spd-p-bg) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.5) !important;
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .master-page [class*="-table"] .btn-text.btn-text-danger,
@@ -225,8 +224,8 @@
 .department-warehouse-catalog-table .btn-text.btn-text-danger,
 .hospital-product-table .btn-text.btn-text-danger,
 .license-table .btn-text.btn-text-danger {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(225, 29, 72, 0.1) 100%) !important;
-  color: #dc2626 !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-danger) 10%, transparent) 0%, color-mix(in srgb, var(--spd-p-danger) 10%, transparent) 100%) !important;
+  color: var(--spd-p-danger) !important;
 }
 
 .master-page [class*="-table"] .btn-text.btn-text-danger:hover,
@@ -238,14 +237,24 @@
 .department-warehouse-catalog-table .btn-text.btn-text-danger:hover,
 .hospital-product-table .btn-text.btn-text-danger:hover,
 .license-table .btn-text.btn-text-danger:hover {
-  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 10px -4px rgba(220, 38, 38, 0.5) !important;
+  background: var(--spd-p-danger) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 /* ===== Action Row / Toolbar（所有 master-data 工具栏按钮） =====
    注意：颜色/背景/边框由 components/buttons.css 统一彩色实心接管；
    本处只补尺寸/对齐/间距，避免被旧 `!important` 强行变成黑白灰。
+
+   用户诉求：「class 为 .hospital-action-row 下面这个空白的边框直接删掉」
+   「然后删掉这个边框背景」。
+   —— .hospital-action-row 原先带渐变背景 + 1px 边框 + 阴影，
+   在没有子节点时会在筛选栏下方留下一条「空的有边框白条」。
+   因此这里把背景 / 边框 / 阴影 / 最小高度一并去掉：
+   有内容时它只是一行无边框的动作区，没有内容时不会留下任何色块。
+
+   全站的动作区统一改用 .spd-action-bar（styles/components/spd-filter-bar.css），
+   由 flex space-between 实现左右分列。
    ===== */
 .hospital-action-row,
 .supplier-toolbar,
@@ -257,13 +266,23 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  min-height: 48px;
-  padding: 10px 14px !important;
-  background: linear-gradient(135deg, #fafbff 0%, #f5f3ff 50%, #fdf4ff 100%) !important;
-  border: 1px solid #e0e7ff !important;
-  border-radius: 12px !important;
+  min-height: 0;
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   margin-bottom: 0 !important;
-  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.12);
+  box-shadow: none !important;
+}
+
+/* 空的动作区不占位：不渲染边框，更不留下空白色块 */
+.hospital-action-row:empty,
+.supplier-toolbar:empty,
+.manufacturer-toolbar:empty,
+.campus-toolbar:empty,
+.department-toolbar:empty,
+.department-action-row:empty {
+  display: none !important;
 }
 
 .hospital-action-row .btn,
@@ -367,158 +386,12 @@
 
 /* ===== Query Grid（查询表单） ===== */
 .hospital-query-grid,
-.supplier-query-grid,
-.manufacturer-query-grid,
-.campus-query-grid,
-.department-management-query-grid,
-.department-warehouse-catalog-query-grid,
-.department-query-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  align-items: end;
-}
-
-.hospital-query-grid label,
-.supplier-query-grid label,
-.manufacturer-query-grid label,
-.campus-query-grid label,
-.department-management-query-grid label,
-.department-warehouse-catalog-query-grid label,
-.department-query-grid label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.hospital-query-grid label > span,
-.supplier-query-grid label > span,
-.manufacturer-query-grid label > span,
-.campus-query-grid label > span,
-.department-management-query-grid label > span,
-.department-warehouse-catalog-query-grid label > span,
-.department-query-grid label > span {
-  color: var(--spd-text-heading) !important;
-  font-size: var(--spd-font-size-sm) !important;
-  font-weight: 600;
-}
-
-.hospital-query-grid input,
-.hospital-query-grid select,
-.supplier-query-grid input,
-.supplier-query-grid select,
-.manufacturer-query-grid input,
-.manufacturer-query-grid select,
-.campus-query-grid input,
-.campus-query-grid select,
-.department-management-query-grid input,
-.department-management-query-grid select,
-.department-warehouse-catalog-query-grid input,
-.department-warehouse-catalog-query-grid select,
-.department-query-grid input,
-.department-query-grid select {
-  min-height: 36px;
-  border: 1px solid var(--spd-border-default) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  padding: 0 12px;
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  width: 100%;
-  transition: all 0.18s ease;
-}
-
-.hospital-query-grid input:focus,
-.hospital-query-grid select:focus,
-.supplier-query-grid input:focus,
-.supplier-query-grid select:focus,
-.manufacturer-query-grid input:focus,
-.manufacturer-query-grid select:focus,
-.campus-query-grid input:focus,
-.campus-query-grid select:focus,
-.department-management-query-grid input:focus,
-.department-management-query-grid select:focus,
-.department-warehouse-catalog-query-grid input:focus,
-.department-warehouse-catalog-query-grid select:focus,
-.department-query-grid input:focus,
-.department-query-grid select:focus {
-  border-color: var(--spd-primary) !important;
-  box-shadow: var(--spd-shadow-focus) !important;
-  outline: none;
-}
-
-.hospital-query-actions,
-.supplier-query-actions,
-.manufacturer-query-actions,
-.campus-query-actions,
-.department-management-query-actions,
-.department-warehouse-catalog-query-actions,
-.department-query-actions {
-  grid-column: 1 / -1 !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 4px;
-}
-
-.hospital-query-actions .btn,
-.supplier-query-actions .btn,
-.manufacturer-query-actions .btn,
-.campus-query-actions .btn,
-.department-management-query-actions .btn,
-.department-warehouse-catalog-query-actions .btn,
-.department-query-actions .btn {
-  min-height: 36px;
-  padding: 0 16px;
-  border: 1px solid var(--spd-border-default) !important;
-  background: var(--spd-bg-container) !important;
-  color: var(--spd-text-primary) !important;
-  border-radius: var(--spd-radius, 6px) !important;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.hospital-query-actions .btn:hover:not(:disabled),
-.supplier-query-actions .btn:hover:not(:disabled),
-.manufacturer-query-actions .btn:hover:not(:disabled),
-.campus-query-actions .btn:hover:not(:disabled),
-.department-management-query-actions .btn:hover:not(:disabled),
-.department-warehouse-catalog-query-actions .btn:hover:not(:disabled),
-.department-query-actions .btn:hover:not(:disabled) {
-  color: var(--spd-primary);
-  border-color: var(--spd-primary) !important;
-}
-
-.hospital-query-actions .btn.btn-primary,
-.supplier-query-actions .btn.btn-primary,
-.manufacturer-query-actions .btn.btn-primary,
-.campus-query-actions .btn.btn-primary,
-.department-management-query-actions .btn.btn-primary,
-.department-warehouse-catalog-query-actions .btn.btn-primary,
-.department-query-actions .btn.btn-primary {
-  background: var(--spd-primary) !important;
-  border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
-}
-
-.hospital-query-actions .btn.btn-primary:hover:not(:disabled),
-.supplier-query-actions .btn.btn-primary:hover:not(:disabled),
-.manufacturer-query-actions .btn.btn-primary:hover:not(:disabled),
-.campus-query-actions .btn.btn-primary:hover:not(:disabled),
-.department-management-query-actions .btn.btn-primary:hover:not(:disabled),
-.department-warehouse-catalog-query-actions .btn.btn-primary:hover:not(:disabled),
-.department-query-actions .btn.btn-primary:hover:not(:disabled) {
-  background: var(--spd-primary-dark) !important;
-  border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
-}
+/* 筛选区已统一改用 SpdFilterBar 组件（styles/components/spd-filter-bar.css）。
+   下列历史筛选栅格类（.hospital-query-grid / .supplier-query-grid /
+   .manufacturer-query-grid / .campus-query-grid /
+   .department-management-query-grid / .department-warehouse-catalog-query-grid /
+   .department-query-grid 及对应的 *-query-actions）已全部停用并移除，
+   避免与统一筛选标准规则并存导致高度 / 排版漂移。 */
 
 /* ===== Master toolbar（fallback 模式） ===== */
 .master-toolbar {
@@ -592,13 +465,13 @@
 .master-toolbar .btn.btn-primary {
   background: var(--spd-primary) !important;
   border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .master-toolbar .btn.btn-primary:hover:not(:disabled) {
   background: var(--spd-primary-dark) !important;
   border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== Partner Page（供应商/厂家页统一容器） ===== */
@@ -775,7 +648,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%) !important;
   color: var(--md-text-heading) !important;
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -835,7 +708,7 @@
 .md-table-card .department-table thead .selection-cell,
 .md-table-card .warehouse-table thead .selection-cell {
   z-index: 4;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%) !important;
 }
 
 .md-table-card .supplier-action-cell,
@@ -848,7 +721,7 @@
   z-index: 1;
   min-width: 126px;
   background: var(--md-bg-card) !important;
-  box-shadow: -8px 0 12px -10px rgba(13, 93, 74, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .md-table-card .supplier-table thead .supplier-action-cell,
@@ -857,7 +730,7 @@
 .md-table-card .department-table thead .department-action-cell,
 .md-table-card .warehouse-table thead .warehouse-action-cell {
   z-index: 4;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%) !important;
 }
 
 .md-table-card .supplier-table tbody tr:hover .supplier-action-cell,
@@ -886,7 +759,7 @@
 .campus-table thead,
 .department-table thead,
 .department-warehouse-table thead {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .supplier-table th,
@@ -894,7 +767,7 @@
 .campus-table th,
 .department-table th,
 .department-warehouse-table th {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -955,7 +828,7 @@
 .campus-table tbody tr:nth-child(even) td,
 .department-table tbody tr:nth-child(even) td,
 .department-warehouse-table tbody tr:nth-child(even) td {
-  background: #fafcfd;
+  background: var(--spd-p-row-stripe);
 }
 
 .supplier-table tbody tr:nth-child(even):hover td,
@@ -993,7 +866,7 @@
 .campus-table thead .selection-cell,
 .department-table thead .selection-cell {
   z-index: 4;
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 /* ===== Sticky Action Cell ===== */
@@ -1005,9 +878,9 @@
   right: 0;
   z-index: 1;
   min-width: 130px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   text-align: left;
-  box-shadow: -10px 0 14px -16px rgba(20, 57, 66, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .supplier-table thead .supplier-action-cell,
@@ -1015,7 +888,7 @@
 .campus-table thead .campus-action-cell,
 .department-table thead .department-action-cell {
   z-index: 4;
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .supplier-table tbody tr:hover .supplier-action-cell,
@@ -1216,9 +1089,9 @@
   align-items: center;
   align-self: flex-start;
   padding: 1px 8px;
-  background: var(--spd-warning-bg, #fff4e5);
-  color: var(--spd-warning-text, #b25e09);
-  border: 1px solid var(--spd-warning-border, #f5c98c);
+  background: var(--spd-warning-bg, var(--spd-p-warning-bg));
+  color: var(--spd-warning-text, var(--spd-p-warning-text));
+  border: 1px solid var(--spd-warning-border, var(--spd-p-warning-border));
   border-radius: 999px;
   font-size: var(--spd-font-size-xs);
   font-weight: 600;
@@ -1523,20 +1396,20 @@
 .product-dialog form .btn.btn-primary {
   background: var(--spd-primary) !important;
   border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .product-dialog form .btn.btn-primary:hover {
   background: var(--spd-primary-dark) !important;
   border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== Attachment preview mask（共用） ===== */
 .attachment-preview-mask {
   position: fixed !important;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45) !important;
+  background: color-mix(in srgb, var(--spd-p-text-strong) 45%, transparent) !important;
   z-index: 50;
   display: grid !important;
   place-items: center;
@@ -1634,13 +1507,13 @@
 .product-dialog-actions .btn.btn-primary {
   background: var(--spd-primary) !important;
   border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .product-dialog-actions .btn.btn-primary:hover {
   background: var(--spd-primary-dark) !important;
   border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== Column setting dialog / 其他 dialog 通用 ===== */
@@ -1681,7 +1554,7 @@
 }
 
 .hospital-product-table thead th {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -1713,7 +1586,7 @@
   z-index: 1;
   width: 42px;
   text-align: center;
-  background: #fafafa;
+  background: var(--spd-p-row-header-bg);
 }
 
 .hospital-product-table .hospital-action-cell {
@@ -1721,15 +1594,15 @@
   right: 0;
   z-index: 1;
   min-width: 200px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   text-align: left;
-  box-shadow: -10px 0 14px -16px rgba(20, 57, 66, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .hospital-product-table thead .hospital-selection-cell,
 .hospital-product-table thead .hospital-action-cell {
   z-index: 4;
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .hospital-product-table tbody tr:hover .hospital-action-cell {
@@ -1913,7 +1786,7 @@
 }
 
 .product-attachment-table th {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   font-weight: 700;
   font-family: var(--spd-font-family-display);
@@ -2093,13 +1966,13 @@
 .product-form-card .form-actions .btn.btn-primary {
   background: var(--spd-primary) !important;
   border-color: var(--spd-primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .product-form-card .form-actions .btn.btn-primary:hover {
   background: var(--spd-primary-dark) !important;
   border-color: var(--spd-primary-dark) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .product-form-card .form-actions .btn.btn-danger {
@@ -2109,7 +1982,7 @@
 
 .product-form-card .form-actions .btn.btn-danger:hover {
   background: var(--spd-danger) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   border-color: var(--spd-danger) !important;
 }
 
@@ -2187,8 +2060,8 @@
   padding: 0 16px !important;
   border: 1px solid transparent !important;
   border-radius: 10px !important;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%) !important;
-  color: #ffffff !important;
+  background: var(--spd-p-header-gradient) !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-sm) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
@@ -2196,7 +2069,7 @@
   gap: 6px !important;
   width: fit-content !important;
   cursor: pointer;
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45) !important;
+  box-shadow: var(--spd-p-shadow-2);
   box-sizing: border-box;
   transition: background 0.18s, box-shadow 0.18s, transform 0.18s !important;
 }
@@ -2204,9 +2077,9 @@
 .product-form-page > .btn:first-child:hover,
 .product-detail-page > .btn:first-child:hover,
 .product-detail-back:hover {
-  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 50%, #7c3aed 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.55) !important;
+  background: var(--spd-p-primary-hover-solid) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-3);
   transform: translateY(-1px);
 }
 
@@ -2216,9 +2089,8 @@
   background: var(--md-bg-header) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   padding: 18px 24px !important;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
-              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
+  box-shadow: var(--spd-p-shadow-1);
   position: relative;
   overflow: hidden;
 }
@@ -2229,8 +2101,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, var(--spd-p-primary)) 28%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
 
@@ -2238,7 +2110,7 @@
 .product-form-page .approval-detail-header > div > p,
 .approval-detail-page.product-detail-page .approval-detail-header p {
   margin: 0 !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
   position: relative;
@@ -2249,7 +2121,7 @@
 .product-form-page .approval-detail-header h2,
 .approval-detail-page.product-detail-page .approval-detail-header h2 {
   margin: 4px 0 6px !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
@@ -2258,7 +2130,7 @@
 
 .product-form-page .approval-detail-header span,
 .approval-detail-page.product-detail-page .approval-detail-header span {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm);
   position: relative;
 }
@@ -2401,7 +2273,7 @@
 .product-form-card .error-text {
   margin: 0;
   padding: 8px 24px 16px;
-  color: #cf1322;
+  color: var(--spd-p-danger-text);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -2412,7 +2284,7 @@
   align-items: center !important;
   gap: 10px;
   border-top: 1px solid var(--spd-border-subtle) !important;
-  background: var(--spd-bg-page, #f0f2f5) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
   padding: 12px 24px !important;
   margin: 0 !important;
 }
@@ -2444,14 +2316,14 @@
 .product-form-actions .btn.btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .product-form-actions .btn.btn-primary:hover {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* =====================================================================
@@ -2490,9 +2362,9 @@
 }
 
 .approval-detail-page.product-detail-page .product-detail-status:not(.active) {
-  border-color: #ffa39e;
-  background: #fff1f0;
-  color: #cf1322;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-text);
 }
 
 /* 编辑按钮 36px 圆角彩色 */
@@ -2502,24 +2374,24 @@
   padding: 0 18px !important;
   border: 1px solid transparent !important;
   border-radius: 10px !important;
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
-  color: #ffffff !important;
+  background: var(--spd-p-header-gradient) !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
   cursor: pointer;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45) !important;
+  box-shadow: var(--spd-p-shadow-2);
   box-sizing: border-box;
   transition: background 0.18s, box-shadow 0.18s, transform 0.18s !important;
 }
 
 .approval-detail-page.product-detail-page .btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  background: var(--spd-p-primary-hover-solid) !important;
   border-color: transparent !important;
-  color: #ffffff !important;
-  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-3);
   transform: translateY(-1px);
 }
 
@@ -2542,12 +2414,12 @@
   border: 1px solid var(--spd-border-subtle) !important;
   border-radius: 12px !important;
   background: var(--spd-bg-container) !important;
-  box-shadow: 0 4px 14px -4px rgba(13, 93, 74, 0.12), 0 2px 4px rgba(13, 93, 74, 0.04) !important;
+  box-shadow: var(--spd-p-shadow-2);
   transition: box-shadow 0.2s, transform 0.2s;
 }
 
 .approval-detail-page.product-detail-page .product-detail-section:hover {
-  box-shadow: 0 6px 18px -4px rgba(99, 102, 241, 0.18), 0 3px 6px rgba(13, 93, 74, 0.05) !important;
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading {
@@ -2556,7 +2428,7 @@
   justify-content: space-between;
   gap: 16px;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
-  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%) !important;
+  background: linear-gradient(135deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-info-bg) 100%) !important;
   padding: 12px 18px;
 }
 
@@ -2576,8 +2448,8 @@
   width: 4px;
   height: 16px;
   border-radius: 2px;
-  background: linear-gradient(180deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
-  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(180deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 50%, var(--spd-p-primary-strong) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .approval-detail-page.product-detail-page .product-detail-section-heading p {
@@ -2588,8 +2460,8 @@
 
 .approval-detail-page.product-detail-page .product-detail-section-heading > span {
   flex: 0 0 auto;
-  color: #ffffff !important;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%) !important;
+  color: var(--spd-p-bg) !important;
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 100%) !important;
   border: 1px solid transparent;
   border-radius: 999px;
   padding: 0 12px;
@@ -2598,7 +2470,7 @@
   align-items: center;
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 字段网格 */
@@ -2635,14 +2507,14 @@
 }
 
 .approval-detail-page.product-detail-page .product-detail-field.emphasis {
-  background: linear-gradient(135deg, rgba(238, 242, 255, 0.7) 0%, rgba(224, 231, 255, 0.7) 100%) !important;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info-bg) 70%, transparent) 0%, color-mix(in srgb, var(--spd-p-border) 70%, transparent) 100%) !important;
   border-radius: 8px;
   border-right-color: transparent !important;
   border-bottom-color: transparent !important;
 }
 
 .approval-detail-page.product-detail-page .product-detail-field.emphasis dd {
-  color: #4f46e5 !important;
+  color: var(--spd-p-primary) !important;
   font-weight: 700;
   font-size: var(--spd-font-size-base);
 }
@@ -2674,12 +2546,12 @@
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table th {
-  background: linear-gradient(180deg, #f0f9ff 0%, #e0e7ff 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-border) 100%) !important;
   color: var(--spd-text-heading) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display);
-  border-bottom: 2px solid color-mix(in srgb, var(--primary, #0d6b63) 30%, transparent) !important;
+  border-bottom: 2px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 30%, transparent) !important;
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table tbody tr:last-child > * {
@@ -2709,24 +2581,24 @@
   padding: 0 12px;
   border: 1px solid transparent !important;
   border-radius: 8px !important;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%) !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 100%) !important;
+  color: var(--spd-p-bg) !important;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   cursor: pointer;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
+  box-shadow: var(--spd-p-shadow-1);
   box-sizing: border-box;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s !important;
 }
 
 .approval-detail-page.product-detail-page .product-attachment-table .btn-text:hover {
-  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 100%) !important;
-  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--spd-p-primary-hover) 0%, var(--spd-p-primary) 100%) !important;
+  color: var(--spd-p-bg) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.55);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 /* 附件弹窗内无 URL 时的空态：仅图标 + 文件名 + 极简说明 */
@@ -2769,10 +2641,10 @@
   display: grid;
   justify-items: start;
   gap: 8px;
-  border: 1px solid #ffa39e;
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: var(--spd-radius-md, 8px);
-  background: #fff1f0;
-  color: #cf1322;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-text);
   padding: 16px 18px;
   font-size: var(--spd-font-size-base);
 }
@@ -2801,10 +2673,9 @@
 body .approval-detail-page.product-detail-page .standard-page-header.standard-page-header,
 .approval-detail-page.product-detail-page .standard-page-header {
   background: var(--md-bg-header) !important;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
-              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  box-shadow: var(--spd-p-shadow-1);
   padding: 18px 24px !important;
   position: relative;
   overflow: hidden;
@@ -2815,14 +2686,14 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, var(--spd-p-primary)) 28%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
 
 .approval-detail-page.product-detail-page .standard-page-heading > p {
   margin: 0 !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
   position: relative;
@@ -2832,7 +2703,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 
 .approval-detail-page.product-detail-page .standard-page-heading > h2 {
   margin: 4px 0 6px !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
@@ -2841,7 +2712,7 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 }
 
 .approval-detail-page.product-detail-page .standard-page-heading > span {
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm) !important;
   position: relative;
 }
@@ -2868,13 +2739,13 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   justify-content: space-between;
   gap: 12px;
   padding: 14px 20px !important;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
-  background: var(--md-bg-header, linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%)) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
+  background: var(--md-bg-header, var(--spd-p-header-gradient)) !important;
   border-radius: 12px !important;
-  box-shadow: 0 4px 14px -4px rgba(99, 102, 241, 0.4) !important;
+  box-shadow: var(--spd-p-shadow-2);
   min-height: 56px;
   box-sizing: border-box;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   position: relative;
   overflow: hidden;
 }
@@ -2884,8 +2755,8 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, rgba(0, 0, 0, 0.18) 0%, transparent 32%);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--spd-p-text-strong) 18%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
 
@@ -2897,10 +2768,10 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   min-height: 30px;
   height: 30px;
   padding: 0 14px;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 40%, transparent) !important;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.2) !important;
-  color: #ffffff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 20%, transparent) !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   white-space: nowrap;
@@ -2908,16 +2779,16 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 }
 
 .product-detail-toolbar .product-detail-status.active {
-  border-color: rgba(255, 255, 255, 0.6) !important;
-  background: rgba(255, 255, 255, 0.32) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 60%, transparent) !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 32%, transparent) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .product-detail-toolbar .product-detail-status:not(.active) {
-  border-color: rgba(255, 200, 200, 0.6);
-  background: rgba(255, 80, 80, 0.25);
-  color: #ffffff;
+  border-color: color-mix(in srgb, var(--spd-p-danger-border) 60%, transparent);
+  background: color-mix(in srgb, var(--spd-p-danger) 25%, transparent);
+  color: var(--spd-p-bg);
 }
 
 .product-detail-toolbar-actions {
@@ -2930,10 +2801,10 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   min-height: 36px !important;
   height: 36px !important;
   padding: 0 16px !important;
-  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 40%, transparent) !important;
   border-radius: 10px !important;
-  background: rgba(255, 255, 255, 0.18) !important;
-  color: #ffffff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent) !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
   display: inline-flex !important;
@@ -2947,24 +2818,24 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
 }
 
 .product-detail-toolbar-actions .btn:hover {
-  background: rgba(255, 255, 255, 0.32) !important;
-  border-color: rgba(255, 255, 255, 0.6) !important;
-  color: #ffffff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 32%, transparent) !important;
+  border-color: color-mix(in srgb, var(--spd-p-bg) 60%, transparent) !important;
+  color: var(--spd-p-bg) !important;
   transform: translateY(-1px);
-  box-shadow: 0 6px 14px -4px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .product-detail-toolbar-actions .btn.btn-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%) !important;
+  background: var(--spd-p-header-gradient) !important;
   border-color: transparent !important;
-  color: #ffffff !important;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.55) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .product-detail-toolbar-actions .btn.btn-primary:hover {
-  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%) !important;
+  background: var(--spd-p-primary-hover-solid) !important;
   border-color: transparent !important;
-  color: #ffffff !important;
-  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.65) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-3);
 }
 

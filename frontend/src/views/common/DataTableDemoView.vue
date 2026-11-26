@@ -176,12 +176,12 @@ onMounted(() => {
         <p>统一表格风格：表头 / 斑马 / 边框 / hover / 分页 / 选择 / 操作</p>
       </div>
       <div class="standard-page-actions">
-        <el-button type="primary" @click="onCreate">
-          <Plus :size="14" />新增商品
-        </el-button>
-        <el-button :disabled="!selected.length" @click="onBatchDelete">
-          <Trash2 :size="14" />批量删除（{{ selected.length }}）
-        </el-button>
+        <SpdButton label="新增商品" tone="primary" @click="onCreate">
+          <template #icon><Plus :size="14" /></template>
+        </SpdButton>
+        <SpdButton label="批量删除" tone="danger" :disabled="!selected.length" @click="onBatchDelete">
+          <template #icon><Trash2 :size="14" /></template>
+        </SpdButton>
       </div>
     </header>
 
@@ -195,8 +195,8 @@ onMounted(() => {
           @keyup.enter="onSearch"
         />
       </div>
-      <el-button type="primary" @click="onSearch">查询</el-button>
-      <el-button @click="onResetSearch">重置</el-button>
+      <SpdButton label="查询" tone="primary" @click="onSearch"></SpdButton>
+      <SpdButton label="重置" tone="neutral" @click="onResetSearch"></SpdButton>
     </div>
 
     <DataTable
@@ -220,9 +220,9 @@ onMounted(() => {
       </template>
 
       <template #column-status="{ row }">
-        <span :class="['status-pill', statusTone((row as DemoRow).status)]">
+        <SpdStatusChip :tone="statusTone((row as DemoRow).status)">
           {{ statusText((row as DemoRow).status) }}
-        </span>
+        </SpdStatusChip>
       </template>
 
       <template #row-action="{ row }">

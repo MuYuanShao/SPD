@@ -1,0 +1,172 @@
+/* =====================================================================
+ * SpdStatusChip · 全站通用状态条（唯一视觉来源）
+ * =====================================================================
+ * 产品诉求（硬约束）：
+ *   「列表状态条的样式也要统一，你需要选择一些市面系统的常用字体和
+ *     背景色搭配，不要使用太深的颜色作为背景色，把状态条也变成通用组件，
+ *     内边距和圆角都要规定好，所有列表使用这样的状态条的都要统一，
+ *     给列表使用」
+ *
+ * ---------------------------------------------------------------------
+ * 【配色依据：市面主流系统的做法】
+ *   Ant Design / Element Plus / GitHub Primer / Material Design 的状态标签
+ *   统一采用「**浅色染色底 + 同色系深色文字 + 1px 细边框**」：
+ *     - Ant Design  Tag（success / processing / error / warning）
+ *       → 底色为语义色的浅色档，文字为语义色深色档；
+ *     - GitHub Primer  Label（success / danger / attention）
+ *       → 底色为语义色的 10%~15% 淡染，文字为语义色本身；
+ *     - Element Plus  el-tag（success / info / warning / danger）
+ *       → 同样是「浅底 + 深字」。
+ *   因此本组件：
+ *     - **背景绝不使用深色实心底**（密集列表里深色块会形成视觉噪点，
+ *       压过数据本身，也违背用户「不要使用太深的颜色作为背景色」的要求）；
+ *     - 文字统一用**深色**语义色，在浅色底上对比度 ≥ 4.5:1（WCAG AA）。
+ *
+ * ---------------------------------------------------------------------
+ * 【几何规格（全部取自 tokens/palette.css 的 8b 节，不在本文件写死）】
+ *   - 高度：24px（size="sm" 为 22px）—— **这是单行状态条的高度**
+ *     行高由 --spd-p-chip-line-height 推导：一行文字恰好填满
+ *     「高度 - 内边距 - 边框」，因此单行状态条在各字号档位下都等高。
+ *   - 水平内边距：10px    垂直内边距：2px
+ *   - 圆角：4px（与全站控件圆角一致）
+ *   - 边框：1px 实线（语义色浅色档）
+ *   - 字号：--spd-font-size-sm（次级说明档）  字重：600
+ *   - 前导圆点：7px 直径，与文字同色
+ *
+ * ---------------------------------------------------------------------
+ * 【用户明确澄清（硬约束）】
+ *   「状态条只是要求内边距，边框圆角，字体大小一致，没有不允许宽度和
+ *     高度变化，只要不超过列宽，允许状态条适当增加高度和宽度，
+ *     否则会使得样式变丑」
+ *
+ *   因此本文件的实现原则是：
+ *   1. **统一的是内边距 / 圆角 / 边框宽度 / 字号** —— 全部走令牌，绝不写死；
+ *   2. **高度用 min-height 而非 height 锁死**：
+ *      单行状态条的高度仍然完全一致（= 令牌值），
+ *      但当文字确实需要两行时，状态条会自然增高，不裁切、不截断；
+ *   3. **宽度不锁死**：状态条按内容自适应，但**永不超过所在列宽**
+ *      （max-width: 100% + min-width: 0）；
+ *   4. 文字允许换行（word-break / overflow-wrap 处理长中文），
+ *      换行后状态条随之增高。
+ * ---------------------------------------------------------------------
+ * ---------------------------------------------------------------------
+ * 【三套配色方案自动适配】
+ *   颜色全部由 --spd-c-* / --spd-p-* 令牌派生，而三套方案
+ *   （标准白 / 静墨宣纸 / 暗夜黑）各自重定义 --spd-c-*，
+ *   因此本文件**不需要**为任何方案写专属覆盖：
+ *     标准白     → 浅色底（#e6f1ec 等）+ 深色字（#2a7152 等）
+ *     静墨宣纸   → 14% 淡染底 + 深墨字
+ *     暗夜黑     → 40% 与暗底混合的深色底 + 提亮字（#4ec08c 等）
+ *
+ * 引入位置：styles/main.css 中排在 components/spd-filter-bar.css 之后。
+ * ===================================================================== */
+
+/* =====================================================================
+ * 1. 结构基座（所有色调共用）
+ * ===================================================================== */
+.spd-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spd-p-chip-gap);
+  box-sizing: border-box;
+  /* 【高度策略】只锁 min-height，不锁 height / max-height。
+     单行状态条因此仍然等高（= 令牌值）；
+     文字需要两行时状态条自然增高，不裁切、不截断。 */
+  min-height: var(--spd-p-chip-height);
+  padding: var(--spd-p-chip-padding-y) var(--spd-p-chip-padding-x);
+  border: var(--spd-p-chip-border-width) solid transparent;
+  border-radius: var(--spd-p-chip-radius);
+  background: var(--spd-p-chip-neutral-bg);
+  color: var(--spd-p-chip-neutral-text);
+  font-family: inherit;
+  font-size: var(--spd-p-chip-font-size);
+  font-weight: var(--spd-p-chip-font-weight);
+  /* 单行文字恰好填满「高度 - 内边距 - 边框」，
+     于是单行状态条的高度 = 令牌高度（各字号档位都成立）；
+     换行到第二行时由 min-height 之外的自动高度撑开。 */
+  line-height: var(--spd-p-chip-line-height);
+  text-align: center;
+  vertical-align: middle;
+  /* 状态条在窄列里允许换行，而不是横向溢出侵占相邻列。
+     max-width: 100% 保证状态条永不超过所在列宽；
+     min-width: 0 让 flex 子项可以收缩到内容宽度以下，
+     否则长中文会把整列撑宽。 */
+  max-width: 100%;
+  min-width: 0;
+  /* 长中文（含无空格的连续汉字）也允许在断点处折行 */
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 紧凑档：22px 高（同样只锁 min-height，允许内容撑高）
+   字号更小（--spd-p-chip-font-size-sm = --spd-font-size-xs），
+   否则 22px 的高度在「大」字号档放不下 17px 的次级字号。 */
+.spd-status-chip--sm {
+  min-height: var(--spd-p-chip-height-sm);
+  font-size: var(--spd-p-chip-font-size-sm);
+  line-height: var(--spd-p-chip-line-height-sm);
+}
+
+/* 前导圆点 */
+.spd-status-chip__dot {
+  display: inline-block;
+  width: var(--spd-p-chip-dot-size);
+  height: var(--spd-p-chip-dot-size);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.spd-status-chip__label {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  /* 文字允许换行到第二行：长标签换行后状态条随之增高，
+     内容始终完整可读（用户明确允许状态条增高）。
+     长中文用 word-break 断行，连续英文/编码用 overflow-wrap 断行。 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* =====================================================================
+ * 2. 语义色调
+ * ---------------------------------------------------------------------
+ * 每个 tone 一组：浅色底 + 语义色边框 + 深色文字。
+ * ===================================================================== */
+.spd-status-chip--tone-success {
+  border-color: var(--spd-p-chip-success-border);
+  background: var(--spd-p-chip-success-bg);
+  color: var(--spd-p-chip-success-text);
+}
+
+.spd-status-chip--tone-danger {
+  border-color: var(--spd-p-chip-danger-border);
+  background: var(--spd-p-chip-danger-bg);
+  color: var(--spd-p-chip-danger-text);
+}
+
+.spd-status-chip--tone-warning {
+  border-color: var(--spd-p-chip-warning-border);
+  background: var(--spd-p-chip-warning-bg);
+  color: var(--spd-p-chip-warning-text);
+}
+
+.spd-status-chip--tone-info {
+  border-color: var(--spd-p-chip-info-border);
+  background: var(--spd-p-chip-info-bg);
+  color: var(--spd-p-chip-info-text);
+}
+
+.spd-status-chip--tone-primary {
+  border-color: var(--spd-p-chip-primary-border);
+  background: var(--spd-p-chip-primary-bg);
+  color: var(--spd-p-chip-primary-text);
+}
+
+.spd-status-chip--tone-neutral {
+  border-color: var(--spd-p-chip-neutral-border);
+  background: var(--spd-p-chip-neutral-bg);
+  color: var(--spd-p-chip-neutral-text);
+}

@@ -1,0 +1,209 @@
+/* =====================================================================
+ * 全站输入控件统一规格（唯一视觉来源）
+ * =====================================================================
+ * 产品诉求（硬约束）：
+ *   「输入框现在也要统一成相同高度，和科室库房目录的输入框一致，
+ *     做成通用组件」
+ *
+ * ---------------------------------------------------------------------
+ * 【基准页面】
+ *   /features/department-warehouse-catalog（科室库房目录）实测：
+ *     .md-input（原生 input）  高 34px · 底白 · 边框 1px #d5e0e5 · 圆角 4px
+ *     .el-select__wrapper      高 34px · 底白 · 内阴影 1px #d5e0e5 · 圆角 6px
+ *   本文件把「34px + 1px 细边框 + 同底色 + 同字号」推广到全站所有输入控件。
+ *
+ * ---------------------------------------------------------------------
+ * 【统一后的规格】
+ *   - 高度：**严格 34px**（= --spd-p-field-height）
+ *     用 height + min-height + max-height 三个一起锁死，
+ *     避免内容（多行 placeholder / 长文本）把控件撑高造成同页高度漂移。
+ *   - 边框：1px 实体，取 --spd-p-field-border（= --spd-c-border）
+ *   - 圆角：4px（原生控件）；Element Plus 控件沿用其自身圆角，
+ *     但**边框环厚度统一为 1px**（inset box-shadow），保证视觉一致。
+ *   - 底色：--spd-p-field-bg（三套方案下自动适配）
+ *   - 字号：--spd-font-size-base（跟随界面字号三档）
+ *
+ * ---------------------------------------------------------------------
+ * 【与 responsive-medical.css 的冲突收口】
+ *   styles/responsive-medical.css 在 main.css **之后**引入，
+ *   其中有一条针对 .main-area 内所有 input / select / .el-input__wrapper 的
+ *   全局规则：
+ *     .main-area :is(input…, select, .el-input__wrapper, .el-select__wrapper) {
+ *       min-height: 36px !important; height: 36px; border-radius: 6px !important;
+ *     }
+ *   它带 !important，会把 34px 压成 36px —— 「输入框高度必须一样」就会破功。
+ *   因此本文件末尾用**同款 !important + 更高特指度**统一拉回 34px，
+ *   并在 main.css 中把本文件排在 responsive-medical.css **之后**引入，
+ *   双保险确保 34px 真正生效（详见 main.css 的引入顺序注释）。
+ *
+ * ---------------------------------------------------------------------
+ * 【适用范围】
+ *   只锁定**输入类控件**（input / select / date-editor / number / textarea 除外），
+ *   不影响按钮、复选框、单选框、textarea（多行文本必须能撑高）。
+ * ===================================================================== */
+
+/* =====================================================================
+ * 1. Element Plus 控件（input / select / date-editor / input-number）
+ * ===================================================================== */
+.el-input__wrapper,
+.el-select__wrapper,
+.el-date-editor.el-input__wrapper,
+.el-date-editor .el-input__wrapper,
+.el-input-number .el-input__wrapper,
+.el-input-number .el-input__inner,
+.el-time-editor .el-input__wrapper,
+.el-time-select .el-input__wrapper,
+.el-cascader .el-input__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  font-size: var(--spd-font-size-base);
+}
+
+/* 边框统一为 1px 内阴影环（与原生控件的 1px 实体边框视觉等宽） */
+.el-input__wrapper,
+.el-select__wrapper {
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
+}
+
+.el-input__wrapper:hover,
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-focus-border) inset,
+    0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+/* el-input-number 的外层容器本身也要定高，否则整体会比别的控件高 */
+.el-input-number {
+  height: var(--spd-p-field-height);
+}
+
+.el-input-number .el-input__wrapper {
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* el-date-editor（日期 / 日期范围）是 .el-input__wrapper 的父级 */
+.el-date-editor.el-input,
+.el-date-editor.el-input__wrapper,
+.el-date-editor.el-range-editor {
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+}
+
+/* el-date-editor 内的 input 必须撑满，否则会溢出 */
+.el-date-editor .el-range-input,
+.el-date-editor .el-input__inner {
+  height: auto;
+  min-height: 0;
+}
+
+/* 控件内文字统一字号 */
+.el-input__inner,
+.el-select__placeholder,
+.el-select__selected-item,
+.el-range-input,
+.el-input-number .el-input__inner {
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  line-height: var(--spd-lh-base);
+}
+
+/* =====================================================================
+ * 2. 原生控件（input / select）+ .md-input / .md-select
+ * ---------------------------------------------------------------------
+ * 排除 checkbox / radio / hidden / range / color / file —— 它们不是
+ * 「文本输入框」，强行定高会破坏交互。
+ * ===================================================================== */
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']),
+select,
+.md-input,
+.md-select {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  padding: 0 var(--spd-p-field-padding-x);
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  color: var(--spd-p-field-text);
+  font-family: inherit;
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  line-height: var(--spd-lh-base);
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):hover,
+select:hover,
+.md-input:hover,
+.md-select:hover {
+  border-color: var(--spd-p-field-border-hover);
+}
+
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):focus,
+select:focus,
+.md-input:focus,
+.md-select:focus {
+  outline: none;
+  border-color: var(--spd-p-field-focus-border);
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+input:disabled,
+select:disabled,
+.md-input:disabled,
+.md-select:disabled {
+  background: var(--spd-p-field-disabled-bg);
+  border-color: var(--spd-p-field-disabled-border);
+  color: var(--spd-p-field-disabled-text);
+  cursor: not-allowed;
+}
+
+/* =====================================================================
+ * 3. 与 responsive-medical.css 的冲突收口（36px → 34px）
+ * ---------------------------------------------------------------------
+ * responsive-medical.css 的规则带 !important，且特指度为 (0,2,1)：
+ *   .main-area :is(input…, select, .el-input__wrapper, .el-select__wrapper)
+ * 这里用 (0,3,1) / (0,4,1) 的更高特指度 + 同款 !important 稳压。
+ * ===================================================================== */
+.main-area input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']),
+.main-area select,
+.main-area .md-input,
+.main-area .md-select,
+.main-area .el-input__wrapper,
+.main-area .el-select__wrapper,
+.main-area .el-date-editor.el-input__wrapper,
+.main-area .el-input-number .el-input__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height) !important;
+  min-height: var(--spd-p-field-height) !important;
+  max-height: var(--spd-p-field-height) !important;
+  border-radius: var(--spd-p-field-radius) !important;
+  font-size: var(--spd-font-size-base) !important;
+}
+
+/* el-select 的圆角：EP 默认 6px 与原生 4px 存在 2px 差异，
+   这里统一拉回 --spd-p-field-radius（4px），保证「看起来一样高一样宽」。 */
+.main-area .el-select__wrapper {
+  border-radius: var(--spd-p-field-radius) !important;
+}
+
+/* =====================================================================
+ * 4. 表格内 / 弹窗内的紧凑输入（保持 34px，不缩小）
+ * ---------------------------------------------------------------------
+ * 表格里的小输入框（如数量输入）过去写死了 34~38px 不等，
+ * 这里同样拉回 34px，消除同页内高度不一致。
+ * ===================================================================== */
+.main-area .el-input-number--small,
+.main-area .el-input--small {
+  --el-component-size-small: var(--spd-p-field-height);
+}

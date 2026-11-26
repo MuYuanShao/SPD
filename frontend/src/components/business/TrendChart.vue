@@ -87,22 +87,22 @@ function render() {
       icon: 'roundRect',
       itemWidth: 9,
       itemHeight: 5,
-      textStyle: { fontSize: fontBase, color: '#73838c' }
+      textStyle: { fontSize: fontBase, color: 'var(--spd-p-text-muted)' }
     },
     grid: { left: 38, right: 12, bottom: 25, top: 38 },
     xAxis: {
       type: 'category',
       data: props.labels,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#e6ecef' } },
-      axisLabel: { color: '#87969e', fontSize: fontSm }
+      axisLine: { lineStyle: { color: 'var(--spd-p-border-subtle)' } },
+      axisLabel: { color: 'var(--spd-p-text-muted)', fontSize: fontSm }
     },
     yAxis: {
       type: 'value',
       name: props.unit,
-      nameTextStyle: { color: '#87969e', fontSize: fontSm },
-      splitLine: { lineStyle: { color: '#edf1f3', type: 'dashed' } },
-      axisLabel: { color: '#87969e', fontSize: fontSm }
+      nameTextStyle: { color: 'var(--spd-p-text-muted)', fontSize: fontSm },
+      splitLine: { lineStyle: { color: 'var(--spd-p-bg-muted)', type: 'dashed' } },
+      axisLabel: { color: 'var(--spd-p-text-muted)', fontSize: fontSm }
     },
     series: props.series.map(series => ({
       name: series.name, data: series.values, type: series.type || 'bar', smooth: true,

@@ -251,7 +251,7 @@
   --spd-c-text: #2b2823;
   --spd-c-text-strong: #23201c;
   --spd-c-text-secondary: #5d574d;
-  --spd-c-text-muted: #857e71;
+  --spd-c-text-muted: #756e62;
   --spd-c-text-on-primary: #fdfbf7;
 
   --spd-c-bg: #fdfbf7;
@@ -268,15 +268,15 @@
   --spd-c-primary-soft: #e7edeb;
   --spd-c-primary-hover: #35504a;
 
-  --spd-c-success: #4c7a5f;
+  --spd-c-success: #467253;
   --spd-c-success-soft: #eef2ec;
   --spd-c-success-border: #cfdccf;
 
-  --spd-c-disabled: #8d867a;
+  --spd-c-disabled: #6e695e;
   --spd-c-disabled-soft: #f1eee7;
   --spd-c-disabled-border: #ddd8cc;
 
-  --spd-c-warning: #9a6b2f;
+  --spd-c-warning: #8f622b;
   --spd-c-warning-soft: #f6f0e6;
   --spd-c-warning-border: #e3d5ba;
 
@@ -284,18 +284,27 @@
   --spd-c-danger-soft: #f6ebe8;
   --spd-c-danger-border: #e3c8c2;
 
-  --spd-c-info: #5b7285;
+  --spd-c-info: #546a7c;
   --spd-c-info-soft: #eceff2;
   --spd-c-info-border: #cdd6de;
 
-  /* —— 状态条：底色透明度 0.14（对照前三方案的 0.4） —— */
-  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 14%, #fdfbf7);
-  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 14%, #fdfbf7);
-  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 14%, #fdfbf7);
-  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 14%, #fdfbf7);
-  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 14%, #fdfbf7);
-  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 14%, #fdfbf7);
-  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 14%, #fdfbf7);
+  /* 中性石板：表头 / 次级说明文字档位（宣纸底上的偏暖中性灰） */
+  --spd-c-slate: #635d53;
+  --spd-c-slate-soft: #f2efe9;
+  --spd-c-slate-border: #d8d2c7;
+
+  /* —— 状态条：底色透明度 0.10 ——
+     宣纸底（#fdfbf7）本身很亮，14% 淡染会把成功 / 警告 / 禁用三档
+     的文字对比度压到 4.28~4.45:1（略低于 WCAG AA 正文 4.5:1）。
+     收到 10% 后各档均 ≥ 4.53:1（成功 4.69 / 警告 4.53 / 禁用 4.64），
+     且仍是「浅色底 + 深色字」，符合「不要使用太深的颜色作为背景色」。 */
+  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 10%, var(--spd-c-bg));
+  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 10%, var(--spd-c-bg));
 }
 
 /* =====================================================================
@@ -321,7 +330,7 @@
 /* 品牌标记：墨青色实底，不再用高饱和渐变 */
 :root[data-spd-theme='calm-paper'] .spd-logo-icon {
   background: var(--spd-primary) !important;
-  color: #fdfbf7 !important;
+  color: var(--spd-c-text-on-primary) !important;
   box-shadow: none;
 }
 
@@ -341,7 +350,7 @@
 :root[data-spd-theme='calm-paper'] .spd-menu-dropdown {
   background: var(--spd-bg-elevated) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 8px 24px rgba(60, 52, 38, 0.1) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
 }
 
 :root[data-spd-theme='calm-paper'] .spd-dropdown-link {
@@ -416,28 +425,26 @@
   background: var(--spd-bg-surface) !important;
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 1px 2px rgba(60, 52, 38, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   border-radius: 12px !important;
 }
 
 /* =====================================================================
    7. 筛选区与输入控件
    ===================================================================== */
-:root[data-spd-theme='calm-paper'] .ulc-filter,
-:root[data-spd-theme='calm-paper'] .md-hospital-filter,
+:root[data-spd-theme='calm-paper'] .spd-filter-bar,
 :root[data-spd-theme='calm-paper'] .catalog-filter-panel {
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-default) !important;
 }
 
-:root[data-spd-theme='calm-paper'] .ulc-filter label > span,
-:root[data-spd-theme='calm-paper'] .md-hospital-filter label > span {
+:root[data-spd-theme='calm-paper'] .spd-filter-bar__fields label > span {
   color: var(--spd-text-secondary) !important;
 }
 
 :root[data-spd-theme='calm-paper'] .md-input,
-:root[data-spd-theme='calm-paper'] .ulc-filter input,
-:root[data-spd-theme='calm-paper'] .ulc-filter select,
+:root[data-spd-theme='calm-paper'] .spd-filter-bar input,
+:root[data-spd-theme='calm-paper'] .spd-filter-bar select,
 :root[data-spd-theme='calm-paper'] .department-warehouse-catalog-query-grid input,
 :root[data-spd-theme='calm-paper'] .department-warehouse-catalog-query-grid select {
   background: var(--spd-c-bg) !important;
@@ -446,7 +453,7 @@
 }
 
 :root[data-spd-theme='calm-paper'] .md-input::placeholder,
-:root[data-spd-theme='calm-paper'] .ulc-filter input::placeholder {
+:root[data-spd-theme='calm-paper'] .spd-filter-bar input::placeholder {
   color: var(--spd-text-placeholder) !important;
 }
 
@@ -509,7 +516,7 @@
 
 :root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-table .el-table__header th.el-table__cell:hover {
   border-right-color: var(--spd-c-primary) !important;
-  background: #edeae1 !important;
+  background: var(--spd-c-bg-muted) !important;
 }
 
 /* 拖拽代理线：墨青实线 */
@@ -616,41 +623,16 @@
   color: var(--spd-c-warning) !important;
 }
 
-/* 筛选区按钮 */
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-filter-actions .md-btn,
-:root[data-spd-theme='calm-paper'] .spd-unified-list .md-hospital-filter-actions .md-btn {
-  background: var(--spd-c-bg) !important;
-  color: var(--spd-text-secondary) !important;
-  border: 1px solid var(--spd-c-border-strong) !important;
-  box-shadow: none !important;
-}
-
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-filter-actions .md-btn:hover:not(:disabled),
-:root[data-spd-theme='calm-paper'] .spd-unified-list .md-hospital-filter-actions .md-btn:hover:not(:disabled) {
-  background: var(--spd-bg-hover) !important;
-  color: var(--spd-text-primary) !important;
-}
-
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-filter-actions .md-btn-primary,
-:root[data-spd-theme='calm-paper'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary {
-  background: var(--spd-c-primary) !important;
-  color: var(--spd-c-text-on-primary) !important;
-  border-color: var(--spd-c-primary) !important;
-}
-
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-filter-actions .md-btn-primary:hover:not(:disabled),
-:root[data-spd-theme='calm-paper'] .spd-unified-list .md-hospital-filter-actions .md-btn-primary:hover:not(:disabled) {
-  background: var(--spd-c-primary-strong) !important;
-  border-color: var(--spd-c-primary-strong) !important;
-}
+/* 筛选区按钮统一走 SpdButton（全站唯一按钮组件），
+   配色由 styles/components/spd-button.css 负责，
+   在三套配色方案下自动适配，此处不再另写一套 .md-btn 覆盖。 */
 
 /* =====================================================================
    10. 状态条与行内按钮
    统一规格不变（4px 圆角 + 1px 边框 + 语义色文字），
    只是底色透明度降到 0.14，颜色依然可辨但不再形成大色块。
    ===================================================================== */
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-action,
-:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-chip {
+:root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-action {
   box-shadow: none;
   font-weight: 600;
 }
@@ -663,7 +645,7 @@
 }
 
 :root[data-spd-theme='calm-paper'] .spd-unified-list .ulc-action:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--spd-c-primary) 20%, #fdfbf7) !important;
+  background: var(--spd-p-primary-bg) !important;
   border-color: var(--spd-c-primary) !important;
 }
 
@@ -697,7 +679,7 @@
 :root[data-spd-theme='calm-paper'] .ulc-col-settings-pop {
   background: var(--spd-bg-elevated) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 8px 24px rgba(60, 52, 38, 0.12) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -757,7 +739,7 @@
 :root[data-spd-theme='calm-paper'] .batch-catalog-dialog {
   border: 1px solid var(--spd-border-default) !important;
   background: var(--spd-bg-surface) !important;
-  box-shadow: 0 24px 70px rgba(60, 52, 38, 0.16) !important;
+  box-shadow: var(--spd-p-shadow-dialog) !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -886,7 +868,7 @@
 :root[data-spd-theme='calm-paper'] .spd-theme-panel {
   background: var(--spd-bg-elevated) !important;
   border-color: var(--spd-border-default) !important;
-  box-shadow: 0 8px 24px rgba(60, 52, 38, 0.12) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
 }
 
 :root[data-spd-theme='calm-paper'] .spd-theme-panel-title {
@@ -925,7 +907,7 @@
 
 /* 滚动条 */
 :root[data-spd-theme='calm-paper'] ::-webkit-scrollbar-thumb {
-  background: #d5cfc2;
+  background: var(--spd-c-border-strong);
 }
 
 :root[data-spd-theme='calm-paper'] ::-webkit-scrollbar-thumb:hover {

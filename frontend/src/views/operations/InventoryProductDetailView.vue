@@ -147,9 +147,15 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
         </label>
       </form>
       <div class="report-actions">
-        <button class="btn btn-primary" type="button" :disabled="loading" @click="search"><Search :size="16" />查询</button>
-        <button class="btn" type="button" :disabled="loading" @click="reset"><X :size="16" />重置</button>
-        <button class="btn" type="button" :disabled="loading" @click="refresh"><RefreshCw :size="16" />刷新</button>
+        <SpdButton label="查询" tone="primary" :disabled="loading" @click="search">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="重置" tone="neutral" :disabled="loading" @click="reset">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="刷新" tone="neutral" :disabled="loading" @click="refresh">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
       </div>
     </section>
 
@@ -160,26 +166,22 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
         <!-- 查询 / 重置 / 刷新 保留在「查询条件」面板内，
              表格工具条只承载列设置，避免同一动作出现两处。 -->
         <div class="ulc-col-settings">
-          <button
-            ref="inventoryDetailColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="inventoryDetailCols.settingsOpen.value = !inventoryDetailCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: inventoryDetailCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="inventoryDetailColSettingsAnchorRef"
+           
+           
+            @click="inventoryDetailCols.settingsOpen.value = !inventoryDetailCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="inventoryDetailCols.settingsOpen.value"
             ref="inventoryDetailColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': inventoryDetailColSettingsPop.align.value === 'right', 'is-align-up': inventoryDetailColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': inventoryDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': inventoryDetailColSettingsPop.maxHeight.value + 'px' }"
+            :style="inventoryDetailColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="inventoryDetailCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="inventoryDetailCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in inventoryDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -194,7 +196,7 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="inventoryDetailCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="inventoryDetailCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -376,10 +378,10 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
   align-items: end;
   gap: 14px;
   padding: 14px 16px;
-  background: #fff;
-  border: 1px solid var(--spd-line, #e6ecef);
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-line, var(--spd-p-border-subtle));
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .report-filters {
   display: grid;
@@ -391,25 +393,25 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 .report-filters input {
   width: 100%;
   min-height: 36px;
-  border: 1px solid var(--spd-line, #dbe5ec);
+  border: 1px solid var(--spd-line, var(--spd-p-border));
   border-radius: 7px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font: inherit;
   font-weight: 500;
 }
 .report-filters input:focus {
   outline: none;
-  border-color: var(--spd-primary, #1f8d7a);
-  box-shadow: 0 0 0 3px rgba(31, 141, 122, 0.16);
+  border-color: var(--spd-primary, var(--spd-p-primary));
+  box-shadow: var(--spd-p-shadow-1);
 }
 .report-actions {
   display: flex;

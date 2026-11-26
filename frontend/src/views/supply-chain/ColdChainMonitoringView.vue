@@ -5,18 +5,17 @@ import {
   AlertTriangle,
   Calendar,
   CheckCircle2,
-  Filter,
   Flame,
   Package,
   Snowflake,
   Thermometer,
-  Warehouse,
-  XCircle
+  Warehouse
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import {
   createColdChainException,
   fetchClosureList,
@@ -108,11 +107,15 @@ function statusText(value: unknown) {
   return labels[status] || status || '-'
 }
 
-function statusTone(value: unknown): 'warning' | 'info' | 'gray' {
+/**
+ * 冷链处置状态 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 浅色底 + 深色字由组件统一提供，页面只负责语义映射。
+ */
+function statusTone(value: unknown): SpdStatusChipTone {
   const v = String(value || '').toLowerCase()
   if (v === 'pending_dispose') return 'warning'
   if (v === 'disposed') return 'info'
-  return 'gray'
+  return 'neutral'
 }
 
 function pushMessage(text: string, tone: 'info' | 'success' | 'warning' | 'error' = 'info') {
@@ -315,19 +318,15 @@ const coldChainColSettingsPop = useColSettingsPopover({
           </div>
         </div>
         <div class="cold-panel-actions">
-          <button
-            class="btn cold-register-btn"
-            type="button"
-            @click="openExceptionDialog"
-          >
-            <Thermometer :size="16" />
-            登记异常
-          </button>
+          <SpdButton label="登记异常" tone="primary" class="cold-register-btn" @click="openExceptionDialog">
+          <template #icon><Thermometer :size="16" /></template>
+        </SpdButton>
         </div>
       </header>
 
-      <!-- 筛选 -->
-      <form class="cold-filter-bar" @submit.prevent="applyFilter">
+      <!-- 筛选：已统一改用 <SpdFilterBar>，与「科室库房目录」等页面完全一致
+           （同一外壳底色 / 边框 / 字段高度 / 标签排版 / 操作区位置）。 -->
+      <SpdFilterBar @submit="applyFilter" @reset="resetFilter">
         <label>
           <span class="cold-filter-tag is-warehouse"><Warehouse :size="12" /> 库房</span>
           <select v-model="filterForm.warehouseName" @change="applyFilter">
@@ -355,37 +354,27 @@ const coldChainColSettingsPop = useColSettingsPopover({
             <option value="closed">已关闭</option>
           </select>
         </label>
-        <div class="cold-filter-actions">
-          <button class="btn btn-sm cold-filter-reset" type="button" @click="resetFilter">
-            <XCircle :size="14" />
-            重置
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
 
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="coldChainColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="coldChainCols.settingsOpen.value = !coldChainCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: coldChainCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="coldChainColSettingsAnchorRef"
+           
+           
+            @click="coldChainCols.settingsOpen.value = !coldChainCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="coldChainCols.settingsOpen.value"
             ref="coldChainColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': coldChainColSettingsPop.align.value === 'right', 'is-align-up': coldChainColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': coldChainColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': coldChainColSettingsPop.maxHeight.value + 'px' }"
+            :style="coldChainColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="coldChainCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="coldChainCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in coldChainCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -400,7 +389,7 @@ const coldChainColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="coldChainCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="coldChainCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -506,9 +495,9 @@ const coldChainColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="status-pill" :class="`is-${statusTone(row.status)}`">
+                <SpdStatusChip :tone="statusTone(row.status)">
                   {{ statusText(row.status) }}
-                </span>
+                </SpdStatusChip>
               </template>
             </el-table-column>
             <el-table-column
@@ -580,16 +569,12 @@ const coldChainColSettingsPop = useColSettingsPopover({
         {{ selectedProduct.productName }}，规格 {{ selectedProduct.specModel || '-' }}，单位 {{ selectedProduct.unit || '-' }}
       </p>
       <div class="cold-chain-dialog-actions">
-        <button class="btn btn-primary cold-dialog-save" type="button" :disabled="submitting" @click="submitException">
-          <CheckCircle2 :size="16" />
+        <SpdButton tone="primary" class="cold-dialog-save" :disabled="submitting" @click="submitException">
+          <template #icon><CheckCircle2 :size="16" /></template>
           {{ submitting ? '保存中...' : '保存异常' }}
-        </button>
-        <button class="btn cold-dialog-reset" type="button" :disabled="submitting" @click="resetForm">
-          重置
-        </button>
-        <button class="btn cold-dialog-cancel" type="button" :disabled="submitting" @click="exceptionOpen = false">
-          取消
-        </button>
+        </SpdButton>
+        <SpdButton label="重置" tone="neutral" class="cold-dialog-reset" :disabled="submitting" @click="resetForm"></SpdButton>
+        <SpdButton label="取消" tone="neutral" class="cold-dialog-cancel" :disabled="submitting" @click="exceptionOpen = false"></SpdButton>
       </div>
     </el-dialog>
   </main>
@@ -637,7 +622,7 @@ const coldChainColSettingsPop = useColSettingsPopover({
   padding: 6px 12px;
   border: 1px solid;
   border-radius: 999px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-sm);
   transition: transform 0.1s ease;
 }
@@ -667,52 +652,54 @@ const coldChainColSettingsPop = useColSettingsPopover({
   font-variant-numeric: tabular-nums;
 }
 
+/* 「异常总数」用中性石板档位（与其它页面的「总量」一致），
+   不再使用信息语义蓝，避免全站出现品牌蓝。 */
 .cold-summary-item.tone-blue {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: var(--spd-p-slate-border);
+  background: var(--spd-p-slate-bg);
 }
 .cold-summary-item.tone-blue .cold-summary-icon {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--spd-p-slate-strong);
+  background: var(--spd-p-bg-muted);
 }
 .cold-summary-item.tone-blue .cold-summary-value {
-  color: #1d4ed8;
+  color: var(--spd-p-slate-strong);
 }
 
 .cold-summary-item.tone-amber {
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: var(--spd-p-warning-border);
+  background: var(--spd-p-warning-bg);
 }
 .cold-summary-item.tone-amber .cold-summary-icon {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
 }
 .cold-summary-item.tone-amber .cold-summary-value {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
 }
 
 .cold-summary-item.tone-green {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-primary-bg);
 }
 .cold-summary-item.tone-green .cold-summary-icon {
-  color: #047857;
-  background: #d1fae5;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
 }
 .cold-summary-item.tone-green .cold-summary-value {
-  color: #047857;
+  color: var(--spd-p-success-strong);
 }
 
 .cold-summary-item.tone-red {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
 }
 .cold-summary-item.tone-red .cold-summary-icon {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
 }
 .cold-summary-item.tone-red .cold-summary-value {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 面板 ---------- */
@@ -747,8 +734,8 @@ const coldChainColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: #0891b2;
-  background: #cffafe;
+  color: var(--spd-p-primary-hover);
+  background: var(--spd-p-info-bg);
   border-radius: 6px;
 }
 
@@ -771,46 +758,21 @@ const coldChainColSettingsPop = useColSettingsPopover({
   gap: 8px;
 }
 
+/* 「登记异常」按钮：完全服从 SpdButton 统一几何与配色，
+   这里只保留图标间距，不再覆盖高度 / 内边距 / 字号 / 颜色。 */
 .cold-register-btn {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
-  height: 34px;
-  padding: 0 16px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-  border: 1px solid #f97316;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25);
-  cursor: pointer;
-  transition: all 0.15s ease;
 }
 
-.cold-register-btn:hover {
-  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
-  box-shadow: 0 4px 10px rgba(249, 115, 22, 0.3);
-}
-
-/* ---------- 筛选条 ---------- */
-.cold-filter-bar {
-  display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(140px, 0.7fr) minmax(140px, 0.8fr) auto;
-  gap: 10px 12px;
-  align-items: end;
+/* ---------- 筛选条 ----------
+   本页筛选区已迁移为统一筛选栏组件 <SpdFilterBar>：
+   外壳底色 / 边框 / 字段高度 / 标签排版 / 操作区位置
+   全部由 styles/components/spd-filter-bar.css 的「标准规则」提供，
+   与「科室库房目录」完全一致，本页不再自造筛选栅格。
+   下面只保留本页特有的「图标 + 文字」标签配色，
+   以及迁移前 .cold-filter-bar 的下间距（保持原有版面不变）。 */
+.cold-panel > .spd-filter-bar {
   margin-bottom: 12px;
-  padding: 10px 12px;
-  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-}
-
-.cold-filter-bar label {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
 }
 
 .cold-filter-tag {
@@ -825,73 +787,29 @@ const coldChainColSettingsPop = useColSettingsPopover({
 }
 
 .cold-filter-tag.is-warehouse {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  /* 中性石板档位（非品牌蓝） */
+  color: var(--spd-p-slate-strong);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-slate-border);
 }
 
 .cold-filter-tag.is-severity {
-  color: #b91c1c;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 .cold-filter-tag.is-status {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
-}
-
-.cold-filter-bar select {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  color: var(--spd-text-primary);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.cold-filter-bar select:focus {
-  outline: 0;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
-}
-
-.cold-filter-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.cold-filter-reset {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 34px;
-  padding: 0 12px;
-  font-size: var(--spd-font-size-sm);
-  color: #475569;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-}
-
-.cold-filter-reset:hover:not(:disabled) {
-  color: #0f172a;
-  background: #f1f5f9;
-  border-color: #94a3b8;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
 }
 
 /* ---------- 表格 ---------- */
 .cold-chain-scroll {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
 }
 
@@ -910,49 +828,51 @@ const coldChainColSettingsPop = useColSettingsPopover({
   padding: 10px 14px !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
-  color: #1e293b !important;
-  background: linear-gradient(180deg, #ecfeff 0%, #cffafe 100%) !important;
-  border-bottom: 1px solid #67e8f9 !important;
+  /* 表头文字：深色强调文字（深字浅底，保证可读）。
+     此前误用 --spd-p-bg-muted（浅灰）配浅蓝底，导致表头文字几乎不可见。 */
+  color: var(--spd-p-text-strong) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-primary-bg) 100%) !important;
+  border-bottom: 1px solid var(--spd-p-border) !important;
   text-align: left;
   white-space: nowrap;
 }
 
 .cold-chain-table tbody td {
   padding: 10px 14px !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-  color: #334155 !important;
+  border-bottom: 1px solid var(--spd-p-text-strong) !important;
+  color: var(--spd-p-text-secondary) !important;
   font-size: var(--spd-font-size-base) !important;
-  background: #fff;
+  background: var(--spd-p-bg);
   vertical-align: middle;
 }
 
 .cold-chain-table tbody tr:nth-child(even) td {
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 .cold-chain-table tbody tr:hover td {
-  background: #ecfeff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .cold-chain-table tbody tr.is-row-high td {
-  background: #fff5f5;
+  background: var(--spd-p-danger-bg);
 }
 
 .cold-chain-table tbody tr.is-row-high:hover td {
-  background: #fee2e2 !important;
+  background: var(--spd-p-danger-bg) !important;
 }
 
 .cold-chain-table tbody tr.is-row-medium td {
-  background: #fffaf0;
+  background: var(--spd-p-warning-bg);
 }
 
 .cold-chain-table tbody tr.is-row-medium:hover td {
-  background: #fef3c7 !important;
+  background: var(--spd-p-warning-bg) !important;
 }
 
 .cold-biz-no {
   font-family: var(--spd-font-family-mono);
-  color: #0e7490 !important;
+  color: var(--spd-p-success-text) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
 }
@@ -964,7 +884,7 @@ const coldChainColSettingsPop = useColSettingsPopover({
 }
 
 .cold-cell-warehouse :deep(svg) {
-  color: #0891b2;
+  color: var(--spd-p-primary-hover);
 }
 
 td small {
@@ -983,7 +903,7 @@ td small {
 }
 
 .cold-chain-time :deep(svg) {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 /* ---------- 温度大色块 ---------- */
@@ -1011,27 +931,28 @@ td small {
 }
 
 .cold-temp.is-high {
-  color: #b91c1c;
-  background: #fee2e2;
-  border-color: #fecaca;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger-border);
 }
 
 .cold-temp.is-medium {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .cold-temp.is-low {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success-border);
 }
 
 .cold-temp.is-gray {
-  color: #475569;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  /* 中性灰温标：浅底 + 深字（此前误用近黑底 + 深灰字，几乎不可见） */
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border);
 }
 
 /* ---------- 严重度 pill ---------- */
@@ -1049,59 +970,28 @@ td small {
 }
 
 .severity-pill.is-high {
-  color: #b91c1c;
-  background: #fee2e2;
-  border-color: #fecaca;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger-border);
 }
 
 .severity-pill.is-medium {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .severity-pill.is-low {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success-border);
 }
 
 .severity-pill.is-gray {
-  color: #475569;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
-}
-
-/* ---------- 状态 pill ---------- */
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 9px;
-  border: 1px solid;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-.status-pill.is-warning {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fde68a;
-}
-
-.status-pill.is-info {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border-color: #bfdbfe;
-}
-
-.status-pill.is-gray {
-  color: #64748b;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  /* 中性灰状态条：浅底 + 深字（此前误用近黑底 + 深灰字，几乎不可见） */
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border);
 }
 
 /* ---------- 状态行 ---------- */
@@ -1117,12 +1007,12 @@ td small {
   justify-content: center;
   gap: 8px;
   height: 200px;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
 }
 
 .cold-state-cell.is-loading {
-  color: #0e7490;
+  color: var(--spd-p-success-text);
 }
 
 .cold-state-cell .spin {
@@ -1160,27 +1050,28 @@ td small {
 }
 
 .cold-form-tag.is-warehouse {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  /* 中性石板档位（非品牌蓝） */
+  color: var(--spd-p-slate-strong);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-info-border);
 }
 
 .cold-form-tag.is-product {
-  color: #047857;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 
 .cold-form-tag.is-temp {
-  color: #b91c1c;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 .cold-form-tag.is-severity {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
 }
 
 .cold-chain-form select,
@@ -1190,7 +1081,7 @@ td small {
   min-width: 0;
   height: 36px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   outline: 0;
   background: var(--spd-bg-container);
@@ -1202,8 +1093,8 @@ td small {
 
 .cold-chain-form select:focus,
 .cold-chain-form input:focus {
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .cold-chain-product {
@@ -1214,9 +1105,9 @@ td small {
   margin-top: 12px;
   padding: 10px 12px;
   border-radius: 6px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-  color: #065f46;
+  background: var(--spd-p-primary-bg);
+  border: 1px solid var(--spd-p-success-border);
+  color: var(--spd-p-primary-strong);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-loose);
 }
@@ -1230,53 +1121,20 @@ td small {
   border-top: 1px solid var(--spd-border-subtle);
 }
 
+/* 弹窗底部按钮：完全服从 SpdButton 统一几何与配色，不再覆盖任何尺寸。 */
 .cold-dialog-save {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  height: 34px;
-  padding: 0 16px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  color: #fff;
-  background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
-  border: 1px solid #f97316;
-  border-radius: 6px;
-  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25);
-}
-
-.cold-dialog-save:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ea580c 0%, #f97316 100%);
 }
 
 .cold-dialog-reset,
 .cold-dialog-cancel {
-  height: 34px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  color: #475569;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-}
-
-.cold-dialog-reset:hover:not(:disabled),
-.cold-dialog-cancel:hover:not(:disabled) {
-  color: #0f172a;
-  background: #f1f5f9;
-  border-color: #94a3b8;
+  gap: 4px;
 }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {
   .cold-chain-page {
     padding: 12px 12px 20px;
-  }
-  .cold-filter-bar {
-    grid-template-columns: 1fr 1fr;
-  }
-  .cold-filter-actions {
-    grid-column: 1 / -1;
   }
   .cold-summary-item {
     min-width: 0;

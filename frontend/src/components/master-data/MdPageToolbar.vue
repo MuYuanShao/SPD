@@ -33,7 +33,7 @@ defineProps<{
   padding: 2px 10px;
   background: var(--md-primary-soft);
   color: var(--md-primary-strong);
-  border: 1px solid rgba(13, 107, 99, 0.24);
+  border: 1px solid color-mix(in srgb, var(--spd-p-primary) 24%, transparent);
   border-radius: 999px;
   font-size: var(--spd-font-size-base);
   font-weight: 600;

@@ -1,10 +1,10 @@
 /* Shared desktop layout contract. Load after legacy page styles. */
 :root {
-  --primary: #0f766e;
-  --primary-strong: #115e59;
-  --focus: #0f766e;
-  --line: #dce4e8;
-  --saas-bg: #f5f7f8;
+  --primary: var(--spd-p-primary);
+  --primary-strong: var(--spd-p-primary-strong);
+  --focus: var(--spd-p-primary);
+  --line: var(--spd-p-border);
+  --saas-bg: var(--spd-p-bg-subtle);
   --saas-radius: 8px;
   --saas-control-height: 36px;
   --saas-page-gap: 16px;
@@ -12,11 +12,14 @@
   --btn-min-h-sm: 36px;
   --btn-radius: 6px;
   --btn-gap: 8px;
-  --el-color-primary: #0f766e;
-  --el-color-primary-light-3: #579f98;
-  --el-color-primary-light-9: #edf7f5;
-  --el-font-size-base: 14px;
-  --el-component-size: 36px;
+  --el-color-primary: var(--spd-p-primary);
+  --el-color-primary-light-3: var(--spd-p-success);
+  --el-color-primary-light-9: var(--spd-p-primary-bg);
+  /* Element Plus 基准字号跟随全局字号档位（小 14 / 中 16 / 大 18），
+     避免 EP 内部组件（分页、下拉项、链接）在大字号档仍停留在 14px。
+     统一由 components/button-typography.css 收口。 */
+  --el-font-size-base: var(--spd-font-size-base);
+  --el-component-size: var(--btn-min-h, 36px);
   font-family: var(--spd-font-family);
 }
 .main-area {
@@ -31,15 +34,15 @@
   flex-wrap: wrap;
   margin-bottom: 16px;
   border-radius: 8px;
-  background: white;
+  background: var(--spd-p-text-on-primary);
   box-shadow: none;
   backdrop-filter: none;
 }
 .topbar > div { min-width: 0; }
 .topbar h1 { overflow-wrap: anywhere; }
 .brand-mark { background: var(--primary); box-shadow: none; border-radius: 8px; }
-.nav-item:hover, .nav-group-toggle:hover { background: #edf7f5; color: var(--primary-strong); }
-.nav-item.router-link-active { background: #e6f3f0; color: var(--primary-strong); box-shadow: inset 3px 0 var(--primary); }
+.nav-item:hover, .nav-group-toggle:hover { background: var(--spd-p-primary-bg); color: var(--primary-strong); }
+.nav-item.router-link-active { background: var(--spd-p-primary-bg); color: var(--primary-strong); box-shadow: inset 3px 0 var(--primary); }
 .main-area :is(.purchase-page, .master-page, .foundation-page, .approval-page,
 .approval-detail-page, .approval-config-page, .system-config-page, .dept-req-page,
 .invoice-page, .license-page, .print-template-page, .product-form-page, .udi-page,
@@ -53,7 +56,7 @@
   gap: 12px;
   padding: 16px !important;
   border-radius: 8px !important;
-  background: white !important;
+  background: var(--spd-p-bg) !important;
   box-shadow: none !important;
 }
 .main-area :is(.master-page-title h2, .standard-page-heading h2, .detail-heading h2,
@@ -74,9 +77,10 @@
 }
 .main-area .section-title { flex-wrap: wrap; gap: 8px; margin-bottom: 12px !important; }
 
-/* Grid widths follow the actual content canvas, including sidebar changes. */
-.main-area :is(.hospital-query-grid, .supplier-query-grid, .purchase-query-grid,
-.department-query-grid, .quota-query-grid, .closure-form-grid, .filter-grid,
+/* Grid widths follow the actual content canvas, including sidebar changes.
+   筛选区已统一改用 SpdFilterBar 组件（标准规则见 components/spd-filter-bar.css），
+   因此这里不再针对 .hospital-query-grid / .md-hospital-filter 另写栅格。 */
+.main-area :is(.filter-grid,
 .dept-req-filters, .reconciliation-filters, .approval-config-filter) {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)) !important;
@@ -87,28 +91,36 @@
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)) !important;
   gap: 12px !important;
 }
-.main-area :is(.hospital-query-grid, .filter-grid, .supplier-form-grid,
+.main-area :is(.filter-grid, .supplier-form-grid,
 .dept-req-filters, .reconciliation-filters, .approval-config-filter) > * {
   min-width: 0;
   max-width: 100%;
 }
-.main-area :is(.hospital-query-grid, .filter-grid, .supplier-form-grid,
+.main-area :is(.filter-grid, .supplier-form-grid,
 .reconciliation-filters, .approval-config-filter) label > :is(input, select, textarea) {
   width: 100%; min-width: 0;
 }
-.main-area :is(.hospital-query-actions, .toolbar-actions, .form-actions,
+.main-area :is(.toolbar-actions, .form-actions,
 .standard-page-actions, .dialog-actions, .hospital-action-row, .approval-filter-actions) {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px !important;
 }
 .main-area :is(.hospital-query-actions, .approval-filter-actions) { align-self: end; }
 .main-area :is(.approval-filter-row, .udi-filters, .dept-req-tags) { flex-wrap: wrap; gap: 12px; }
 .main-area :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
-select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
+select, .el-input__wrapper, .el-select__wrapper,
 .filter-button, .dept-req-filters button) {
   min-height: 36px !important;
   height: 36px;
   border-radius: 6px !important;
   font-size: var(--spd-font-size-base);
+  font-family: inherit;
+}
+/* 按钮：字号统一由 components/button-typography.css 收口（L1 层级），
+   这里只保留高度 / 圆角，避免把 L2（链接型）按钮也覆盖成 L1。 */
+.main-area :is(.btn, .el-button) {
+  min-height: 36px !important;
+  height: 36px;
+  border-radius: 6px !important;
   font-family: inherit;
 }
 .main-area :is(.el-input__inner, .el-range-input) {
@@ -117,9 +129,9 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
 .main-area .btn-icon { width: 36px; min-width: 36px; padding: 0; }
 .main-area :is(.el-input, .el-select, .el-date-editor) { max-width: 100%; min-width: 0; }
 .main-area :is(.btn-primary, .dept-req-filters .query, .dept-req-filters .cart) {
-  background: var(--primary); border-color: var(--primary); color: white;
+  background: var(--primary); border-color: var(--primary); color: var(--spd-p-text-on-primary);
 }
-.main-area .btn-primary:hover { background: var(--primary-strong); color: white; }
+.main-area .btn-primary:hover { background: var(--primary-strong); color: var(--spd-p-text-on-primary); }
 .main-area :is(input, select, textarea):focus-visible {
   outline: 2px solid var(--focus) !important; outline-offset: 2px;
 }
@@ -129,7 +141,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   padding-top: 8px !important; padding-bottom: 8px !important;
 }
 .main-area :is(.master-table, .hospital-product-table) tbody tr:hover td,
-.main-area .el-table__body tr:hover > td.el-table__cell { background: #f0f8f6 !important; }
+.main-area .el-table__body tr:hover > td.el-table__cell { background: var(--spd-p-primary-bg) !important; }
 
 /* Preserve wide columns inside their own scroll regions, never the page. */
 .main-area :is(.table-scroll, .table-wrap, .hospital-product-table-wrap,
@@ -148,7 +160,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
 .main-area :is(.approval-wide-table-shell, .md-hospital-table-wrap, .md-table-wrap) {
   max-height: max(320px, calc(100dvh - 360px));
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--spd-p-border-strong) transparent;
 }
 .main-area :is(.approval-wide-table-shell, .md-hospital-table-wrap, .md-table-wrap) thead th {
   position: sticky; top: 0; z-index: 3;
@@ -170,10 +182,10 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   border-radius: 8px !important;
 }
 :is(.supplier-dialog, .supplier-modal) > header {
-  position: sticky; top: 0; z-index: 4; background: white;
+  position: sticky; top: 0; z-index: 4; background: var(--spd-p-text-on-primary);
 }
 :is(.supplier-dialog, .supplier-modal) .dialog-actions {
-  position: sticky; bottom: 0; z-index: 3; background: white; padding-bottom: 12px;
+  position: sticky; bottom: 0; z-index: 3; background: var(--spd-p-text-on-primary); padding-bottom: 12px;
 }
 @container workspace (max-width: 1100px) {
   .system-config-layout, .trace-layout, .approval-layout, .catalog-layout, .config-hit-grid {
@@ -189,14 +201,11 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   .md-table-toolbar-info { margin-left: 0; justify-content: flex-start; }
   .md-table-toolbar .md-btn span { display: none; }
   .md-table-toolbar .md-btn { padding: 0 8px; }
-  .md-hospital-filter { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
-  .md-hospital-filter .md-hospital-filter-actions { grid-column: 1 / -1; }
 }
 @container workspace (max-width: 700px) {
   .kpi-grid, .stats-grid, .cockpit-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .cockpit-grid, .cockpit-header { grid-template-columns: minmax(0, 1fr) !important; }
   .main-area .master-toolbar { grid-template-columns: minmax(0, 1fr); }
-  .md-hospital-filter { grid-template-columns: minmax(0, 1fr) !important; }
   .md-table-card .el-table { font-size: var(--spd-font-size-base); }
   .md-table-card .el-table :is(th, td) { padding-top: 6px !important; padding-bottom: 6px !important; }
   /* Warehouse table: hide the 2nd-tier columns on phones so the card stays scannable */
@@ -238,4 +247,4 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   border-color: var(--primary);
 }
 .main-area .btn-danger { color: var(--danger); }
-.main-area .btn-primary:hover { color: white; }
+.main-area .btn-primary:hover { color: var(--spd-p-text-on-primary); }

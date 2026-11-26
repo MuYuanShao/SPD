@@ -6,22 +6,26 @@
    - T-14 原生 el-table 表头：--spd-font-size-table-head / 700 / 1.35
    ============================================================ */
 .el-table {
-  --el-table-border-color: var(--line, #e2e8f0);
-  --el-table-header-bg-color: #f6f8fa;
-  --el-table-tr-bg-color: #ffffff;
-  --el-table-header-text-color: #607285;
+  --el-table-border-color: var(--line, var(--spd-p-border));
+  --el-table-header-bg-color: var(--spd-p-bg-subtle);
+  --el-table-tr-bg-color: var(--spd-p-bg);
+  /* 表头文字：中性深灰蓝（#607285），不是品牌蓝。
+     --spd-p-info 是信息语义色（#1f5f7d 深蓝），用于正文会显得发蓝且偏淡，
+     因此表头一律使用中性次级文字令牌 --spd-p-text-secondary。 */
+  --el-table-header-text-color: var(--spd-p-text-secondary);
   /* T-13 原生 el-table 数据 */
   font-size: var(--spd-font-size-base, 14px);
   font-weight: 400;
   line-height: var(--spd-lh-tight, 1.35);
 }
 .el-table th.el-table__cell {
-  background-color: #f6f8fa;
+  background-color: var(--spd-p-bg-subtle);
   /* T-14 原生 el-table 表头 */
   font-size: var(--spd-font-size-table-head, 14px);
   font-weight: 700;
   line-height: var(--spd-lh-tight, 1.35);
-  color: #607285;
+  /* 表头文字：中性次级文字令牌（非品牌蓝） */
+  color: var(--spd-p-text-secondary);
 }
 .el-table .el-table__cell {
   padding: 10px 12px;
@@ -53,7 +57,7 @@
   white-space: nowrap;
 }
 .column-setting-item:hover {
-  background: #f0f4f8;
+  background: var(--spd-p-bg-muted);
 }
 
 .column-nav-panel {
@@ -62,7 +66,7 @@
   margin: 0 0 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f8fbfd;
+  background: var(--spd-p-bg-muted);
   padding: 10px 12px;
 }
 
@@ -74,7 +78,7 @@
 }
 
 .column-nav-head strong {
-  color: #102033;
+  color: var(--spd-p-text);
   /* 区块小标题：--spd-font-size-lg / 700 */
   font-size: var(--spd-font-size-lg, 16px);
   font-weight: 700;
@@ -82,7 +86,8 @@
 }
 
 .column-nav-head span {
-  color: #607588;
+  /* 段标题右侧元信息：中性次级文字（非品牌蓝） */
+  color: var(--spd-p-text-secondary);
   /* 段标题右侧元信息：--spd-font-size-sm / 600 */
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 600;
@@ -99,12 +104,12 @@
 }
 .subnav-chips::-webkit-scrollbar-track {
   border-radius: 999px;
-  background: #e8eef3;
+  background: var(--spd-p-bg-muted);
 }
 .subnav-chips::-webkit-scrollbar-thumb {
-  border: 3px solid #e8eef3;
+  border: 3px solid var(--spd-p-bg-muted);
   border-radius: 999px;
-  background: #7f94a7;
+  background: var(--spd-p-text-muted);
 }
 
 .hospital-product-table-wrap {
@@ -114,7 +119,7 @@
   overflow-y: visible;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   scrollbar-width: none;
 }
 
@@ -148,8 +153,9 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f6f8fa;
-  color: #607285;
+  background: var(--spd-p-bg-subtle);
+  /* 表头文字：中性次级文字令牌（非品牌蓝） */
+  color: var(--spd-p-text-secondary);
   /* T-14 表头：--spd-font-size-table-head / 700 / 1.35 */
   font-size: var(--spd-font-size-table-head, 14px);
   font-weight: 700;
@@ -157,11 +163,11 @@
 }
 
 .hospital-product-table td {
-  color: #1d2a35;
+  color: var(--spd-p-text);
 }
 
 .hospital-product-table tbody tr:hover td {
-  background: #f8fbfd;
+  background: var(--spd-p-bg-muted);
 }
 
 .hospital-selection-cell {
@@ -172,13 +178,13 @@
   min-width: 42px;
   max-width: 42px;
   text-align: center;
-  background: #ffffff;
-  box-shadow: 8px 0 12px rgba(15, 23, 42, 0.05);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 th.hospital-selection-cell {
   z-index: 4;
-  background: #f6f8fa;
+  background: var(--spd-p-bg-subtle);
 }
 
 .hospital-action-cell {
@@ -190,14 +196,14 @@ th.hospital-selection-cell {
   width: 210px;
   min-width: 210px;
   max-width: 210px;
-  background: #ffffff;
-  box-shadow: -8px 0 12px rgba(15, 23, 42, 0.05);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 th.hospital-action-cell {
   display: table-cell;
   z-index: 4;
-  background: #f6f8fa;
+  background: var(--spd-p-bg-subtle);
 }
 
 .hospital-table-scroll-rail {
@@ -209,7 +215,7 @@ th.hospital-action-cell {
   position: relative;
   height: 12px;
   border-radius: 999px;
-  background: #e8eef3;
+  background: var(--spd-p-bg-muted);
   cursor: pointer;
 }
 
@@ -218,14 +224,15 @@ th.hospital-action-cell {
   inset-block: 2px;
   left: 0;
   border-radius: 999px;
-  background: #7f94a7;
+  background: var(--spd-p-text-muted);
   cursor: grab;
   transition: background 0.15s ease;
 }
 
 .hospital-table-scroll-thumb:hover,
 .hospital-table-scroll-track.dragging .hospital-table-scroll-thumb {
-  background: #61798e;
+  /* 拖拽滑块 hover：中性深灰（非品牌蓝） */
+  background: var(--spd-p-text-secondary);
 }
 
 .hospital-table-scroll-track.dragging .hospital-table-scroll-thumb {

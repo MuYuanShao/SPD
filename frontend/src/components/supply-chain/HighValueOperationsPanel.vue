@@ -125,10 +125,9 @@ onMounted(loadData)
         </label>
         <label><span>患者姓名</span><input v-model.trim="form.patientNameMasked" placeholder="脱敏姓名" /></label>
         <div class="hv-ops-actions">
-          <button class="btn" type="button" :disabled="action.busy === 'bind' || loading" @click="bindPatient">
-            <ClipboardCheck :size="18" />
-            绑定患者
-          </button>
+          <SpdButton label="绑定患者" tone="primary" :disabled="action.busy === 'bind' || loading" @click="bindPatient">
+          <template #icon><ClipboardCheck :size="18" /></template>
+        </SpdButton>
         </div>
       </div>
     </section>
@@ -146,14 +145,13 @@ onMounted(loadData)
           <input v-model.trim="form.externalChargeNo" placeholder="HIS / AIMS / 手麻 计费流水号" />
         </label>
         <div class="hv-ops-actions">
-          <button class="btn btn-primary" type="button" :disabled="action.busy === 'charge' || loading" @click="submitCharge">
-            <FileCheck2 :size="18" />
-            {{ action.busy === 'charge' ? '回传中…' : '计费回传并扣减' }}
-          </button>
-          <button class="btn" type="button" :disabled="loading" @click="loadData">
-            <RefreshCw :size="16" />
-            刷新列表
-          </button>
+          <SpdButton tone="primary" :disabled="action.busy === 'charge' || loading" @click="submitCharge">
+          <template #icon><FileCheck2 :size="18" /></template>
+          {{ action.busy === 'charge' ? '回传中…' : '计费回传并扣减' }}
+        </SpdButton>
+          <SpdButton label="刷新列表" tone="primary" :disabled="loading" @click="loadData">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
         </div>
       </div>
     </section>
@@ -202,9 +200,10 @@ onMounted(loadData)
                 <span class="muted-cell">{{ row.amount ? `¥ ${Number(row.amount).toFixed(2)}` : '' }}</span>
               </td>
               <td>
-                <span class="status-badge" :class="row.status === 'pending_confirm' ? 'pending' : 'enabled'">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip
+                  :tone="row.status === 'pending_confirm' ? 'warning' : 'success'"
+                  :label="formatStatusText(row.status)"
+                />
               </td>
               <td>{{ row.createTime || row.settlementTime || '-' }}</td>
             </tr>
@@ -232,8 +231,8 @@ onMounted(loadData)
 .hv-ops-card {
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-md, 10px);
-  background: var(--md-bg-card, #fff);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  background: var(--md-bg-card, var(--spd-p-bg));
+  box-shadow: var(--spd-p-shadow-1);
   padding: 18px 20px 20px;
   display: grid;
   gap: 14px;
@@ -249,12 +248,12 @@ onMounted(loadData)
   margin: 0;
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
-  color: var(--spd-text-heading, #14213a);
+  color: var(--spd-text-heading, var(--spd-p-text));
 }
 
 .hv-ops-section-description {
   margin: 2px 0 0;
-  color: var(--md-text-secondary, #607285);
+  color: var(--md-text-secondary, var(--spd-p-info));
   font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
@@ -270,7 +269,7 @@ onMounted(loadData)
   display: grid;
   gap: 6px;
   min-width: 0;
-  color: var(--md-text-secondary, #607285);
+  color: var(--md-text-secondary, var(--spd-p-info));
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -281,8 +280,8 @@ onMounted(loadData)
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   padding: 0 11px;
-  background: var(--md-bg-card, #fff);
-  color: var(--spd-text-primary, #111c2e);
+  background: var(--md-bg-card, var(--spd-p-bg));
+  color: var(--spd-text-primary, var(--spd-p-info-bg));
   font-size: var(--spd-font-size-base);
 }
 
@@ -310,21 +309,21 @@ onMounted(loadData)
   padding: 10px 14px;
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
-  background: var(--md-bg-card, #fff);
-  color: var(--spd-text-primary, #111c2e);
+  background: var(--md-bg-card, var(--spd-p-bg));
+  color: var(--spd-text-primary, var(--spd-p-info-bg));
   font-size: var(--spd-font-size-base);
 }
 
 .inline-message.is-error {
-  border-color: #f1c2bf;
-  background: #fff5f4;
-  color: #b42318;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 
 .inline-message.is-ok {
-  border-color: #b7e4c7;
-  background: #ecfdf3;
-  color: #067647;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-text);
 }
 
 .muted-cell {

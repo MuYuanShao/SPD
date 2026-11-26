@@ -318,7 +318,12 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
             <small>支持按患者号、姓名、商品、日期、唯一码、UDI、供应商、厂家、注册证等组合筛选</small>
           </div>
         </div>
-        <div class="charge-query-grid">
+        <SpdFilterBar
+          class="charge-query-grid"
+          :submit-label="'查询'"
+          @submit="search"
+          @reset="reset"
+        >
           <label class="charge-filter-primary">
             <span><User :size="12" /> 患者号 / 住院号</span>
             <input v-model.trim="filters.patientNo" placeholder="患者号、住院号" />
@@ -363,21 +368,19 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
             <span><FileSpreadsheet :size="12" /> 注册证号</span>
             <input v-model.trim="filters.registrationNo" placeholder="注册证号" />
           </label>
-        </div>
-        <div class="charge-filter-actions">
-          <button class="btn btn-primary charge-action-search" type="submit">
-            <Search :size="15" />
-            查询
-          </button>
-          <button class="btn charge-action-reset" type="button" @click="reset">
-            <CircleX :size="15" />
-            重置
-          </button>
-          <button class="btn charge-action-toggle" type="button" :aria-expanded="showAllFilters" @click="showAllFilters = !showAllFilters">
-            <Filter :size="14" />
-            {{ showAllFilters ? '收起条件' : '更多条件' }}
-          </button>
-        </div>
+          <template #actions>
+            <SpdButton label="重置" tone="neutral" class="charge-action-reset" @click="reset">
+              <template #icon><CircleX :size="15" /></template>
+            </SpdButton>
+            <SpdButton label="查询" tone="primary" class="charge-action-search">
+              <template #icon><Search :size="15" /></template>
+            </SpdButton>
+            <SpdButton tone="neutral" class="charge-action-toggle" :aria-expanded="showAllFilters" @click="showAllFilters = !showAllFilters">
+              <template #icon><Filter :size="14" /></template>
+              {{ showAllFilters ? '收起条件' : '更多条件' }}
+            </SpdButton>
+          </template>
+        </SpdFilterBar>
       </form>
 
       <!-- ============ 汇总条 ============ -->
@@ -405,25 +408,22 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
             </div>
           </div>
           <div class="charge-section-title-right">
-            <button class="tool-btn tool-refresh" type="button" :disabled="loading" @click="loadData">
-              <RefreshCw :size="14" />
-              刷新
-            </button>
-            <button class="tool-btn tool-export" type="button" :disabled="!rows.length" @click="exportRows">
-              <Download :size="14" />
-              导出 CSV
-            </button>
-            <button class="tool-btn tool-print" type="button" :disabled="!rows.length" @click="printTable">
-              <Printer :size="14" />
-              打印
-            </button>
+            <SpdButton label="刷新" tone="neutral" :disabled="loading" @click="loadData">
+              <template #icon><RefreshCw :size="14" /></template>
+            </SpdButton>
+            <SpdButton label="导出 CSV" tone="primary" :disabled="!rows.length" @click="exportRows">
+              <template #icon><Download :size="14" /></template>
+            </SpdButton>
+            <SpdButton label="打印" tone="neutral" :disabled="!rows.length" @click="printTable">
+              <template #icon><Printer :size="14" /></template>
+            </SpdButton>
             <div class="charge-scroll-actions" aria-label="收费明细横向滚动控制">
-              <button class="btn-icon" type="button" aria-label="向左滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('left')">
-                <ChevronLeft :size="16" />
-              </button>
-              <button class="btn-icon" type="button" aria-label="向右滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('right')">
-                <ChevronRight :size="16" />
-              </button>
+              <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="向左滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('left')">
+                <template #icon><ChevronLeft :size="16" /></template>
+              </SpdButton>
+              <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="向右滚动" :disabled="tableScrollState.max <= 0" @click="scrollChargeTable('right')">
+                <template #icon><ChevronRight :size="16" /></template>
+              </SpdButton>
             </div>
           </div>
         </div>
@@ -431,26 +431,22 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="hvChargeDetailColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="hvChargeDetailCols.settingsOpen.value = !hvChargeDetailCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: hvChargeDetailCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="hvChargeDetailColSettingsAnchorRef"
+             
+             
+              @click="hvChargeDetailCols.settingsOpen.value = !hvChargeDetailCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="hvChargeDetailCols.settingsOpen.value"
               ref="hvChargeDetailColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': hvChargeDetailColSettingsPop.align.value === 'right', 'is-align-up': hvChargeDetailColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': hvChargeDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': hvChargeDetailColSettingsPop.maxHeight.value + 'px' }"
+              :style="hvChargeDetailColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="hvChargeDetailCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="hvChargeDetailCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in hvChargeDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -465,7 +461,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="hvChargeDetailCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="hvChargeDetailCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -733,7 +729,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   border-bottom: 2px solid transparent;
   border-radius: 6px 6px 0 0;
   background: transparent;
-  color: var(--spd-text-secondary, #607285);
+  color: var(--spd-text-secondary, var(--spd-p-info));
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -741,18 +737,18 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-tab:hover {
-  color: var(--spd-text-heading, #14213a);
-  background: rgba(15, 83, 79, 0.05);
+  color: var(--spd-text-heading, var(--spd-p-text));
+  background: color-mix(in srgb, var(--spd-p-primary-strong) 5%, transparent);
 }
 
 .charge-tab.is-active {
-  color: #1677ff;
-  border-bottom-color: #1677ff;
-  background: rgba(22, 119, 255, 0.08);
+  color: var(--spd-p-info);
+  border-bottom-color: var(--spd-p-info);
+  background: color-mix(in srgb, var(--spd-p-info) 8%, transparent);
 }
 
 .charge-tab:focus-visible {
-  outline: 2px solid rgba(22, 119, 255, 0.35);
+  outline: 2px solid color-mix(in srgb, var(--spd-p-info) 35%, transparent);
   outline-offset: 2px;
 }
 
@@ -772,8 +768,8 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   display: flex;
   flex-direction: column;
   gap: 12px;
-  border-left: 3px solid #1677ff;
-  background: linear-gradient(180deg, #ffffff 0%, #fafcff 100%);
+  border-left: 3px solid var(--spd-p-info);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-bg-subtle) 100%);
 }
 
 .charge-filter-head {
@@ -781,7 +777,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 10px;
   padding-bottom: 8px;
-  border-bottom: 1px dashed #e0e7ff;
+  border-bottom: 1px dashed var(--spd-p-border);
 }
 
 .charge-filter-icon {
@@ -790,8 +786,8 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 30px;
   height: 30px;
-  color: #1677ff;
-  background: #dbeafe;
+  color: var(--spd-p-info);
+  background: var(--spd-p-border);
   border-radius: 8px;
 }
 
@@ -808,10 +804,19 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   font-size: var(--spd-font-size-sm);
 }
 
+/* 本页筛选区已迁移为统一筛选栏组件 <SpdFilterBar>：
+   栅格列数 / 换行规则 / 控件高度 / 标签排版 / 操作区位置
+   全部由 styles/components/spd-filter-bar.css 的「标准规则」统一控制，
+   本页不再覆写，只保留本页特有的图标标签与「更多条件」显隐逻辑。
+
+   外壳底色 / 边框 / 圆角一律沿用 <SpdFilterBar> 的统一规格
+   （白底 + --spd-p-border 边框 + 12px 圆角），与「科室库房目录」完全一致，
+   不再由本页自行去掉边框 / 底色，避免筛选区看起来是「透明的一层」。 */
 .charge-query-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 10px 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--spd-p-border);
+  border-radius: 12px;
+  background: var(--spd-p-bg);
 }
 
 .charge-query-grid label {
@@ -831,32 +836,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-query-grid label > span :deep(svg) {
-  color: #94a3b8;
-}
-
-.charge-query-grid input {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  outline: 0;
-  background: var(--spd-bg-container);
-  color: var(--spd-text-primary);
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.charge-query-grid input::placeholder {
-  color: var(--spd-text-placeholder);
-}
-
-.charge-query-grid input:focus {
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.12);
+  color: var(--spd-p-text-muted);
 }
 
 .charge-filters .charge-filter-extra {
@@ -867,63 +847,13 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   display: grid;
 }
 
-.charge-filter-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  padding-top: 12px;
-  border-top: 1px solid var(--spd-border-subtle);
-}
-
+/* 收费明细查询区按钮：完全服从 SpdButton 统一几何与配色，
+   不再覆盖高度 / 内边距 / 字号 / 颜色（此前使用了调色板之外的蓝色渐变，
+   与全站青玉主色不一致）。这里只保留图标间距与靠右布局。 */
 .charge-action-search,
 .charge-action-reset,
 .charge-action-toggle {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  height: 34px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 500;
-  border-radius: 6px;
-}
-
-.charge-action-search {
-  color: #fff;
-  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
-  border: 1px solid #1677ff;
-  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.25);
-}
-
-.charge-action-search:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0958d9 0%, #1677ff 100%);
-  box-shadow: 0 4px 10px rgba(22, 119, 255, 0.3);
-}
-
-.charge-action-reset {
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-}
-
-.charge-action-reset:hover:not(:disabled) {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
-}
-
-.charge-action-toggle {
-  margin-left: auto;
-  color: #475569;
-  background: #fff;
-  border: 1px dashed #cbd5e1;
-}
-
-.charge-action-toggle:hover {
-  color: #1677ff;
-  border-color: #1677ff;
-  background: #eff6ff;
 }
 
 /* ---------- 汇总 chips ---------- */
@@ -941,7 +871,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   padding: 6px 12px;
   border: 1px solid;
   border-radius: 999px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-sm);
   transition: transform 0.1s ease;
 }
@@ -972,75 +902,75 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-summary-item.tone-blue {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: var(--spd-p-info-border);
+  background: var(--spd-p-info-bg);
 }
 .charge-summary-item.tone-blue .charge-summary-icon {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
 }
 .charge-summary-item.tone-blue .charge-summary-value {
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
 }
 
 .charge-summary-item.tone-green {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-primary-bg);
 }
 .charge-summary-item.tone-green .charge-summary-icon {
-  color: #047857;
-  background: #d1fae5;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
 }
 .charge-summary-item.tone-green .charge-summary-value {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
 }
 
 .charge-summary-item.tone-amber {
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: var(--spd-p-warning-border);
+  background: var(--spd-p-warning-bg);
 }
 .charge-summary-item.tone-amber .charge-summary-icon {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
 }
 .charge-summary-item.tone-amber .charge-summary-value {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
 }
 
 .charge-summary-item.tone-cyan {
-  border-color: #a5f3fc;
-  background: #ecfeff;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-info-bg);
 }
 .charge-summary-item.tone-cyan .charge-summary-icon {
-  color: #0e7490;
-  background: #cffafe;
+  color: var(--spd-p-success-text);
+  background: var(--spd-p-info-bg);
 }
 .charge-summary-item.tone-cyan .charge-summary-value {
-  color: #155e75;
+  color: var(--spd-p-info);
 }
 
 .charge-summary-item.tone-purple {
-  border-color: #c4b5fd;
-  background: #f5f3ff;
+  border-color: var(--spd-p-info-border);
+  background: var(--spd-p-bg-subtle);
 }
 .charge-summary-item.tone-purple .charge-summary-icon {
-  color: #6d28d9;
-  background: #ede9fe;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-info-bg);
 }
 .charge-summary-item.tone-purple .charge-summary-value {
-  color: #5b21b6;
+  color: var(--spd-p-primary-strong);
 }
 
 .charge-summary-item.tone-red {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
 }
 .charge-summary-item.tone-red .charge-summary-icon {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
 }
 .charge-summary-item.tone-red .charge-summary-value {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 明细表面板 ---------- */
@@ -1069,8 +999,8 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: #1677ff;
-  background: #dbeafe;
+  color: var(--spd-p-info);
+  background: var(--spd-p-border);
   border-radius: 6px;
 }
 
@@ -1107,36 +1037,37 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .tool-refresh {
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
 }
 .tool-refresh:hover:not(:disabled) {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
+  color: var(--spd-p-text-strong);
+  background: var(--spd-p-border);
+  border-color: var(--spd-p-border-strong);
 }
 
 .tool-export {
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-primary-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 .tool-export:hover:not(:disabled) {
-  color: #064e3b;
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success);
 }
 
 .tool-print {
-  color: #6d28d9;
-  background: #f5f3ff;
-  border: 1px solid #c4b5fd;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-bg-subtle);
+  border: 1px solid var(--spd-p-info-border);
 }
 .tool-print:hover:not(:disabled) {
-  color: #4c1d95;
-  background: #ede9fe;
-  border-color: #a78bfa;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-info-bg);
+  border-color: var(--spd-p-primary-strong);
 }
 
 .charge-scroll-actions {
@@ -1145,7 +1076,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   gap: 4px;
   padding-left: 6px;
   margin-left: 2px;
-  border-left: 1px solid #e2e8f0;
+  border-left: 1px solid var(--spd-p-border);
 }
 
 .charge-scroll-actions .btn-icon {
@@ -1154,18 +1085,18 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 30px;
   height: 30px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #fff;
-  color: #475569;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .charge-scroll-actions .btn-icon:hover:not(:disabled) {
-  border-color: #1677ff;
-  color: #1677ff;
-  background: #eff6ff;
+  border-color: var(--spd-p-info);
+  color: var(--spd-p-info);
+  background: var(--spd-p-info-bg);
 }
 
 .charge-scroll-actions .btn-icon:disabled {
@@ -1178,10 +1109,10 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   width: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--spd-p-border-strong) transparent;
 }
 
 .charge-detail-scroll::-webkit-scrollbar {
@@ -1189,12 +1120,12 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-detail-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--spd-p-border-strong);
   border-radius: 999px;
 }
 
 .charge-detail-scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--spd-p-text-muted);
 }
 
 .charge-detail-scroll::-webkit-scrollbar-track {
@@ -1216,9 +1147,11 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   padding: 10px 14px !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
-  color: #1e293b !important;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
-  border-bottom: 1px solid #c7d2fe !important;
+  /* 表头文字：深色强调文字（深字浅底，保证可读）。
+     此前误用 --spd-p-bg-muted（浅灰）配浅蓝底，导致表头文字几乎不可见。 */
+  color: var(--spd-p-text-strong) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-primary-bg) 100%) !important;
+  border-bottom: 1px solid var(--spd-p-border) !important;
   text-align: left;
   white-space: nowrap;
   vertical-align: middle;
@@ -1226,10 +1159,10 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 
 .charge-detail-table tbody td {
   padding: 10px 14px !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-  color: #334155 !important;
+  border-bottom: 1px solid var(--spd-p-text-strong) !important;
+  color: var(--spd-p-text-secondary) !important;
   font-size: var(--spd-font-size-base) !important;
-  background: #fff;
+  background: var(--spd-p-bg);
   vertical-align: top;
 }
 
@@ -1239,24 +1172,24 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-data-row td {
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .charge-data-row:nth-child(even) td {
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 .charge-data-row:hover td {
-  background: #f0f7ff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .charge-data-row.selected td {
-  background: #e0efff !important;
-  box-shadow: inset 3px 0 0 #1677ff;
+  background: var(--spd-p-info-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .charge-data-row.selected:hover td {
-  background: #d1e5ff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .charge-cell-stack {
@@ -1275,7 +1208,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 
 .charge-biz-no {
   font-family: var(--spd-font-family-mono);
-  color: #1d4ed8 !important;
+  color: var(--spd-p-info-strong) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
 }
@@ -1291,13 +1224,13 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .muted-cell :deep(svg) {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   flex-shrink: 0;
 }
 
 .charge-mono {
   font-family: var(--spd-font-family-mono) !important;
-  color: #475569 !important;
+  color: var(--spd-p-text-secondary) !important;
   font-size: var(--spd-font-size-base) !important;
 }
 
@@ -1314,12 +1247,12 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-money {
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base) !important;
 }
 
 .charge-amount strong {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
@@ -1339,27 +1272,28 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .time-pill.tone-green {
-  color: #047857;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 
 .time-pill.tone-blue {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
+  border: 1px solid var(--spd-p-info-border);
 }
 
 .time-pill.tone-amber {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
 }
 
 .time-pill.tone-gray {
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
 }
 
 /* ---------- 状态行 ---------- */
@@ -1375,22 +1309,22 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
   gap: 8px;
   height: 200px;
   padding: 32px 16px;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 .charge-state-cell.is-loading {
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
 }
 
 .charge-state-cell.is-error {
-  color: #b91c1c;
-  background: #fef2f2;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
 }
 
 .charge-state-cell.is-empty {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 .charge-state-cell .spin {
@@ -1404,8 +1338,8 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 /* ---------- 行详情展开 ---------- */
 .charge-detail-row td {
   padding: 0 !important;
-  border-bottom: 1px solid #c7d2fe !important;
-  background: linear-gradient(180deg, #f8faff 0%, #eef4ff 100%) !important;
+  border-bottom: 1px solid var(--spd-p-info-border) !important;
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%) !important;
 }
 
 .charge-detail-grid {
@@ -1438,7 +1372,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 }
 
 .charge-amount-strong {
-  color: #b91c1c !important;
+  color: var(--spd-p-danger-strong) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
 }

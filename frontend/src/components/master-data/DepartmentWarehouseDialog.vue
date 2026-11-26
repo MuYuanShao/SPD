@@ -41,9 +41,9 @@ watch(() => props.open, (open) => {
           <h3>关联库房</h3>
           <span>{{ department?.name || '-' }} / {{ department?.code || '-' }}</span>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <div class="department-warehouse-body">
@@ -61,14 +61,13 @@ watch(() => props.open, (open) => {
             </label>
           </div>
           <div class="department-warehouse-actions">
-            <button class="btn" type="button" @click="emit('refresh')">
-              <RefreshCw :size="16" />
-              刷新
-            </button>
-            <button class="btn btn-primary" type="button" :disabled="saving" @click="emit('save')">
-              <Save :size="16" />
-              {{ saving ? '保存中' : '保存关联' }}
-            </button>
+            <SpdButton label="刷新" tone="neutral" @click="emit('refresh')">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
+            <SpdButton tone="primary" :disabled="saving" @click="emit('save')">
+          <template #icon><Save :size="16" /></template>
+          {{ saving ? '保存中' : '保存关联' }}
+        </SpdButton>
           </div>
         </div>
 
@@ -106,9 +105,10 @@ watch(() => props.open, (open) => {
                 <td>{{ row.campus || '-' }}</td>
                 <td>{{ row.relatedDepartment || '-' }}</td>
                 <td>
-                  <span class="status-badge" :class="{ warning: row.status !== '启用' }">
-                    {{ formatStatusText(row.status) }}
-                  </span>
+                  <SpdStatusChip
+                    :tone="row.status !== '启用' ? 'warning' : 'success'"
+                    :label="formatStatusText(row.status)"
+                  />
                 </td>
               </tr>
             </tbody>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { notifyError as notifyErrorShared, notifyWarning } from '../../composables/useNotify'
 import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import 'element-plus/theme-chalk/el-dialog.css'
 import 'element-plus/theme-chalk/el-message.css'
@@ -258,6 +259,26 @@ const titleMap: Record<string, string> = {
   'high-value': '高值使用计费基础'
 }
 const title = computed(() => pageCode.value === 'red-flush-management' ? '红冲管理' : titleMap[type.value])
+
+/**
+ * 动作条右侧是否有可显示的按钮。
+ *
+ * 「动作区」原本是一个始终渲染的 .hospital-action-row 容器，
+ * 在红冲 / 结算对账 / PDA 离线补传 / 召回隔离等分支下**没有任何子节点**，
+ * 于是在筛选栏下方留下一条「空的有边框白条」（用户诉求：把这个空白边框删掉）。
+ *
+ * 现在右侧动作区由这个计算属性把关：
+ *   - 有按钮 → 渲染 .spd-action-bar__aside；
+ *   - 无按钮 → 整块不渲染，页面上不会出现空边框容器。
+ */
+const hasActionButtons = computed(() => {
+  if (type.value === 'shortage') return true
+  if (type.value === 'requisition') return true
+  if (type.value === 'delivery') return true
+  if (type.value === 'consumption') return true
+  if (type.value === 'risk' && !isRecallPage.value) return true
+  return false
+})
 
 const replenishmentDayOptions = [5, 7, 15, 30]
 const selectedDepartment = computed(() => options.value.departments.find(item =>
@@ -995,13 +1016,18 @@ function apiErrorText(error: unknown, fallback: string) {
 /* =====================================================================
    统一反馈出口
    ---------------------------------------------------------------------
-   失败 / 警告用 ElMessage 弹出，不占用页面版面、不挤压表格可视区域；
+   失败 / 警告用通用消息接口（Element Plus ElMessage）弹出，
+   不占用页面版面、不挤压表格可视区域；
    成功也统一弹出，保证操作后列表已刷新，用户不需要再找页面内横幅。
    与 QuotaPackageView 的反馈策略保持一致。
    ===================================================================== */
 function notifyError(text: string, tone: 'error' | 'warning' = 'error') {
   actionError.value = ''
-  ElMessage({ message: text, type: tone, duration: 4000, showClose: true })
+  if (tone === 'warning') {
+    notifyWarning(text, { duration: 4000, showClose: true })
+    return
+  }
+  notifyErrorShared(text, { duration: 4000, showClose: true })
 }
 
 function notifySuccess(text: string) {
@@ -1197,6 +1223,14 @@ watch([type, isRecallPage], () => {
   currentPage.value = 1
   autoSmartAnalysisHandled.value = false
   loadData()
+})
+/**
+ * 结算明细加载失败 → 通用消息接口抛出（Element Plus 消息弹层），
+ * 不再在筛选栏下方渲染一条内联错误条。
+ */
+watch(settlementLoadError, (message) => {
+  if (!message) return
+  notifyErrorShared(message)
 })
 watch(() => form.deptName, () => {
   if (['shortage', 'requisition', 'consumption'].includes(type.value)) {
@@ -1816,14 +1850,12 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
         @refresh="loadData"
       >
         <template #actions>
-          <button v-if="type === 'pda'" class="btn btn-primary md-btn" type="button" @click="runAction('pda')">
-            <Smartphone :size="16" />
-            离线补传
-          </button>
-          <button v-else class="btn btn-primary md-btn" type="button" @click="openRecallDialog">
-            <RotateCcw :size="16" />
-            召回隔离
-          </button>
+          <SpdButton label="离线补传" tone="primary" v-if="type === 'pda'" @click="runAction('pda')">
+          <template #icon><Smartphone :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="召回隔离" tone="primary" v-else @click="openRecallDialog">
+          <template #icon><RotateCcw :size="16" /></template>
+        </SpdButton>
         </template>
       </MdPageHeader>
     </template>
@@ -1868,7 +1900,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
           <label><span>原因</span><input v-model.trim="form.reason" required placeholder="填写召回或隔离原因" /></label>
         </div>
         <StatusMessage :message="recallDialogError" tone="error" role="alert" />
-        <div class="dialog-actions"><button class="btn" type="button" :disabled="recallSubmitting" @click="recallDialogOpen = false">取消</button><button class="btn btn-primary" type="submit" :disabled="recallSubmitting">{{ recallSubmitting ? '正在提交...' : '确认登记' }}</button></div>
+        <div class="dialog-actions"><SpdButton label="取消" tone="neutral" :disabled="recallSubmitting" @click="recallDialogOpen = false"></SpdButton><SpdButton tone="primary" type="submit" :disabled="recallSubmitting">
+          {{ recallSubmitting ? '正在提交...' : '确认登记' }}
+        </SpdButton></div>
       </form>
     </el-dialog>
 
@@ -1883,28 +1917,58 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
         </button>
       </div>
       <template v-if="type !== 'delivery' || deliveryTab === 'picking'">
-      <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
-        <template v-if="type === 'consumption'">
-          <i class="consumption-section-icon"><ScanLine :size="20" /></i>
-          <div>
-            <h3>消耗登记</h3>
-            <p class="consumption-section-description">扫描追溯码定位耗材，系统将实时校验科室库房库存</p>
+      <!-- 动作条：左侧「业务动作 / 消耗登记 / 拣配出库」分区标题，
+           右侧本区的动作按钮（智能补货分析 / 提交申领 / 确认拣配出库 / 登记消耗 / 冷链异常）。
+           两者同一行，flex space-between 左右分列（用户诉求：不要单独一行）。 -->
+      <div class="spd-action-bar">
+        <div class="spd-action-bar__main">
+          <div class="section-title" :class="{ 'consumption-section-title': type === 'consumption', 'delivery-section-title': type === 'delivery' }">
+            <template v-if="type === 'consumption'">
+              <i class="consumption-section-icon"><ScanLine :size="20" /></i>
+              <div>
+                <h3>消耗登记</h3>
+                <p class="consumption-section-description">扫描追溯码定位耗材，系统将实时校验科室库房库存</p>
+              </div>
+              <span class="consumption-live-badge"><span></span>实时库存校验</span>
+            </template>
+            <template v-else-if="type === 'delivery'">
+              <Truck :size="20" />
+              <div>
+                <h3>拣配出库</h3>
+                <p class="delivery-section-description">选择待拣配申领单，再按定数包、唯一码或散货完成拣配并出库</p>
+              </div>
+            </template>
+            <template v-else>
+              <ClipboardCheck :size="20" />
+              <h3>业务动作</h3>
+            </template>
           </div>
-          <span class="consumption-live-badge"><span></span>实时库存校验</span>
-        </template>
-        <template v-else-if="type === 'delivery'">
-          <Truck :size="20" />
-          <div>
-            <h3>拣配出库</h3>
-            <p class="delivery-section-description">选择待拣配申领单，再按定数包、唯一码或散货完成拣配并出库</p>
-          </div>
-        </template>
-        <template v-else>
-          <ClipboardCheck :size="20" />
-          <h3>业务动作</h3>
-        </template>
+          <span v-if="type === 'consumption'" class="consumption-action-hint">登记后将同步扣减所选科室库房库存，并写入追溯记录</span>
+        </div>
+        <!-- 右侧动作区：仅在确有按钮时渲染，避免出现空的有边框容器 -->
+        <div v-if="hasActionButtons" class="spd-action-bar__aside">
+          <span v-if="type === 'delivery'" class="delivery-action-hint">
+            <template v-if="!selectedPickingItemId">请先在下方「待拣配申领单」中选择要拣配的申领明细</template>
+            <template v-else>已选 {{ selectedPickingLabels.length }} 个定数包 / {{ selectedPickingUniqueCodes.length }} 个唯一码 / 散货 {{ selectedPickingTotal }}，待拣配 {{ selectedPendingQty }}</template>
+          </span>
+          <SpdButton label="智能补货分析" tone="primary" v-if="type === 'shortage'" @click="openSmartAnalysis">
+            <template #icon><AlertTriangle :size="18" /></template>
+          </SpdButton>
+          <SpdButton label="提交申领" tone="primary" v-if="type === 'requisition'" @click="runAction('requisition')">
+            <template #icon><Save :size="18" /></template>
+          </SpdButton>
+          <SpdButton label="确认拣配出库" tone="primary" v-if="type === 'delivery'" :disabled="deliverySubmitting || loading || !selectedPickingItemId || Boolean(pickingLooseStatus)" @click="runAction('delivery')">
+            <template #icon><Truck :size="18" /></template>
+          </SpdButton>
+          <SpdButton label="登记消耗" tone="primary" v-if="type === 'consumption'" @click="runAction('consumption')">
+            <template #icon><PackageCheck :size="18" /></template>
+          </SpdButton>
+          <SpdButton label="冷链异常" tone="primary" v-if="type === 'risk' && !isRecallPage" @click="runAction('cold')">
+            <template #icon><AlertTriangle :size="18" /></template>
+          </SpdButton>
+        </div>
       </div>
-      <div class="hospital-query-grid closure-form-grid" :class="{ 'consumption-form-grid': type === 'consumption' }">
+      <SpdFilterBar :class="{ 'consumption-form-grid': type === 'consumption' }">
         <label v-if="isRecallPage">
           <span>召回范围</span>
           <select v-model="recallScope" @change="applyRecallScope">
@@ -1912,7 +1976,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <option value="secondary">二级库</option><option value="tertiary">三级库</option>
           </select>
         </label>
-        <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)" :class="{ 'consumption-grid-dept': type === 'consumption' }">
+        <label v-if="!isRecallPage || ['secondary', 'tertiary'].includes(recallScope)">
           <span>科室</span>
           <select v-if="type === 'delivery'" v-model="pickingFilters.deptCode" @change="applyPickingFilters">
             <option value="">全部授权科室</option>
@@ -1926,7 +1990,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <option v-for="item in options.departments" :key="item.deptName" :value="item.deptName">{{ item.deptName }}</option>
           </select>
         </label>
-        <label v-if="!isRecallPage || recallScope !== 'all'" :class="{ 'consumption-grid-warehouse': type === 'consumption' }">
+        <label v-if="!isRecallPage || recallScope !== 'all'">
           <span>库房</span>
           <select v-if="type === 'consumption'" v-model="form.warehouseId">
             <option v-for="item in warehouseChoices" :key="item.warehouseId" :value="item.warehouseId">{{ item.warehouseName }}</option>
@@ -1944,22 +2008,25 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
           </select>
         </label>
         <template v-if="type === 'consumption'">
-          <label class="wide-field consumption-grid-code">
+          <label class="wide-field">
             <span>扫码识别耗材</span>
             <div class="consumption-code-search">
               <input
                 v-model.trim="consumptionQueryCode"
                 @input="consumptionResolved = null"
-                placeholder="扫码或输入定数包码、UDI、唯一码，点击查询定位商品"
+                placeholder="扫码或输入定数包码、UDI、唯一码，点击「定位」识别商品"
                 @keyup.enter="resolveConsumption"
               />
-              <button class="btn" type="button" :disabled="consumptionResolving" @click="resolveConsumption">
-                <Search :size="15" />
-                {{ consumptionResolving ? '查询中...' : '查询' }}
-              </button>
+              <!-- 这里刻意不叫「查询」：本按钮只做「按码定位耗材」，
+                   与筛选栏右侧的标准「查询」（提交筛选表单）是两个不同动作。
+                   同名会让科室消耗页出现两个「查询」按钮，用户无从分辨。 -->
+              <SpdButton tone="primary" :disabled="consumptionResolving" @click="resolveConsumption">
+                <template #icon><ScanLine :size="15" /></template>
+                {{ consumptionResolving ? '定位中...' : '定位' }}
+              </SpdButton>
             </div>
           </label>
-          <label v-if="consumptionResolved" class="wide-field consumption-grid-resolved">
+          <label v-if="consumptionResolved" class="wide-field">
             <span>已识别耗材</span>
             <div class="consumption-resolved">
               <strong>{{ consumptionResolved.productCode }} / {{ consumptionResolved.productName }}</strong>
@@ -1967,7 +2034,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             </div>
           </label>
         </template>
-        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage" :class="{ 'consumption-grid-quantity': type === 'consumption' }"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && (consumptionResolved?.sourceType === 'package' || Number(consumptionResolved?.highValue) === 1)" /></label>
+        <label v-if="!['shortage', 'delivery'].includes(type) && !isRecallPage"><span>数量</span><input v-integer-quantity v-model.number="form.quantity" type="number" min="1" :readonly="type === 'consumption' && (consumptionResolved?.sourceType === 'package' || Number(consumptionResolved?.highValue) === 1)" /></label>
         <label v-if="type === 'pda'"><span>设备号</span><input v-model="form.deviceNo" /></label>
         <template v-if="type === 'risk'">
           <label v-if="!isRecallPage"><span>温度（冷链）</span><input v-model="form.temperature" type="number" placeholder="冷链异常温度" /></label>
@@ -1989,7 +2056,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <input v-model.trim="form.reason" placeholder="填写召回原因" />
           </label>
         </template>
-        <label v-if="['requisition', 'consumption'].includes(type)" class="wide-field" :class="{ 'consumption-grid-unique': type === 'consumption' }">
+        <label v-if="['requisition', 'consumption'].includes(type)" class="wide-field">
           <span>高值唯一码</span>
           <input v-model.trim="form.uniqueCodes" placeholder="扫描或输入唯一码；多码用逗号分隔" />
         </label>
@@ -2001,58 +2068,27 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             </select>
           </label>
         </template>
-      </div>
-      <div class="hospital-action-row" :class="{ 'consumption-action-row': type === 'consumption', 'delivery-action-row': type === 'delivery' }">
-        <span v-if="type === 'consumption'" class="consumption-action-hint">登记后将同步扣减所选科室库房库存，并写入追溯记录</span>
-        <span v-else-if="type === 'delivery'" class="delivery-action-hint">
-          <template v-if="!selectedPickingItemId">请先在下方「待拣配申领单」中选择要拣配的申领明细</template>
-          <template v-else>已选 {{ selectedPickingLabels.length }} 个定数包 / {{ selectedPickingUniqueCodes.length }} 个唯一码 / 散货 {{ selectedPickingTotal }}，待拣配 {{ selectedPendingQty }}</template>
-        </span>
-        <button v-if="type === 'shortage'" class="btn btn-primary" type="button" @click="openSmartAnalysis">
-          <AlertTriangle :size="18" />
-          智能补货分析
-        </button>
-        <button v-if="type === 'requisition'" class="btn btn-primary" type="button" @click="runAction('requisition')">
-          <Save :size="18" />
-          提交申领
-        </button>
-        <button v-if="type === 'delivery'" class="btn btn-primary" type="button" :disabled="deliverySubmitting || loading || !selectedPickingItemId || Boolean(pickingLooseStatus)" @click="runAction('delivery')">
-          <Truck :size="18" />
-          确认拣配出库
-        </button>
-        <button v-if="type === 'consumption'" class="btn btn-primary" type="button" @click="runAction('consumption')">
-          <PackageCheck :size="18" />
-          登记消耗
-        </button>
-        <button v-if="type === 'risk' && !isRecallPage" class="btn btn-primary" type="button" @click="runAction('cold')">
-          <AlertTriangle :size="18" />
-          冷链异常
-        </button>
-      </div>
+      </SpdFilterBar>
 
             <MdDataTableCard v-if="isRecallPage">
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="ocRecallInventoryColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="ocRecallInventoryCols.settingsOpen.value = !ocRecallInventoryCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: ocRecallInventoryCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="ocRecallInventoryColSettingsAnchorRef"
+           
+           
+            @click="ocRecallInventoryCols.settingsOpen.value = !ocRecallInventoryCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="ocRecallInventoryCols.settingsOpen.value"
             ref="ocRecallInventoryColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': ocRecallInventoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallInventoryColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': ocRecallInventoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallInventoryColSettingsPop.maxHeight.value + 'px' }"
+            :style="ocRecallInventoryColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="ocRecallInventoryCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallInventoryCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in ocRecallInventoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2067,7 +2103,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="ocRecallInventoryCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="ocRecallInventoryCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -2254,33 +2290,29 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" /></label>
             <label><span>审批结束日期</span><input v-model="pickingFilters.dateTo" class="md-input" type="date" /></label>
             <div class="settlement-query-actions">
-              <button class="md-btn" type="button" @click="resetPickingFilters">重置</button>
-              <button class="md-btn md-btn-primary" type="submit">查询</button>
+              <SpdButton label="重置" tone="neutral" @click="resetPickingFilters"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
             </div>
           </form>
                     <MdDataTableCard>
             <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="ocPickingRequisitionColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="ocPickingRequisitionCols.settingsOpen.value = !ocPickingRequisitionCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: ocPickingRequisitionCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="ocPickingRequisitionColSettingsAnchorRef"
+               
+               
+                @click="ocPickingRequisitionCols.settingsOpen.value = !ocPickingRequisitionCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="ocPickingRequisitionCols.settingsOpen.value"
                 ref="ocPickingRequisitionColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': ocPickingRequisitionColSettingsPop.align.value === 'right', 'is-align-up': ocPickingRequisitionColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': ocPickingRequisitionColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingRequisitionColSettingsPop.maxHeight.value + 'px' }"
+                :style="ocPickingRequisitionColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="ocPickingRequisitionCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingRequisitionCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in ocPickingRequisitionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2295,7 +2327,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="ocPickingRequisitionCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="ocPickingRequisitionCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -2324,7 +2356,11 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   <template #default="{ row }">
                     <span class="ulc-cell-stack">
                       <strong>{{ row.requisitionNo }}</strong>
-                      <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
+                      <SpdStatusChip
+                        v-if="String(row.status || '') === 'partial_picked'"
+                        tone="warning"
+                        :label="formatStatusText(row.status)"
+                      />
                     </span>
                   </template>
                 </el-table-column>
@@ -2407,7 +2443,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </template>
                   <template #default="{ row }">
                     <span class="ulc-cell-stack">
-                      <span class="status-badge">{{ itemTypeLabel(row.itemType) }}</span>
+                      <SpdStatusChip tone="neutral" :label="itemTypeLabel(row.itemType)" />
                       <span v-if="row.itemType === 'quota_package'" class="muted-cell">
                         版本 {{ row.templateVersion ?? '历史快照缺失' }} ·
                         {{ row.packageQuantity ?? '-' }} / {{ row.packageUnit ?? '-' }}
@@ -2507,26 +2543,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                     <MdDataTableCard>
             <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="ocPickingUniqueCodeColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="ocPickingUniqueCodeCols.settingsOpen.value = !ocPickingUniqueCodeCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: ocPickingUniqueCodeCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="ocPickingUniqueCodeColSettingsAnchorRef"
+               
+               
+                @click="ocPickingUniqueCodeCols.settingsOpen.value = !ocPickingUniqueCodeCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="ocPickingUniqueCodeCols.settingsOpen.value"
                 ref="ocPickingUniqueCodeColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': ocPickingUniqueCodeColSettingsPop.align.value === 'right', 'is-align-up': ocPickingUniqueCodeColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': ocPickingUniqueCodeColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingUniqueCodeColSettingsPop.maxHeight.value + 'px' }"
+                :style="ocPickingUniqueCodeColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="ocPickingUniqueCodeCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingUniqueCodeCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in ocPickingUniqueCodeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2541,7 +2573,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="ocPickingUniqueCodeCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="ocPickingUniqueCodeCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -2654,31 +2686,29 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
           </div>
           <div class="consumption-code-search picking-package-scan">
             <input v-model.trim="pickingPackageScanCode" placeholder="扫描或输入定数包码" @keyup.enter="scanPickingPackage" />
-            <button class="btn" type="button" @click="scanPickingPackage"><Search :size="15" />扫码拣选</button>
+            <SpdButton label="扫码拣选" tone="primary" @click="scanPickingPackage">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
           </div>
                     <MdDataTableCard>
             <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="ocPickingQuotaPackageColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="ocPickingQuotaPackageCols.settingsOpen.value = !ocPickingQuotaPackageCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: ocPickingQuotaPackageCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="ocPickingQuotaPackageColSettingsAnchorRef"
+               
+               
+                @click="ocPickingQuotaPackageCols.settingsOpen.value = !ocPickingQuotaPackageCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="ocPickingQuotaPackageCols.settingsOpen.value"
                 ref="ocPickingQuotaPackageColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': ocPickingQuotaPackageColSettingsPop.align.value === 'right', 'is-align-up': ocPickingQuotaPackageColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': ocPickingQuotaPackageColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingQuotaPackageColSettingsPop.maxHeight.value + 'px' }"
+                :style="ocPickingQuotaPackageColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="ocPickingQuotaPackageCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingQuotaPackageCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in ocPickingQuotaPackageCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2693,7 +2723,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="ocPickingQuotaPackageCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="ocPickingQuotaPackageCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -2737,9 +2767,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                     <span class="ulc-th-text">定数包码</span>
                   </template>
                   <template #default="{ row }">
-                    <span class="ulc-wrap-text"><button class="btn-link package-label-link" type="button" @click="openPackageDetail(row.labelNo)">
+                    <span class="ulc-wrap-text"><SpdButton variant="link" tone="primary" @click="openPackageDetail(row.labelNo)">
                       {{ row.labelNo }}
-                    </button></span>
+                    </SpdButton></span>
                   </template>
                 </el-table-column>
                 <el-table-column
@@ -2837,26 +2867,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                     <MdDataTableCard>
             <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="ocPickingLooseColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="ocPickingLooseCols.settingsOpen.value = !ocPickingLooseCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: ocPickingLooseCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="ocPickingLooseColSettingsAnchorRef"
+               
+               
+                @click="ocPickingLooseCols.settingsOpen.value = !ocPickingLooseCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="ocPickingLooseCols.settingsOpen.value"
                 ref="ocPickingLooseColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': ocPickingLooseColSettingsPop.align.value === 'right', 'is-align-up': ocPickingLooseColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': ocPickingLooseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingLooseColSettingsPop.maxHeight.value + 'px' }"
+                :style="ocPickingLooseColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="ocPickingLooseCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingLooseCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in ocPickingLooseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2871,7 +2897,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="ocPickingLooseCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="ocPickingLooseCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -2981,26 +3007,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="ocReturnQueueColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="ocReturnQueueCols.settingsOpen.value = !ocReturnQueueCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: ocReturnQueueCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="ocReturnQueueColSettingsAnchorRef"
+           
+           
+            @click="ocReturnQueueCols.settingsOpen.value = !ocReturnQueueCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="ocReturnQueueCols.settingsOpen.value"
             ref="ocReturnQueueColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': ocReturnQueueColSettingsPop.align.value === 'right', 'is-align-up': ocReturnQueueColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': ocReturnQueueColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocReturnQueueColSettingsPop.maxHeight.value + 'px' }"
+            :style="ocReturnQueueColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="ocReturnQueueCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocReturnQueueCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in ocReturnQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3015,7 +3037,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="ocReturnQueueCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="ocReturnQueueCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -3141,26 +3163,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
+          <SpdButton
             ref="ocRecallQueueColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="ocRecallQueueCols.settingsOpen.value = !ocRecallQueueCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: ocRecallQueueCols.settingsOpen.value }" />
-          </button>
+            label="列设置"
+            @click="ocRecallQueueCols.settingsOpen.value = !ocRecallQueueCols.settingsOpen.value">
+            <template #icon><Columns3 :size="16" /></template>
+          </SpdButton>
           <div
             v-if="ocRecallQueueCols.settingsOpen.value"
             ref="ocRecallQueueColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': ocRecallQueueColSettingsPop.align.value === 'right', 'is-align-up': ocRecallQueueColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': ocRecallQueueColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallQueueColSettingsPop.maxHeight.value + 'px' }"
+            :style="ocRecallQueueColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="ocRecallQueueCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallQueueCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in ocRecallQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3175,7 +3193,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="ocRecallQueueCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="ocRecallQueueCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -3338,36 +3356,36 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             </select>
           </label>
           <div class="settlement-query-actions">
-            <button class="md-btn" type="button" @click="resetSettlementFilters"><RotateCcw :size="16" /> 重置</button>
-            <button class="md-btn md-btn-primary" type="submit"><Search :size="16" /> 查询</button>
+            <SpdButton label="重置" tone="neutral" @click="resetSettlementFilters">
+          <template #icon><RotateCcw :size="16" /></template>
+        </SpdButton>
+            <SpdButton label="查询" tone="primary" type="submit">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
           </div>
         </form>
-        <StatusMessage :message="settlementFilterError || settlementLoadError" tone="error" role="alert" />
+        <StatusMessage :message="settlementFilterError" tone="error" role="alert" />
         <p class="settlement-query-hint">申领日期仅匹配可关联申领单的明细。同一定数包仅在首条结算明细计 1 包。</p>
       </div>
             <MdDataTableCard v-if="type === 'settlement'">
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="ocSettlementColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="ocSettlementCols.settingsOpen.value = !ocSettlementCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: ocSettlementCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="ocSettlementColSettingsAnchorRef"
+           
+           
+            @click="ocSettlementCols.settingsOpen.value = !ocSettlementCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="ocSettlementCols.settingsOpen.value"
             ref="ocSettlementColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': ocSettlementColSettingsPop.align.value === 'right', 'is-align-up': ocSettlementColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': ocSettlementColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocSettlementColSettingsPop.maxHeight.value + 'px' }"
+            :style="ocSettlementColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="ocSettlementCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocSettlementCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in ocSettlementCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3382,7 +3400,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="ocSettlementCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="ocSettlementCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -3687,7 +3705,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="status-badge" :class="row.status === 'pending_confirm' ? 'pending' : 'enabled'">{{ formatStatusText(row.status) }}</span>
+                <SpdStatusChip
+                  :tone="row.status === 'pending_confirm' ? 'warning' : 'success'"
+                  :label="formatStatusText(row.status)"
+                />
               </template>
             </el-table-column>
             <template #empty>
@@ -3712,8 +3733,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </select>
             </label>
             <div class="settlement-query-actions">
-              <button class="md-btn" type="button" @click="resetRedFlushFilters">重置</button>
-              <button class="md-btn md-btn-primary" type="submit">查询</button>
+              <SpdButton label="重置" tone="neutral" @click="resetRedFlushFilters"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
             </div>
           </form>
           <StatusMessage :message="redFlushError" tone="error" role="alert" />
@@ -3721,26 +3742,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="ocRedFlushColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="ocRedFlushCols.settingsOpen.value = !ocRedFlushCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: ocRedFlushCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="ocRedFlushColSettingsAnchorRef"
+           
+           
+            @click="ocRedFlushCols.settingsOpen.value = !ocRedFlushCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="ocRedFlushCols.settingsOpen.value"
             ref="ocRedFlushColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': ocRedFlushColSettingsPop.align.value === 'right', 'is-align-up': ocRedFlushColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': ocRedFlushColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRedFlushColSettingsPop.maxHeight.value + 'px' }"
+            :style="ocRedFlushColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="ocRedFlushCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRedFlushCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in ocRedFlushCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3755,7 +3772,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="ocRedFlushCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="ocRedFlushCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -3893,8 +3910,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <label><span>商品编码</span><input v-model.trim="recallHistoryFilters.productCode" type="search" class="md-input" /></label>
             <label><span>来源科室</span><input v-model.trim="recallHistoryFilters.deptName" type="search" class="md-input" /></label>
             <div class="settlement-query-actions">
-              <button type="button" class="md-btn" @click="resetRecallHistoryFilters">重置</button>
-              <button type="submit" class="md-btn md-btn-primary">查询</button>
+              <SpdButton label="重置" tone="neutral" @click="resetRecallHistoryFilters"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
             </div>
           </form>
           <StatusMessage :message="recallHistoryError" tone="error" role="alert" />
@@ -3902,26 +3919,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="ocRecallHistoryColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="ocRecallHistoryCols.settingsOpen.value = !ocRecallHistoryCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: ocRecallHistoryCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="ocRecallHistoryColSettingsAnchorRef"
+             
+             
+              @click="ocRecallHistoryCols.settingsOpen.value = !ocRecallHistoryCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="ocRecallHistoryCols.settingsOpen.value"
               ref="ocRecallHistoryColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': ocRecallHistoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallHistoryColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': ocRecallHistoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallHistoryColSettingsPop.maxHeight.value + 'px' }"
+              :style="ocRecallHistoryColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="ocRecallHistoryCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallHistoryCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in ocRecallHistoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3936,7 +3949,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="ocRecallHistoryCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="ocRecallHistoryCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -4095,26 +4108,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
         <MdDataTableCard>
           <template #toolbar>
             <div class="ulc-col-settings">
-              <button
-                ref="ocClosureDocColSettingsAnchorRef"
-                type="button"
-                class="md-btn md-btn-primary"
-                @click="ocClosureDocCols.settingsOpen.value = !ocClosureDocCols.settingsOpen.value"
-              >
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: ocClosureDocCols.settingsOpen.value }" />
-              </button>
+              <SpdButton label="列设置" tone="neutral" ref="ocClosureDocColSettingsAnchorRef"
+               
+               
+                @click="ocClosureDocCols.settingsOpen.value = !ocClosureDocCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
               <div
                 v-if="ocClosureDocCols.settingsOpen.value"
                 ref="ocClosureDocColSettingsPopRef"
                 class="ulc-col-settings-pop"
                 :class="{ 'is-align-right': ocClosureDocColSettingsPop.align.value === 'right', 'is-align-up': ocClosureDocColSettingsPop.vertical.value === 'up' }"
-                :style="{ '--ulc-pop-offset-y': ocClosureDocColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocClosureDocColSettingsPop.maxHeight.value + 'px' }"
+                :style="ocClosureDocColSettingsPop.popStyle.value"
               >
                 <header>
                   <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="ocClosureDocCols.resetColumns()">恢复默认</button>
+                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocClosureDocCols.resetColumns()"></SpdButton>
                 </header>
                 <div class="ulc-col-settings-list">
                   <label v-for="col in ocClosureDocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -4129,7 +4138,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   </label>
                 </div>
                 <footer>
-                  <button type="button" class="ulc-action" @click="ocClosureDocCols.settingsOpen.value = false">确定</button>
+                  <SpdButton label="确定" tone="primary" @click="ocClosureDocCols.settingsOpen.value = false"></SpdButton>
                 </footer>
               </div>
             </div>
@@ -4255,10 +4264,14 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                   <span class="ulc-th-text">状态</span>
                 </template>
                 <template #default="{ row }">
-                  <span
-                    class="status-badge"
-                    :class="type === 'consumption' ? (row.status === 'confirmed' ? 'enabled' : ['reversed', 'red_flushed'].includes(String(row.status)) ? 'disabled' : 'pending') : 'pending'"
-                  >{{ formatStatusText(row.status) }}</span>
+                  <SpdStatusChip
+                    :tone="type === 'consumption'
+                      ? (row.status === 'confirmed'
+                          ? 'success'
+                          : ['reversed', 'red_flushed'].includes(String(row.status)) ? 'neutral' : 'warning')
+                      : 'warning'"
+                    :label="formatStatusText(row.status)"
+                  />
                 </template>
               </el-table-column>
               <el-table-column
@@ -4331,9 +4344,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <p>{{ analysisMeta?.deptName || form.deptName }} / {{ analysisMeta?.warehouseName || form.warehouseName }}</p>
             <h3>智能补货分析</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="analysisDialogOpen = false">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="analysisDialogOpen = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
 
         <div class="analysis-summary">
@@ -4346,26 +4359,22 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="ocReplenishmentAnalysisColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="ocReplenishmentAnalysisCols.settingsOpen.value = !ocReplenishmentAnalysisCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: ocReplenishmentAnalysisCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="ocReplenishmentAnalysisColSettingsAnchorRef"
+             
+             
+              @click="ocReplenishmentAnalysisCols.settingsOpen.value = !ocReplenishmentAnalysisCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="ocReplenishmentAnalysisCols.settingsOpen.value"
               ref="ocReplenishmentAnalysisColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': ocReplenishmentAnalysisColSettingsPop.align.value === 'right', 'is-align-up': ocReplenishmentAnalysisColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': ocReplenishmentAnalysisColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocReplenishmentAnalysisColSettingsPop.maxHeight.value + 'px' }"
+              :style="ocReplenishmentAnalysisColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="ocReplenishmentAnalysisCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocReplenishmentAnalysisCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in ocReplenishmentAnalysisCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -4380,7 +4389,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="ocReplenishmentAnalysisCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="ocReplenishmentAnalysisCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -4549,9 +4558,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             <p>定数包明细</p>
             <h3>{{ packageDetail?.labelNo || '加载中...' }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="closePackageDetail">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="closePackageDetail">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <EmptyState v-if="packageDetailLoading" message="正在加载定数包明细..." />
         <template v-else-if="packageDetail">
@@ -4674,7 +4683,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   gap: 8px;
 }
 .settlement-filters span,
-.settlement-query-hint { color: var(--md-text-secondary, #667085); font-size: var(--spd-font-size-sm); }
+.settlement-query-hint { color: var(--md-text-secondary, var(--spd-p-text-secondary)); font-size: var(--spd-font-size-sm); }
 .settlement-query-hint { margin: 8px 0 0; }
 /* =====================================================================
    拣配配送 delivery-acceptance-page
@@ -4709,10 +4718,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 14px;
   padding: 16px 18px 18px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .delivery-acceptance-page .delivery-section-title {
@@ -4739,32 +4748,11 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   line-height: var(--spd-lh-base);
 }
 
-/* ---------- 查询区 ---------- */
-.delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px 14px;
-}
-
-.delivery-acceptance-page .delivery-workspace-card .closure-form-grid label > span {
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-}
-
-.delivery-acceptance-page .delivery-workspace-card .closure-form-grid :is(input, select) {
-  min-height: 32px;
-  height: 32px;
-  border-radius: var(--spd-radius-sm, 6px);
-  border-color: var(--md-border, var(--spd-border-subtle));
-  background: var(--md-bg-card, #fff);
-  color: var(--md-text, var(--spd-text-primary));
-  font-size: var(--spd-font-size-base);
-}
-
-.delivery-acceptance-page .delivery-workspace-card .closure-form-grid :is(input, select):focus {
-  border-color: var(--md-primary, var(--primary));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary, var(--primary)) 14%, transparent);
-}
+/* ---------- 查询区 ----------
+   筛选/表单区已统一改用 SpdFilterBar 组件，
+   栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
+   styles/components/spd-filter-bar.css 的「标准规则」统一控制，
+   本页不再覆写列数、间距与标签排版（避免各页各写一套）。 */
 
 /* ---------- 动作行 ---------- */
 .delivery-acceptance-page .delivery-action-row {
@@ -4881,7 +4869,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   z-index: 2;
   height: 36px;
   padding: 9px 12px !important;
-  background: var(--md-bg-subtle, #f6f8fb) !important;
+  background: var(--md-bg-subtle, var(--spd-p-bg-subtle)) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
@@ -4895,16 +4883,16 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   color: var(--md-text, var(--spd-text-primary)) !important;
   font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
-  background: var(--md-bg-card, #fff) !important;
+  background: var(--md-bg-card, var(--spd-p-bg)) !important;
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
 }
 
 .delivery-acceptance-page .picking-panel .purchase-detail-table tbody tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--md-bg-subtle, #f6f8fb) 46%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-bg-subtle, var(--spd-p-bg-subtle)) 46%, var(--spd-p-bg)) !important;
 }
 
 .delivery-acceptance-page .picking-panel .purchase-detail-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, var(--spd-p-bg)) !important;
 }
 
 /* 首列（单号）与末列（操作）冻结，横向滚动时保持可见 */
@@ -4917,17 +4905,17 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   position: sticky;
   right: 0;
   z-index: 1;
-  background: var(--md-bg-card, #fff) !important;
+  background: var(--md-bg-card, var(--spd-p-bg)) !important;
   box-shadow: -1px 0 0 var(--md-border-subtle, var(--spd-border-subtle));
 }
 
 .delivery-acceptance-page :is(.picking-panel--requisition, .picking-panel--loose) thead th:last-child {
   z-index: 3;
-  background: var(--md-bg-subtle, #f6f8fb) !important;
+  background: var(--md-bg-subtle, var(--spd-p-bg-subtle)) !important;
 }
 
 .delivery-acceptance-page .picking-panel--requisition tbody tr.selected td {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 8%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 8%, var(--spd-p-bg)) !important;
 }
 
 .delivery-acceptance-page .picking-panel--requisition tbody tr.selected :is(td:first-child, td:last-child) {
@@ -4967,12 +4955,12 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .package-detail-content .table-scroll { overflow: auto; max-height: 260px; margin-block: 12px; }
 .package-detail-content .master-table { min-width: 640px; }
 .consumption-saas-page {
-  --consumption-blue: #1677ff;
-  --consumption-blue-deep: #0958d9;
-  --consumption-green: #16a36a;
-  --consumption-text: #172033;
-  --consumption-muted: #657086;
-  --consumption-border: #e5eaf0;
+  --consumption-blue: var(--spd-p-info);
+  --consumption-blue-deep: var(--spd-p-info-strong);
+  --consumption-green: var(--spd-p-success-text);
+  --consumption-text: var(--spd-p-text);
+  --consumption-muted: var(--spd-p-text-secondary);
+  --consumption-border: var(--spd-p-border);
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
@@ -4990,12 +4978,12 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .consumption-saas-page .breadcrumb-line {
   margin: 0;
-  color: #8993a5;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
 .consumption-saas-page .breadcrumb-line strong {
-  color: #465269;
+  color: var(--spd-p-text-secondary);
   font-weight: 500;
 }
 
@@ -5006,13 +4994,13 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   padding: 20px 24px;
   border: 1px solid var(--consumption-border);
   border-radius: 12px;
-  background: linear-gradient(115deg, #ffffff 0%, #ffffff 72%, #f0f7ff 100%);
-  box-shadow: 0 2px 8px rgb(31 50 79 / 4%);
+  background: linear-gradient(115deg, var(--spd-p-bg) 0%, var(--spd-p-bg) 72%, var(--spd-p-info-bg) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .consumption-saas-page .detail-heading h2 {
   margin: 6px 0 5px;
-  color: #111c2e;
+  color: var(--spd-p-info-bg);
   font-size: var(--spd-font-size-3xl);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -5024,9 +5012,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   line-height: var(--spd-lh-loose);
 }
 
-.consumption-saas-page .btn,
-.consumption-saas-page .hospital-query-grid input,
-.consumption-saas-page .hospital-query-grid select {
+/* 消耗登记页的筛选/表单控件已统一改用 SpdFilterBar，
+   控件高度由 --spd-p-field-height 统一控制，此处不再另写一套高度。 */
+.consumption-saas-page .btn {
   box-sizing: border-box;
   min-height: 40px;
   height: 40px;
@@ -5036,28 +5024,28 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .consumption-saas-page .btn {
   padding: 0 16px;
-  border-color: #d7dde7;
-  color: #33415c;
-  background: #fff;
+  border-color: var(--spd-p-border);
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg);
   font-weight: 600;
 }
 
 .consumption-saas-page .btn:hover {
-  border-color: #91caff;
+  border-color: var(--spd-p-info-border);
   color: var(--consumption-blue);
-  background: #f7fbff;
+  background: var(--spd-p-info-bg);
 }
 
 .consumption-saas-page .btn-primary {
   border-color: var(--consumption-blue);
-  color: #fff;
+  color: var(--spd-p-bg);
   background: var(--consumption-blue);
-  box-shadow: 0 2px 5px rgb(22 119 255 / 16%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .consumption-saas-page .btn-primary:hover {
   border-color: var(--consumption-blue-deep);
-  color: #fff;
+  color: var(--spd-p-bg);
   background: var(--consumption-blue-deep);
 }
 
@@ -5076,8 +5064,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   padding: 14px 16px;
   border: 1px solid var(--consumption-border);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(31 50 79 / 4%);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .consumption-saas-page .closure-stat-grid article > div {
@@ -5092,7 +5080,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .consumption-saas-page .closure-stat-grid article strong {
-  color: #14213a;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-2xl);
   font-weight: 600;
   line-height: var(--spd-lh-tight);
@@ -5109,19 +5097,19 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   height: 40px;
   border-radius: 10px;
   color: var(--consumption-blue);
-  background: #eaf4ff;
+  background: var(--spd-p-info-bg);
   font-style: normal;
 }
 
 .consumption-stat-icon.is-confirmed,
 .consumption-stat-icon.is-quantity {
   color: var(--consumption-green);
-  background: #eaf8f2;
+  background: var(--spd-p-success-bg);
 }
 
 .consumption-stat-icon.is-reversed {
-  color: #7c879a;
-  background: #f0f2f5;
+  color: var(--spd-p-text-muted);
+  background: var(--spd-p-bg-muted);
 }
 
 .consumption-saas-page .hospital-catalog-panel {
@@ -5131,8 +5119,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   padding: 16px 18px 18px;
   border: 1px solid var(--consumption-border);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgb(31 50 79 / 4%);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .consumption-section-title {
@@ -5150,7 +5138,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .consumption-section-title h3 {
   margin: 0;
-  color: #172033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
@@ -5165,7 +5153,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .consumption-section-icon.is-history {
   color: var(--consumption-green);
-  background: #eaf8f2;
+  background: var(--spd-p-success-bg);
 }
 
 .consumption-live-badge {
@@ -5174,10 +5162,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   gap: 7px;
   margin-left: auto;
   padding: 5px 10px;
-  border: 1px solid #b7ebd3;
+  border: 1px solid var(--spd-p-success-border);
   border-radius: 999px;
-  color: #087a4d;
-  background: #f0fbf6;
+  color: var(--spd-p-success-text);
+  background: var(--spd-p-primary-bg);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -5186,65 +5174,75 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #20b878;
-  box-shadow: 0 0 0 3px rgb(32 184 120 / 12%);
+  background: var(--spd-p-success-text);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
+/* 【筛选栏根元素：不再套用 12 栏栅格】
+   历史上这里给 <SpdFilterBar> 根元素写了
+     display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+   这会把组件自身的 display: flex 布局整个替换掉：
+   组件的 .spd-filter-bar__fields（auto-fit 栅格）被压成 12 条 106px 的窄轨道，
+   字段只能落在唯一一条 1fr 轨道上 → 每个字段仅 106px 宽（低于 160px 下限），
+   5 个字段全部竖着叠在一列里（用户报「筛选部分全部叠在一起了」）。
+
+   现在只保留页面需要的「上分隔线 + 顶部留白」，
+   字段排布完全交给 SpdFilterBar 自己的 .spd-filter-bar__fields
+   （repeat(auto-fit, minmax(160px, 1fr))）按容器宽度自动换行。 */
 .consumption-saas-page .consumption-form-grid {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 20px 16px;
   padding-top: 20px;
-  border-top: 1px solid #eef1f5;
+  /* 顶部分隔线用标准边框色（--spd-p-border），
+     此前用 --spd-p-bg-muted（#eef3f5）覆盖了 <SpdFilterBar> 的
+     1px solid var(--spd-p-border) 边框，导致筛选栏上边框偏淡、与其它页面不一致。 */
+  border-top: 1px solid var(--spd-p-border);
 }
 
+/* 字段标签：与 SpdFilterBar 的标准标签规则（--spd-p-field-label / sm / 600）一致，
+   这里只保留页面需要的标签与控件间距，不再另立一套颜色与字号。 */
 .consumption-saas-page .consumption-form-grid > label {
   min-width: 0;
 }
 
 .consumption-saas-page .consumption-form-grid > label > span {
-  margin-bottom: 8px;
-  color: #34415a;
+  margin-bottom: 0;
+  color: var(--spd-p-field-label);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
+/* 【筛选栏字段宽度】—— 由统一筛选栏组件 SpdFilterBar 的
+   .spd-filter-bar__fields 栅格（auto-fit + minmax(160px, 1fr)）接管。
+   历史上这里写的是 12 栏模型的 `grid-column: span N`：
+   科室 span 3 / 库房 span 3 / 扫码识别耗材 span 6 / 数量 span 2 /
+   高值唯一码 span 4。但统一筛选栏的字段栅格**没有 12 栏轨道**，
+   span 只能落在唯一那一条 1fr 列上，于是 span 3 → 32px、span 4 → 48px，
+   字段被压扁后标签换行、控件互相叠在一起（用户报「叠在一起了」）。
+   现在统一交给 auto-fit 栅格按 160px 下限自动换行，
+   全部字段宽度一致，不再出现 32px / 48px 的窄条。 */
 .consumption-saas-page .consumption-form-grid input,
 .consumption-saas-page .consumption-form-grid select {
   width: 100%;
-  border-color: #d8dee8;
-  color: #26334d;
-  background-color: #fff;
+  border-color: var(--spd-p-field-border);
+  /* 文字必须是**深色**令牌：此前写的是 --spd-p-field-disabled-border
+     （浅色 #d5e0e5 一族），浅底 + 浅字根本看不清 —— 与用户报的
+     「浅色背景搭配浅色文字看不清」是同一类问题。 */
+  color: var(--spd-p-field-text);
+  background-color: var(--spd-p-field-bg);
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .consumption-saas-page .consumption-form-grid input:focus,
 .consumption-saas-page .consumption-form-grid select:focus {
-  border-color: var(--consumption-blue);
+  border-color: var(--spd-p-field-focus-border);
   outline: 0;
-  box-shadow: 0 0 0 3px rgb(22 119 255 / 10%);
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
 }
 
-.consumption-grid-dept,
-.consumption-grid-warehouse {
-  grid-column: span 3 !important;
-}
-
-.consumption-grid-code {
-  grid-column: span 6 !important;
-}
-
-.consumption-grid-resolved {
-  grid-column: span 6 !important;
-}
-
-.consumption-grid-quantity {
-  grid-column: span 2 !important;
-}
-
-.consumption-grid-unique {
-  grid-column: span 4 !important;
-}
+/* 【已移除】旧的 12 栏 span 声明
+   （.consumption-grid-dept / -warehouse / -code / -resolved / -quantity / -unique）
+   统一筛选栏 SpdFilterBar 的字段栅格是 auto-fit 模型（没有 12 栏轨道），
+   继续写 `grid-column: span N !important` 会把字段压成 32px / 48px 窄条，
+   导致筛选区叠在一起。现改为不写 span，由 auto-fit 按 160px 下限自动换行。 */
 
 .consumption-saas-page .consumption-code-search {
   display: grid;
@@ -5256,15 +5254,15 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   box-sizing: border-box;
   min-height: 40px;
   padding: 8px 12px;
-  border: 1px solid #b7ebd3;
+  border: 1px solid var(--spd-p-success-border);
   border-left: 3px solid var(--consumption-green);
   border-radius: 8px;
-  color: #174c38;
-  background: #f4fbf7;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-primary-bg);
 }
 
 .consumption-saas-page .consumption-resolved small {
-  color: #587264;
+  color: var(--spd-p-success);
 }
 
 .consumption-action-row {
@@ -5273,18 +5271,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   gap: 10px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid #eef1f5;
+  border-top: 1px solid var(--spd-p-bg-muted);
 }
 
 .consumption-action-hint {
   margin-right: auto;
-  color: #7b8597;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
 .consumption-history-card .table-scroll {
   overflow: auto;
-  border: 1px solid #e7ebf1;
+  border: 1px solid var(--spd-p-text);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -5295,9 +5293,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .consumption-history-table thead th {
   height: 36px;
   padding: 9px 12px !important;
-  border-bottom-color: #dfe5ed !important;
-  color: #45536b !important;
-  background: #f7f9fc !important;
+  border-bottom-color: var(--spd-p-border) !important;
+  color: var(--spd-p-text-secondary) !important;
+  background: var(--spd-p-bg-subtle) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   white-space: nowrap;
@@ -5306,19 +5304,19 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .consumption-history-table tbody td {
   height: 40px;
   padding: 9px 12px !important;
-  border-bottom-color: #edf0f4 !important;
-  color: #34415a !important;
-  background: #fff;
+  border-bottom-color: var(--spd-p-bg-muted) !important;
+  color: var(--spd-p-text-secondary) !important;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
 }
 
 .consumption-history-table tbody tr:nth-child(even) td {
-  background: #fafbfc !important;
+  background: var(--spd-p-row-stripe) !important;
 }
 
 .consumption-history-table tbody tr:hover td {
-  background: #f7fbff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .consumption-history-table .muted-cell {
@@ -5326,7 +5324,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 4px;
   margin-top: 4px;
-  color: #7b8597;
+  color: var(--spd-p-text-muted);
 }
 
 .consumption-history-table .row-actions button {
@@ -5342,23 +5340,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
     grid-column: span 6;
   }
 
-  .consumption-grid-dept,
-  .consumption-grid-warehouse {
-    grid-column: span 6 !important;
-  }
-
-  .consumption-grid-code,
-  .consumption-grid-resolved {
-    grid-column: span 12 !important;
-  }
-
-  .consumption-grid-quantity {
-    grid-column: span 4 !important;
-  }
-
-  .consumption-grid-unique {
-    grid-column: span 8 !important;
-  }
+  /* 筛选栏字段宽度在窄屏下同样交给统一筛选栏的 auto-fit 栅格，
+     不再写 12 栏 span（见上文「已移除」的说明）。 */
 }
 
 @media (max-width: 760px) {
@@ -5371,14 +5354,8 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
     padding: 14px;
   }
 
-  .consumption-saas-page .closure-stat-grid article,
-  .consumption-grid-dept,
-  .consumption-grid-warehouse,
-  .consumption-grid-code,
-  .consumption-grid-resolved,
-  .consumption-grid-quantity,
-  .consumption-grid-unique {
-    grid-column: span 12 !important;
+  .consumption-saas-page .closure-stat-grid article {
+    grid-column: span 12;
   }
 
   .consumption-live-badge,
@@ -5419,10 +5396,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0;
   padding: 4px 0;
-  border: 1px solid var(--md-border-soft, #e6ecef);
+  border: 1px solid var(--md-border-soft, var(--spd-p-border-subtle));
   border-radius: var(--spd-radius-md, 10px);
-  background: var(--md-bg-card, #fff);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  background: var(--md-bg-card, var(--spd-p-bg));
+  box-shadow: var(--spd-p-shadow-1);
   overflow: hidden;
 }
 
@@ -5431,7 +5408,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   align-items: flex-start;
   gap: 12px;
   padding: 14px 18px;
-  border-right: 1px solid var(--md-border-soft, #e6ecef);
+  border-right: 1px solid var(--md-border-soft, var(--spd-p-border-subtle));
 }
 
 .finance-settlement-page .settlement-kpi-item:last-child {
@@ -5439,11 +5416,11 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .finance-settlement-page .settlement-kpi-item.is-amount {
-  background: linear-gradient(180deg, rgba(15, 83, 79, 0.04) 0%, rgba(15, 83, 79, 0) 100%);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--spd-p-primary-strong) 4%, transparent) 0%, color-mix(in srgb, var(--spd-p-primary-strong) 0%, transparent) 100%);
 }
 
 .finance-settlement-page .settlement-kpi-item.is-amount .settlement-kpi-value {
-  color: var(--spd-primary, #0f534f);
+  color: var(--spd-primary, var(--spd-p-primary-strong));
 }
 
 .finance-settlement-page .settlement-kpi-icon {
@@ -5453,29 +5430,29 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: var(--md-bg-soft, #f4f8fa);
-  color: var(--spd-text-secondary, #607285);
+  background: var(--md-bg-soft, var(--spd-p-bg-subtle));
+  color: var(--spd-text-secondary, var(--spd-p-info));
   flex-shrink: 0;
 }
 
 .finance-settlement-page .settlement-kpi-icon.is-doc {
-  background: #eef6ff;
-  color: #2a6df4;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-info);
 }
 
 .finance-settlement-page .settlement-kpi-icon.is-supplier {
-  background: #f5f0ff;
-  color: #6a42c2;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-info);
 }
 
 .finance-settlement-page .settlement-kpi-icon.is-qty {
-  background: #fff7e0;
-  color: #b07900;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-text);
 }
 
 .finance-settlement-page .settlement-kpi-icon.is-amount {
-  background: rgba(15, 83, 79, 0.10);
-  color: var(--spd-primary, #0f534f);
+  background: color-mix(in srgb, var(--spd-p-primary-strong) 10%, transparent);
+  color: var(--spd-primary, var(--spd-p-primary-strong));
 }
 
 .finance-settlement-page .settlement-kpi-item > div {
@@ -5492,7 +5469,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .finance-settlement-page .settlement-kpi-value {
-  color: var(--spd-text-heading, #14213a);
+  color: var(--spd-text-heading, var(--spd-p-text));
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
   line-height: var(--spd-lh-tight);
@@ -5519,7 +5496,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .finance-settlement-page > .finance-detail-card,
 .finance-settlement-page > .hospital-catalog-panel {
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 表格密度重写：紧凑单元格 + 紧凑堆叠 ---------- */
@@ -5529,14 +5506,14 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   /* T-02 结算明细表数据：--spd-font-size-base（14/16/18px） */
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-tight) !important;
-  border-color: var(--md-border-soft, #e6ecef) !important;
+  border-color: var(--md-border-soft, var(--spd-p-border-subtle)) !important;
 }
 
 .finance-settlement-page .settlement-detail-table thead th {
   padding-block: 8px !important;
-  background: var(--md-bg-soft, #f4f8fa) !important;
-  box-shadow: inset 0 -1px 0 var(--md-border, #d4dde0) !important;
-  color: var(--spd-text-secondary, #607285) !important;
+  background: var(--md-bg-soft, var(--spd-p-bg-subtle)) !important;
+  box-shadow: var(--spd-p-shadow-1);
+  color: var(--spd-text-secondary, var(--spd-p-info)) !important;
   /* L-03 / T-09 结算明细表头：--spd-font-size-table-head（14/16/18px） */
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
@@ -5547,19 +5524,20 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .finance-settlement-page .settlement-detail-table thead .settlement-col-document {
-  background: var(--md-bg-soft, #f4f8fa) !important;
+  background: var(--md-bg-soft, var(--spd-p-bg-subtle)) !important;
 }
 
 .finance-settlement-page .settlement-detail-table tbody tr:nth-child(even) {
-  background: #fbfdfd;
+  background: var(--spd-p-bg);
 }
 
 .finance-settlement-page .settlement-detail-table tbody tr:hover {
-  background: #f1f8f8;
+  /* 浅色悬停（此前误用近黑底，行悬停时文字几乎不可见） */
+  background: var(--spd-p-primary-bg);
 }
 
 .finance-settlement-page .settlement-detail-table tbody tr:hover .settlement-col-document {
-  background: #f1f8f8;
+  background: var(--spd-p-primary-bg);
 }
 
 /* ---------- 数字列：居中 + 等宽数字 ----------
@@ -5577,7 +5555,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .finance-settlement-page .settlement-cell-stack > strong {
   font-weight: 600 !important;
-  color: var(--spd-text-primary, #14213a) !important;
+  color: var(--spd-text-primary, var(--spd-p-text)) !important;
   /* L-04 结算明细主字段：--spd-font-size-base（14/16/18px） */
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-tight) !important;
@@ -5587,7 +5565,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .finance-settlement-page .settlement-cell-meta {
-  color: var(--md-text-muted, #7c8a92) !important;
+  color: var(--md-text-muted, var(--spd-p-neutral)) !important;
   /* L-05 结算明细元信息：--spd-font-size-xs（11/13/15px） */
   font-size: var(--spd-font-size-xs) !important;
   font-weight: 400;
@@ -5605,7 +5583,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .finance-settlement-page .settlement-policy-list b,
 .finance-settlement-page .settlement-code-list b {
-  color: var(--md-text-muted, #7c8a92) !important;
+  color: var(--md-text-muted, var(--spd-p-neutral)) !important;
   /* L-08 结算策略标记：--spd-font-size-xs（11/13/15px）
      原为 10.5px，低于全站 11px 下限，现已统一到 --spd-font-size-xs */
   font-size: var(--spd-font-size-xs) !important;
@@ -5614,7 +5592,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 .finance-settlement-page .settlement-policy-list small {
-  color: var(--md-text-muted, #7c8a92) !important;
+  color: var(--md-text-muted, var(--spd-p-neutral)) !important;
   /* L-09 结算策略说明：--spd-font-size-xs（11/13/15px）
      原为 10.5px，低于全站 11px 下限，现已统一到 --spd-font-size-xs */
   font-size: var(--spd-font-size-xs) !important;
@@ -5629,7 +5607,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 /* 金额列突出 */
 .finance-settlement-page .amount-cell {
-  color: var(--spd-primary, #0f534f) !important;
+  color: var(--spd-primary, var(--spd-p-primary-strong)) !important;
   font-weight: 700 !important;
   /* L-06 结算金额：--spd-font-size-base（14/16/18px） */
   font-size: var(--spd-font-size-base) !important;
@@ -5725,7 +5703,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .finance-settlement-page .settlement-detail-scroll {
   max-height: min(72vh, 820px);
   overflow: auto;
-  border: 1px solid var(--md-border-soft, #e6ecef);
+  border: 1px solid var(--md-border-soft, var(--spd-p-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -5754,7 +5732,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .high-value-operation-page > .hospital-catalog-panel {
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* =====================================================================
@@ -5824,10 +5802,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .shortage-task-page > .closure-stat-grid article {
   padding: 14px 16px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .shortage-task-page > .closure-stat-grid article span {
@@ -5847,10 +5825,10 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 .shortage-task-page > .hospital-action-row {
   gap: 12px;
   padding: 14px 16px 16px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .shortage-task-page .section-title h3 {
@@ -5863,50 +5841,35 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   color: var(--md-primary, var(--spd-primary));
 }
 
-/* ---------- 表单区 ---------- */
-.shortage-task-page .closure-form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  align-items: end;
-  gap: 10px 14px;
-  padding: 12px;
-  background: var(--md-bg-muted, var(--spd-bg-page));
-  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
-  border-radius: var(--md-radius, 6px);
+/* ---------- 动作条（业务动作标题 + 动作按钮 同行左右分列） ----------
+   用户诉求：「智能补货分析这个按钮不要单独一行，和业务动作在一行，
+   使用 flex 布局的 space-between 分别在两边对齐就好」。
+   基础布局（.spd-action-bar / __main / __aside）由
+   styles/components/spd-filter-bar.css 统一提供，这里只做本页微调：
+   分区标题进入动作条后不再保留自己的下边框（分隔线由动作条统一承担）。 */
+.shortage-task-page .spd-action-bar {
+  margin-bottom: 12px;
 }
 
-.shortage-task-page .closure-form-grid label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
+.shortage-task-page .spd-action-bar .section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
-.shortage-task-page .closure-form-grid label > span {
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: var(--spd-font-size-sm);
-  font-weight: 500;
-  line-height: 1;
+.shortage-task-page .spd-action-bar__aside {
+  gap: 10px;
 }
 
-.shortage-task-page .closure-form-grid input,
-.shortage-task-page .closure-form-grid select {
-  min-height: 30px;
-  padding: 0 9px;
-  border: 1px solid var(--md-border, var(--spd-border-default));
-  border-radius: var(--md-radius, 6px);
-  background: var(--md-bg-card, #fff);
-  color: var(--md-text, var(--spd-text-primary));
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  box-sizing: border-box;
+.shortage-task-page .spd-action-bar__aside .consumption-action-hint,
+.shortage-task-page .spd-action-bar__aside .delivery-action-hint {
+  max-width: 640px;
 }
 
-.shortage-task-page .closure-form-grid input:focus,
-.shortage-task-page .closure-form-grid select:focus {
-  outline: none;
-  border-color: var(--md-primary, var(--spd-primary));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary, #0d6b63) 14%, transparent);
-}
+/* ---------- 表单区 ----------
+   已统一改用 SpdFilterBar 组件，控件高度走 --spd-p-field-height，
+   列数 / 换行规则 / 标签排版全部由
+   styles/components/spd-filter-bar.css 的「标准规则」统一控制。 */
 
 /* ---------- 动作按钮行 ----------
    master-data-all.override.css 的 .hospital-action-row 带 !important
@@ -5916,7 +5879,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   gap: 8px;
   flex-wrap: wrap;
   min-height: 0 !important;
-  background: var(--md-bg-muted, #fafbfc) !important;
+  background: var(--md-bg-muted, var(--spd-p-row-stripe)) !important;
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   border-radius: var(--md-radius, 6px) !important;
   padding: 10px 12px !important;
@@ -5942,7 +5905,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   overflow: auto;
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   border-radius: var(--md-radius, 6px) !important;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   scrollbar-width: thin;
   scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
 }
@@ -5977,7 +5940,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
 }
 
@@ -5992,12 +5955,12 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
 .shortage-task-page .purchase-table tbody tr:nth-child(even) td,
 .shortage-task-page .purchase-detail-table tbody tr:nth-child(even) td {
-  background: var(--md-bg-muted, #fafbfc) !important;
+  background: var(--md-bg-muted, var(--spd-p-row-stripe)) !important;
 }
 
 .shortage-task-page .purchase-table tbody tr:hover td,
 .shortage-task-page .purchase-detail-table tbody tr:hover td {
-  background: var(--md-primary-soft, #f0f7f6) !important;
+  background: var(--md-primary-soft, var(--spd-p-primary-bg)) !important;
 }
 
 /* 单据号等宽、数量金额右对齐 */
@@ -6010,32 +5973,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 /* ---------- 状态徽标 ----------
-   medical-saas.css 的 `.status-badge.pending` 带 !important（蓝），
-   main.css 的 `.status-badge.pending` 无 important（橙），
-   这里需同时压过两者，故用 !important + 提高特指度。 */
-.shortage-task-page .status-badge {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  /* S-08 status-badge 状态条：--spd-font-size-base（14/16/18px） */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  line-height: var(--spd-lh-tight);
-  white-space: nowrap;
-}
-
-.shortage-task-page .status-badge.enabled {
-  background: var(--spd-success-bg, #e8f5ef) !important;
-  color: var(--spd-success-text, #137a52) !important;
-  border-color: var(--spd-success-border, #bfe3d3) !important;
-}
-
-.shortage-task-page .status-badge.pending {
-  background: var(--spd-warning-bg, #fff4e5) !important;
-  color: var(--spd-warning-text, #9a5b00) !important;
-  border-color: var(--spd-warning-border, #f5d9ae) !important;
-}
+   列表状态条已统一迁移到通用组件 <SpdStatusChip>
+   （styles/components/spd-status-chip.css）：几何（高度 / 内边距 / 圆角）
+   与浅色底 + 深色字配色全部由令牌统一提供，本页不再写局部覆盖。 */
 
 .shortage-task-page .muted-cell {
   display: flex;
@@ -6068,19 +6008,9 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 /* ---------- 响应式 ---------- */
-@media (max-width: 1100px) {
-  .shortage-task-page .closure-form-grid {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  }
-}
-
 @media (max-width: 760px) {
   .shortage-task-page {
     padding: 12px 12px 20px;
-  }
-
-  .shortage-task-page .closure-form-grid {
-    grid-template-columns: 1fr;
   }
 
   .shortage-task-page > .hospital-catalog-panel .table-scroll {
@@ -6089,12 +6019,6 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 }
 
 /* ---------- 拣配配送：响应式 ---------- */
-@media (max-width: 1100px) {
-  .delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  }
-}
-
 @media (max-width: 760px) {
   .delivery-acceptance-page {
     padding: 12px 12px 20px;
@@ -6102,10 +6026,6 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
 
   .delivery-acceptance-page .delivery-workspace-card {
     padding: 14px;
-  }
-
-  .delivery-acceptance-page .delivery-workspace-card .closure-form-grid {
-    grid-template-columns: 1fr;
   }
 
   .delivery-acceptance-page .delivery-action-row {

@@ -248,8 +248,12 @@ onMounted(loadKeys)
         <label><span>院区</span><input v-model.trim="query.campusId" class="sys-input" /></label>
         <label><span>医院</span><input v-model.trim="query.hospitalId" class="sys-input" /></label>
         <div class="sys-form-actions">
-          <button class="btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
-          <button class="btn btn-primary" type="button" :disabled="loading || keysLoading || !query.configKey" @click="loadExplanation"><Search :size="15" /> 查看命中</button>
+          <SpdButton label="重置" tone="neutral" @click="resetQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="查看命中" tone="primary" :disabled="loading || keysLoading || !query.configKey" @click="loadExplanation">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
         </div>
       </div>
     </div>
@@ -406,26 +410,22 @@ onMounted(loadKeys)
       <MdDataTableCard class="master-table-card">
         <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="configHitColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="configHitCols.settingsOpen.value = !configHitCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: configHitCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="configHitColSettingsAnchorRef"
+             
+             
+              @click="configHitCols.settingsOpen.value = !configHitCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="configHitCols.settingsOpen.value"
               ref="configHitColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': configHitColSettingsPop.align.value === 'right', 'is-align-up': configHitColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': configHitColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': configHitColSettingsPop.maxHeight.value + 'px' }"
+              :style="configHitColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="configHitCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="configHitCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in configHitCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -440,7 +440,7 @@ onMounted(loadKeys)
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="configHitCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="configHitCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -680,23 +680,23 @@ onMounted(loadKeys)
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sys-kpi-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
-.sys-kpi-item.is-blue    { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); border-color: #93c5fd; }
-.sys-kpi-item.is-green   { background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%); border-color: #6ee7b7; }
-.sys-kpi-item.is-orange  { background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
-.sys-kpi-item.is-purple  { background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%); border-color: #c4b5fd; }
-.sys-kpi-item.is-rose    { background: linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%); border-color: #fda4af; }
-.sys-kpi-item.is-cyan    { background: linear-gradient(180deg, #cffafe 0%, #a5f3fc 100%); border-color: #67e8f9; }
-.sys-kpi-item.is-teal    { background: linear-gradient(180deg, #ccfbf1 0%, #99f6e4 100%); border-color: #5eead4; }
+.sys-kpi-item.is-blue    { background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%); border-color: var(--spd-p-info-border); }
+.sys-kpi-item.is-green   { background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%); border-color: var(--spd-p-success); }
+.sys-kpi-item.is-orange  { background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%); border-color: var(--spd-p-warning-border); }
+.sys-kpi-item.is-purple  { background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%); border-color: var(--spd-p-info-border); }
+.sys-kpi-item.is-rose    { background: linear-gradient(180deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-border) 100%); border-color: var(--spd-p-danger-border); }
+.sys-kpi-item.is-cyan    { background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-success-border) 100%); border-color: var(--spd-p-success); }
+.sys-kpi-item.is-teal    { background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-primary-border) 100%); border-color: var(--spd-p-primary-hover); }
 
 .sys-kpi-icon {
   display: inline-flex;
@@ -705,18 +705,18 @@ onMounted(loadKeys)
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green  .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
-.sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
-.sys-kpi-item.is-rose   .sys-kpi-icon { color: #be123c; }
-.sys-kpi-item.is-cyan   .sys-kpi-icon { color: #0e7490; }
-.sys-kpi-item.is-teal   .sys-kpi-icon { color: #0f766e; }
+.sys-kpi-item.is-blue   .sys-kpi-icon { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-icon { color: var(--spd-p-success-strong); }
+.sys-kpi-item.is-orange .sys-kpi-icon { color: var(--spd-p-warning-text); }
+.sys-kpi-item.is-purple .sys-kpi-icon { color: var(--spd-p-primary); }
+.sys-kpi-item.is-rose   .sys-kpi-icon { color: var(--spd-p-danger-strong); }
+.sys-kpi-item.is-cyan   .sys-kpi-icon { color: var(--spd-p-success-text); }
+.sys-kpi-item.is-teal   .sys-kpi-icon { color: var(--spd-p-primary); }
 
 .sys-kpi-item > div {
   display: grid;
@@ -736,33 +736,33 @@ onMounted(loadKeys)
 
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
-.sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
+.sys-kpi-item.is-blue   .sys-kpi-hint { color: var(--spd-p-info-strong); }
 .sys-kpi-item.is-green  .sys-kpi-label,
 .sys-kpi-item.is-green  .sys-kpi-value,
-.sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
+.sys-kpi-item.is-green  .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-orange .sys-kpi-label,
 .sys-kpi-item.is-orange .sys-kpi-value,
-.sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
+.sys-kpi-item.is-orange .sys-kpi-hint { color: var(--spd-p-warning-strong); }
 .sys-kpi-item.is-purple .sys-kpi-label,
 .sys-kpi-item.is-purple .sys-kpi-value,
-.sys-kpi-item.is-purple .sys-kpi-hint { color: #4c1d95; }
+.sys-kpi-item.is-purple .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-rose   .sys-kpi-label,
 .sys-kpi-item.is-rose   .sys-kpi-value,
-.sys-kpi-item.is-rose   .sys-kpi-hint { color: #881337; }
+.sys-kpi-item.is-rose   .sys-kpi-hint { color: var(--spd-p-danger-strong); }
 .sys-kpi-item.is-cyan   .sys-kpi-label,
 .sys-kpi-item.is-cyan   .sys-kpi-value,
-.sys-kpi-item.is-cyan   .sys-kpi-hint { color: #155e75; }
+.sys-kpi-item.is-cyan   .sys-kpi-hint { color: var(--spd-p-info); }
 .sys-kpi-item.is-teal   .sys-kpi-label,
 .sys-kpi-item.is-teal   .sys-kpi-value,
-.sys-kpi-item.is-teal   .sys-kpi-hint { color: #134e4a; }
+.sys-kpi-item.is-teal   .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 
 /* ---------- 查询条件卡 ---------- */
 .sys-form-section {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   padding: 18px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-form-section-header {
@@ -771,7 +771,7 @@ onMounted(loadKeys)
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-form-section-icon {
@@ -784,8 +784,8 @@ onMounted(loadKeys)
   flex-shrink: 0;
 }
 
-.sys-form-section-icon.is-green { background: #d1fae5; color: #047857; }
-.sys-form-section-icon.is-orange { background: #fef3c7; color: #b45309; }
+.sys-form-section-icon.is-green { background: var(--spd-p-success-bg); color: var(--spd-p-success-strong); }
+.sys-form-section-icon.is-orange { background: var(--spd-p-warning-bg); color: var(--spd-p-warning-text); }
 
 .sys-form-section-header h4 {
   margin: 0;
@@ -811,7 +811,7 @@ onMounted(loadKeys)
   gap: 5px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-form-actions {
@@ -827,10 +827,10 @@ onMounted(loadKeys)
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -849,29 +849,29 @@ onMounted(loadKeys)
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.btn:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; color: #1e293b; }
+.btn:hover:not(:disabled) { background: var(--spd-p-bg-muted); border-color: var(--spd-p-text-muted); color: var(--spd-p-text-strong); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 加载 / 消息 / 错误 ---------- */
@@ -882,15 +882,15 @@ onMounted(loadKeys)
   justify-content: center;
   gap: 10px;
   padding: 48px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-loading-icon {
   display: inline-flex;
-  color: #10b981;
+  color: var(--spd-p-success);
   animation: spin 1.2s linear infinite;
 }
 
@@ -905,12 +905,12 @@ onMounted(loadKeys)
   display: flex;
   align-items: center;
   padding: 10px 14px;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 左右双栏面板 ---------- */
@@ -927,11 +927,11 @@ onMounted(loadKeys)
 
 /* ---------- 详情面板卡片 ---------- */
 .sys-detail-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   display: flex;
   flex-direction: column;
 }
@@ -941,8 +941,8 @@ onMounted(loadKeys)
   align-items: flex-start;
   gap: 10px;
   padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .sys-detail-card-icon {
@@ -952,12 +952,12 @@ onMounted(loadKeys)
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
   flex-shrink: 0;
 }
 
-.sys-detail-card-icon.is-orange { background: #fef3c7; color: #b45309; }
+.sys-detail-card-icon.is-orange { background: var(--spd-p-warning-bg); color: var(--spd-p-warning-text); }
 
 .sys-detail-card-header h4 {
   margin: 0;
@@ -973,13 +973,14 @@ onMounted(loadKeys)
 }
 
 .sys-detail-card-header code {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
   border-radius: 4px;
   padding: 1px 6px;
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-detail-body {
@@ -998,7 +999,7 @@ onMounted(loadKeys)
   grid-template-columns: 100px minmax(0, 1fr);
   gap: 8px 14px;
   padding: 7px 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--spd-p-text-strong);
   align-items: start;
 }
 
@@ -1006,7 +1007,7 @@ onMounted(loadKeys)
 .sys-detail-row.is-wide { grid-column: 1 / -1; }
 
 .sys-detail-row dt {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
   padding-top: 2px;
@@ -1015,7 +1016,7 @@ onMounted(loadKeys)
 
 .sys-detail-row dd {
   margin: 0;
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   font-weight: 500;
   word-break: break-all;
@@ -1024,9 +1025,9 @@ onMounted(loadKeys)
 .sys-json-inline {
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
-  color: #334155;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 6px 10px;
   word-break: break-all;
@@ -1036,9 +1037,9 @@ onMounted(loadKeys)
 }
 
 .sys-json-inline.is-parent {
-  background: #fef3c7;
-  border-color: #fcd34d;
-  color: #78350f;
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
+  color: var(--spd-p-warning-strong);
 }
 
 /* ---------- 规则列表 ---------- */
@@ -1056,15 +1057,15 @@ onMounted(loadKeys)
   align-items: flex-start;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fafdfb;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   line-height: var(--spd-lh-base);
 }
 
-.sys-rule-item:hover { background: #f0fdf9; }
+.sys-rule-item:hover { background: var(--spd-p-primary-bg); }
 
 .sys-rule-num {
   display: inline-flex;
@@ -1073,8 +1074,8 @@ onMounted(loadKeys)
   width: 22px;
   height: 22px;
   border-radius: 999px;
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
   flex-shrink: 0;
@@ -1082,11 +1083,11 @@ onMounted(loadKeys)
 
 /* ---------- 表格 ---------- */
 .sys-table-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   display: flex;
   flex-direction: column;
 }
@@ -1096,8 +1097,8 @@ onMounted(loadKeys)
   align-items: flex-start;
   justify-content: space-between;
   padding: 14px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
   gap: 12px;
 }
 
@@ -1116,12 +1117,12 @@ onMounted(loadKeys)
 
 .sys-table-card-meta {
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   white-space: nowrap;
   padding-top: 2px;
 }
 
-.sys-table-card-meta strong { color: #047857; font-weight: 700; }
+.sys-table-card-meta strong { color: var(--spd-p-success-strong); font-weight: 700; }
 
 .sys-table-scroll { overflow-x: auto; }
 
@@ -1132,12 +1133,12 @@ onMounted(loadKeys)
 }
 
 .sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-bottom: 1px solid var(--spd-p-success);
 }
 
 .sys-table th {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
   text-align: left;
@@ -1148,27 +1149,27 @@ onMounted(loadKeys)
 
 .sys-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
+  border-bottom: 1px solid var(--spd-p-text-strong);
+  color: var(--spd-p-text-secondary);
   vertical-align: middle;
 }
 
-.sys-table tbody tr:hover td { background: #f8fafc; }
+.sys-table tbody tr:hover td { background: var(--spd-p-bg-muted); }
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 /* 命中行 / 被覆盖行 */
 .sys-table tbody tr.is-hit td {
-  background: rgba(16, 185, 129, 0.07) !important;
-  border-bottom-color: rgba(16, 185, 129, 0.15);
+  background: color-mix(in srgb, var(--spd-p-success) 7%, transparent) !important;
+  border-bottom-color: color-mix(in srgb, var(--spd-p-success) 15%, transparent);
 }
 
 .sys-table tbody tr.is-overridden td {
-  background: #f8fafc !important;
-  color: #94a3b8;
+  background: var(--spd-p-bg-muted) !important;
+  color: var(--spd-p-text-muted);
 }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
+.muted { color: var(--spd-p-text-muted); padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 .config-value-cell {
   max-width: 200px;
@@ -1177,7 +1178,7 @@ onMounted(loadKeys)
   white-space: nowrap;
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 /* ---------- 通用 tag / chip / badge ---------- */
@@ -1200,9 +1201,10 @@ onMounted(loadKeys)
 }
 
 .sys-tag.is-code {
-  color: #334155;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border);
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
   /* 配置键是长英文标识，需要在断点处折行 */
@@ -1210,29 +1212,29 @@ onMounted(loadKeys)
 }
 
 .sys-tag.is-type {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success);
   font-size: var(--spd-font-size-base);
 }
 
 .sys-tag.is-priority {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border-color: #93c5fd;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
+  border-color: var(--spd-p-info-border);
   font-family: var(--spd-font-family-mono);
 }
 
 .sys-tag.is-level {
-  color: #6d28d9;
-  background: #ede9fe;
-  border-color: #c4b5fd;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-info-bg);
+  border-color: var(--spd-p-info-border);
 }
 
 .sys-tag.is-scope {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fcd34d;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 /* 风险 chip */
@@ -1253,10 +1255,10 @@ onMounted(loadKeys)
   overflow-wrap: anywhere;
 }
 
-.sys-chip.is-risk-high   { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
-.sys-chip.is-risk-medium { color: #b45309; background: #fef3c7; border-color: #fcd34d; }
-.sys-chip.is-risk-low    { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
-.sys-chip.is-risk-default { color: #64748b; background: #f1f5f9; border-color: #e2e8f0; }
+.sys-chip.is-risk-high   { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
+.sys-chip.is-risk-medium { color: var(--spd-p-warning-text); background: var(--spd-p-warning-bg); border-color: var(--spd-p-warning-border); }
+.sys-chip.is-risk-low    { color: var(--spd-p-primary-strong); background: var(--spd-p-success-bg); border-color: var(--spd-p-success); }
+.sys-chip.is-risk-default { color: var(--spd-p-text-secondary); background: var(--spd-p-bg-muted); border-color: var(--spd-p-border); }
 
 /* 状态 badge */
 .sys-badge {
@@ -1270,33 +1272,34 @@ onMounted(loadKeys)
 }
 
 .sys-badge.is-hit {
-  color: #065f46;
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success);
 }
 
 .sys-badge.is-overridden {
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
 }
 
 .sys-badge.is-none {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   background: transparent;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
 }
 
 .sys-badge.is-approved {
-  color: #065f46;
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success);
 }
 
 .sys-badge.is-pending {
-  color: #b45309;
-  background: #fef3c7;
-  border: 1px solid #fcd34d;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
 }
 
 /* ---------- 响应式 ---------- */

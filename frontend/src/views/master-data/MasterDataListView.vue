@@ -4,7 +4,6 @@ import {
   Ban,
   Building2,
   CheckSquare,
-  ChevronDown,
   Columns3,
   Download,
   Edit3,
@@ -54,6 +53,7 @@ import MdStatsRow from '../../components/master-data/MdStatsRow.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import SpdConfirmDialog from '../../components/common/ConfirmDialog.vue'
+import SpdStatusChip, { type SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import SupplierDialog from '../../components/master-data/SupplierDialog.vue'
 import WarehouseDialog from '../../components/master-data/WarehouseDialog.vue'
 import WarehouseLocationDialog from '../../components/master-data/WarehouseLocationDialog.vue'
@@ -757,19 +757,23 @@ watch(
  * 后端可能返回原始枚举（manual / system / warehouse_binding），
  * 也可能返回已翻译中文（手工维护 / 系统生成），这里两种都覆盖。
  */
-const CATALOG_SOURCE_CHIP_CLASS: Record<string, string> = {
-  manual: 'is-primary',
-  '手工维护': 'is-primary',
-  system: 'is-info',
-  '系统生成': 'is-info',
-  warehouse_binding: 'is-warning',
-  '库房绑定': 'is-warning',
-  batch: 'is-neutral'
+const CATALOG_SOURCE_CHIP_TONE: Record<string, SpdStatusChipTone> = {
+  manual: 'primary',
+  '手工维护': 'primary',
+  system: 'info',
+  '系统生成': 'info',
+  warehouse_binding: 'warning',
+  '库房绑定': 'warning',
+  batch: 'neutral'
 }
 
-function catalogSourceChipClass(value: unknown) {
+function catalogSourceChipTone(value: unknown): SpdStatusChipTone {
   const key = String(value ?? '').trim().toLowerCase()
-  return CATALOG_SOURCE_CHIP_CLASS[key] ?? CATALOG_SOURCE_CHIP_CLASS[formatBusinessText(value).toLowerCase()] ?? 'is-neutral'
+  return (
+    CATALOG_SOURCE_CHIP_TONE[key] ??
+    CATALOG_SOURCE_CHIP_TONE[formatBusinessText(value).toLowerCase()] ??
+    'neutral'
+  )
 }
 
 function onDepartmentSelectionChange(selection: Array<Record<string, unknown>>) {
@@ -797,13 +801,14 @@ function onManufacturerSelectionChange(selection: Array<Record<string, unknown>>
 }
 
 /** 状态条配色：启用为成功色，停用为危险色（库房 / 院区 / 科室共用） */
-function statusChipClass(value: unknown) {
-  return String(value ?? '').trim() === '启用' ? 'is-success' : 'is-danger'
+/** 主数据状态条色调：启用 → success，停用 → danger */
+function statusChipTone(value: unknown): SpdStatusChipTone {
+  return String(value ?? '').trim() === '启用' ? 'success' : 'danger'
 }
 
-/** 库房"统计 / 允许收货"开关样式：开启为成功色，关闭为中性色 */
-function warehouseFlagChipClass(enabled: unknown) {
-  return enabled ? 'is-success' : 'is-neutral'
+/** 库房"统计 / 允许收货"开关色调：开启为 success，关闭为 neutral */
+function warehouseFlagChipTone(enabled: unknown): SpdStatusChipTone {
+  return enabled ? 'success' : 'neutral'
 }
 
 /* ===== 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） ===== */
@@ -876,16 +881,11 @@ const warehouseColSettingsPop = useColSettingsPopover({
           <p class="md-header-sub">统一维护供应商与生产厂家档案，切换页签可分别查看供应商、厂家信息。</p>
         </div>
         <div class="md-header-actions">
-          <button
-            type="button"
-            class="md-btn"
-            :disabled="loading"
+          <SpdButton label="刷新" tone="neutral" :disabled="loading"
             aria-label="刷新"
-            @click="loadPage"
-          >
-            <RefreshCw :size="16" :class="{ 'md-spin': loading }" />
-            <span>刷新</span>
-          </button>
+            @click="loadPage">
+          <template #icon><RefreshCw :size="16" :class="{ 'md-spin': loading }" /></template>
+        </SpdButton>
         </div>
       </div>
     </header>
@@ -916,9 +916,14 @@ const warehouseColSettingsPop = useColSettingsPopover({
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="submitHospitalQuery">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar
+        :expanded="hospitalShowMore"
+        collapsible
+        @submit="submitHospitalQuery"
+        @reset="resetHospitalQuery"
+        @toggle="hospitalShowMore = !hospitalShowMore"
+      >
+        <label>
             <span>商品编码</span>
             <input
               v-model.trim="hospitalQuery.productCode"
@@ -1006,22 +1011,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               />
             </label>
           </template>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="hospitalShowMore = !hospitalShowMore">
-            {{ hospitalShowMore ? '收起' : '更多' }}
-            <ChevronDown :size="16" :class="{ rotated: hospitalShowMore }" />
-          </button>
-          <button type="button" class="md-btn" @click="resetHospitalQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section
@@ -1030,70 +1020,53 @@ const warehouseColSettingsPop = useColSettingsPopover({
     >
       <MdDataTableCard :loading="loading" :meta-count="`共 ${hospitalTotal} 个`">
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateProduct"
-          >
-            <Plus :size="16" />
-            <span>新增</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateProduct">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="修改" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1"
-            @click="openEditProduct()"
-          >
-            <Pencil :size="16" />
-            <span>修改</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+            @click="openEditProduct()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="批量修改" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length"
-            @click="batchEditSelectedProducts"
-          >
-            <Edit3 :size="16" />
-            <span>批量修改</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+            @click="batchEditSelectedProducts">
+          <template #icon><Edit3 :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length"
-            @click="disableProducts()"
-          >
-            <Ban :size="16" />
-            <span>停用</span>
-          </button>
-          <button type="button" class="md-btn md-btn-primary" @click="exportHospitalCatalog">
-            <Download :size="16" />
-            <span>导出</span>
-          </button>
+            @click="disableProducts()">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="导出" tone="neutral" @click="exportHospitalCatalog">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
           <div class="ulc-col-settings">
-            <button
-              ref="hospitalColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="hospitalColSettingsOpen = !hospitalColSettingsOpen"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: hospitalColSettingsOpen }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="hospitalColSettingsAnchorRef"
+             
+             
+              @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="hospitalColSettingsOpen"
               ref="hospitalColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': hospitalColSettingsPop.align.value === 'right', 'is-align-up': hospitalColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': hospitalColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': hospitalColSettingsPop.maxHeight.value + 'px' }"
+              :style="hospitalColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="hospitalCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="hospitalCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in hospitalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1108,7 +1081,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="hospitalColSettingsOpen = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="hospitalColSettingsOpen = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1213,9 +1186,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="String((row as Record<string, unknown>).status) === '启用' ? 'is-success' : 'is-danger'">
-                  {{ (row as Record<string, unknown>).status ?? '-' }}
-                </span>
+                <SpdStatusChip
+                  :tone="String((row as Record<string, unknown>).status) === '启用' ? 'success' : 'danger'"
+                  :label="String((row as Record<string, unknown>).status ?? '-')"
+                />
               </template>
             </el-table-column>
             <el-table-column
@@ -1303,7 +1277,9 @@ const warehouseColSettingsPop = useColSettingsPopover({
             <h3>{{ String(hospitalDetailRow.name ?? '-') }}</h3>
             <p>{{ String(hospitalDetailRow.code ?? '-') }} · {{ String(hospitalDetailRow.spec ?? '-') }}</p>
           </div>
-          <button class="drawer-close" aria-label="关闭" @click="closeHospitalDetail"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" aria-label="关闭" @click="closeHospitalDetail">
+            <template #icon><X :size="16" /></template>
+          </SpdButton>
         </header>
         <div class="drawer-body">
           <section class="d-section">
@@ -1355,9 +1331,8 @@ const warehouseColSettingsPop = useColSettingsPopover({
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="loadPage">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar @submit="loadPage" @reset="resetSupplierQuery">
+        <label>
             <span>供应商名称</span>
             <input
               v-model.trim="supplierQuery.supplierName"
@@ -1385,18 +1360,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <el-option label="停用" value="停用" />
             </el-select>
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetSupplierQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else-if="isManufacturerManagement" class="md-partner-page spd-unified-list">
@@ -1407,9 +1371,8 @@ const warehouseColSettingsPop = useColSettingsPopover({
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="loadPage">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar @submit="loadPage" @reset="resetManufacturerQuery">
+        <label>
             <span>厂家名称</span>
             <input
               v-model.trim="manufacturerQuery.manufacturerName"
@@ -1437,18 +1400,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <el-option label="停用" value="停用" />
             </el-select>
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetManufacturerQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else-if="isCampusManagement" class="md-partner-page spd-unified-list">
@@ -1458,9 +1410,8 @@ const warehouseColSettingsPop = useColSettingsPopover({
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="loadPage">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar @submit="loadPage" @reset="resetCampusQuery">
+        <label>
             <span>院区编码</span>
             <input
               v-model.trim="campusQuery.campusCode"
@@ -1488,18 +1439,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <el-option label="停用" value="停用" />
             </el-select>
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetCampusQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else-if="isDepartmentManagement" class="md-partner-page spd-unified-list">
@@ -1509,9 +1449,8 @@ const warehouseColSettingsPop = useColSettingsPopover({
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="loadPage">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar @submit="loadPage" @reset="resetDepartmentQuery">
+        <label>
             <span>科室名称 / 编码</span>
             <input
               v-model.trim="departmentQuery.deptKeyword"
@@ -1559,18 +1498,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               autocomplete="off"
             />
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetDepartmentQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else-if="isDepartmentWarehouseCatalog" class="md-partner-page spd-unified-list">
@@ -1579,9 +1507,11 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
         @refresh="loadPage"
       />
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="submitDepartmentWarehouseCatalogQuery">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar
+        @submit="submitDepartmentWarehouseCatalogQuery"
+        @reset="resetDepartmentWarehouseCatalogQuery"
+      >
+        <label>
             <span>科室</span>
             <input
               v-model.trim="departmentWarehouseCatalogQuery.deptName"
@@ -1619,18 +1549,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <el-option label="停用" value="停用" />
             </el-select>
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetDepartmentWarehouseCatalogQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else-if="isWarehouseManagement" class="md-partner-page spd-unified-list">
@@ -1639,9 +1558,8 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
         @refresh="loadPage"
       />
-      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="loadPage">
-        <div class="ulc-filter-fields">
-          <label>
+      <SpdFilterBar @submit="loadPage" @reset="resetWarehouseQuery">
+        <label>
             <span>库房名称 / 编码</span>
             <input
               v-model.trim="warehouseQuery.warehouseKeyword"
@@ -1689,18 +1607,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <el-option label="停用" value="停用" />
             </el-select>
           </label>
-        </div>
-        <div class="md-hospital-filter-actions ulc-filter-actions">
-          <button type="button" class="md-btn" @click="resetWarehouseQuery">
-            <RefreshCw :size="16" />
-            <span>重置</span>
-          </button>
-          <button type="submit" class="md-btn md-btn-primary">
-            <Search :size="16" />
-            <span>查询</span>
-          </button>
-        </div>
-      </form>
+      </SpdFilterBar>
     </section>
 
     <section v-else class="master-toolbar">
@@ -1708,10 +1615,9 @@ const warehouseColSettingsPop = useColSettingsPopover({
         <Search :size="18" />
         <input type="text" placeholder="搜索编码、名称、联系人..." />
       </div>
-      <button class="btn btn-primary" type="button">
-        <Plus :size="17" />
-        新增
-      </button>
+      <SpdButton label="新增" tone="primary">
+          <template #icon><Plus :size="17" /></template>
+        </SpdButton>
     </section>
 
     <section
@@ -1744,69 +1650,55 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateSupplier"
-          >
-            <Plus :size="16" />
-            <span>新增供应商</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增供应商" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateSupplier">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="修改" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1"
-            @click="openEditSupplier()"
-          >
-            <Pencil :size="16" />
-            <span>修改</span>
-          </button>
+            @click="openEditSupplier()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
           <details class="batch-edit-menu">
             <summary class="md-btn md-btn-primary" aria-label="打开供应商导入菜单">
               <Upload :size="16" />
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <button class="btn-text" type="button" @click="downloadSupplierTemplate">
-                <FileDown :size="16" />
-                下载导入模板
-              </button>
-              <button class="btn-text" type="button" @click="triggerSupplierImport">
-                <FileUp :size="16" />
-                上传 CSV 文件
-              </button>
+              <SpdButton label="下载导入模板" tone="neutral" @click="downloadSupplierTemplate">
+                <template #icon><FileDown :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerSupplierImport">
+                <template #icon><FileUp :size="16" /></template>
+              </SpdButton>
             </div>
           </details>
-          <button type="button" class="md-btn md-btn-primary" @click="exportSupplierRows">
-            <Download :size="16" />
-            <span>导出</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+          <SpdButton label="导出" tone="neutral" @click="exportSupplierRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length"
-            @click="disableSuppliers()"
-          >
-            <Ban :size="16" />
-            <span>停用</span>
-          </button>
+            @click="disableSuppliers()">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
           <input ref="importInput" class="hidden-file-input" type="file" accept=".csv" @change="handleSupplierImport" />
           <div class="ulc-col-settings">
-            <button type="button" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: supplierCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="supplierCols.settingsOpen.value" ref="supplierColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': supplierColSettingsPop.align.value === 'right', 'is-align-up': supplierColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': supplierColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': supplierColSettingsPop.maxHeight.value + 'px' }">
+              :style="supplierColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="supplierCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="supplierCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in supplierCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1821,7 +1713,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="supplierCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="supplierCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1921,9 +1813,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">等级</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="row.grade && row.grade !== '-' ? 'is-primary' : 'is-neutral'">
-                  {{ row.grade || '-' }}
-                </span>
+                <SpdStatusChip
+                  :tone="row.grade && row.grade !== '-' ? 'primary' : 'neutral'"
+                  :label="row.grade || '-'"
+                />
               </template>
             </el-table-column>
             <el-table-column
@@ -1992,9 +1885,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="statusChipClass(row.status)">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip :tone="statusChipTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -2059,55 +1950,43 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateManufacturer"
-          >
-            <Plus :size="16" />
-            <span>新增厂家</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增厂家" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateManufacturer">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="修改" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1"
-            @click="openEditManufacturer()"
-          >
-            <Pencil :size="16" />
-            <span>修改</span>
-          </button>
+            @click="openEditManufacturer()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
           <details class="batch-edit-menu">
             <summary class="md-btn md-btn-primary" aria-label="打开厂家导入菜单">
               <Upload :size="16" />
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <button class="btn-text" type="button" @click="downloadManufacturerTemplate">
-                <FileDown :size="16" />
-                下载导入模板
-              </button>
-              <button class="btn-text" type="button" @click="triggerManufacturerImport">
-                <FileUp :size="16" />
-                上传 CSV 文件
-              </button>
+              <SpdButton label="下载导入模板" tone="neutral" @click="downloadManufacturerTemplate">
+                <template #icon><FileDown :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerManufacturerImport">
+                <template #icon><FileUp :size="16" /></template>
+              </SpdButton>
             </div>
           </details>
-          <button type="button" class="md-btn md-btn-primary" @click="exportManufacturerRows">
-            <Download :size="16" />
-            <span>导出</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+          <SpdButton label="导出" tone="neutral" @click="exportManufacturerRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length"
-            @click="disableManufacturers()"
-          >
-            <Ban :size="16" />
-            <span>停用</span>
-          </button>
+            @click="disableManufacturers()">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
           <input
             ref="manufacturerImportInput"
             class="hidden-file-input"
@@ -2116,18 +1995,16 @@ const warehouseColSettingsPop = useColSettingsPopover({
             @change="handleManufacturerImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: manufacturerCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="manufacturerCols.settingsOpen.value" ref="manufacturerColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': manufacturerColSettingsPop.align.value === 'right', 'is-align-up': manufacturerColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': manufacturerColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': manufacturerColSettingsPop.maxHeight.value + 'px' }">
+              :style="manufacturerColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="manufacturerCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="manufacturerCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in manufacturerCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2142,7 +2019,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="manufacturerCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="manufacturerCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -2270,9 +2147,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="statusChipClass(row.status)">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip :tone="statusChipTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -2338,48 +2213,37 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateCampus"
-          >
-            <Plus :size="16" />
-            <span>新增院区</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增院区" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateCampus">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openEditCampus()"
-          >
-            <Pencil :size="16" />
-            <span>编辑</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+            @click="openEditCampus()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="deleteSelectedCampuses()"
-          >
-            <Trash2 :size="16" />
-            <span>删除</span>
-          </button>
+            @click="deleteSelectedCampuses()">
+          <template #icon><Trash2 :size="16" /></template>
+        </SpdButton>
           <div class="ulc-col-settings">
-            <button type="button" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: campusCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="campusCols.settingsOpen.value" ref="campusColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': campusColSettingsPop.align.value === 'right', 'is-align-up': campusColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': campusColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': campusColSettingsPop.maxHeight.value + 'px' }">
+              :style="campusColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="campusCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="campusCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in campusCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2394,7 +2258,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="campusCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="campusCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -2503,9 +2367,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="statusChipClass(row.status)">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip :tone="statusChipTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column column-key="createTime"v-if="isCampusColVisible('createTime')" label="创建时间" v-bind="campusColBinding('createTime')">
@@ -2594,65 +2456,50 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateDepartment"
-          >
-            <Plus :size="16" />
-            <span>新增科室</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增科室" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateDepartment">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openEditDepartment()"
-          >
-            <Pencil :size="16" />
-            <span>编辑</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+            @click="openEditDepartment()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="关联库房" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="openDepartmentWarehouseDialog()"
-          >
-            <Link2 :size="16" />
-            <span>关联库房</span>
-          </button>
+            @click="openDepartmentWarehouseDialog()">
+          <template #icon><Link2 :size="16" /></template>
+        </SpdButton>
           <details class="batch-edit-menu">
             <summary class="md-btn md-btn-primary" aria-label="打开科室导入菜单">
               <Upload :size="16" />
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <button class="btn-text" type="button" @click="downloadDepartmentTemplate">
-                <FileDown :size="16" />
-                下载导入模板
-              </button>
-              <button class="btn-text" type="button" @click="triggerDepartmentImport">
-                <FileUp :size="16" />
-                上传 CSV 文件
-              </button>
+              <SpdButton label="下载导入模板" tone="neutral" @click="downloadDepartmentTemplate">
+                <template #icon><FileDown :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerDepartmentImport">
+                <template #icon><FileUp :size="16" /></template>
+              </SpdButton>
             </div>
           </details>
-          <button type="button" class="md-btn md-btn-primary" @click="exportDepartmentRows">
-            <Download :size="16" />
-            <span>导出</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+          <SpdButton label="导出" tone="neutral" @click="exportDepartmentRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="deleteSelectedDepartments()"
-          >
-            <Trash2 :size="16" />
-            <span>删除</span>
-          </button>
+            @click="deleteSelectedDepartments()">
+          <template #icon><Trash2 :size="16" /></template>
+        </SpdButton>
           <input
             ref="departmentImportInput"
             class="hidden-file-input"
@@ -2661,18 +2508,16 @@ const warehouseColSettingsPop = useColSettingsPopover({
             @change="handleDepartmentImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: departmentCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="departmentCols.settingsOpen.value" ref="departmentColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': departmentColSettingsPop.align.value === 'right', 'is-align-up': departmentColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': departmentColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': departmentColSettingsPop.maxHeight.value + 'px' }">
+              :style="departmentColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="departmentCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="departmentCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in departmentCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2687,7 +2532,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="departmentCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="departmentCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -2846,9 +2691,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="String(row.status) === '正常' ? 'is-success' : 'is-danger'">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip
+                  :tone="String(row.status) === '正常' ? 'success' : 'danger'"
+                  :label="formatStatusText(row.status)"
+                />
               </template>
             </el-table-column>
             <el-table-column column-key="createTime"v-if="isDepartmentColVisible('createTime')" label="创建时间" v-bind="departmentColBinding('createTime')">
@@ -2929,78 +2775,55 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateDepartmentWarehouseCatalog"
-          >
-            <Plus :size="16" />
-            <span>新增目录</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton v-if="authStore.canWrite(code)" label="新增目录" tone="primary" @click="openCreateDepartmentWarehouseCatalog">
+            <template #icon><Plus :size="16" /></template>
+          </SpdButton>
+          <SpdButton label="批量维护" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="openBatchDepartmentWarehouseCatalog"
-          >
-            <ListPlus :size="16" />
-            <span>批量维护</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+            @click="openBatchDepartmentWarehouseCatalog">
+          <template #icon><ListPlus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openEditDepartmentWarehouseCatalog()"
-          >
-            <Pencil :size="16" />
-            <span>编辑</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+            @click="openEditDepartmentWarehouseCatalog()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="启用" tone="success" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="updateSelectedDepartmentWarehouseCatalogStatus(1)"
-          >
-            <RefreshCw :size="16" />
-            <span>启用</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-warning"
+            @click="updateSelectedDepartmentWarehouseCatalogStatus(1)">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="updateSelectedDepartmentWarehouseCatalogStatus(0)"
-          >
-            <Ban :size="16" />
-            <span>停用</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+            @click="updateSelectedDepartmentWarehouseCatalogStatus(0)">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="deleteSelectedDepartmentWarehouseCatalogs()"
-          >
-            <Trash2 :size="16" />
-            <span>删除</span>
-          </button>
+            @click="deleteSelectedDepartmentWarehouseCatalogs()">
+          <template #icon><Trash2 :size="16" /></template>
+        </SpdButton>
           <div class="ulc-col-settings">
-            <button type="button" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: catalogCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="catalogCols.settingsOpen.value" ref="catalogColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': catalogColSettingsPop.align.value === 'right', 'is-align-up': catalogColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': catalogColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': catalogColSettingsPop.maxHeight.value + 'px' }">
+              :style="catalogColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="catalogCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="catalogCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in catalogCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3015,7 +2838,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="catalogCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="catalogCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -3118,9 +2941,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <span class="ulc-th-text">维护来源</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-chip" :class="catalogSourceChipClass(row.sourceType)">
-                {{ formatBusinessText(row.sourceType) }}
-              </span>
+              <SpdStatusChip :tone="catalogSourceChipTone(row.sourceType)" :label="formatBusinessText(row.sourceType)" />
             </template>
           </el-table-column>
           <el-table-column
@@ -3134,9 +2955,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <span class="ulc-th-text">状态</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-chip" :class="String(row.status) === '启用' ? 'is-success' : 'is-danger'">
-                {{ formatStatusText(row.status) }}
-              </span>
+              <SpdStatusChip
+                :tone="String(row.status) === '启用' ? 'success' : 'danger'"
+                :label="formatStatusText(row.status)"
+              />
             </template>
           </el-table-column>
           <el-table-column column-key="createTime"v-if="isCatalogColVisible('createTime')" label="创建时间" v-bind="catalogColBinding('createTime')">
@@ -3221,65 +3043,50 @@ const warehouseColSettingsPop = useColSettingsPopover({
         :loading="loading"
       >
         <template #toolbar>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="openCreateWarehouse"
-          >
-            <Plus :size="16" />
-            <span>新增</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="新增" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
+            @click="openCreateWarehouse">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="编辑" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openEditWarehouse()"
-          >
-            <Pencil :size="16" />
-            <span>编辑</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-danger"
+            @click="openEditWarehouse()">
+          <template #icon><Pencil :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="删除" tone="danger" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="!selectedCodes.length || loading"
-            @click="deleteSelectedWarehouses()"
-          >
-            <Trash2 :size="16" />
-            <span>删除</span>
-          </button>
+            @click="deleteSelectedWarehouses()">
+          <template #icon><Trash2 :size="16" /></template>
+        </SpdButton>
           <details class="batch-edit-menu">
             <summary class="md-btn md-btn-primary" aria-label="打开库房导入菜单">
               <Upload :size="16" />
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <button class="btn-text" type="button" @click="downloadWarehouseTemplate">
-                <FileDown :size="16" />
-                导入模板下载
-              </button>
-              <button class="btn-text" type="button" @click="triggerWarehouseImport">
-                <FileUp :size="16" />
-                上传 CSV 文件
-              </button>
+              <SpdButton label="导入模板下载" tone="neutral" @click="downloadWarehouseTemplate">
+                <template #icon><FileDown :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerWarehouseImport">
+                <template #icon><FileUp :size="16" /></template>
+              </SpdButton>
             </div>
           </details>
-          <button type="button" class="md-btn md-btn-primary" @click="exportWarehouseRows">
-            <Download :size="16" />
-            <span>导出 Excel</span>
-          </button>
-          <button
-            v-if="authStore.canWrite(code)"
-            type="button"
-            class="md-btn md-btn-primary"
+          <SpdButton label="导出 Excel" tone="primary" @click="exportWarehouseRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="维护货位" tone="primary" v-if="authStore.canWrite(code)"
+           
+           
             :disabled="selectedCodes.length !== 1 || loading"
-            @click="openWarehouseLocationDialog(undefined, true)"
-          >
-            <Link2 :size="16" />
-            <span>维护货位</span>
-          </button>
+            @click="openWarehouseLocationDialog(undefined, true)">
+          <template #icon><Link2 :size="16" /></template>
+        </SpdButton>
           <input
             ref="warehouseImportInput"
             class="hidden-file-input"
@@ -3288,18 +3095,16 @@ const warehouseColSettingsPop = useColSettingsPopover({
             @change="handleWarehouseImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value" class="md-btn md-btn-primary">
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: warehouseCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div v-if="warehouseCols.settingsOpen.value" ref="warehouseColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': warehouseColSettingsPop.align.value === 'right', 'is-align-up': warehouseColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': warehouseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': warehouseColSettingsPop.maxHeight.value + 'px' }">
+              :style="warehouseColSettingsPop.popStyle.value">
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="warehouseCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="warehouseCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in warehouseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -3314,7 +3119,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="warehouseCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="warehouseCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -3359,7 +3164,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
                   <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
-                  <span v-if="row.needsDepartmentFix" class="ulc-chip is-warning">需补科室</span>
+                  <SpdStatusChip v-if="row.needsDepartmentFix" tone="warning" label="需补科室" />
                 </div>
               </template>
             </el-table-column>
@@ -3419,9 +3224,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">统计</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="warehouseFlagChipClass(row.participateStats === '参与')">
-                  {{ row.participateStats || '-' }}
-                </span>
+                <SpdStatusChip
+                  :tone="warehouseFlagChipTone(row.participateStats === '参与')"
+                  :label="row.participateStats || '-'"
+                />
               </template>
             </el-table-column>
             <el-table-column
@@ -3435,9 +3241,10 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">允许收货</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="warehouseFlagChipClass(row.receivingEnabled)">
-                  {{ row.receivingEnabled ? '允许' : '不允许' }}
-                </span>
+                <SpdStatusChip
+                  :tone="warehouseFlagChipTone(row.receivingEnabled)"
+                  :label="row.receivingEnabled ? '允许' : '不允许'"
+                />
               </template>
             </el-table-column>
             <el-table-column
@@ -3464,9 +3271,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="statusChipClass(row.status)">
-                  {{ formatStatusText(row.status) }}
-                </span>
+                <SpdStatusChip :tone="statusChipTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column column-key="createTime"v-if="isWarehouseColVisible('createTime')" label="创建时间" v-bind="warehouseColBinding('createTime')">
@@ -3748,12 +3553,12 @@ const warehouseColSettingsPop = useColSettingsPopover({
 
 <style scoped>
 .department-warehouse-catalog-list-card :deep(.el-table) {
-  --el-table-border-color: #dfe5ed;
-  --el-table-header-bg-color: #f3f6fa;
-  --el-table-header-text-color: #34415a;
-  --el-table-row-hover-bg-color: #f3f8ff;
-  --el-table-current-row-bg-color: #f3f8ff;
-  --el-fill-color-lighter: #f8fafc;
+  --el-table-border-color: var(--spd-p-border);
+  --el-table-header-bg-color: var(--spd-p-text-strong);
+  --el-table-header-text-color: var(--spd-p-text-secondary);
+  --el-table-row-hover-bg-color: var(--spd-p-info-bg);
+  --el-table-current-row-bg-color: var(--spd-p-info-bg);
+  --el-fill-color-lighter: var(--spd-p-bg-muted);
   overflow: visible;
   border-radius: 0;
   font-size: var(--spd-font-size-base);
@@ -3780,22 +3585,22 @@ const warehouseColSettingsPop = useColSettingsPopover({
 
 .department-warehouse-catalog-list-card :deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal .el-scrollbar__thumb) {
   min-width: 56px;
-  background: #8aa8c7;
+  background: var(--spd-p-info);
   opacity: 0.86;
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table th.el-table__cell) {
   height: 48px;
   padding: 0 16px;
-  color: #34415a;
-  background: #f3f6fa;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-text-strong);
   font-weight: 700;
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table td.el-table__cell) {
   height: 60px;
   padding: 8px 16px;
-  color: #34415a;
+  color: var(--spd-p-text-secondary);
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table .cell) {
@@ -3838,69 +3643,11 @@ const warehouseColSettingsPop = useColSettingsPopover({
   margin: 0 !important;
 }
 
-/* ===== 筛选行（对齐待审批目录 .approval-filter-row 的视觉与行为） ===== */
-.md-hospital-filter:not(.spd-unified-list) {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px 16px;
-  padding: 16px 18px;
-  background: var(--md-bg-card);
-  border: 1px solid var(--md-border);
-  border-radius: var(--md-radius-md);
-  box-shadow: var(--md-shadow-1);
-  align-items: end;
-  min-width: 0;
-}
-
-/* 统一样式页面：筛选框 + 重置/查询按钮保持同一行（布局由 unified-list.css 的 flex 规则负责） */
-.spd-unified-list .md-hospital-filter {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-}
-
-.md-hospital-filter:not(.spd-unified-list) label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.md-hospital-filter:not(.spd-unified-list) label > span {
-  color: var(--md-text-secondary);
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-}
-
-.md-hospital-filter-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-/* 统一样式页面：筛选按钮与筛选框同行，不独占一行 */
-.spd-unified-list .md-hospital-filter-actions {
-  align-self: end;
-  white-space: nowrap;
-}
-
-@media (max-width: 1400px) {
-  .md-hospital-filter:not(.spd-unified-list) {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 1100px) {
-  .md-hospital-filter:not(.spd-unified-list) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 760px) {
-  .md-hospital-filter:not(.spd-unified-list) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+/* ===== 筛选行 =====
+   本页筛选区已全部迁移为统一筛选栏组件 <SpdFilterBar>，
+   栅格列数 / 换行规则 / 控件高度 / 标签排版 / 操作区位置
+   统一由 styles/components/spd-filter-bar.css 的「标准规则」提供，
+   原先的 .md-hospital-filter / .md-hospital-filter-actions 局部样式已移除。 */
 
 .md-column-settings {
   display: grid;
@@ -3998,7 +3745,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
   color: var(--md-text-heading);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -4048,7 +3795,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
 
 .md-hospital-table thead .md-hospital-sticky-left {
   z-index: 3;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
 }
 
 /* Sticky 操作列 */
@@ -4061,12 +3808,12 @@ const warehouseColSettingsPop = useColSettingsPopover({
   max-width: 200px;
   width: 200px;
   text-align: left;
-  box-shadow: -8px 0 12px -10px rgba(13, 93, 74, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .md-hospital-table thead .md-hospital-sticky-right {
   z-index: 3;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
 }
 
 .md-hospital-table tbody tr:hover .md-hospital-sticky-right,
@@ -4183,7 +3930,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
   color: var(--md-text-heading);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -4246,7 +3993,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
 .md-table-card .campus-table thead .selection-cell,
 .md-table-card .department-table thead .selection-cell {
   z-index: 4;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
 }
 
 .md-table-card .supplier-table .supplier-action-cell,
@@ -4258,7 +4005,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
   z-index: 1;
   min-width: 126px;
   background: var(--md-bg-card);
-  box-shadow: -8px 0 12px -10px rgba(13, 93, 74, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .md-table-card .supplier-table thead .supplier-action-cell,
@@ -4266,7 +4013,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
 .md-table-card .campus-table thead .campus-action-cell,
 .md-table-card .department-table thead .department-action-cell {
   z-index: 4;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
 }
 
 .md-table-card .supplier-table tbody tr:hover .supplier-action-cell,
@@ -4279,31 +4026,31 @@ const warehouseColSettingsPop = useColSettingsPopover({
 .catalog-mask {
   position: fixed;
   inset: 0;
-  background: rgba(9, 45, 43, 0.45);
+  background: color-mix(in srgb, var(--spd-p-primary-strong) 45%, transparent);
   z-index: 90;
 }
 
 /* 医院商品目录详情抽屉（保留原有 cat-* 主题变量，跟随系统主题色） */
 .catalog-drawer {
-  --cat-primary: var(--primary, var(--md-primary, #0f766e));
-  --cat-deep: var(--primary-strong, var(--md-primary-strong, #0b5750));
-  --cat-dark: color-mix(in srgb, var(--primary-strong, #0b5750) 88%, #06231f);
-  --cat-soft: color-mix(in srgb, var(--primary, #0f766e) 9%, #ffffff);
-  --cat-line: color-mix(in srgb, var(--primary, #0f766e) 32%, #ffffff);
-  --cat-text: #10201f;
-  --cat-text2: #3d5654;
-  --cat-border: color-mix(in srgb, var(--primary, #0f766e) 18%, #e2e8e8);
+  --cat-primary: var(--primary, var(--md-primary, var(--spd-p-primary)));
+  --cat-deep: var(--primary-strong, var(--md-primary-strong, var(--spd-p-primary-strong)));
+  --cat-dark: color-mix(in srgb, var(--primary-strong, var(--spd-p-primary-strong)) 88%, var(--spd-p-success-bg));
+  --cat-soft: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 9%, var(--spd-p-bg));
+  --cat-line: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 32%, var(--spd-p-bg));
+  --cat-text: var(--spd-p-success-bg);
+  --cat-text2: var(--spd-p-primary);
+  --cat-border: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 18%, var(--spd-p-border));
   position: fixed;
   top: 0;
   right: 0;
   bottom: 0;
   width: 470px;
   max-width: 94vw;
-  background: #fff;
+  background: var(--spd-p-bg);
   z-index: 91;
   display: flex;
   flex-direction: column;
-  box-shadow: -10px 0 32px rgba(9, 45, 43, 0.24);
+  box-shadow: var(--spd-p-shadow-3);
   animation: catalog-slide-in 0.22s ease;
 }
 
@@ -4322,20 +4069,20 @@ const warehouseColSettingsPop = useColSettingsPopover({
   gap: 10px;
   padding: 16px 20px;
   background: linear-gradient(115deg, var(--cat-dark) 0%, var(--cat-primary) 100%);
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .catalog-drawer .drawer-head h3 {
   margin: 0;
   font-size: var(--spd-font-size-lg);
   font-weight: 700;
-  color: #fff;
+  color: var(--spd-p-bg);
 }
 
 .catalog-drawer .drawer-head p {
   margin: 4px 0 0;
   font-size: var(--spd-font-size-sm);
-  color: rgba(255, 255, 255, 0.85);
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent);
   font-family: var(--spd-font-family-mono);
 }
 
@@ -4346,14 +4093,14 @@ const warehouseColSettingsPop = useColSettingsPopover({
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
   border: 0;
   cursor: pointer;
 }
 
 .catalog-drawer .drawer-close:hover {
-  background: rgba(255, 255, 255, 0.34);
+  background: color-mix(in srgb, var(--spd-p-bg) 34%, transparent);
 }
 
 .catalog-drawer .drawer-body {
@@ -4429,14 +4176,14 @@ const warehouseColSettingsPop = useColSettingsPopover({
   border-radius: 999px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--cat-text2);
   box-shadow: inset 0 0 0 1px var(--cat-border);
 }
 
 .catalog-drawer .tag.hl {
   background: var(--cat-primary);
-  color: #fff;
+  color: var(--spd-p-bg);
   box-shadow: none;
 }
 

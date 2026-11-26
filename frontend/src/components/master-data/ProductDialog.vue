@@ -48,9 +48,9 @@ function handleSupplierChange() {
           <p>医院目录</p>
           <h3>{{ mode === 'create' ? '新增商品' : '修改商品' }}</h3>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="$emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="saving" @click="$emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
       <p v-if="error" class="standard-status-message is-error" role="alert">{{ error }}</p>
       <form class="product-dialog-form" @submit.prevent="$emit('save')">
@@ -151,8 +151,10 @@ function handleSupplierChange() {
         </div>
 
         <div class="product-dialog-actions">
-          <button class="btn" type="button" :disabled="saving" @click="$emit('close')">取消</button>
-          <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '提交中...' : '保存' }}</button>
+          <SpdButton label="取消" tone="neutral" :disabled="saving" @click="$emit('close')"></SpdButton>
+          <SpdButton tone="success" type="submit" :disabled="saving">
+          {{ saving ? '提交中...' : '保存' }}
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -186,7 +188,7 @@ function handleSupplierChange() {
   margin: 0;
   padding: 10px 0 8px;
   border-bottom: 1px solid var(--line);
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
@@ -211,10 +213,10 @@ function handleSupplierChange() {
   min-height: 28px;
   height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--spd-border-default, #d9dde2);
+  border: 1px solid var(--spd-border-default, var(--spd-p-border));
   border-radius: var(--spd-radius, 6px);
-  background: var(--spd-bg-container, #ffffff);
-  color: var(--spd-text-primary, #1f2a37);
+  background: var(--spd-bg-container, var(--spd-p-bg));
+  color: var(--spd-text-primary, var(--spd-p-text-secondary));
   font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
@@ -223,16 +225,16 @@ function handleSupplierChange() {
 }
 
 .product-dialog-section .dialog-toggle-row label:hover {
-  border-color: var(--primary, #1890ff);
-  color: var(--primary, #1890ff);
-  background: var(--spd-primary-bg, #e6f7ff);
+  border-color: var(--primary, var(--spd-p-info));
+  color: var(--primary, var(--spd-p-info));
+  background: var(--spd-primary-bg, var(--spd-p-info-bg));
 }
 
 .product-dialog-section .dialog-toggle-row input[type="checkbox"] {
   width: 14px;
   height: 14px;
   cursor: pointer;
-  accent-color: var(--primary, #1890ff);
+  accent-color: var(--primary, var(--spd-p-info));
 }
 
 .product-dialog-actions {
@@ -242,12 +244,12 @@ function handleSupplierChange() {
   gap: 10px;
   flex: none;
   border-top: 1px solid var(--line);
-  background: #fbfcfd;
+  background: var(--spd-p-bg);
   padding: 10px 18px;
   position: sticky;
   bottom: 0;
   z-index: 2;
-  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .product-dialog-actions .btn {
@@ -256,9 +258,9 @@ function handleSupplierChange() {
   padding: 0 16px !important;
   font-size: var(--spd-font-size-base) !important;
   border-radius: var(--spd-radius, 6px) !important;
-  border: 1px solid var(--spd-border-default, #d9dde2) !important;
-  background: var(--spd-bg-container, #ffffff) !important;
-  color: var(--spd-text-primary, #1f2a37) !important;
+  border: 1px solid var(--spd-border-default, var(--spd-p-border)) !important;
+  background: var(--spd-bg-container, var(--spd-p-bg)) !important;
+  color: var(--spd-text-primary, var(--spd-p-text-secondary)) !important;
   font-weight: 500 !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -269,22 +271,22 @@ function handleSupplierChange() {
 }
 
 .product-dialog-actions .btn:hover {
-  border-color: var(--primary, #1890ff) !important;
-  color: var(--primary, #1890ff) !important;
-  background: var(--spd-primary-bg, #e6f7ff) !important;
+  border-color: var(--primary, var(--spd-p-info)) !important;
+  color: var(--primary, var(--spd-p-info)) !important;
+  background: var(--spd-primary-bg, var(--spd-p-info-bg)) !important;
 }
 
 .product-dialog-actions .btn.btn-primary {
-  background: var(--primary, #1890ff) !important;
-  border-color: var(--primary, #1890ff) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  background: var(--primary, var(--spd-p-info)) !important;
+  border-color: var(--primary, var(--spd-p-info)) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .product-dialog-actions .btn.btn-primary:hover {
-  background: var(--primary-strong, #096dd9) !important;
-  border-color: var(--primary-strong, #096dd9) !important;
-  color: #ffffff !important;
+  background: var(--primary-strong, var(--spd-p-info-text)) !important;
+  border-color: var(--primary-strong, var(--spd-p-info-text)) !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* 表单输入 32px 统一 */
@@ -296,7 +298,7 @@ function handleSupplierChange() {
 }
 
 .product-dialog-section .supplier-form-grid label > span {
-  color: var(--spd-text-secondary, #5b6b7a) !important;
+  color: var(--spd-text-secondary, var(--spd-p-text-muted)) !important;
   font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
 }
@@ -305,11 +307,11 @@ function handleSupplierChange() {
 .product-dialog-section .supplier-form-grid select {
   min-height: 32px !important;
   height: 32px !important;
-  border: 1px solid var(--spd-border-default, #d9dde2) !important;
+  border: 1px solid var(--spd-border-default, var(--spd-p-border)) !important;
   border-radius: var(--spd-radius, 6px) !important;
   padding: 0 10px !important;
-  background: var(--spd-bg-container, #ffffff) !important;
-  color: var(--spd-text-primary, #1f2a37) !important;
+  background: var(--spd-bg-container, var(--spd-p-bg)) !important;
+  color: var(--spd-text-primary, var(--spd-p-text-secondary)) !important;
   font-size: var(--spd-font-size-base) !important;
   transition: all 0.18s ease;
   box-sizing: border-box;
@@ -318,20 +320,20 @@ function handleSupplierChange() {
 
 .product-dialog-section .supplier-form-grid input:focus,
 .product-dialog-section .supplier-form-grid select:focus {
-  border-color: var(--primary, #1890ff) !important;
+  border-color: var(--primary, var(--spd-p-info)) !important;
   outline: 0 !important;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .product-dialog-section .supplier-form-grid input[readonly] {
-  background: var(--spd-bg-page, #f0f2f5) !important;
-  color: var(--spd-text-tertiary, #8693a3) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  color: var(--spd-text-tertiary, var(--spd-p-text-muted)) !important;
   cursor: not-allowed;
 }
 
 .product-dialog-section .supplier-form-grid select:disabled {
-  background: var(--spd-bg-page, #f0f2f5) !important;
-  color: var(--spd-text-tertiary, #8693a3) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  color: var(--spd-text-tertiary, var(--spd-p-text-muted)) !important;
   cursor: not-allowed;
 }
 </style>

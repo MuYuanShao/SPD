@@ -84,7 +84,9 @@ onUnmounted(() => { listRequest++; closePreview() })
 
 <template>
   <section class="qualification-attachments" aria-label="资质证照附件">
-    <header><strong><FileText :size="15" /> 资质证照附件（{{ files.length }}）</strong><button class="btn-text" type="button" :disabled="loading" @click="loadFiles"><RefreshCw :size="14" /> 刷新附件</button></header>
+    <header><strong><FileText :size="15" /> 资质证照附件（{{ files.length }}）</strong><SpdButton label="刷新附件" variant="text" tone="neutral" :disabled="loading" @click="loadFiles">
+          <template #icon><RefreshCw :size="14" /></template>
+        </SpdButton></header>
     <p class="attachment-hint">包含申请上传文件，以及当前关联商品、供应商、厂家和合同的证照附件。</p>
     <p v-if="loading">正在加载资质附件...</p>
     <p v-if="error" class="attachment-error" role="alert">{{ error }}</p>
@@ -96,7 +98,11 @@ onUnmounted(() => { listRequest++; closePreview() })
           <small>{{ sourceLabel(file) }}<template v-if="file.licenseName"> · {{ file.licenseName }}</template><template v-if="file.ownerName"> · {{ file.ownerName }}</template> · {{ (file.fileSize / 1024).toFixed(1) }} KB</small>
           <small v-if="file.source === 'license'">{{ file.licenseNo || '未维护证照编号' }} · {{ statusLabel(file.licenseStatus) }}<template v-if="file.expireDate"> · 有效期至 {{ file.expireDate }}</template></small>
         </div>
-        <div class="qualification-file-actions"><button class="btn-text" type="button" :aria-label="`阅览 ${file.fileName}`" @click="preview(file)"><Eye :size="14" /> 阅览</button><button class="btn-text" type="button" :aria-label="`下载 ${file.fileName}`" @click="download(file)"><Download :size="14" /> 下载</button></div>
+        <div class="qualification-file-actions"><SpdButton label="阅览" :aria-label="`阅览 ${file.fileName}`" @click="preview(file)">
+            <template #icon><Eye :size="14" /></template>
+          </SpdButton><SpdButton label="下载" :aria-label="`下载 ${file.fileName}`" @click="download(file)">
+            <template #icon><Download :size="14" /></template>
+          </SpdButton></div>
       </li>
     </ul>
     <el-dialog v-model="previewOpen" :title="previewFile?.fileName || '资质附件阅览'" width="min(1000px, 94vw)" append-to-body destroy-on-close @close="closePreview">
@@ -105,19 +111,21 @@ onUnmounted(() => { listRequest++; closePreview() })
       <img v-else-if="previewUrl && previewType.startsWith('image/')" class="qualification-image" :src="previewUrl" :alt="previewFile?.fileName" />
       <iframe v-else-if="previewUrl && previewType === 'application/pdf'" class="qualification-pdf" :src="previewUrl" :title="previewFile?.fileName" />
       <p v-else-if="previewUrl">该文件格式不支持在线阅览，请下载后查看。</p>
-      <template #footer><button v-if="previewFile" type="button" class="btn" :disabled="previewLoading" @click="download(previewFile)"><Download :size="14" /> 下载附件</button><button type="button" class="btn" @click="previewOpen = false">关闭</button></template>
+      <template #footer><SpdButton label="下载附件" tone="primary" v-if="previewFile" :disabled="previewLoading" @click="download(previewFile)">
+          <template #icon><Download :size="14" /></template>
+        </SpdButton><SpdButton label="关闭" tone="neutral" @click="previewOpen = false"></SpdButton></template>
     </el-dialog>
   </section>
 </template>
 
 <style scoped>
-.qualification-attachments { grid-column: 1 / -1; width: 100%; min-width: 0; border-top: 1px solid #e2e8f0; padding-top: 12px; }
+.qualification-attachments { grid-column: 1 / -1; width: 100%; min-width: 0; border-top: 1px solid var(--spd-p-border); padding-top: 12px; }
 .qualification-attachments > header, .qualification-attachments > header strong { display: flex; align-items: center; gap: 6px; }
 .qualification-attachments > header { justify-content: space-between; }
-.attachment-hint, .qualification-file-info small { color: #64748b; font-size: var(--spd-font-size-sm); }
-.attachment-error { color: #b91c1c; }
+.attachment-hint, .qualification-file-info small { color: var(--spd-p-text-secondary); font-size: var(--spd-font-size-sm); }
+.attachment-error { color: var(--spd-p-danger-strong); }
 .qualification-files { list-style: none; padding: 0; margin: 8px 0 0; max-height: 330px; overflow: auto; }
-.qualification-files li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #eef2f7; }
+.qualification-files li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--spd-p-bg-muted); }
 .qualification-file-info { min-width: 0; display: grid; gap: 4px; }
 .qualification-file-info strong { overflow-wrap: anywhere; font-size: var(--spd-font-size-base); }
 .qualification-file-actions { display: flex; gap: 10px; flex-shrink: 0; }

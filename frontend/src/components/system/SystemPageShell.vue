@@ -83,22 +83,20 @@ function onTab(key: string) { emit('update:modelValue', key) }
             :disabled="loading"
             @keyup.enter="onSearch"
           />
-          <button class="sys-search-btn" type="button" :disabled="loading" @click="onSearch">
-            <Search :size="15" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" class="sys-search-btn" type="button" :disabled="loading" @click="onSearch">
+            <template #icon><Search :size="15" /></template>
+          </SpdButton>
         </div>
       </div>
       <div class="sys-toolbar-right">
         <slot name="toolbar-actions" />
-        <button
-          v-if="primaryBtnLabel"
-          type="button"
-          class="md-btn md-btn-primary"
-          @click="emit('primary')"
-        >
-          <component v-if="primaryBtnIcon" :is="primaryBtnIcon" :size="15" />
+        <SpdButton tone="primary" v-if="primaryBtnLabel"
+         
+         
+          @click="emit('primary')">
+          <template #icon><component v-if="primaryBtnIcon" :is="primaryBtnIcon" :size="15" /></template>
           {{ primaryBtnLabel }}
-        </button>
+        </SpdButton>
       </div>
     </div>
 
@@ -172,27 +170,14 @@ function onTab(key: string) { emit('update:modelValue', key) }
   min-height: 34px;
   box-sizing: border-box;
 }
-.sys-search-input::placeholder { color: var(--md-text-muted); }
+.sys-search-input::placeholder { color: var(--spd-p-text-secondary); }
 .sys-search-input:disabled { opacity: .5; cursor: not-allowed; }
+/* 搜索按钮内嵌在输入框右侧：保留左侧分隔线，其余几何交给 SpdButton */
 .sys-search-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  border: 0;
   border-left: 1px solid var(--md-border);
-  background: var(--md-bg-muted);
-  color: var(--md-text-secondary);
-  cursor: pointer;
-  transition: color .18s, background .18s;
-  flex-shrink: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
 }
-.sys-search-btn:hover:not(:disabled) {
-  background: var(--md-primary-soft);
-  color: var(--md-primary);
-}
-.sys-search-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* 工具栏右侧 */
 .sys-toolbar-right {

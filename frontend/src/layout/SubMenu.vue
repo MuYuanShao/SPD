@@ -40,7 +40,7 @@ const { auth, pages, activeCode } = useLayoutNavigation()
   flex-shrink: 0;
   margin-right: 6px;
   padding-right: 6px;
-  border-right: 1px solid var(--fli-line, #e5e7eb);
+  border-right: 1px solid var(--fli-line, var(--spd-p-border));
 }
 
 .fli-tab {
@@ -59,33 +59,33 @@ const { auth, pages, activeCode } = useLayoutNavigation()
 
 /* 首页：蓝色系 */
 .fli-tab-home {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   background: transparent;
 }
 .fli-tab-home:hover {
-  color: #2563eb;
-  background: #eff6ff;
+  color: var(--spd-p-info);
+  background: var(--spd-p-info-bg);
 }
 .fli-tab-home.selected {
-  color: #2563eb;
+  color: var(--spd-p-info);
   font-weight: 600;
-  background: #eff6ff;
-  border-bottom-color: #2563eb;
+  background: var(--spd-p-info-bg);
+  border-bottom-color: var(--spd-p-info);
 }
 
 /* 实时工作台：橙色系 */
 .fli-tab-realtime {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   background: transparent;
 }
 .fli-tab-realtime:hover {
-  color: #ea580c;
-  background: #fff7ed;
+  color: var(--spd-p-warning-strong);
+  background: var(--spd-p-warning-bg);
 }
 .fli-tab-realtime.selected {
-  color: #ea580c;
+  color: var(--spd-p-warning-strong);
   font-weight: 600;
-  background: #fff7ed;
-  border-bottom-color: #ea580c;
+  background: var(--spd-p-warning-bg);
+  border-bottom-color: var(--spd-p-warning-strong);
 }
 </style>

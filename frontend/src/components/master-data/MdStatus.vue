@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { SpdStatusChipTone } from '../common/SpdStatusChip.vue'
 
 type Status = 'success' | 'warning' | 'danger' | 'info' | 'neutral'
 
@@ -27,8 +28,14 @@ const variant = computed<Status>(() => {
   }
   return 'neutral'
 })
+
+/**
+ * 状态条色调：与全站通用状态条组件 SpdStatusChip 的 tone 语义一一对应。
+ * master-data 的 neutral（灰）语义在通用组件里同样用 neutral。
+ */
+const tone = computed<SpdStatusChipTone>(() => variant.value)
 </script>
 
 <template>
-  <span :class="['md-status', variant]">{{ label }}</span>
+  <SpdStatusChip :tone="tone" :label="label" />
 </template>

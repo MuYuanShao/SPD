@@ -19,8 +19,8 @@
   min-height: 40px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #334652;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font: inherit;
 }
 
@@ -48,7 +48,7 @@
   justify-content: center;
   gap: 8px;
   background: var(--primary);
-  color: #ffffff;
+  color: var(--spd-p-bg);
   font-weight: 700;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .approval-flow > i {
-  color: #9aa6b5;
+  color: var(--spd-p-text-muted);
   font-style: normal;
   text-align: center;
 }
@@ -85,7 +85,7 @@
 }
 
 .approval-node strong {
-  color: #102033;
+  color: var(--spd-p-text);
 }
 
 .approval-node span {
@@ -94,13 +94,13 @@
 }
 
 .approval-node.done {
-  background: #eef8f6;
-  border-color: #b7ded7;
+  background: var(--spd-p-primary-bg);
+  border-color: var(--spd-p-primary-border);
 }
 
 .approval-node.active {
-  background: #fff7ed;
-  border-color: #fed7aa;
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .catalog-layout {
@@ -116,13 +116,13 @@
 
 .catalog-main-card th,
 .catalog-main-card td {
-  border-bottom: 1px solid #edf2f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   padding: 13px 0;
   text-align: left;
 }
 
 .catalog-main-card th {
-  color: #8b99aa;
+  color: var(--spd-p-text-muted);
   font-weight: 800;
 }
 
@@ -144,8 +144,9 @@
   align-items: center;
   min-height: 30px;
   border-radius: 999px;
-  background: #f3f6f8;
-  color: #334652;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
 }
@@ -156,28 +157,28 @@
 
 .status-list .orange,
 .status-list .yellow {
-  background: #fff4e6;
-  color: #c2410c;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-strong);
 }
 
 .status-list .blue {
-  background: #eaf1ff;
-  color: #2563eb;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-info);
 }
 
 .status-list .red {
-  background: #ffecec;
-  color: #dc2626;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger);
 }
 
 .status-list .violet {
-  background: #f2e9ff;
-  color: #7c3aed;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-primary-strong);
 }
 
 .status-list .green {
-  background: #e7f8ef;
-  color: #059669;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success);
 }
 
 .field-group-grid {
@@ -189,7 +190,7 @@
 .field-group {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfdfd;
+  background: var(--spd-p-bg);
   padding: 14px;
 }
 

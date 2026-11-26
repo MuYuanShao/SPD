@@ -206,11 +206,11 @@
 }
 
 .license-table thead {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .license-table th {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
@@ -255,7 +255,7 @@
 }
 
 .license-table tbody tr:nth-child(even) td {
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 .license-table tbody tr:nth-child(even):hover td {

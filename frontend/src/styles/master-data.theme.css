@@ -10,62 +10,56 @@
 
 :root {
   /* === 颜色 === */
-  --md-bg-page: #f1f5f4;
-  --md-bg-card: #ffffff;
-  --md-bg-elevated: #ffffff;
-  --md-bg-soft: #f5f9f8;
-  --md-bg-muted: #f9fbfb;
+  --md-bg-page: var(--spd-p-bg-page);
+  --md-bg-card: var(--spd-p-bg);
+  --md-bg-elevated: var(--spd-p-bg);
+  --md-bg-soft: var(--spd-p-bg-subtle);
+  --md-bg-muted: var(--spd-p-bg-muted);
   /* 顶栏背景：跟随后台用户选中的主题色（--primary / --primary-strong）。
      当未注入 data-theme 时回落到主数据自带的医疗绿，保持当前默认体验 */
-  --md-bg-header: linear-gradient(135deg,
-    var(--primary, var(--md-primary)) 0%,
-    color-mix(in srgb, var(--primary, var(--md-primary)) 70%, #14b8a6) 100%);
-  --md-bg-header-overlay: linear-gradient(180deg,
-    var(--primary-strong, var(--md-primary-strong)) 0%,
-    color-mix(in srgb, var(--primary-strong, var(--md-primary-strong)) 50%, #0a2f2a) 100%);
-  --md-bg-accent: linear-gradient(135deg,
-    var(--primary, var(--md-primary)) 0%,
-    color-mix(in srgb, var(--primary, var(--md-primary)) 50%, #14b8a6) 100%);
+  --md-bg-header: var(--spd-p-header-gradient);
+  --md-bg-header-overlay: var(--spd-p-header-overlay-gradient);
+  --md-bg-accent: var(--spd-p-accent-bar-gradient);
 
-  --md-border: #d6e4e0;
-  --md-border-strong: #b7d3cc;
-  --md-border-soft: #e8f0ed;
+  --md-border: var(--spd-p-border);
+  --md-border-strong: var(--spd-p-border-strong);
+  --md-border-soft: var(--spd-p-border-subtle);
   --md-border-accent: var(--md-primary);
 
-  --md-text: #1d2a35;
-  --md-text-secondary: #4a5d68;
-  --md-text-muted: #6b7f8e;
-  --md-text-inverse: #ffffff;
-  --md-text-heading: color-mix(in srgb, var(--md-primary-strong, #0a554e) 60%, #0a2f2a);
+  --md-text: var(--spd-p-text);
+  --md-text-secondary: var(--spd-p-text-secondary);
+  --md-text-muted: var(--spd-p-text-muted);
+  --md-text-inverse: var(--spd-p-text-on-primary);
+  --md-text-heading: var(--spd-p-text-strong);
 
   /* 主色：跟随后台用户主题（--primary / --primary-strong），
      未注入主题时回落医疗绿（保持当前默认体验） */
-  --md-primary: var(--primary, #0d6b63);
-  --md-primary-strong: var(--primary-strong, #0a554e);
-  --md-primary-soft: color-mix(in srgb, var(--md-primary) 12%, #ffffff);
-  --md-primary-hover: color-mix(in srgb, var(--md-primary) 85%, #000000);
-  --md-primary-light: color-mix(in srgb, var(--md-primary) 55%, #14b8a6);
+  --md-primary: var(--spd-p-primary);
+  --md-primary-strong: var(--spd-p-primary-strong);
+  --md-primary-soft: var(--spd-p-primary-bg);
+  --md-primary-hover: var(--spd-p-primary-hover);
+  --md-primary-light: var(--spd-p-accent-soft);
 
-  --md-success: #16a34a;
-  --md-success-soft: #ecfdf5;
-  --md-success-border: #bbf7d0;
-  --md-success-text: #15803d;
+  --md-success: var(--spd-p-success);
+  --md-success-soft: var(--spd-p-success-bg);
+  --md-success-border: var(--spd-p-success-border);
+  --md-success-text: var(--spd-p-success-text);
 
-  --md-warning: #d97706;
-  --md-warning-soft: #fffbeb;
-  --md-warning-border: #fde68a;
-  --md-warning-text: #b45309;
+  --md-warning: var(--spd-p-warning);
+  --md-warning-soft: var(--spd-p-warning-bg);
+  --md-warning-border: var(--spd-p-warning-border);
+  --md-warning-text: var(--spd-p-warning-text);
 
-  --md-danger: #dc2626;
-  --md-danger-soft: #fef2f2;
-  --md-danger-border: #fecaca;
-  --md-danger-text: #b91c1c;
+  --md-danger: var(--spd-p-danger);
+  --md-danger-soft: var(--spd-p-danger-bg);
+  --md-danger-border: var(--spd-p-danger-border);
+  --md-danger-text: var(--spd-p-danger-text);
 
-  --inventory-table-heading-bg: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
-  --md-info: #0284c7;
-  --md-info-soft: #f0f9ff;
-  --md-info-border: #bae6fd;
-  --md-info-text: #0369a1;
+  --inventory-table-heading-bg: var(--spd-p-row-header-bg);
+  --md-info: var(--spd-p-info);
+  --md-info-soft: var(--spd-p-info-bg);
+  --md-info-border: var(--spd-p-info-border);
+  --md-info-text: var(--spd-p-info-text);
 
   /* === 圆角 / 阴影 / 间距 === */
   --md-radius-sm: 4px;
@@ -74,9 +68,9 @@
   --md-radius-lg: 12px;
   --md-radius-full: 999px;
 
-  --md-shadow-1: 0 1px 2px 0 rgba(13, 93, 74, 0.04), 0 1px 4px -1px rgba(13, 93, 74, 0.02);
-  --md-shadow-2: 0 4px 12px -2px rgba(13, 93, 74, 0.08), 0 2px 6px -2px rgba(13, 93, 74, 0.04);
-  --md-shadow-3: 0 12px 32px -4px rgba(13, 93, 74, 0.16), 0 4px 12px -4px rgba(13, 93, 74, 0.08);
+  --md-shadow-1: var(--spd-p-shadow-1);
+  --md-shadow-2: var(--spd-p-shadow-2);
+  --md-shadow-3: var(--spd-p-shadow-3);
 
   /* === 字体 ===
      D-17 字体栈收敛：原为独立的 --md-font / --md-font-mono 两套，
@@ -136,7 +130,7 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
+    radial-gradient(circle at 8% 0%, var(--spd-p-header-sheen) 0%, transparent 36%),
     radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, var(--md-primary)) 28%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
@@ -148,7 +142,7 @@
   right: 0;
   bottom: 0;
   height: 1px;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--spd-p-header-sheen);
 }
 
 .md-header-inner {
@@ -171,7 +165,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--spd-p-header-text-secondary);
   /* 次级说明：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 500;
@@ -181,7 +175,7 @@
 }
 
 .md-header-crumbs strong {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--spd-p-header-text);
   font-weight: 600;
 }
 
@@ -191,7 +185,7 @@
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--md-primary) 30%, #ffffff);
+  background: color-mix(in srgb, var(--md-primary) 30%, var(--spd-c-bg));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--md-primary) 22%, transparent);
 }
 
@@ -211,14 +205,14 @@
 .md-header-title small {
   /* P-03 页面副标题：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm, 13px);
-  color: rgba(255, 255, 255, 0.66);
+  color: var(--spd-p-header-text-secondary);
   font-weight: 400;
   line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-header-sub {
   margin: 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--spd-p-header-text-secondary);
   /* P-03 页面副标题：--spd-font-size-sm */
   font-size: var(--spd-font-size-sm, 13px);
   line-height: var(--spd-lh-base, 1.5);
@@ -294,7 +288,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 14px 18px;
-  background: linear-gradient(180deg, #f9fbfb 0%, #ffffff 100%);
+  background: var(--spd-p-bg-subtle);
   border-bottom: 1px solid var(--md-border-soft);
 }
 
@@ -337,31 +331,31 @@
   padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 10px;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
-  color: #ffffff;
+  background: var(--spd-p-header-gradient);
+  color: var(--spd-p-text-on-primary);
   font: inherit;
-  /* B-03 md-* 按钮：--spd-font-size-base / 600 */
-  font-size: var(--spd-font-size-base, 14px);
+  /* B-03 md-* 按钮：L1 层级（唯一来源：components/button-typography.css） */
+  font-size: var(--spd-button-font-size, var(--spd-font-size-base));
   font-weight: 600;
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
+  box-shadow: var(--spd-p-shadow-btn-primary);
   transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
   user-select: none;
   text-decoration: none;
 }
 
 .md-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0891b2 0%, #4f46e5 50%, #7c3aed 100%);
-  color: #ffffff;
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+  background: var(--spd-p-primary-hover-solid);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-3);
   transform: translateY(-1px);
 }
 
 .md-btn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: 0 1px 3px -1px rgba(99, 102, 241, 0.4);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .md-btn:disabled {
@@ -372,80 +366,80 @@
 }
 
 .md-btn-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
+  background: var(--spd-p-header-gradient);
   border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-btn-primary);
 }
 
 .md-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1d4ed8 0%, #4338ca 100%);
-  color: #ffffff;
-  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55);
+  background: var(--spd-p-primary-hover-solid);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .md-btn-primary:active:not(:disabled) {
-  background: linear-gradient(135deg, #1e40af 0%, #3730a3 100%);
+  background: var(--spd-p-primary-active-solid);
 }
 
 .md-btn-ghost {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.28);
-  color: #ffffff;
+  background: var(--spd-p-btn-ghost-on-solid-bg);
+  border-color: var(--spd-p-btn-ghost-on-solid-border);
+  color: var(--spd-p-text-on-primary);
   box-shadow: none;
   backdrop-filter: blur(2px);
 }
 
 .md-btn-ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.28);
-  border-color: rgba(255, 255, 255, 0.4);
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.18);
+  background: var(--spd-p-btn-ghost-on-solid-hover-bg);
+  border-color: var(--spd-p-btn-ghost-on-solid-hover-border);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-2);
   transform: none;
 }
 
 .md-btn-danger {
-  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%);
+  background: var(--spd-p-danger);
   border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.45);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-btn-danger);
 }
 
 .md-btn-danger:hover:not(:disabled) {
-  background: linear-gradient(135deg, #b91c1c 0%, #be123c 100%);
-  color: #ffffff;
-  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.55);
+  background: var(--spd-p-danger-hover);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-3);
   transform: translateY(-1px);
 }
 
 .md-btn-danger:active:not(:disabled) {
-  background: linear-gradient(135deg, #991b1b 0%, #9f1239 100%);
+  background: var(--spd-p-danger-active);
 }
 
 .md-btn-warning {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+  background: var(--spd-p-warning);
   border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.45);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-btn-warning);
 }
 
 .md-btn-warning:hover:not(:disabled) {
-  background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);
-  color: #ffffff;
-  box-shadow: 0 8px 20px -4px rgba(249, 115, 22, 0.55);
+  background: var(--spd-p-warning-hover);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .md-btn-success {
-  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
+  background: var(--spd-p-success);
   border-color: transparent;
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.45);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-btn-success);
 }
 
 .md-btn-success:hover:not(:disabled) {
-  background: linear-gradient(135deg, #047857 0%, #0f766e 100%);
-  color: #ffffff;
-  box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.55);
+  background: var(--spd-p-success-hover);
+  color: var(--spd-p-text-on-primary);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .md-btn-text {
@@ -453,9 +447,9 @@
   padding: 0 8px;
   border: 0;
   background: transparent;
-  color: #2563eb;
-  /* B-05 文字按钮：--spd-font-size-base / 600 */
-  font-size: var(--spd-font-size-base, 14px);
+  color: var(--spd-p-primary-text);
+  /* B-05 文字按钮：L2 层级（唯一来源：components/button-typography.css） */
+  font-size: var(--spd-button-font-size-compact, var(--spd-font-size-sm));
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
@@ -467,8 +461,8 @@
 }
 
 .md-btn-text:hover:not(:disabled) {
-  background: rgba(37, 99, 235, 0.1);
-  color: #1d4ed8;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-primary-strong);
   transform: none;
   box-shadow: none;
 }
@@ -479,21 +473,21 @@
 }
 
 .md-btn-text-danger {
-  color: #dc2626;
+  color: var(--spd-p-danger-text);
 }
 
 .md-btn-text-danger:hover:not(:disabled) {
-  background: rgba(220, 38, 38, 0.1);
-  color: #b91c1c;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 
 .md-btn-text-success {
-  color: #059669;
+  color: var(--spd-p-success-text);
 }
 
 .md-btn-text-success:hover:not(:disabled) {
-  background: rgba(5, 150, 105, 0.1);
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .md-btn-icon {
@@ -505,18 +499,18 @@
   padding: 0;
   border: 1px solid transparent;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.16);
-  color: #ffffff;
+  background: var(--spd-p-btn-ghost-on-solid-bg);
+  color: var(--spd-p-text-on-primary);
   cursor: pointer;
   transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
   box-shadow: none;
 }
 
 .md-btn-icon:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.3);
-  color: #ffffff;
+  background: var(--spd-p-btn-ghost-on-solid-hover-bg);
+  color: var(--spd-p-text-on-primary);
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .md-btn-icon:disabled {
@@ -527,15 +521,16 @@
 .md-btn-lg {
   min-height: 38px;
   padding: 0 20px;
-  font-size: var(--spd-font-size-base, 14px);
+  /* 尺寸族只改体积，字号仍为 L1 */
+  font-size: var(--spd-button-font-size, var(--spd-font-size-base));
   border-radius: 12px;
 }
 
-/* B-06 小号按钮：--spd-font-size-sm（13/15/17px） */
+/* B-06 小号按钮：只压缩高度与内边距，字号由所属语义层级决定
+   （紧凑 ≠ 更小字号，避免窄表格列里出现与其它行内按钮不一致的文字大小） */
 .md-btn-sm {
   min-height: 26px;
   padding: 0 10px;
-  font-size: var(--spd-font-size-sm, 13px);
   border-radius: 8px;
 }
 
@@ -588,8 +583,8 @@
   color: var(--md-primary);
   background: var(--md-primary-soft);
   font-weight: 600;
-  border-color: var(--md-primary-border, rgba(13, 107, 99, 0.24));
-  box-shadow: 0 0 0 1px rgba(13, 107, 99, 0.16) inset;
+  border-color: var(--md-primary-border, var(--spd-p-primary-border));
+  box-shadow: 0 0 0 1px var(--spd-p-focus-ring) inset;
 }
 
 .md-tab .md-tab-count {
@@ -610,7 +605,7 @@
 
 .md-tab.active .md-tab-count {
   background: var(--md-primary);
-  color: #ffffff;
+  color: var(--spd-p-text-on-primary);
 }
 
 /* ===== 查询表单 ===== */
@@ -764,7 +759,7 @@
 .md-table-toolbar-info .md-chip {
   background: var(--md-primary-soft);
   color: var(--md-primary-strong);
-  border: 1px solid rgba(13, 107, 99, 0.24);
+  border: 1px solid var(--spd-p-primary-border);
   padding: 2px 10px;
   border-radius: 999px;
   /* S-05 md-* 通用 chip：--spd-font-size-base / 600 */
@@ -808,7 +803,7 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: var(--spd-p-row-header-bg);
   color: var(--md-text-heading);
   font-weight: 700;
   /* T-09 md-* 表格表头：--spd-font-size-table-head / 700 */
@@ -876,7 +871,7 @@
 
 .md-table thead .sticky-left {
   z-index: 3;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: var(--spd-p-row-header-bg);
 }
 
 .md-table .sticky-right {
@@ -886,12 +881,12 @@
   background: inherit;
   text-align: left;
   min-width: 140px;
-  box-shadow: -8px 0 12px -10px rgba(13, 93, 74, 0.2);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .md-table thead .sticky-right {
   z-index: 3;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
+  background: var(--spd-p-row-header-bg);
 }
 
 .md-table tbody tr:hover .sticky-right,
@@ -909,8 +904,8 @@
 .md-table .row-actions .md-btn-text {
   min-height: 24px;
   padding: 0 6px;
-  /* B-08 链接式按钮：--spd-font-size-sm / 600 */
-  font-size: var(--spd-font-size-sm, 13px);
+  /* B-08 链接式按钮：L2 层级（唯一来源：components/button-typography.css） */
+  font-size: var(--spd-button-font-size-compact, var(--spd-font-size-sm));
   font-weight: 600;
 }
 
@@ -963,60 +958,11 @@
   color: var(--md-danger);
 }
 
-/* ===== 状态徽章 ===== */
-/* S-04 md-* 状态徽章：--spd-font-size-base / 600 / 1.35 */
-.md-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border-radius: 999px;
-  font-size: var(--spd-font-size-base, 14px);
-  font-weight: 600;
-  line-height: var(--spd-lh-tight, 1.35);
-  white-space: nowrap;
-  border: 1px solid transparent;
-  background: var(--md-bg-muted);
-  color: var(--md-text-secondary);
-}
-
-.md-status::before {
-  content: "";
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.md-status.success {
-  background: var(--md-success-soft);
-  color: var(--md-success-text);
-  border-color: var(--md-success-border);
-}
-
-.md-status.warning {
-  background: var(--md-warning-soft);
-  color: var(--md-warning-text);
-  border-color: var(--md-warning-border);
-}
-
-.md-status.danger {
-  background: var(--md-danger-soft);
-  color: var(--md-danger-text);
-  border-color: var(--md-danger-border);
-}
-
-.md-status.info {
-  background: var(--md-info-soft);
-  color: var(--md-info-text);
-  border-color: var(--md-info-border);
-}
-
-.md-status.neutral {
-  background: var(--md-bg-muted);
-  color: var(--md-text-muted);
-  border-color: var(--md-border);
-}
+/* ===== 状态徽章 =====
+   master-data 的状态条已统一迁移到通用组件 <SpdStatusChip>
+   （styles/components/spd-status-chip.css）：几何（高度 / 内边距 / 圆角）
+   与浅色底 + 深色字配色全部由令牌统一提供，
+   因此这里删除 .md-status 的局部实现，避免与通用组件打架。 */
 
 /* S-05 md-* 通用 chip：--spd-font-size-base / 600 / 1.35 */
 .md-chip {
@@ -1036,7 +982,7 @@
 .md-chip.primary {
   background: var(--md-primary-soft);
   color: var(--md-primary-strong);
-  border-color: rgba(13, 107, 99, 0.24);
+  border-color: var(--spd-p-primary-border);
 }
 
 .md-chip.success {
@@ -1220,7 +1166,7 @@
   padding: 12px 16px;
   background: var(--md-primary-soft);
   color: var(--md-primary-strong);
-  border: 1px solid rgba(13, 107, 99, 0.24);
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: var(--md-radius);
   /* O-13 全局消息提示：--spd-font-size-sm / 400 / 1.5 */
   font-size: var(--spd-font-size-sm, 13px);
@@ -1235,7 +1181,7 @@
 .md-dialog-mask {
   position: fixed;
   inset: 0;
-  background: rgba(13, 30, 26, 0.45);
+  background: var(--spd-p-overlay);
   backdrop-filter: blur(2px);
   z-index: 1000;
   display: grid;
@@ -1270,7 +1216,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 16px 20px;
-  background: linear-gradient(180deg, #f9fbfb 0%, #ffffff 100%);
+  background: var(--spd-p-bg-subtle);
   border-bottom: 1px solid var(--md-border-soft);
   flex-shrink: 0;
 }
@@ -1318,7 +1264,7 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  background: linear-gradient(180deg, #ffffff 0%, #f9fbfb 100%);
+  background: var(--spd-p-bg-subtle);
   border-top: 1px solid var(--md-border-soft);
   flex-shrink: 0;
 }

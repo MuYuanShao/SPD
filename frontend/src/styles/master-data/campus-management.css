@@ -1,6 +1,6 @@
 .campus-management-panel {
   gap: 12px;
-  border-color: #cedfe1;
+  border-color: var(--spd-p-primary-border);
   padding: 0;
   overflow: visible;
 }
@@ -11,9 +11,9 @@
   justify-content: space-between;
   gap: 16px;
   min-height: 64px;
-  border-bottom: 1px solid #dce8ea;
+  border-bottom: 1px solid var(--spd-p-primary-border);
   padding: 12px 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbfb 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-bg-muted) 100%);
 }
 
 .campus-toolbar-primary,
@@ -32,9 +32,9 @@
   display: grid;
   gap: 12px;
   margin: 0 16px 16px;
-  border: 1px solid #dce7e9;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 8px;
-  background: #f7fafb;
+  background: var(--spd-p-bg-page);
   padding: 14px;
 }
 
@@ -49,7 +49,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #203541;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
@@ -59,7 +59,7 @@
 }
 
 .campus-filter-heading small {
-  color: #667987;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -75,7 +75,7 @@
 }
 
 .campus-management-panel .campus-query-grid label > span {
-  color: #405564;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
@@ -83,23 +83,23 @@
 .campus-management-panel .campus-query-grid input,
 .campus-management-panel .campus-query-grid select {
   min-height: 40px;
-  border-color: #cbdadd;
-  background: #ffffff;
+  border-color: var(--spd-p-border-strong);
+  background: var(--spd-p-bg);
 }
 
 .campus-management-panel .campus-query-grid input::placeholder {
-  color: #8798a3;
+  color: var(--spd-p-text-muted);
 }
 
 .campus-management-panel .campus-query-grid input:hover,
 .campus-management-panel .campus-query-grid select:hover {
-  border-color: #88b9b5;
+  border-color: var(--spd-p-success);
 }
 
 .campus-management-panel .campus-query-grid input:focus,
 .campus-management-panel .campus-query-grid select:focus {
   border-color: var(--primary);
-  outline: 3px solid rgba(15, 118, 110, 0.14);
+  outline: 3px solid color-mix(in srgb, var(--spd-p-primary) 14%, transparent);
 }
 
 .campus-management-panel .hospital-query-actions {
@@ -126,7 +126,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #647784;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
@@ -135,22 +135,22 @@
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  border: 1px solid #dce7e9;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 999px;
-  background: #f7fafb;
+  background: var(--spd-p-bg-page);
   padding: 0 10px;
 }
 
 .campus-list-meta .selected {
-  border-color: #9bcac6;
-  background: #eaf6f4;
-  color: #0b665f;
+  border-color: var(--spd-p-success);
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-primary);
 }
 
 .campus-table-wrap {
   position: relative;
   overflow: auto;
-  border: 1px solid #dce7e9;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 8px;
 }
 
@@ -168,9 +168,9 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #edf5f5;
-  color: #38515d;
-  box-shadow: inset 0 -1px 0 #cfdddf;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-text-strong);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .campus-table tbody tr {
@@ -178,11 +178,11 @@
 }
 
 .campus-table tbody tr:hover {
-  background: #f4faf9;
+  background: var(--spd-p-primary-bg);
 }
 
 .campus-table tbody tr:has(input[type="checkbox"]:checked) {
-  background: #eaf6f4;
+  background: var(--spd-p-success-bg);
 }
 
 .campus-table .selection-cell {
@@ -197,11 +197,11 @@
 
 .campus-table thead .selection-cell {
   z-index: 4;
-  background: #e5f0f0;
+  background: var(--spd-p-primary-bg);
 }
 
 .campus-table .campus-code-cell {
-  color: #31515e;
+  color: var(--spd-p-text-strong);
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
@@ -211,7 +211,7 @@
   display: block;
   max-width: 240px;
   overflow: hidden;
-  color: #102b36;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
 }
@@ -219,14 +219,14 @@
 .campus-name-cell span {
   display: block;
   margin-top: 2px;
-  color: #70828d;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-xs);
 }
 
 .campus-address-cell {
   max-width: 300px;
   overflow: hidden;
-  color: #4f6672;
+  color: var(--spd-p-text-secondary);
   text-overflow: ellipsis;
 }
 
@@ -236,12 +236,12 @@
 }
 
 .campus-contact-cell strong {
-  color: #233c47;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
 }
 
 .campus-contact-cell span {
-  color: #667987;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -252,10 +252,10 @@
   justify-content: center;
   min-width: 34px;
   min-height: 26px;
-  border: 1px solid #d2dfe1;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #f5f8f8;
-  color: #425d68;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -281,17 +281,17 @@
 }
 
 .campus-status-chip.enabled {
-  background: #e7f6ef;
-  color: #087f5b;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-text);
 }
 
 .campus-status-chip.disabled {
-  background: #fff1f1;
-  color: #b42318;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 
 .campus-update-time {
-  color: #637783;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
@@ -301,13 +301,13 @@
   right: 0;
   z-index: 1;
   min-width: 126px;
-  background: #ffffff;
-  box-shadow: -10px 0 14px -16px rgba(20, 57, 66, 0.9);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .campus-table thead .campus-action-cell {
   z-index: 4;
-  background: #e5f0f0;
+  background: var(--spd-p-primary-bg);
 }
 
 .campus-table tbody tr:hover .campus-action-cell,
@@ -322,7 +322,7 @@
 
 .supplier-dialog.campus-dialog {
   width: min(760px, calc(100vw - 32px));
-  border: 1px solid #cfdfe1;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 12px;
   max-height: calc(100dvh - 32px);
   overflow: auto;
@@ -333,14 +333,14 @@
   top: 0;
   z-index: 3;
   padding: 12px 16px;
-  background: linear-gradient(180deg, #f7fbfa 0%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-page) 0%, var(--spd-p-bg) 100%);
 }
 
 .campus-dialog-kicker {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  color: #0f766e !important;
+  color: var(--spd-p-primary) !important;
   font-size: var(--spd-font-size-sm);
   font-weight: 800;
   letter-spacing: 0.04em;
@@ -354,7 +354,7 @@
 
 .campus-dialog-subtitle {
   margin-top: 5px !important;
-  color: #667987 !important;
+  color: var(--spd-p-text-muted) !important;
   font-size: var(--spd-font-size-sm);
 }
 
@@ -365,9 +365,9 @@
 }
 
 .campus-dialog .campus-dialog-close:hover {
-  border-color: #9bcac6;
-  background: #eaf6f4;
-  color: #0b665f;
+  border-color: var(--spd-p-success);
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-primary);
 }
 
 .campus-dialog .campus-dialog-form {
@@ -380,9 +380,9 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  border: 1px solid #dce7e9;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 9px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 10px;
 }
 
@@ -391,9 +391,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid #edf2f3;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   padding-bottom: 6px;
-  color: #203b46;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-lg);
   font-weight: 800;
 }
@@ -406,11 +406,11 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  color: #405564;
+  color: var(--spd-p-text-muted);
 }
 
 .campus-dialog-form .required-mark {
-  color: #b42318;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -419,20 +419,20 @@
   height: 34px;
   min-height: 34px;
   box-sizing: border-box;
-  border-color: #cbdadd;
+  border-color: var(--spd-p-border-strong);
   transition: border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .campus-dialog-form input:hover,
 .campus-dialog-form select:hover {
-  border-color: #88b9b5;
+  border-color: var(--spd-p-success);
 }
 
 .campus-dialog-form input:focus,
 .campus-dialog-form select:focus {
   border-color: var(--primary);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .campus-dialog-form input[readonly] {
@@ -440,7 +440,7 @@
 }
 
 .campus-form-hint {
-  color: #7a8b95;
+  color: var(--spd-p-neutral);
   font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
@@ -453,8 +453,8 @@
   justify-content: flex-end;
   gap: 10px;
   margin: 0 -16px;
-  border-top: 1px solid #dce7e9;
-  background: #ffffff;
+  border-top: 1px solid var(--spd-p-primary-border);
+  background: var(--spd-p-bg);
   padding: 10px 16px;
 }
 

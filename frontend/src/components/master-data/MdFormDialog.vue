@@ -37,21 +37,21 @@ const sizeClass = {
           <h3>{{ title }}</h3>
           <p v-if="subtitle">{{ subtitle }}</p>
         </div>
-        <button class="md-btn-icon" type="button" aria-label="关闭" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton :icon-only="true" aria-label="关闭" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
       <div class="md-dialog-body">
         <slot />
       </div>
       <footer v-if="!hideFooter" class="md-dialog-footer">
         <slot name="footer">
-          <button class="md-btn" type="button" :disabled="loading" @click="emit('close')">
-            {{ cancelText || '取消' }}
-          </button>
-          <button class="md-btn md-btn-primary" type="button" :disabled="loading" @click="emit('save')">
-            {{ saveText || '保存' }}
-          </button>
+          <SpdButton tone="neutral" :disabled="loading" @click="emit('close')">
+          {{ cancelText || '取消' }}
+        </SpdButton>
+          <SpdButton tone="success" :disabled="loading" @click="emit('save')">
+          {{ saveText || '保存' }}
+        </SpdButton>
         </slot>
       </footer>
     </section>

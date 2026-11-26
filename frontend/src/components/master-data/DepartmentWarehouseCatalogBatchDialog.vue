@@ -82,9 +82,9 @@ function toggleAllFiltered() {
           <h3 id="batch-catalog-title">批量目录维护</h3>
           <span id="batch-catalog-description">为一个科室库房一次维护多种可申领商品</span>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="saving" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <form class="batch-catalog-form" @submit.prevent="emit('save')">
@@ -109,9 +109,9 @@ function toggleAllFiltered() {
                 @keydown.enter.prevent="deptDropdownOpen = true"
                 @focus="deptDropdownOpen = true"
               />
-              <button class="btn-icon search-trigger" type="button" title="搜索科室" :disabled="saving" @click="deptDropdownOpen = true">
-                <Search :size="16" />
-              </button>
+              <SpdButton icon-only variant="ghost" tone="neutral" class="search-trigger" type="button" title="搜索科室" :disabled="saving" @click="deptDropdownOpen = true">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
             </div>
             <ul v-if="deptDropdownOpen" class="batch-dept-results" role="listbox">
               <li v-for="dept in filteredDepartments" :key="dept.deptCode">
@@ -161,14 +161,13 @@ function toggleAllFiltered() {
                 aria-label="搜索目录商品"
                 @keydown.enter.prevent="submitProductSearch"
               />
-              <button class="btn-icon search-trigger" type="button" title="搜索商品" :disabled="saving || !form.warehouseName" @click="submitProductSearch">
-                <Search :size="16" />
-              </button>
+              <SpdButton icon-only variant="ghost" tone="neutral" class="search-trigger" type="button" title="搜索商品" :disabled="saving || !form.warehouseName" @click="submitProductSearch">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
             </label>
-            <button class="btn btn-primary" type="button" :disabled="saving || !filteredProducts.length" @click="toggleAllFiltered">
-              <Layers3 :size="16" />
-              全选/取消当前结果
-            </button>
+            <SpdButton label="全选/取消当前结果" tone="primary" :disabled="saving || !filteredProducts.length" @click="toggleAllFiltered">
+          <template #icon><Layers3 :size="16" /></template>
+        </SpdButton>
             <strong class="product-picker-count" aria-live="polite">已选 {{ form.productCodes.length }} 项</strong>
           </div>
 
@@ -201,11 +200,11 @@ function toggleAllFiltered() {
         </section>
 
         <div class="batch-catalog-actions">
-          <button class="btn btn-secondary" type="button" :disabled="saving" @click="emit('close')">取消</button>
-          <button class="btn btn-primary" type="submit" :disabled="saving || !form.productCodes.length">
-            <Save :size="16" />
-            {{ saving ? '正在保存...' : `保存 ${form.productCodes.length} 项目录` }}
-          </button>
+          <SpdButton label="取消" :disabled="saving" @click="emit('close')"></SpdButton>
+          <SpdButton tone="primary" type="submit" :disabled="saving || !form.productCodes.length">
+          <template #icon><Save :size="16" /></template>
+          {{ saving ? '正在保存...' : `保存 ${form.productCodes.length} 项目录` }}
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -214,19 +213,19 @@ function toggleAllFiltered() {
 
 <style scoped>
 .batch-catalog-dialog {
-  --bcd-primary: var(--spd-primary, #0f766e);
-  --bcd-primary-dark: var(--spd-primary-dark, #115e59);
-  --bcd-primary-soft: color-mix(in srgb, var(--bcd-primary) 8%, white);
-  --bcd-primary-border: color-mix(in srgb, var(--bcd-primary) 26%, white);
-  --bcd-text: #102033;
-  --bcd-muted: #64748b;
+  --bcd-primary: var(--spd-primary, var(--spd-p-primary));
+  --bcd-primary-dark: var(--spd-primary-dark, var(--spd-p-primary-strong));
+  --bcd-primary-soft: color-mix(in srgb, var(--bcd-primary) 8%, var(--spd-p-bg));
+  --bcd-primary-border: color-mix(in srgb, var(--bcd-primary) 26%, var(--spd-p-bg));
+  --bcd-text: var(--spd-p-text);
+  --bcd-muted: var(--spd-p-info-text);
   width: min(960px, calc(100vw - 32px));
   max-height: calc(100vh - 48px);
   overflow: auto;
-  background: #fff;
+  background: var(--spd-p-bg);
   border: 1px solid var(--bcd-primary-border);
   border-radius: 10px;
-  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--spd-p-shadow-dialog);
 }
 
 /* ===== 头部：主题色基调 ===== */
@@ -236,7 +235,7 @@ function toggleAllFiltered() {
   justify-content: space-between;
   gap: 16px;
   padding: 18px 22px;
-  color: #fff;
+  color: var(--spd-p-bg);
   background: linear-gradient(
     135deg,
     var(--bcd-primary) 0%,
@@ -257,15 +256,15 @@ function toggleAllFiltered() {
   margin-bottom: 6px;
   padding: 2px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
   /* 与 .catalog-dialog-kicker 统一：--spd-font-size-sm + 字重 800 */
   font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
 
 .batch-catalog-header h3 {
-  color: #fff;
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-2xl);
   font-weight: 700;
   letter-spacing: 0.3px;
@@ -274,20 +273,20 @@ function toggleAllFiltered() {
 .batch-catalog-header span {
   display: block;
   margin-top: 6px;
-  color: rgba(255, 255, 255, 0.88);
+  color: color-mix(in srgb, var(--spd-p-bg) 88%, transparent);
   font-size: var(--spd-font-size-sm);
 }
 
 /* 关闭按钮在深色头部上保持可见 */
 .batch-catalog-header .btn-icon {
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
-  border-color: rgba(255, 255, 255, 0.24);
+  background: color-mix(in srgb, var(--spd-p-bg) 16%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 24%, transparent);
 }
 
 .batch-catalog-header .btn-icon:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.28);
-  color: #fff;
+  background: color-mix(in srgb, var(--spd-p-bg) 28%, transparent);
+  color: var(--spd-p-bg);
 }
 
 .batch-catalog-form {
@@ -335,17 +334,17 @@ function toggleAllFiltered() {
 .batch-catalog-fields label {
   display: grid;
   gap: 7px;
-  color: #4f6477;
+  color: var(--spd-p-text-secondary);
   /* 与 .catalog-dialog-form label 对齐：字重 500 */
   font-weight: 500;
 }
 
 .batch-catalog-fields select {
   min-height: 40px;
-  border: 1px solid #d7e5ec;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 7px;
   padding: 0 11px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--bcd-text);
   font: inherit;
 }
@@ -389,7 +388,7 @@ function toggleAllFiltered() {
   padding-left: 10px;
   border: 1px solid var(--bcd-primary-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--bcd-muted);
   overflow: hidden;
 }
@@ -413,15 +412,20 @@ function toggleAllFiltered() {
 
 /* 搜索按钮：主题色实心，紧贴输入框右侧。
    全局 .search-trigger 用 !important 白底，这里同样加 !important 并提高特异性。 */
+/* 搜索触发按钮：与输入框贴合的「组合按钮」形态。
+   宽度统一取调色板控件高度（--spd-p-control-height），
+   左圆角去掉以与输入框贴合，右侧圆角保留。 */
 .product-search .search-trigger {
   flex: 0 0 auto;
-  width: 34px;
+  width: var(--spd-p-control-height);
   height: 100%;
   border: 0 !important;
   border-left: 1px solid var(--bcd-primary-border) !important;
-  border-radius: 0 !important;
+  border-top-right-radius: var(--spd-p-control-radius) !important;
+  border-bottom-right-radius: var(--spd-p-control-radius) !important;
+  border-radius: 0 var(--spd-p-control-radius) var(--spd-p-control-radius) 0 !important;
   background: var(--bcd-primary) !important;
-  color: #fff !important;
+  color: var(--spd-p-bg) !important;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -430,7 +434,7 @@ function toggleAllFiltered() {
 
 .product-search .search-trigger:hover:not(:disabled) {
   background: var(--bcd-primary-dark) !important;
-  color: #fff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .product-search .search-trigger:disabled {
@@ -447,9 +451,9 @@ function toggleAllFiltered() {
   align-items: center;
   gap: 0;
   height: 40px;
-  border: 1px solid #d7e5ec;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
   overflow: hidden;
 }
 
@@ -472,13 +476,15 @@ function toggleAllFiltered() {
 
 .batch-dept-box .search-trigger {
   flex: 0 0 auto;
-  width: 36px;
+  width: var(--spd-p-control-height);
   height: 100%;
   border: 0 !important;
   border-left: 1px solid var(--bcd-primary-border) !important;
-  border-radius: 0 !important;
+  border-top-right-radius: var(--spd-p-control-radius) !important;
+  border-bottom-right-radius: var(--spd-p-control-radius) !important;
+  border-radius: 0 var(--spd-p-control-radius) var(--spd-p-control-radius) 0 !important;
   background: var(--bcd-primary) !important;
-  color: #fff !important;
+  color: var(--spd-p-bg) !important;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -487,7 +493,7 @@ function toggleAllFiltered() {
 
 .batch-dept-box .search-trigger:hover:not(:disabled) {
   background: var(--bcd-primary-dark) !important;
-  color: #fff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .batch-dept-results {
@@ -501,8 +507,8 @@ function toggleAllFiltered() {
   overflow: auto;
   border: 1px solid var(--bcd-primary-border);
   border-radius: 7px;
-  background: #fff;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
   padding: 4px;
   list-style: none;
 }
@@ -513,7 +519,7 @@ function toggleAllFiltered() {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #25384a;
+  color: var(--spd-p-text);
   padding: 8px 10px;
   text-align: left;
   font: inherit;
@@ -553,8 +559,8 @@ function toggleAllFiltered() {
   gap: 8px;
   min-height: 42px;
   padding: 6px 12px;
-  border-bottom: 1px solid #eef3f5;
-  color: #33485c;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
 }
 
@@ -594,8 +600,8 @@ function toggleAllFiltered() {
 }
 
 .product-flag.is-muted {
-  background: #eef1f5;
-  color: #64748b;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-info-text);
 }
 
 .product-flag.is-maintained {

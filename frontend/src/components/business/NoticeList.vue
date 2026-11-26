@@ -16,7 +16,7 @@ const emit = defineEmits<{ select: [item: SystemNotice] }>()
 <style scoped>
 /* 时间轴节点色跟随全站主色，避免写死与主题不一致的色值 */
 .fli-notices :deep(.el-timeline-item__node) {
-  background-color: var(--ulc-primary, var(--primary, #1f6f6d));
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ulc-primary, var(--primary, #1f6f6d)) 22%, transparent);
+  background-color: var(--ulc-primary, var(--primary, var(--spd-p-primary)));
+  box-shadow: var(--spd-p-shadow-1);
 }
 </style>

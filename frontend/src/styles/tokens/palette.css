@@ -1,0 +1,661 @@
+/* =====================================================================
+ * SPD 全站配色规范（Palette · 唯一可用颜色登记表）
+ * ---------------------------------------------------------------------
+ * 【本文件的强制规则】
+ *   1. 全站任何位置（组件样式 / 业务页面样式 / 内联样式）使用的颜色，
+ *      **必须**来自本文件登记的令牌，或来自 tokens/colors.css 里的
+ *      `--spd-c-*` 基础色板（本文件由它派生）。
+ *   2. **禁止在业务样式里直接写死 hex / rgb / 具名颜色**。
+ *      确需新增颜色时，先在本文件登记语义角色，再在对应文件引用。
+ *   3. 品牌主色固定为**青玉 #1f6f6d**（见 tokens/colors.css），
+ *      不得引入第二套主色；EP 默认蓝（#409eff / #2563eb）已被本文件
+ *      映射替换，禁止再出现。
+ *   4. 焦点环颜色统一为 `--spd-p-focus`，取自主色，
+ *      不再使用旧的蓝色 `--focus: #2563eb`。
+ *
+ * 【与三套配色方案的关系】
+ *   本文件全部由 `--spd-c-*` 派生，而三套方案
+ *   （标准白 / 静墨宣纸 / 暗夜黑）各自重定义 `--spd-c-*`，
+ *   因此本文件**自动适配**，不需要为每套方案单独写一遍。
+ *   唯一的例外是「需要更深/更浅一档」的派生色，
+ *   统一用 `color-mix()` 与**表面令牌** `--spd-c-bg` 混合，
+ *   **禁止**与 `#ffffff` 硬混合（否则暗夜黑下会出现亮斑）。
+ *
+ * 【令牌命名规则】
+ *   --spd-p-<角色>-<变体>
+ *     角色：primary / success / danger / warning / info / neutral
+ *           text / surface / border / focus / field / btn / state
+ * ===================================================================== */
+
+:root {
+  /* =====================================================================
+   * 0. 控件几何（Control Geometry）—— 「按钮大小必须一致」的落点
+   * ---------------------------------------------------------------------
+   * 全站按钮只有**一个高度**。任何变体（solid / ghost / text / link）
+   * 与任何语义色都复用同一组几何令牌，因此：
+   *   - 两个文本相同的按钮 → 尺寸必然相同；
+   *   - 实心按钮与描边按钮 → 尺寸必然相同；
+   *   - 图标按钮 → 与实心按钮等高等宽（正方形）。
+   * 高度用 `height` 而非 `min-height` 锁死，避免内容撑高造成漂移。
+   * ===================================================================== */
+  --spd-p-control-height: 34px;
+  --spd-p-control-height-sm: 34px;
+  --spd-p-control-padding-x: 14px;
+  --spd-p-control-padding-x-sm: 14px;
+  --spd-p-control-border-width: 1px;
+  --spd-p-control-radius: 4px;
+  --spd-p-control-gap: 6px;
+  --spd-p-control-gap-sm: 6px;
+  --spd-p-btn-icon-size: 34px;
+  --spd-p-btn-font-weight: 600;
+  /* 焦点环宽度（与 tokens/colors.css 的 --spd-c-focus-width 保持一致） */
+  --spd-p-focus-width: 2px;
+  --spd-p-focus-offset: 2px;
+
+  /* =====================================================================
+   * 1. 语义色角色（Semantic Roles）
+   * ---------------------------------------------------------------------
+   * 每个语义色登记 7 个角色：
+   *   -strong  文字 / 边框主色（最深）
+   *   -hover    hover 态底色（与表面混合，方案自适应）
+   *   -active   active / pressed 态底色
+   *   -bg       常态底色（= tokens/colors.css 的 chip-bg）
+   *   -border   常态边框色
+   *   -text     常态文字色
+   * ===================================================================== */
+
+  /* ---------- primary（主操作 · 青玉） ---------- */
+  --spd-p-primary: var(--spd-c-primary);
+  --spd-p-primary-strong: var(--spd-c-primary-strong);
+  --spd-p-primary-hover: var(--spd-c-primary-hover);
+  --spd-p-primary-active: color-mix(in srgb, var(--spd-c-primary) 34%, var(--spd-c-bg));
+  --spd-p-primary-bg: var(--spd-c-chip-bg-primary);
+  --spd-p-primary-border: var(--spd-c-primary-strong);
+  --spd-p-primary-text: var(--spd-c-primary-strong);
+
+  /* ---------- success（正向结果） ---------- */
+  --spd-p-success: var(--spd-c-success);
+  --spd-p-success-strong: var(--spd-c-success);
+  --spd-p-success-hover: color-mix(in srgb, var(--spd-c-success) 26%, var(--spd-c-bg));
+  --spd-p-success-active: color-mix(in srgb, var(--spd-c-success) 34%, var(--spd-c-bg));
+  --spd-p-success-bg: var(--spd-c-chip-bg-success);
+  --spd-p-success-border: var(--spd-c-success-border);
+  --spd-p-success-text: var(--spd-c-success);
+
+  /* ---------- danger（破坏性） ---------- */
+  --spd-p-danger: var(--spd-c-danger);
+  --spd-p-danger-strong: var(--spd-c-danger);
+  --spd-p-danger-hover: color-mix(in srgb, var(--spd-c-danger) 26%, var(--spd-c-bg));
+  --spd-p-danger-active: color-mix(in srgb, var(--spd-c-danger) 34%, var(--spd-c-bg));
+  --spd-p-danger-bg: var(--spd-c-chip-bg-danger);
+  --spd-p-danger-border: var(--spd-c-danger-border);
+  --spd-p-danger-text: var(--spd-c-danger);
+
+  /* ---------- warning（提醒 / 待办） ---------- */
+  --spd-p-warning: var(--spd-c-warning);
+  --spd-p-warning-strong: var(--spd-c-warning);
+  --spd-p-warning-hover: color-mix(in srgb, var(--spd-c-warning) 26%, var(--spd-c-bg));
+  --spd-p-warning-active: color-mix(in srgb, var(--spd-c-warning) 34%, var(--spd-c-bg));
+  --spd-p-warning-bg: var(--spd-c-chip-bg-warning);
+  --spd-p-warning-border: var(--spd-c-warning-border);
+  --spd-p-warning-text: var(--spd-c-warning);
+
+  /* ---------- info（信息性） ---------- */
+  --spd-p-info: var(--spd-c-info);
+  --spd-p-info-strong: var(--spd-c-info);
+  --spd-p-info-hover: color-mix(in srgb, var(--spd-c-info) 26%, var(--spd-c-bg));
+  --spd-p-info-active: color-mix(in srgb, var(--spd-c-info) 34%, var(--spd-c-bg));
+  --spd-p-info-bg: var(--spd-c-chip-bg-info);
+  --spd-p-info-border: var(--spd-c-info-border);
+  /* 【重要】--spd-p-info-text 是「表头 / 次级说明 / 弱化文字」的中性档位，
+     历史上用的是中性石板灰蓝 #607285，而不是信息语义蓝。
+     颜色收敛时误绑到 --spd-c-info（#1f5f7d 深蓝），
+     结果是：表头发蓝、正文发淡（对比度不足）。
+     现在改回中性石板色：既保持原有观感，又不再出现品牌蓝。
+     需要真正的「信息态」文字时，请用 --spd-p-info / --spd-p-state-info-text。 */
+  --spd-p-info-text: var(--spd-c-slate);
+
+  /* ---------- slate（中性石板：表头 / 次级说明文字档位） ----------
+     与 info 语义色分开：info 是「信息态强调」，slate 是「中性弱化档位」。
+     两者视觉上都是灰蓝系，但 slate 明确不含品牌蓝。 */
+  --spd-p-slate: var(--spd-c-slate);
+  --spd-p-slate-strong: var(--spd-c-slate);
+  --spd-p-slate-bg: var(--spd-c-slate-soft);
+  --spd-p-slate-border: var(--spd-c-slate-border);
+  --spd-p-slate-text: var(--spd-c-slate);
+
+  /* ---------- neutral（中性 / 次要） ---------- */
+  --spd-p-neutral: var(--spd-c-disabled);
+  --spd-p-neutral-strong: var(--spd-c-text-secondary);
+  --spd-p-neutral-hover: color-mix(in srgb, var(--spd-c-disabled) 26%, var(--spd-c-bg));
+  --spd-p-neutral-active: color-mix(in srgb, var(--spd-c-disabled) 34%, var(--spd-c-bg));
+  --spd-p-neutral-bg: var(--spd-c-chip-bg-disabled);
+  --spd-p-neutral-border: var(--spd-c-disabled-border);
+  --spd-p-neutral-text: var(--spd-c-disabled);
+
+  /* =====================================================================
+   * 2. 文字角色（Text Roles）
+   * ===================================================================== */
+  --spd-p-text: var(--spd-c-text);
+  --spd-p-text-strong: var(--spd-c-text-strong);
+  --spd-p-text-secondary: var(--spd-c-text-secondary);
+  --spd-p-text-muted: var(--spd-c-text-muted);
+  --spd-p-text-on-primary: var(--spd-c-text-on-primary);
+  --spd-p-text-on-solid: var(--spd-c-text-on-primary);
+
+  /* =====================================================================
+   * 3. 表面角色（Surface Roles）
+   * ===================================================================== */
+  --spd-p-bg: var(--spd-c-bg);
+  --spd-p-bg-subtle: var(--spd-c-bg-subtle);
+  --spd-p-bg-muted: var(--spd-c-bg-muted);
+  --spd-p-bg-page: var(--spd-c-bg-page);
+
+  /* =====================================================================
+   * 4. 边框角色（Border Roles）
+   * ===================================================================== */
+  --spd-p-border: var(--spd-c-border);
+  --spd-p-border-strong: var(--spd-c-border-strong);
+  --spd-p-border-subtle: var(--spd-c-border-subtle);
+
+  /* =====================================================================
+   * 5. 焦点环角色（Focus Ring）
+   * ---------------------------------------------------------------------
+   * 统一取自品牌主色（青玉），替换旧 main.css 里的 `--focus: #2563eb`。
+   * ===================================================================== */
+  --spd-p-focus: var(--spd-c-primary);
+  --spd-p-focus-ring: color-mix(in srgb, var(--spd-c-primary) 26%, transparent);
+  --spd-p-focus-ring-strong: color-mix(in srgb, var(--spd-c-primary) 40%, transparent);
+
+  /* =====================================================================
+   * 6. 按钮角色（Button Roles）
+   * ---------------------------------------------------------------------
+   * 每个语义色 × 4 个变体：
+   *   solid —— 浅底 + 描边 + 深色文字（默认）
+   *   ghost —— 透明底 + 描边 + 深色文字
+   *   text  —— 无底无框，纯文字
+   *   link  —— 无底无框，下划线
+   * 几何（高度 / 内边距 / 边框宽度 / 圆角）统一取自第 0 节，
+   * 保证同文本按钮像素级一致。
+   * ===================================================================== */
+
+  /* ---------- primary 按钮 ---------- */
+  --spd-p-btn-primary-bg: var(--spd-p-primary-bg);
+  --spd-p-btn-primary-border: var(--spd-p-primary-border);
+  --spd-p-btn-primary-text: var(--spd-p-primary-text);
+  --spd-p-btn-primary-hover-bg: var(--spd-p-primary-hover);
+  --spd-p-btn-primary-active-bg: var(--spd-p-primary-active);
+  --spd-p-btn-primary-ghost-bg: transparent;
+  --spd-p-btn-primary-ghost-border: var(--spd-p-primary-border);
+  --spd-p-btn-primary-ghost-text: var(--spd-p-primary-text);
+  --spd-p-btn-primary-ghost-hover-bg: var(--spd-p-primary-hover);
+  --spd-p-btn-primary-text-variant-text: var(--spd-p-primary-text);
+  --spd-p-btn-primary-link-text: var(--spd-p-primary-text);
+
+  /* ---------- success 按钮 ---------- */
+  --spd-p-btn-success-bg: var(--spd-p-success-bg);
+  --spd-p-btn-success-border: var(--spd-p-success-border);
+  --spd-p-btn-success-text: var(--spd-p-success-text);
+  --spd-p-btn-success-hover-bg: var(--spd-p-success-hover);
+  --spd-p-btn-success-active-bg: var(--spd-p-success-active);
+  --spd-p-btn-success-ghost-bg: transparent;
+  --spd-p-btn-success-ghost-border: var(--spd-p-success-border);
+  --spd-p-btn-success-ghost-text: var(--spd-p-success-text);
+  --spd-p-btn-success-ghost-hover-bg: var(--spd-p-success-hover);
+  --spd-p-btn-success-text-variant-text: var(--spd-p-success-text);
+  --spd-p-btn-success-link-text: var(--spd-p-success-text);
+
+  /* ---------- danger 按钮 ---------- */
+  --spd-p-btn-danger-bg: var(--spd-p-danger-bg);
+  --spd-p-btn-danger-border: var(--spd-p-danger-border);
+  --spd-p-btn-danger-text: var(--spd-p-danger-text);
+  --spd-p-btn-danger-hover-bg: var(--spd-p-danger-hover);
+  --spd-p-btn-danger-active-bg: var(--spd-p-danger-active);
+  --spd-p-btn-danger-ghost-bg: transparent;
+  --spd-p-btn-danger-ghost-border: var(--spd-p-danger-border);
+  --spd-p-btn-danger-ghost-text: var(--spd-p-danger-text);
+  --spd-p-btn-danger-ghost-hover-bg: var(--spd-p-danger-hover);
+  --spd-p-btn-danger-text-variant-text: var(--spd-p-danger-text);
+  --spd-p-btn-danger-link-text: var(--spd-p-danger-text);
+
+  /* ---------- warning 按钮 ---------- */
+  --spd-p-btn-warning-bg: var(--spd-p-warning-bg);
+  --spd-p-btn-warning-border: var(--spd-p-warning-border);
+  --spd-p-btn-warning-text: var(--spd-p-warning-text);
+  --spd-p-btn-warning-hover-bg: var(--spd-p-warning-hover);
+  --spd-p-btn-warning-active-bg: var(--spd-p-warning-active);
+  --spd-p-btn-warning-ghost-bg: transparent;
+  --spd-p-btn-warning-ghost-border: var(--spd-p-warning-border);
+  --spd-p-btn-warning-ghost-text: var(--spd-p-warning-text);
+  --spd-p-btn-warning-ghost-hover-bg: var(--spd-p-warning-hover);
+  --spd-p-btn-warning-text-variant-text: var(--spd-p-warning-text);
+  --spd-p-btn-warning-link-text: var(--spd-p-warning-text);
+
+  /* ---------- info 按钮 ---------- */
+  --spd-p-btn-info-bg: var(--spd-p-info-bg);
+  --spd-p-btn-info-border: var(--spd-p-info-border);
+  --spd-p-btn-info-text: var(--spd-p-info-text);
+  --spd-p-btn-info-hover-bg: var(--spd-p-info-hover);
+  --spd-p-btn-info-active-bg: var(--spd-p-info-active);
+  --spd-p-btn-info-ghost-bg: transparent;
+  --spd-p-btn-info-ghost-border: var(--spd-p-info-border);
+  --spd-p-btn-info-ghost-text: var(--spd-p-info-text);
+  --spd-p-btn-info-ghost-hover-bg: var(--spd-p-info-hover);
+  --spd-p-btn-info-text-variant-text: var(--spd-p-info-text);
+  --spd-p-btn-info-link-text: var(--spd-p-info-text);
+
+  /* ---------- neutral 按钮 ---------- */
+  --spd-p-btn-neutral-bg: var(--spd-p-neutral-bg);
+  --spd-p-btn-neutral-border: var(--spd-p-neutral-border);
+  --spd-p-btn-neutral-text: var(--spd-p-neutral-text);
+  --spd-p-btn-neutral-hover-bg: var(--spd-p-neutral-hover);
+  --spd-p-btn-neutral-active-bg: var(--spd-p-neutral-active);
+  --spd-p-btn-neutral-ghost-bg: transparent;
+  --spd-p-btn-neutral-ghost-border: var(--spd-p-neutral-border);
+  --spd-p-btn-neutral-ghost-text: var(--spd-p-neutral-strong);
+  --spd-p-btn-neutral-ghost-hover-bg: var(--spd-p-neutral-hover);
+  --spd-p-btn-neutral-text-variant-text: var(--spd-p-text-muted);
+  --spd-p-btn-neutral-link-text: var(--spd-p-text-muted);
+
+  /* ---------- 按钮禁用态 ---------- */
+  --spd-p-btn-disabled-text: var(--spd-p-text-muted);
+  --spd-p-btn-disabled-border: var(--spd-p-border);
+  --spd-p-btn-disabled-bg: var(--spd-p-bg-muted);
+
+  /* =====================================================================
+   * 7. 筛选框 / 表单控件角色（Field Roles）
+   * ---------------------------------------------------------------------
+   * 所有筛选框与输入控件统一：同一条边框色、同一条边框宽度、
+   * 同一个圆角、同一个高度、同一个焦点环。
+   * ===================================================================== */
+  --spd-p-field-bg: var(--spd-c-bg);
+  --spd-p-field-border: var(--spd-c-border);
+  --spd-p-field-border-hover: var(--spd-c-border-strong);
+  --spd-p-field-text: var(--spd-c-text);
+  --spd-p-field-placeholder: var(--spd-c-text-muted);
+  --spd-p-field-focus-border: var(--spd-c-primary);
+  --spd-p-field-focus-ring: var(--spd-p-focus-ring);
+  --spd-p-field-disabled-bg: var(--spd-c-bg-muted);
+  --spd-p-field-disabled-text: var(--spd-c-text-muted);
+  --spd-p-field-disabled-border: var(--spd-c-border-subtle);
+  --spd-p-field-label: var(--spd-c-text-secondary);
+  --spd-p-field-height: var(--spd-p-control-height);
+  --spd-p-field-radius: var(--spd-p-control-radius);
+  --spd-p-field-border-width: var(--spd-p-control-border-width);
+  --spd-p-field-padding-x: 10px;
+
+  /* =====================================================================
+   * 8. 筛选栏布局角色（Filter Layout Roles · 统一筛选栏的栅格规则）
+   * ---------------------------------------------------------------------
+   * 统一筛选栏组件 SpdFilterBar 的**换行规则唯一参数**。
+   * 详见 styles/components/spd-filter-bar.css 顶部的「标准规则 1」。
+   *
+   *   --spd-filter-min-width   单个字段的最小宽度（160px）。
+   *                          低于此值「商品编码 + 占位符」会被截断，
+   *                          因此这是可读性下限。
+   *                          换行由此自动决定：每多放一个字段，
+   *                          容器至少再宽 (160 + 16) = 176px。
+   *   --spd-filter-gap-x       字段栅格列间距（16px）。
+   *   --spd-filter-gap-y       字段栅格行间距（12px）。
+   *   --spd-filter-actions-gap 操作区与字段栅格之间的间距（16px）。
+   *   --spd-filter-narrow-breakpoint
+   *                          窄屏断点（760px）：操作区改为独占整行，
+   *                          字段栅格强制单列。
+   * ===================================================================== */
+  --spd-filter-min-width: 160px;
+  --spd-filter-gap-x: 16px;
+  --spd-filter-gap-y: 12px;
+  --spd-filter-actions-gap: 16px;
+  --spd-filter-narrow-breakpoint: 760px;
+
+  /* =====================================================================
+   * 8a. 悬浮浮层内边距（Popover Padding Roles）
+   * ---------------------------------------------------------------------
+   * 「列设置」悬浮下拉框（.ulc-col-settings-pop）的内外边距统一取自
+   * 本组令牌，避免各页面临时写死 px 导致浮层顶部留白忽大忽小。
+   *
+   *   --spd-popover-padding-x     浮层左右内边距（12px）
+   *   --spd-popover-padding-top   浮层顶部内边距（12px）
+   *   --spd-popover-padding-bottom 浮层底部内边距（10px）
+   *   --spd-popover-header-padding-top
+   *                           浮层标题行（header）自身的顶部内边距（8px）。
+   *                           浮层顶部内边距只保证「不贴边」，
+   *                           标题行再加这一档，标题文字才不会
+   *                           紧贴浮层顶缘（用户诉求：把顶部 padding 加回来）。
+   *   --spd-popover-section-gap   标题行 / 列表 / 底栏之间的间距（8px）
+   * ===================================================================== */
+  --spd-popover-padding-x: var(--spd-space-3);
+  --spd-popover-padding-top: var(--spd-space-3);
+  --spd-popover-padding-bottom: 10px;
+  --spd-popover-header-padding-top: var(--spd-space-2);
+  --spd-popover-section-gap: var(--spd-space-2);
+
+  /* =====================================================================
+   * 8. 状态角色（State Roles · 状态条 / 标签 / 徽标）
+   * ===================================================================== */
+  --spd-p-state-success-bg: var(--spd-c-chip-bg-success);
+  --spd-p-state-success-text: var(--spd-c-success);
+  --spd-p-state-success-border: var(--spd-c-success-border);
+  --spd-p-state-danger-bg: var(--spd-c-chip-bg-danger);
+  --spd-p-state-danger-text: var(--spd-c-danger);
+  --spd-p-state-danger-border: var(--spd-c-danger-border);
+  --spd-p-state-warning-bg: var(--spd-c-chip-bg-warning);
+  --spd-p-state-warning-text: var(--spd-c-warning);
+  --spd-p-state-warning-border: var(--spd-c-warning-border);
+  --spd-p-state-info-bg: var(--spd-c-chip-bg-info);
+  --spd-p-state-info-text: var(--spd-c-info);
+  --spd-p-state-info-border: var(--spd-c-info-border);
+  --spd-p-state-neutral-bg: var(--spd-c-chip-bg-disabled);
+  --spd-p-state-neutral-text: var(--spd-c-disabled);
+  --spd-p-state-neutral-border: var(--spd-c-disabled-border);
+  --spd-p-state-primary-bg: var(--spd-c-chip-bg-primary);
+  --spd-p-state-primary-text: var(--spd-c-primary-strong);
+  --spd-p-state-primary-border: var(--spd-c-primary-strong);
+
+  /* =====================================================================
+   * 8b. 状态条几何（Status Chip Geometry · 全站唯一规格）
+   * ---------------------------------------------------------------------
+   * 用户诉求：「列表状态条的样式也要统一……内边距和圆角都要规定好，
+   *   所有列表使用这样的状态条的都要统一，给列表使用」。
+   *
+   * 因此把「状态条」的尺寸全部登记成令牌，组件 SpdStatusChip 与
+   * 兼容别名 .ulc-chip / .status-pill / .status-badge / .md-status
+   * 都只引用这些令牌，避免各页面各写一份 padding / radius 造成漂移。
+   *
+   * 几何取值参考市面主流系统（Ant Design / Element Plus / GitHub Primer）：
+   *   - 高度 24px（sm 档 22px），与表格行高同档，密集列表也不显臃肿；
+   *   - 水平内边距 10px，垂直内边距 2px（配合最小高度保证垂直居中）；
+   *   - 圆角 4px（与全站控件圆角 --spd-p-control-radius 一致）；
+   *   - 字号取 --spd-font-size-sm（次级说明档），字重 600。
+   *
+   * 【用户澄清后的高度语义】状态条只要求「内边距 / 圆角 / 字号」一致，
+   *   **不要求宽高完全相同**：「只要不超过列宽，允许状态条适当增加高度
+   *   和宽度，否则会使得样式变丑」。
+   *   因此 --spd-p-chip-height / --spd-p-chip-height-sm 是
+   *   **单行状态条的高度**（以 min-height 方式使用）：
+   *     - 单行状态条 → 高度完全一致（= 令牌值）；
+   *     - 长标签换行到第二行 → 状态条自然增高，内容不被裁切。
+   *   宽度同样不锁死：按内容自适应，且由 max-width: 100% 保证
+   *   **永不超过所在列宽**。
+   *
+   * 【--spd-p-chip-line-height 的来历】
+   *   状态条要「单行等高」，就得让一行文字**正好**落在
+   *   「高度 - 上下内边距 - 上下边框」里：
+   *     (24 - 2×2 - 2×1) = 18px 的文字行高空间。
+   *   但字号有三档（13 / 15 / 17px），写死 px 行高会在换档时漂移，
+   *   因此这里用 calc 把「可用行高」除以字号，得到一个**无单位行高倍数**：
+   *     md 档：(24 - 4 - 2) / 15 = 1.2
+   *   这样单行状态条在任何字号档位下都恰好等于令牌高度，
+   *   文字换行时又能自然撑高。
+   *
+   *   sm 档另配更小的字号（--spd-font-size-xs：11 / 13 / 15px），
+   *   否则 22px 的高度在「大」字号档（正文 18px → 次级 17px）
+   *   会放不下，反而比 md 档还高。
+   * ===================================================================== */
+  --spd-p-chip-height: 24px;
+  --spd-p-chip-height-sm: 22px;
+  --spd-p-chip-padding-x: 10px;
+  --spd-p-chip-padding-y: 2px;
+  --spd-p-chip-radius: 4px;
+  --spd-p-chip-border-width: 1px;
+  --spd-p-chip-font-size: var(--spd-font-size-sm);
+  --spd-p-chip-font-size-sm: var(--spd-font-size-xs);
+  --spd-p-chip-font-weight: 600;
+  --spd-p-chip-gap: 6px;
+  --spd-p-chip-dot-size: 7px;
+  /* 单行文字的行高倍数：让一行文字恰好填满「高度 - 内边距 - 边框」 */
+  --spd-p-chip-line-height: calc(
+    (var(--spd-p-chip-height) - 2 * var(--spd-p-chip-padding-y) - 2 * var(--spd-p-chip-border-width)) /
+      var(--spd-p-chip-font-size)
+  );
+  --spd-p-chip-line-height-sm: calc(
+    (var(--spd-p-chip-height-sm) - 2 * var(--spd-p-chip-padding-y) - 2 * var(--spd-p-chip-border-width)) /
+      var(--spd-p-chip-font-size-sm)
+  );
+
+  /* =====================================================================
+   * 8c. 状态条色调（Status Chip Tones）
+   * ---------------------------------------------------------------------
+   * 【重要】背景一律使用**浅色染色**（--spd-c-chip-bg-* 家族），
+   * 文字使用**深色**（--spd-c-*-strong / 语义色本身）。
+   * 用户明确要求：「不要使用太深的颜色作为背景色」——
+   * 实心深色块在密集列表里会形成视觉噪点，也压过数据本身。
+   *
+   * 三套配色方案各自重定义 --spd-c-*，因此本组令牌自动适配：
+   *   标准白     浅色底 + 深色字（例：成功 #e6f1ec 底 + #2a7152 字）
+   *   静墨宣纸   14% 淡染底 + 深墨字
+   *   暗夜黑     40% 暗底混合 + 提亮字（例：成功 #4ec08c 字）
+   * ===================================================================== */
+  --spd-p-chip-success-bg: var(--spd-c-chip-bg-success);
+  --spd-p-chip-success-border: var(--spd-c-success-border);
+  --spd-p-chip-success-text: var(--spd-c-success);
+  --spd-p-chip-danger-bg: var(--spd-c-chip-bg-danger);
+  --spd-p-chip-danger-border: var(--spd-c-danger-border);
+  --spd-p-chip-danger-text: var(--spd-c-danger);
+  --spd-p-chip-warning-bg: var(--spd-c-chip-bg-warning);
+  --spd-p-chip-warning-border: var(--spd-c-warning-border);
+  --spd-p-chip-warning-text: var(--spd-c-warning);
+  --spd-p-chip-info-bg: var(--spd-c-chip-bg-info);
+  --spd-p-chip-info-border: var(--spd-c-info-border);
+  --spd-p-chip-info-text: var(--spd-c-info);
+  --spd-p-chip-primary-bg: var(--spd-c-chip-bg-primary);
+  --spd-p-chip-primary-border: var(--spd-c-primary-strong);
+  --spd-p-chip-primary-text: var(--spd-c-primary-strong);
+  --spd-p-chip-neutral-bg: var(--spd-c-chip-bg-disabled);
+  --spd-p-chip-neutral-border: var(--spd-c-disabled-border);
+  --spd-p-chip-neutral-text: var(--spd-c-disabled);
+}
+
+/* =====================================================================
+ * 9. Element Plus 变量对齐（EP → 调色板）
+ * ---------------------------------------------------------------------
+ * Element Plus 自带蓝色主色与独立灰阶，必须整体映射到本调色板，
+ * 否则 el-input / el-select / el-pagination 等控件仍是「另一套颜色」。
+ * 三套配色方案在各自 theme 文件里覆写 --el-* 变量，本段只负责
+ * 标准白方案的基准值，方案文件依然优先生效。
+ * ===================================================================== */
+:root {
+  --el-color-primary: var(--spd-p-primary);
+  --el-color-primary-dark-2: var(--spd-p-primary-strong);
+  --el-color-primary-light-3: color-mix(in srgb, var(--spd-p-primary) 80%, var(--spd-c-bg));
+  --el-color-primary-light-5: color-mix(in srgb, var(--spd-p-primary) 60%, var(--spd-c-bg));
+  --el-color-primary-light-7: color-mix(in srgb, var(--spd-p-primary) 40%, var(--spd-c-bg));
+  --el-color-primary-light-8: color-mix(in srgb, var(--spd-p-primary) 28%, var(--spd-c-bg));
+  --el-color-primary-light-9: color-mix(in srgb, var(--spd-p-primary) 16%, var(--spd-c-bg));
+
+  --el-color-success: var(--spd-p-success);
+  --el-color-warning: var(--spd-p-warning);
+  --el-color-danger: var(--spd-p-danger);
+  --el-color-error: var(--spd-p-danger);
+  --el-color-info: var(--spd-p-info);
+
+  --el-border-color: var(--spd-p-field-border);
+  --el-border-color-light: var(--spd-p-border);
+  --el-border-color-lighter: var(--spd-p-border-subtle);
+  --el-border-color-extra-light: var(--spd-p-border-subtle);
+  --el-border-color-dark: var(--spd-p-field-border-hover);
+  --el-border-color-darker: var(--spd-p-field-border-hover);
+
+  --el-fill-color-blank: var(--spd-p-field-bg);
+  --el-fill-color-light: var(--spd-p-bg-subtle);
+  --el-fill-color-lighter: var(--spd-p-bg-muted);
+  --el-fill-color: var(--spd-p-bg-muted);
+  --el-fill-color-dark: var(--spd-p-bg-muted);
+  --el-fill-color-darker: var(--spd-p-bg-muted);
+
+  --el-text-color-primary: var(--spd-p-text-strong);
+  --el-text-color-regular: var(--spd-p-text);
+  --el-text-color-secondary: var(--spd-p-text-secondary);
+  --el-text-color-placeholder: var(--spd-p-field-placeholder);
+  --el-text-color-disabled: var(--spd-p-field-disabled-text);
+
+  --el-disabled-bg-color: var(--spd-p-field-disabled-bg);
+  --el-disabled-text-color: var(--spd-p-field-disabled-text);
+  --el-disabled-border-color: var(--spd-p-field-disabled-border);
+
+  --el-focus-color: var(--spd-p-focus);
+
+  /* ---------- 遮罩 / 蒙层 ----------
+     Element Plus 默认遮罩是 rgba(0,0,0,.5)（纯黑），
+     换成调色板的 --spd-p-overlay（与文字色派生），
+     暗夜黑下自动与页面底色协调，不再是突兀的纯黑蒙层。 */
+  --el-overlay-color: var(--spd-p-overlay);
+  --el-overlay-color-lighter: var(--spd-p-overlay);
+  --el-overlay-color-light: var(--spd-p-scrim);
+  --el-mask-color: var(--spd-p-overlay);
+}
+
+/* =====================================================================
+ * 10. 焦点环统一（替换旧的蓝色 --focus: #2563eb）
+ * ===================================================================== */
+:root {
+  --focus: var(--spd-p-focus);
+}
+
+/* =====================================================================
+ * 11. 阴影 / 遮罩 / 装饰（Effect & Overlay Roles）
+ * ---------------------------------------------------------------------
+ * 审计发现散落各处的杂色主要集中在三类，全部在此登记：
+ *   1. 阴影：rgba(15,23,42,.32) / rgba(99,102,241,.18) / rgba(0,0,0,.55) …
+ *      统一为「基于品牌主色 + 表面色派生」的三档阴影，暗夜黑自动变重。
+ *   2. 遮罩：rgba(6,21,43,.45) 等弹窗蒙层，统一为 --spd-p-overlay。
+ *   3. 装饰：标签左侧色条、表头渐变等，统一为 --spd-p-accent-*。
+ * ===================================================================== */
+:root {
+  /* ---------- 阴影（三档 + 焦点阴影） ---------- */
+  /* 阴影颜色统一由「品牌主色」与「页面底色」混合得到：
+     浅色方案下是极淡的青灰投影，暗夜黑下自动变重，不会出现白斑。 */
+  --spd-p-shadow-color: color-mix(in srgb, var(--spd-c-primary) 22%, var(--spd-c-bg));
+  --spd-p-shadow-1: 0 1px 2px 0 color-mix(in srgb, var(--spd-c-primary) 8%, transparent),
+    0 1px 6px -1px color-mix(in srgb, var(--spd-c-primary) 4%, transparent);
+  --spd-p-shadow-2: 0 6px 16px 0 color-mix(in srgb, var(--spd-c-primary) 14%, transparent),
+    0 3px 6px -4px color-mix(in srgb, var(--spd-c-primary) 10%, transparent),
+    0 9px 28px 8px color-mix(in srgb, var(--spd-c-primary) 6%, transparent);
+  --spd-p-shadow-3: 0 12px 32px 0 color-mix(in srgb, var(--spd-c-primary) 18%, transparent),
+    0 2px 8px 0 color-mix(in srgb, var(--spd-c-primary) 8%, transparent);
+  /* 弹窗级重阴影：用于 el-dialog / 自绘弹窗浮层 */
+  --spd-p-shadow-dialog: 0 24px 64px -16px color-mix(in srgb, var(--spd-c-primary) 26%, transparent),
+    0 8px 20px -6px color-mix(in srgb, var(--spd-c-primary) 14%, transparent),
+    0 2px 6px color-mix(in srgb, var(--spd-c-primary) 6%, transparent);
+  /* 按钮投影：按语义色分，避免每处硬写 rgba */
+  --spd-p-shadow-btn-primary: 0 4px 12px -4px color-mix(in srgb, var(--spd-c-primary) 40%, transparent);
+  --spd-p-shadow-btn-success: 0 4px 12px -4px color-mix(in srgb, var(--spd-c-success) 40%, transparent);
+  --spd-p-shadow-btn-danger: 0 4px 12px -4px color-mix(in srgb, var(--spd-c-danger) 40%, transparent);
+  --spd-p-shadow-btn-warning: 0 4px 12px -4px color-mix(in srgb, var(--spd-c-warning) 40%, transparent);
+  --spd-p-shadow-btn-info: 0 4px 12px -4px color-mix(in srgb, var(--spd-c-info) 40%, transparent);
+  /* 焦点阴影：与 --spd-p-focus 同源 */
+  --spd-p-shadow-focus: 0 0 0 2px color-mix(in srgb, var(--spd-c-primary) 22%, transparent);
+
+  /* ---------- 遮罩 / 蒙层（弹窗、抽屉背景） ----------
+     遮罩的作用是「压暗弹窗背后的内容」，因此必须始终偏暗：
+       - 浅色方案：深墨色半透明蒙层（与页面底色相反）；
+       - 暗色方案：更深的底色压暗（页面本身已经很暗，再压一层更聚焦）。
+     所以统一由 --spd-c-bg-page 派生，但浅色方案用「压暗」版本，
+     暗色方案用「再压深」版本，两者都保持暗调。 */
+  --spd-p-overlay: color-mix(in srgb, var(--spd-c-bg-page) 72%, transparent);
+  --spd-p-overlay-strong: color-mix(in srgb, var(--spd-c-bg-page) 86%, transparent);
+  --spd-p-scrim: color-mix(in srgb, var(--spd-c-bg-page) 18%, transparent);
+
+  /* ---------- 滚动条 ---------- */
+  --spd-p-scrollbar-thumb: var(--spd-c-border-strong);
+  --spd-p-scrollbar-thumb-hover: var(--spd-c-text-muted);
+  --spd-p-scrollbar-track: transparent;
+
+  /* =====================================================================
+   * 12. 代码 / 等宽背景（Code Surface）
+   * ---------------------------------------------------------------------
+   * 单号、批号、编码 chip 的底色：统一用「浅底 + 深字 + 主色淡底 chip」，
+   * 避免暗夜黑下出现纯黑块、浅色方案下出现突兀深灰块。
+   * ===================================================================== */
+  --spd-p-code-bg: var(--spd-c-bg-muted);
+  --spd-p-code-text: var(--spd-c-text-strong);
+  --spd-p-code-border: var(--spd-c-border-subtle);
+  --spd-p-code-chip-bg: var(--spd-c-primary-soft);
+  --spd-p-code-chip-text: var(--spd-c-primary-strong);
+  --spd-p-code-chip-border: var(--spd-c-primary-strong);
+
+  /* =====================================================================
+   * 13. 表格行表面（Row Surface Roles）
+   * ---------------------------------------------------------------------
+   * 斑马纹 / 行悬浮 / 选中行 / 表头：全部由表面令牌派生，
+   * 静墨宣纸与暗夜黑各自覆写 --spd-c-* 后自动适配。
+   * ===================================================================== */
+  --spd-p-row-stripe: var(--spd-c-bg-page);
+  --spd-p-row-hover: var(--spd-c-primary-soft);
+  --spd-p-row-selected: var(--spd-c-primary-soft);
+  --spd-p-row-header-bg: var(--spd-c-bg-subtle);
+  --spd-p-row-header-text: var(--spd-c-text-strong);
+  --spd-p-cell-border: var(--spd-c-border-subtle);
+
+  /* =====================================================================
+   * 14. 装饰强调（Accent Roles）
+   * ---------------------------------------------------------------------
+   * 页面标题左侧竖条、卡片顶部强调条、装饰水印等。
+   * 一律取品牌主色，禁止再出现紫 / 靛 / 粉 渐变。
+   * ===================================================================== */
+  --spd-p-accent-bar: var(--spd-c-primary);
+  --spd-p-accent-bar-gradient: linear-gradient(180deg, var(--spd-c-primary), var(--spd-c-primary-strong));
+  --spd-p-accent-bar-horizontal: linear-gradient(90deg, var(--spd-c-primary), transparent);
+  --spd-p-accent-soft: var(--spd-c-primary-soft);
+  --spd-p-accent-text: var(--spd-c-primary-strong);
+  /* 顶栏 / 页头渐变：主色 → 主色深色，暗夜黑下由方案文件覆写 */
+  --spd-p-header-gradient: linear-gradient(135deg, var(--spd-c-primary) 0%, var(--spd-c-primary-strong) 100%);
+  --spd-p-header-overlay-gradient: linear-gradient(180deg, var(--spd-c-primary-strong) 0%, var(--spd-c-primary) 100%);
+
+  /* =====================================================================
+   * 15. 页面底纹渐变（Page Gradient）
+   * ---------------------------------------------------------------------
+   * 内容区整体背景：与主色同族的极淡渐变，三套方案各自覆写。
+   * ===================================================================== */
+  --spd-p-page-gradient: linear-gradient(180deg, var(--spd-c-bg) 0%, var(--spd-c-primary-soft) 100%);
+
+  /* =====================================================================
+   * 16. 通用中性灰（Neutral Legacy Roles）
+   * ---------------------------------------------------------------------
+   * 旧样式里成片的 #fafafa / #cbd5e1 / #64748b / #0f172a 等灰阶，
+   * 统一收敛到中性灰角色，避免再散落硬编码。
+   * ===================================================================== */
+  --spd-p-neutral-surface: var(--spd-c-bg-subtle);
+  --spd-p-neutral-surface-2: var(--spd-c-bg-muted);
+  --spd-p-neutral-border: var(--spd-c-border);
+  --spd-p-neutral-border-strong: var(--spd-c-border-strong);
+  --spd-p-neutral-text: var(--spd-c-text-secondary);
+  --spd-p-neutral-text-strong: var(--spd-c-text-strong);
+  --spd-p-neutral-text-muted: var(--spd-c-text-muted);
+  --spd-p-neutral-heading: var(--spd-c-text-strong);
+  --spd-p-neutral-on-solid: var(--spd-c-text-on-primary);
+
+  /* =====================================================================
+   * 17. 图标底 / 徽标底（Misc Icon Surfaces）
+   * ===================================================================== */
+  --spd-p-icon-bg: var(--spd-c-bg-muted);
+  --spd-p-icon-text: var(--spd-c-text-secondary);
+  --spd-p-icon-accent-bg: var(--spd-c-primary-soft);
+  --spd-p-icon-accent-text: var(--spd-c-primary-strong);
+
+  /* =====================================================================
+   * 18. 实心底上的按钮 / 文字（On-Solid Roles）
+   * ---------------------------------------------------------------------
+   * 深色实心底（顶栏、页头、主色按钮）上的按钮与说明文字：
+   * 以前散落着 rgba(255,255,255,.16) / (.28) / (.4) 等白色透明度，
+   * 统一登记为「白 + 主色」派生，暗夜黑下自动变暗，不会刺眼。
+   * ===================================================================== */
+  --spd-p-header-sheen: color-mix(in srgb, var(--spd-c-text-on-primary) 18%, transparent);
+  --spd-p-header-text: color-mix(in srgb, var(--spd-c-text-on-primary) 92%, transparent);
+  --spd-p-header-text-secondary: color-mix(in srgb, var(--spd-c-text-on-primary) 72%, transparent);
+  --spd-p-btn-ghost-on-solid-bg: color-mix(in srgb, var(--spd-c-text-on-primary) 16%, transparent);
+  --spd-p-btn-ghost-on-solid-border: color-mix(in srgb, var(--spd-c-text-on-primary) 28%, transparent);
+  --spd-p-btn-ghost-on-solid-hover-bg: color-mix(in srgb, var(--spd-c-text-on-primary) 28%, transparent);
+  --spd-p-btn-ghost-on-solid-hover-border: color-mix(in srgb, var(--spd-c-text-on-primary) 40%, transparent);
+
+  /* =====================================================================
+   * 19. 实心主色（Solid Fills）
+   * ---------------------------------------------------------------------
+   * 旧 .md-btn / .btn 用的是蓝紫渐变，现统一为品牌主色实心，
+   * hover / active 各自一档，全部由主色与表面色派生。
+   * ===================================================================== */
+  --spd-p-primary-solid: var(--spd-c-primary);
+  --spd-p-primary-hover-solid: var(--spd-c-primary-hover);
+  --spd-p-primary-active-solid: var(--spd-c-primary-strong);
+  --spd-p-primary-solid-text: var(--spd-c-text-on-primary);
+}

@@ -1,4 +1,4 @@
-﻿/* =========================================
+/* =========================================
    Sub-navigation system (unified)
    Consistent nav rails across all views
    ========================================= */
@@ -10,9 +10,9 @@
   --subnav-btn-font-size: var(--spd-font-size-base);
   --subnav-btn-font-weight: 700;
   --subnav-btn-border: 1px solid var(--line);
-  --subnav-btn-bg: #ffffff;
-  --subnav-btn-color: #334652;
-  --subnav-btn-active-bg: #dff3ef;
+  --subnav-btn-bg: var(--spd-p-bg);
+  --subnav-btn-color: var(--spd-p-text);
+  --subnav-btn-active-bg: var(--spd-p-primary-bg);
   --subnav-btn-active-color: var(--primary-strong);
   --subnav-btn-active-border: var(--primary);
   --subnav-btn-icon-size: 16px;
@@ -46,7 +46,7 @@
 .subnav-tabs button:hover,
 .subnav-chip:hover {
   border-color: var(--primary);
-  background: #f4fbf9;
+  background: var(--spd-p-primary-bg);
 }
 .subnav-tabs button.active,
 .subnav-chip.active {
@@ -89,7 +89,7 @@
   border: 0;
   border-radius: 8px;
   background: transparent;
-  color: #334652;
+  color: var(--spd-p-text);
   font: inherit;
   font-size: var(--spd-font-size-base);
   text-align: left;
@@ -97,10 +97,10 @@
   transition: background 0.12s ease;
 }
 .subnav-panel button:hover {
-  background: #f4fbf9;
+  background: var(--spd-p-primary-bg);
 }
 .subnav-panel button.active {
-  background: #dff3ef;
+  background: var(--spd-p-primary-bg);
   color: var(--primary-strong);
   font-weight: 700;
 }

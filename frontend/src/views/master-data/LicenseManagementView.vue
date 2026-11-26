@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { Check, Columns3, ChevronDown, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
@@ -6,6 +6,7 @@ import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
+import SpdStatusChip, { type SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import { useNotify } from '../../composables/useNotify'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
@@ -49,7 +50,6 @@ const page = ref(1)
 const size = ref(20)
 const keyword = ref('')
 const loading = ref(false)
-const error = ref('')
 
 const showFormModal = ref(false)
 const editId = ref<number | null>(null)
@@ -158,13 +158,12 @@ function today() {
 
 async function loadList() {
   loading.value = true
-  error.value = ''
   try {
     const result = await fetchLicenses(activeTab.value, keyword.value, page.value, size.value)
     rows.value = result.rows
     total.value = result.total
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '证照列表加载失败'
+    notify.error(err instanceof Error ? err.message : '证照列表加载失败')
   } finally {
     loading.value = false
   }
@@ -442,8 +441,8 @@ const licenseActionFixed = computed(() => licenseActionFix.actionFixedBinding.va
 watch(licenseTableRef, (tableRef) => licenseActionFix.observe(tableRef), { flush: 'post' })
 
 /** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
-function licenseStatusChipClass(row: LicenseRow) {
-  return statusText(row) === '有效' ? 'is-success' : 'is-warning'
+function licenseStatusChipTone(row: LicenseRow): SpdStatusChipTone {
+  return statusText(row) === '有效' ? 'success' : 'warning'
 }
 
 /** 所属主体展示文案：合同展示双方，其余展示名称 + 编码 */
@@ -509,39 +508,40 @@ onUnmounted(closePreview)
           :placeholder="`搜索证照名称、编号、${activeTabInfo.ownerLabel}名称或编码`"
           @keyup.enter="onSearch"
         />
-        <button class="md-btn md-btn-primary" type="button" @click="onSearch"><Search :size="16" /> 查询</button>
+        <SpdButton label="查询" tone="primary" @click="onSearch">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
       </div>
       <div class="md-table-toolbar-main">
-        <button class="md-btn md-btn-primary" type="button" @click="openCreateModal">
-          <Plus :size="16" /> 新增{{ activeTabInfo.label }}
-        </button>
+        <SpdButton tone="primary" @click="openCreateModal">
+          <template #icon><Plus :size="16" /></template>
+          新增{{ activeTabInfo.label }}
+        </SpdButton>
       </div>
     </div>
 
-    <p v-if="error" class="license-error">{{ error }}</p>
+    <!-- 请求失败统一由通用消息接口（Element Plus 消息弹层）抛出，
+         不再在页面上方渲染内联错误条。 -->
 
     <MdDataTableCard>
       <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="licenseColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" /> 列设置
-            <ChevronDown :size="14" :class="{ rotated: licenseCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="licenseColSettingsAnchorRef"
+           
+           
+            @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="licenseCols.settingsOpen.value"
             ref="licenseColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': licenseColSettingsPop.align.value === 'right', 'is-align-up': licenseColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': licenseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': licenseColSettingsPop.maxHeight.value + 'px' }"
+            :style="licenseColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="licenseCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="licenseCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in licenseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -556,7 +556,7 @@ onUnmounted(closePreview)
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="licenseCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="licenseCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -678,9 +678,7 @@ onUnmounted(closePreview)
             <span class="ulc-th-text">状态</span>
           </template>
           <template #default="{ row }">
-            <span class="ulc-chip" :class="licenseStatusChipClass(row)">
-              {{ statusText(row) }}
-            </span>
+            <SpdStatusChip :tone="licenseStatusChipTone(row)" :label="statusText(row)" />
           </template>
         </el-table-column>
         <el-table-column
@@ -775,9 +773,9 @@ onUnmounted(closePreview)
             <span v-if="renewalMode" class="lf-dialog-tag lf-dialog-tag-renew">续证模式</span>
             <span v-else-if="editId !== null" class="lf-dialog-tag lf-dialog-tag-edit">编辑模式</span>
           </div>
-          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" :disabled="saving" @click="closeFormModal">
-            <X :size="18" />
-          </button>
+          <SpdButton label="" tone="primary" aria-label="关闭" :disabled="saving" @click="closeFormModal">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <form class="lf-dialog-form" @submit.prevent="submitForm">
           <div class="lf-dialog-form-grid">
@@ -802,18 +800,18 @@ onUnmounted(closePreview)
               <span>所属主体（搜索名称或编码后选择）</span>
               <div class="lf-owner-search">
                 <input v-model="ownerKeyword" placeholder="名称或编码" @input="onOwnerInput" :disabled="renewalMode && Boolean(form.ownerId)" @keydown.enter.prevent="searchOwners()" />
-                <button class="lf-btn lf-btn-info lf-btn-icon" type="button" :disabled="ownerLoading || (renewalMode && Boolean(form.ownerId))" @click="searchOwners()">
-                  <Search :size="16" />
-                </button>
+                <SpdButton label="" tone="primary" icon-only :disabled="ownerLoading || (renewalMode && Boolean(form.ownerId))" @click="searchOwners()">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
               </div>
               <div v-if="ownerOptions.length" class="lf-owner-options">
                 <button v-for="owner in ownerOptions" :key="owner.id" type="button" class="lf-owner-option-btn" @click="selectOwner(owner)">
                   {{ owner.name }}（{{ owner.code }}）
                 </button>
                 <div class="lf-owner-pager">
-                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" :disabled="ownerPage <= 1 || ownerLoading" @click="searchOwners(ownerPage - 1)">上一页</button>
+                  <SpdButton label="上一页" :disabled="ownerPage <= 1 || ownerLoading" @click="searchOwners(ownerPage - 1)"></SpdButton>
                   <span>{{ ownerPage }} / {{ Math.ceil(ownerTotal / 10) || 1 }}</span>
-                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" :disabled="ownerPage * 10 >= ownerTotal || ownerLoading" @click="searchOwners(ownerPage + 1)">下一页</button>
+                  <SpdButton label="下一页" :disabled="ownerPage * 10 >= ownerTotal || ownerLoading" @click="searchOwners(ownerPage + 1)"></SpdButton>
                 </div>
               </div>
               <p v-if="ownerSearched && !ownerLoading && ownerTotal === 0" class="lf-owner-empty">没有匹配的有效主体</p>
@@ -889,20 +887,20 @@ onUnmounted(closePreview)
               <li v-for="(file, index) in formAttachmentFiles" :key="`${file.name}-${file.size}-${file.lastModified}`">
                 <span class="lf-file-name" :title="file.name">{{ file.name }}</span>
                 <span class="lf-file-size">{{ (file.size / 1024).toFixed(1) }} KB</span>
-                <button type="button" class="lf-btn lf-btn-danger lf-btn-sm" @click="formAttachmentFiles.splice(index, 1)">
-                  <X :size="14" /> 移除
-                </button>
+                <SpdButton label="移除" @click="formAttachmentFiles.splice(index, 1)">
+          <template #icon><X :size="14" /></template>
+        </SpdButton>
               </li>
             </ul>
             <small v-else-if="!uploadedFormAttachmentCount" class="lf-upload-hint">尚未选择附件</small>
           </div>
 
           <div class="lf-dialog-actions">
-            <button class="lf-btn lf-btn-secondary" type="button" :disabled="saving" @click="closeFormModal">取消</button>
-            <button class="lf-btn lf-btn-primary" type="submit" :disabled="saving">
-              <Check :size="16" />
-              {{ saving ? '保存中...' : '保存' }}
-            </button>
+            <SpdButton label="取消" tone="neutral" :disabled="saving" @click="closeFormModal"></SpdButton>
+            <SpdButton tone="success" type="submit" :disabled="saving">
+          <template #icon><Check :size="16" /></template>
+          {{ saving ? '保存中...' : '保存' }}
+        </SpdButton>
           </div>
         </form>
       </section>
@@ -918,9 +916,9 @@ onUnmounted(closePreview)
             <p>历史记录</p>
             <h3>证照历史：{{ historyTitle }}</h3>
           </div>
-          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="historyOpen = false">
-            <X :size="18" />
-          </button>
+          <SpdButton label="" tone="primary" aria-label="关闭" @click="historyOpen = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="lh-dialog-body">
           <p v-if="historyLoading" class="approval-empty">正在加载历史...</p>
@@ -957,9 +955,10 @@ onUnmounted(closePreview)
               <div class="lh-rev-row">
                 <span class="lh-rev-label">状态</span>
                 <span class="lh-rev-value">
-                  <span class="status-badge" :class="{ warning: revision.snapshot.status !== 1 }">
-                    {{ revision.snapshot.status === 1 ? '有效' : '失效' }}
-                  </span>
+                  <SpdStatusChip
+                    :tone="revision.snapshot.status === 1 ? 'success' : 'warning'"
+                    :label="revision.snapshot.status === 1 ? '有效' : '失效'"
+                  />
                 </span>
               </div>
               <div class="lh-rev-row">
@@ -970,15 +969,14 @@ onUnmounted(closePreview)
                 <span class="lh-rev-label">当时附件</span>
                 <span class="lh-rev-value lh-rev-files">
                   <template v-if="revision.snapshot.attachments?.length">
-                    <button
-                      v-for="file in revision.snapshot.attachments"
+                    <SpdButton tone="primary" size="small" v-for="file in revision.snapshot.attachments"
                       :key="file.id"
-                      class="lf-btn lf-btn-info lf-btn-sm"
-                      type="button"
-                      @click="historyFileOpen = true; closePreview(); previewAttachment(file, revision.revisionNo)"
-                    >
-                      <Eye :size="13" /> {{ file.fileName }}
-                    </button>
+                     
+                     
+                      @click="historyFileOpen = true; closePreview(); previewAttachment(file, revision.revisionNo)">
+          <template #icon><Eye :size="13" /></template>
+          {{ file.fileName }}
+        </SpdButton>
                   </template>
                   <span v-else class="lh-rev-no-files">无</span>
                 </span>
@@ -999,9 +997,9 @@ onUnmounted(closePreview)
             <p>历史附件</p>
             <h3>{{ previewName || '历史附件阅览' }}</h3>
           </div>
-          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="historyFileOpen = false; closePreview()">
-            <X :size="18" />
-          </button>
+          <SpdButton label="" tone="primary" aria-label="关闭" @click="historyFileOpen = false; closePreview()">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="la-dialog-body">
           <div class="la-attachment-preview la-full-preview">
@@ -1030,9 +1028,9 @@ onUnmounted(closePreview)
             <p>附件阅览</p>
             <h3>{{ attachmentLicense?.licenseName }}</h3>
           </div>
-          <button class="lf-btn lf-btn-ghost" type="button" aria-label="关闭" @click="closePreview(); showAttachmentModal = false">
-            <X :size="18" />
-          </button>
+          <SpdButton label="" tone="primary" aria-label="关闭" @click="closePreview(); showAttachmentModal = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="la-dialog-body">
           <div class="la-attachment-list">
@@ -1053,12 +1051,12 @@ onUnmounted(closePreview)
                   <span>{{ item.createTime }} · {{ (item.size / 1024).toFixed(1) }} KB</span>
                 </div>
                 <div class="la-attachment-actions">
-                  <button class="lf-btn lf-btn-info lf-btn-sm" type="button" :disabled="previewing" @click="previewAttachment(item)">
-                    <Eye :size="14" /> 阅览
-                  </button>
-                  <button class="lf-btn lf-btn-secondary lf-btn-sm" type="button" @click="downloadAttachment(item)">
-                    <Download :size="14" /> 下载
-                  </button>
+                  <SpdButton label="阅览" :disabled="previewing" @click="previewAttachment(item)">
+          <template #icon><Eye :size="14" /></template>
+        </SpdButton>
+                  <SpdButton label="下载" @click="downloadAttachment(item)">
+          <template #icon><Download :size="14" /></template>
+        </SpdButton>
                 </div>
               </li>
             </ul>
@@ -1113,48 +1111,48 @@ onUnmounted(closePreview)
 }
 
 .lf-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 4px 10px -4px rgba(99,102,241,0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .lf-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 6px 14px -4px rgba(99,102,241,0.55);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .lf-btn-secondary {
-  background: linear-gradient(135deg, rgba(20,184,166,0.1), rgba(13,148,136,0.1));
-  color: #0d9488; border-color: rgba(20,184,166,0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 10%, transparent), color-mix(in srgb, var(--spd-p-success-text) 10%, transparent));
+  color: var(--spd-p-primary-hover); border-color: color-mix(in srgb, var(--spd-p-primary) 20%, transparent);
 }
 .lf-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
-  color: #fff; box-shadow: 0 4px 10px -4px rgba(20,184,166,0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg); box-shadow: var(--spd-p-shadow-2);
 }
 
 .lf-btn-info {
-  background: linear-gradient(135deg, rgba(6,182,212,0.1), rgba(14,165,233,0.1));
-  color: #0891b2; border-color: rgba(6,182,212,0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-success-text) 10%, transparent), color-mix(in srgb, var(--spd-p-info) 10%, transparent));
+  color: var(--spd-p-primary-hover); border-color: color-mix(in srgb, var(--spd-p-success-text) 20%, transparent);
 }
 .lf-btn-info:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
-  color: #fff; box-shadow: 0 4px 10px -4px rgba(6,182,212,0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-info));
+  color: var(--spd-p-bg); box-shadow: var(--spd-p-shadow-2);
 }
 
 .lf-btn-danger {
-  background: linear-gradient(135deg, rgba(220,38,38,0.1), rgba(225,29,72,0.1));
-  color: #dc2626; border-color: rgba(220,38,38,0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-danger) 10%, transparent), color-mix(in srgb, var(--spd-p-danger) 10%, transparent));
+  color: var(--spd-p-danger); border-color: color-mix(in srgb, var(--spd-p-danger) 20%, transparent);
 }
 .lf-btn-danger:hover:not(:disabled) {
-  background: linear-gradient(135deg, #dc2626, #e11d48);
-  color: #fff; box-shadow: 0 4px 10px -4px rgba(220,38,38,0.5);
+  background: linear-gradient(135deg, var(--spd-p-danger), var(--spd-p-danger));
+  color: var(--spd-p-bg); box-shadow: var(--spd-p-shadow-2);
 }
 
 .lf-btn-ghost {
   width: 32px; min-height: 32px; padding: 0; justify-content: center;
-  background: rgba(255,255,255,0.18);
-  color: #fff; border-color: rgba(255,255,255,0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg); border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
-.lf-btn-ghost:hover { background: rgba(255,255,255,0.3); }
+.lf-btn-ghost:hover { background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent); }
 
 /* ============================================================
    Page layout
@@ -1167,8 +1165,8 @@ onUnmounted(closePreview)
   gap: 16px;
   box-sizing: border-box;
   width: 100%;
-  background: var(--md-bg-page, #f5f7f8);
-  color: var(--md-text, #1d2a35);
+  background: var(--md-bg-page, var(--spd-p-bg-subtle));
+  color: var(--md-text, var(--spd-p-text));
   font-family: var(--spd-font-family);
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-base);
@@ -1177,12 +1175,12 @@ onUnmounted(closePreview)
 .license-tabs {
   display: flex;
   gap: 4px;
-  border: 1px solid #dce4e8;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 6px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   margin-bottom: 0;
-  box-shadow: 0 1px 2px rgba(15,42,58,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .license-tab {
@@ -1191,7 +1189,7 @@ onUnmounted(closePreview)
   padding: 0 16px;
   min-height: 34px;
   font-size: var(--spd-font-size-base);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
   border-radius: 6px;
   font-weight: 500;
@@ -1199,12 +1197,12 @@ onUnmounted(closePreview)
 }
 /* 页签高亮使用系统主题色，不再使用绿色 */
 .license-tab:hover {
-  color: var(--primary, #1677ff);
-  background: color-mix(in srgb, var(--primary, #1677ff) 10%, transparent);
+  color: var(--primary, var(--spd-p-info));
+  background: color-mix(in srgb, var(--primary, var(--spd-p-info)) 10%, transparent);
 }
 .license-tab.active {
-  color: var(--primary, #1677ff);
-  background: color-mix(in srgb, var(--primary, #1677ff) 12%, transparent);
+  color: var(--primary, var(--spd-p-info));
+  background: color-mix(in srgb, var(--primary, var(--spd-p-info)) 12%, transparent);
   font-weight: 700;
 }
 
@@ -1213,8 +1211,8 @@ onUnmounted(closePreview)
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 0;
-  background: #ffffff;
-  border: 1px solid #dce4e8;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 12px 16px;
   align-items: center;
@@ -1237,21 +1235,21 @@ onUnmounted(closePreview)
   min-height: 38px;
   padding: 0 12px;
   /* 与标准列表页（科室库房目录）一致：边框走 --ulc-border 令牌 */
-  border: 1px solid var(--ulc-border, #d5e0e5);
+  border: 1px solid var(--ulc-border, var(--spd-p-border));
   border-radius: var(--ulc-radius, 4px);
-  background: var(--ulc-bg-container, #fff);
+  background: var(--ulc-bg-container, var(--spd-p-bg));
   color: var(--spd-text-primary);
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-base);
 }
 .license-search input:focus {
   outline: none;
-  border-color: var(--ulc-primary, #1f6f6d);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ulc-primary, #1f6f6d) 15%, transparent);
+  border-color: var(--ulc-primary, var(--spd-p-primary));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
-.license-message { color: #047857; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
-.license-error { color: #b91c1c; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
+.license-message { color: var(--spd-p-success-strong); font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
+.license-error { color: var(--spd-p-danger-strong); font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
 
 /* ============================================================
    新增/编辑证照弹窗
@@ -1261,10 +1259,10 @@ onUnmounted(closePreview)
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -1274,8 +1272,8 @@ onUnmounted(closePreview)
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 .lf-dialog-title {
@@ -1298,7 +1296,7 @@ onUnmounted(closePreview)
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .lf-dialog-tag {
@@ -1308,12 +1306,12 @@ onUnmounted(closePreview)
   font-weight: 600;
 }
 .lf-dialog-tag-renew {
-  background: rgba(245,158,11,0.3);
-  color: #fef3c7;
+  background: color-mix(in srgb, var(--spd-p-warning) 30%, transparent);
+  color: var(--spd-p-warning-bg);
 }
 .lf-dialog-tag-edit {
-  background: rgba(34,197,94,0.3);
-  color: #dcfce7;
+  background: color-mix(in srgb, var(--spd-p-success) 30%, transparent);
+  color: var(--spd-p-primary-bg);
 }
 
 .lf-dialog-form {
@@ -1329,8 +1327,8 @@ onUnmounted(closePreview)
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px 18px;
   padding: 18px 24px 12px;
-  background: #f5f8fa;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border);
   overflow-y: auto;
 }
 
@@ -1346,7 +1344,7 @@ onUnmounted(closePreview)
   flex-direction: column;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 600;
 }
 
@@ -1357,10 +1355,10 @@ onUnmounted(closePreview)
 .lf-field textarea {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -1368,12 +1366,12 @@ onUnmounted(closePreview)
 .lf-field select:focus,
 .lf-field textarea:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
-.lf-field input[readonly] { background: #f0f3f5; color: #6b7c8f; cursor: not-allowed; }
+.lf-field input[readonly] { background: var(--spd-p-bg-muted); color: var(--spd-p-text-secondary); cursor: not-allowed; }
 .lf-field textarea { min-height: 60px; resize: vertical; }
-.lf-field small { color: #94a3b8; font-size: var(--spd-font-size-xs); }
+.lf-field small { color: var(--spd-p-text-muted); font-size: var(--spd-font-size-xs); }
 
 .lf-remark { }
 
@@ -1397,10 +1395,10 @@ onUnmounted(closePreview)
   gap: 6px;
   max-height: 200px;
   overflow: auto;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 10px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .lf-owner-option-btn {
@@ -1413,24 +1411,24 @@ onUnmounted(closePreview)
   background: transparent;
   font: inherit;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
   cursor: pointer;
   transition: background 0.15s;
 }
-.lf-owner-option-btn:hover { background: #eef7f8; }
+.lf-owner-option-btn:hover { background: var(--spd-p-primary-bg); }
 
 .lf-owner-pager {
   display: flex;
   align-items: center;
   gap: 8px;
   padding-top: 6px;
-  border-top: 1px solid #eef2f5;
+  border-top: 1px solid var(--spd-p-bg-muted);
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
 }
 
 .lf-owner-empty {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   margin: 0;
 }
@@ -1445,13 +1443,13 @@ onUnmounted(closePreview)
   border-radius: 999px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  background: rgba(34,197,94,0.12);
-  color: #15803d;
+  background: color-mix(in srgb, var(--spd-p-success) 12%, transparent);
+  color: var(--spd-p-success-text);
 }
 
 .lf-owner-tag-warn {
-  background: rgba(245,158,11,0.12);
-  color: #b45309;
+  background: color-mix(in srgb, var(--spd-p-warning) 12%, transparent);
+  color: var(--spd-p-warning-text);
 }
 
 /* Upload section */
@@ -1459,8 +1457,8 @@ onUnmounted(closePreview)
   display: grid;
   gap: 8px;
   padding: 14px 24px;
-  background: #ffffff;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg);
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .lf-upload-header {
@@ -1470,18 +1468,18 @@ onUnmounted(closePreview)
   gap: 10px;
 }
 .lf-upload-header > span {
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
-.lf-upload-header > small { color: #94a3b8; font-size: var(--spd-font-size-sm); }
+.lf-upload-header > small { color: var(--spd-p-text-muted); font-size: var(--spd-font-size-sm); }
 
 .lf-upload-success {
   display: flex;
   align-items: center;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #15803d;
+  color: var(--spd-p-success-text);
   margin: 0;
 }
 
@@ -1498,9 +1496,9 @@ onUnmounted(closePreview)
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  background: #f5f8fa;
+  background: var(--spd-p-bg-subtle);
   border-radius: 8px;
-  border: 1px solid #eef2f5;
+  border: 1px solid var(--spd-p-bg-muted);
 }
 
 .lf-file-name {
@@ -1510,18 +1508,18 @@ onUnmounted(closePreview)
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .lf-file-size {
   font-size: var(--spd-font-size-xs);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   white-space: nowrap;
   flex-shrink: 0;
 }
 
 .lf-upload-hint {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -1535,8 +1533,8 @@ onUnmounted(closePreview)
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 24px 18px;
-  background: #f5f8fa;
-  border-top: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-top: 1px solid var(--spd-p-border);
 }
 
 /* ============================================================
@@ -1547,10 +1545,10 @@ onUnmounted(closePreview)
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -1560,8 +1558,8 @@ onUnmounted(closePreview)
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #0f766e, #0d9488);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg);
 }
 
 .la-dialog-title {
@@ -1582,7 +1580,7 @@ onUnmounted(closePreview)
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .la-dialog-body {
@@ -1601,9 +1599,9 @@ onUnmounted(closePreview)
 .la-attachment-list {
   display: flex;
   flex-direction: column;
-  border-right: 1px solid #e1e9ee;
+  border-right: 1px solid var(--spd-p-border);
   overflow: hidden;
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .la-upload-row {
@@ -1612,11 +1610,11 @@ onUnmounted(closePreview)
   flex-wrap: wrap;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid #eef2f5;
-  background: #ffffff;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  background: var(--spd-p-bg);
 }
 .la-upload-row span {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -1634,11 +1632,11 @@ onUnmounted(closePreview)
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid #eef2f5;
-  background: #ffffff;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  background: var(--spd-p-bg);
   transition: background 0.15s;
 }
-.la-attachment-item:hover { background: #f0f7f7; }
+.la-attachment-item:hover { background: var(--spd-p-primary-bg); }
 
 .la-attachment-info {
   display: flex;
@@ -1648,14 +1646,14 @@ onUnmounted(closePreview)
 }
 .la-attachment-info strong {
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .la-attachment-info span {
   font-size: var(--spd-font-size-xs);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 .la-attachment-actions {
@@ -1668,7 +1666,7 @@ onUnmounted(closePreview)
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #f8fafc;
+  background: var(--spd-p-bg-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1696,11 +1694,11 @@ onUnmounted(closePreview)
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  color: #cbd5e1;
+  color: var(--spd-p-text-secondary);
 }
 .la-preview-placeholder p {
   font-size: var(--spd-font-size-base);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 /* ============================================================
@@ -1711,10 +1709,10 @@ onUnmounted(closePreview)
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15,42,58,0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -1724,8 +1722,8 @@ onUnmounted(closePreview)
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #475569, #334155);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-text-secondary), var(--spd-p-text-secondary));
+  color: var(--spd-p-bg);
 }
 
 .lh-dialog-title {
@@ -1746,7 +1744,7 @@ onUnmounted(closePreview)
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .lh-dialog-body {
@@ -1760,11 +1758,11 @@ onUnmounted(closePreview)
 }
 
 .lh-revision-item {
-  border: 1px solid #e1e9ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 12px;
   overflow: hidden;
-  background: #ffffff;
-  box-shadow: 0 1px 4px rgba(15,42,58,0.06);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .lh-revision-header {
@@ -1773,8 +1771,8 @@ onUnmounted(closePreview)
   flex-wrap: wrap;
   gap: 10px;
   padding: 10px 16px;
-  background: linear-gradient(135deg, #f8fafc, #eef2f7);
-  border-bottom: 1px solid #e1e9ee;
+  background: linear-gradient(135deg, var(--spd-p-bg-muted), var(--spd-p-bg-muted));
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .lh-revision-badge {
@@ -1783,8 +1781,8 @@ onUnmounted(closePreview)
   gap: 4px;
   padding: 2px 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15));
-  color: #4f46e5;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 15%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 15%, transparent));
+  color: var(--spd-p-primary);
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
@@ -1792,8 +1790,8 @@ onUnmounted(closePreview)
 .lh-revision-type {
   padding: 2px 10px;
   border-radius: 999px;
-  background: rgba(245,158,11,0.12);
-  color: #b45309;
+  background: color-mix(in srgb, var(--spd-p-warning) 12%, transparent);
+  color: var(--spd-p-warning-text);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -1801,7 +1799,7 @@ onUnmounted(closePreview)
 .lh-revision-op,
 .lh-revision-time {
   font-size: var(--spd-font-size-sm);
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
 }
 
 .lh-revision-detail {
@@ -1819,7 +1817,7 @@ onUnmounted(closePreview)
 
 .lh-rev-label {
   font-size: var(--spd-font-size-xs);
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1827,7 +1825,7 @@ onUnmounted(closePreview)
 
 .lh-rev-value {
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
   font-weight: 500;
 }
 
@@ -1839,31 +1837,17 @@ onUnmounted(closePreview)
 }
 
 .lh-rev-no-files {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  background: rgba(34,197,94,0.12);
-  color: #15803d;
-  border: 1px solid rgba(34,197,94,0.3);
-}
-.status-badge.warning {
-  background: rgba(245,158,11,0.12);
-  color: #b45309;
-  border-color: rgba(245,158,11,0.3);
-}
+/* 【已移除】本文件原有的 .status-badge 局部样式（圆角 999px + 自定义配色）。
+   列表状态条统一改用 <SpdStatusChip>（styles/components/spd-status-chip.css），
+   全站共享同一套高度 / 内边距 / 圆角 / 浅底深字配色。 */
 
 /* Legacy overrides */
 .license-owner-search { display: flex; gap: 8px; }
 .license-owner-search input { flex: 1; min-width: 0; }
-.license-owner-options { display: grid; gap: 6px; max-height: 230px; overflow: auto; border: 1px solid #dce4e8; padding: 10px; }
+.license-owner-options { display: grid; gap: 6px; max-height: 230px; overflow: auto; border: 1px solid var(--spd-p-border); padding: 10px; }
 .license-owner-options > button { text-align: left; }
 </style>

@@ -10,6 +10,7 @@ import {
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import {
   createInvoice,
   fetchInvoiceOptions,
@@ -162,8 +163,8 @@ function resetForm() {
   form.remark = ''
 }
 
-function statusTone(status: string) {
-  return status === 'verified' ? 'enabled' : 'pending'
+function statusTone(status: string): SpdStatusChipTone {
+  return status === 'verified' ? 'success' : 'warning'
 }
 
 onMounted(load)
@@ -259,8 +260,10 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
         <label><span>税额（元）</span><input v-model.number="form.taxAmount" type="number" min="0" step="0.01" /></label>
         <label class="wide"><span>备注</span><input v-model="form.remark" placeholder="选填，可记录业务背景" /></label>
         <div class="invoice-form-actions">
-          <button class="btn" type="button" :disabled="saving" @click="resetForm">重置</button>
-          <button class="btn btn-primary" type="submit" :disabled="saving">{{ saving ? '保存中...' : '登记发票' }}</button>
+          <SpdButton label="重置" tone="neutral" :disabled="saving" @click="resetForm"></SpdButton>
+          <SpdButton tone="primary" type="submit" :disabled="saving">
+          {{ saving ? '保存中...' : '登记发票' }}
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -280,7 +283,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
             <option value="pending_verification">待核验</option>
             <option value="verified">已核验</option>
           </select>
-          <button class="btn btn-primary" type="button" @click="page = 1; load()">查询</button>
+          <SpdButton label="查询" tone="primary" @click="page = 1; load()"></SpdButton>
         </div>
       </div>
             <MdDataTableCard>
@@ -292,26 +295,22 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
         </template>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="invoiceDetailColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="invoiceDetailCols.settingsOpen.value = !invoiceDetailCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: invoiceDetailCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="invoiceDetailColSettingsAnchorRef"
+           
+           
+            @click="invoiceDetailCols.settingsOpen.value = !invoiceDetailCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="invoiceDetailCols.settingsOpen.value"
             ref="invoiceDetailColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': invoiceDetailColSettingsPop.align.value === 'right', 'is-align-up': invoiceDetailColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': invoiceDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invoiceDetailColSettingsPop.maxHeight.value + 'px' }"
+            :style="invoiceDetailColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="invoiceDetailCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invoiceDetailCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in invoiceDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -326,7 +325,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="invoiceDetailCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="invoiceDetailCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -464,7 +463,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="status-badge" :class="statusTone(row.status)">{{ formatStatusText(row.status) }}</span>
+                <SpdStatusChip :tone="statusTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -538,38 +537,38 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .invoice-kpi-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 /* ① 蓝色：发票总数 */
 .invoice-kpi-item.is-total {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
+  background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%);
+  border-color: var(--spd-p-info-border);
 }
 
 /* ② 金色：待核验 */
 .invoice-kpi-item.is-pending {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
+  background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%);
+  border-color: var(--spd-p-warning-border);
 }
 
 /* ③ 绿色：已核验 */
 .invoice-kpi-item.is-verified {
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%);
+  border-color: var(--spd-p-success);
 }
 
 /* ④ 紫色：含税金额 */
 .invoice-kpi-item.is-amount {
-  background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%);
-  border-color: #c4b5fd;
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  border-color: var(--spd-p-info-border);
 }
 
 .invoice-kpi-icon {
@@ -579,26 +578,26 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
 /* 图标颜色对应主题 */
 .invoice-kpi-item.is-total .invoice-kpi-icon {
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
 }
 
 .invoice-kpi-item.is-pending .invoice-kpi-icon {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
 }
 
 .invoice-kpi-item.is-verified .invoice-kpi-icon {
-  color: #047857;
+  color: var(--spd-p-success-strong);
 }
 
 .invoice-kpi-item.is-amount .invoice-kpi-icon {
-  color: #6d28d9;
+  color: var(--spd-p-primary);
 }
 
 .invoice-kpi-item > div {
@@ -615,7 +614,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .invoice-kpi-value {
-  color: var(--spd-text-heading, #14213a);
+  color: var(--spd-text-heading, var(--spd-p-text));
   font-size: var(--spd-font-size-2xl);
   font-weight: 800;
   line-height: var(--spd-lh-tight);
@@ -641,34 +640,34 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 .invoice-kpi-item.is-total .invoice-kpi-label,
 .invoice-kpi-item.is-total .invoice-kpi-value,
 .invoice-kpi-item.is-total .invoice-kpi-hint {
-  color: #1e3a8a;
+  color: var(--spd-p-info-strong);
 }
 
 .invoice-kpi-item.is-pending .invoice-kpi-label,
 .invoice-kpi-item.is-pending .invoice-kpi-value,
 .invoice-kpi-item.is-pending .invoice-kpi-hint {
-  color: #78350f;
+  color: var(--spd-p-warning-strong);
 }
 
 .invoice-kpi-item.is-verified .invoice-kpi-label,
 .invoice-kpi-item.is-verified .invoice-kpi-value,
 .invoice-kpi-item.is-verified .invoice-kpi-hint {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
 }
 
 .invoice-kpi-item.is-amount .invoice-kpi-label,
 .invoice-kpi-item.is-amount .invoice-kpi-value,
 .invoice-kpi-item.is-amount .invoice-kpi-hint {
-  color: #4c1d95;
+  color: var(--spd-p-primary-strong);
 }
 
 /* ---------- 通用面板：finance 绿色主题 ---------- */
 .invoice-panel {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
+  background: var(--spd-p-bg);
   padding: 18px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .section-title {
@@ -677,7 +676,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .section-title-icon {
@@ -691,13 +690,13 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .section-title-icon.is-form {
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .section-title-icon.is-list {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--spd-p-border);
+  color: var(--spd-p-info-strong);
 }
 
 .section-title h3 {
@@ -725,27 +724,27 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   min-width: 280px;
   min-height: 32px;
   height: 32px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   padding: 0 11px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .section-title-tools input:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
   box-shadow: none;
 }
 
 .section-title-tools select {
   min-height: 32px;
   height: 32px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   padding: 0 11px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   cursor: pointer;
 }
@@ -770,10 +769,10 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 .invoice-form select {
   min-height: 32px;
   height: 32px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   padding: 0 11px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   color: var(--spd-text-primary);
@@ -782,7 +781,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 .invoice-form input:focus,
 .invoice-form select:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
   box-shadow: none;
 }
 
@@ -802,10 +801,10 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 .invoice-detail-scroll {
   max-height: min(72vh, 820px);
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--spd-p-border-strong) transparent;
 }
 
 .invoice-detail-scroll::-webkit-scrollbar {
@@ -814,12 +813,12 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .invoice-detail-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--spd-p-border-strong);
   border-radius: 999px;
 }
 
 .invoice-detail-scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--spd-p-text-muted);
 }
 
 .invoice-detail-table {
@@ -834,7 +833,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   padding: 9px 12px;
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-tight);
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--spd-p-text-strong);
   text-align: left;
   white-space: nowrap;
 }
@@ -844,25 +843,25 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   top: 0;
   z-index: 2;
   padding: 10px 12px;
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  color: #065f46;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  color: var(--spd-p-primary-strong);
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.2px;
-  border-bottom: 1px solid #6ee7b7;
+  border-bottom: 1px solid var(--spd-p-success);
 }
 
 .invoice-detail-table tbody td {
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
 }
 
 .invoice-detail-table tbody tr:nth-child(even) td {
-  background: #fafdfb;
+  background: var(--spd-p-bg);
 }
 
 .invoice-detail-table tbody tr:hover td {
-  background: #ecfdf5;
+  background: var(--spd-p-primary-bg);
 }
 
 .invoice-empty-row td {
@@ -898,7 +897,7 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .invoice-cell-meta {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-xs);
   font-weight: 400;
   white-space: nowrap;
@@ -908,18 +907,18 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 
 .invoice-mono {
   font-family: var(--spd-font-family-mono);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .invoice-detail-table .numeric-cell {
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .invoice-detail-table .amount-cell {
-  color: #047857;
+  color: var(--spd-p-success-strong);
   font-weight: 800;
   font-size: var(--spd-font-size-base);
 }
@@ -942,32 +941,9 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   text-overflow: ellipsis;
 }
 
-/* 状态 badge */
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 9px;
-  border: 1px solid;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  line-height: var(--spd-lh-tight);
-  white-space: nowrap;
-}
-
-.status-badge.pending {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fde68a;
-}
-
-.status-badge.enabled {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #6ee7b7;
-}
+/* 【已移除】本文件原有的 .status-badge 局部样式（22px 高 / 999px 圆角）。
+   列表状态条统一改用 <SpdStatusChip>（styles/components/spd-status-chip.css），
+   全站共享同一套高度 / 内边距 / 圆角 / 浅底深字配色。 */
 
 /* 按钮 */
 .btn {
@@ -978,10 +954,10 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   line-height: 1;
@@ -990,8 +966,8 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .btn:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-text-muted);
 }
 
 .btn:disabled {
@@ -1000,15 +976,15 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-sm {

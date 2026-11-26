@@ -158,40 +158,37 @@ function closeOnMask(event: MouseEvent) {
           </div>
 
           <footer v-if="!hideCancel" class="spd-confirm-foot">
-            <button
-              type="button"
-              class="spd-confirm-btn spd-confirm-btn-cancel"
-              :disabled="loading"
-              @click="handleCancel"
-            >
+            <SpdButton tone="neutral" :disabled="loading" @click="handleCancel">
               {{ cancelText }}
-            </button>
-            <button
-              type="button"
-              class="spd-confirm-btn"
-              :class="[`spd-confirm-btn-${tone}`, { 'is-loading': loading }]"
+            </SpdButton>
+            <SpdButton
+              :tone="tone === 'primary' ? 'primary' : tone"
+              :label="loading ? '处理中...' : confirmText"
+              :loading="loading"
               :disabled="loading"
-              @click="handleConfirm"
-            >
-              <span v-if="loading" class="spd-confirm-spinner" aria-hidden="true" />
-              <span v-else-if="tone === 'danger'">
+              @click="handleConfirm">
+              <template v-if="tone === 'danger'" #icon>
                 <AlertOctagon :size="16" />
-              </span>
-              <span v-else-if="tone === 'success'">
+              </template>
+              <template v-else-if="tone === 'success'" #icon>
                 <CheckCircle2 :size="16" />
-              </span>
-              <span>{{ loading ? '处理中...' : confirmText }}</span>
-            </button>
+              </template>
+            </SpdButton>
           </footer>
           <footer v-else class="spd-confirm-foot">
-            <button
-              type="button"
-              class="spd-confirm-btn spd-confirm-btn-primary"
+            <SpdButton
+              :tone="tone === 'primary' ? 'primary' : tone"
+              :label="loading ? '处理中...' : confirmText"
+              :loading="loading"
               :disabled="loading"
-              @click="handleConfirm"
-            >
-              {{ confirmText }}
-            </button>
+              @click="handleConfirm">
+              <template v-if="tone === 'danger'" #icon>
+                <AlertOctagon :size="16" />
+              </template>
+              <template v-else-if="tone === 'success'" #icon>
+                <CheckCircle2 :size="16" />
+              </template>
+            </SpdButton>
           </footer>
         </section>
       </div>
@@ -208,7 +205,7 @@ function closeOnMask(event: MouseEvent) {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(6, 21, 43, 0.45);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 45%, transparent);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   isolation: isolate;
@@ -222,14 +219,11 @@ function closeOnMask(event: MouseEvent) {
   width: 100%;
   max-height: calc(100vh - 48px);
   border-radius: 16px;
-  background: #ffffff;
-  box-shadow:
-    0 24px 64px -16px rgba(15, 23, 42, 0.32),
-    0 8px 20px -6px rgba(99, 102, 241, 0.18),
-    0 2px 6px rgba(15, 23, 42, 0.06);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
   font-size: var(--spd-font-size-base);
-  color: #0f172a;
+  color: var(--spd-p-text-strong);
 }
 
 /* ===== Header ===== */
@@ -238,8 +232,8 @@ function closeOnMask(event: MouseEvent) {
   align-items: center;
   gap: 12px;
   padding: 18px 22px 14px;
-  border-bottom: 1px solid #f1f5f9;
-  background: linear-gradient(135deg, #fafbff 0%, #f5f3ff 50%, #fdf2f8 100%);
+  border-bottom: 1px solid var(--spd-p-text-strong);
+  background: linear-gradient(135deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-bg-subtle) 50%, var(--spd-p-danger-bg) 100%);
 }
 
 .spd-confirm-title {
@@ -247,7 +241,7 @@ function closeOnMask(event: MouseEvent) {
   margin: 0;
   font-size: var(--spd-font-size-lg);
   font-weight: 700;
-  color: #0f172a;
+  color: var(--spd-p-text-strong);
   line-height: var(--spd-lh-tight);
 }
 
@@ -258,26 +252,26 @@ function closeOnMask(event: MouseEvent) {
   height: 36px;
   flex-shrink: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.5);
+  background: var(--spd-p-header-gradient);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .spd-confirm-icon.is-danger {
-  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%);
-  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.5);
+  background: var(--spd-p-danger);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-icon.is-warning {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.5);
+  background: var(--spd-p-warning);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-icon.is-success {
-  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
-  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.5);
+  background: var(--spd-p-success);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-icon.is-info {
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .spd-confirm-close {
@@ -287,14 +281,15 @@ function closeOnMask(event: MouseEvent) {
   height: 30px;
   border: 0;
   background: transparent;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.18s, color 0.18s;
 }
+/* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
 .spd-confirm-close:hover {
-  background: #f1f5f9;
-  color: #0f172a;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-strong);
 }
 
 /* ===== Body ===== */
@@ -306,7 +301,7 @@ function closeOnMask(event: MouseEvent) {
 
 .spd-confirm-desc {
   margin: 0;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-loose);
 }
@@ -315,15 +310,15 @@ function closeOnMask(event: MouseEvent) {
   margin: 0;
   padding: 10px 14px;
   list-style: none;
-  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
-  border-left: 3px solid #f97316;
+  background: linear-gradient(135deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-bg) 100%);
+  border-left: 3px solid var(--spd-p-warning);
   border-radius: 8px;
   display: grid;
   gap: 4px;
 }
 
 .spd-confirm-details li {
-  color: #9a3412;
+  color: var(--spd-p-danger-text);
   font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }
@@ -331,30 +326,30 @@ function closeOnMask(event: MouseEvent) {
 .spd-confirm-details li::before {
   content: '•';
   margin-right: 6px;
-  color: #ea580c;
+  color: var(--spd-p-warning-strong);
   font-weight: 700;
 }
 
 .is-danger .spd-confirm-details {
-  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
-  border-left-color: #dc2626;
+  background: linear-gradient(135deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-bg) 100%);
+  border-left-color: var(--spd-p-danger);
 }
-.is-danger .spd-confirm-details li { color: #991b1b; }
-.is-danger .spd-confirm-details li::before { color: #dc2626; }
+.is-danger .spd-confirm-details li { color: var(--spd-p-danger-strong); }
+.is-danger .spd-confirm-details li::before { color: var(--spd-p-danger); }
 
 .is-success .spd-confirm-details {
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border-left-color: #059669;
+  background: linear-gradient(135deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-left-color: var(--spd-p-success);
 }
-.is-success .spd-confirm-details li { color: #065f46; }
-.is-success .spd-confirm-details li::before { color: #059669; }
+.is-success .spd-confirm-details li { color: var(--spd-p-primary-strong); }
+.is-success .spd-confirm-details li::before { color: var(--spd-p-success); }
 
 .is-info .spd-confirm-details {
-  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
-  border-left-color: #2563eb;
+  background: linear-gradient(135deg, var(--spd-p-info-bg) 0%, var(--spd-p-border) 100%);
+  border-left-color: var(--spd-p-info);
 }
-.is-info .spd-confirm-details li { color: #1e40af; }
-.is-info .spd-confirm-details li::before { color: #2563eb; }
+.is-info .spd-confirm-details li { color: var(--spd-p-info-strong); }
+.is-info .spd-confirm-details li::before { color: var(--spd-p-info); }
 
 /* ===== Footer / Buttons ===== */
 .spd-confirm-foot {
@@ -363,8 +358,8 @@ function closeOnMask(event: MouseEvent) {
   justify-content: flex-end;
   gap: 10px;
   padding: 14px 22px 18px;
-  border-top: 1px solid #f1f5f9;
-  background: #fafbfc;
+  border-top: 1px solid var(--spd-p-text-strong);
+  background: var(--spd-p-row-stripe);
 }
 
 .spd-confirm-btn {
@@ -380,16 +375,16 @@ function closeOnMask(event: MouseEvent) {
   font-weight: 600;
   font-size: var(--spd-font-size-base);
   line-height: 1;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   cursor: pointer;
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 100%);
+  box-shadow: var(--spd-p-shadow-2);
   transition: background 0.18s, box-shadow 0.18s, transform 0.18s, opacity 0.18s;
 }
 
 .spd-confirm-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 8px 20px -4px rgba(99, 102, 241, 0.55);
+  box-shadow: var(--spd-p-shadow-3);
 }
 .spd-confirm-btn:active {
   transform: translateY(0);
@@ -402,52 +397,53 @@ function closeOnMask(event: MouseEvent) {
 }
 
 .spd-confirm-btn-primary {
-  background: linear-gradient(135deg, #2563eb 0%, #4f46e5 100%);
-  box-shadow: 0 4px 12px -4px rgba(37, 99, 235, 0.45);
+  background: var(--spd-p-header-gradient);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-btn-primary:hover {
-  box-shadow: 0 8px 20px -4px rgba(37, 99, 235, 0.55);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .spd-confirm-btn-success {
-  background: linear-gradient(135deg, #059669 0%, #0d9488 100%);
-  box-shadow: 0 4px 12px -4px rgba(5, 150, 105, 0.45);
+  background: var(--spd-p-success);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-btn-success:hover {
-  box-shadow: 0 8px 20px -4px rgba(5, 150, 105, 0.55);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .spd-confirm-btn-danger {
-  background: linear-gradient(135deg, #dc2626 0%, #e11d48 100%);
-  box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.45);
+  background: var(--spd-p-danger);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-btn-danger:hover {
-  box-shadow: 0 8px 20px -4px rgba(220, 38, 38, 0.55);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .spd-confirm-btn-warning {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  box-shadow: 0 4px 12px -4px rgba(249, 115, 22, 0.45);
+  background: var(--spd-p-warning);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .spd-confirm-btn-warning:hover {
-  box-shadow: 0 8px 20px -4px rgba(249, 115, 22, 0.55);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .spd-confirm-btn-info {
-  background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
-  box-shadow: 0 4px 12px -4px rgba(99, 102, 241, 0.45);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .spd-confirm-btn-cancel {
-  background: #ffffff;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
+  border: 1px solid var(--spd-p-border-strong);
   box-shadow: none;
 }
+/* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
 .spd-confirm-btn-cancel:hover {
-  background: #f1f5f9;
-  border-color: #94a3b8;
-  color: #0f172a;
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border-strong);
+  color: var(--spd-p-text-strong);
   transform: none;
   box-shadow: none;
 }

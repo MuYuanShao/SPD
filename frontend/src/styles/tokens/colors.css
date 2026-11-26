@@ -18,7 +18,12 @@
   --spd-c-text: #1f2933;          /* 主文字（接近黑，不使用纯黑） */
   --spd-c-text-strong: #101820;   /* 强调文字 */
   --spd-c-text-secondary: #4a5a66; /* 次级文字 */
-  --spd-c-text-muted: #6b7c88;    /* 弱化文字 / 占位 */
+  /* 弱化文字 / 占位。
+     原为 #6b7c88：在白底上仅 4.32:1，在浅灰区块（#f5f8f9 / #eef3f5）上
+     更低到 4.05:1 / 3.86:1，低于 WCAG AA 正文 4.5:1，表现为「文字发淡看不清」。
+     现加深为 #62707c：白底 5.09:1、页面底 4.85:1、次级区块 4.77:1、三级区块 4.55:1，
+     全部达到 AA，且仍保持中性灰蓝观感（不偏蓝）。 */
+  --spd-c-text-muted: #62707c;
   --spd-c-text-on-primary: #ffffff; /* 主色按钮上的文字 */
 
   /* ============== 背景：恒为浅色 ============== */
@@ -42,7 +47,11 @@
 
   /* ============== 语义状态色（固定） ============== */
   /* 启用 / 正常：低饱和绿 */
-  --spd-c-success: #2f7d5b;
+  /* 启用 / 正常：低饱和绿
+     原为 #2f7d5b：在状态标签浅色底（--spd-c-success-soft #e6f1ec）上仅 4.32:1，
+     略低于 WCAG AA 正文 4.5:1，标签文字偏淡。现加深为 #2a7152：
+     标签底上 5.07:1、白底 5.86:1，且仍是低饱和墨绿（不发蓝、不刺眼）。 */
+  --spd-c-success: #2a7152;
   --spd-c-success-soft: #e6f1ec;
   --spd-c-success-border: #b6d6c6;
 
@@ -66,6 +75,24 @@
   --spd-c-info-soft: #e9f1f5;
   --spd-c-info-border: #b5ccd9;
 
+  /* ============== 中性石板（Slate）==============
+     ---------------------------------------------------------------------
+     「表头 / 次级说明 / 弱化文字」这一档的中性灰蓝。
+     历史上原生 el-table 表头用的就是 #607285；
+     颜色收敛时误把它换成了信息语义色 --spd-c-info（#1f5f7d 深蓝），
+     导致表头偏蓝、正文发淡。
+     这里把该档位单独登记为中性石板色：
+       - 不是品牌蓝，也不是信息蓝，仅是「比正文弱一档」的灰蓝；
+       - 三套配色方案各自覆写 --spd-c-* 后自动适配；
+       - 供 --spd-p-info-text / --spd-p-row-header-text 等中性角色引用。 */
+  /* 中性石板色：原为 #607285，在三级区块底（#eef3f5）上仅 4.42:1，
+     略低于 WCAG AA 正文 4.5:1。现加深为 #59697b：白底 5.63:1、
+     页面底 5.37:1、次级区块 5.27:1、三级区块 5.03:1，全部达标，
+     且仍是低饱和灰蓝（不是品牌蓝 / 信息蓝）。 */
+  --spd-c-slate: #59697b;
+  --spd-c-slate-soft: #eef2f5;
+  --spd-c-slate-border: #ccd6de;
+
   /* ============== 状态条统一规格 ==============
      4px 圆角 / 1px 边框 / 0.4 透明度底色 / 深色文字 */
   --spd-c-chip-radius: 4px;
@@ -86,14 +113,20 @@
 
 /* =====================================================================
    语义色 → 状态条统一样式
-   规则：4px 圆角 + 1px 边框 + 0.4 透明度底色 + 深色文字
+   规则：4px 圆角 + 1px 边框 + 浅色底 + 深色文字
+
+   底色改用各语义色的 -soft 浅色档，而不是 color-mix(语义色 40%, 白)：
+   40% 混合会把底色推到中灰档（例如成功绿 → #accbbd），
+   与同一语义色的文字（#2f7d5b）只有 2.86:1，状态标签几乎看不清。
+   -soft 浅色档与对应文字的对比度：
+     成功 4.32→6.20、禁用 4.52→5.34、警告 4.67:1、危险 5.71:1、信息 6.14:1
    ===================================================================== */
 :root {
-  --spd-c-chip-bg-success: color-mix(in srgb, var(--spd-c-success) 40%, #ffffff);
-  --spd-c-chip-bg-disabled: color-mix(in srgb, var(--spd-c-disabled) 40%, #ffffff);
-  --spd-c-chip-bg-warning: color-mix(in srgb, var(--spd-c-warning) 40%, #ffffff);
-  --spd-c-chip-bg-danger: color-mix(in srgb, var(--spd-c-danger) 40%, #ffffff);
-  --spd-c-chip-bg-info: color-mix(in srgb, var(--spd-c-info) 40%, #ffffff);
-  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 40%, #ffffff);
-  --spd-c-chip-bg-primary: color-mix(in srgb, var(--spd-c-primary) 40%, #ffffff);
+  --spd-c-chip-bg-success: var(--spd-c-success-soft);
+  --spd-c-chip-bg-disabled: var(--spd-c-disabled-soft);
+  --spd-c-chip-bg-warning: var(--spd-c-warning-soft);
+  --spd-c-chip-bg-danger: var(--spd-c-danger-soft);
+  --spd-c-chip-bg-info: var(--spd-c-info-soft);
+  --spd-c-chip-bg-neutral: color-mix(in srgb, var(--spd-c-text-muted) 12%, #ffffff);
+  --spd-c-chip-bg-primary: var(--spd-c-primary-soft);
 }

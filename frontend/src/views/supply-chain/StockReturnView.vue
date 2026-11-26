@@ -357,31 +357,27 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
         </select></label>
         <label>批号<input v-model.trim="batchNo" class="md-input" placeholder="系统批号或生产批号" :disabled="submitting" /></label>
         <label>关键词<input v-model.trim="keyword" class="md-input" placeholder="商品或追溯码" :disabled="submitting" /></label>
-        <button class="md-btn md-btn-primary" type="submit" :disabled="!choiceReady || searching || submitting">查询可退库存</button>
+        <SpdButton label="查询可退库存" tone="primary" type="submit" :disabled="!choiceReady || searching || submitting"></SpdButton>
       </form>
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="stockReturnCandidatesColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="stockReturnCandidatesCols.settingsOpen.value = !stockReturnCandidatesCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: stockReturnCandidatesCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="stockReturnCandidatesColSettingsAnchorRef"
+           
+           
+            @click="stockReturnCandidatesCols.settingsOpen.value = !stockReturnCandidatesCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="stockReturnCandidatesCols.settingsOpen.value"
             ref="stockReturnCandidatesColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': stockReturnCandidatesColSettingsPop.align.value === 'right', 'is-align-up': stockReturnCandidatesColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': stockReturnCandidatesColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnCandidatesColSettingsPop.maxHeight.value + 'px' }"
+            :style="stockReturnCandidatesColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="stockReturnCandidatesCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnCandidatesCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in stockReturnCandidatesCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -396,7 +392,7 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="stockReturnCandidatesCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="stockReturnCandidatesCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -507,11 +503,11 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
         </div>
       </MdDataTableCard>
       <div class="return-actions">
-        <button type="button" class="md-btn" :disabled="!candidates.length || submitting" @click="selectAll">批量选择查询结果</button>
+        <SpdButton label="批量选择查询结果" tone="primary" :disabled="!candidates.length || submitting" @click="selectAll"></SpdButton>
         <label>退货原因<input v-model.trim="reason" class="md-input" maxlength="500" :disabled="submitting" /></label>
-        <button type="button" class="md-btn md-btn-primary" :disabled="submitting || !selectedItems.length" @click="submit()">
+        <SpdButton tone="primary" :disabled="submitting || !selectedItems.length" @click="submit()">
           {{ kind === 'department' ? '提交退库预占' : '确认供应商退货' }}
-        </button>
+        </SpdButton>
       </div>
     </section>
     <section class="hospital-catalog-panel">
@@ -519,26 +515,22 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="stockReturnListColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="stockReturnListCols.settingsOpen.value = !stockReturnListCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: stockReturnListCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="stockReturnListColSettingsAnchorRef"
+           
+           
+            @click="stockReturnListCols.settingsOpen.value = !stockReturnListCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="stockReturnListCols.settingsOpen.value"
             ref="stockReturnListColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': stockReturnListColSettingsPop.align.value === 'right', 'is-align-up': stockReturnListColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': stockReturnListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnListColSettingsPop.maxHeight.value + 'px' }"
+            :style="stockReturnListColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="stockReturnListCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnListCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in stockReturnListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -553,7 +545,7 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="stockReturnListCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="stockReturnListCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -693,26 +685,22 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
+          <SpdButton
             ref="stockReturnItemsColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="stockReturnItemsCols.settingsOpen.value = !stockReturnItemsCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: stockReturnItemsCols.settingsOpen.value }" />
-          </button>
+            label="列设置"
+            @click="stockReturnItemsCols.settingsOpen.value = !stockReturnItemsCols.settingsOpen.value">
+            <template #icon><Columns3 :size="16" /></template>
+          </SpdButton>
           <div
             v-if="stockReturnItemsCols.settingsOpen.value"
             ref="stockReturnItemsColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': stockReturnItemsColSettingsPop.align.value === 'right', 'is-align-up': stockReturnItemsColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': stockReturnItemsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnItemsColSettingsPop.maxHeight.value + 'px' }"
+            :style="stockReturnItemsColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="stockReturnItemsCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnItemsCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in stockReturnItemsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -727,7 +715,7 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="stockReturnItemsCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="stockReturnItemsCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -846,8 +834,8 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
         <div><dt>金额汇总</dt><dd>{{ amountSummary }}</dd></div>
       </dl>
       <template #footer>
-        <el-button @click="confirmationOpen = false">取消</el-button>
-        <el-button type="primary" :disabled="submitting || !confirmationRows.length" @click="submit(true)">确认提交</el-button>
+        <SpdButton label="取消" tone="neutral" @click="confirmationOpen = false"></SpdButton>
+        <SpdButton label="确认提交" tone="primary" :disabled="submitting || !confirmationRows.length" @click="submit(true)"></SpdButton>
       </template>
     </el-dialog>
   </section>

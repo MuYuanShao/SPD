@@ -223,7 +223,7 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
     <StatusMessage :message="message" tone="error" />
 
     <section class="record-workspace" aria-label="拣配记录查询与列表">
-      <form class="hospital-query-grid record-query-grid" role="search" @submit.prevent="search">
+      <SpdFilterBar class="record-query-grid" role="search" :loading="loading" @submit="search" @reset="reset">
         <label><span>配送单号</span><input v-model.trim="query.deliveryNo" class="md-input" placeholder="请输入配送单号" /></label>
         <label><span>申领单号</span><input v-model.trim="query.requisitionNo" class="md-input" placeholder="请输入申领单号" /></label>
         <label><span>科室</span><input v-model.trim="query.deptName" class="md-input" placeholder="请输入科室名称" /></label>
@@ -247,11 +247,7 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
         </label>
         <label><span>开始日期</span><input v-model="query.dateFrom" class="md-input" type="date" /></label>
         <label><span>结束日期</span><input v-model="query.dateTo" class="md-input" type="date" /></label>
-        <div class="record-query-actions">
-          <button class="btn btn-primary md-btn md-btn-primary" type="submit" :disabled="loading"><Search :size="16" />查询</button>
-          <button class="btn md-btn" type="button" :disabled="loading" @click="reset"><RotateCcw :size="16" />重置</button>
-        </div>
-      </form>
+      </SpdFilterBar>
 
       <div class="record-table-title">
         <History :size="19" />
@@ -262,26 +258,22 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="pickingRecordsColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="pickingRecordsCols.settingsOpen.value = !pickingRecordsCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: pickingRecordsCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="pickingRecordsColSettingsAnchorRef"
+           
+           
+            @click="pickingRecordsCols.settingsOpen.value = !pickingRecordsCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="pickingRecordsCols.settingsOpen.value"
             ref="pickingRecordsColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': pickingRecordsColSettingsPop.align.value === 'right', 'is-align-up': pickingRecordsColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': pickingRecordsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': pickingRecordsColSettingsPop.maxHeight.value + 'px' }"
+            :style="pickingRecordsColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="pickingRecordsCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="pickingRecordsCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in pickingRecordsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -296,7 +288,7 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="pickingRecordsCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="pickingRecordsCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -432,9 +424,9 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">定数包码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-wrap-text"><button v-if="row.labelCodes.length" class="btn btn-sm" type="button" @click="showLabelDetail(row)">
-                  查看详情（{{ row.labelCodes.length }}）
-                </button>
+                <span class="ulc-wrap-text"><SpdButton tone="primary" size="small" v-if="row.labelCodes.length" @click="showLabelDetail(row)">
+          查看详情（{{ row.labelCodes.length }}）
+        </SpdButton>
                 <span v-else>-</span></span>
               </template>
             </el-table-column>
@@ -448,7 +440,10 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="status-badge" :class="row.status === 'signed' ? 'enabled' : 'pending'">{{ formatStatusText(row.status) }}</span>
+                <SpdStatusChip
+                  :tone="row.status === 'signed' ? 'success' : 'warning'"
+                  :label="formatStatusText(row.status)"
+                />
               </template>
             </el-table-column>
             <el-table-column
@@ -549,7 +544,7 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
           </ol>
         </div>
       </template>
-      <template #footer><el-button @click="labelDetailOpen = false">关闭</el-button></template>
+      <template #footer><SpdButton label="关闭" tone="neutral" @click="labelDetailOpen = false"></SpdButton></template>
     </el-dialog>
   </section>
 </template>
@@ -611,65 +606,17 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
   gap: 14px;
   min-height: 420px;
   padding: 16px 18px 18px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
-/* ---------- 查询区 ---------- */
-.record-query-grid {
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 12px 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px dashed var(--md-border-subtle, var(--spd-border-subtle));
-}
-
-.record-query-grid label {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.record-query-grid label > span {
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-}
-
-.record-query-grid :is(input, select) {
-  box-sizing: border-box;
-  width: 100%;
-  min-height: 32px;
-  height: 32px;
-  padding: 0 11px;
-  color: var(--md-text, var(--spd-text-primary));
-  background: var(--md-bg-card, #fff);
-  border: 1px solid var(--md-border, var(--spd-border-subtle));
-  border-radius: var(--spd-radius-sm, 6px);
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  outline: none;
-}
-
-.record-query-grid :is(input, select):focus {
-  border-color: var(--md-primary, var(--primary));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-primary, var(--primary)) 14%, transparent);
-}
-
-.record-query-actions {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.record-query-actions .btn {
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  border-radius: var(--spd-radius-sm, 6px);
-}
+/* ---------- 查询区 ----------
+   筛选区已统一改用 SpdFilterBar 组件，
+   栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
+   styles/components/spd-filter-bar.css 的「标准规则」统一控制，
+   本页不再覆写列数与间距（避免各页各写一套换行规则）。 */
 
 /* ---------- 列表标题 ---------- */
 .record-table-title {
@@ -716,7 +663,7 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
   z-index: 2;
   height: 36px;
   padding: 9px 12px !important;
-  background: var(--md-bg-subtle, #f6f8fb) !important;
+  background: var(--md-bg-subtle, var(--spd-p-bg-subtle)) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 600 !important;
@@ -730,16 +677,16 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
   color: var(--md-text, var(--spd-text-primary)) !important;
   font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
-  background: var(--md-bg-card, #fff) !important;
+  background: var(--md-bg-card, var(--spd-p-bg)) !important;
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
 }
 
 .record-table tbody tr:nth-child(even) td {
-  background: color-mix(in srgb, var(--md-bg-subtle, #f6f8fb) 46%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-bg-subtle, var(--spd-p-bg-subtle)) 46%, var(--spd-p-bg)) !important;
 }
 
 .record-table tbody tr:hover td {
-  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, #ffffff) !important;
+  background: color-mix(in srgb, var(--md-primary, var(--primary)) 6%, var(--spd-p-bg)) !important;
 }
 
 .record-table td strong,
@@ -802,23 +749,6 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
 }
 
 /* ---------- 响应式 ---------- */
-@container (max-width: 900px) {
-  .record-query-grid {
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  }
-}
-
-@container (max-width: 620px) {
-  .record-query-actions {
-    grid-column: 1 / -1;
-    justify-content: stretch;
-  }
-
-  .record-query-actions .btn {
-    flex: 1;
-  }
-}
-
 @media (max-width: 760px) {
   .picking-record-page {
     padding: 12px 12px 20px;

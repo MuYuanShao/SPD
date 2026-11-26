@@ -1,0 +1,201 @@
+/* =====================================================================
+ * 按钮字号统一规范（Button Typography Spec）
+ * ---------------------------------------------------------------------
+ * 目标：全站**相同功能的按钮字号完全一致**，且随 <html data-font-size>
+ *      三档（小 14 / 中 16 / 大 18）联动，不写死 px。
+ *
+ * 语义层级（唯一入口，全部由本文件定义）：
+ *   L0  --spd-button-font-size-icon   图标按钮（纯图标，无文字）
+ *   L1  --spd-button-font-size         主操作 / 次要操作 / 危险操作
+ *                                        （工具栏、筛选区、弹窗底部、行内操作列）
+ *   L2  --spd-button-font-size-compact 链接型 / 文字型小操作
+ *                                        （表格行内 link 按钮、.btn-text、.btn-link）
+ *   L3  --spd-button-font-size-large   超大主操作（当前无页面使用，保留扩展位）
+ *
+ * 关键约束：
+ *   1. 所有层级都由 --spd-font-size-base 派生，因此自动跟随字号档位；
+ *      L2 比 L1 小 1px，L1 恰好等于正文基准（表格数据同档）。
+ *   2. Element Plus 的 --el-button-font-size / --el-font-size-base 等
+ *      变量在这里对齐到同一基准，消除 EP 默认 14px 与项目 16px 的漂移。
+ *   3. 本文件在 main.css 中**最后**引入（列表/内容区之后、主题之前），
+ *      以便压过 spd-override.css / components/buttons.css 里
+ *      分散的字号覆盖；颜色/圆角/阴影等仍由各自原文件负责。
+ * ===================================================================== */
+
+:root {
+  /* ---------- 字号层级（唯一来源） ---------- */
+  /* L1 主/次/危险操作：与正文同档（14 / 16 / 18px） */
+  --spd-button-font-size: var(--spd-font-size-base);
+  /* L2 链接型 / 文字型小操作：比 L1 小一档（13 / 15 / 17px） */
+  --spd-button-font-size-compact: var(--spd-font-size-sm);
+  /* L3 超大主操作（预留）：比 L1 大一档（16 / 18 / 20px） */
+  --spd-button-font-size-large: var(--spd-font-size-lg);
+  /* L0 图标按钮：与 L1 同档（图标随正文缩放，不单独定义更小字号） */
+  --spd-button-font-size-icon: var(--spd-font-size-base);
+
+  /* ---------- Element Plus 变量对齐 ----------
+     EP 默认 --el-button-font-size: 14px / --el-font-size-base: 14px，
+     与项目的 --spd-font-size-base（14/16/18px）不同步，
+     导致 el-button--small、el-pagination、下拉项在「大」档仍停留在 14~15px。 */
+  --el-font-size-base: var(--spd-font-size-base);
+  --el-button-font-size: var(--spd-button-font-size);
+  --el-button-font-size-large: var(--spd-button-font-size);
+  --el-button-font-size-small: var(--spd-button-font-size-compact);
+  /* 分页页码 / 上下页按钮：L2 层级 */
+  --el-pagination-font-size: var(--spd-button-font-size-compact);
+  /* Element Plus 组件尺寸（高度）跟随调色板控件基准高度，
+     保证 el-input / el-select / el-pagination 与 SpdButton 同高。 */
+  --el-component-size: var(--spd-p-control-height, 34px);
+  --el-component-size-small: var(--spd-p-control-height, 34px);
+  /* 圆角与调色板控件圆角一致 */
+  --el-border-radius-base: var(--spd-p-control-radius, 4px);
+  --el-border-radius-small: var(--spd-p-control-radius, 4px);
+  /* 下拉 / 下拉菜单项：L2 层级 */
+  --el-dropdown-menuItem-hover-fill: var(--spd-c-primary-soft, var(--spd-p-primary-bg));
+}
+
+/* =====================================================================
+ * L1 —— 主操作 / 次要操作 / 危险操作（实心按钮族）
+ * ---------------------------------------------------------------------
+ * 覆盖范围：.btn、.md-btn、.el-button、.ulc-action
+ * 这些按钮在页面里承担完全相同的职能（工具栏动作、筛选区按钮、
+ * 弹窗底部「确定/取消」、表格行内操作），必须**完全同字号**。
+ * ===================================================================== */
+.btn,
+.md-btn,
+.el-button,
+.ulc-action,
+button.ulc-action {
+  font-size: var(--spd-button-font-size);
+}
+
+/* =====================================================================
+ * L2 —— 链接型 / 文字型小操作
+ * ---------------------------------------------------------------------
+ * .btn-text / .btn-link / .md-btn-text / .el-button.is-text / .is-link
+ * 这些是「表格行内操作列」里的弱操作，与 L1 的实心按钮同属一个操作组，
+ * 但视觉上刻意弱一级，因此单独一档（比 L1 小 1px），同层级之间必须一致。
+ * ===================================================================== */
+.btn-text,
+.btn-link,
+.md-btn-text,
+.el-button.is-text,
+.el-button.is-link,
+.el-button.link {
+  font-size: var(--spd-button-font-size-compact);
+}
+
+/* =====================================================================
+ * L0 —— 图标按钮
+ * ---------------------------------------------------------------------
+ * 纯图标按钮（.btn-icon / .md-btn-icon / .el-button 内的纯图标）没有文字，
+ * 字号只影响图标盒子的 em 计算，跟随 L1 基准即可。
+ * ===================================================================== */
+.btn-icon,
+.md-btn-icon {
+  font-size: var(--spd-button-font-size-icon);
+}
+
+/* =====================================================================
+ * 尺寸族（size）归一
+ * ---------------------------------------------------------------------
+ * Element Plus 的 size="small" 会同时缩小 padding / height，
+ * 视觉上与默认按钮差一档 —— 这正是「同功能按钮字号不一致」的典型来源。
+ *
+ * 策略：
+ *   - 字号：**所有 size 统一为同一基准**，不再因为 size 而改变文字大小；
+ *   - 高度/padding：保留 size 差异，让 small 仍然更紧凑，
+ *     这样窄表格列里用 small 不会撑破行高，视觉体积也更小。
+ *
+ * 也就是说：small 按钮「更矮」但「不更小字号」，从而保证
+ * 任何两个同功能按钮的文字永远是一样大。
+ * ===================================================================== */
+.el-button--small,
+.el-button--small.is-text,
+.el-button--small.is-link {
+  font-size: var(--spd-button-font-size) !important;
+}
+
+.el-button--large {
+  font-size: var(--spd-button-font-size) !important;
+}
+
+/* =====================================================================
+ * 分页 —— L2 层级
+ * ---------------------------------------------------------------------
+ * .el-pagination 是原生 EP 组件，其页码/上下页按钮走 EP 自己的变量，
+ * 之前被 --el-font-size-base: 14px 钉死，不随字号档位变化。
+ * 这里显式对齐到 L2（compact），随档位联动。
+ * ===================================================================== */
+.el-pagination,
+.el-pagination .el-pager li,
+.el-pagination .btn-prev,
+.el-pagination .btn-next {
+  font-size: var(--spd-button-font-size-compact) !important;
+}
+
+/* =====================================================================
+ * 下拉菜单项 / 下拉选项 —— L2 层级
+ * ---------------------------------------------------------------------
+ * el-dropdown-item 与 el-select-dropdown__item 属于「次级动作 / 选项」，
+ * 与 L2 同层级。
+ * ===================================================================== */
+.el-dropdown-menu__item {
+  font-size: var(--spd-button-font-size-compact) !important;
+}
+
+.el-select-dropdown__item {
+  font-size: var(--spd-button-font-size-compact) !important;
+}
+
+/* =====================================================================
+ * 消息框按钮 —— L1 层级
+ * ---------------------------------------------------------------------
+ * ElMessageBox 的「确定 / 取消」与弹窗底部按钮职能完全相同，
+ * 必须与 L1 一致（之前被 EP 默认 14px 钉死）。
+ * ===================================================================== */
+.el-message-box__btns .el-button {
+  font-size: var(--spd-button-font-size) !important;
+}
+
+/* =====================================================================
+ * Element Plus 链接组件 —— L2 层级
+ * ===================================================================== */
+.el-link {
+  font-size: var(--spd-button-font-size-compact) !important;
+}
+
+/* =====================================================================
+ * 窄表格列里的「合理压缩」如何处理
+ * ---------------------------------------------------------------------
+ * 背景：部分表格操作列（如拣货记录、发票核验）为了避免列宽撑爆，
+ * 使用 .btn-sm / .ulc-action 等紧凑按钮把 min-height 压到 26~30px。
+ *
+ * 决策：**压缩高度，不压缩字号**。
+ *   - 高度/内边距：保持页面原有的紧凑值（26 / 28 / 30px），
+ *     按钮高度仍不撑破表格行高，列宽也不会被撑爆；
+ *   - 字号：与同组其它行内操作按钮完全一致（L1 / L2），
+ *     这样「窄列里的按钮」与「宽列里的同类按钮」文字一样大。
+ *
+ * .btn-sm / .md-btn-sm / .lf-btn-sm 只调整高度与内边距，不再调整字号；
+ * 它们的文字层级由所在语义组决定（L1 或 L2），而不是由「是否紧凑」决定。
+ * ===================================================================== */
+.btn-sm,
+.md-btn-sm,
+.lf-btn-sm {
+  font-size: inherit;
+}
+
+/* 紧凑按钮的文字层级回到所属语义组 */
+.btn.btn-sm,
+.md-btn.md-btn-sm,
+.lf-btn.lf-btn-sm,
+.ulc-action.btn-sm {
+  font-size: var(--spd-button-font-size);
+}
+
+/* 紧凑链接型按钮仍走 L2 */
+.btn.btn-link.btn-sm,
+.btn-text.btn-sm {
+  font-size: var(--spd-button-font-size-compact);
+}

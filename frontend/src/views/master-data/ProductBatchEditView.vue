@@ -75,10 +75,9 @@ async function submitBatchEdit() {
 
 <template>
   <section class="product-form-page">
-    <button class="btn" type="button" @click="router.back()">
-      <ArrowLeft :size="17" />
-      返回医院目录
-    </button>
+    <SpdButton label="返回医院目录" tone="primary" @click="router.back()">
+          <template #icon><ArrowLeft :size="17" /></template>
+        </SpdButton>
 
     <form class="product-form-card" @submit.prevent="submitBatchEdit">
       <section>
@@ -156,11 +155,11 @@ async function submitBatchEdit() {
 
       <StatusMessage :message="error" tone="error" />
       <div class="product-form-actions">
-        <button class="btn" type="button" @click="router.back()">取消</button>
-        <button class="btn btn-primary" type="submit" :disabled="saving">
-          <Save :size="17" />
+        <SpdButton label="取消" tone="neutral" @click="router.back()"></SpdButton>
+        <SpdButton tone="success" type="submit" :disabled="saving">
+          <template #icon><Save :size="17" /></template>
           {{ saving ? '保存中...' : '保存' }}
-        </button>
+        </SpdButton>
       </div>
     </form>
   </section>

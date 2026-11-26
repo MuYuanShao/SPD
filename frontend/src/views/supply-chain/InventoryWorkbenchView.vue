@@ -8,6 +8,7 @@ import { CheckCircle2, ClipboardCheck, Eye, PackageSearch, Plus, RefreshCw, Save
 import InventoryEventLedger from '../../components/inventory/InventoryEventLedger.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PageHeader from '../../components/common/PageHeader.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import {
   approveBatchPriceAdjustment,
   approveStocktaking,
@@ -266,10 +267,13 @@ const title = computed(() => {
   return '库存管理'
 })
 
-/** 盘点单状态徽标配色：草稿待复核、已复核归档 */
-function stocktakingTone(status: unknown) {
-  if (String(status || '') === 'draft') return 'pending'
-  return 'enabled'
+/**
+ * 盘点单状态 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 草稿待复核 → warning；已复核归档 → success。
+ */
+function stocktakingTone(status: unknown): SpdStatusChipTone {
+  if (String(status || '') === 'draft') return 'warning'
+  return 'success'
 }
 async function loadLooseStock() {
   const state = inventoryPagination.looseStock
@@ -749,42 +753,34 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 
       <!-- 库存汇总查询 -->
       <template v-if="inventoryTab === 'summary'">
-        <form class="hospital-query-grid inventory-query-grid" role="search" @submit.prevent="loadData">
+        <SpdFilterBar role="search" @submit="loadData">
           <label><span>库房</span><input v-model.trim="query.warehouseName" class="md-input" placeholder="模糊查询库房" /></label>
           <label><span>科室</span><input v-model.trim="query.deptName" class="md-input" placeholder="科室名称" /></label>
           <label><span>商品编码</span><input v-model.trim="query.productCode" class="md-input" placeholder="商品编码" /></label>
           <label><span>商品名称</span><input v-model.trim="query.productName" class="md-input" placeholder="商品名称" /></label>
           <label><span>厂家</span><input v-model.trim="query.manufacturerName" class="md-input" placeholder="厂家名称" /></label>
           <label><span>供应商</span><input v-model.trim="query.supplierName" class="md-input" placeholder="供应商名称" /></label>
-          <button class="btn btn-primary md-btn md-btn-primary inventory-query-button" type="submit">
-            <Search :size="16" />
-            查询
-          </button>
-        </form>
+        </SpdFilterBar>
 
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="invBalanceColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="invBalanceCols.settingsOpen.value = !invBalanceCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: invBalanceCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="invBalanceColSettingsAnchorRef"
+             
+             
+              @click="invBalanceCols.settingsOpen.value = !invBalanceCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="invBalanceCols.settingsOpen.value"
               ref="invBalanceColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': invBalanceColSettingsPop.align.value === 'right', 'is-align-up': invBalanceColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': invBalanceColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invBalanceColSettingsPop.maxHeight.value + 'px' }"
+              :style="invBalanceColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="invBalanceCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invBalanceCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in invBalanceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -799,7 +795,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="invBalanceCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="invBalanceCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1006,40 +1002,32 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 
       <!-- 定数包库存查询 -->
       <template v-else-if="inventoryTab === 'quota'">
-        <form class="hospital-query-grid inventory-query-grid" role="search" @submit.prevent="loadData">
+        <SpdFilterBar role="search" @submit="loadData">
           <label><span>库房</span><input v-model.trim="quotaQuery.warehouseName" class="md-input" placeholder="模糊查询库房" /></label>
           <label><span>科室</span><input v-model.trim="quotaQuery.deptName" class="md-input" placeholder="科室名称" /></label>
           <label><span>定数包名称</span><input v-model.trim="quotaQuery.packageName" class="md-input" placeholder="定数包名称" /></label>
           <label><span>商品名称</span><input v-model.trim="quotaQuery.productName" class="md-input" placeholder="商品名称" /></label>
-          <button class="btn btn-primary md-btn md-btn-primary inventory-query-button" type="submit">
-            <Search :size="16" />
-            查询
-          </button>
-        </form>
+        </SpdFilterBar>
 
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="invQuotaStockColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="invQuotaStockCols.settingsOpen.value = !invQuotaStockCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: invQuotaStockCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="invQuotaStockColSettingsAnchorRef"
+             
+             
+              @click="invQuotaStockCols.settingsOpen.value = !invQuotaStockCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="invQuotaStockCols.settingsOpen.value"
               ref="invQuotaStockColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': invQuotaStockColSettingsPop.align.value === 'right', 'is-align-up': invQuotaStockColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': invQuotaStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invQuotaStockColSettingsPop.maxHeight.value + 'px' }"
+              :style="invQuotaStockColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="invQuotaStockCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invQuotaStockCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in invQuotaStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1054,7 +1042,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="invQuotaStockCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="invQuotaStockCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1120,10 +1108,10 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                   <span class="ulc-th-text">定数包唯一码</span>
                 </template>
                 <template #default="{ row }">
-                  <span class="ulc-wrap-text"><button v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
-                    class="btn btn-sm" type="button" @click="openQuotaCodes(row.packageUniqueCodes)">
-                    查看 {{ row.packageUniqueCodes.length }} 个唯一码
-                  </button>
+                  <span class="ulc-wrap-text"><SpdButton tone="primary" size="small" v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
+                    @click="openQuotaCodes(row.packageUniqueCodes)">
+          查看 {{ row.packageUniqueCodes.length }} 个唯一码
+        </SpdButton>
                   <span v-else>{{ row.packageUniqueCodes?.[0] || '—' }}</span></span>
                 </template>
               </el-table-column>
@@ -1330,7 +1318,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 
       <!-- 唯一码查询 -->
       <template v-else-if="inventoryTab === 'unique'">
-        <form class="hospital-query-grid inventory-query-grid" role="search" @submit.prevent="loadData">
+        <SpdFilterBar role="search" @submit="loadData">
           <label><span>科室</span><input v-model.trim="codeQuery.deptName" class="md-input" placeholder="科室名称" /></label>
           <label><span>库房</span><input v-model.trim="codeQuery.warehouseName" class="md-input" placeholder="库房名称" /></label>
           <label><span>商品编码</span><input v-model.trim="codeQuery.productCode" class="md-input" placeholder="商品编码" /></label>
@@ -1338,35 +1326,27 @@ const invBalanceColSettingsPop = useColSettingsPopover({
           <label><span>批号</span><input v-model.trim="codeQuery.batchNo" class="md-input" placeholder="系统批号" /></label>
           <label><span>唯一码</span><input v-model.trim="codeQuery.uniqueCode" class="md-input" placeholder="唯一码" /></label>
           <label><span>UID码</span><input v-model.trim="codeQuery.udiCode" class="md-input" placeholder="UID码" /></label>
-          <button class="btn btn-primary md-btn md-btn-primary inventory-query-button" type="submit">
-            <Search :size="16" />
-            查询
-          </button>
-        </form>
+        </SpdFilterBar>
 
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="invCodeStockColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="invCodeStockCols.settingsOpen.value = !invCodeStockCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: invCodeStockCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="invCodeStockColSettingsAnchorRef"
+             
+             
+              @click="invCodeStockCols.settingsOpen.value = !invCodeStockCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="invCodeStockCols.settingsOpen.value"
               ref="invCodeStockColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': invCodeStockColSettingsPop.align.value === 'right', 'is-align-up': invCodeStockColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': invCodeStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invCodeStockColSettingsPop.maxHeight.value + 'px' }"
+              :style="invCodeStockColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="invCodeStockCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invCodeStockCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in invCodeStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1381,7 +1361,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="invCodeStockCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="invCodeStockCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1625,36 +1605,31 @@ const invBalanceColSettingsPop = useColSettingsPopover({
       </MdDataTableCard>
       </template>
       <template v-else-if="inventoryTab === 'loose'">
-        <form class="hospital-query-grid purchase-query-grid inventory-query-grid" aria-label="可用散货查询" @submit.prevent="searchLooseStock">
+        <SpdFilterBar aria-label="可用散货查询" @submit="searchLooseStock">
           <label><span>库房</span><input v-model.trim="looseQuery.warehouseName" placeholder="中心库或一级库" /></label>
           <label><span>商品编码</span><input v-model.trim="looseQuery.productCode" /></label>
           <label><span>商品名称</span><input v-model.trim="looseQuery.productName" /></label>
           <label><span>系统批次</span><input v-model.trim="looseQuery.systemBatchNo" /></label>
-          <button class="btn btn-primary" type="submit" :disabled="looseStockLoading"><Search :size="16" />查询</button>
-        </form>
+        </SpdFilterBar>
                 <MdDataTableCard>
           <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="invLooseStockColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="invLooseStockCols.settingsOpen.value = !invLooseStockCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: invLooseStockCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="invLooseStockColSettingsAnchorRef"
+             
+             
+              @click="invLooseStockCols.settingsOpen.value = !invLooseStockCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="invLooseStockCols.settingsOpen.value"
               ref="invLooseStockColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': invLooseStockColSettingsPop.align.value === 'right', 'is-align-up': invLooseStockColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': invLooseStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invLooseStockColSettingsPop.maxHeight.value + 'px' }"
+              :style="invLooseStockColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="invLooseStockCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invLooseStockCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in invLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1669,7 +1644,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="invLooseStockCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="invLooseStockCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
@@ -1853,36 +1828,31 @@ const invBalanceColSettingsPop = useColSettingsPopover({
       <div class="section-title stocktaking-title">
         <ClipboardCheck :size="20" />
         <h3>盘点管理</h3>
-        <button class="btn btn-primary md-btn md-btn-primary stocktaking-create-btn" type="button" @click="openStocktakingSheet">
-          <Plus :size="16" />
-          新增盘点表
-        </button>
+        <SpdButton label="新增盘点表" tone="primary" class="stocktaking-create-btn" @click="openStocktakingSheet">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
       </div>
       <p class="stocktaking-hint">盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。</p>
       
               <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="invStocktakingColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="invStocktakingCols.settingsOpen.value = !invStocktakingCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: invStocktakingCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="invStocktakingColSettingsAnchorRef"
+           
+           
+            @click="invStocktakingCols.settingsOpen.value = !invStocktakingCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="invStocktakingCols.settingsOpen.value"
             ref="invStocktakingColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': invStocktakingColSettingsPop.align.value === 'right', 'is-align-up': invStocktakingColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': invStocktakingColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invStocktakingColSettingsPop.maxHeight.value + 'px' }"
+            :style="invStocktakingColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="invStocktakingCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invStocktakingCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in invStocktakingCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1897,7 +1867,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="invStocktakingCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="invStocktakingCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -1990,7 +1960,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span :class="['status-badge', stocktakingTone(row.status)]">{{ formatStatusText(row.status) }}</span>
+                <SpdStatusChip :tone="stocktakingTone(row.status)" :label="formatStatusText(row.status)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -2061,39 +2031,36 @@ const invBalanceColSettingsPop = useColSettingsPopover({
         <PackageSearch :size="20" />
         <h3>批次调价</h3>
       </div>
-      <div class="hospital-query-grid purchase-query-grid">
+      <SpdFilterBar>
         <label><span>系统批次</span><input v-model="priceForm.systemBatchNo" /></label>
         <label><span>新批次单价</span><input v-model.number="priceForm.newUnitPrice" type="number" step="0.01" /></label>
         <label class="wide-field"><span>调价原因</span><input v-model="priceForm.reason" /></label>
-        <button class="btn btn-primary" type="button" @click="submitPriceAdjustment">
-          <Save :size="18" />
-          保存
-        </button>
-      </div>
+        <template #actions>
+          <SpdButton label="保存" tone="success" @click="submitPriceAdjustment">
+            <template #icon><Save :size="18" /></template>
+          </SpdButton>
+        </template>
+      </SpdFilterBar>
       
               <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="invPriceAdjustColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="invPriceAdjustCols.settingsOpen.value = !invPriceAdjustCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: invPriceAdjustCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="invPriceAdjustColSettingsAnchorRef"
+           
+           
+            @click="invPriceAdjustCols.settingsOpen.value = !invPriceAdjustCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="invPriceAdjustCols.settingsOpen.value"
             ref="invPriceAdjustColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': invPriceAdjustColSettingsPop.align.value === 'right', 'is-align-up': invPriceAdjustColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': invPriceAdjustColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invPriceAdjustColSettingsPop.maxHeight.value + 'px' }"
+            :style="invPriceAdjustColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="invPriceAdjustCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invPriceAdjustCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in invPriceAdjustCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -2108,7 +2075,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="invPriceAdjustCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="invPriceAdjustCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -2274,7 +2241,9 @@ const invBalanceColSettingsPop = useColSettingsPopover({
             <p>盘点管理</p>
             <h3>新增盘点表</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="stocktakingSheetOpen = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="stocktakingSheetOpen = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <form @submit.prevent="submitStocktakingSheet">
           <div class="supplier-form-grid compact">
@@ -2341,11 +2310,10 @@ const invBalanceColSettingsPop = useColSettingsPopover({
             </table>
           </div>
           <div class="dialog-actions">
-            <button class="btn" type="button" @click="stocktakingSheetOpen = false">取消</button>
-            <button class="btn btn-primary" type="submit">
-              <CheckCircle2 :size="16" />
-              确认生成盘点明细
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="stocktakingSheetOpen = false"></SpdButton>
+            <SpdButton label="确认生成盘点明细" tone="primary" type="submit">
+          <template #icon><CheckCircle2 :size="16" /></template>
+        </SpdButton>
           </div>
         </form>
       </section>
@@ -2359,7 +2327,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
         </ul>
       </div>
       <template #footer>
-        <button class="btn" type="button" @click="quotaCodesOpen = false">关闭</button>
+        <SpdButton label="关闭" tone="neutral" @click="quotaCodesOpen = false"></SpdButton>
       </template>
     </ElDialog>
 
@@ -2371,7 +2339,9 @@ const invBalanceColSettingsPop = useColSettingsPopover({
             <p>盘点明细</p>
             <h3>{{ stocktakingDetailNo }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="stocktakingDetailOpen = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="stocktakingDetailOpen = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="table-scroll stocktaking-detail-scroll">
           <table class="master-table stocktaking-detail-table">
@@ -2418,11 +2388,11 @@ const invBalanceColSettingsPop = useColSettingsPopover({
           </table>
         </div>
         <div class="dialog-actions">
-          <button class="btn" type="button" @click="stocktakingDetailOpen = false">关闭</button>
-          <button class="btn btn-primary" type="button" :disabled="stocktakingDetailSaving" @click="saveStocktakingDetail">
-            <Save :size="15" />
-            {{ stocktakingDetailSaving ? '保存中...' : '保存盘点数量' }}
-          </button>
+          <SpdButton label="关闭" tone="neutral" @click="stocktakingDetailOpen = false"></SpdButton>
+          <SpdButton tone="primary" :disabled="stocktakingDetailSaving" @click="saveStocktakingDetail">
+          <template #icon><Save :size="15" /></template>
+          {{ stocktakingDetailSaving ? '保存中...' : '保存盘点数量' }}
+        </SpdButton>
         </div>
       </section>
     </div>
@@ -2482,10 +2452,10 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   gap: 12px;
   min-width: 0;
   padding: 14px 20px 16px;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
   border-radius: var(--md-radius-md, 10px) !important;
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 页签 ---------- */
@@ -2503,47 +2473,11 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   border-radius: var(--md-radius, 6px);
 }
 
-/* ---------- 查询区 ---------- */
-.inventory-page .inventory-query-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  align-items: end;
-  gap: 10px 14px;
-  padding: 12px !important;
-  background: var(--md-bg-muted, var(--spd-bg-page));
-  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
-  border-radius: var(--md-radius, 6px);
-}
-
-.inventory-page .inventory-query-grid label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.inventory-page .inventory-query-grid label > span {
-  color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-  line-height: var(--spd-lh-tight);
-}
-
-.inventory-page .inventory-query-grid .md-input {
-  min-height: 30px;
-  font-size: var(--spd-font-size-base);
-}
-
-.inventory-page .inventory-query-button {
-  min-height: 30px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-}
-
-.inventory-page .inventory-query-button svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
-}
+/* ---------- 查询区 ----------
+   筛选区已统一改用 SpdFilterBar 组件，
+   栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
+   styles/components/spd-filter-bar.css 的「标准规则」统一控制，
+   因此本页不再另写一套查询区样式。 */
 
 /* ---------- 列表滚动容器 ---------- */
 .inventory-page .inventory-list-scroll {
@@ -2551,7 +2485,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   overflow: auto;
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   scrollbar-width: thin;
   scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
 }
@@ -2598,11 +2532,11 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 }
 
 .inventory-page .inventory-table tbody tr:nth-child(even) td {
-  background: var(--md-bg-muted, #fafbfc) !important;
+  background: var(--md-bg-muted, var(--spd-p-row-stripe)) !important;
 }
 
 .inventory-page .inventory-table tbody tr:hover td {
-  background: var(--md-primary-soft, #f0f7f6) !important;
+  background: var(--md-primary-soft, var(--spd-p-primary-bg)) !important;
 }
 
 /* ---------- 盘点管理 ---------- */
@@ -2626,19 +2560,16 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   font-weight: 600;
 }
 
+/* 「新增盘点表」按钮：完全服从 SpdButton 统一几何，仅保留靠右布局。 */
 .inventory-page .stocktaking-create-btn {
   margin-left: auto;
-  min-height: 32px;
-  padding: 0 14px;
-  font-size: var(--spd-font-size-base);
-  border-radius: var(--spd-radius-sm, 6px);
 }
 
 .inventory-page .stocktaking-hint {
   margin: 0;
   padding: 9px 12px;
   color: var(--md-text-secondary);
-  background: var(--md-bg-muted, #fafbfc);
+  background: var(--md-bg-muted, var(--spd-p-row-stripe));
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
   font-size: var(--spd-font-size-sm);
@@ -2648,7 +2579,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 .inventory-page .stocktaking-list-scroll {
   max-height: max(300px, calc(100dvh - 400px));
   overflow: auto;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
   scrollbar-width: thin;
@@ -2680,18 +2611,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 .inventory-page .stocktaking-table tbody td {
   padding: 8px 12px !important;
   color: var(--md-text) !important;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
 }
 
 .inventory-page .stocktaking-table tbody tr:nth-child(even) td {
-  background: var(--md-bg-muted, #fafbfc) !important;
+  background: var(--md-bg-muted, var(--spd-p-row-stripe)) !important;
 }
 
 .inventory-page .stocktaking-table tbody tr:hover td {
-  background: var(--md-primary-soft, #f0f7f6) !important;
+  background: var(--md-primary-soft, var(--spd-p-primary-bg)) !important;
 }
 
 .inventory-page .stocktaking-no-cell {
@@ -2785,19 +2716,9 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 }
 
 /* ---------- 响应式 ---------- */
-@media (max-width: 1280px) {
-  .inventory-page .inventory-query-grid {
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  }
-}
-
 @media (max-width: 900px) {
   .inventory-page .inventory-workspace {
     padding: 12px 12px 14px;
-  }
-
-  .inventory-page .inventory-query-grid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .inventory-page .inventory-list-scroll {
@@ -2827,24 +2748,11 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 
 .price-adjust-page > .hospital-catalog-panel {
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
-/* 批次调价查询区：紧凑化控件 + 圆角与主数据一致 */
-.price-adjust-page .hospital-query-grid.purchase-query-grid {
-  align-items: end;
-}
-
-.price-adjust-page .hospital-query-grid input,
-.price-adjust-page .hospital-query-grid select {
-  min-height: 32px;
-  border: 1px solid var(--md-border, var(--spd-border-subtle));
-  border-radius: var(--spd-radius-sm, 6px);
-  padding: 0 11px;
-  background: var(--md-bg-card, #fff);
-  color: var(--md-text, var(--spd-text-primary));
-  font-size: var(--spd-font-size-base);
-}
+/* 批次调价表单区已统一改用 SpdFilterBar，
+   控件高度 / 圆角 / 边框走 --spd-p-field-* 令牌，不再单独写死 32px。 */
 
 /* =====================================================================
    新增盘点表弹窗
@@ -2858,16 +2766,16 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   display: flex !important;
   flex-direction: column;
   border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 24px 64px rgba(6, 21, 43, 0.28);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
 .stocktaking-sheet-dialog > header {
   flex: 0 0 auto;
   padding: 14px 20px;
-  border-bottom: 1px solid #eef0f4;
-  background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 65%, #ffffff 100%);
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  background: linear-gradient(120deg, var(--spd-p-info-bg) 0%, var(--spd-p-bg) 65%, var(--spd-p-bg) 100%);
 }
 
 .stocktaking-sheet-dialog > header p {
@@ -2875,7 +2783,8 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
-  color: #1677ff;
+  /* 辅助说明文字：中性次级文字（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
   text-transform: none;
 }
 
@@ -2883,7 +2792,7 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #172033;
+  color: var(--spd-p-text);
 }
 
 .stocktaking-sheet-dialog form {
@@ -2913,24 +2822,25 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 .stocktaking-sheet-dialog .supplier-form-grid label > span {
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .stocktaking-sheet-dialog .supplier-form-grid select {
   min-height: 34px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
-  color: #1f2937;
+  /* 输入文字：深色（此前误用边框浅色作文字，几乎不可见） */
+  color: var(--spd-p-text);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .stocktaking-sheet-dialog .supplier-form-grid select:focus {
   outline: 0;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .stocktaking-scope-picker {
@@ -2939,9 +2849,9 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 8px;
   padding: 12px 14px;
-  border: 1px solid #e0e7ff;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: linear-gradient(180deg, #f5f8ff 0%, #ffffff 100%);
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-bg) 100%);
 }
 
 .stocktaking-scope-head {
@@ -2954,12 +2864,12 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 .stocktaking-scope-head strong {
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
 }
 
 .stocktaking-scope-head span {
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
 .stocktaking-scope-options {
@@ -2973,25 +2883,26 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 999px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-sm);
-  color: #1e293b;
+  /* 选项文字：深色（此前误用浅色底令牌作文字，对比度仅 1.12:1） */
+  color: var(--spd-p-text);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
 .stocktaking-scope-option:hover {
-  border-color: #1677ff;
-  color: #1d4ed8;
-  background: #eff6ff;
+  border-color: var(--spd-p-info);
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-info-bg);
 }
 
 .stocktaking-scope-option input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: #1677ff;
+  accent-color: var(--spd-p-info);
   cursor: pointer;
 }
 
@@ -3002,17 +2913,17 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   gap: 6px;
   min-height: 22px;
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
 .stocktaking-scope-selected > span:first-child {
   font-weight: 500;
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .stocktaking-scope-selected em {
   font-style: normal;
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 .stocktaking-scope-chip {
@@ -3021,9 +2932,9 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   padding: 2px 10px;
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #93c5fd;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 999px;
 }
 
@@ -3032,11 +2943,11 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   min-height: 360px;
   max-height: 100%;
   overflow: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: #fff;
+  background: var(--spd-p-bg);
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: var(--spd-p-border-strong) transparent;
 }
 
 .stocktaking-detail-scroll::-webkit-scrollbar {
@@ -3045,12 +2956,12 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 }
 
 .stocktaking-detail-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--spd-p-border-strong);
   border-radius: 4px;
 }
 
 .stocktaking-detail-scroll::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--spd-p-text-muted);
 }
 
 .stocktaking-detail-table {
@@ -3068,48 +2979,50 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   padding: 10px 14px !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
-  color: #1e293b !important;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
-  border-bottom: 1px solid #c7d2fe !important;
+  /* 表头文字：深色强调文字（深字浅底，保证可读）。
+     此前误用 --spd-p-bg-muted（浅灰）配浅蓝底，导致表头文字几乎不可见。 */
+  color: var(--spd-p-text-strong) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-primary-bg) 100%) !important;
+  border-bottom: 1px solid var(--spd-p-border) !important;
   text-align: left;
   white-space: nowrap;
 }
 
 .stocktaking-detail-table tbody td {
   padding: 9px 14px !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-  color: #334155 !important;
+  border-bottom: 1px solid var(--spd-p-text-strong) !important;
+  color: var(--spd-p-text-secondary) !important;
   font-size: var(--spd-font-size-base) !important;
-  background: #fff;
+  background: var(--spd-p-bg);
   vertical-align: middle;
 }
 
 .stocktaking-detail-table tbody tr:nth-child(even) td {
-  background: #fafbfc !important;
+  background: var(--spd-p-row-stripe) !important;
 }
 
 .stocktaking-detail-table tbody tr:hover td {
-  background: #f0f7ff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .stocktaking-detail-table .stocktaking-qty-cell {
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: #1d4ed8 !important;
+  color: var(--spd-p-info-strong) !important;
 }
 
 .stocktaking-detail-table .stocktaking-code-cell {
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base) !important;
-  color: #475569 !important;
+  color: var(--spd-p-text-secondary) !important;
   white-space: nowrap;
 }
 
 .stocktaking-detail-table .approval-empty {
   padding: 56px 16px !important;
   text-align: center;
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-base);
 }
 
@@ -3121,8 +3034,8 @@ const invBalanceColSettingsPop = useColSettingsPopover({
   gap: 10px;
   margin: 0 -20px;
   padding: 12px 20px;
-  border-top: 1px solid #eef0f4;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-top: 1px solid var(--spd-p-bg-muted);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-bg-muted) 100%);
 }
 
 .stocktaking-sheet-dialog .dialog-actions .btn {
@@ -3135,14 +3048,14 @@ const invBalanceColSettingsPop = useColSettingsPopover({
 }
 
 .stocktaking-sheet-dialog .dialog-actions .btn-primary {
-  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
-  border-color: #1677ff;
-  box-shadow: 0 3px 8px rgba(22, 119, 255, 0.25);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .stocktaking-sheet-dialog .dialog-actions .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0958d9 0%, #1677ff 100%);
-  box-shadow: 0 5px 12px rgba(22, 119, 255, 0.3);
+  background: linear-gradient(135deg, var(--spd-p-info-strong) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 @media (max-width: 1280px) {

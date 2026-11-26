@@ -238,10 +238,9 @@ onMounted(loadDashboard)
           <Activity :size="12" />
           <span>{{ dataStatus.text }}</span>
         </el-tag>
-        <button class="wb-hero-refresh" type="button" :disabled="loading" @click="loadDashboard">
-          <RefreshCw :size="14" :class="{ 'wb-spin': loading }" />
-          <span>{{ loading ? '刷新中' : '刷新数据' }}</span>
-        </button>
+        <SpdButton label="刷新数据" tone="neutral" :disabled="loading" @click="loadDashboard">
+          <template #icon><RefreshCw :size="14" :class="{ 'wb-spin': loading }" /></template>
+        </SpdButton>
       </div>
 
       <!-- 4 个核心指标卡（hero 内） -->
@@ -274,7 +273,7 @@ onMounted(loadDashboard)
       <div class="wb-shortcut-list">
         <div class="wb-shortcut-head">
           <h2 id="wb-shortcut-title">常用功能</h2>
-          <button type="button" class="wb-link" @click="configuring = true">设置</button>
+          <SpdButton label="设置" variant="text" tone="neutral" @click="configuring = true"></SpdButton>
         </div>
         <ul>
           <li v-for="item in shortcuts" :key="item.code">
@@ -478,9 +477,7 @@ onMounted(loadDashboard)
             <h2>系统公告</h2>
             <p>{{ notices.length }} 条</p>
           </div>
-          <el-button v-if="authStore.hasRole('ROLE_ADMIN')" type="primary" size="small" @click="openNoticeEditor">
-            新增公告
-          </el-button>
+          <SpdButton v-if="authStore.hasRole('ROLE_ADMIN')" label="新增公告" tone="primary" @click="openNoticeEditor"></SpdButton>
         </header>
         <div class="wb-card-body">
           <StatusMessage :message="noticeFeedback" tone="success" role="status" />
@@ -492,7 +489,7 @@ onMounted(loadDashboard)
     <!-- 弹窗：公告 / 待办详情 -->
     <el-dialog :model-value="Boolean(detail)" :title="detail?.title" class="tight" width="min(560px, 92vw)" @close="detail = undefined">
       <p style="white-space: pre-wrap; overflow-wrap: anywhere">{{ detail?.content }}</p>
-      <template #footer><el-button type="primary" @click="detail = undefined">知道了</el-button></template>
+      <template #footer><SpdButton label="知道了" tone="primary" @click="detail = undefined"></SpdButton></template>
     </el-dialog>
 
     <el-dialog v-model="noticeEditorOpen" title="新增系统公告" width="min(560px, 92vw)"
@@ -506,8 +503,8 @@ onMounted(loadDashboard)
         <StatusMessage :message="noticeError" tone="error" role="alert" />
       </form>
       <template #footer>
-        <el-button :disabled="noticeSaving" @click="noticeEditorOpen = false">取消</el-button>
-        <el-button type="primary" :loading="noticeSaving" @click="submitNotice">发布公告</el-button>
+        <SpdButton label="取消" tone="neutral" :disabled="noticeSaving" @click="noticeEditorOpen = false"></SpdButton>
+        <SpdButton label="发布公告" tone="primary" :loading="noticeSaving" @click="submitNotice"></SpdButton>
       </template>
     </el-dialog>
 
@@ -520,8 +517,8 @@ onMounted(loadDashboard)
         </label>
       </div>
       <template #footer>
-        <el-button @click="configuring = false">取消</el-button>
-        <el-button type="primary" @click="configuring = false">完成</el-button>
+        <SpdButton label="取消" tone="neutral" @click="configuring = false"></SpdButton>
+        <SpdButton label="完成" @click="configuring = false"></SpdButton>
       </template>
     </el-dialog>
   </div>
@@ -533,15 +530,15 @@ onMounted(loadDashboard)
  *   每个区块 1 个主色，色相 4~5 档（50/100/300/500/600）
  * ================================================================ */
 .wb {
-  --indigo-50:  #eef2ff;  --indigo-100: #e0e7ff;  --indigo-300: #a5b4fc;  --indigo-500: #6366f1;  --indigo-600: #4f46e5;
-  --teal-50:    #ecfdf5;  --teal-100:   #d1fae5;  --teal-300:   #6ee7b7;  --teal-500:   #10b981;  --teal-600:   #059669;
-  --amber-50:   #fffbeb;  --amber-100:  #fef3c7;  --amber-300:  #fcd34d;  --amber-500:  #f59e0b;  --amber-600:  #d97706;
-  --rose-50:    #fff1f2;  --rose-100:   #ffe4e6;  --rose-300:   #fda4af;  --rose-500:   #f43f5e;  --rose-600:   #e11d48;
-  --violet-50:  #f5f3ff;  --violet-100: #ede9fe;  --violet-300: #c4b5fd;  --violet-500: #8b5cf6;  --violet-600: #7c3aed;
-  --blue-50:    #eff6ff;  --blue-100:   #dbeafe;  --blue-300:   #93c5fd;  --blue-500:   #3b82f6;  --blue-600:   #2563eb;
-  --slate-0:    #ffffff;  --slate-50:   #f8fafc;  --slate-100:  #f1f5f9;  --slate-200:  #e2e8f0;
-  --slate-300:  #cbd5e1;  --slate-400:  #94a3b8;  --slate-500:  #64748b;  --slate-600:  #475569;
-  --slate-700:  #334155;  --slate-800:  #1e293b;  --slate-900:  #0f172a;
+  --indigo-50:  var(--spd-p-info-bg);  --indigo-100: var(--spd-p-border);  --indigo-300: var(--spd-p-info-border);  --indigo-500: var(--spd-p-primary);  --indigo-600: var(--spd-p-primary);
+  --teal-50:    var(--spd-p-primary-bg);  --teal-100:   var(--spd-p-success-bg);  --teal-300:   var(--spd-p-success);  --teal-500:   var(--spd-p-success);  --teal-600:   var(--spd-p-success);
+  --amber-50:   var(--spd-p-warning-bg);  --amber-100:  var(--spd-p-warning-bg);  --amber-300:  var(--spd-p-warning-border);  --amber-500:  var(--spd-p-warning);  --amber-600:  var(--spd-p-warning);
+  --rose-50:    var(--spd-p-danger-bg);  --rose-100:   var(--spd-p-danger-bg);  --rose-300:   var(--spd-p-danger-border);  --rose-500:   var(--spd-p-danger);  --rose-600:   var(--spd-p-danger);
+  --violet-50:  var(--spd-p-bg-subtle);  --violet-100: var(--spd-p-info-bg);  --violet-300: var(--spd-p-info-border);  --violet-500: var(--spd-p-primary-strong);  --violet-600: var(--spd-p-primary-strong);
+  --blue-50:    var(--spd-p-info-bg);  --blue-100:   var(--spd-p-border);  --blue-300:   var(--spd-p-info-border);  --blue-500:   var(--spd-p-info);  --blue-600:   var(--spd-p-info);
+  --slate-0:    var(--spd-p-bg);  --slate-50:   var(--spd-p-bg-muted);  --slate-100:  var(--spd-p-text-strong);  --slate-200:  var(--spd-p-border);
+  --slate-300:  var(--spd-p-border-strong);  --slate-400:  var(--spd-p-text-muted);  --slate-500:  var(--spd-p-info-text);  --slate-600:  var(--spd-p-text-secondary);
+  --slate-700:  var(--spd-p-text-secondary);  --slate-800:  var(--spd-p-bg-muted);  --slate-900:  var(--spd-p-text-strong);
 
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
   --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
@@ -572,10 +569,10 @@ onMounted(loadDashboard)
   grid-template-rows: auto auto;
   gap: var(--sp-5);
   padding: var(--sp-6) var(--sp-6);
-  color: #fff;
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 45%, #ec4899 100%);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 45%, var(--spd-p-danger) 100%);
   border-radius: var(--r-xl);
-  box-shadow: 0 18px 40px -20px rgba(79, 70, 229, 0.45);
+  box-shadow: var(--spd-p-shadow-3);
   overflow: hidden;
 }
 .wb-hero-bg { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
@@ -586,9 +583,9 @@ onMounted(loadDashboard)
   filter: blur(60px);
   opacity: 0.35;
 }
-.wb-hero-bg .blob-1 { top: -120px; right: -60px; background: #fbbf24; }
-.wb-hero-bg .blob-2 { bottom: -140px; left: 30%; background: #06b6d4; }
-.wb-hero-bg .blob-3 { top: 30%; left: -100px; background: #f472b6; }
+.wb-hero-bg .blob-1 { top: -120px; right: -60px; background: var(--spd-p-warning); }
+.wb-hero-bg .blob-2 { bottom: -140px; left: 30%; background: var(--spd-p-primary); }
+.wb-hero-bg .blob-3 { top: 30%; left: -100px; background: var(--spd-p-danger); }
 
 .wb-hero-text { position: relative; z-index: 1; }
 .wb-hero-eyebrow {
@@ -599,13 +596,13 @@ onMounted(loadDashboard)
   margin-bottom: var(--sp-3);
   font-size: var(--spd-font-size-xs);
   font-weight: 500;
-  color: #1e1b4b;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.25);
+  color: var(--spd-p-text-secondary);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 25%, transparent);
   border-radius: 999px;
   backdrop-filter: blur(6px);
 }
-.wb-hero-eyebrow svg { color: #fde68a; }
+.wb-hero-eyebrow svg { color: var(--spd-p-warning-border); }
 .wb-hero-text h1 {
   margin: 0 0 var(--sp-2);
   font-size: var(--spd-font-size-3xl);
@@ -614,13 +611,13 @@ onMounted(loadDashboard)
 }
 .wb-hero-text h1 em {
   font-style: normal;
-  color: #fde68a;
+  color: var(--spd-p-warning-border);
   font-weight: 600;
 }
 
 .wb-hero-text p {
   margin: 0;
-  color: rgba(255,255,255,0.78);
+  color: color-mix(in srgb, var(--spd-p-bg) 78%, transparent);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-loose);
   max-width: 520px;
@@ -641,13 +638,13 @@ onMounted(loadDashboard)
   padding: 4px 12px;
   font-size: var(--spd-font-size-xs);
   font-weight: 500;
-  background: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.3);
-  color: #fff !important;
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
+  color: var(--spd-p-bg) !important;
   cursor: pointer;
   transition: transform 0.15s ease, background 0.15s ease;
 }
-.wb-hero-status:hover { transform: translateY(-1px); background: rgba(255,255,255,0.28); }
+.wb-hero-status:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--spd-p-bg) 28%, transparent); }
 .wb-hero-refresh {
   display: inline-flex;
   align-items: center;
@@ -656,14 +653,14 @@ onMounted(loadDashboard)
   padding: 0 14px;
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  color: #4f46e5;
-  background: #fff;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-bg);
   border: none;
   border-radius: 8px;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.wb-hero-refresh:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
+.wb-hero-refresh:hover:not(:disabled) { transform: translateY(-1px); box-shadow: var(--spd-p-shadow-2); }
 .wb-hero-refresh:disabled { opacity: 0.6; cursor: not-allowed; }
 .wb-spin { animation: wb-spin 0.8s linear infinite; }
 @keyframes wb-spin { to { transform: rotate(360deg); } }
@@ -688,24 +685,24 @@ onMounted(loadDashboard)
   padding: var(--sp-4) var(--sp-5);
   overflow: hidden;
   color: var(--slate-800);
-  background: rgba(255,255,255,0.92);
-  border: 1px solid rgba(255,255,255,0.4);
+  background: color-mix(in srgb, var(--spd-p-bg) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 40%, transparent);
   border-radius: var(--r-lg);
   backdrop-filter: blur(8px);
-  box-shadow: 0 8px 24px -12px rgba(15, 23, 42, 0.25);
+  box-shadow: var(--spd-p-shadow-3);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-.wb-hero-metrics li:hover { transform: translateY(-2px); box-shadow: 0 16px 32px -16px rgba(15, 23, 42, 0.35); }
+.wb-hero-metrics li:hover { transform: translateY(-2px); box-shadow: var(--spd-p-shadow-3); }
 .wb-hero-metrics-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 40px; height: 40px;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--spd-p-bg);
   background: var(--indigo-500);
   border-radius: var(--r-md);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-hero-metrics li[data-theme="indigo"] .wb-hero-metrics-icon { background: linear-gradient(135deg, var(--indigo-500), var(--indigo-600)); }
 .wb-hero-metrics li[data-theme="teal"]   .wb-hero-metrics-icon { background: linear-gradient(135deg, var(--teal-500),   var(--teal-600)); }
@@ -742,7 +739,7 @@ onMounted(loadDashboard)
   position: absolute;
   top: 0; right: -50%;
   width: 60%; height: 100%;
-  background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%);
+  background: linear-gradient(120deg, transparent 30%, color-mix(in srgb, var(--spd-p-bg) 55%, transparent) 50%, transparent 70%);
   transform: skewX(-20deg);
   pointer-events: none;
   animation: wb-shine 4s ease-in-out infinite;
@@ -758,7 +755,7 @@ onMounted(loadDashboard)
   color: var(--rose-600);
   font-size: var(--spd-font-size-sm);
   background: var(--rose-50);
-  border: 1px solid #fecdd3;
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: var(--r-md);
 }
 
@@ -766,10 +763,10 @@ onMounted(loadDashboard)
  * 公共 · card
  * ================================================================ */
 .wb-card {
-  background: #fff;
+  background: var(--spd-p-bg);
   border: 1px solid var(--slate-100);
   border-radius: var(--r-lg);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -20px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--spd-p-shadow-3);
   overflow: hidden;
   min-width: 0;
   display: flex;
@@ -861,21 +858,21 @@ onMounted(loadDashboard)
   gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-4);
   border-radius: var(--r-md);
-  background: linear-gradient(180deg, #fff 0%, var(--slate-50) 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--slate-50) 100%);
   border: 1px solid var(--slate-100);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .wb-process-row[data-theme="indigo"] {
-  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
-  border-color: #e0e7ff;
+  background: linear-gradient(135deg, var(--spd-p-info-bg) 0%, var(--spd-p-bg-subtle) 100%);
+  border-color: var(--spd-p-border);
 }
 .wb-process-row[data-theme="teal"] {
-  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%);
-  border-color: #d1fae5;
+  background: linear-gradient(135deg, var(--spd-p-primary-bg) 0%, var(--spd-p-primary-bg) 100%);
+  border-color: var(--spd-p-success-bg);
 }
 .wb-process-row[data-theme="rose"] {
-  background: linear-gradient(135deg, #fff1f2 0%, #fdf2f8 100%);
-  border-color: #ffe4e6;
+  background: linear-gradient(135deg, var(--spd-p-danger-bg) 0%, var(--spd-p-danger-bg) 100%);
+  border-color: var(--spd-p-danger-bg);
 }
 
 /* 左侧 label：编号 + 标题 */
@@ -895,21 +892,15 @@ onMounted(loadDashboard)
   width: 10px; height: 10px;
   border-radius: 50%;
   background: var(--indigo-500);
-  box-shadow:
-    0 0 0 4px rgba(99, 102, 241, 0.18),
-    0 0 12px rgba(99, 102, 241, 0.45);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-process-row[data-theme="teal"] .wb-process-dot {
   background: var(--teal-500);
-  box-shadow:
-    0 0 0 4px rgba(16, 185, 129, 0.18),
-    0 0 12px rgba(16, 185, 129, 0.45);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-process-row[data-theme="rose"] .wb-process-dot {
   background: var(--rose-500);
-  box-shadow:
-    0 0 0 4px rgba(244, 63, 94, 0.18),
-    0 0 12px rgba(244, 63, 94, 0.45);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 /* 右侧 timeline */
@@ -941,15 +932,15 @@ onMounted(loadDashboard)
   padding: 12px 6px 10px;
   color: var(--slate-700);
   text-decoration: none;
-  background: #fff;
+  background: var(--spd-p-bg);
   border: 1px solid var(--slate-200);
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease;
 }
 .wb-process-node:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 24px -10px rgba(15, 23, 42, 0.25);
+  box-shadow: var(--spd-p-shadow-3);
   z-index: 2;
 }
 
@@ -960,23 +951,23 @@ onMounted(loadDashboard)
   justify-content: center;
   width: 32px; height: 32px;
   margin-top: 0;
-  color: #fff;
+  color: var(--spd-p-bg);
   background: var(--indigo-500);
   border-radius: 50%;
-  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.35);
+  box-shadow: var(--spd-p-shadow-2);
   transition: transform 0.18s ease;
 }
 .wb-process-row[data-theme="indigo"] .wb-process-node-icon {
   background: linear-gradient(135deg, var(--indigo-500), var(--indigo-600));
-  box-shadow: 0 4px 10px rgba(99, 102, 241, 0.35);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-process-row[data-theme="teal"] .wb-process-node-icon {
   background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
-  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-process-row[data-theme="rose"] .wb-process-node-icon {
   background: linear-gradient(135deg, var(--rose-500), var(--rose-600));
-  box-shadow: 0 4px 10px rgba(244, 63, 94, 0.35);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-process-node:hover .wb-process-node-icon { transform: scale(1.08); }
 
@@ -1020,7 +1011,7 @@ onMounted(loadDashboard)
   justify-content: center;
   width: 16px; height: 16px;
   color: var(--slate-400);
-  background: #fff;
+  background: var(--spd-p-bg);
   border: 1px solid var(--slate-200);
   border-radius: 50%;
   flex-shrink: 0;
@@ -1051,8 +1042,8 @@ onMounted(loadDashboard)
 .wb-spark-line { fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .wb-spark-line.in  { stroke: var(--indigo-500); }
 .wb-spark-line.out { stroke: var(--teal-500); }
-.wb-spark-area.in  { fill: rgba(99, 102, 241, 0.12); }
-.wb-spark-area.out { fill: rgba(16, 185, 129, 0.12); }
+.wb-spark-area.in  { fill: color-mix(in srgb, var(--spd-p-info) 12%, transparent); }
+.wb-spark-area.out { fill: color-mix(in srgb, var(--spd-p-success) 12%, transparent); }
 
 .wb-legend {
   display: flex;
@@ -1141,16 +1132,16 @@ onMounted(loadDashboard)
 .wb-alert-list li {
   display: flex; flex-direction: column; gap: 4px;
   padding: var(--sp-3);
-  background: linear-gradient(90deg, var(--amber-50) 0%, #fff 100%);
-  border: 1px solid #fde68a;
+  background: linear-gradient(90deg, var(--amber-50) 0%, var(--spd-p-bg) 100%);
+  border: 1px solid var(--spd-p-warning-border);
   border-left: 3px solid var(--amber-500);
   border-radius: var(--r-sm);
 }
 .wb-alert-head { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); }
-.wb-alert-type { color: #92400e; font-size: var(--spd-font-size-sm); font-weight: 600; }
+.wb-alert-type { color: var(--spd-p-warning-text); font-size: var(--spd-font-size-sm); font-weight: 600; }
 .wb-alert-list p {
   margin: 0;
-  color: #78350f;
+  color: var(--spd-p-warning-strong);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-loose);
   overflow-wrap: anywhere;
@@ -1181,23 +1172,23 @@ onMounted(loadDashboard)
 .wb-card--shortcut {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
-  background: linear-gradient(160deg, var(--violet-50) 0%, #fff 65%);
-  border-color: #ede9fe;
+  background: linear-gradient(160deg, var(--violet-50) 0%, var(--spd-p-bg) 65%);
+  border-color: var(--spd-p-info-bg);
 }
 .wb-shortcut-profile {
   display: flex; align-items: center; gap: var(--sp-3);
   padding: var(--sp-4) var(--sp-5);
-  border-inline-end: 1px solid #ede9fe;
+  border-inline-end: 1px solid var(--spd-p-info-bg);
   min-width: 0;
 }
 .wb-shortcut-avatar {
   display: inline-flex; align-items: center; justify-content: center;
   width: 40px; height: 40px;
-  color: #fff;
+  color: var(--spd-p-bg);
   background: linear-gradient(135deg, var(--violet-500), var(--indigo-500));
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.32);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .wb-shortcut-profile > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .wb-shortcut-profile strong {
@@ -1237,7 +1228,7 @@ onMounted(loadDashboard)
   color: var(--slate-700);
   font-size: var(--spd-font-size-sm);
   text-decoration: none;
-  background: #fff;
+  background: var(--spd-p-bg);
   border: 1px solid var(--slate-200);
   border-radius: var(--r-sm);
   transition: all 0.15s ease;
@@ -1282,7 +1273,7 @@ onMounted(loadDashboard)
   background: linear-gradient(135deg, var(--indigo-500), var(--violet-500));
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .wb-feed-body { flex: 1; min-width: 0; }
 .wb-feed-head {
@@ -1343,7 +1334,7 @@ onMounted(loadDashboard)
   .wb-process-row { grid-template-columns: 1fr; gap: var(--sp-2); }
   .wb-process-step { max-width: none; }
   .wb-card--shortcut { grid-template-columns: 1fr; }
-  .wb-shortcut-profile { border-inline-end: 0; border-bottom: 1px solid #ede9fe; }
+  .wb-shortcut-profile { border-inline-end: 0; border-bottom: 1px solid var(--spd-p-info-bg); }
   .wb-shortcut-options { grid-template-columns: 1fr; }
 }
 </style>

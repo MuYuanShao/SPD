@@ -1,4 +1,4 @@
-﻿.dashboard-grid {
+.dashboard-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
@@ -37,18 +37,19 @@
   border-radius: 8px;
   background: var(--surface);
   padding: 22px;
-  box-shadow: 0 2px 8px rgba(27, 39, 51, 0.08);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .kpi-card p {
   margin: 0 0 10px;
-  color: #607285;
+  /* 说明文字：中性次级文字（非品牌蓝） */
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
 .kpi-card strong {
   display: block;
-  color: #06152b;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-2xl);
   line-height: 1;
 }
@@ -68,23 +69,23 @@
 }
 
 .kpi-icon.blue {
-  background: #eaf1ff;
-  color: #2563eb;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-info);
 }
 
 .kpi-icon.green {
-  background: #e7f8ef;
-  color: #059669;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success);
 }
 
 .kpi-icon.orange {
-  background: #fff3e4;
-  color: #ea580c;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-strong);
 }
 
 .kpi-icon.violet {
-  background: #f2e9ff;
-  color: #7c3aed;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-primary-strong);
 }
 
 .kpi-delta {
@@ -92,11 +93,11 @@
 }
 
 .kpi-delta.up {
-  color: #00a344;
+  color: var(--spd-p-success-text);
 }
 
 .kpi-delta.down {
-  color: #e11d48;
+  color: var(--spd-p-danger);
 }
 
 .process-card,
@@ -106,7 +107,7 @@
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 2px 8px rgba(27, 39, 51, 0.08);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .process-card {
@@ -117,9 +118,9 @@
 .process-map {
   display: grid;
   gap: 24px;
-  border: 1px solid #e3e9ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #f8fafb;
+  background: var(--spd-p-bg-muted);
   padding: 28px;
   overflow-x: auto;
 }
@@ -132,8 +133,8 @@
 }
 
 .process-label {
-  border-right: 2px solid #d9e1e7;
-  color: #8b99aa;
+  border-right: 2px solid var(--spd-p-border);
+  color: var(--spd-p-text-muted);
   font-weight: 800;
   text-align: center;
 }
@@ -151,18 +152,18 @@
   display: grid;
   justify-items: center;
   gap: 10px;
-  color: #102033;
+  color: var(--spd-p-text);
   text-align: center;
 }
 
 .process-node > svg {
   width: 58px;
   height: 58px;
-  border: 2px solid #d1d5db;
+  border: 2px solid var(--spd-p-border-strong);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 15px;
-  box-shadow: 0 1px 4px rgba(27, 39, 51, 0.2);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .process-node:hover > svg {
@@ -176,9 +177,9 @@
 }
 
 .process-node.wide {
-  border: 1px solid #e1e7ec;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 8px 12px;
 }
 
@@ -196,14 +197,14 @@
   min-width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: #ff2f45;
-  color: #ffffff;
+  background: var(--spd-p-danger);
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
 .process-arrow {
-  color: #c3ccd5;
+  color: var(--spd-p-text-secondary);
   /* 流程箭头为装饰性字符，尺寸固定（白名单：装饰元素尺寸） */
   font-size: 24px;
   text-align: center;
@@ -240,15 +241,15 @@
   min-height: 34px;
   border: 0;
   border-radius: 8px;
-  background: #f6f8fa;
-  color: #607285;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-info);
   padding: 0 12px;
   font: inherit;
 }
 
 .card-heading span,
 .card-heading a {
-  color: #7f8da0;
+  color: var(--spd-p-text-muted);
 }
 
 .trend-chart {
@@ -257,17 +258,17 @@
 }
 
 .trend-chart line {
-  stroke: #e7edf2;
+  stroke: var(--spd-p-text);
   stroke-dasharray: 5 5;
 }
 
 .trend-chart polygon {
-  fill: rgba(15, 166, 145, 0.18);
+  fill: color-mix(in srgb, var(--spd-p-success-text) 18%, transparent);
 }
 
 .trend-chart polyline {
   fill: none;
-  stroke: #0fab91;
+  stroke: var(--spd-p-success-text);
   stroke-width: 4;
   stroke-linejoin: round;
 }
@@ -276,7 +277,8 @@
   display: flex;
   justify-content: center;
   gap: 20px;
-  color: #607285;
+  /* 图例文字：中性（此前用信息语义蓝，发蓝且偏淡） */
+  color: var(--spd-p-text-secondary);
 }
 
 .chart-legend span {
@@ -292,11 +294,11 @@
 }
 
 .blue-dot {
-  background: #3b82f6;
+  background: var(--spd-p-info);
 }
 
 .green-dot {
-  background: #0fab91;
+  background: var(--spd-p-success-text);
 }
 
 .bar-ranking {
@@ -314,12 +316,12 @@
 
 .bar-row span {
   text-align: right;
-  color: #334652;
+  color: var(--spd-p-text);
 }
 
 .bar-row div {
   height: 28px;
-  background-image: linear-gradient(90deg, transparent 24%, #edf1f5 25%, transparent 26%);
+  background-image: linear-gradient(90deg, transparent 24%, var(--spd-p-bg-muted) 25%, transparent 26%);
   background-size: 150px 100%;
 }
 
@@ -327,7 +329,7 @@
   display: block;
   height: 100%;
   border-radius: 4px;
-  background: #8657ee;
+  background: var(--spd-p-info);
 }
 
 .exception-card {
@@ -341,18 +343,18 @@
 }
 
 .exception-card th {
-  color: #8b99aa;
+  color: var(--spd-p-text-muted);
   text-align: left;
 }
 
 .exception-card th,
 .exception-card td {
-  border-bottom: 1px solid #edf2f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   padding: 14px 0;
 }
 
 .danger-cell {
-  color: #ff3030;
+  color: var(--spd-p-danger);
 }
 
 .state-chip {
@@ -360,8 +362,8 @@
   align-items: center;
   min-height: 30px;
   border-radius: 999px;
-  background: #fff4e8;
-  color: #f97316;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning);
   padding: 0 12px;
   white-space: nowrap;
 }
@@ -385,29 +387,30 @@
 }
 
 .notice-item i.red {
-  background: #ef4444;
+  background: var(--spd-p-danger);
 }
 
 .notice-item i.orange {
-  background: #f97316;
+  background: var(--spd-p-warning);
 }
 
 .notice-item i.blue {
-  background: #3b82f6;
+  background: var(--spd-p-info);
 }
 
 .notice-item strong {
-  color: #08162a;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-base);
 }
 
 .notice-item p {
   margin: 6px 0;
-  color: #607285;
+  /* 通知说明文字：中性次级文字（非品牌蓝） */
+  color: var(--spd-p-text-secondary);
 }
 
 .notice-item span {
-  color: #9aa6b5;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 

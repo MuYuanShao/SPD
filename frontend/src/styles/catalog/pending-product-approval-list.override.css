@@ -48,9 +48,8 @@
   background: var(--md-bg-header) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   padding: 18px 24px !important;
-  border: 1px solid color-mix(in srgb, var(--primary, #0d6b63) 35%, transparent) !important;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) inset,
-              0 2px 8px color-mix(in srgb, var(--primary, #0d6b63) 18%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
+  box-shadow: var(--spd-p-shadow-1);
   margin-bottom: 0 !important;
   position: relative;
   overflow: hidden;
@@ -61,14 +60,14 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 0%, rgba(255, 255, 255, 0.18) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, #0d6b63) 28%, transparent) 0%, transparent 32%);
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--primary, var(--spd-p-primary)) 28%, transparent) 0%, transparent 32%);
   pointer-events: none;
 }
 
 .approval-page-title h2 {
   margin: 0 0 6px !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   letter-spacing: -0.2px !important;
@@ -78,7 +77,7 @@
 
 .approval-page-title p {
   margin: 0 !important;
-  color: rgba(255, 255, 255, 0.85) !important;
+  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent) !important;
   font-size: var(--spd-font-size-sm) !important;
   line-height: var(--spd-lh-loose);
   position: relative;
@@ -165,11 +164,11 @@
 }
 
 .approval-metric-card.alert strong {
-  color: #fa8c16 !important;
+  color: var(--spd-p-warning) !important;
 }
 
 .approval-metric-card.alert::before {
-  background: #fa8c16 !important;
+  background: var(--spd-p-warning) !important;
   opacity: 0.8 !important;
 }
 
@@ -209,7 +208,7 @@
 }
 
 .approval-sidebar-card::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 15%, transparent);
   border-radius: 3px;
 }
 
@@ -263,7 +262,7 @@
 }
 
 .approval-task-item:hover {
-  background: var(--spd-bg-page, #f0f2f5) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
 }
 
 .approval-task-item.active,
@@ -302,12 +301,12 @@
 .approval-task-item.active strong,
 .approval-task-item.scope-button.active strong {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .approval-task-item.orange svg,
 .approval-task-item.orange > div > svg {
-  color: var(--ulc-warning, var(--spd-c-warning, #9a6114));
+  color: var(--ulc-warning, var(--spd-c-warning, var(--spd-p-warning)));
 }
 
 .approval-task-item.blue svg,
@@ -317,7 +316,7 @@
 
 .approval-task-item.green svg,
 .approval-task-item.green > div > svg {
-  color: var(--ulc-success, var(--spd-c-success, #2f7d5b));
+  color: var(--ulc-success, var(--spd-c-success, var(--spd-p-success)));
 }
 
 /* ===== 子列表 ===== */
@@ -416,18 +415,9 @@
   white-space: nowrap;
 }
 
-/* ===== 筛选行 ===== */
-.approval-filter-row {
-  display: grid !important;
-  grid-template-columns: minmax(260px, 1fr) 140px 140px auto !important;
-  gap: 10px;
-  border-bottom: 1px solid var(--spd-border-subtle) !important;
-  margin-bottom: 0 !important;
-  padding: 14px 24px !important;
-  background: var(--spd-bg-page, #f0f2f5) !important;
-}
-
-.approval-search,
+/* ===== 筛选行 =====
+   筛选区已统一改用 SpdFilterBar 组件（标准规则见 components/spd-filter-bar.css），
+   下方 .spd-filter-bar .approval-search 规则负责高度与配色。 */
 .filter-select,
 .filter-button {
   min-height: 36px !important;
@@ -438,36 +428,6 @@
   font: inherit;
   font-size: var(--spd-font-size-base);
   transition: all 0.18s ease;
-}
-
-.approval-search {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px;
-}
-
-.approval-search:focus-within {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent) !important;
-}
-
-.approval-search svg {
-  color: var(--spd-text-tertiary) !important;
-  flex-shrink: 0;
-}
-
-.approval-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
-  font: inherit;
-  background: transparent;
-  color: var(--spd-text-primary);
-}
-
-.approval-search input::placeholder {
-  color: var(--spd-text-placeholder);
 }
 
 .filter-select,
@@ -488,15 +448,15 @@
 .filter-button {
   border-color: var(--primary) !important;
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-weight: 500;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .filter-button:hover {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== 字段导航 ===== */
@@ -584,7 +544,7 @@
   min-height: 26px;
   padding: 0 10px;
   border-radius: 999px;
-  background: var(--spd-bg-page, #f0f2f5);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
   border: 1px solid transparent;
   color: var(--spd-text-secondary);
   font-size: var(--spd-font-size-sm);
@@ -602,7 +562,7 @@
 
 .subnav-chip.active {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   border-color: var(--primary) !important;
   font-weight: 600;
 }
@@ -669,15 +629,15 @@
 
 .approval-wide-table th {
   background: var(--ulc-primary, var(--primary)) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display) !important;
   line-height: var(--spd-lh-tight, 1.35);
   letter-spacing: 0;
-  border-right-color: rgba(255, 255, 255, 0.22) !important;
+  border-right-color: color-mix(in srgb, var(--spd-p-bg) 22%, transparent) !important;
   border-bottom: 0 !important;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+  box-shadow: var(--spd-p-shadow-1);
   white-space: nowrap;
 }
 
@@ -698,11 +658,11 @@
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: var(--ulc-bg-container, #ffffff);
+  background: var(--ulc-bg-container, var(--spd-p-bg));
 }
 
 .approval-wide-table tbody tr:hover td {
-  background: var(--ulc-row-hover, #e8f1f1) !important;
+  background: var(--ulc-row-hover, var(--spd-p-primary-bg)) !important;
 }
 
 .approval-wide-table tbody tr:has(input:checked) td {
@@ -784,14 +744,14 @@
 }
 
 .approval-no svg {
-  color: #fa8c16;
+  color: var(--spd-p-warning);
   flex-shrink: 0;
 }
 
 .approval-change-summary {
   max-width: 240px;
   min-width: 160px;
-  color: #fa541c !important;
+  color: var(--spd-p-warning-strong) !important;
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-tight);
   white-space: normal;
@@ -949,14 +909,14 @@
 .approval-row-actions .btn.btn-primary {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .approval-row-actions .btn.btn-primary:hover {
   background: var(--primary-strong);
   border-color: var(--primary-strong);
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 /* ===== Checkbox ===== */
@@ -1100,7 +1060,7 @@
 .approval-pagination-pages .page-num.btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-weight: 600;
 }
 
@@ -1165,7 +1125,7 @@
 }
 
 .import-menu button:hover {
-  background: var(--spd-bg-page, #f0f2f5);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
   color: var(--primary);
 }
 
@@ -1201,9 +1161,6 @@
   .approval-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
-  .approval-filter-row {
-    grid-template-columns: 1fr !important;
-  }
   .approval-context {
     flex-direction: column;
   }
@@ -1234,7 +1191,7 @@
   border: 1px solid transparent !important;
   border-radius: 4px !important;
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
   display: inline-flex !important;
@@ -1251,7 +1208,7 @@
 .approval-action-row .import-menu > summary:hover {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   filter: brightness(0.93);
 }
 
@@ -1285,7 +1242,7 @@
   border: 1px solid var(--spd-border-subtle) !important;
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.12) !important;
+  box-shadow: var(--spd-p-shadow-2);
   padding: 6px;
   display: grid;
   gap: 2px;
@@ -1346,8 +1303,7 @@ body .approval-create-dialog.approval-create-dialog,
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-subtle) !important;
   border-radius: var(--spd-radius-md, 10px) !important;
-  box-shadow: 0 24px 48px -12px rgba(15, 23, 42, 0.24),
-              0 4px 12px rgba(15, 23, 42, 0.08) !important;
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden !important;
   animation: dialog-pop 0.18s ease;
 }
@@ -1365,7 +1321,7 @@ body .approval-create-dialog.approval-create-dialog,
   gap: 16px;
   padding: 10px 18px !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
-  background: var(--spd-bg-page, #f0f2f5) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
 }
 
 .approval-create-head > div {
@@ -1411,7 +1367,7 @@ body .approval-create-dialog.approval-create-dialog,
   box-sizing: border-box;
   /* 隐藏原生滚动条但保留滚动能力，避免内容抖动 */
   scrollbar-width: thin;
-  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  scrollbar-color: color-mix(in srgb, var(--spd-p-text-strong) 20%, transparent) transparent;
 }
 
 .approval-create-form .approval-create-scroll::-webkit-scrollbar {
@@ -1420,14 +1376,14 @@ body .approval-create-dialog.approval-create-dialog,
 }
 
 .approval-create-form .approval-create-scroll::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.18);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 18%, transparent);
   border-radius: 4px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 .approval-create-form .approval-create-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.32);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 32%, transparent);
   background-clip: padding-box;
 }
 
@@ -1522,7 +1478,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 12px;
   border: 1px dashed var(--spd-border-default);
   border-radius: var(--spd-radius, 6px);
-  background: var(--spd-bg-page, #f0f2f5);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
 }
 
 .approval-source-search {
@@ -1605,7 +1561,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 12px;
   border: 1px dashed var(--spd-border-default);
   border-radius: var(--spd-radius, 6px);
-  background: var(--spd-bg-page, #f0f2f5);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
 }
 
 .approval-attachment-summary strong {
@@ -1685,7 +1641,7 @@ body .approval-create-dialog.approval-create-dialog,
   gap: 10px;
   padding: 12px 24px !important;
   border-top: 1px solid var(--spd-border-subtle) !important;
-  background: var(--spd-bg-page, #f0f2f5) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
 }
 
 .approval-create-actions .btn {
@@ -1715,14 +1671,14 @@ body .approval-create-dialog.approval-create-dialog,
 .approval-create-actions .btn.btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 4px rgba(22, 119, 255, 0.18) !important;
+  color: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .approval-create-actions .btn.btn-primary:hover {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .approval-create-head .btn-icon {
@@ -1821,13 +1777,13 @@ body .column-settings-dialog.column-settings-dialog {
 
 /* 新增表单必填星标：跟随主题错误色，清晰且不刺眼 */
 .req-mark {
-  color: #dc2626;
+  color: var(--spd-p-danger);
   font-style: normal;
   font-weight: 700;
   margin-left: 2px;
 }
 .approval-create-section .supplier-form-grid label > span .req-mark {
-  color: #dc2626;
+  color: var(--spd-p-danger);
 }
 
 /* 新增字段：商品编码 / 提交时间 —— 主题单色系、等宽对齐 */
@@ -1863,12 +1819,12 @@ body .column-settings-dialog.column-settings-dialog {
 
 .approval-wide-table th {
   background: var(--ulc-primary, var(--primary)) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
-  border-right-color: rgba(255, 255, 255, 0.22) !important;
+  border-right-color: color-mix(in srgb, var(--spd-p-bg) 22%, transparent) !important;
   border-bottom: 0 !important;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
+  box-shadow: var(--spd-p-shadow-1);
   white-space: nowrap;
 }
 
@@ -1899,14 +1855,14 @@ body .column-settings-dialog.column-settings-dialog {
 }
 
 .approval-wide-table th > .ulc-col-resizer:hover {
-  background: rgba(255, 255, 255, 0.45);
+  background: color-mix(in srgb, var(--spd-p-bg) 45%, transparent);
 }
 
 thead .approval-sticky-check,
 thead .approval-sticky-no,
 thead .approval-sticky-product {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== 单元格：全部居中 ===== */
@@ -1931,17 +1887,17 @@ thead .approval-sticky-product {
    标准页用的是 Element Plus 的 .el-table__row--striped，它落在**偶数行**，
    所以这里也改成「偶数行浅色、奇数行纯白」，避免两页放在一起时深浅交错。 */
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: var(--ulc-row-stripe, #f7fafb);
+  background: var(--ulc-row-stripe, var(--spd-p-bg-page));
 }
 
 .approval-wide-table tbody tr:nth-child(odd) td {
-  background: var(--ulc-bg-container, #ffffff);
+  background: var(--ulc-bg-container, var(--spd-p-bg));
 }
 
 /* 操作列已是普通列，斑马纹 / 悬停 / 选中态由通用规则统一覆盖 */
 
 .approval-wide-table tbody tr:hover td {
-  background: var(--ulc-row-hover, #e8f1f1) !important;
+  background: var(--ulc-row-hover, var(--spd-p-primary-bg)) !important;
 }
 
 .approval-wide-table tbody tr:has(input:checked) td {
@@ -1954,75 +1910,51 @@ thead .approval-sticky-product {
   display: none !important;
 }
 
-/* ===== 筛选区：与统一列表其他页面一致（ulc-filter flex 布局） =====
-   旧实现为 grid，这里交回 unified-list.css 的 flex 规则统一控制 */
-.approval-filter-row {
-  display: flex !important;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 12px 16px;
-  border: 0 !important;
-  margin-bottom: 0 !important;
-  padding: 16px 18px !important;
-  background: #fff !important;
-}
+/* ===== 筛选区：统一使用 SpdFilterBar 组件 =====
+   栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
+   components/spd-filter-bar.css 的「标准规则」统一控制，此处不再另写一套。 */
 
-.approval-filter-row .ulc-filter-fields {
-  display: grid;
-  grid-template-columns: minmax(220px, 1.6fr) minmax(150px, 1fr) minmax(150px, 1fr);
-  gap: 12px 16px;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.approval-filter-row .ulc-filter-fields label {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-}
-
-.approval-filter-row .ulc-filter-fields label > span {
-  color: #405564;
-  font-size: var(--spd-font-size-sm);
-  font-weight: 700;
-}
-
-/* 搜索框：与统一列表的 md-input 观感一致 */
-.approval-filter-row .approval-search {
+/* 搜索框：与统一筛选栏控件同高（--spd-p-field-height），不再单独写死 38px */
+.spd-filter-bar .approval-search {
   display: flex !important;
   align-items: center;
   gap: 8px;
-  min-height: 38px !important;
-  padding: 0 12px;
-  border: 1px solid var(--ulc-border, #d5e3e8) !important;
-  border-radius: 4px;
-  background: #fff !important;
-  color: var(--spd-text-primary) !important;
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  padding: 0 var(--spd-p-field-padding-x);
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border) !important;
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg) !important;
+  color: var(--spd-p-field-text) !important;
   transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.approval-filter-row .approval-search:focus-within {
-  border-color: var(--primary) !important;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent) !important;
+.spd-filter-bar .approval-search:focus-within {
+  border-color: var(--spd-p-field-focus-border) !important;
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring) !important;
 }
 
-.approval-filter-row .approval-search svg {
-  color: var(--spd-text-tertiary) !important;
+.spd-filter-bar .approval-search svg {
+  color: var(--spd-p-field-placeholder) !important;
   flex-shrink: 0;
 }
 
-.approval-filter-row .approval-search input {
+.spd-filter-bar .approval-search input {
   width: 100%;
+  height: 100%;
+  min-height: 0;
   border: 0;
   outline: 0;
   font: inherit;
   font-size: var(--spd-font-size-base);
   background: transparent;
-  color: var(--spd-text-primary);
+  color: var(--spd-p-field-text);
 }
 
-.approval-filter-row .approval-search input::placeholder {
-  color: var(--spd-text-placeholder);
+.spd-filter-bar .approval-search input::placeholder {
+  color: var(--spd-p-field-placeholder);
 }
 
 /* ===== 工具栏行：与统一列表其他页面一致 =====
@@ -2037,9 +1969,9 @@ thead .approval-sticky-product {
   white-space: nowrap;
   margin-bottom: 0 !important;
   padding: 10px 18px !important;
-  border-top: 1px solid var(--ulc-border, #d5e3e8) !important;
-  border-bottom: 1px solid var(--ulc-border, #d5e3e8) !important;
-  background: #fff !important;
+  border-top: 1px solid var(--ulc-border, var(--spd-p-border)) !important;
+  border-bottom: 1px solid var(--ulc-border, var(--spd-p-border)) !important;
+  background: var(--spd-p-bg) !important;
   overflow: visible;
   position: relative;
   z-index: 30;
@@ -2052,31 +1984,12 @@ thead .approval-sticky-product {
   flex-wrap: wrap;
 }
 
-/* ===== 筛选区：el-select 与统一列表一致 ===== */
-.approval-filter-row .ulc-filter-select {
+/* ===== 筛选区：el-select 宽度由 SpdFilterBar 标准规则统一控制 =====
+   高度 / 圆角 / 边框 / 焦点环全部走 --spd-p-field-* 令牌，
+   不再在本文件另写一套，避免与统一标准漂移。 */
+.spd-filter-bar .ulc-filter-select {
   width: 100%;
   min-width: 0;
-}
-
-.approval-filter-row .ulc-filter-select .el-select__wrapper {
-  min-height: 34px;
-  border-radius: 4px;
-  background: #fff;
-  box-shadow: 0 0 0 1px var(--spd-border-default) inset;
-}
-
-.approval-filter-row .ulc-filter-select .el-select__wrapper:hover {
-  box-shadow: 0 0 0 1px var(--primary) inset;
-}
-
-.approval-filter-row .ulc-filter-select .el-select__wrapper.is-focused {
-  box-shadow: 0 0 0 1px var(--primary) inset, 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
-}
-
-.approval-filter-row .ulc-filter-select .el-select__placeholder,
-.approval-filter-row .ulc-filter-select .el-select__selected-item {
-  font-size: var(--spd-font-size-base);
-  font-weight: 500;
 }
 
 /* ===== 操作列按钮：4px 圆角 + 实色背景 ===== */
@@ -2098,7 +2011,7 @@ thead .approval-sticky-product {
   border: 1px solid transparent;
   border-radius: 4px;
   background: var(--primary);
-  color: #fff;
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
@@ -2110,11 +2023,11 @@ thead .approval-sticky-product {
 
 .approval-col-action .ulc-action:hover {
   filter: brightness(0.93);
-  box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .approval-col-action .ulc-action.is-danger {
-  background: #c0392b;
+  background: var(--spd-p-danger);
 }
 
 /* ===== 批量操作条：按钮统一 4px 圆角 ===== */
@@ -2128,7 +2041,7 @@ thead .approval-sticky-product {
   border: 1px solid transparent;
   border-radius: 4px;
   background: var(--primary);
-  color: #fff;
+  color: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
@@ -2136,11 +2049,11 @@ thead .approval-sticky-product {
 }
 
 .approval-batch-bar .ulc-action.is-danger {
-  background: #c0392b;
+  background: var(--spd-p-danger);
 }
 
 .approval-batch-bar .ulc-action.is-neutral {
-  background: #5b7371;
+  background: var(--spd-p-text-muted);
 }
 
 .approval-batch-bar .ulc-action:disabled {

@@ -14,7 +14,7 @@
 }
 
 /* ============== 内容区整体渐变 ==============
-   设计稿：linear-gradient(180deg, #fff, #e6f6ff 34.31%, #def6fc 69.04%, #dcf4f4)
+   设计稿：linear-gradient(180deg, var(--spd-p-bg), var(--spd-p-info-bg) 34.31%, var(--spd-p-primary-bg) 69.04%, var(--spd-p-primary-bg))
    统一由 .spd-content 承载，页面容器保持透明以透出渐变。 */
 .spd-content {
   background: var(--spd-bg-page-gradient) !important;

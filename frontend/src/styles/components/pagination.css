@@ -15,7 +15,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 12px 0 2px;
-  color: #526579;
+  color: var(--spd-p-text-secondary);
   /* N-01 分页汇总文案 */
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 400;
@@ -38,8 +38,8 @@
   min-height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
-  color: #1d2a35;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 400;
   line-height: 1;
@@ -69,7 +69,7 @@
 .hospital-page-indicator {
   min-width: 98px;
   text-align: center;
-  color: #243447;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm, 13px);
   font-weight: 600;
   line-height: var(--spd-lh-base, 1.5);

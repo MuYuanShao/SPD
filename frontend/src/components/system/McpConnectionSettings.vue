@@ -107,24 +107,29 @@ onMounted(load)
   <section class="hospital-catalog-panel">
     <SectionTitle title="MCP-UI对接地址" />
     <p class="connection-description">设置MCP-UI服务器IP地址或域名及后端端口。保存后自动生成接口地址，无需输入接口路径。</p>
-    <form class="hospital-query-grid" @submit.prevent="save">
+    <SpdFilterBar @submit="save">
       <label><span>连接协议</span><select v-model="protocol" :disabled="loading || saving"><option value="http">HTTP</option><option value="https">HTTPS</option></select></label>
       <label><span>MCP-UI IP地址／域名</span><input v-model.trim="host" required maxlength="253" placeholder="例如 192.168.1.20" :disabled="loading || saving" /></label>
       <label><span>端口</span><input v-model.number="port" type="number" min="1" max="65535" step="1" required :disabled="loading || saving" /></label>
       <label class="phase2-toggle"><input v-model="phase2Enabled" type="checkbox" :disabled="loading || saving" /><span>启用第二期收货、入库和批次库存同步</span></label>
       <label class="phase2-toggle"><input v-model="phase3Enabled" type="checkbox" :disabled="loading || saving" /><span>启用第三期医院采购计划与结算同步</span></label>
-      <div class="hospital-query-actions"><button type="submit" class="btn btn-primary" :disabled="loading || saving || loadFailed">{{ saving ? '保存中…' : '保存对接地址' }}</button><button type="button" class="btn" :disabled="loading || saving" @click="load">重新加载</button></div>
-    </form>
+      <template #actions>
+        <SpdButton type="submit" label="保存对接地址" tone="success" :disabled="loading || saving || loadFailed"></SpdButton>
+        <SpdButton label="重新加载" :disabled="loading || saving" @click="load"></SpdButton>
+      </template>
+    </SpdFilterBar>
     <p class="connection-description">接口地址：{{ preview }}</p>
     <details class="phase3-status"><summary>医院计划与结算同步状态</summary>
       <p class="connection-description">第三期默认关闭。启用前需在 MCP-UI 服务器启用第三期，并明确配置币种、税口径和接收账户。每批最多回填100张计划及100张结算。</p>
-      <div class="hospital-query-actions"><button type="button" class="btn" :disabled="phase3Busy" @click="refreshPhase3">读取同步与反馈状态</button></div>
-      <form class="hospital-query-grid" @submit.prevent="runBackfill">
+      <div class="connection-actions"><SpdButton label="读取同步与反馈状态" tone="primary" :disabled="phase3Busy" @click="refreshPhase3"></SpdButton></div>
+      <SpdFilterBar @submit="runBackfill">
         <label><span>回填供应商编码</span><input v-model.trim="backfillSupplier" aria-label="回填供应商编码" required maxlength="100" placeholder="来源供应商编码，如 SUP-001" :disabled="phase3Busy" /></label>
         <label><span>来源生成日期起</span><input v-model="backfillStart" aria-label="回填开始日期" type="date" required :max="backfillEnd || undefined" :disabled="phase3Busy" /></label>
         <label><span>来源生成日期止（含）</span><input v-model="backfillEnd" aria-label="回填结束日期" type="date" required :min="backfillStart || undefined" :disabled="phase3Busy" /></label>
-        <div class="hospital-query-actions"><button type="submit" class="btn" :disabled="phase3Busy || !phase3Enabled">回填历史计划与结算</button></div>
-      </form>
+        <template #actions>
+          <SpdButton type="submit" label="回填历史计划与结算" tone="primary" :disabled="phase3Busy || !phase3Enabled"></SpdButton>
+        </template>
+      </SpdFilterBar>
       <p class="connection-description">仅回填所选供应商及日期内的数据：采购计划按创建日期，结算单按生成日期。重复执行仍限定在此范围。</p>
       <div class="phase3-table"><table class="master-table"><thead><tr><th>类型</th><th>来源编号</th><th>版本</th><th>状态</th><th>处理说明</th><th>操作</th></tr></thead><tbody><tr v-for="row in phase3Rows" :key="row.messageId"><td>{{ row.documentType === 'purchase_plan' ? '采购计划' : '结算单' }}</td><td>{{ row.sourceId }}</td><td>{{ row.revision }}</td><td>{{ phase3State(row.state) }}</td><td>{{ row.message || '等待后台处理' }}</td><td><button type="button" class="btn" :disabled="row.state !== 'failed' || phase3Busy" @click="retryMessage(row.messageId)">重试</button><button type="button" class="btn" :disabled="phase3Busy" @click="republishMessage(row)">重新发布最新快照</button></td></tr><tr v-if="!phase3Rows.length"><td colspan="6">暂无已读取的同步消息。</td></tr></tbody></table></div>
       <h4>供应商协同反馈</h4><div class="phase3-table"><table class="master-table"><thead><tr><th>来源结算</th><th>版本</th><th>供应商</th><th>反馈</th><th>接收时间</th></tr></thead><tbody><tr v-for="row in phase3Feedback" :key="row.messageId"><td>{{ row.settlementId }}</td><td>{{ row.revision }}</td><td>{{ row.supplierCode }}</td><td>{{ ({ received: '已接收', disputed: '存在差异', withdrawn: '撤回反馈' } as Record<string, string>)[row.feedbackType] || row.feedbackType }}</td><td>{{ row.receivedAt }}</td></tr><tr v-if="!phase3Feedback.length"><td colspan="5">暂无已读取的协同反馈。</td></tr></tbody></table></div>
@@ -135,7 +140,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.connection-description { margin: 12px 0; color: #64748b; font-size: var(--spd-font-size-sm); overflow-wrap: anywhere; }
+.connection-description { margin: 12px 0; color: var(--spd-p-text-secondary); font-size: var(--spd-font-size-sm); overflow-wrap: anywhere; }
 .phase2-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .phase2-toggle input { width: auto; }
 .phase3-status { margin-top: 16px; }

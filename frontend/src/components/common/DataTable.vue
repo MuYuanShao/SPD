@@ -43,7 +43,12 @@ export interface DataTableColumn {
   fixed?: 'left' | 'right'
   /** 对齐：left / center / right */
   align?: 'left' | 'center' | 'right'
-  /** 是否显示 tooltip */
+  /**
+   * 是否显示溢出提示（Element Plus 的 show-overflow-tooltip）。
+   * 不传时按「该列是否承载长文本」自动推断：
+   *   - 默认 true —— 文字过长时省略号 + 悬浮提示完整文字；
+   *   - 传 false 可关闭（适合本身就极短、且列宽固定的列）。
+   */
   showOverflowTooltip?: boolean
   /** 格式化函数：返回展示值；如需复杂渲染请使用插槽 column-<key> */
   formatter?: (row: Record<string, unknown>) => string
@@ -119,6 +124,27 @@ function getValue(row: Row, column: DataTableColumn) {
   return row[column.key]
 }
 
+/**
+ * 单元格展示文本（纯文本列）。
+ * 用于 Element Plus 的 show-overflow-tooltip 与原生 title 兜底：
+ * 「文字过长导致列宽无法容纳时……使用省略号，悬浮上去出现一个tip
+ *   来显示完整文字就好」。
+ */
+function getDisplayText(row: Row, column: DataTableColumn) {
+  const value = getValue(row, column)
+  if (value === null || value === undefined || value === '') return '-'
+  return String(value)
+}
+
+/**
+ * 该列是否启用溢出提示。
+ * 默认开启（长文本省略 + 悬浮显示完整文字），
+ * 列定义可显式传 false 关闭。
+ */
+function overflowTooltipEnabled(column: DataTableColumn) {
+  return column.showOverflowTooltip !== false
+}
+
 function getRowKey(row: Row) {
   return (row as any)[props.rowKey] ?? ''
 }
@@ -174,7 +200,7 @@ function handleSelectAll(selection: Row[]) {
           :fixed="column.fixed"
           :align="column.align"
           :sortable="column.sortable"
-          :show-overflow-tooltip="column.showOverflowTooltip"
+          :show-overflow-tooltip="overflowTooltipEnabled(column)"
         >
           <template #default="{ row }">
             <slot
@@ -182,7 +208,32 @@ function handleSelectAll(selection: Row[]) {
               :row="row"
               :value="getValue(row as Row, column)"
             >
-              {{ getValue(row as Row, column) ?? '-' }}
+              <!-- 纯文本列：省略号 + 悬浮提示完整文字。
+                   需求：「文字过长导致列宽无法容纳时……使用省略号，
+                   悬浮上去出现一个tip来显示完整文字就好」。
+
+                   三重保障，任何一层可用即可看到完整文字：
+                     1) el-tooltip —— Vue 原生方案，气泡跟随鼠标、可关闭；
+                     2) title     —— 浏览器原生 tooltip，零依赖、可访问；
+                     3) data-tip  —— 纯 CSS 气泡（见 spd-text-overflow.css）。
+
+                   省略号由 .spd-ellipsis-cell 自身负责（overflow:hidden +
+                   text-overflow:ellipsis），不依赖 .cell 的裁切，
+                   因此与 show-overflow-tooltip 的内置检测互不干扰。 -->
+              <el-tooltip
+                :content="getDisplayText(row as Row, column)"
+                placement="top"
+                :show-after="200"
+                :disabled="!overflowTooltipEnabled(column)"
+              >
+                <span
+                  class="spd-ellipsis-cell"
+                  :title="getDisplayText(row as Row, column)"
+                  :data-tip="getDisplayText(row as Row, column)"
+                >
+                  {{ getDisplayText(row as Row, column) }}
+                </span>
+              </el-tooltip>
             </slot>
           </template>
         </el-table-column>
@@ -224,8 +275,8 @@ function handleSelectAll(selection: Row[]) {
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: var(--spd-bg-container, #ffffff) !important;
-  border: 1px solid var(--spd-border-subtle, #f0f0f0) !important;
+  background: var(--spd-bg-container, var(--spd-p-bg)) !important;
+  border: 1px solid var(--spd-border-subtle, var(--spd-p-bg-muted)) !important;
   border-radius: var(--spd-radius-md, 8px);
   overflow: hidden;
   box-shadow: var(--spd-shadow-1);
@@ -237,25 +288,59 @@ function handleSelectAll(selection: Row[]) {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 16px;
-  background: var(--spd-bg-container, #ffffff);
-  border-bottom: 1px solid var(--spd-border-subtle, #f0f0f0);
+  background: var(--spd-bg-container, var(--spd-p-bg));
+  border-bottom: 1px solid var(--spd-border-subtle, var(--spd-p-bg-muted));
   flex-wrap: wrap;
 }
 
 .spd-data-table__body {
   flex: 1 1 auto;
   min-width: 0;
-  background: var(--spd-bg-container, #ffffff);
+  background: var(--spd-bg-container, var(--spd-p-bg));
 }
 
 .spd-data-table__el {
   width: 100%;
 }
 
+/* 单元格文本：超长省略号 + 悬浮提示完整文字。
+   （.spd-ellipsis-cell 的全局定义见 styles/components/spd-text-overflow.css，
+     这里只补充表格布局需要的约束：让 .cell 自身也可省略，
+     避免长文本把列撑宽或横向溢出侵占相邻列。）
+
+   ⚠️ 这里用 width:100% + min-width:0 而不是 max-width:0：
+     .cell 是 flex 容器，max-width:0 会把内容盒压成 0，
+     导致状态条 / 按钮被挤成一条线。
+
+   ⚠️ overflow 必须保持 hidden（Element Plus 的默认行为）：
+     内置的 show-overflow-tooltip 正是靠比较
+     `.cell.scrollWidth > .cell.clientWidth` 来判断「是否溢出」，
+     一旦改成 visible，内置提示就永远不出现。
+     真正产生「…」的是 .spd-ellipsis-cell（自带 overflow:hidden），
+     .cell 的 hidden 只是兜底，防止裸文本横向侵占相邻列。
+
+   ⚠️ position 保持 static（不要设 relative）：
+     data-tip 的纯 CSS 气泡是省略号元素的 ::after（绝对定位），
+     它的包含块是最近的已定位祖先。Element Plus 已给
+     `td.el-table__cell` 设了 `position: relative` 且 td 的 overflow 是 visible，
+     气泡因此能溢出 .cell 的裁切、完整显示出来。 */
+.spd-data-table__el :deep(td.el-table__cell .cell) {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spd-data-table__el :deep(td.el-table__cell .cell > *) {
+  min-width: 0;
+  max-width: 100%;
+}
+
 .spd-data-table__pagination {
   padding: 12px 16px;
-  border-top: 1px solid var(--spd-border-subtle, #f0f0f0);
-  background: var(--spd-bg-container, #ffffff);
+  border-top: 1px solid var(--spd-border-subtle, var(--spd-p-bg-muted));
+  background: var(--spd-bg-container, var(--spd-p-bg));
 }
 
 .spd-data-table__empty {
@@ -263,7 +348,7 @@ function handleSelectAll(selection: Row[]) {
   align-items: center;
   justify-content: center;
   padding: 48px 12px;
-  color: var(--spd-text-tertiary, rgba(0, 0, 0, 0.45));
+  color: var(--spd-text-tertiary, color-mix(in srgb, var(--spd-p-text-strong) 45%, transparent));
   font-size: var(--spd-font-size-base);
 }
 </style>

@@ -95,9 +95,9 @@ function showCreditCodeValidationMessage(event: Event) {
             带 <span class="required-mark">*</span> 的字段为必填项，保存后将用于采购、收货与结算业务。
           </p>
         </div>
-        <button class="btn-icon supplier-dialog-close" type="button" aria-label="关闭供应商弹窗" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton :icon-only="true" class="supplier-dialog-close" aria-label="关闭供应商弹窗" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
       <form class="supplier-form-grid supplier-dialog-form" @submit.prevent="emit('save')">
         <section class="supplier-form-section" aria-labelledby="supplier-basic-heading">
@@ -218,10 +218,10 @@ function showCreditCodeValidationMessage(event: Event) {
         </section>
 
         <div class="supplier-dialog-actions">
-          <button class="btn" type="button" @click="emit('close')">取消</button>
-          <button type="submit" class="btn btn-primary">
-            {{ mode === 'create' ? '创建供应商' : '保存修改' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="emit('close')"></SpdButton>
+          <SpdButton tone="primary" type="submit">
+          {{ mode === 'create' ? '创建供应商' : '保存修改' }}
+        </SpdButton>
         </div>
       </form>
     </section>

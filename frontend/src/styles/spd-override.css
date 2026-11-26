@@ -29,7 +29,7 @@
 .app-shell .brand-mark {
   background: var(--primary) !important;
   background-image: none !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent) !important;
 }
 
@@ -91,7 +91,7 @@
 
 .spd-logo-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 30%, transparent) !important;
 }
 
@@ -120,7 +120,7 @@
 .spd-menu-dropdown {
   background: var(--spd-bg-surface) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
 }
 
 .spd-dropdown-link {
@@ -140,7 +140,7 @@
 
 .spd-dropdown-link.active .spd-dropdown-link-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .spd-dropdown-link-icon {
@@ -205,7 +205,7 @@
 
 .spd-mini-nav-item.active .spd-mini-nav-item-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 /* 分组图标 / 子项图标：主题色 */
@@ -301,7 +301,7 @@
   color: var(--primary) !important;
   font-weight: 700 !important;
   border-color: var(--primary) !important;
-  box-shadow: 0 -2px 0 var(--primary) inset, 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  box-shadow: 0 -2px 0 var(--primary) inset, var(--spd-p-shadow-1) !important;
 }
 
 .spd-tabbar-tab-close {
@@ -348,7 +348,7 @@
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
   border-radius: 8px !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
 }
 
@@ -436,14 +436,14 @@
 .el-button--primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-button--primary:hover,
 .el-button--primary:focus {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-button--primary.is-plain {
@@ -455,7 +455,7 @@
 .el-button--primary.is-plain:hover {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-tag.el-tag--primary {
@@ -497,7 +497,7 @@
 .el-pager li.is-active,
 .el-pagination .is-active {
   background-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-menu-item.is-active {
@@ -544,7 +544,7 @@ a.el-link {
   background: var(--spd-bg-surface) !important;
   border: 1px solid var(--spd-border-default) !important;
   border-radius: 8px !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 工具栏 */
@@ -582,7 +582,7 @@ a.el-link {
   --el-table-tr-bg-color: var(--spd-bg-surface) !important;
   --el-table-header-text-color: var(--spd-text-primary) !important;
   --el-table-row-hover-bg-color: var(--spd-primary-bg) !important;
-  --el-table-striped-row-bg-color: #fafbfc !important;
+  --el-table-striped-row-bg-color: var(--spd-p-row-stripe) !important;
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-tight) !important;
   color: var(--spd-text-primary) !important;
@@ -604,7 +604,7 @@ a.el-link {
 }
 
 .spd-data-table__el.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: #fafbfc !important;
+  background-color: var(--spd-p-row-stripe) !important;
 }
 
 .spd-data-table__el.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
@@ -631,7 +631,7 @@ a.el-link {
 
 .spd-data-table__el.el-table .el-table__fixed-right,
 .spd-data-table__el.el-table .el-table__fixed-left {
-  box-shadow: 0 0 8px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: var(--spd-p-shadow-1) !important;
 }
 
 .spd-data-table__el.el-table .el-checkbox__input.is-checked .el-checkbox__inner {
@@ -838,44 +838,43 @@ a.el-link {
    Element Plus 全面 Ant 化
    --------------------------------------------------------------------- */
 
-/* 按钮 — Ant 风格尺寸 */
+/* 按钮 — Ant 风格尺寸
+   字号统一由 components/button-typography.css 收口（唯一来源），
+   本文件只负责高度 / 内边距 / 圆角 / 颜色。 */
 .el-button {
   border-radius: var(--spd-radius) !important;
   font-weight: 400 !important;
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1) !important;
   height: 32px !important;
   padding: 4px 15px !important;
-  font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-tight) !important;
 }
 
-/* 小号按钮族 —— 13px / 15px / 17px（12px 已从按钮体系移除） */
+/* 尺寸族：small / large 只改高度与内边距，字号统一（不再因 size 变化） */
 .el-button--small {
   height: 24px !important;
   padding: 0 7px !important;
-  font-size: var(--spd-font-size-sm) !important;
   border-radius: var(--spd-radius-sm) !important;
 }
 
 .el-button--large {
   height: 40px !important;
   padding: 6.4px 15px !important;
-  font-size: var(--spd-font-size-lg) !important;
   border-radius: var(--spd-radius) !important;
 }
 
 .el-button--primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045) !important;
+  color: var(--spd-p-text-on-primary) !important;
+  box-shadow: var(--spd-p-shadow-1) !important;
 }
 
 .el-button--primary:hover,
 .el-button--primary:focus {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-button--primary.is-plain {
@@ -888,7 +887,7 @@ a.el-link {
 .el-button--primary.is-plain:hover {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
 }
 
 .el-button--default {
@@ -997,18 +996,18 @@ a.el-link {
 /* Table */
 .el-table {
   --el-table-border-color: var(--spd-border-subtle) !important;
-  --el-table-header-bg-color: #fafafa !important;
+  --el-table-header-bg-color: var(--spd-p-row-header-bg) !important;
   --el-table-tr-bg-color: var(--spd-bg-container) !important;
   --el-table-header-text-color: var(--spd-text-heading) !important;
   --el-table-row-hover-bg-color: var(--spd-bg-active) !important;
-  --el-table-striped-row-bg-color: #fafafa !important;
+  --el-table-striped-row-bg-color: var(--spd-p-row-stripe) !important;
   font-size: var(--spd-font-size-base) !important;
   color: var(--spd-text-primary) !important;
   border-radius: 0 !important;
 }
 
 .el-table th.el-table__cell {
-  background-color: #fafafa !important;
+  background-color: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   font-weight: 700 !important;
   font-size: var(--spd-font-size-table-head) !important;
@@ -1037,7 +1036,7 @@ a.el-link {
 }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background-color: #fafafa !important;
+  background-color: var(--spd-p-row-header-bg) !important;
 }
 
 .el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
@@ -1064,7 +1063,7 @@ a.el-link {
 .el-pager li.is-active,
 .el-pagination .is-active {
   background-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-text-on-primary) !important;
   border-radius: var(--spd-radius-sm) !important;
 }
 
@@ -1210,7 +1209,7 @@ a.el-link {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--spd-p-scrollbar-thumb);
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -1269,7 +1268,7 @@ a, .el-link, .primary-text {
 
 .master-table thead,
 .settlement-detail-table thead {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .master-table th,
@@ -1291,7 +1290,7 @@ a, .el-link, .primary-text {
   font-size: var(--spd-font-size-table-head) !important;
   line-height: var(--spd-lh-tight) !important;
   color: var(--spd-text-heading) !important;
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
 }
 

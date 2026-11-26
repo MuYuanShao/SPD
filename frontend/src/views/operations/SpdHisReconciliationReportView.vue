@@ -266,10 +266,18 @@ onMounted(() => void loadReport())
         <label class="switch"><input v-model="query.onlyExceptions" type="checkbox" /><span>仅看异常</span></label>
       </div>
       <div class="report-actions">
-        <button class="btn btn-primary" type="button" :disabled="loading" @click="changePage(1)"><Search :size="16" />查询</button>
-        <button class="btn" type="button" :disabled="loading" @click="resetQuery"><RefreshCw :size="16" />重置</button>
-        <button class="btn" type="button" :disabled="exporting" @click="exportExcel"><FileSpreadsheet :size="16" />导出 Excel</button>
-        <button class="btn" type="button" @click="exportPdf"><Download :size="16" />导出 PDF</button>
+        <SpdButton label="查询" tone="primary" :disabled="loading" @click="changePage(1)">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="重置" tone="neutral" :disabled="loading" @click="resetQuery">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="导出 Excel" tone="primary" :disabled="exporting" @click="exportExcel">
+          <template #icon><FileSpreadsheet :size="16" /></template>
+        </SpdButton>
+        <SpdButton label="导出 PDF" tone="primary" @click="exportPdf">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
       </div>
     </section>
 
@@ -297,26 +305,22 @@ onMounted(() => void loadReport())
         <!-- 查询 / 重置 / 导出 按钮保留在「查询条件」面板内，
              表格工具条只承载列设置，避免同一动作出现两处。 -->
         <div class="ulc-col-settings">
-          <button
-            ref="reconciliationColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="reconciliationCols.settingsOpen.value = !reconciliationCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: reconciliationCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="reconciliationColSettingsAnchorRef"
+           
+           
+            @click="reconciliationCols.settingsOpen.value = !reconciliationCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="reconciliationCols.settingsOpen.value"
             ref="reconciliationColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': reconciliationColSettingsPop.align.value === 'right', 'is-align-up': reconciliationColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': reconciliationColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': reconciliationColSettingsPop.maxHeight.value + 'px' }"
+            :style="reconciliationColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="reconciliationCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="reconciliationCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in reconciliationCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -331,7 +335,7 @@ onMounted(() => void loadReport())
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="reconciliationCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="reconciliationCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -577,11 +581,11 @@ onMounted(() => void loadReport())
 
 /* ---------- 通用面板 ---------- */
 .report-panel {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
+  background: var(--spd-p-bg);
   padding: 18px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .section-title {
@@ -590,7 +594,7 @@ onMounted(() => void loadReport())
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .section-title-icon {
@@ -604,12 +608,12 @@ onMounted(() => void loadReport())
 }
 
 .section-title-icon.is-toolbar {
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
 }
 .section-title-icon.is-summary {
-  background: #dbeafe;
-  color: #1d4ed8;
+  background: var(--spd-p-border);
+  color: var(--spd-p-info-strong);
 }
 
 .section-title h3 {
@@ -654,7 +658,7 @@ onMounted(() => void loadReport())
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -664,10 +668,10 @@ onMounted(() => void loadReport())
   width: 100%;
   min-height: 36px;
   height: 36px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 7px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font: inherit;
   font-size: var(--spd-font-size-base);
@@ -678,7 +682,7 @@ onMounted(() => void loadReport())
 .report-filters input:focus,
 .report-filters select:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
   box-shadow: none;
 }
 
@@ -690,7 +694,7 @@ onMounted(() => void loadReport())
 }
 
 .date-range i {
-  color: #72848f;
+  color: var(--spd-p-text-muted);
   font-style: normal;
 }
 
@@ -702,14 +706,14 @@ onMounted(() => void loadReport())
   min-height: 36px;
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: #455463;
+  color: var(--spd-p-text-muted);
   white-space: nowrap;
 }
 
 .report-filters label.switch input {
   width: 16px;
   min-height: 16px;
-  accent-color: #10b981;
+  accent-color: var(--spd-p-success);
 }
 
 .report-actions {
@@ -719,7 +723,7 @@ onMounted(() => void loadReport())
   gap: 8px;
   margin-top: 10px;
   padding-top: 12px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--spd-p-border);
 }
 
 /* ---------- 汇总条（风险 pill）---------- */
@@ -733,28 +737,28 @@ onMounted(() => void loadReport())
   flex-wrap: wrap;
   gap: 10px 16px;
   font-size: var(--spd-font-size-base);
-  color: #455463;
+  color: var(--spd-p-text-muted);
 }
 
 .report-summary .summary-text {
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .report-summary strong {
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 .report-summary .danger-text {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
 }
 
 .report-summary .divider {
   width: 1px;
   height: 20px;
-  background: #e2e8f0;
+  background: var(--spd-p-border);
 }
 
 .summary-chip {
@@ -770,27 +774,27 @@ onMounted(() => void loadReport())
 }
 
 .summary-chip.missing {
-  color: #b42318;
-  background: #fef3c7;
-  border-color: #fde68a;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .summary-chip.duplicate {
-  color: #a15c08;
-  background: #fff2dd;
-  border-color: #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .summary-chip.swap {
-  color: #255ea8;
-  background: #e8f1ff;
-  border-color: #9fc0ee;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-info-bg);
+  border-color: var(--spd-p-text-secondary);
 }
 
 .summary-chip.consistent {
-  color: #087268;
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success);
 }
 
 /* ---------- 按钮 ---------- */
@@ -802,10 +806,10 @@ onMounted(() => void loadReport())
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
@@ -813,8 +817,8 @@ onMounted(() => void loadReport())
 }
 
 .btn:hover:not(:disabled) {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-text-muted);
 }
 
 .btn:disabled {
@@ -823,15 +827,15 @@ onMounted(() => void loadReport())
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 /* ---------- 表格 ----------
@@ -841,7 +845,7 @@ onMounted(() => void loadReport())
 
 /* 差异列：红字加粗 */
 .ulc-table :deep(.diff-cell) {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -863,30 +867,30 @@ onMounted(() => void loadReport())
 
 .ulc-table :deep(.reason-tag.missing_charge),
 .ulc-table :deep(.risk-tag.missing_charge) {
-  border-color: #fca5a5;
-  color: #b42318;
-  background: #fee2e2;
+  border-color: var(--spd-p-danger-border);
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
 }
 
 .ulc-table :deep(.reason-tag.duplicate_charge),
 .ulc-table :deep(.risk-tag.duplicate_charge) {
-  border-color: #fcd34d;
-  color: #a15c08;
-  background: #fef3c7;
+  border-color: var(--spd-p-warning-border);
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
 }
 
 .ulc-table :deep(.reason-tag.suspected_swap),
 .ulc-table :deep(.risk-tag.suspected_swap) {
-  border-color: #93c5fd;
-  color: #255ea8;
-  background: #dbeafe;
+  border-color: var(--spd-p-info-border);
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-border);
 }
 
 .ulc-table :deep(.reason-tag.consistent),
 .ulc-table :deep(.risk-tag.consistent) {
-  border-color: #6ee7b7;
-  color: #087268;
-  background: #d1fae5;
+  border-color: var(--spd-p-success);
+  color: var(--spd-p-primary);
+  background: var(--spd-p-success-bg);
 }
 
 /* 响应式 */
@@ -930,7 +934,7 @@ onMounted(() => void loadReport())
   .main-area {
     overflow: visible !important;
     padding: 0 !important;
-    background: #fff !important;
+    background: var(--spd-p-bg) !important;
   }
   .report-page {
     padding: 0 !important;
@@ -938,7 +942,7 @@ onMounted(() => void loadReport())
   .report-summary-panel,
   .md-table-card {
     box-shadow: none;
-    border-color: #ccc;
+    border-color: var(--spd-p-text-secondary);
   }
 }
 </style>

@@ -2,7 +2,7 @@
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Columns3, Download, FileDown, FileUp, Plus, RefreshCw, Search, Send, Upload, UserRound, X, XCircle } from '@lucide/vue'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Columns3, Download, FileDown, FileUp, Plus, Search, Send, Upload, UserRound, X, XCircle } from '@lucide/vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
@@ -10,6 +10,7 @@ import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import SpdStatusChip, { type SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import { usePendingProductBatchApproval } from '../../composables/usePendingProductBatchApproval'
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
 import { usePendingProductImportExport } from '../../composables/usePendingProductImportExport'
@@ -495,34 +496,34 @@ function resetApprovalFilter() {
 }
 
 /** 申请类型状态条配色 */
-function approvalTypeChipClass(type: string): string {
-  const map: Record<string, string> = {
-    新品准入: 'is-primary',
-    信息变更: 'is-info',
-    资质更新: 'is-warning',
-    价格调整: 'is-success',
-    停用申请: 'is-danger'
+function approvalTypeChipTone(type: string): SpdStatusChipTone {
+  const map: Record<string, SpdStatusChipTone> = {
+    新品准入: 'primary',
+    信息变更: 'info',
+    资质更新: 'warning',
+    价格调整: 'success',
+    停用申请: 'danger'
   }
-  return map[type] ?? 'is-neutral'
+  return map[type] ?? 'neutral'
 }
 
-/** 风险标签状态条配色 */
-function approvalRiskChipClass(label: string): string {
-  if (label.includes('临期') || label.includes('价格') || label.includes('库房') || label.includes('重点')) return 'is-warning'
-  if (label.includes('冷链') || label.includes('高值')) return 'is-danger'
-  if (label.includes('变更')) return 'is-info'
-  return 'is-success'
+/** 风险标签状态条色调 */
+function approvalRiskChipTone(label: string): SpdStatusChipTone {
+  if (label.includes('临期') || label.includes('价格') || label.includes('库房') || label.includes('重点')) return 'warning'
+  if (label.includes('冷链') || label.includes('高值')) return 'danger'
+  if (label.includes('变更')) return 'info'
+  return 'success'
 }
 
-/** 审批节点状态条配色 */
-function approvalStatusChipClass(tone?: string): string {
-  const map: Record<string, string> = {
-    orange: 'is-warning',
-    blue: 'is-info',
-    red: 'is-danger',
-    green: 'is-success'
+/** 审批节点状态条色调 */
+function approvalStatusChipTone(tone?: string): SpdStatusChipTone {
+  const map: Record<string, SpdStatusChipTone> = {
+    orange: 'warning',
+    blue: 'info',
+    red: 'danger',
+    green: 'success'
   }
-  return map[tone ?? ''] ?? 'is-neutral'
+  return map[tone ?? ''] ?? 'neutral'
 }
 
 /** 审批状态本地过滤：仅保留匹配状态的行 */
@@ -698,64 +699,51 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
       <main class="approval-list-card">
         <StatusMessage :message="message" tone="info" />
 
-        <!-- 筛选区：与统一列表其他页面保持一致（字段 + 重置/查询） -->
-        <form class="approval-filter-row md-hospital-filter ulc-filter" @submit.prevent="currentPage = 1; loadApplications()">
-          <div class="ulc-filter-fields">
-            <label>
-              <span>审批单号 / 商品名称</span>
-              <div class="approval-search">
-                <Search :size="16" />
-                <input v-model="keyword" type="search" placeholder="输入审批单号、商品名称" autocomplete="off" />
-              </div>
-            </label>
-            <label>
-              <span>申请类型</span>
-              <el-select
-                v-model="approvalTypeFilter"
-                placeholder="全部类型"
-                clearable
-                class="ulc-filter-select"
-                aria-label="申请类型"
-                @change="onApprovalTypeFilterChange"
-              >
-                <el-option label="全部类型" value="" />
-                <el-option
-                  v-for="item in approvalTypes"
-                  :key="item.key"
-                  :label="item.label"
-                  :value="item.key"
-                />
-              </el-select>
-            </label>
-            <label>
-              <span>审批状态</span>
-              <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable class="ulc-filter-select" aria-label="审批状态">
-                <el-option label="全部状态" value="" />
-                <el-option label="初审中" value="初审中" />
-                <el-option label="复审中" value="复审中" />
-              </el-select>
-            </label>
-          </div>
-          <div class="md-hospital-filter-actions ulc-filter-actions">
-            <button type="button" class="md-btn" @click="resetApprovalFilter">
-              <RefreshCw :size="16" />
-              <span>重置</span>
-            </button>
-            <button type="submit" class="md-btn md-btn-primary">
+        <!-- 筛选区：统一使用 SpdFilterBar（与全站筛选标准规则一致） -->
+        <SpdFilterBar @submit="currentPage = 1; loadApplications()" @reset="resetApprovalFilter">
+          <label>
+            <span>审批单号 / 商品名称</span>
+            <div class="approval-search">
               <Search :size="16" />
-              <span>查询</span>
-            </button>
-          </div>
-        </form>
+              <input v-model="keyword" type="search" placeholder="输入审批单号、商品名称" autocomplete="off" />
+            </div>
+          </label>
+          <label>
+            <span>申请类型</span>
+            <el-select
+              v-model="approvalTypeFilter"
+              placeholder="全部类型"
+              clearable
+             
+              aria-label="申请类型"
+              @change="onApprovalTypeFilterChange"
+            >
+              <el-option label="全部类型" value="" />
+              <el-option
+                v-for="item in approvalTypes"
+                :key="item.key"
+                :label="item.label"
+                :value="item.key"
+              />
+            </el-select>
+          </label>
+          <label>
+            <span>审批状态</span>
+            <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable aria-label="审批状态">
+              <el-option label="全部状态" value="" />
+              <el-option label="初审中" value="初审中" />
+              <el-option label="复审中" value="复审中" />
+            </el-select>
+          </label>
+        </SpdFilterBar>
 
         <MdDataTableCard>
           <template #toolbar>
             <div class="md-table-toolbar-main">
               <template v-if="activeScope === 'todo'">
-                <button type="button" class="md-btn md-btn-primary" @click="openCreateModal">
-                  <Plus :size="16" />
-                  新增
-                </button>
+                <SpdButton label="新增" tone="primary" @click="openCreateModal">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
                 <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
                   <summary class="md-btn md-btn-primary" tabindex="0">
                     <FileUp :size="16" />
@@ -763,43 +751,36 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                     <ChevronDown :size="14" />
                   </summary>
                   <div>
-                    <button class="btn-text" type="button" @click="downloadTemplate">
-                      <FileDown :size="15" />
-                      模板导出
-                    </button>
-                    <button class="btn-text" type="button" @click="importInput?.click()">
-                      <FileUp :size="15" />
-                      按模板导入
-                    </button>
+                    <SpdButton label="模板导出" variant="text" tone="neutral" @click="downloadTemplate">
+                      <template #icon><FileDown :size="15" /></template>
+                    </SpdButton>
+                    <SpdButton label="按模板导入" variant="text" tone="neutral" @click="importInput?.click()">
+                      <template #icon><FileUp :size="15" /></template>
+                    </SpdButton>
                   </div>
                 </details>
                 <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
               </template>
-              <button type="button" class="md-btn md-btn-primary" @click="exportRows">
-                <Download :size="16" />
-                <span>导出</span>
-              </button>
+              <SpdButton label="导出" tone="neutral" @click="exportRows">
+          <template #icon><Download :size="16" /></template>
+        </SpdButton>
               <div class="ulc-col-settings">
-                <button
-                  ref="approvalColSettingsAnchorRef"
-                  type="button"
-                  class="md-btn md-btn-primary"
-                  @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value"
-                >
-                  <Columns3 :size="16" />
-                  <span>列设置</span>
-                  <ChevronDown :size="14" :class="{ rotated: approvalCols.settingsOpen.value }" />
-                </button>
+                <SpdButton label="列设置" tone="neutral" ref="approvalColSettingsAnchorRef"
+                 
+                 
+                  @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
                 <div
                   v-if="approvalCols.settingsOpen.value"
                   ref="approvalColSettingsPopRef"
                   class="ulc-col-settings-pop"
                   :class="{ 'is-align-right': approvalColSettingsPop.align.value === 'right', 'is-align-up': approvalColSettingsPop.vertical.value === 'up' }"
-                  :style="{ '--ulc-pop-offset-y': approvalColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': approvalColSettingsPop.maxHeight.value + 'px' }"
+                  :style="approvalColSettingsPop.popStyle.value"
                 >
                   <header>
                     <strong>列展示设置</strong>
-                    <button type="button" class="ulc-link" @click="approvalCols.resetColumns()">恢复默认</button>
+                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="approvalCols.resetColumns()"></SpdButton>
                   </header>
                   <div class="ulc-col-settings-list">
                     <label v-for="col in approvalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -814,7 +795,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                     </label>
                   </div>
                   <footer>
-                    <button type="button" class="ulc-action" @click="approvalCols.settingsOpen.value = false">确定</button>
+                    <SpdButton label="确定" tone="primary" @click="approvalCols.settingsOpen.value = false"></SpdButton>
                   </footer>
                 </div>
               </div>
@@ -892,7 +873,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <span class="ulc-th-text">申请类型</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span>
+                <SpdStatusChip :tone="approvalTypeChipTone(row.type)" :label="row.type" />
               </template>
             </el-table-column>
             <el-table-column
@@ -1167,14 +1148,12 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               <template #default="{ row }">
                 <!-- 多值标签：整体作为一个块，超宽时整体换行，不逐个标签单独折行 -->
                 <span class="ulc-inline-tags">
-                  <span
+                  <SpdStatusChip
                     v-for="label in approvalRiskLabels(row)"
                     :key="label"
-                    class="ulc-chip"
-                    :class="approvalRiskChipClass(label)"
-                  >
-                    {{ label }}
-                  </span>
+                    :tone="approvalRiskChipTone(label)"
+                    :label="label"
+                  />
                 </span>
               </template>
             </el-table-column>
@@ -1188,12 +1167,12 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <span class="ulc-th-text">节点 / 等待</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-chip" :class="approvalStatusChipClass(row.statusTone)">
+                <SpdStatusChip :tone="approvalStatusChipTone(row.statusTone)">
                   <Clock3 v-if="row.statusTone === 'orange'" :size="12" />
                   <Send v-else-if="row.statusTone === 'blue'" :size="12" />
                   <XCircle v-else :size="12" />
                   {{ approvalWideField(row, 'wait') }}
-                </span>
+                </SpdStatusChip>
               </template>
             </el-table-column>
             <el-table-column
@@ -1256,18 +1235,16 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
 
         <div v-if="selectedNos.length" class="approval-batch-bar">
           <span>已选择 {{ selectedNos.length }} 条</span>
-          <button type="button" class="ulc-action" :disabled="batchApproveLoading" @click="openBatchApprove('approve')">
-            <CheckCircle2 :size="14" /> 批量通过
-          </button>
-          <button type="button" class="ulc-action" :disabled="batchApproveLoading" @click="openBatchApprove('return')">
-            <XCircle :size="14" /> 批量退回
-          </button>
-          <button type="button" class="ulc-action is-danger" :disabled="batchApproveLoading" @click="openBatchApprove('reject')">
-            <XCircle :size="14" /> 批量驳回
-          </button>
-          <button type="button" class="ulc-action is-neutral" style="margin-left:auto" :disabled="batchApproveLoading" @click="selectedNos = []">
-            清除选择
-          </button>
+          <SpdButton label="批量通过" tone="success" :disabled="batchApproveLoading" @click="openBatchApprove('approve')">
+            <template #icon><CheckCircle2 :size="14" /></template>
+          </SpdButton>
+          <SpdButton label="批量退回" tone="warning" :disabled="batchApproveLoading" @click="openBatchApprove('return')">
+            <template #icon><XCircle :size="14" /></template>
+          </SpdButton>
+          <SpdButton label="批量驳回" tone="danger" :disabled="batchApproveLoading" @click="openBatchApprove('reject')">
+            <template #icon><XCircle :size="14" /></template>
+          </SpdButton>
+          <SpdButton label="清除选择" tone="neutral" class="approval-batch-clear" :disabled="batchApproveLoading" @click="selectedNos = []"></SpdButton>
         </div>
 
           <template #pagination>
@@ -1297,13 +1274,13 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             <p>批量审批</p>
             <h3>{{ { approve: '批量通过', return: '批量退回修改', reject: '批量驳回' }[batchApproveAction] }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <form @submit.prevent="confirmBatchApprove">
           <div class="approval-create-section">
-            <p style="margin:0 0 12px;color:#475569;">已选择 <strong>{{ selectedNos.length }}</strong> 条审批单</p>
+            <p style="margin:0 0 12px;color:var(--spd-p-text-secondary);">已选择 <strong>{{ selectedNos.length }}</strong> 条审批单</p>
             <label>
               <span>审批意见</span>
               <textarea
@@ -1316,10 +1293,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             </label>
           </div>
           <div class="dialog-actions">
-            <button class="btn" type="button" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">取消</button>
-            <button class="btn btn-primary" type="submit" :disabled="batchApproveLoading">
-              <Send :size="18" /> {{ batchApproveLoading ? '提交中...' : '确认' }}
-            </button>
+            <SpdButton label="取消" tone="neutral" :disabled="batchApproveLoading" @click="showBatchApproveModal = false"></SpdButton>
+            <SpdButton tone="primary" type="submit" :disabled="batchApproveLoading">
+          <template #icon><Send :size="18" /></template>
+          {{ batchApproveLoading ? '提交中...' : '确认' }}
+        </SpdButton>
           </div>
         </form>
       </section>
@@ -1334,9 +1312,9 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             <p>待审批目录</p>
             <h3 id="approval-create-title">新增待审批目录</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="showCreateModal = false">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="showCreateModal = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <form class="approval-create-form" @submit.prevent="handleCreateSubmit">
           <div class="approval-create-scroll">
@@ -1360,9 +1338,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <span>来源医院目录商品</span>
                 <div class="approval-source-search">
                   <input v-model="sourceKeyword" placeholder="输入商品编码、名称或规格" @keyup.enter.prevent="searchSourceProducts" />
-                  <button class="btn" type="button" :disabled="sourceLoading" @click="searchSourceProducts">
-                    <Search :size="15" /> {{ sourceLoading ? '搜索中' : '搜索' }}
-                  </button>
+                  <SpdButton tone="primary" :disabled="sourceLoading" @click="searchSourceProducts">
+          <template #icon><Search :size="15" /></template>
+          {{ sourceLoading ? '搜索中' : '搜索' }}
+        </SpdButton>
                 </div>
               </label>
               <div v-if="sourceRows.length" class="approval-source-results">
@@ -1453,14 +1432,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                     accept="image/*,.pdf"
                     @change="handleCreateAttachments"
                   />
-                  <button
-                    type="button"
-                    class="btn btn-primary approval-attach-btn"
-                    :disabled="!canEditQualification"
-                    @click="triggerAttachmentPicker"
-                  >
-                    <Upload :size="15" /> 选择文件
-                  </button>
+                  <SpdButton label="选择文件" tone="primary" class="approval-attach-btn" :disabled="!canEditQualification"
+                    @click="triggerAttachmentPicker">
+          <template #icon><Upload :size="15" /></template>
+        </SpdButton>
                   <span class="approval-attach-hint">支持图片与 PDF（可多选）</span>
                 </div>
               </label>
@@ -1497,11 +1472,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           </div>
 
           <div class="dialog-actions approval-create-actions">
-            <button class="btn" type="button" @click="showCreateModal = false">取消</button>
-            <button class="btn btn-primary" type="submit">
-              <Send :size="16" />
-              提交审批
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="showCreateModal = false"></SpdButton>
+            <SpdButton label="提交审批" tone="primary" type="submit">
+          <template #icon><Send :size="16" /></template>
+        </SpdButton>
           </div>
         </form>
       </section>
@@ -1516,16 +1490,16 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             <p>重复校验</p>
             <h3 id="duplicate-alert-title">该商品目录已存在！</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="duplicateAlertVisible = false">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="duplicateAlertVisible = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="duplicate-alert-body">
           <AlertTriangle :size="40" aria-hidden="true" />
           <p>商品名称、规格型号、生产厂家、供应商、注册证号完全一致的目录已存在，请核对后修改或直接使用现有目录。</p>
         </div>
         <div class="dialog-actions">
-          <button class="btn btn-primary" type="button" @click="duplicateAlertVisible = false">知道了</button>
+          <SpdButton label="知道了" tone="primary" @click="duplicateAlertVisible = false"></SpdButton>
         </div>
       </section>
     </div>

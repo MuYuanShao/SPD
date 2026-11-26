@@ -23,6 +23,7 @@ import MdStatus from '../../components/master-data/MdStatus.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import { notifyError } from '../../composables/useNotify'
 
 import {
   Columns3,
@@ -32,7 +33,6 @@ import StatusMessage from '../../components/common/StatusMessage.vue'
 
 const rows = ref<PrintTemplateRow[]>([])
 const loading = ref(false)
-const error = ref('')
 
 const showEditor = ref(false)
 const editing = ref<PrintTemplateRow | null>(null)
@@ -71,11 +71,10 @@ const statusText = (row: PrintTemplateRow) => (row.status === 1 ? '启用' : '�
 
 async function loadList() {
   loading.value = true
-  error.value = ''
   try {
     rows.value = await fetchPrintTemplates()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '打印模板加载失败'
+    notifyError(err instanceof Error ? err.message : '打印模板加载失败')
   } finally {
     loading.value = false
   }
@@ -234,31 +233,28 @@ const printTemplateColSettingsPop = useColSettingsPopover({
 
 <template>
   <section class="md-page md-print-template-page spd-unified-list">
-    <p v-if="error" class="md-error">{{ error }}</p>
+    <!-- 请求失败统一由通用消息接口（Element Plus 消息弹层）抛出，
+         不再在页面上方渲染内联错误条。 -->
 
     <MdDataTableCard :meta-count="`共 ${rows.length} 个模板`" :loading="loading">
       <template #toolbar>
           <div class="ulc-col-settings">
-            <button
-              ref="printTemplateColSettingsAnchorRef"
-              type="button"
-              class="md-btn md-btn-primary"
-              @click="printTemplateCols.settingsOpen.value = !printTemplateCols.settingsOpen.value"
-            >
-              <Columns3 :size="16" />
-              <span>列设置</span>
-              <ChevronDown :size="14" :class="{ rotated: printTemplateCols.settingsOpen.value }" />
-            </button>
+            <SpdButton label="列设置" tone="neutral" ref="printTemplateColSettingsAnchorRef"
+             
+             
+              @click="printTemplateCols.settingsOpen.value = !printTemplateCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
             <div
               v-if="printTemplateCols.settingsOpen.value"
               ref="printTemplateColSettingsPopRef"
               class="ulc-col-settings-pop"
               :class="{ 'is-align-right': printTemplateColSettingsPop.align.value === 'right', 'is-align-up': printTemplateColSettingsPop.vertical.value === 'up' }"
-              :style="{ '--ulc-pop-offset-y': printTemplateColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': printTemplateColSettingsPop.maxHeight.value + 'px' }"
+              :style="printTemplateColSettingsPop.popStyle.value"
             >
               <header>
                 <strong>列展示设置</strong>
-                <button type="button" class="ulc-link" @click="printTemplateCols.resetColumns()">恢复默认</button>
+                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="printTemplateCols.resetColumns()"></SpdButton>
               </header>
               <div class="ulc-col-settings-list">
                 <label v-for="col in printTemplateCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -273,13 +269,12 @@ const printTemplateColSettingsPop = useColSettingsPopover({
                 </label>
               </div>
               <footer>
-                <button type="button" class="ulc-action" @click="printTemplateCols.settingsOpen.value = false">确定</button>
+                <SpdButton label="确定" tone="primary" @click="printTemplateCols.settingsOpen.value = false"></SpdButton>
               </footer>
             </div>
           </div>
       </template>
       <MdEmptyState v-if="loading" text="正在加载打印模板..." :loading="true" />
-      <MdEmptyState v-else-if="error" :text="error" />
       <div v-else class="ulc-table-wrap">
         <el-table
           ref="printTemplateTableRef"
@@ -512,32 +507,38 @@ const printTemplateColSettingsPop = useColSettingsPopover({
                 {{ field.value !== undefined ? `固定值：${field.value}` : '动态字段' }}
               </span>
               <div class="md-print-template-field-actions">
-                <button
-                  class="md-btn-icon md-btn-sm"
+                <SpdButton
+                  icon-only
+                  variant="ghost"
+                  tone="neutral"
                   type="button"
                   aria-label="上移"
                   :disabled="index === 0"
                   @click="moveField(index, -1)"
                 >
-                  <ArrowUp :size="14" />
-                </button>
-                <button
-                  class="md-btn-icon md-btn-sm"
+                  <template #icon><ArrowUp :size="14" /></template>
+                </SpdButton>
+                <SpdButton
+                  icon-only
+                  variant="ghost"
+                  tone="neutral"
                   type="button"
                   aria-label="下移"
                   :disabled="index === fields.length - 1"
                   @click="moveField(index, 1)"
                 >
-                  <ArrowDown :size="14" />
-                </button>
-                <button
-                  class="md-btn-icon md-btn-sm"
+                  <template #icon><ArrowDown :size="14" /></template>
+                </SpdButton>
+                <SpdButton
+                  icon-only
+                  variant="ghost"
+                  tone="danger"
                   type="button"
                   aria-label="删除字段"
                   @click="removeField(field)"
                 >
-                  <Trash2 :size="14" />
-                </button>
+                  <template #icon><Trash2 :size="14" /></template>
+                </SpdButton>
               </div>
             </div>
             <p v-if="!fields.length" class="md-print-template-field-empty">该模板暂无可用字段</p>
@@ -547,14 +548,12 @@ const printTemplateColSettingsPop = useColSettingsPopover({
               :aria-invalid="Boolean(newFieldError)" :aria-describedby="newFieldError ? 'print-template-field-error' : undefined"
               placeholder="新字段编码，如 operator" @input="newFieldError = ''; newFieldFeedback = ''" />
             <input v-model.trim="newFieldLabel" class="md-input" aria-label="新字段名称" placeholder="新字段名称，如 操作员" />
-            <button class="md-btn md-btn-primary" type="submit">
-              <Plus :size="15" />
-              <span>新增字段</span>
-            </button>
-            <button class="md-btn" type="button" :disabled="!newFieldCode && !newFieldLabel" @click="resetNewField">
-              <RotateCcw :size="14" />
-              <span>清空</span>
-            </button>
+            <SpdButton label="新增字段" tone="primary" type="submit">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
+            <SpdButton label="清空" :disabled="!newFieldCode && !newFieldLabel" @click="resetNewField">
+          <template #icon><RotateCcw :size="14" /></template>
+        </SpdButton>
             <div v-if="newFieldError || newFieldFeedback" ref="fieldFeedback" class="md-print-template-field-feedback">
               <StatusMessage id="print-template-field-error" :message="newFieldError" tone="error" role="alert" />
               <StatusMessage :message="newFieldFeedback" tone="success" role="status" />
@@ -603,8 +602,8 @@ const printTemplateColSettingsPop = useColSettingsPopover({
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
-  color: var(--md-text-heading);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%);
+  color: var(--spd-p-text);
   font-weight: 700;
   /* T-22 打印模板字段表表头：--spd-font-size-table-head（14/16/18px） */
   font-size: var(--spd-font-size-table-head);
@@ -707,7 +706,7 @@ const printTemplateColSettingsPop = useColSettingsPopover({
 
 .md-print-template-field-row.is-disabled .md-print-template-field-code,
 .md-print-template-field-row.is-disabled .md-print-template-field-value {
-  color: var(--md-text-muted);
+  color: var(--spd-p-text-secondary);
   opacity: 0.7;
 }
 
@@ -730,7 +729,7 @@ const printTemplateColSettingsPop = useColSettingsPopover({
 }
 
 .md-print-template-field-value {
-  color: var(--md-text-muted);
+  color: var(--spd-p-text-secondary);
   /* PR-1 打印模板配置界面字段值：--spd-font-size-base */
   font-size: var(--spd-font-size-base);
   white-space: nowrap;
@@ -754,7 +753,7 @@ const printTemplateColSettingsPop = useColSettingsPopover({
 .md-print-template-field-empty {
   margin: 0;
   padding: 24px 12px;
-  color: var(--md-text-muted);
+  color: var(--spd-p-text-secondary);
   /* E-07 打印模板空态：--spd-font-size-base */
   font-size: var(--spd-font-size-base);
   text-align: center;

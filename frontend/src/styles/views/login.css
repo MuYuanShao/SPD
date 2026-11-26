@@ -15,8 +15,8 @@
   width: 100%;
   display: grid;
   grid-template-columns: minmax(360px, 38%) 1fr;
-  background: #0a1426;
-  color: var(--spd-text-primary, #1f2937);
+  background: var(--spd-p-text-strong);
+  color: var(--spd-text-primary, var(--spd-p-text-secondary));
   /* 登录页独立字体体系：固定不随字号档位缩放 */
   font-family: var(--spd-font-family-login);
   overflow: hidden;
@@ -30,11 +30,11 @@
   justify-content: space-between;
   gap: 32px;
   padding: 56px 48px 40px;
-  color: #ffffff;
+  color: var(--spd-p-bg);
   background:
-    radial-gradient(900px 480px at 0% 0%, rgba(105, 192, 255, 0.32), transparent 55%),
-    radial-gradient(720px 420px at 100% 100%, rgba(0, 0, 0, 0.38), transparent 60%),
-    linear-gradient(160deg, #0b2a5e 0%, #13468f 50%, #1e5fc6 100%);
+    radial-gradient(900px 480px at 0% 0%, color-mix(in srgb, var(--spd-p-info) 32%, transparent), transparent 55%),
+    radial-gradient(720px 420px at 100% 100%, color-mix(in srgb, var(--spd-p-text-strong) 38%, transparent), transparent 60%),
+    linear-gradient(160deg, var(--spd-p-info-text) 0%, var(--spd-p-info-text) 50%, var(--spd-p-info-text) 100%);
   overflow: hidden;
   isolation: isolate;
 }
@@ -45,11 +45,11 @@
   inset: 0;
   z-index: -1;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--spd-p-bg) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--spd-p-bg) 6%, transparent) 1px, transparent 1px);
   background-size: 48px 48px;
-  mask-image: radial-gradient(ellipse at 50% 40%, rgba(0, 0, 0, 0.85) 0%, transparent 75%);
-  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, rgba(0, 0, 0, 0.85) 0%, transparent 75%);
+  mask-image: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--spd-p-text-strong) 85%, transparent) 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, color-mix(in srgb, var(--spd-p-text-strong) 85%, transparent) 0%, transparent 75%);
 }
 
 .login-aside::after {
@@ -62,8 +62,8 @@
   height: 540px;
   border-radius: 50%;
   background:
-    radial-gradient(circle, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0) 60%),
-    conic-gradient(from 220deg at 50% 50%, rgba(64, 169, 255, 0.4), transparent 25%, rgba(64, 169, 255, 0.25) 50%, transparent 75%, rgba(64, 169, 255, 0.4) 100%);
+    radial-gradient(circle, color-mix(in srgb, var(--spd-p-bg) 12%, transparent) 0%, color-mix(in srgb, var(--spd-p-bg) 0%, transparent) 60%),
+    conic-gradient(from 220deg at 50% 50%, color-mix(in srgb, var(--spd-p-info) 40%, transparent), transparent 25%, color-mix(in srgb, var(--spd-p-info) 25%, transparent) 50%, transparent 75%, color-mix(in srgb, var(--spd-p-info) 40%, transparent) 100%);
   filter: blur(2px);
   opacity: 0.85;
   animation: aside-rotate 60s linear infinite;
@@ -106,14 +106,12 @@
   width: 52px;
   height: 52px;
   border-radius: 14px;
-  background: linear-gradient(160deg, #ffffff 0%, #e6f0ff 100%);
-  color: #13468f;
+  background: linear-gradient(160deg, var(--spd-p-bg) 0%, var(--spd-p-info-bg) 100%);
+  color: var(--spd-p-text-secondary);
   font-weight: 800;
   font-size: 17px;
   letter-spacing: 0.08em;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 6px 18px rgba(7, 28, 64, 0.32);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .login-brand .brand-text strong {
@@ -140,7 +138,7 @@
 }
 
 .login-aside-hero h1 .accent {
-  background: linear-gradient(90deg, #69c0ff 0%, #b37cff 100%);
+  background: linear-gradient(90deg, var(--spd-p-info) 0%, var(--spd-p-primary) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -181,9 +179,9 @@
   height: 28px;
   flex-shrink: 0;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #ffffff;
+  background: color-mix(in srgb, var(--spd-p-bg) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 22%, transparent);
+  color: var(--spd-p-bg);
 }
 
 .login-aside-stats {
@@ -192,8 +190,8 @@
   gap: 12px;
   padding: 16px 18px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--spd-p-bg) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
 }
@@ -227,7 +225,7 @@
 .login-aside-foot .divider {
   width: 1px;
   height: 12px;
-  background: rgba(255, 255, 255, 0.4);
+  background: color-mix(in srgb, var(--spd-p-bg) 40%, transparent);
 }
 
 /* ====== 右侧登录区（主流浅色 + 多光斑缓慢游走） ====== */
@@ -236,7 +234,7 @@
   display: grid;
   place-items: center;
   padding: 48px 32px;
-  background: linear-gradient(180deg, #f5f8fc 0%, #eaeff7 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-info-bg) 100%);
   overflow: hidden;
   isolation: isolate;
 }
@@ -248,11 +246,11 @@
   inset: 0;
   z-index: 0;
   background-image:
-    linear-gradient(rgba(15, 23, 42, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+    linear-gradient(color-mix(in srgb, var(--spd-p-text-strong) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--spd-p-text-strong) 4%, transparent) 1px, transparent 1px);
   background-size: 36px 36px;
-  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0, 0, 0, 0.85) 0%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, rgba(0, 0, 0, 0.85) 0%, transparent 80%);
+  mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, color-mix(in srgb, var(--spd-p-text-strong) 85%, transparent) 0%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 70% at 50% 50%, color-mix(in srgb, var(--spd-p-text-strong) 85%, transparent) 0%, transparent 80%);
   pointer-events: none;
 }
 
@@ -276,7 +274,7 @@
   right: -100px;
   width: 540px;
   height: 540px;
-  background: radial-gradient(circle, rgba(64, 169, 255, 0.65) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spd-p-info) 65%, transparent) 0%, transparent 70%);
   animation: drift-1 14s ease-in-out infinite alternate;
 }
 
@@ -286,7 +284,7 @@
   left: -80px;
   width: 500px;
   height: 500px;
-  background: radial-gradient(circle, rgba(180, 132, 255, 0.55) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spd-p-primary-strong) 55%, transparent) 0%, transparent 70%);
   animation: drift-2 18s ease-in-out infinite alternate;
 }
 
@@ -296,7 +294,7 @@
   left: 32%;
   width: 360px;
   height: 360px;
-  background: radial-gradient(circle, rgba(82, 196, 170, 0.5) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spd-p-success) 50%, transparent) 0%, transparent 70%);
   animation: drift-3 16s ease-in-out infinite alternate;
 }
 
@@ -306,7 +304,7 @@
   right: 8%;
   width: 320px;
   height: 320px;
-  background: radial-gradient(circle, rgba(255, 138, 176, 0.45) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spd-p-danger-border) 45%, transparent) 0%, transparent 70%);
   animation: drift-4 20s ease-in-out infinite alternate;
 }
 
@@ -367,14 +365,10 @@
   z-index: 1;
   width: min(400px, 100%);
   padding: 40px 36px 28px;
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--spd-p-bg) 62%, transparent);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 70%, transparent);
   border-radius: 16px;
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.4) inset,
-    0 1px 0 rgba(255, 255, 255, 0.6) inset,
-    0 24px 48px -16px rgba(15, 23, 42, 0.18),
-    0 8px 16px -8px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-dialog);
   backdrop-filter: blur(24px) saturate(180%);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   overflow: hidden;
@@ -387,7 +381,7 @@
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, #1890ff 0%, #b484ff 100%);
+  background: linear-gradient(90deg, var(--spd-p-info) 0%, var(--spd-p-primary-strong) 100%);
   pointer-events: none;
   border-radius: 16px 16px 0 0;
 }
@@ -400,7 +394,7 @@
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(24, 144, 255, 0.18) 0%, transparent 60%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--spd-p-info) 18%, transparent) 0%, transparent 60%);
   pointer-events: none;
   z-index: 0;
   filter: blur(8px);
@@ -419,7 +413,7 @@
   margin: 0;
   font-size: 20px;
   font-weight: 700;
-  color: #102033;
+  color: var(--spd-p-text);
   letter-spacing: 0.02em;
 }
 
@@ -429,15 +423,15 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(24, 144, 255, 0.18), rgba(24, 144, 255, 0.08));
-  color: var(--el-color-primary, #1890ff);
-  box-shadow: 0 0 0 1px rgba(24, 144, 255, 0.18) inset;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 18%, transparent), color-mix(in srgb, var(--spd-p-info) 8%, transparent));
+  color: var(--el-color-primary, var(--spd-p-info));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .login-panel-head p {
   margin: 8px 0 0;
   font-size: 13px;
-  color: #5b6b7a;
+  color: var(--spd-p-text-muted);
   line-height: 1.7;
 }
 
@@ -460,25 +454,25 @@
   /* D-07：标签不得小于输入框（输入框 14px），故标签取 13px */
   font-size: 13px;
   font-weight: 600;
-  color: #334652;
+  color: var(--spd-p-text);
   letter-spacing: 0.04em;
 }
 
 .login-panel label > .lbl .required {
-  color: #f5222d;
+  color: var(--spd-p-danger);
   margin-left: 2px;
 }
 
 .login-panel label > .lbl .forgot {
   font-weight: 500;
   font-size: 12px;
-  color: var(--el-color-primary, #1890ff);
+  color: var(--el-color-primary, var(--spd-p-info));
   cursor: pointer;
   letter-spacing: 0;
 }
 
 .login-panel label > .lbl .forgot:hover {
-  color: #40a9ff;
+  color: var(--spd-p-info);
   text-decoration: underline;
 }
 
@@ -492,12 +486,12 @@
   display: block;
   width: 100%;
   height: 44px;
-  border: 1px solid #d9dde3;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   padding: 0 44px;
   font-size: 14px;
-  color: #102033;
+  color: var(--spd-p-text);
   outline: none;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   -webkit-appearance: none;
@@ -505,22 +499,22 @@
 }
 
 .login-field input::placeholder {
-  color: #a3aeba;
+  color: var(--spd-p-text-secondary);
 }
 
 .login-field input:hover {
-  border-color: #b5c4d1;
+  border-color: var(--spd-p-border-strong);
 }
 
 .login-field input:focus {
-  border-color: var(--el-color-primary, #1890ff);
-  background: #ffffff;
-  box-shadow: 0 0 0 3px rgba(24, 144, 255, 0.18);
+  border-color: var(--el-color-primary, var(--spd-p-info));
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .login-field input:focus + .lead,
 .login-field:focus-within .lead {
-  color: var(--el-color-primary, #1890ff);
+  color: var(--el-color-primary, var(--spd-p-info));
 }
 
 .login-field .lead,
@@ -530,7 +524,7 @@
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  color: #8c9aa6;
+  color: var(--spd-p-text-muted);
   pointer-events: none;
   z-index: 2;
 }
@@ -556,8 +550,8 @@
 }
 
 .login-field .trail button:hover {
-  color: var(--el-color-primary, #1890ff);
-  background: rgba(24, 144, 255, 0.08);
+  color: var(--el-color-primary, var(--spd-p-info));
+  background: color-mix(in srgb, var(--spd-p-info) 8%, transparent);
 }
 
 .login-panel-row {
@@ -566,7 +560,7 @@
   justify-content: space-between;
   gap: 12px;
   font-size: 12px;
-  color: #5b6b7a;
+  color: var(--spd-p-text-muted);
   margin-top: 2px;
 }
 
@@ -581,7 +575,7 @@
 .login-panel-row .remember input[type="checkbox"] {
   width: 14px;
   height: 14px;
-  accent-color: var(--el-color-primary, #1890ff);
+  accent-color: var(--el-color-primary, var(--spd-p-info));
 }
 
 .login-error {
@@ -591,9 +585,9 @@
   margin: 0;
   padding: 10px 12px;
   border-radius: 8px;
-  background: rgba(255, 241, 240, 0.92);
-  border: 1px solid #ffccc7;
-  color: #cf1322;
+  background: color-mix(in srgb, var(--spd-p-danger-bg) 92%, transparent);
+  border: 1px solid var(--spd-p-danger-border);
+  color: var(--spd-p-danger-text);
   font-size: 12px;
   line-height: 1.55;
   backdrop-filter: blur(6px);
@@ -615,15 +609,13 @@
   height: 44px;
   border: 0;
   border-radius: 8px;
-  background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info-text) 100%);
+  color: var(--spd-p-bg);
   font-weight: 600;
   font-size: 14px;
   letter-spacing: 0.12em;
   cursor: pointer;
-  box-shadow:
-    0 0 0 1px rgba(24, 144, 255, 0.4) inset,
-    0 8px 18px rgba(24, 144, 255, 0.42);
+  box-shadow: var(--spd-p-shadow-2);
   position: relative;
   overflow: hidden;
   transition: transform 0.12s ease, box-shadow 0.18s ease, filter 0.18s ease, opacity 0.18s ease;
@@ -633,16 +625,14 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.32) 50%, transparent 70%);
+  background: linear-gradient(120deg, transparent 30%, color-mix(in srgb, var(--spd-p-bg) 32%, transparent) 50%, transparent 70%);
   transform: translateX(-100%);
   transition: transform 0.6s ease;
 }
 
 .login-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow:
-    0 0 0 1px rgba(24, 144, 255, 0.5) inset,
-    0 12px 24px rgba(24, 144, 255, 0.5);
+  box-shadow: var(--spd-p-shadow-3);
   filter: brightness(1.04);
 }
 
@@ -652,9 +642,7 @@
 
 .login-submit:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow:
-    0 0 0 1px rgba(24, 144, 255, 0.4) inset,
-    0 4px 10px rgba(24, 144, 255, 0.32);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .login-submit:disabled {
@@ -676,13 +664,13 @@
 .login-panel-foot {
   margin-top: 18px;
   padding-top: 16px;
-  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  border-top: 1px solid color-mix(in srgb, var(--spd-p-text-strong) 8%, transparent);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   font-size: 11px;
-  color: #8c9aa6;
+  color: var(--spd-p-text-muted);
   letter-spacing: 0.04em;
   position: relative;
   z-index: 1;
@@ -691,7 +679,7 @@
 .login-panel-foot .divider {
   width: 1px;
   height: 10px;
-  background: rgba(15, 23, 42, 0.18);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 18%, transparent);
 }
 
 /* ====== 响应式 ====== */

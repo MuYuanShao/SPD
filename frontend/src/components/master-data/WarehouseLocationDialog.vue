@@ -77,9 +77,9 @@ const emit = defineEmits<{
             {{ warehouse?.name || '-' }} · {{ warehouse?.code || '-' }}
           </span>
         </div>
-        <button class="wld-btn wld-btn-ghost" type="button" aria-label="关闭" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton label="" tone="primary" aria-label="关闭" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <div class="warehouse-location-body">
@@ -114,9 +114,9 @@ const emit = defineEmits<{
                   @input="searchProducts"
                   @focus="searchProducts"
                 />
-                <button class="wld-btn wld-btn-info" type="button" aria-label="搜索固定商品" @click="searchProducts">
-                  <Search :size="16" />
-                </button>
+                <SpdButton label="" tone="primary" aria-label="搜索固定商品" @click="searchProducts">
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
               </div>
               <div v-if="productResultsOpen" class="product-results">
                 <button
@@ -143,14 +143,13 @@ const emit = defineEmits<{
             </select>
           </label>
           <div class="warehouse-location-actions">
-            <button class="wld-btn wld-btn-secondary" type="button" @click="emit('create')">
-              <Plus :size="16" />
-              新增
-            </button>
-            <button class="wld-btn wld-btn-primary" type="submit" :disabled="saving">
-              <Save :size="16" />
-              {{ saving ? '保存中' : '保存货位' }}
-            </button>
+            <SpdButton label="新增" tone="primary" @click="emit('create')">
+          <template #icon><Plus :size="16" /></template>
+        </SpdButton>
+            <SpdButton tone="primary" type="submit" :disabled="saving">
+          <template #icon><Save :size="16" /></template>
+          {{ saving ? '保存中' : '保存货位' }}
+        </SpdButton>
           </div>
         </form>
 
@@ -158,10 +157,9 @@ const emit = defineEmits<{
           <div class="warehouse-location-tools">
             <strong>货位明细</strong>
             <span class="warehouse-location-count">{{ rows.length }} 个货位</span>
-            <button class="wld-btn wld-btn-info" type="button" @click="emit('refresh')">
-              <RefreshCw :size="16" />
-              刷新
-            </button>
+            <SpdButton label="刷新" tone="neutral" @click="emit('refresh')">
+          <template #icon><RefreshCw :size="16" /></template>
+        </SpdButton>
           </div>
           <div class="warehouse-location-table-wrap">
             <table class="master-table warehouse-location-table">
@@ -199,9 +197,10 @@ const emit = defineEmits<{
                     <td>{{ row.productCode || '-' }}</td>
                     <td>{{ row.productName || '-' }}</td>
                     <td>
-                      <span class="status-badge" :class="{ warning: row.status !== 1 }">
-                        {{ row.statusLabel }}
-                      </span>
+                      <SpdStatusChip
+                        :tone="row.status !== 1 ? 'warning' : 'success'"
+                        :label="row.statusLabel"
+                      />
                     </td>
                     <td class="md-audit-time">{{ row.createTime || '-' }}</td>
                     <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
@@ -242,10 +241,10 @@ const emit = defineEmits<{
   max-height: 92vh !important;
   display: flex;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -255,8 +254,8 @@ const emit = defineEmits<{
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  color: var(--spd-p-bg);
 }
 
 .warehouse-location-title p {
@@ -271,7 +270,7 @@ const emit = defineEmits<{
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .warehouse-location-sub {
@@ -279,9 +278,9 @@ const emit = defineEmits<{
   margin-top: 6px;
   padding: 3px 10px;
   font-size: var(--spd-font-size-sm);
-  background: rgba(255, 255, 255, 0.18);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
   border-radius: 999px;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .warehouse-location-body {
@@ -304,8 +303,8 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: 12px;
   padding: 18px 20px;
-  background: #f5f8fa;
-  border-right: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-right: 1px solid var(--spd-p-border);
   overflow-y: auto;
 }
 
@@ -320,14 +319,14 @@ const emit = defineEmits<{
   margin: 0;
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .section-editing-tag {
   padding: 2px 8px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(239, 68, 68, 0.15));
-  color: #b45309;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-warning) 15%, transparent), color-mix(in srgb, var(--spd-p-danger) 15%, transparent));
+  color: var(--spd-p-warning-text);
   font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
@@ -337,7 +336,7 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 500;
 }
 
@@ -345,10 +344,10 @@ const emit = defineEmits<{
 .warehouse-location-form select {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -356,8 +355,8 @@ const emit = defineEmits<{
 .warehouse-location-form input:focus,
 .warehouse-location-form select:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .warehouse-location-actions {
@@ -404,38 +403,38 @@ const emit = defineEmits<{
 }
 
 .wld-btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wld-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wld-btn-secondary {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(13, 148, 136, 0.1));
-  color: #0d9488;
-  border-color: rgba(20, 184, 166, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 10%, transparent), color-mix(in srgb, var(--spd-p-success-text) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-primary) 20%, transparent);
 }
 
 .wld-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(20, 184, 166, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wld-btn-info {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(14, 165, 233, 0.1));
-  color: #0891b2;
-  border-color: rgba(6, 182, 212, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-success-text) 10%, transparent), color-mix(in srgb, var(--spd-p-info) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-success-text) 20%, transparent);
 }
 
 .wld-btn-info:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(6, 182, 212, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-info));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wld-btn-ghost {
@@ -443,13 +442,13 @@ const emit = defineEmits<{
   min-height: 32px;
   padding: 0;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 
 .wld-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
   box-shadow: none;
 }
 
@@ -485,10 +484,10 @@ const emit = defineEmits<{
   z-index: 20;
   max-height: 240px;
   overflow: auto;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(15, 42, 58, 0.12);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .product-result-option {
@@ -499,8 +498,8 @@ const emit = defineEmits<{
   width: 100%;
   padding: 8px 12px;
   border: none;
-  border-bottom: 1px solid #eef3f5;
-  background: #fff;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  background: var(--spd-p-bg);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -508,20 +507,20 @@ const emit = defineEmits<{
 
 .product-result-option:hover,
 .product-result-option.active {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .product-result-option .product-code {
-  color: #0f6f78;
+  color: var(--spd-p-primary);
   font-weight: 700;
 }
 
 .product-result-option .product-name {
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .product-result-option .product-spec {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -531,7 +530,7 @@ const emit = defineEmits<{
 .product-results-empty {
   margin: 0;
   padding: 12px;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   text-align: center;
 }
@@ -544,7 +543,7 @@ const emit = defineEmits<{
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   overflow: hidden;
 }
 
@@ -553,21 +552,21 @@ const emit = defineEmits<{
   align-items: center;
   gap: 12px;
   padding: 14px 20px;
-  background: linear-gradient(135deg, #f8fafc, #eef2f7);
-  border-bottom: 1px solid #e1e9ee;
+  background: linear-gradient(135deg, var(--spd-p-bg-muted), var(--spd-p-bg-muted));
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .warehouse-location-tools strong {
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .warehouse-location-count {
   padding: 2px 10px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12));
-  color: #4f46e5;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 12%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 12%, transparent));
+  color: var(--spd-p-primary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
   margin-right: auto;
@@ -586,7 +585,7 @@ const emit = defineEmits<{
   border-spacing: 0;
   table-layout: auto;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .warehouse-location-table thead th {
@@ -598,8 +597,8 @@ const emit = defineEmits<{
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary) 0%, var(--spd-p-text-secondary) 100%);
   border-bottom: 0;
   white-space: nowrap;
 }
@@ -621,22 +620,22 @@ const emit = defineEmits<{
 
 .warehouse-location-table tbody td {
   padding: 10px 12px;
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   vertical-align: middle;
 }
 
 .warehouse-location-table tbody tr:nth-child(even) td {
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .warehouse-location-table tbody tr:hover td {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .warehouse-location-table tbody td.col-index {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-weight: 600;
 }
 
@@ -644,7 +643,7 @@ const emit = defineEmits<{
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .warehouse-location-table tbody td.col-actions {
@@ -665,40 +664,21 @@ const emit = defineEmits<{
 }
 
 .type-chip.type-整件货位 {
-  background: rgba(20, 184, 166, 0.12);
-  color: #0d9488;
-  border-color: rgba(20, 184, 166, 0.3);
+  background: color-mix(in srgb, var(--spd-p-primary) 12%, transparent);
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-primary) 30%, transparent);
 }
 
 .type-chip.type-散货货位 {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-  border-color: rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--spd-p-warning) 12%, transparent);
+  color: var(--spd-p-warning-text);
+  border-color: color-mix(in srgb, var(--spd-p-warning) 30%, transparent);
 }
 
 .type-chip.type-试剂货位 {
-  background: rgba(139, 92, 246, 0.12);
-  color: #7c3aed;
-  border-color: rgba(139, 92, 246, 0.3);
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-  border: 1px solid rgba(34, 197, 94, 0.3);
-}
-
-.status-badge.warning {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
-  border-color: rgba(245, 158, 11, 0.3);
+  background: color-mix(in srgb, var(--spd-p-primary-strong) 12%, transparent);
+  color: var(--spd-p-primary-strong);
+  border-color: color-mix(in srgb, var(--spd-p-primary-strong) 30%, transparent);
 }
 
 /* ============================================================
@@ -731,26 +711,26 @@ const emit = defineEmits<{
 }
 
 .warehouse-table-btn-edit {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12));
-  color: #4f46e5;
-  border-color: rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 12%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 12%, transparent));
+  color: var(--spd-p-primary);
+  border-color: color-mix(in srgb, var(--spd-p-info) 20%, transparent);
 }
 
 .warehouse-table-btn-edit:hover {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .warehouse-table-btn-danger {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.12), rgba(225, 29, 72, 0.12));
-  color: #dc2626;
-  border-color: rgba(220, 38, 38, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-danger) 12%, transparent), color-mix(in srgb, var(--spd-p-danger) 12%, transparent));
+  color: var(--spd-p-danger);
+  border-color: color-mix(in srgb, var(--spd-p-danger) 20%, transparent);
 }
 
 .warehouse-table-btn-danger:hover {
-  background: linear-gradient(135deg, #dc2626, #e11d48);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(220, 38, 38, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-danger), var(--spd-p-danger));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 </style>

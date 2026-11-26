@@ -1,7 +1,7 @@
 /* =====================================================================
    Theme System — 默认配色（青玉）
    ---------------------------------------------------------------------
-   主色不再由用户切换：`:root` 固定为青玉 #1f6f6d。
+   主色不再由用户切换：`:root` 固定为青玉 var(--spd-p-primary)。
    用户可切换的是「配色方案」（data-spd-theme），见 styles/theme/*.css。
    ===================================================================== */
 
@@ -10,11 +10,11 @@
   /* Element Plus 品牌色 — 派生色由主题主色决定 */
   --el-color-primary: var(--theme-primary);
   --el-color-primary-dark-2: var(--theme-primary-strong);
-  --el-color-primary-light-3: color-mix(in srgb, var(--theme-primary) 80%, white);
-  --el-color-primary-light-5: color-mix(in srgb, var(--theme-primary) 60%, white);
-  --el-color-primary-light-7: color-mix(in srgb, var(--theme-primary) 40%, white);
-  --el-color-primary-light-8: color-mix(in srgb, var(--theme-primary) 28%, white);
-  --el-color-primary-light-9: color-mix(in srgb, var(--theme-primary) 16%, white);
+  --el-color-primary-light-3: color-mix(in srgb, var(--theme-primary) 80%, var(--spd-p-bg));
+  --el-color-primary-light-5: color-mix(in srgb, var(--theme-primary) 60%, var(--spd-p-bg));
+  --el-color-primary-light-7: color-mix(in srgb, var(--theme-primary) 40%, var(--spd-p-bg));
+  --el-color-primary-light-8: color-mix(in srgb, var(--theme-primary) 28%, var(--spd-p-bg));
+  --el-color-primary-light-9: color-mix(in srgb, var(--theme-primary) 16%, var(--spd-p-bg));
   --el-border-color: var(--theme-line);
   --el-border-color-light: var(--theme-line);
   --el-text-color-primary: var(--theme-text);
@@ -25,34 +25,34 @@
 
   /* 基础调色板 — 青玉（低明艳版本）
      说明：设计要求「在青玉色基础上继续降低明艳程度」，
-     因此默认主题主色为低明度青玉 #1f6f6d，
+     因此默认主题主色为低明度青玉 var(--spd-p-primary)，
      仅保留少量辅助蓝作为语义色（信息 / 链接）。 */
-  --theme-primary: #1f6f6d;
-  --theme-primary-strong: #175a58;
-  --theme-accent: #2b827f;
-  --theme-bg: #f0f2f5;
-  --theme-surface: #ffffff;
-  --theme-line: #e8eaec;
-  --theme-text: #1f1f1f;
-  --theme-text-muted: #595959;
-  --theme-focus: #40a9ff;
+  --theme-primary: var(--spd-p-primary);
+  --theme-primary-strong: var(--spd-p-primary-strong);
+  --theme-accent: var(--spd-p-primary-hover);
+  --theme-bg: var(--spd-p-bg-muted);
+  --theme-surface: var(--spd-p-bg);
+  --theme-line: var(--spd-p-primary-bg);
+  --theme-text: var(--spd-p-text-strong);
+  --theme-text-muted: var(--spd-p-text-secondary);
+  --theme-focus: var(--spd-p-info);
 
   /* 医疗语义色 */
-  --theme-mint: #e6f7ff;
-  --theme-aqua: #bae7ff;
-  --theme-warm: #fff7e6;
-  --theme-warm-strong: #ffa940;
+  --theme-mint: var(--spd-p-info-bg);
+  --theme-aqua: var(--spd-p-info-border);
+  --theme-warm: var(--spd-p-warning-bg);
+  --theme-warm-strong: var(--spd-p-warning);
 
   /* 侧栏（商业 SPD 风格 — 白底深字；主色用于品牌区与激活态） */
-  --sidebar-bg: #ffffff;
-  --topbar-bg: #ffffff;
+  --sidebar-bg: var(--spd-p-bg);
+  --topbar-bg: var(--spd-p-bg);
 
   /* 组件表面 */
-  --card-bg: #ffffff;
-  --header-bg: #fafafa;
-  --row-hover: #f5f9fc;
-  --row-stripe: #fbfdfd;
-  --shadow-soft: 0 16px 48px rgba(24, 144, 255, 0.10);
+  --card-bg: var(--spd-p-bg);
+  --header-bg: var(--spd-p-row-header-bg);
+  --row-hover: var(--spd-p-bg-subtle);
+  --row-stripe: var(--spd-p-bg);
+  --shadow-soft: 0 16px 48px color-mix(in srgb, var(--spd-p-info) 10%, transparent);
 
   /* fli-layout 直接引用这些变量 */
   --fli-brand: var(--theme-primary);
@@ -173,13 +173,13 @@ body {
   --el-button-active-border-color: var(--primary-strong);
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 .el-button--primary:hover,
 .el-button--primary:focus {
   background: var(--primary-strong);
   border-color: var(--primary-strong);
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 .el-button--primary.is-plain {
   background: color-mix(in srgb, var(--primary) 8%, transparent);
@@ -189,7 +189,7 @@ body {
 .el-button--primary.is-plain:hover {
   background: var(--primary);
   border-color: var(--primary);
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 /* Element Plus 链接 / 主色文字 */
@@ -245,7 +245,7 @@ a.el-link {
 .el-pager li.is-active,
 .el-pagination .is-active {
   background-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* Element Plus Menu（侧边垂直菜单）激活色 */
@@ -298,7 +298,7 @@ a.el-link {
 
 .app-shell .brand-mark {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
@@ -372,7 +372,7 @@ a.el-link {
 
 .spd-logo-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   box-shadow: 0 4px 12px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
@@ -394,7 +394,7 @@ a.el-link {
 .spd-menu-dropdown {
   background: var(--spd-bg-surface) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14), 0 2px 8px rgba(15, 23, 42, 0.06) !important;
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .spd-dropdown-link {
@@ -415,7 +415,7 @@ a.el-link {
 
 .spd-dropdown-link.active .spd-dropdown-link-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .spd-dropdown-link-icon {
@@ -478,7 +478,7 @@ a.el-link {
 
 .spd-mini-nav-item.active .spd-mini-nav-item-icon {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* 分组图标：主题色 */
@@ -588,7 +588,7 @@ a.el-link {
   background: var(--spd-bg-surface) !important;
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   border-radius: 12px !important;
 }
 

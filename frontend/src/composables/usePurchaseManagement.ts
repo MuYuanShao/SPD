@@ -28,6 +28,7 @@ import {
 } from '../api/purchaseOrders'
 import { useNotify } from './useNotify'
 import { formatStatusText } from '../utils/chineseDisplay'
+import type { SpdStatusChipTone } from '../components/common/SpdStatusChip.vue'
 
 export type PurchaseTab = 'smart' | 'demands' | 'plans' | 'orders' | 'tracking'
 
@@ -246,10 +247,14 @@ export function usePurchaseManagement() {
     return orderStatusText[status] ?? demandStatusText[status] ?? planStatusText[status] ?? formatStatusText(status)
   }
 
-  function statusTone(status: string) {
-    if (['closed', 'sent', 'approved', 'executed', 'planned'].includes(status)) return 'enabled'
-    if (['rejected', 'voided'].includes(status)) return 'disabled'
-    return 'pending'
+  /** 状态条语义色调（全站统一状态条组件 SpdStatusChip 的 tone）
+   *  已完成 / 已发送 / 已通过 / 已执行 / 已计划 → success
+   *  已驳回 / 已作废 → danger
+   *  其余（待提交 / 待审批 / 处理中…） → warning */
+  function statusTone(status: string): SpdStatusChipTone {
+    if (['closed', 'sent', 'approved', 'executed', 'planned'].includes(status)) return 'success'
+    if (['rejected', 'voided'].includes(status)) return 'danger'
+    return 'warning'
   }
 
   function remainingQty(row: PurchaseOrderRow) {

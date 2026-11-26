@@ -108,8 +108,8 @@
 }
 
 .master-page-title .panel-icon.ok {
-  background: #f6ffed;
-  color: #52c41a;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-text-secondary);
 }
 
 .master-page-title .panel-icon.info {
@@ -118,13 +118,13 @@
 }
 
 .master-page-title .panel-icon.warn {
-  background: #fff7e6;
-  color: #fa8c16;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning);
 }
 
 .master-page-title .panel-icon.trace {
-  background: #f9f0ff;
-  color: #722ed1;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-primary);
 }
 
 /* ===== 主工具条 / 查询区 ===== */
@@ -363,13 +363,13 @@
 .hospital-pagination .btn.btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 .hospital-pagination .btn.btn-primary:hover:not(:disabled) {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* N-04 分页当前页指示 */
@@ -392,7 +392,7 @@
 }
 
 .master-table thead {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
 }
 
 .master-table th,
@@ -406,7 +406,7 @@
 }
 
 .master-table th {
-  background: #fafafa !important;
+  background: var(--spd-p-row-header-bg) !important;
   color: var(--spd-text-heading) !important;
   /* 表格表头：--spd-font-size-table-head / 700 / 1.35 */
   font-weight: 700 !important;
@@ -430,7 +430,7 @@
 }
 
 .master-table tbody tr:nth-child(even) td {
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 .master-table tbody tr:nth-child(even):hover td {
@@ -701,8 +701,8 @@
 }
 
 .metric-panel .panel-icon.ok {
-  color: #52c41a;
-  background: #f6ffed;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-warning-bg);
 }
 
 .metric-panel .panel-icon.info {
@@ -711,13 +711,13 @@
 }
 
 .metric-panel .panel-icon.warn {
-  color: #fa8c16;
-  background: #fff7e6;
+  color: var(--spd-p-warning);
+  background: var(--spd-p-warning-bg);
 }
 
 .metric-panel .panel-icon.trace {
-  color: #722ed1;
-  background: #f9f0ff;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-bg-subtle);
 }
 
 /* ===== 工具栏按钮区 ===== */
@@ -846,7 +846,7 @@
 
 .column-nav-panel .subnav-chips .subnav-chip.active {
   background: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   border-color: var(--primary) !important;
   font-weight: 600 !important;
   box-shadow: 0 2px 6px color-mix(in srgb, var(--primary) 30%, transparent);
@@ -1056,9 +1056,9 @@
 .master-toolbar .btn.btn-primary {
   background: var(--primary) !important;
   border-color: var(--primary) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
   font-weight: 500;
-  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.045) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .master-page .btn.btn-primary:hover,
@@ -1066,7 +1066,7 @@
 .master-toolbar .btn.btn-primary:hover {
   background: var(--primary-strong) !important;
   border-color: var(--primary-strong) !important;
-  color: #ffffff !important;
+  color: var(--spd-p-bg) !important;
 }
 
 /* ===== Architecture Note（注释条） ===== */
@@ -1111,7 +1111,7 @@
 }
 
 .error-text {
-  color: #f5222d !important;
+  color: var(--spd-p-danger) !important;
   font-size: var(--spd-font-size-sm);
 }
 
@@ -1194,7 +1194,7 @@
 }
 
 .stocktaking-scope-selected em {
-  color: #fa8c16 !important;
+  color: var(--spd-p-warning) !important;
   font-style: normal;
   font-weight: 500;
 }

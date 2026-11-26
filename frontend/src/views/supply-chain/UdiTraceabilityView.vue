@@ -29,6 +29,7 @@ import {
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import {
   consumeQuotaPackageByCode,
   fetchUdiTraceDetail,
@@ -102,17 +103,21 @@ const statusText: Record<string, string> = {
   isolated: '隔离'
 }
 
-const statusTone: Record<string, 'blue' | 'amber' | 'green' | 'red' | 'gray'> = {
-  in_stock: 'blue',
-  putaway: 'blue',
-  delivered: 'amber',
-  requisitioned: 'amber',
-  delivery_picked: 'amber',
-  patient_bound: 'amber',
-  signed: 'amber',
-  consumed: 'green',
-  settled: 'green',
-  isolated: 'red'
+/**
+ * 追溯状态 → 全站通用状态条色调（SpdStatusChip 的 tone）。
+ * 浅色底 + 深色字由组件统一提供，页面只负责语义映射。
+ */
+const statusTone: Record<string, SpdStatusChipTone> = {
+  in_stock: 'info',
+  putaway: 'info',
+  delivered: 'warning',
+  requisitioned: 'warning',
+  delivery_picked: 'warning',
+  patient_bound: 'warning',
+  signed: 'warning',
+  consumed: 'success',
+  settled: 'success',
+  isolated: 'danger'
 }
 
 const statusIcon: Record<string, typeof Package> = {
@@ -451,14 +456,13 @@ const udiTraceColSettingsPop = useColSettingsPopover({
               <CircleX :size="14" />
             </button>
           </div>
-          <button class="btn btn-primary scan-submit" type="submit" :disabled="loading">
-            <Search :size="15" />
-            {{ loading ? '查询中...' : '查询追溯' }}
-          </button>
-          <button class="btn scan-reset" type="button" @click="resetSearch">
-            <RefreshCw :size="15" />
-            重置
-          </button>
+          <SpdButton tone="primary" type="submit" class="scan-submit" :disabled="loading">
+          <template #icon><Search :size="15" /></template>
+          {{ loading ? '查询中...' : '查询追溯' }}
+        </SpdButton>
+          <SpdButton label="重置" tone="neutral" class="scan-reset" @click="resetSearch">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
         </form>
       </div>
 
@@ -533,24 +537,14 @@ const udiTraceColSettingsPop = useColSettingsPopover({
           <input v-model.trim="packageAction.deptName" placeholder="可自动识别，留空将按规则推导" />
         </label>
         <div class="quota-card-actions">
-          <button
-            class="btn quota-action-sign"
-            type="button"
-            :disabled="packageActionLoading"
-            @click="signQuotaPackage"
-          >
-            <Truck :size="16" />
-            签收入库
-          </button>
-          <button
-            class="btn quota-action-consume"
-            type="button"
-            :disabled="packageActionLoading"
-            @click="consumeQuotaPackage"
-          >
-            <PackageCheck :size="16" />
-            扫码消耗
-          </button>
+          <SpdButton label="签收入库" tone="primary" class="quota-action-sign" :disabled="packageActionLoading"
+            @click="signQuotaPackage">
+          <template #icon><Truck :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="扫码消耗" tone="primary" class="quota-action-consume" :disabled="packageActionLoading"
+            @click="consumeQuotaPackage">
+          <template #icon><PackageCheck :size="16" /></template>
+        </SpdButton>
         </div>
       </div>
     </section>
@@ -588,14 +582,13 @@ const udiTraceColSettingsPop = useColSettingsPopover({
               <p v-else>暂无追溯对象</p>
             </div>
           </div>
-          <span
+          <SpdStatusChip
             v-if="activeRecord"
-            class="status-pill"
-            :class="`tone-${statusTone[activeRecord.currentStatus] || 'gray'}`"
+            :tone="statusTone[activeRecord.currentStatus] || 'neutral'"
           >
             <component :is="statusIcon[activeRecord.currentStatus] || ShieldCheck" :size="13" />
             {{ labelStatus(activeRecord.currentStatus) }}
-          </span>
+          </SpdStatusChip>
         </header>
         <ol v-if="timeline.length" class="timeline" :class="{ loading: detailLoading }">
           <li
@@ -705,43 +698,36 @@ const udiTraceColSettingsPop = useColSettingsPopover({
           </div>
         </div>
         <div class="record-tools">
-          <button class="btn tool-btn tool-refresh" type="button" :disabled="loading" @click="loadRecords">
-            <RefreshCw :size="14" />
-            刷新
-          </button>
-          <button class="btn tool-btn tool-export" type="button" :disabled="!records.length" @click="exportRecords">
-            <Download :size="14" />
-            导出 CSV
-          </button>
-          <button class="btn tool-btn tool-print" type="button" :disabled="!activeRecord" @click="printDetail">
-            <Printer :size="14" />
-            打印
-          </button>
+          <SpdButton label="刷新" tone="neutral" class="tool-btn tool-refresh" :disabled="loading" @click="loadRecords">
+          <template #icon><RefreshCw :size="14" /></template>
+        </SpdButton>
+          <SpdButton label="导出 CSV" tone="primary" class="tool-btn tool-export" :disabled="!records.length" @click="exportRecords">
+          <template #icon><Download :size="14" /></template>
+        </SpdButton>
+          <SpdButton label="打印" tone="neutral" class="tool-btn tool-print" :disabled="!activeRecord" @click="printDetail">
+          <template #icon><Printer :size="14" /></template>
+        </SpdButton>
         </div>
       </header>
             <MdDataTableCard>
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="udiTraceColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="udiTraceCols.settingsOpen.value = !udiTraceCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: udiTraceCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="udiTraceColSettingsAnchorRef"
+           
+           
+            @click="udiTraceCols.settingsOpen.value = !udiTraceCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="udiTraceCols.settingsOpen.value"
             ref="udiTraceColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': udiTraceColSettingsPop.align.value === 'right', 'is-align-up': udiTraceColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': udiTraceColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': udiTraceColSettingsPop.maxHeight.value + 'px' }"
+            :style="udiTraceColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="udiTraceCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="udiTraceCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in udiTraceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -756,7 +742,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="udiTraceCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="udiTraceCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -848,10 +834,10 @@ const udiTraceColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span class="status-pill" :class="`tone-${statusTone[row.currentStatus] || 'gray'}`">
+                <SpdStatusChip :tone="statusTone[row.currentStatus] || 'neutral'">
                     <component :is="statusIcon[row.currentStatus] || ShieldCheck" :size="12" />
                     {{ labelStatus(row.currentStatus) }}
-                  </span>
+                  </SpdStatusChip>
               </template>
             </el-table-column>
             <el-table-column
@@ -999,8 +985,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  border-left: 3px solid var(--primary, #1677ff);
-  background: linear-gradient(120deg, #f0f7ff 0%, #ffffff 65%);
+  border-left: 3px solid var(--primary, var(--spd-p-info));
+  background: linear-gradient(120deg, var(--spd-p-info-bg) 0%, var(--spd-p-bg) 65%);
 }
 
 .scan-card-head {
@@ -1015,8 +1001,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 32px;
   height: 32px;
-  color: #1677ff;
-  background: #dbeafe;
+  color: var(--spd-p-info);
+  background: var(--spd-p-border);
   border-radius: 8px;
 }
 
@@ -1046,21 +1032,21 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   align-items: center;
   height: 40px;
   padding: 0 12px 0 38px;
-  border: 1px solid #c7d2fe;
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--spd-p-bg);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .scan-input-wrap:focus-within {
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .scan-input-icon {
   position: absolute;
   left: 12px;
-  color: #1677ff;
+  color: var(--spd-p-info);
 }
 
 .scan-input-wrap input {
@@ -1081,7 +1067,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   width: 22px;
   height: 22px;
   margin-left: 6px;
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   background: transparent;
   border: 0;
   border-radius: 4px;
@@ -1089,42 +1075,15 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .scan-clear:hover {
-  color: #ef4444;
-  background: #fef2f2;
+  color: var(--spd-p-danger);
+  background: var(--spd-p-danger-bg);
 }
 
+/* 扫描条按钮：完全服从 SpdButton 统一几何与配色，
+   不再覆盖高度（此前 40px，高于全站 34px）/ 内边距 / 字号 / 颜色。 */
 .scan-submit,
 .scan-reset {
-  height: 40px;
-  padding: 0 16px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  border-radius: 8px;
   white-space: nowrap;
-}
-
-.scan-submit {
-  color: #fff;
-  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
-  border: 1px solid #1677ff;
-  box-shadow: 0 3px 8px rgba(22, 119, 255, 0.25);
-}
-
-.scan-submit:hover:not(:disabled) {
-  background: linear-gradient(135deg, #0958d9 0%, #1677ff 100%);
-  box-shadow: 0 5px 12px rgba(22, 119, 255, 0.3);
-}
-
-.scan-reset {
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-}
-
-.scan-reset:hover:not(:disabled) {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
 }
 
 .filter-card {
@@ -1132,7 +1091,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 10px;
   padding: 14px 16px;
-  border-left: 3px solid #10b981;
+  border-left: 3px solid var(--spd-p-success);
 }
 
 .filter-card-head {
@@ -1147,8 +1106,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 28px;
   height: 28px;
-  color: #047857;
-  background: #d1fae5;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
   border-radius: 6px;
 }
 
@@ -1180,9 +1139,9 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 .filter-card-grid select {
   min-height: 36px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font: inherit;
   font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
@@ -1191,8 +1150,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 
 .filter-card-grid select:focus {
   outline: 0;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 事件类型彩色 tab ---------- */
@@ -1209,9 +1168,9 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   gap: 5px;
   min-height: 30px;
   padding: 0 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 999px;
-  background: #fff;
+  background: var(--spd-p-bg);
   color: var(--spd-text-secondary);
   font: inherit;
   font-size: var(--spd-font-size-base);
@@ -1222,80 +1181,80 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .event-tab:hover {
-  border-color: #cbd5e1;
-  color: #0f172a;
-  background: #f8fafc;
+  border-color: var(--spd-p-border-strong);
+  color: var(--spd-p-text-strong);
+  background: var(--spd-p-bg-muted);
 }
 
 .event-tab.is-all {
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .event-tab.is-tone-0 {
-  border-color: #bfdbfe;
-  color: #1d4ed8;
+  border-color: var(--spd-p-info-border);
+  color: var(--spd-p-info-strong);
 }
 .event-tab.is-tone-0:hover,
 .event-tab.is-tone-0.active {
-  border-color: #1677ff;
-  color: #fff;
-  background: linear-gradient(135deg, #1677ff 0%, #4096ff 100%);
-  box-shadow: 0 2px 6px rgba(22, 119, 255, 0.3);
+  border-color: var(--spd-p-info);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-info) 0%, var(--spd-p-info) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .event-tab.is-tone-1 {
-  border-color: #bbf7d0;
-  color: #047857;
+  border-color: var(--spd-p-success-border);
+  color: var(--spd-p-success-strong);
 }
 .event-tab.is-tone-1:hover,
 .event-tab.is-tone-1.active {
-  border-color: #10b981;
-  color: #fff;
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+  border-color: var(--spd-p-success);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .event-tab.is-tone-2 {
-  border-color: #fde68a;
-  color: #b45309;
+  border-color: var(--spd-p-warning-border);
+  color: var(--spd-p-warning-text);
 }
 .event-tab.is-tone-2:hover,
 .event-tab.is-tone-2.active {
-  border-color: #f59e0b;
-  color: #fff;
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-  box-shadow: 0 2px 6px rgba(245, 158, 11, 0.3);
+  border-color: var(--spd-p-warning);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-warning) 0%, var(--spd-p-warning) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .event-tab.is-tone-3 {
-  border-color: #fecaca;
-  color: #b91c1c;
+  border-color: var(--spd-p-danger-border);
+  color: var(--spd-p-danger-strong);
 }
 .event-tab.is-tone-3:hover,
 .event-tab.is-tone-3.active {
-  border-color: #ef4444;
-  color: #fff;
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
-  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+  border-color: var(--spd-p-danger);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-danger) 0%, var(--spd-p-danger) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .event-tab.is-tone-4 {
-  border-color: #c4b5fd;
-  color: #6d28d9;
+  border-color: var(--spd-p-info-border);
+  color: var(--spd-p-primary);
 }
 .event-tab.is-tone-4:hover,
 .event-tab.is-tone-4.active {
-  border-color: #8b5cf6;
-  color: #fff;
-  background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
-  box-shadow: 0 2px 6px rgba(139, 92, 246, 0.3);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-primary-strong) 0%, var(--spd-p-primary-strong) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .event-tab.is-all.active {
-  border-color: #0f172a;
-  color: #fff;
-  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.3);
+  border-color: var(--spd-p-text-strong);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-strong) 0%, var(--spd-p-text-secondary) 100%);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- 定数包快捷作业卡 ---------- */
@@ -1304,8 +1263,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 12px;
   padding: 14px 16px;
-  border-left: 3px solid #f59e0b;
-  background: linear-gradient(120deg, #fff7ed 0%, #ffffff 65%);
+  border-left: 3px solid var(--spd-p-warning);
+  background: linear-gradient(120deg, var(--spd-p-warning-bg) 0%, var(--spd-p-bg) 65%);
 }
 
 .quota-card-head {
@@ -1320,8 +1279,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 32px;
   height: 32px;
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
   border-radius: 8px;
 }
 
@@ -1343,11 +1302,11 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   align-items: center;
   margin-left: auto;
   padding: 2px 10px;
-  color: #b45309;
+  color: var(--spd-p-warning-text);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  background: #fef3c7;
-  border: 1px solid #fde68a;
+  background: var(--spd-p-warning-bg);
+  border: 1px solid var(--spd-p-warning-border);
   border-radius: 999px;
 }
 
@@ -1377,23 +1336,23 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .quota-label-tag.is-scan {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
+  border: 1px solid var(--spd-p-info-border);
 }
 
 .quota-label-tag.is-dept {
-  color: #047857;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 
 .quota-card-grid input {
   min-height: 38px;
   padding: 0 12px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font: inherit;
   font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
@@ -1402,8 +1361,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 
 .quota-card-grid input:focus {
   outline: 0;
-  border-color: #1677ff;
-  box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.15);
+  border-color: var(--spd-p-info);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .quota-card-actions {
@@ -1411,42 +1370,13 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   gap: 8px;
 }
 
+/* 定数包操作按钮：完全服从 SpdButton 统一几何与配色，
+   仅保留最小宽度与图标间距，不再覆盖高度 / 内边距 / 字号 / 颜色。 */
 .quota-action-sign,
 .quota-action-consume {
-  display: inline-flex;
-  align-items: center;
   gap: 5px;
   min-width: 130px;
-  height: 38px;
-  padding: 0 16px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  border-radius: 8px;
   white-space: nowrap;
-}
-
-.quota-action-sign {
-  color: #fff;
-  background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
-  border: 1px solid #f59e0b;
-  box-shadow: 0 3px 8px rgba(245, 158, 11, 0.25);
-}
-
-.quota-action-sign:hover:not(:disabled) {
-  background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
-  box-shadow: 0 5px 12px rgba(245, 158, 11, 0.3);
-}
-
-.quota-action-consume {
-  color: #fff;
-  background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
-  border: 1px solid #10b981;
-  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.25);
-}
-
-.quota-action-consume:hover:not(:disabled) {
-  background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-  box-shadow: 0 5px 12px rgba(16, 185, 129, 0.3);
 }
 
 /* ---------- 消息提示 ---------- */
@@ -1460,27 +1390,27 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .form-message.is-info {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: var(--spd-p-info-border);
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-info-strong);
 }
 
 .form-message.is-success {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
-  color: #047857;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .form-message.is-warning {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #b45309;
+  border-color: var(--spd-p-warning-border);
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-text);
 }
 
 .form-message.is-error {
-  border-color: #fecaca;
-  background: #fef2f2;
-  color: #b91c1c;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 汇总 chips ---------- */
@@ -1499,7 +1429,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   border: 1px solid;
   border-radius: 999px;
   font-size: var(--spd-font-size-sm);
-  background: #fff;
+  background: var(--spd-p-bg);
   transition: transform 0.1s ease;
 }
 
@@ -1529,75 +1459,75 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .udi-summary-item.tone-blue {
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  border-color: var(--spd-p-info-border);
+  background: var(--spd-p-info-bg);
 }
 .udi-summary-item.tone-blue .udi-summary-icon {
-  color: #1d4ed8;
-  background: #dbeafe;
+  color: var(--spd-p-info-strong);
+  background: var(--spd-p-border);
 }
 .udi-summary-item.tone-blue .udi-summary-value {
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
 }
 
 .udi-summary-item.tone-amber {
-  border-color: #fde68a;
-  background: #fffbeb;
+  border-color: var(--spd-p-warning-border);
+  background: var(--spd-p-warning-bg);
 }
 .udi-summary-item.tone-amber .udi-summary-icon {
-  color: #b45309;
-  background: #fef3c7;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
 }
 .udi-summary-item.tone-amber .udi-summary-value {
-  color: #b45309;
+  color: var(--spd-p-warning-text);
 }
 
 .udi-summary-item.tone-green {
-  border-color: #a7f3d0;
-  background: #ecfdf5;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-primary-bg);
 }
 .udi-summary-item.tone-green .udi-summary-icon {
-  color: #047857;
-  background: #d1fae5;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
 }
 .udi-summary-item.tone-green .udi-summary-value {
-  color: #047857;
+  color: var(--spd-p-success-strong);
 }
 
 .udi-summary-item.tone-success {
-  border-color: #6ee7b7;
-  background: #d1fae5;
+  border-color: var(--spd-p-success);
+  background: var(--spd-p-success-bg);
 }
 .udi-summary-item.tone-success .udi-summary-icon {
-  color: #047857;
-  background: #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-border);
 }
 .udi-summary-item.tone-success .udi-summary-value {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
 }
 
 .udi-summary-item.tone-cyan {
-  border-color: #a5f3fc;
-  background: #ecfeff;
+  border-color: var(--spd-p-success-border);
+  background: var(--spd-p-info-bg);
 }
 .udi-summary-item.tone-cyan .udi-summary-icon {
-  color: #0e7490;
-  background: #cffafe;
+  color: var(--spd-p-success-text);
+  background: var(--spd-p-info-bg);
 }
 .udi-summary-item.tone-cyan .udi-summary-value {
-  color: #155e75;
+  color: var(--spd-p-info);
 }
 
 .udi-summary-item.tone-red {
-  border-color: #fecaca;
-  background: #fef2f2;
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
 }
 .udi-summary-item.tone-red .udi-summary-icon {
-  color: #b91c1c;
-  background: #fee2e2;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
 }
 .udi-summary-item.tone-red .udi-summary-value {
-  color: #b91c1c;
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 面板通用 ---------- */
@@ -1625,8 +1555,8 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 26px;
   height: 26px;
-  color: #1677ff;
-  background: #dbeafe;
+  color: var(--spd-p-info);
+  background: var(--spd-p-border);
   border-radius: 6px;
 }
 
@@ -1656,9 +1586,9 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 
 .detail-loading-tag {
   padding: 2px 8px;
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
   font-size: var(--spd-font-size-sm);
-  background: #dbeafe;
+  background: var(--spd-p-border);
   border-radius: 999px;
 }
 
@@ -1668,49 +1598,44 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   gap: 6px;
 }
 
+/* 工具条按钮：完全服从 SpdButton 统一几何与配色，
+   不再覆盖高度（此前 30px）/ 内边距 / 字号。 */
 .tool-btn {
-  display: inline-flex;
-  align-items: center;
   gap: 4px;
-  height: 30px;
-  padding: 0 12px;
-  font-size: var(--spd-font-size-sm);
-  font-weight: 500;
-  border-radius: 6px;
-  transition: all 0.15s ease;
 }
 
 .tool-refresh {
-  color: #475569;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
 }
 .tool-refresh:hover:not(:disabled) {
-  color: #0f172a;
-  background: #e2e8f0;
-  border-color: #cbd5e1;
+  color: var(--spd-p-text-strong);
+  background: var(--spd-p-border);
+  border-color: var(--spd-p-border-strong);
 }
 
 .tool-export {
-  color: #047857;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-primary-bg);
+  border: 1px solid var(--spd-p-success-border);
 }
 .tool-export:hover:not(:disabled) {
-  color: #064e3b;
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success);
 }
 
 .tool-print {
-  color: #6d28d9;
-  background: #f5f3ff;
-  border: 1px solid #c4b5fd;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-bg-subtle);
+  border: 1px solid var(--spd-p-info-border);
 }
 .tool-print:hover:not(:disabled) {
-  color: #4c1d95;
-  background: #ede9fe;
-  border-color: #a78bfa;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-info-bg);
+  border-color: var(--spd-p-primary-strong);
 }
 
 /* ---------- 时间线 ---------- */
@@ -1752,7 +1677,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   bottom: 0;
   left: 15px;
   width: 2px;
-  background: #e2e8f0;
+  background: var(--spd-p-border);
 }
 
 .timeline-dot {
@@ -1761,48 +1686,48 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   justify-content: center;
   width: 32px;
   height: 32px;
-  border: 2px solid #fff;
+  border: 2px solid var(--spd-p-bg);
   border-radius: 50%;
-  background: #dbeafe;
-  color: #1677ff;
+  background: var(--spd-p-border);
+  color: var(--spd-p-info);
   z-index: 1;
-  box-shadow: 0 0 0 2px #e0e7ff;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .timeline li.tone-blue .timeline-dot {
-  background: #dbeafe;
-  color: #1d4ed8;
-  box-shadow: 0 0 0 2px #bfdbfe;
+  background: var(--spd-p-border);
+  color: var(--spd-p-info-strong);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .timeline li.tone-blue:not(.last)::before {
-  background: linear-gradient(180deg, #bfdbfe 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--spd-p-info-border) 0%, var(--spd-p-border) 100%);
 }
 
 .timeline li.tone-green .timeline-dot {
-  background: #d1fae5;
-  color: #047857;
-  box-shadow: 0 0 0 2px #a7f3d0;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .timeline li.tone-green:not(.last)::before {
-  background: linear-gradient(180deg, #a7f3d0 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--spd-p-success-border) 0%, var(--spd-p-border) 100%);
 }
 
 .timeline li.tone-amber .timeline-dot {
-  background: #fef3c7;
-  color: #b45309;
-  box-shadow: 0 0 0 2px #fde68a;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-text);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .timeline li.tone-amber:not(.last)::before {
-  background: linear-gradient(180deg, #fde68a 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--spd-p-warning-border) 0%, var(--spd-p-border) 100%);
 }
 
 .timeline li.tone-red .timeline-dot {
-  background: #fee2e2;
-  color: #b91c1c;
-  box-shadow: 0 0 0 2px #fecaca;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
+  box-shadow: var(--spd-p-shadow-1);
 }
 .timeline li.tone-red:not(.last)::before {
-  background: linear-gradient(180deg, #fecaca 0%, #e2e8f0 100%);
+  background: linear-gradient(180deg, var(--spd-p-danger-border) 0%, var(--spd-p-border) 100%);
 }
 
 .timeline-content {
@@ -1851,15 +1776,15 @@ const udiTraceColSettingsPop = useColSettingsPopover({
   color: var(--spd-text-tertiary);
   font-size: var(--spd-font-size-sm);
   font-style: normal;
-  background: #f8fafc;
-  border-left: 2px solid #cbd5e1;
+  background: var(--spd-p-bg-muted);
+  border-left: 2px solid var(--spd-p-border-strong);
   border-radius: 0 4px 4px 0;
 }
 
 .timeline li.tone-red em {
-  background: #fef2f2;
-  border-left-color: #fecaca;
-  color: #b91c1c;
+  background: var(--spd-p-danger-bg);
+  border-left-color: var(--spd-p-danger-border);
+  color: var(--spd-p-danger-strong);
 }
 
 /* ---------- 单件详情 ---------- */
@@ -1900,7 +1825,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .detail-list dd > svg {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
   flex-shrink: 0;
 }
 
@@ -1921,28 +1846,17 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 .detail-mono {
   font-family: var(--spd-font-family-mono) !important;
   font-size: var(--spd-font-size-sm) !important;
-  color: #475569 !important;
+  color: var(--spd-p-text-secondary) !important;
 }
 
 .detail-strong {
-  color: #1d4ed8 !important;
+  color: var(--spd-p-info-strong) !important;
   font-weight: 600 !important;
 }
 
-/* ---------- 状态 / 范围 pill ---------- */
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 24px;
-  padding: 0 10px;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  white-space: nowrap;
-}
-
+/* ---------- 状态 / 范围 pill ----------
+   列表状态条统一走通用组件 <SpdStatusChip>（浅色底 + 深色字），
+   本页不再写局部的 .status-pill 配色覆盖。 */
 .scope-pill {
   display: inline-flex;
   align-items: center;
@@ -1956,45 +1870,15 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 }
 
 .scope-pill.is-hv {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fde68a;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .scope-pill.is-quota {
-  color: #047857;
-  background: #d1fae5;
-  border-color: #a7f3d0;
-}
-
-.status-pill.tone-blue {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #bfdbfe;
-}
-
-.status-pill.tone-amber {
-  background: #fffbeb;
-  color: #b45309;
-  border: 1px solid #fde68a;
-}
-
-.status-pill.tone-green {
-  background: #ecfdf5;
-  color: #047857;
-  border: 1px solid #a7f3d0;
-}
-
-.status-pill.tone-red {
-  background: #fef2f2;
-  color: #b91c1c;
-  border: 1px solid #fecaca;
-}
-
-.status-pill.tone-gray {
-  background: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
+  color: var(--spd-p-success-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success-border);
 }
 
 /* ---------- 记录表 ---------- */
@@ -2004,7 +1888,7 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 
 .table-wrap {
   overflow-x: auto;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   scrollbar-width: thin;
 }
@@ -2015,11 +1899,11 @@ const udiTraceColSettingsPop = useColSettingsPopover({
 
 .table-wrap::-webkit-scrollbar-thumb {
   border-radius: 999px;
-  background: #cbd5e1;
+  background: var(--spd-p-border-strong);
 }
 
 .table-wrap::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--spd-p-text-muted);
 }
 
 .table-wrap::-webkit-scrollbar-track {
@@ -2041,24 +1925,26 @@ thead th {
   padding: 10px 14px !important;
   font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
-  color: #1e293b !important;
-  background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
-  border-bottom: 1px solid #c7d2fe !important;
+  /* 表头文字：深色强调文字（深字浅底，保证可读）。
+     此前误用 --spd-p-bg-muted（浅灰）配浅蓝底，导致表头文字几乎不可见。 */
+  color: var(--spd-p-text-strong) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-primary-bg) 100%) !important;
+  border-bottom: 1px solid var(--spd-p-border) !important;
   text-align: left;
   white-space: nowrap;
 }
 
 tbody td {
   padding: 10px 14px !important;
-  border-bottom: 1px solid #f1f5f9 !important;
-  color: #334155 !important;
+  border-bottom: 1px solid var(--spd-p-text-strong) !important;
+  color: var(--spd-p-text-secondary) !important;
   font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 tbody tr:nth-child(even) td {
-  background: #fafbfc;
+  background: var(--spd-p-row-stripe);
 }
 
 tbody tr {
@@ -2067,22 +1953,22 @@ tbody tr {
 }
 
 tbody tr:hover td {
-  background: #f0f7ff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 tbody tr.selected td {
-  background: #e0efff !important;
-  box-shadow: inset 3px 0 0 #1677ff;
+  background: var(--spd-p-info-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 tbody tr.selected:hover td {
-  background: #d1e5ff !important;
+  background: var(--spd-p-info-bg) !important;
 }
 
 .cell-mono {
   font-family: var(--spd-font-family-mono) !important;
   font-size: var(--spd-font-size-base) !important;
-  color: #475569 !important;
+  color: var(--spd-p-text-secondary) !important;
 }
 
 td small {
@@ -2112,19 +1998,19 @@ td small {
   gap: 3px;
   height: 28px;
   padding: 0 10px;
-  color: #1d4ed8;
+  color: var(--spd-p-info-strong);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  background: #dbeafe;
-  border: 1px solid #bfdbfe;
+  background: var(--spd-p-border);
+  border: 1px solid var(--spd-p-info-border);
   border-radius: 999px;
   transition: all 0.15s ease;
 }
 
 .row-action-btn:hover {
-  color: #fff;
-  background: #1677ff;
-  border-color: #1677ff;
+  color: var(--spd-p-bg);
+  background: var(--spd-p-info);
+  border-color: var(--spd-p-info);
 }
 
 /* ---------- 响应式 ---------- */

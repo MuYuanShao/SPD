@@ -53,7 +53,7 @@ async function save(itemId: number, supplierId: number) {
   <Teleport to="body">
     <div v-if="planNo" class="plan-detail-mask" @click.self="emit('close')">
       <section class="plan-detail-dialog" role="dialog" aria-modal="true" aria-labelledby="purchase-plan-detail-title">
-        <header><h3 id="purchase-plan-detail-title">采购计划 {{ planNo }}</h3><button class="btn" aria-label="关闭采购计划明细" @click="emit('close')">关闭</button></header>
+        <header><h3 id="purchase-plan-detail-title">采购计划 {{ planNo }}</h3><SpdButton label="关闭" tone="neutral" aria-label="关闭采购计划明细" @click="emit('close')"></SpdButton></header>
         <p>计划支持混合耗材。最终审批通过后，按明细配送商自动生成采购订单。</p>
         <p v-if="loading">正在加载...</p><p v-if="error" role="alert">{{ error }}</p>
         <template v-if="detail">
@@ -63,7 +63,7 @@ async function save(itemId: number, supplierId: number) {
             <tbody><tr v-for="item in detail.items" :key="item.planItemId">
               <td>{{ item.productCode }}</td><td>{{ item.productName }}</td><td>{{ item.specModel }}</td><td>{{ item.quantity }}</td><td>{{ item.unit }}</td>
               <td>{{ item.unitPrice == null ? '历史未记录' : Number(item.unitPrice).toFixed(4) }}</td><td>{{ item.amount == null ? '历史未记录' : Number(item.amount).toFixed(4) }}</td>
-              <td><template v-if="detail.canEditSupplier && auth.hasPermission('purchase-demand:convert-plan')"><select v-model.number="item.supplierId" :aria-label="`${item.productCode}配送商`" :disabled="saving"><option v-for="supplier in detail.suppliers" :key="supplier.supplierId" :value="supplier.supplierId">{{ supplier.supplierName }}</option></select><button class="btn" :disabled="saving" @click="save(item.planItemId,item.supplierId)">保存</button></template><span v-else>{{ item.supplierName }}</span></td>
+              <td><template v-if="detail.canEditSupplier && auth.hasPermission('purchase-demand:convert-plan')"><select v-model.number="item.supplierId" :aria-label="`${item.productCode}配送商`" :disabled="saving"><option v-for="supplier in detail.suppliers" :key="supplier.supplierId" :value="supplier.supplierId">{{ supplier.supplierName }}</option></select><SpdButton label="保存" tone="success" :disabled="saving" @click="save(item.planItemId,item.supplierId)"></SpdButton></template><span v-else>{{ item.supplierName }}</span></td>
             </tr></tbody>
           </table></div>
           <p v-if="detail.orderNos.length">已生成订单：{{ detail.orderNos.join('、') }}</p>
@@ -75,12 +75,12 @@ async function save(itemId: number, supplierId: number) {
 </template>
 
 <style scoped>
-.plan-detail-mask { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; background: #0006; padding: 24px; }
-.plan-detail-dialog { background: white; border-radius: 8px; padding: 20px; width: min(1180px, 96vw); max-height: 90vh; overflow: auto; }
+.plan-detail-mask { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; background: var(--spd-p-text-strong); padding: 24px; }
+.plan-detail-dialog { background: var(--spd-p-text-on-primary); border-radius: 8px; padding: 20px; width: min(1180px, 96vw); max-height: 90vh; overflow: auto; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-p { margin: 12px 0; color: #475569; font-size: var(--spd-font-size-sm); }
+p { margin: 12px 0; color: var(--spd-p-text-secondary); font-size: var(--spd-font-size-sm); }
 .plan-detail-scroll { overflow-x: auto; }
 table { min-width: 1000px; width: 100%; }
 td { white-space: nowrap; }
-select { max-width: 220px; padding: 6px; border: 1px solid #cbd5e1; border-radius: 4px; }
+select { max-width: 220px; padding: 6px; border: 1px solid var(--spd-p-border-strong); border-radius: 4px; }
 </style>

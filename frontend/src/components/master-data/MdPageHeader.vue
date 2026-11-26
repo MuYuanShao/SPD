@@ -20,17 +20,14 @@ defineEmits<{
 <template>
   <h2 class="md-page-accessible-title">{{ title }}</h2>
   <div v-if="showRefresh !== false || $slots.actions" class="md-page-actions">
-    <button
-      v-if="showRefresh !== false"
-      type="button"
-      class="md-btn"
+    <SpdButton label="刷新" tone="neutral" v-if="showRefresh !== false"
+     
+     
       :disabled="loading"
       aria-label="刷新"
-      @click="$emit('refresh')"
-    >
-      <RefreshCw :size="16" :class="{ 'md-spin': loading }" />
-      <span>刷新</span>
-    </button>
+      @click="$emit('refresh')">
+          <template #icon><RefreshCw :size="16" :class="{ 'md-spin': loading }" /></template>
+        </SpdButton>
     <slot name="actions" />
   </div>
 </template>

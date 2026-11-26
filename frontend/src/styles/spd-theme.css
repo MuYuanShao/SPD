@@ -77,91 +77,91 @@
 
   /* ============== Shadows ============== */
   /* Ant Design 阴影层级 */
-  --spd-shadow-1: 0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px 0 rgba(0, 0, 0, 0.02);
-  --spd-shadow-2: 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 9px 28px 8px rgba(0, 0, 0, 0.05);
-  --spd-shadow-3: 0 12px 32px 0 rgba(0, 0, 0, 0.10), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+  --spd-shadow-1: var(--spd-p-shadow-1);
+  --spd-shadow-2: var(--spd-p-shadow-2);
+  --spd-shadow-3: var(--spd-p-shadow-3);
   --spd-shadow-sm: var(--spd-shadow-1);
   --spd-shadow-md: var(--spd-shadow-2);
   --spd-shadow-lg: var(--spd-shadow-3);
-  --spd-shadow-color: rgba(0, 0, 0, 0.04);
+  --spd-shadow-color: var(--spd-p-shadow-color);
   --spd-shadow-focus: 0 0 0 2px color-mix(in srgb, var(--spd-primary) 20%, transparent);
 
   /* ============== Surface ============== */
   /* Ant Design Pro 风格背景层级：page < container < elevated */
-  --spd-bg-page: #f0f2f5;
-  --spd-bg-container: #ffffff;
-  --spd-bg-elevated: #ffffff;
-  --spd-bg-surface: #ffffff;
-  --spd-bg-hover: #fafafa;
-  --spd-bg-active: #e6f4ff;
-  --spd-surface: #ffffff;
+  --spd-bg-page: var(--spd-p-bg-page);
+  --spd-bg-container: var(--spd-p-bg);
+  --spd-bg-elevated: var(--spd-p-bg-subtle);
+  --spd-bg-surface: var(--spd-p-bg);
+  --spd-bg-hover: var(--spd-p-bg-muted);
+  --spd-bg-active: var(--spd-p-row-selected);
+  --spd-surface: var(--spd-p-bg);
 
   /* ============== 内容区整体渐变背景 ==============
      设计稿指定：内容区（含各业务页面容器）统一使用该渐变，
      页面容器统一引用 --spd-bg-page-gradient，不再各自设置纯色背景。 */
-  --spd-bg-page-gradient: linear-gradient(180deg, #fff, #e6f6ff 34.31%, #def6fc 69.04%, #dcf4f4);
+  --spd-bg-page-gradient: var(--spd-p-page-gradient);
 
   /* ============== Borders ============== */
   /* Ant Design 边框色阶 */
-  --spd-border-default: #d9d9d9;
-  --spd-border-subtle: #f0f0f0;
-  --spd-border-strong: #8c8c8c;
-  --spd-color-border: #d9d9d9;
-  --spd-color-border-light: #f0f0f0;
-  --spd-color-divider: #f0f0f0;
+  --spd-border-default: var(--spd-p-border);
+  --spd-border-subtle: var(--spd-p-border-subtle);
+  --spd-border-strong: var(--spd-p-border-strong);
+  --spd-color-border: var(--spd-p-border);
+  --spd-color-border-light: var(--spd-p-border-subtle);
+  --spd-color-divider: var(--spd-p-border-subtle);
 
   /* ============== Text ============== */
   /* Ant Design 文字色阶 */
-  --spd-text-primary: rgba(0, 0, 0, 0.88);
-  --spd-text-secondary: rgba(0, 0, 0, 0.65);
-  --spd-text-tertiary: rgba(0, 0, 0, 0.45);
-  --spd-text-quaternary: rgba(0, 0, 0, 0.25);
-  --spd-text-placeholder: rgba(0, 0, 0, 0.25);
-  --spd-text-link: var(--theme-primary, #1890ff);
-  --spd-text-heading: rgba(0, 0, 0, 0.88);
+  --spd-text-primary: var(--spd-p-text-strong);
+  --spd-text-secondary: var(--spd-p-text-secondary);
+  --spd-text-tertiary: var(--spd-p-text-muted);
+  --spd-text-quaternary: var(--spd-p-text-muted);
+  --spd-text-placeholder: var(--spd-p-field-placeholder);
+  --spd-text-link: var(--spd-p-primary-text);
+  --spd-text-heading: var(--spd-p-text-strong);
 
   /* ============== Primary / Accent (跟随主题) ============== */
-  --spd-primary: var(--theme-primary, #0f766e);
-  --spd-primary-dark: var(--theme-primary-strong, #115e59);
-  --spd-primary-light: color-mix(in srgb, var(--spd-primary) 80%, white);
-  --spd-primary-bg: color-mix(in srgb, var(--spd-primary) 10%, white);
-  --spd-primary-border: color-mix(in srgb, var(--spd-primary) 24%, white);
-  --spd-primary-text: var(--theme-primary-strong, #115e59);
+  --spd-primary: var(--spd-p-primary);
+  --spd-primary-dark: var(--spd-p-primary-strong);
+  --spd-primary-light: color-mix(in srgb, var(--spd-primary) 80%, var(--spd-p-bg));
+  --spd-primary-bg: color-mix(in srgb, var(--spd-primary) 10%, var(--spd-p-bg));
+  --spd-primary-border: color-mix(in srgb, var(--spd-primary) 24%, var(--spd-p-bg));
+  --spd-primary-text: var(--spd-p-primary-text);
   --spd-primary-glow: color-mix(in srgb, var(--spd-primary) 18%, transparent);
 
   /* ============== Semantic Colors ============== */
-  --spd-success: #16a34a;
-  --spd-success-bg: #f0fdf4;
-  --spd-success-text: #15803d;
-  --spd-success-border: #bbf7d0;
+  --spd-success: var(--spd-p-success);
+  --spd-success-bg: var(--spd-p-success-bg);
+  --spd-success-text: var(--spd-p-success-text);
+  --spd-success-border: var(--spd-p-success-border);
 
-  --spd-warning: #d97706;
-  --spd-warning-bg: #fffbeb;
-  --spd-warning-text: #b45309;
-  --spd-warning-border: #fde68a;
+  --spd-warning: var(--spd-p-warning);
+  --spd-warning-bg: var(--spd-p-warning-bg);
+  --spd-warning-text: var(--spd-p-warning-text);
+  --spd-warning-border: var(--spd-p-warning-border);
 
-  --spd-danger: #dc2626;
-  --spd-danger-bg: #fef2f2;
-  --spd-danger-text: #b91c1c;
-  --spd-danger-border: #fecaca;
+  --spd-danger: var(--spd-p-danger);
+  --spd-danger-bg: var(--spd-p-danger-bg);
+  --spd-danger-text: var(--spd-p-danger-text);
+  --spd-danger-border: var(--spd-p-danger-border);
 
-  --spd-info: #0284c7;
-  --spd-info-bg: #f0f9ff;
-  --spd-info-text: #0369a1;
-  --spd-info-border: #bae6fd;
+  --spd-info: var(--spd-p-info);
+  --spd-info-bg: var(--spd-p-info-bg);
+  --spd-info-text: var(--spd-p-info-text);
+  --spd-info-border: var(--spd-p-info-border);
 
   /* ============== Gray Scale ============== */
-  --spd-gray-50: #f8fafc;
-  --spd-gray-100: #f1f5f9;
-  --spd-gray-200: #e2e8f0;
-  --spd-gray-300: #cbd5e1;
-  --spd-gray-400: #94a3b8;
-  --spd-gray-500: #64748b;
-  --spd-gray-600: #475569;
-  --spd-gray-700: #334155;
-  --spd-gray-800: #1e293b;
-  --spd-gray-900: #0f172a;
-  --spd-gray-950: #020617;
+  --spd-gray-50: var(--spd-p-neutral-surface);
+  --spd-gray-100: var(--spd-p-neutral-surface-2);
+  --spd-gray-200: var(--spd-p-border-subtle);
+  --spd-gray-300: var(--spd-p-border);
+  --spd-gray-400: var(--spd-p-border-strong);
+  --spd-gray-500: var(--spd-p-text-muted);
+  --spd-gray-600: var(--spd-p-text-secondary);
+  --spd-gray-700: var(--spd-p-text);
+  --spd-gray-800: var(--spd-p-text-strong);
+  --spd-gray-900: var(--spd-p-text-strong);
+  --spd-gray-950: var(--spd-p-text-strong);
 
   /* ============== Card accent bar ============== */
   --spd-card-accent-bar: linear-gradient(90deg, var(--spd-primary), transparent);
@@ -267,7 +267,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--spd-p-text-on-primary);
   /* 卡片头部图标尺寸固定（白名单：图标尺寸） */
   font-size: 16px;
 }
@@ -316,16 +316,16 @@
 }
 
 .spd-stat-card.pending::before {
-  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+  background: linear-gradient(90deg, var(--spd-p-warning), var(--spd-p-warning-strong));
 }
 .spd-stat-card.approved::before {
-  background: linear-gradient(90deg, #10b981, #34d399);
+  background: linear-gradient(90deg, var(--spd-p-success), var(--spd-p-success-strong));
 }
 .spd-stat-card.rejected::before {
-  background: linear-gradient(90deg, #ef4444, #f87171);
+  background: linear-gradient(90deg, var(--spd-p-danger), var(--spd-p-danger-strong));
 }
 .spd-stat-card.info::before {
-  background: linear-gradient(90deg, #0284c7, #38bdf8);
+  background: linear-gradient(90deg, var(--spd-p-info), var(--spd-p-info-strong));
 }
 
 .spd-stat-icon {
@@ -342,20 +342,20 @@
 }
 
 .spd-stat-icon.pending {
-  background: linear-gradient(135deg, #fef3c7, #fde68a);
-  color: #d97706;
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-text);
 }
 .spd-stat-icon.approved {
-  background: linear-gradient(135deg, #d1fae5, #a7f3d0);
-  color: #059669;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-text);
 }
 .spd-stat-icon.rejected {
-  background: linear-gradient(135deg, #fee2e2, #fecaca);
-  color: #dc2626;
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-text);
 }
 .spd-stat-icon.info {
-  background: linear-gradient(135deg, #e0f2fe, #bae6fd);
-  color: #0284c7;
+  background: var(--spd-p-info-bg);
+  color: var(--spd-p-text-secondary);
 }
 
 .spd-stat-content {
@@ -431,7 +431,7 @@
 
 .spd-btn-primary {
   background: linear-gradient(135deg, var(--spd-primary), var(--spd-primary-dark));
-  color: white;
+  color: var(--spd-p-text-on-primary);
   border-color: transparent;
   box-shadow: 0 2px 6px var(--spd-primary-glow);
 }
@@ -439,7 +439,7 @@
 .spd-btn-primary:hover {
   background: linear-gradient(135deg, var(--spd-primary-light), var(--spd-primary));
   border-color: transparent;
-  color: white;
+  color: var(--spd-p-text-on-primary);
   box-shadow: 0 4px 12px var(--spd-primary-glow);
 }
 
@@ -648,7 +648,7 @@
 }
 
 .spd-tab.active {
-  color: white;
+  color: var(--spd-p-text-on-primary);
   background: linear-gradient(135deg, var(--spd-primary), var(--spd-primary-dark));
   box-shadow: var(--spd-shadow-sm);
 }
@@ -667,8 +667,8 @@
 }
 
 .spd-tab.active .spd-tab-count {
-  background: rgba(255, 255, 255, 0.25);
-  color: white;
+  background: color-mix(in srgb, var(--spd-c-text-on-primary) 25%, transparent);
+  color: var(--spd-c-text-on-primary);
 }
 
 /* =====================================================================
@@ -702,7 +702,7 @@
 
 .spd-pagination :deep(.el-pager li.is-active) {
   background: linear-gradient(135deg, var(--spd-primary), var(--spd-primary-dark));
-  color: white;
+  color: var(--spd-p-text-on-primary);
 }
 
 /* =====================================================================
@@ -899,8 +899,8 @@
    ===================================================================== */
 .spd-code {
   display: inline-block;
-  background: var(--spd-gray-900);
-  color: #e2e8f0;
+  background: var(--spd-p-code-bg);
+  color: var(--spd-p-code-text);
   padding: 4px 10px;
   border-radius: var(--spd-radius-sm);
   font-family: var(--spd-font-family-mono);

@@ -8,12 +8,12 @@ import { useListColumns, type ListColumnConfig } from '../../composables/useList
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { fetchOperationCockpit, type OperationCockpitData } from '../../api/operationCockpit'
+import { notifyError } from '../../composables/useNotify'
 
 const now = new Date()
 const selectedMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
 const clock = ref('')
 const loading = ref(false)
-const error = ref('')
 const data = ref<OperationCockpitData>(emptyData(selectedMonth.value))
 
 /* ===== 列表列配置 =====
@@ -104,7 +104,7 @@ const totalCategoryAmount = computed(() =>
   data.value.categories.reduce((sum, item) => sum + Number(item.currentAmount || 0), 0)
 )
 const categoryGradient = computed(() => {
-  const colors = ['#2f8cff', '#20c7c1', '#62cf8a']
+  const colors = ['var(--spd-p-info)', 'var(--spd-p-success)', 'var(--spd-p-success)']
   const total = Math.max(1, totalCategoryAmount.value)
   let cursor = 0
   return `conic-gradient(${data.value.categories.map((item, index) => {
@@ -154,11 +154,10 @@ function updateClock() {
 }
 async function loadCockpit() {
   loading.value = true
-  error.value = ''
   try {
     data.value = await fetchOperationCockpit(selectedMonth.value)
   } catch (reason) {
-    error.value = reason instanceof Error ? reason.message : '运营驾驶舱数据加载失败'
+    notifyError(reason instanceof Error ? reason.message : '运营驾驶舱数据加载失败')
     data.value = emptyData(selectedMonth.value)
   } finally {
     loading.value = false
@@ -188,7 +187,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
       <div class="cockpit-clock"><span>每日更新{{ data.statisticsDate ? ` · 数据日 ${data.statisticsDate}` : '' }}</span><strong>{{ clock }}</strong></div>
     </header>
 
-    <p v-if="error" class="cockpit-error">{{ error }}</p>
+    <!-- 请求失败统一由通用消息接口（Element Plus 消息弹层）抛出，
+         不再在页面上方渲染内联错误条。 -->
 
     <!-- 顶部 KPI 卡已按产品方向移除；核心指标压缩为一行紧凑摘要，
          避免大屏顶部被大块卡片占满，同时保留关键数值。 -->
@@ -233,7 +233,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
         <header><h2>月度使用趋势</h2><span class="legend-line"><i></i>消耗金额</span></header>
         <div class="trend-chart">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="近十二个月耗材使用趋势">
-            <defs><linearGradient id="cockpitTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#20c7c1" stop-opacity=".55"/><stop offset="1" stop-color="#20c7c1" stop-opacity="0"/></linearGradient></defs>
+            <defs><linearGradient id="cockpitTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--spd-p-success)" stop-opacity=".55"/><stop offset="1" stop-color="var(--spd-p-success)" stop-opacity="0"/></linearGradient></defs>
             <g class="trend-grid">
               <line v-for="line in [20, 44, 68, 92]" :key="line" x1="5" x2="95" :y1="line" :y2="line" />
             </g>
@@ -295,26 +295,22 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
                 >分类对比</button>
               </div>
               <div class="ulc-col-settings">
-                <button
-                  ref="cockpitColSettingsAnchorRef"
-                  type="button"
-                  class="md-btn md-btn-primary"
-                  @click="activeCockpitCols.settingsOpen.value = !activeCockpitCols.settingsOpen.value"
-                >
-                  <Columns3 :size="16" />
-                  <span>列设置</span>
-                  <ChevronDown :size="14" :class="{ rotated: activeCockpitCols.settingsOpen.value }" />
-                </button>
+                <SpdButton label="列设置" tone="neutral" ref="cockpitColSettingsAnchorRef"
+                 
+                 
+                  @click="activeCockpitCols.settingsOpen.value = !activeCockpitCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
                 <div
                   v-if="activeCockpitCols.settingsOpen.value"
                   ref="cockpitColSettingsPopRef"
                   class="ulc-col-settings-pop"
                   :class="{ 'is-align-right': cockpitColSettingsPop.align.value === 'right', 'is-align-up': cockpitColSettingsPop.vertical.value === 'up' }"
-                  :style="{ '--ulc-pop-offset-y': cockpitColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': cockpitColSettingsPop.maxHeight.value + 'px' }"
+                  :style="cockpitColSettingsPop.popStyle.value"
                 >
                   <header>
                     <strong>列展示设置</strong>
-                    <button type="button" class="ulc-link" @click="activeCockpitCols.resetColumns()">恢复默认</button>
+                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="activeCockpitCols.resetColumns()"></SpdButton>
                   </header>
                   <div class="ulc-col-settings-list">
                     <label v-for="col in activeCockpitCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -329,7 +325,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
                     </label>
                   </div>
                   <footer>
-                    <button type="button" class="ulc-action" @click="activeCockpitCols.settingsOpen.value = false">确定</button>
+                    <SpdButton label="确定" tone="primary" @click="activeCockpitCols.settingsOpen.value = false"></SpdButton>
                   </footer>
                 </div>
               </div>
@@ -489,7 +485,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
       </article>
 
       <article class="cockpit-panel alert-panel">
-        <header><h2><AlertTriangle :size="18" />库存与异常提醒</h2><button type="button" :disabled="loading" @click="loadCockpit"><RefreshCw :size="15" />刷新</button></header>
+        <header><h2><AlertTriangle :size="18" />库存与异常提醒</h2><SpdButton label="刷新" :disabled="loading" @click="loadCockpit">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton></header>
         <div class="alert-list">
           <div v-for="item in data.alerts" :key="item.productCode" class="alert-row">
             <span class="alert-type">{{ item.alertType }}</span>
@@ -516,32 +514,35 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
    - 排版：等宽数字 / 强字重 / 标题字距
    - 动效：呼吸光、扫描线、悬停抬升、徽章闪烁
    ===================================================================== */
-.main-area:has(.operation-cockpit-page) { padding: 0; overflow: auto; background: #02060f; }
+.main-area:has(.operation-cockpit-page) { padding: 0; overflow: auto; background: var(--spd-p-bg-page); }
 .main-area:has(.operation-cockpit-page) > .topbar { display: none; }
 
 .operation-cockpit-page {
-  --bg-base: #02060f;
-  --bg-deep: #050a1a;
-  --neon-cyan: #00f0ff;
-  --neon-blue: #3a8bff;
-  --neon-purple: #8a5cff;
-  --neon-pink: #ff4d8d;
-  --neon-amber: #ffb84d;
-  --neon-green: #2bff9d;
-  --neon-red: #ff4d6d;
-  --panel-stroke: rgba(0, 240, 255, .38);
-  --panel-stroke-soft: rgba(0, 240, 255, .16);
-  --panel-bg: linear-gradient(135deg, rgba(8, 22, 48, .88), rgba(2, 6, 15, .78));
-  --text-main: #d8f4ff;
-  --text-dim: #6a8aa0;
+  --bg-base: var(--spd-p-bg-page);
+  --bg-deep: var(--spd-p-bg-page);
+  --neon-cyan: var(--spd-p-primary);
+  --neon-blue: var(--spd-p-info);
+  --neon-purple: var(--spd-p-primary-strong);
+  --neon-pink: var(--spd-p-danger);
+  --neon-amber: var(--spd-p-warning);
+  --neon-green: var(--spd-p-success);
+  --neon-red: var(--spd-p-danger);
+  --panel-stroke: color-mix(in srgb, var(--spd-p-primary) 38%, transparent);
+  --panel-stroke-soft: color-mix(in srgb, var(--spd-p-primary) 16%, transparent);
+  --panel-bg: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-text-strong) 88%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 78%, transparent));
+  /* 本页面板底色已改为浅色（--spd-p-bg-page），
+     因此正文主色必须用深色令牌。此前误取背景令牌 --spd-p-info-bg（#e9f1f5），
+     导致「耗材消费构成」「心内科」等标题在浅底上几乎不可见（对比度 1.05:1 / 1.07:1）。 */
+  --text-main: var(--spd-p-text-strong);
+  --text-dim: var(--spd-p-text-muted);
   min-width: 1280px;
   min-height: 100vh;
   color: var(--text-main);
   background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(58, 139, 255, .22), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 80% 100%, rgba(138, 92, 255, .18), transparent 70%),
-    radial-gradient(ellipse 50% 40% at 50% 50%, rgba(0, 240, 255, .08), transparent 70%),
-    linear-gradient(180deg, #02060f 0%, #050a1a 50%, #02060f 100%);
+    radial-gradient(ellipse 80% 50% at 20% 0%, color-mix(in srgb, var(--spd-p-info) 22%, transparent), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 80% 100%, color-mix(in srgb, var(--spd-p-primary-strong) 18%, transparent), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 50% 50%, color-mix(in srgb, var(--spd-p-primary) 8%, transparent), transparent 70%),
+    linear-gradient(180deg, var(--spd-p-bg-page) 0%, var(--spd-p-bg-page) 50%, var(--spd-p-bg-page) 100%);
   padding: 18px 22px 22px;
   font-family: var(--spd-font-family);
   position: relative;
@@ -555,9 +556,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   inset: 0;
   pointer-events: none;
   background-image:
-    linear-gradient(rgba(0, 240, 255, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, .045) 1px, transparent 1px),
-    radial-gradient(circle, rgba(0, 240, 255, .12) 1px, transparent 1.5px);
+    linear-gradient(color-mix(in srgb, var(--spd-p-primary) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 5%, transparent) 1px, transparent 1px),
+    radial-gradient(circle, color-mix(in srgb, var(--spd-p-primary) 12%, transparent) 1px, transparent 1.5px);
   background-size: 40px 40px, 40px 40px, 40px 40px;
   background-position: 0 0, 0 0, 0 0;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 50%, black 30%, transparent 100%);
@@ -572,7 +573,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   left: 0; right: 0; top: 0;
   height: 2px;
   background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  box-shadow: 0 0 18px var(--neon-cyan), 0 0 38px rgba(0, 240, 255, .35);
+  box-shadow: var(--spd-p-shadow-3);
   animation: cockpit-scan 6s linear infinite;
   z-index: 1;
 }
@@ -602,9 +603,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   width: 50px;
   height: 50px;
   border-radius: 12px;
-  color: #02060f;
+  color: var(--spd-p-bg-page);
   background: linear-gradient(135deg, var(--neon-cyan), var(--neon-blue));
-  box-shadow: 0 0 24px rgba(0, 240, 255, .45), inset 0 1px rgba(255, 255, 255, .25);
+  box-shadow: var(--spd-p-shadow-3);
   transition: transform .35s cubic-bezier(.4, 0, .2, 1);
 }
 .cockpit-brand-mark::before {
@@ -624,7 +625,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .cockpit-brand strong {
   font-size: var(--spd-font-size-lg);
   letter-spacing: .08em;
-  background: linear-gradient(90deg, #ffffff, var(--neon-cyan));
+  background: linear-gradient(90deg, var(--spd-p-bg), var(--neon-cyan));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -638,7 +639,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   height: 42px;
   border: 1px solid var(--panel-stroke);
   border-radius: 6px;
-  background: linear-gradient(180deg, rgba(0, 240, 255, .06), rgba(0, 240, 255, .02));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--spd-p-primary) 6%, transparent), color-mix(in srgb, var(--spd-p-primary) 2%, transparent));
   position: relative;
   overflow: hidden;
   transition: border-color .2s, box-shadow .2s;
@@ -653,14 +654,14 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 .cockpit-month::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
 .cockpit-month::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
-.cockpit-month:focus-within { border-color: var(--neon-cyan); box-shadow: 0 0 0 3px rgba(0, 240, 255, .14), 0 0 22px rgba(0, 240, 255, .25); }
+.cockpit-month:focus-within { border-color: var(--neon-cyan); box-shadow: var(--spd-p-shadow-3); }
 .cockpit-month span { padding: 0 14px; color: var(--neon-cyan); font-size: var(--spd-font-size-sm); letter-spacing: .12em; font-weight: 700; }
 .cockpit-month input {
   width: 140px;
   height: 100%;
   border: 0;
   border-left: 1px solid var(--panel-stroke-soft);
-  color: white;
+  color: var(--spd-p-text-strong);
   background: transparent;
   padding: 0 12px;
   color-scheme: dark;
@@ -683,11 +684,11 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   font-size: var(--spd-font-size-5xl);
   letter-spacing: .22em;
   font-weight: 800;
-  background: linear-gradient(180deg, #ffffff 0%, var(--neon-cyan) 60%, var(--neon-blue) 100%);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--neon-cyan) 60%, var(--neon-blue) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  text-shadow: 0 0 26px rgba(0, 240, 255, .35);
+  text-shadow: 0 0 26px color-mix(in srgb, var(--spd-p-primary) 35%, transparent);
   position: relative;
   padding: 0 4px;
 }
@@ -707,7 +708,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .cockpit-title i {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-blue), var(--neon-cyan), transparent);
-  box-shadow: 0 0 10px rgba(0, 240, 255, .5);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .cockpit-clock {
@@ -720,8 +721,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .cockpit-clock strong {
   font-size: var(--spd-font-size-4xl);
   font-variant-numeric: tabular-nums;
-  color: white;
-  text-shadow: 0 0 12px var(--neon-cyan), 0 0 24px rgba(0, 240, 255, .55);
+  color: var(--spd-p-text-strong);
+  text-shadow: 0 0 12px var(--neon-cyan), 0 0 24px color-mix(in srgb, var(--spd-p-primary) 55%, transparent);
   letter-spacing: .08em;
   font-weight: 700;
   line-height: 1;
@@ -729,9 +730,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 
 .cockpit-error {
   margin: 8px 0 0;
-  border: 1px solid rgba(255, 77, 109, .55);
-  color: #ffd0d8;
-  background: linear-gradient(90deg, rgba(255, 77, 109, .14), rgba(255, 77, 109, .04));
+  border: 1px solid color-mix(in srgb, var(--spd-p-danger) 55%, transparent);
+  color: var(--spd-p-danger-text);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-danger) 14%, transparent), color-mix(in srgb, var(--spd-p-danger) 4%, transparent));
   border-radius: 4px;
   padding: 9px 16px;
   font-size: var(--spd-font-size-sm);
@@ -759,7 +760,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   padding: 8px 16px;
   border: 1px solid var(--panel-stroke-soft);
   border-radius: 6px;
-  background: linear-gradient(90deg, rgba(0, 240, 255, .08), rgba(2, 6, 15, .55) 60%, transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 8%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 55%, transparent) 60%, transparent);
 }
 .cockpit-summary-item {
   display: inline-flex;
@@ -775,7 +776,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   letter-spacing: .12em;
 }
 .cockpit-summary-item strong {
-  color: white;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-lg);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -807,13 +808,13 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   overflow: hidden;
   border: 1px solid var(--panel-stroke);
   border-radius: 4px;
-  background-color: #050a1a !important;
-  background-image: linear-gradient(135deg, rgba(0, 240, 255, .06), rgba(2, 6, 15, .82)) !important;
+  background-color: var(--spd-p-bg-page) !important;
+  background-image: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 6%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 82%, transparent)) !important;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
   flex-direction: column;
-  box-shadow: inset 0 1px rgba(0, 240, 255, .08), 0 6px 20px rgba(0, 0, 0, .35);
+  box-shadow: var(--spd-p-shadow-3);
 }
 .cockpit-panel::before,
 .cockpit-panel::after {
@@ -834,7 +835,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   flex: 0 0 auto;
   border-bottom: 1px solid var(--panel-stroke-soft);
   padding: 0 18px;
-  background: linear-gradient(90deg, rgba(0, 240, 255, .12), transparent 70%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 12%, transparent), transparent 70%);
   position: relative;
 }
 .cockpit-panel > header::before {
@@ -852,7 +853,10 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   margin: 0;
   font-size: var(--spd-font-size-lg);
   letter-spacing: .12em;
-  color: white;
+  /* 面板标题：面板底色已改为浅色（--spd-p-bg-page），
+     不能用「主色底上的文字」令牌 --spd-p-text-on-primary（白色），
+     否则标题在浅底上对比度仅 1.05:1、几乎不可见。改用深色正文令牌。 */
+  color: var(--spd-p-text-strong);
   font-weight: 700;
 }
 .cockpit-panel h2::before {
@@ -882,7 +886,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   max-width: 210px;
   margin: auto;
   border-radius: 50%;
-  filter: drop-shadow(0 0 18px rgba(0, 240, 255, .35));
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--spd-p-primary) 35%, transparent));
 }
 .category-donut::before {
   content: "";
@@ -898,13 +902,13 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   width: 60%;
   height: 60%;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, rgba(2, 6, 15, .9), rgba(2, 6, 15, .65));
-  box-shadow: inset 0 0 18px rgba(0, 240, 255, .25), inset 0 0 0 1px var(--panel-stroke);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--spd-p-bg-page) 90%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 65%, transparent));
+  box-shadow: var(--spd-p-shadow-2);
 }
 .category-donut strong {
   font-size: var(--spd-font-size-2xl);
   font-weight: 800;
-  color: white;
+  color: var(--spd-p-text-strong);
   text-shadow: 0 0 12px var(--neon-cyan);
   font-variant-numeric: tabular-nums;
 }
@@ -924,13 +928,13 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .category-legend .color-1 { background: var(--neon-cyan); color: var(--neon-cyan); }
 .category-legend .color-2 { background: var(--neon-green); color: var(--neon-green); }
 .category-legend .legend-label { font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
-.category-legend strong { font-size: var(--spd-font-size-base); font-variant-numeric: tabular-nums; color: white; }
+.category-legend strong { font-size: var(--spd-font-size-base); font-variant-numeric: tabular-nums; color: var(--spd-p-text-strong); }
 .category-legend small { grid-column: 3 / 5; color: var(--text-dim); text-align: right; font-size: var(--spd-font-size-sm); font-variant-numeric: tabular-nums; }
 
 /* 月度趋势 */
 .trend-chart { height: 236px; padding: 18px 18px 0; display: flex; flex-direction: column; min-height: 0; }
 .trend-chart svg { width: 100%; flex: 1; min-height: 0; overflow: visible; }
-.trend-grid line { stroke: rgba(0, 240, 255, .18); stroke-width: .35; stroke-dasharray: 2 2; }
+.trend-grid line { stroke: color-mix(in srgb, var(--spd-p-primary) 18%, transparent); stroke-width: .35; stroke-dasharray: 2 2; }
 .trend-chart polyline {
   fill: none;
   stroke: var(--neon-cyan);
@@ -989,7 +993,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   width: 22px;
   height: 22px;
   border-radius: 4px;
-  color: #02060f;
+  color: var(--spd-p-bg-page);
   background: var(--neon-cyan);
   font-weight: 800;
   font-size: var(--spd-font-size-xs);
@@ -997,25 +1001,26 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   box-shadow: 0 0 10px var(--neon-cyan);
 }
 .rank-no.rank-1 {
-  background: linear-gradient(135deg, #fff7a0, var(--neon-amber));
-  color: #4a2800;
-  box-shadow: 0 0 14px rgba(255, 184, 77, .65);
+  background: linear-gradient(135deg, var(--spd-p-warning-border), var(--neon-amber));
+  color: var(--spd-p-warning-text);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .rank-no.rank-2 {
-  background: linear-gradient(135deg, #f0f4ff, #a8b8d4);
-  color: #1a2030;
-  box-shadow: 0 0 12px rgba(168, 184, 212, .5);
+  background: linear-gradient(135deg, var(--spd-p-info-bg), var(--spd-p-info));
+  /* 名次徽标文字：深色（此前误用浅色底令牌作文字，对比度仅 1.12:1） */
+  color: var(--spd-p-text-strong);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .rank-no.rank-3 {
-  background: linear-gradient(135deg, #ffd0a0, #b67a4a);
-  color: #3a1a00;
-  box-shadow: 0 0 12px rgba(182, 122, 74, .55);
+  background: linear-gradient(135deg, var(--spd-p-warning-border), var(--spd-p-warning));
+  color: var(--spd-p-warning-text);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .department-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-main); }
 .rank-bar {
   position: relative;
   height: 14px;
-  background: rgba(0, 240, 255, .08);
+  background: color-mix(in srgb, var(--spd-p-primary) 8%, transparent);
   border: 1px solid var(--panel-stroke-soft);
   border-radius: 2px;
   overflow: hidden;
@@ -1025,14 +1030,14 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   height: 100%;
   border-radius: 0 1px 1px 0;
   background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
-  box-shadow: 0 0 10px rgba(0, 240, 255, .55);
+  box-shadow: var(--spd-p-shadow-2);
   position: relative;
 }
 .rank-bar i::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent 30%, rgba(255, 255, 255, .4) 50%, transparent 70%);
+  background: linear-gradient(90deg, transparent 30%, color-mix(in srgb, var(--spd-p-bg) 40%, transparent) 50%, transparent 70%);
   animation: cockpit-shine 2.5s linear infinite;
 }
 @keyframes cockpit-shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
@@ -1055,12 +1060,12 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   content: "";
   position: absolute;
   left: 0; right: 0; top: 0; bottom: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(0, 240, 255, .03) 50%, transparent 100%);
+  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--spd-p-primary) 3%, transparent) 50%, transparent 100%);
   pointer-events: none;
 }
 .focus-bars i { position: relative; width: 36%; min-height: 4px; border-radius: 2px 2px 0 0; transition: filter .2s; }
-.focus-bars .current { background: linear-gradient(180deg, var(--neon-cyan), #0a4a6a); box-shadow: 0 0 14px rgba(0, 240, 255, .45); }
-.focus-bars .previous { background: linear-gradient(180deg, var(--neon-blue), #0a2a5a); }
+.focus-bars .current { background: linear-gradient(180deg, var(--neon-cyan), var(--spd-p-info-strong)); box-shadow: var(--spd-p-shadow-2); }
+.focus-bars .previous { background: linear-gradient(180deg, var(--neon-blue), var(--spd-p-info-strong)); }
 .focus-bars .current span {
   position: absolute;
   top: -20px;
@@ -1070,7 +1075,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   font-size: var(--spd-chart-font-lg);
   font-weight: 800;
   color: var(--neon-cyan);
-  background: rgba(2, 6, 15, .85);
+  background: color-mix(in srgb, var(--spd-p-bg-page) 85%, transparent);
   padding: 2px 6px;
   border-radius: 3px;
   white-space: nowrap;
@@ -1118,10 +1123,10 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   background: transparent;
 }
 .cockpit-compare-card :deep(.el-table__row--striped td.el-table__cell) {
-  background: rgba(0, 240, 255, .035) !important;
+  background: color-mix(in srgb, var(--spd-p-primary) 4%, transparent) !important;
 }
 .cockpit-compare-card :deep(.el-table__row:hover > td.el-table__cell) {
-  background: rgba(0, 240, 255, .07) !important;
+  background: color-mix(in srgb, var(--spd-p-primary) 7%, transparent) !important;
 }
 .cockpit-compare-card :deep(.el-table td.el-table__cell) {
   color: var(--text-main);
@@ -1135,7 +1140,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 /* 列设置浮层在深色大屏上需要暗色底 */
 .cockpit-compare-card :deep(.ulc-col-settings-pop) {
-  background: rgba(2, 6, 15, .96);
+  background: color-mix(in srgb, var(--spd-p-bg-page) 96%, transparent);
   border-color: var(--panel-stroke);
   color: var(--text-main);
 }
@@ -1173,7 +1178,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   padding: 2px;
   border: 1px solid var(--panel-stroke-soft);
   border-radius: 4px;
-  background: rgba(0, 240, 255, .05);
+  background: color-mix(in srgb, var(--spd-p-primary) 5%, transparent);
 }
 .cockpit-panel-switch button {
   border: 0;
@@ -1189,9 +1194,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 .cockpit-panel-switch button:hover { color: var(--neon-cyan); }
 .cockpit-panel-switch button.is-active {
-  color: #02060f;
+  color: var(--spd-p-bg-page);
   background: var(--neon-cyan);
-  box-shadow: 0 0 12px rgba(0, 240, 255, .45);
+  box-shadow: var(--spd-p-shadow-2);
   font-weight: 700;
 }
 
@@ -1206,7 +1211,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   border: 1px solid var(--panel-stroke);
   border-radius: 4px;
   color: var(--neon-cyan);
-  background: rgba(0, 240, 255, .06);
+  background: color-mix(in srgb, var(--spd-p-primary) 6%, transparent);
   padding: 5px 12px;
   font: inherit;
   font-size: var(--spd-font-size-sm);
@@ -1215,9 +1220,9 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   transition: background .2s, border-color .2s, box-shadow .2s;
 }
 .alert-panel > header button:hover:not(:disabled) {
-  background: rgba(0, 240, 255, .16);
+  background: color-mix(in srgb, var(--spd-p-primary) 16%, transparent);
   border-color: var(--neon-cyan);
-  box-shadow: 0 0 12px rgba(0, 240, 255, .45);
+  box-shadow: var(--spd-p-shadow-2);
 }
 .alert-panel > header button:disabled { opacity: .5; cursor: not-allowed; }
 .alert-list { display: grid; gap: 8px; padding: 12px 14px; height: calc(100% - 92px); overflow: auto; align-content: start; }
@@ -1232,7 +1237,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 .alert-type {
   border-radius: 3px;
   color: var(--neon-red);
-  background: rgba(255, 77, 109, .14);
+  background: color-mix(in srgb, var(--spd-p-danger) 14%, transparent);
   padding: 5px 8px;
   /* D-06：预警条目风险等级标记 —— 承载用户需读取判断的等级语义，
      按 G-9 / L-7 提升到 --spd-font-size-sm（13/15/17px），不再使用 xs。 */
@@ -1240,8 +1245,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   text-align: center;
   font-weight: 700;
   letter-spacing: .12em;
-  border: 1px solid rgba(255, 77, 109, .45);
-  text-shadow: 0 0 6px rgba(255, 77, 109, .45);
+  border: 1px solid color-mix(in srgb, var(--spd-p-danger) 45%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--spd-p-danger) 45%, transparent);
 }
 .alert-info { display: grid; gap: 4px; min-width: 0; }
 .alert-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--spd-font-size-sm); color: var(--text-main); }
@@ -1258,7 +1263,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   flex: 0 0 auto;
 }
 .alert-panel > footer span { display: flex; align-items: center; gap: 6px; }
-.alert-panel > footer strong { color: var(--neon-red); font-weight: 800; text-shadow: 0 0 6px rgba(255, 77, 109, .5); }
+.alert-panel > footer strong { color: var(--neon-red); font-weight: 800; text-shadow: 0 0 6px color-mix(in srgb, var(--spd-p-danger) 50%, transparent); }
 /* <small> 的 UA 默认 font-size: smaller 会把 11px 再缩到 9.17px，
    低于全站 12px 下限 —— 显式覆盖为辅助层级字号。 */
 .alert-panel > footer small { font-size: var(--spd-font-size-xs); }
@@ -1286,26 +1291,26 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 
 /* 暗色滚动条 */
 .operation-cockpit-page ::-webkit-scrollbar { width: 8px; height: 8px; }
-.operation-cockpit-page ::-webkit-scrollbar-track { background: rgba(0, 240, 255, .04); }
-.operation-cockpit-page ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--neon-cyan), var(--neon-blue)); border-radius: 4px; box-shadow: 0 0 6px rgba(0, 240, 255, .35); }
+.operation-cockpit-page ::-webkit-scrollbar-track { background: color-mix(in srgb, var(--spd-p-primary) 4%, transparent); }
+.operation-cockpit-page ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--neon-cyan), var(--neon-blue)); border-radius: 4px; box-shadow: var(--spd-p-shadow-1); }
 .operation-cockpit-page ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, var(--neon-cyan), var(--neon-purple)); }
 
 /* Element Plus tooltip 暗色化（环形图 hover 显示的"高值/定数..."） */
 .operation-cockpit-page .el-popper,
 .operation-cockpit-page .el-tooltip__popper,
 .operation-cockpit-page .el-tooltip-popper {
-  background: rgba(2, 6, 15, .92) !important;
+  background: color-mix(in srgb, var(--spd-p-bg-page) 92%, transparent) !important;
   color: var(--text-main) !important;
   border: 1px solid var(--panel-stroke) !important;
-  box-shadow: 0 0 14px rgba(0, 240, 255, .35) !important;
+  box-shadow: var(--spd-p-shadow-2);
   backdrop-filter: blur(6px);
 }
 .operation-cockpit-page .el-popper .el-popper__arrow::before,
 .operation-cockpit-page .el-tooltip__popper .el-popper__arrow::before {
-  background: rgba(2, 6, 15, .92) !important;
+  background: color-mix(in srgb, var(--spd-p-bg-page) 92%, transparent) !important;
   border-color: var(--panel-stroke) !important;
 }
 
 /* 选区颜色 */
-.operation-cockpit-page ::selection { background: rgba(0, 240, 255, .35); color: white; }
+.operation-cockpit-page ::selection { background: color-mix(in srgb, var(--spd-p-primary) 35%, transparent); color: var(--spd-p-text-on-primary); }
 </style>

@@ -120,9 +120,9 @@ const emit = defineEmits<{
           <h3>{{ mode === 'create' ? '新增库房' : '编辑库房' }}</h3>
           <span v-if="mode === 'edit'" class="warehouse-dialog-editing-tag">正在编辑</span>
         </div>
-        <button class="wdb-btn wdb-btn-ghost" type="button" aria-label="关闭" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton label="" tone="primary" aria-label="关闭" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <form class="warehouse-dialog-form" @submit.prevent="emit('save')">
@@ -163,10 +163,10 @@ const emit = defineEmits<{
                   @input="handleDepartmentInput"
                   @focus="searchDepartments"
                 />
-                <button class="wdb-btn wdb-btn-info wdb-btn-icon" type="button" aria-label="搜索科室"
+                <SpdButton label="" tone="primary" icon-only aria-label="搜索科室"
                   :disabled="!form.campusName" @click="searchDepartments">
-                  <Search :size="16" />
-                </button>
+          <template #icon><Search :size="16" /></template>
+        </SpdButton>
               </div>
               <div v-if="deptResultsOpen" class="dept-results">
                 <button
@@ -229,15 +229,11 @@ const emit = defineEmits<{
               <Search :size="16" />
               <input v-model.trim="productKeyword" type="search" placeholder="搜索商品编码、名称或规格" />
             </label>
-            <button
-              class="wdb-btn wdb-btn-secondary"
-              type="button"
-              :disabled="productsLoading || !filteredProducts.length"
-              @click="toggleAllFiltered"
-            >
-              <component :is="isAllFilteredSelected ? CheckSquare : Square" :size="16" />
-              {{ isAllFilteredSelected ? '取消当前结果' : '全选当前结果' }}
-            </button>
+            <SpdButton tone="primary" :disabled="productsLoading || !filteredProducts.length"
+              @click="toggleAllFiltered">
+          <template #icon><component :is="isAllFilteredSelected ? CheckSquare : Square" :size="16" /></template>
+          {{ isAllFilteredSelected ? '取消当前结果' : '全选当前结果' }}
+        </SpdButton>
           </div>
 
           <div class="warehouse-product-options-wrap">
@@ -289,13 +285,10 @@ const emit = defineEmits<{
         </section>
 
         <div class="warehouse-dialog-actions">
-          <button class="wdb-btn wdb-btn-secondary" type="button" @click="emit('close')">
-            取消
-          </button>
-          <button class="wdb-btn wdb-btn-primary" type="submit">
-            <Check :size="16" />
-            保存
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="emit('close')"></SpdButton>
+          <SpdButton label="保存" tone="success" type="submit">
+          <template #icon><Check :size="16" /></template>
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -311,10 +304,10 @@ const emit = defineEmits<{
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -324,8 +317,8 @@ const emit = defineEmits<{
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  color: var(--spd-p-bg);
 }
 
 .warehouse-dialog-title {
@@ -348,16 +341,16 @@ const emit = defineEmits<{
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .warehouse-dialog-editing-tag {
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: color-mix(in srgb, var(--spd-p-bg) 22%, transparent);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .warehouse-dialog-form {
@@ -373,8 +366,8 @@ const emit = defineEmits<{
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px 18px;
   padding: 20px 24px 12px;
-  background: #f5f8fa;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border);
   overflow-y: auto;
 }
 
@@ -395,7 +388,7 @@ const emit = defineEmits<{
   flex-direction: column;
   gap: 4px;
   font-size: var(--spd-font-size-sm);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 500;
 }
 
@@ -403,10 +396,10 @@ const emit = defineEmits<{
 .field-cell select {
   min-height: 32px;
   padding: 5px 10px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
@@ -414,13 +407,13 @@ const emit = defineEmits<{
 .field-cell input:focus,
 .field-cell select:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .field-cell input[readonly] {
-  background: #f0f3f5;
-  color: #6b7c8f;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   cursor: not-allowed;
 }
 
@@ -464,38 +457,38 @@ const emit = defineEmits<{
 }
 
 .wdb-btn-primary {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wdb-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-  box-shadow: 0 6px 14px -4px rgba(99, 102, 241, 0.55);
+  background: linear-gradient(135deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wdb-btn-secondary {
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.1), rgba(13, 148, 136, 0.1));
-  color: #0d9488;
-  border-color: rgba(20, 184, 166, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 10%, transparent), color-mix(in srgb, var(--spd-p-success-text) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-primary) 20%, transparent);
 }
 
 .wdb-btn-secondary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #14b8a6, #0d9488);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(20, 184, 166, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-hover));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wdb-btn-info {
-  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1), rgba(14, 165, 233, 0.1));
-  color: #0891b2;
-  border-color: rgba(6, 182, 212, 0.2);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-success-text) 10%, transparent), color-mix(in srgb, var(--spd-p-info) 10%, transparent));
+  color: var(--spd-p-primary-hover);
+  border-color: color-mix(in srgb, var(--spd-p-success-text) 20%, transparent);
 }
 
 .wdb-btn-info:hover:not(:disabled) {
-  background: linear-gradient(135deg, #06b6d4, #0ea5e9);
-  color: #ffffff;
-  box-shadow: 0 4px 10px -4px rgba(6, 182, 212, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-info));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .wdb-btn-ghost {
@@ -503,13 +496,13 @@ const emit = defineEmits<{
   min-height: 32px;
   padding: 0;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 
 .wdb-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
   box-shadow: none;
 }
 
@@ -545,10 +538,10 @@ const emit = defineEmits<{
   z-index: 20;
   max-height: 220px;
   overflow: auto;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(15, 42, 58, 0.12);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
 }
 
 .dept-result-option {
@@ -559,9 +552,9 @@ const emit = defineEmits<{
   width: 100%;
   padding: 9px 12px;
   border: none;
-  border-bottom: 1px solid #eef3f5;
-  background: #fff;
-  color: #172b3a;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -569,17 +562,17 @@ const emit = defineEmits<{
 
 .dept-result-option:hover,
 .dept-result-option.active {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .dept-result-option small {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
 }
 
 .dept-results-empty {
   margin: 0;
   padding: 12px;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   text-align: center;
 }
@@ -593,11 +586,11 @@ const emit = defineEmits<{
   flex: 1;
   min-height: 0;
   margin: 16px 24px 0;
-  border: 1px solid #dbe8ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--spd-p-bg);
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(15, 42, 58, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .warehouse-product-toolbar {
@@ -606,8 +599,8 @@ const emit = defineEmits<{
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
-  background: linear-gradient(135deg, #f8fafc, #eef2f7);
-  border-bottom: 1px solid #e1e9ee;
+  background: linear-gradient(135deg, var(--spd-p-bg-muted), var(--spd-p-bg-muted));
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .warehouse-product-toolbar-text {
@@ -616,13 +609,13 @@ const emit = defineEmits<{
 }
 
 .warehouse-product-toolbar-text strong {
-  color: #172b3a;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .warehouse-product-toolbar-text span {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
@@ -630,8 +623,8 @@ const emit = defineEmits<{
 .warehouse-product-counter {
   padding: 4px 12px;
   border-radius: 999px;
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.12));
-  color: #4f46e5;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 12%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 12%, transparent));
+  color: var(--spd-p-primary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
   white-space: nowrap;
@@ -639,7 +632,7 @@ const emit = defineEmits<{
 
 .warehouse-product-counter b {
   font-weight: 700;
-  color: #4f46e5;
+  color: var(--spd-p-primary);
 }
 
 .warehouse-product-controls {
@@ -647,8 +640,8 @@ const emit = defineEmits<{
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-bottom: 1px solid #eaf1f4;
-  background: #ffffff;
+  border-bottom: 1px solid var(--spd-p-info-bg);
+  background: var(--spd-p-bg);
 }
 
 .warehouse-product-search {
@@ -659,16 +652,16 @@ const emit = defineEmits<{
   min-width: 200px;
   height: 36px;
   padding: 0 12px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fff;
-  color: #607487;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 
 .warehouse-product-search:focus-within {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .warehouse-product-search input {
@@ -677,7 +670,7 @@ const emit = defineEmits<{
   border: 0;
   outline: 0;
   font: inherit;
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .warehouse-product-options-wrap {
@@ -693,7 +686,7 @@ const emit = defineEmits<{
   border-spacing: 0;
   table-layout: auto;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .warehouse-product-table thead th {
@@ -705,8 +698,8 @@ const emit = defineEmits<{
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary) 0%, var(--spd-p-text-secondary) 100%);
   white-space: nowrap;
 }
 
@@ -727,7 +720,7 @@ const emit = defineEmits<{
 
 .warehouse-product-table tbody td {
   padding: 8px 14px;
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   vertical-align: middle;
 }
 
@@ -737,15 +730,15 @@ const emit = defineEmits<{
 }
 
 .warehouse-product-table tbody tr:nth-child(even) td {
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .warehouse-product-table tbody tr:hover td {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .warehouse-product-table tbody tr.selected td {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-info) 8%, transparent), color-mix(in srgb, var(--spd-p-primary-strong) 8%, transparent));
 }
 
 .warehouse-product-table tbody td.col-check {
@@ -762,31 +755,31 @@ const emit = defineEmits<{
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: 1.5px solid #cbd5e1;
+  border: 1.5px solid var(--spd-p-border-strong);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   color: transparent;
   transition: background 0.18s, border-color 0.18s, color 0.18s;
 }
 
 .check-box.on {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
   border-color: transparent;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .product-code {
-  color: #0f6f78;
+  color: var(--spd-p-primary);
   font-weight: 700;
 }
 
 .product-name {
-  color: #172b3a;
+  color: var(--spd-p-text);
   font-weight: 600;
 }
 
 .product-spec {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -794,8 +787,8 @@ const emit = defineEmits<{
   display: inline-block;
   padding: 1px 8px;
   border-radius: 4px;
-  background: rgba(20, 184, 166, 0.12);
-  color: #0d9488;
+  background: color-mix(in srgb, var(--spd-p-primary) 12%, transparent);
+  color: var(--spd-p-primary-hover);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
@@ -816,36 +809,36 @@ const emit = defineEmits<{
   min-width: 32px;
   padding: 1px 8px;
   border-radius: 4px;
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
+  background: color-mix(in srgb, var(--spd-p-success) 12%, transparent);
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .product-qty-badge.zero {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
+  background: color-mix(in srgb, var(--spd-p-warning) 12%, transparent);
+  color: var(--spd-p-warning-text);
 }
 
 .product-qty-none {
-  color: #9ca3af;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-base);
 }
 
 .warehouse-product-empty {
   margin: 0;
   padding: 32px 16px;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   text-align: center;
 }
 
 .warehouse-product-hint {
   margin: 0;
   padding: 8px 14px;
-  border-top: 1px solid #e5eef2;
-  background: #fbfdfe;
-  color: #6b7c8f;
+  border-top: 1px solid var(--spd-p-border-subtle);
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -857,8 +850,8 @@ const emit = defineEmits<{
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px 20px;
-  background: #f5f8fa;
-  border-top: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-top: 1px solid var(--spd-p-border);
 }
 
 @media (max-width: 720px) {

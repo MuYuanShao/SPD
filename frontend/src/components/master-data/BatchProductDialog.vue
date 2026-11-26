@@ -34,9 +34,9 @@ defineEmits<{
           <h3 id="batch-product-title">批量修改</h3>
           <span id="batch-product-description">一次修改多条商品属性，留空的字段表示不修改</span>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" :disabled="saving" @click="$emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="saving" @click="$emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <form class="batch-product-form" @submit.prevent="$emit('save')">
@@ -106,11 +106,11 @@ defineEmits<{
         </section>
 
         <div class="batch-product-actions">
-          <button class="btn btn-secondary" type="button" :disabled="saving" @click="$emit('close')">取消</button>
-          <button class="btn btn-primary" type="submit" :disabled="saving">
-            <Save :size="16" />
-            {{ saving ? '正在保存...' : '保存' }}
-          </button>
+          <SpdButton label="取消" :disabled="saving" @click="$emit('close')"></SpdButton>
+          <SpdButton tone="success" type="submit" :disabled="saving">
+          <template #icon><Save :size="16" /></template>
+          {{ saving ? '正在保存...' : '保存' }}
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -129,12 +129,12 @@ defineEmits<{
   width: min(1040px, calc(100vw - 32px));
   max-height: calc(100vh - 32px);
   overflow: hidden;
-  background: #fff;
+  background: var(--spd-p-bg);
   display: flex;
   flex-direction: column;
-  border: 1px solid #dbe8ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--spd-p-shadow-dialog);
 }
 
 /* ===== 头部 ===== */
@@ -145,8 +145,8 @@ defineEmits<{
   justify-content: space-between;
   gap: 12px;
   padding: 12px 18px;
-  border-bottom: 1px solid #e1eaee;
-  background: linear-gradient(180deg, #f8fcfc 0%, #fff 100%);
+  border-bottom: 1px solid var(--spd-p-border);
+  background: linear-gradient(180deg, var(--spd-p-bg-muted) 0%, var(--spd-p-bg) 100%);
 }
 
 .batch-product-header > div {
@@ -158,14 +158,14 @@ defineEmits<{
 
 .batch-product-header h3 {
   margin: 0;
-  color: #102033;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-2xl);
   font-weight: 700;
   line-height: var(--spd-lh-tight);
 }
 
 .batch-product-header span {
-  color: #687e8a;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-tight);
 }
@@ -176,7 +176,7 @@ defineEmits<{
   align-items: center;
   gap: 7px;
   margin: 0 0 7px;
-  color: #0f7580;
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-sm);
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -190,18 +190,18 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #dbe8ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #fff;
-  color: #5b6b7a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-muted);
   cursor: pointer;
   transition: all 160ms ease;
 }
 
 .batch-product-header .btn-icon:hover:not(:disabled) {
-  border-color: #16838d;
-  color: #16838d;
-  background: #effaf8;
+  border-color: var(--spd-p-success-text);
+  color: var(--spd-p-success-text);
+  background: var(--spd-p-primary-bg);
 }
 
 /* ===== 表单 ===== */
@@ -221,9 +221,9 @@ defineEmits<{
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px 12px;
   padding: 12px;
-  border: 1px solid #deeaee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fbfdfd;
+  background: var(--spd-p-bg);
 }
 
 .batch-product-section-heading {
@@ -232,22 +232,22 @@ defineEmits<{
   align-items: center;
   gap: 8px;
   padding-bottom: 4px;
-  border-bottom: 1px dashed #e1eaee;
+  border-bottom: 1px dashed var(--spd-p-border);
 }
 
 .batch-product-section-heading svg {
   flex: none;
-  color: #16838d;
+  color: var(--spd-p-success-text);
 }
 
 .batch-product-section-heading strong {
-  color: #173440;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
 .batch-product-section-heading span {
-  color: #687e8a;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
@@ -261,7 +261,7 @@ defineEmits<{
 }
 
 .batch-product-section label > span {
-  color: #5b6b7a;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
@@ -272,10 +272,10 @@ defineEmits<{
   max-width: 100%;
   height: 38px;
   padding: 0 10px;
-  border: 1px solid #d7e5ec;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 7px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-family: inherit;
   font-size: var(--spd-font-size-base);
   line-height: var(--spd-lh-tight);
@@ -290,8 +290,8 @@ defineEmits<{
 
 .batch-product-section input:disabled,
 .batch-product-section select:disabled {
-  background: #f4f7f8;
-  color: #90a4ae;
+  background: var(--spd-p-bg-subtle);
+  color: var(--spd-p-text-muted);
   cursor: not-allowed;
 }
 

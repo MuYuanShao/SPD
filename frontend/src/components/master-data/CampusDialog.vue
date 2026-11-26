@@ -36,9 +36,9 @@ const emit = defineEmits<{
             带 <span class="required-mark">*</span> 的字段为必填项，院区将用于科室和库房归属。
           </p>
         </div>
-        <button class="btn-icon campus-dialog-close" type="button" aria-label="关闭院区弹窗" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton :icon-only="true" class="campus-dialog-close" aria-label="关闭院区弹窗" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
       <form class="supplier-form-grid campus-dialog-form" @submit.prevent="emit('save')">
         <section class="campus-form-section" aria-labelledby="campus-basic-heading">
@@ -108,10 +108,10 @@ const emit = defineEmits<{
         </section>
 
         <div class="campus-dialog-actions">
-          <button class="btn" type="button" @click="emit('close')">取消</button>
-          <button type="submit" class="btn btn-primary">
-            {{ mode === 'create' ? '创建院区' : '保存修改' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="emit('close')"></SpdButton>
+          <SpdButton tone="primary" type="submit">
+          {{ mode === 'create' ? '创建院区' : '保存修改' }}
+        </SpdButton>
         </div>
       </form>
     </section>

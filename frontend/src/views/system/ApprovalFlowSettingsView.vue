@@ -261,7 +261,7 @@ async function loadAll() {
     options.value = optionRows
     rows.value = flowRows
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '审批流配置加载失败'
+    notify.error(err instanceof Error ? err.message : '审批流配置加载失败')
   } finally {
     loading.value = false
   }
@@ -411,7 +411,7 @@ async function saveDialog() {
     dialogOpen.value = false
     await loadAll()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '审批流保存失败'
+    notify.error(err instanceof Error ? err.message : '审批流保存失败')
   } finally {
     saving.value = false
   }
@@ -426,7 +426,7 @@ async function toggleStatus(row: ApprovalFlowRow) {
     message.value = next === 1 ? '审批流已启用' : '审批流已停用'
     await loadAll()
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '状态切换失败'
+    notify.error(err instanceof Error ? err.message : '状态切换失败')
   }
 }
 
@@ -469,14 +469,19 @@ onMounted(loadAll)
         </select>
       </div>
       <div class="sys-toolbar-actions">
-        <button class="btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
+        <SpdButton label="重置" tone="neutral" @click="resetQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
         <i class="sys-toolbar-sep"></i>
-        <button class="btn btn-primary" type="button" @click="openCreateDialog"><Plus :size="15" /> 新增审批流</button>
+        <SpdButton label="新增审批流" tone="primary" @click="openCreateDialog">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
       </div>
     </div>
 
     <!-- 消息 -->
-    <!-- 消息：操作反馈统一走顶部 ElMessage 弹层 -->
+    <!-- 消息：操作反馈统一走顶部 ElMessage 弹层；
+         这里只保留表单校验提示，请求失败由通用消息接口抛出。 -->
     <div v-if="error" class="sys-error" role="alert">{{ error }}</div>
 
     <!-- 列表：每一项是一张"行卡" -->
@@ -487,9 +492,9 @@ onMounted(loadAll)
     <div v-else-if="!filteredRows.length" class="sys-empty">
       <i class="sys-empty-icon"><GitBranch :size="36" /></i>
       <p>当前筛选下暂无审批流配置</p>
-      <button class="btn btn-primary" type="button" @click="openCreateDialog">
-        <Plus :size="15" /> 新增审批流
-      </button>
+      <SpdButton label="新增审批流" tone="primary" @click="openCreateDialog">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
     </div>
     <div v-else class="sys-flow-list">
       <article
@@ -509,12 +514,10 @@ onMounted(loadAll)
             <span class="sys-tag is-scope">{{ scopeName(row.scopeType) }} · {{ row.scopeId }}</span>
           </div>
           <div class="sys-flow-card-actions">
-            <button class="btn-text" type="button" @click="toggleStatus(row)">
-              {{ row.status === 1 ? '停用' : '启用' }}
-            </button>
-            <button class="btn-text btn-text-primary" type="button" @click="openEditDialog(row)">
-              <Edit3 :size="13" /> 编辑
-            </button>
+            <SpdButton :label="row.status === 1 ? '停用' : '启用'" variant="text" :tone="row.status === 1 ? 'danger' : 'success'" @click="toggleStatus(row)"></SpdButton>
+            <SpdButton label="编辑" @click="openEditDialog(row)">
+              <template #icon><Edit3 :size="13" /></template>
+            </SpdButton>
           </div>
         </div>
         <div class="sys-flow-card-meta">
@@ -553,7 +556,9 @@ onMounted(loadAll)
             <h3>{{ dialogMode === 'edit' ? '编辑审批流' : '新增审批流' }}</h3>
             <p>绑定菜单与作用域，并配置多级审批步骤</p>
           </div>
-          <button class="btn-icon" type="button" @click="closeDialog"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="closeDialog">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
         </div>
         <div class="sys-dialog-body">
 
@@ -609,9 +614,9 @@ onMounted(loadAll)
                 共 <strong>{{ stepSummary.total }}</strong> 级 ·
                 启用 <strong>{{ stepSummary.enabled }}</strong> 级
               </span>
-              <button class="btn-text btn-text-primary" type="button" @click="addStep">
-                <Plus :size="13" /> 新增步骤
-              </button>
+              <SpdButton label="新增步骤" variant="text" tone="primary" @click="addStep">
+                <template #icon><Plus :size="13" /></template>
+              </SpdButton>
             </div>
             <div class="sys-table-scroll">
               <table class="sys-table is-compact">
@@ -662,10 +667,10 @@ onMounted(loadAll)
                       </span>
                     </td>
                     <td>
-                      <button class="btn-text btn-text-primary" type="button" @click="step.status = step.status === 1 ? 0 : 1">
+                      <SpdButton variant="text" tone="primary" @click="step.status = step.status === 1 ? 0 : 1">
                         {{ step.status === 1 ? '停用' : '启用' }}
-                      </button>
-                      <button class="btn-text btn-text-danger" type="button" @click="removeStep(index)">删除</button>
+                      </SpdButton>
+                      <SpdButton label="删除" @click="removeStep(index)" />
                     </td>
                   </tr>
                 </tbody>
@@ -675,10 +680,11 @@ onMounted(loadAll)
 
         </div>
         <div class="sys-dialog-footer">
-          <button class="btn" type="button" :disabled="saving" @click="closeDialog">取消</button>
-          <button class="btn btn-primary" type="button" :disabled="saving" @click="saveDialog">
-            <Save :size="15" /> {{ saving ? '保存中...' : (dialogMode === 'edit' ? '保存修改' : '保存并新增') }}
-          </button>
+          <SpdButton label="取消" tone="neutral" :disabled="saving" @click="closeDialog"></SpdButton>
+          <SpdButton tone="primary" :disabled="saving" @click="saveDialog">
+          <template #icon><Save :size="15" /></template>
+          {{ saving ? '保存中...' : (dialogMode === 'edit' ? '保存修改' : '保存并新增') }}
+        </SpdButton>
         </div>
       </div>
     </div>
@@ -716,41 +722,41 @@ onMounted(loadAll)
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
-.sys-kpi-item:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08); }
+.sys-kpi-item:hover { transform: translateY(-1px); box-shadow: var(--spd-p-shadow-2); }
 
-.sys-kpi-item.is-blue   { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); border-color: #93c5fd; }
-.sys-kpi-item.is-green  { background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%); border-color: #6ee7b7; }
-.sys-kpi-item.is-orange { background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; }
-.sys-kpi-item.is-purple { background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%); border-color: #c4b5fd; }
+.sys-kpi-item.is-blue   { background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%); border-color: var(--spd-p-info-border); }
+.sys-kpi-item.is-green  { background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%); border-color: var(--spd-p-success); }
+.sys-kpi-item.is-orange { background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%); border-color: var(--spd-p-warning-border); }
+.sys-kpi-item.is-purple { background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%); border-color: var(--spd-p-info-border); }
 
 .sys-kpi-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green  .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
-.sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
+.sys-kpi-item.is-blue   .sys-kpi-icon { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-icon { color: var(--spd-p-success-strong); }
+.sys-kpi-item.is-orange .sys-kpi-icon { color: var(--spd-p-warning-text); }
+.sys-kpi-item.is-purple .sys-kpi-icon { color: var(--spd-p-primary); }
 
 .sys-kpi-item > div { display: grid; gap: 2px; min-width: 0; flex: 1; }
 .sys-kpi-label { font-size: var(--spd-font-size-sm); font-weight: 500; opacity: 0.85; }
 .sys-kpi-value { font-size: var(--spd-font-size-2xl); font-weight: 700; line-height: var(--spd-lh-tight); font-variant-numeric: tabular-nums; }
 .sys-kpi-hint  { font-size: var(--spd-font-size-xs); font-weight: 400; line-height: var(--spd-lh-tight); opacity: 0.75; }
 
-.sys-kpi-item.is-blue   .sys-kpi-label, .sys-kpi-item.is-blue   .sys-kpi-value, .sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
-.sys-kpi-item.is-green  .sys-kpi-label, .sys-kpi-item.is-green  .sys-kpi-value, .sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
-.sys-kpi-item.is-orange .sys-kpi-label, .sys-kpi-item.is-orange .sys-kpi-value, .sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
-.sys-kpi-item.is-purple .sys-kpi-label, .sys-kpi-item.is-purple .sys-kpi-value, .sys-kpi-item.is-purple .sys-kpi-hint { color: #4c1d95; }
+.sys-kpi-item.is-blue   .sys-kpi-label, .sys-kpi-item.is-blue   .sys-kpi-value, .sys-kpi-item.is-blue   .sys-kpi-hint { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-label, .sys-kpi-item.is-green  .sys-kpi-value, .sys-kpi-item.is-green  .sys-kpi-hint { color: var(--spd-p-primary-strong); }
+.sys-kpi-item.is-orange .sys-kpi-label, .sys-kpi-item.is-orange .sys-kpi-value, .sys-kpi-item.is-orange .sys-kpi-hint { color: var(--spd-p-warning-strong); }
+.sys-kpi-item.is-purple .sys-kpi-label, .sys-kpi-item.is-purple .sys-kpi-value, .sys-kpi-item.is-purple .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 
 /* ---------- Tab ---------- */
 .sys-tabs { display: flex; align-items: center; gap: 4px; overflow-x: auto; padding: 0 4px; }
@@ -763,13 +769,13 @@ onMounted(loadAll)
   transition: color 0.15s, border-color 0.15s, background 0.15s;
   border-radius: 6px 6px 0 0; white-space: nowrap;
 }
-.sys-tab:hover { color: var(--spd-primary); background: #f0fdf9; }
-.sys-tab.active { color: var(--spd-primary); border-bottom-color: var(--spd-primary); background: #f0fdf9; font-weight: 600; }
+.sys-tab:hover { color: var(--spd-primary); background: var(--spd-p-primary-bg); }
+.sys-tab.active { color: var(--spd-primary); border-bottom-color: var(--spd-primary); background: var(--spd-p-primary-bg); font-weight: 600; }
 .sys-tab-count {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 20px; height: 20px;
   border-radius: 999px; padding: 0 6px;
-  background: var(--spd-primary); color: #fff;
+  background: var(--spd-primary); color: var(--spd-p-bg);
   font-size: var(--spd-font-size-xs); font-weight: 700; line-height: 1;
 }
 
@@ -777,117 +783,118 @@ onMounted(loadAll)
 .sys-toolbar-panel {
   display: flex; align-items: center; gap: 12px;
   padding: 12px 16px;
-  background: #fff; border: 1px solid #e2e8f0; border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg); border: 1px solid var(--spd-p-border); border-radius: var(--spd-radius-md, 10px);
+  box-shadow: var(--spd-p-shadow-1);
   flex-wrap: wrap;
 }
 
 .sys-toolbar-search {
   display: flex; align-items: center;
-  border: 1px solid #cbd5e1; border-radius: 7px; background: #fff;
+  border: 1px solid var(--spd-p-border-strong); border-radius: 7px; background: var(--spd-p-bg);
   overflow: hidden;
   flex: 0 0 360px; min-width: 0;
 }
 
 .sys-toolbar-search-icon {
   display: flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; color: #64748b;
-  background: #f8fafc; border-right: 1px solid #e2e8f0; flex-shrink: 0;
+  width: 34px; height: 34px; color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted); border-right: 1px solid var(--spd-p-border); flex-shrink: 0;
 }
 
 .sys-toolbar-search input {
   flex: 1; min-width: 0; height: 34px;
-  border: none; background: transparent; color: #102033;
+  border: none; background: transparent; color: var(--spd-p-text);
   padding: 0 10px; font-size: var(--spd-font-size-base); font-weight: 500;
 }
-.sys-toolbar-search input::placeholder { color: #94a3b8; }
+.sys-toolbar-search input::placeholder { color: var(--spd-p-text-muted); }
 .sys-toolbar-search input:focus { outline: none; }
 
 .sys-toolbar-status {
-  border: none; border-left: 1px solid #e2e8f0;
-  background: #f8fafc; color: #102033;
+  border: none; border-left: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-muted); color: var(--spd-p-text);
   height: 34px; padding: 0 8px; font-size: var(--spd-font-size-base); font-weight: 500;
   flex-shrink: 0;
   cursor: pointer;
 }
 
 .sys-toolbar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.sys-toolbar-sep { width: 1px; height: 22px; background: #e2e8f0; margin: 0 4px; }
+.sys-toolbar-sep { width: 1px; height: 22px; background: var(--spd-p-border); margin: 0 4px; }
 
 /* ---------- 按钮 ---------- */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 4px;
   min-height: 32px; height: 32px; padding: 0 14px;
-  border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; color: #334155;
+  border: 1px solid var(--spd-p-border-strong); border-radius: 6px; background: var(--spd-p-bg); color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base); font-weight: 600; cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.btn:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; color: #1e293b; }
+.btn:hover:not(:disabled) { background: var(--spd-p-bg-muted); border-color: var(--spd-p-text-muted); color: var(--spd-p-text-strong); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857; color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong); color: var(--spd-p-bg);
 }
-.btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, #059669 0%, #047857 100%); border-color: #065f46; }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%); border-color: var(--spd-p-primary-strong); }
 
 .btn-text {
   display: inline-flex; align-items: center; gap: 3px;
-  border: none; background: transparent; color: #10b981;
+  border: none; background: transparent; color: var(--spd-p-success);
   font-size: var(--spd-font-size-base); font-weight: 600; cursor: pointer;
   padding: 2px 6px; border-radius: 4px; transition: background 0.15s;
 }
-.btn-text:hover { background: #d1fae5; }
-.btn-text-primary { color: #10b981; }
-.btn-text-danger { color: #b91c1c; }
-.btn-text-danger:hover { background: #fee2e2; color: #991b1b; }
+.btn-text:hover { background: var(--spd-p-success-bg); }
+.btn-text-primary { color: var(--spd-p-success); }
+.btn-text-danger { color: var(--spd-p-danger-strong); }
+.btn-text-danger:hover { background: var(--spd-p-danger-bg); color: var(--spd-p-danger-strong); }
 
 .btn-icon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 30px; height: 30px; border: none; border-radius: 6px;
-  background: transparent; color: #64748b; cursor: pointer;
+  background: transparent; color: var(--spd-p-text-secondary); cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.btn-icon:hover { background: #f1f5f9; color: #334155; }
+/* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+.btn-icon:hover { background: var(--spd-p-bg-muted); color: var(--spd-p-text-strong); }
 
 /* ---------- 消息 / 错误 ---------- */
 .sys-msg, .sys-error {
   display: flex; align-items: center; padding: 8px 14px;
   border-radius: 8px; font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
-.sys-msg   { background: #f0fdf9; border: 1px solid #6ee7b7; color: #065f46; }
-.sys-error { background: #fee2e2; border: 1px solid #fca5a5; color: #991b1b; }
+.sys-msg   { background: var(--spd-p-primary-bg); border: 1px solid var(--spd-p-success); color: var(--spd-p-primary-strong); }
+.sys-error { background: var(--spd-p-danger-bg); border: 1px solid var(--spd-p-danger-border); color: var(--spd-p-danger-strong); }
 
 /* ---------- 加载 / 空状态 ---------- */
 .sys-loading-card {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 10px; padding: 48px;
-  background: #fff; border: 1px solid #e2e8f0; border-radius: var(--spd-radius-md, 10px);
-  color: #64748b;
+  background: var(--spd-p-bg); border: 1px solid var(--spd-p-border); border-radius: var(--spd-radius-md, 10px);
+  color: var(--spd-p-text-secondary);
 }
-.sys-loading-icon { display: inline-flex; color: #10b981; animation: spin 1.2s linear infinite; }
+.sys-loading-icon { display: inline-flex; color: var(--spd-p-success); animation: spin 1.2s linear infinite; }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
 .sys-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 12px; padding: 56px 16px;
-  background: #fff; border: 1px dashed #cbd5e1; border-radius: var(--spd-radius-md, 10px);
-  color: #64748b;
+  background: var(--spd-p-bg); border: 1px dashed var(--spd-p-border-strong); border-radius: var(--spd-radius-md, 10px);
+  color: var(--spd-p-text-secondary);
 }
-.sys-empty-icon { color: #cbd5e1; }
+.sys-empty-icon { color: var(--spd-p-text-muted); }
 .sys-empty p { margin: 0; font-size: var(--spd-font-size-base); }
 
 /* ---------- 列表行卡 ---------- */
 .sys-flow-list { display: flex; flex-direction: column; gap: 10px; }
 
 .sys-flow-card {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg); border: 1px solid var(--spd-p-border); border-radius: var(--spd-radius-md, 10px);
+  box-shadow: var(--spd-p-shadow-1);
   padding: 14px 16px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.sys-flow-card:hover { border-color: #6ee7b7; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06); }
-.sys-flow-card.is-stopped { background: #f8fafc; opacity: 0.78; }
+.sys-flow-card:hover { border-color: var(--spd-p-success); box-shadow: var(--spd-p-shadow-1); }
+.sys-flow-card.is-stopped { background: var(--spd-p-bg-muted); opacity: 0.78; }
 
 .sys-flow-card-head {
   display: flex; align-items: center; justify-content: space-between;
@@ -899,7 +906,7 @@ onMounted(loadAll)
   flex-wrap: wrap; min-width: 0;
 }
 
-.sys-flow-card-arrow { color: #94a3b8; display: inline-flex; }
+.sys-flow-card-arrow { color: var(--spd-p-text-muted); display: inline-flex; }
 
 .sys-flow-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 
@@ -907,24 +914,24 @@ onMounted(loadAll)
   display: flex; align-items: center; gap: 14px;
   flex-wrap: wrap;
   margin: 8px 0 10px;
-  font-size: var(--spd-font-size-sm); color: #64748b;
+  font-size: var(--spd-font-size-sm); color: var(--spd-p-text-secondary);
 }
 .sys-flow-card-meta > span { display: inline-flex; align-items: center; gap: 4px; }
-.sys-flow-card-meta-icon { display: inline-flex; color: #94a3b8; }
+.sys-flow-card-meta-icon { display: inline-flex; color: var(--spd-p-text-muted); }
 
 /* 步骤时间线 */
 .sys-flow-steps {
   list-style: none; padding: 0; margin: 0;
   display: flex; flex-direction: column; gap: 4px;
-  border-left: 2px solid #d1fae5;
+  border-left: 2px solid var(--spd-p-success-bg);
   padding-left: 12px;
 }
 
 .sys-flow-step {
   display: flex; align-items: center; gap: 8px;
   padding: 6px 10px;
-  background: #fafdfb; border: 1px solid #e2e8f0; border-radius: 6px;
-  font-size: var(--spd-font-size-base); color: #334155;
+  background: var(--spd-p-bg); border: 1px solid var(--spd-p-border); border-radius: 6px;
+  font-size: var(--spd-font-size-base); color: var(--spd-p-text-secondary);
   flex-wrap: wrap;
   position: relative;
 }
@@ -933,19 +940,19 @@ onMounted(loadAll)
   position: absolute; left: -16px; top: 50%;
   transform: translateY(-50%);
   width: 8px; height: 8px; border-radius: 50%;
-  background: #10b981; border: 2px solid #fff; box-shadow: 0 0 0 1px #d1fae5;
+  background: var(--spd-p-success); border: 2px solid var(--spd-p-bg); box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-flow-step-num {
   display: inline-flex; align-items: center; justify-content: center;
   width: 22px; height: 22px; border-radius: 999px;
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  color: #fff; font-size: var(--spd-font-size-xs); font-weight: 700; flex-shrink: 0;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  color: var(--spd-p-bg); font-size: var(--spd-font-size-xs); font-weight: 700; flex-shrink: 0;
 }
 
-.sys-flow-step-name { font-weight: 600; color: #102033; }
-.sys-flow-step-approver { color: #475569; }
-.sys-flow-step-stat { color: #94a3b8; margin-left: auto; font-size: var(--spd-font-size-sm); }
+.sys-flow-step-name { font-weight: 600; color: var(--spd-p-text); }
+.sys-flow-step-approver { color: var(--spd-p-text-secondary); }
+.sys-flow-step-stat { color: var(--spd-p-text-muted); margin-left: auto; font-size: var(--spd-font-size-sm); }
 
 /* ---------- 通用 tag / badge ---------- */
 .sys-tag {
@@ -953,9 +960,9 @@ onMounted(loadAll)
   border: 1px solid; border-radius: 6px; padding: 1px 8px;
   font-size: var(--spd-font-size-base); font-weight: 600; white-space: nowrap;
 }
-.sys-tag.is-menu  { color: #1d4ed8; background: #dbeafe; border-color: #93c5fd; }
-.sys-tag.is-node  { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }
-.sys-tag.is-scope { color: #b45309; background: #fef3c7; border-color: #fcd34d; }
+.sys-tag.is-menu  { color: var(--spd-p-info-strong); background: var(--spd-p-border); border-color: var(--spd-p-info-border); }
+.sys-tag.is-node  { color: var(--spd-p-primary); background: var(--spd-p-info-bg); border-color: var(--spd-p-info-border); }
+.sys-tag.is-scope { color: var(--spd-p-warning-text); background: var(--spd-p-warning-bg); border-color: var(--spd-p-warning-border); }
 
 .sys-badge {
   display: inline-flex; align-items: center;
@@ -963,19 +970,19 @@ onMounted(loadAll)
   font-size: var(--spd-font-size-base); font-weight: 600;
   border: 1px solid;
 }
-.sys-badge.is-active  { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
-.sys-badge.is-stopped { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+.sys-badge.is-active  { color: var(--spd-p-primary-strong); background: var(--spd-p-success-bg); border-color: var(--spd-p-success); }
+.sys-badge.is-stopped { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
 
 /* ---------- 弹窗 ---------- */
 .sys-dialog-mask {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15, 23, 42, 0.5); backdrop-filter: blur(2px);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 50%, transparent); backdrop-filter: blur(2px);
 }
 
 .sys-dialog {
-  background: #fff; border-radius: var(--spd-radius-lg, 14px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  background: var(--spd-p-bg); border-radius: var(--spd-radius-lg, 14px);
+  box-shadow: var(--spd-p-shadow-dialog);
   width: 100%; max-width: 720px; max-height: 90vh;
   display: flex; flex-direction: column; overflow: hidden;
   animation: dialog-in 0.2s ease;
@@ -985,7 +992,7 @@ onMounted(loadAll)
 
 .sys-dialog-header {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 16px 20px; border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px; border-bottom: 1px solid var(--spd-p-border);
 }
 .sys-dialog-header h3 { margin: 0; font-size: var(--spd-font-size-lg); font-weight: 700; color: var(--spd-text-heading); }
 .sys-dialog-header p  { margin: 3px 0 0; font-size: var(--spd-font-size-sm); color: var(--spd-text-tertiary); }
@@ -997,16 +1004,16 @@ onMounted(loadAll)
 }
 
 .sys-dialog-section {
-  border: 1px solid #e2e8f0; border-radius: 10px;
-  background: #fafdfb;
+  border: 1px solid var(--spd-p-border); border-radius: 10px;
+  background: var(--spd-p-bg);
   overflow: hidden;
 }
 
 .sys-dialog-section-title {
   display: flex; align-items: center; gap: 8px;
   padding: 10px 14px;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-dialog-section-title h4 {
@@ -1017,14 +1024,14 @@ onMounted(loadAll)
   display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; border-radius: 6px;
 }
-.sys-dialog-section-icon.is-green { background: #d1fae5; color: #047857; }
-.sys-dialog-section-icon.is-blue  { background: #dbeafe; color: #1d4ed8; }
+.sys-dialog-section-icon.is-green { background: var(--spd-p-success-bg); color: var(--spd-p-success-strong); }
+.sys-dialog-section-icon.is-blue  { background: var(--spd-p-border); color: var(--spd-p-info-strong); }
 
 .sys-dialog-section-meta {
   margin-left: auto;
-  font-size: var(--spd-font-size-sm); color: #64748b;
+  font-size: var(--spd-font-size-sm); color: var(--spd-p-text-secondary);
 }
-.sys-dialog-section-meta strong { color: #047857; font-weight: 700; }
+.sys-dialog-section-meta strong { color: var(--spd-p-success-strong); font-weight: 700; }
 
 .sys-dialog-section .sys-form-grid { padding: 14px; }
 
@@ -1032,23 +1039,24 @@ onMounted(loadAll)
   display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px 14px;
 }
-.sys-form-grid label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: #4b5b66; }
+.sys-form-grid label { display: grid; gap: 5px; font-size: var(--spd-font-size-sm); font-weight: 600; color: var(--spd-p-text-secondary); }
 .sys-form-grid label.sys-form-wide { grid-column: 1 / -1; }
 
 .sys-input, .sys-select {
   width: 100%; min-height: 32px; height: 32px;
-  border: 1px solid #cbd5e1; border-radius: 6px;
-  background: #fff; color: #102033;
+  border: 1px solid var(--spd-p-border-strong); border-radius: 6px;
+  background: var(--spd-p-bg); color: var(--spd-p-text);
   padding: 0 10px; font-size: var(--spd-font-size-base); font-weight: 500;
   transition: border-color 0.15s;
 }
-.sys-input:focus, .sys-select:focus { outline: none; border-color: #94a3b8; }
-.sys-input:read-only, .sys-select:disabled { background: #f1f5f9; color: #94a3b8; cursor: not-allowed; }
+.sys-input:focus, .sys-select:focus { outline: none; border-color: var(--spd-p-text-muted); }
+/* 只读/禁用态：浅底 + 弱化文字（此前误用近黑底，几乎不可见） */
+.sys-input:read-only, .sys-select:disabled { background: var(--spd-p-bg-muted); color: var(--spd-p-text-muted); cursor: not-allowed; }
 .sys-input.is-tiny { min-width: 60px; }
 
 .sys-dialog-footer {
   display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-  padding: 14px 20px; border-top: 1px solid #e2e8f0; background: #fafdfb;
+  padding: 14px 20px; border-top: 1px solid var(--spd-p-border); background: var(--spd-p-bg);
 }
 
 /* 弹窗内表格（紧凑） */
@@ -1060,18 +1068,18 @@ onMounted(loadAll)
 
 .sys-table { width: 100%; border-collapse: collapse; font-size: var(--spd-font-size-base); }
 .sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-bottom: 1px solid var(--spd-p-success);
 }
 .sys-table th {
-  color: #065f46; font-weight: 700; font-size: var(--spd-font-size-table-head);
+  color: var(--spd-p-primary-strong); font-weight: 700; font-size: var(--spd-font-size-table-head);
   text-align: left; padding: 10px 12px; white-space: nowrap; letter-spacing: 0.3px;
 }
 .sys-table td {
-  padding: 8px 12px; border-bottom: 1px solid #f1f5f9;
-  color: #334155; vertical-align: middle;
+  padding: 8px 12px; border-bottom: 1px solid var(--spd-p-text-strong);
+  color: var(--spd-p-text-secondary); vertical-align: middle;
 }
-.sys-table tbody tr:hover td { background: #f8fafc; }
+.sys-table tbody tr:hover td { background: var(--spd-p-bg-muted); }
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 /* ---------- 响应式 ---------- */

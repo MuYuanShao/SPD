@@ -94,9 +94,9 @@ function selectProduct(productCode: string) {
           <h3 id="catalog-dialog-title">{{ mode === 'create' ? '新增可申领商品' : '编辑目录关系' }}</h3>
           <span id="catalog-dialog-description">设置科室在指定关联库房下可以申领的商品</span>
         </div>
-        <button class="btn-icon" type="button" aria-label="关闭" @click="emit('close')">
-          <X :size="18" />
-        </button>
+        <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="emit('close')">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <form class="catalog-dialog-form" @submit.prevent="emit('save')">
@@ -119,9 +119,9 @@ function selectProduct(productCode: string) {
                 @keydown.enter.prevent="deptDropdownOpen = true"
                 @focus="deptDropdownOpen = true"
               />
-              <button class="btn-icon search-trigger" type="button" title="搜索科室" @click="deptDropdownOpen = true">
-                <Search :size="16" />
-              </button>
+              <SpdButton icon-only variant="ghost" tone="neutral" class="search-trigger" type="button" title="搜索科室" @click="deptDropdownOpen = true">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
             </div>
             <ul v-if="deptDropdownOpen" class="catalog-search-results" role="listbox">
               <li v-for="dept in filteredDepartments" :key="dept.deptCode">
@@ -168,9 +168,9 @@ function selectProduct(productCode: string) {
                 @keydown.enter.prevent="submitProductSearch"
                 @focus="productDropdownOpen = true"
               />
-              <button class="btn-icon search-trigger" type="button" title="搜索商品" @click="submitProductSearch">
-                <Search :size="16" />
-              </button>
+              <SpdButton icon-only variant="ghost" tone="neutral" class="search-trigger" type="button" title="搜索商品" @click="submitProductSearch">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
             </div>
             <ul v-if="productDropdownOpen" class="catalog-search-results" role="listbox">
               <li v-for="product in filteredProducts" :key="product.productCode">
@@ -191,11 +191,11 @@ function selectProduct(productCode: string) {
         </section>
 
         <div class="catalog-dialog-actions">
-          <button class="btn" type="button" @click="emit('close')">取消</button>
-          <button class="btn btn-primary" type="submit">
-            <Save :size="16" />
-            {{ mode === 'create' ? '创建目录' : '保存修改' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="emit('close')"></SpdButton>
+          <SpdButton tone="primary" type="submit">
+          <template #icon><Save :size="16" /></template>
+          {{ mode === 'create' ? '创建目录' : '保存修改' }}
+        </SpdButton>
         </div>
       </form>
     </section>
@@ -218,25 +218,10 @@ function selectProduct(productCode: string) {
   min-width: 0;
 }
 
+/* 搜索触发按钮：服从 SpdButton 统一几何（34px 正方形、1px 边框、4px 圆角），
+   这里只保留布局属性，不再用 !important 覆盖尺寸与配色。 */
 .catalog-search-box .search-trigger {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  border: 1px solid #cadde3 !important;
-  border-radius: 6px !important;
-  background: #fff !important;
-  color: #5b6b7a !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 160ms ease;
-}
-
-.catalog-search-box .search-trigger:hover {
-  border-color: #16838d !important;
-  color: #16838d !important;
-  background: #effaf8 !important;
 }
 
 .catalog-search-results {
@@ -248,10 +233,10 @@ function selectProduct(productCode: string) {
   margin: 4px 0 0;
   max-height: 220px;
   overflow: auto;
-  border: 1px solid #dbe8ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
-  background: #ffffff;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.14);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-3);
   padding: 4px;
   list-style: none;
 }
@@ -262,7 +247,7 @@ function selectProduct(productCode: string) {
   border: 0;
   border-radius: 5px;
   background: transparent;
-  color: #25384a;
+  color: var(--spd-p-text);
   padding: 8px 10px;
   text-align: left;
   font: inherit;
@@ -270,11 +255,11 @@ function selectProduct(productCode: string) {
 }
 
 .catalog-search-results li button:hover {
-  background: #eef8f6;
+  background: var(--spd-p-primary-bg);
 }
 
 .catalog-search-empty {
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
   padding: 8px 10px;
 }
 </style>

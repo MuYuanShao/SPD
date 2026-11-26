@@ -82,8 +82,8 @@ async function save() {
       </label>
       <p class="password-hint">保存后，请使用新密码重新登录。</p>
       <div class="password-actions">
-        <el-button :disabled="saving" @click="open = false">取消</el-button>
-        <el-button native-type="submit" type="primary" :loading="saving">保存修改</el-button>
+        <SpdButton label="取消" tone="neutral" :disabled="saving" @click="open = false"></SpdButton>
+        <SpdButton label="保存修改" tone="primary" type="submit" :loading="saving"></SpdButton>
       </div>
     </form>
   </el-dialog>

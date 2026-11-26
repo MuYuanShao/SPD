@@ -5,6 +5,7 @@ import {
   Ban,
   Calendar,
   CheckCircle2,
+  ClipboardCheck,
   Copy,
   Eye,
   FileText,
@@ -27,6 +28,7 @@ import { useNotify } from '../../composables/useNotify'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
 import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
+import SpdStatusChip from '../../components/common/SpdStatusChip.vue'
 import PurchasePlanDetailDialog from '../../components/purchase/PurchasePlanDetailDialog.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
@@ -139,6 +141,24 @@ const {
 const planDetailNo = ref('')
 const authStore = useAuthStore()
 const notify = useNotify()
+
+/**
+ * 动作条右侧是否真的有按钮。
+ *
+ * 「订单跟踪」页签在未选中订单时右侧没有任何动作，
+ * 若无条件渲染右侧动作区，会留下一段空的空白区域。
+ * 这里用计算属性把关：有按钮才渲染，无按钮整块不渲染。
+ */
+const hasAsideActions = computed(() => {
+  if (activeTab.value === 'smart') return true
+  if (activeTab.value === 'demands') {
+    return authStore.hasPermission('purchase-demand:create')
+      || authStore.hasPermission('purchase-demand:convert-plan')
+  }
+  if (activeTab.value === 'orders') return true
+  if (activeTab.value === 'tracking') return Boolean(detail.value)
+  return false
+})
 
 const showProductPicker = ref(false)
 const pickerScope = ref<'hospital' | 'department'>('hospital')
@@ -448,66 +468,73 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
         </button>
       </div>
 
-      <div v-if="activeTab !== 'plans'" class="hospital-action-row purchase-toolbar" :class="`action-row--${activeTab}`">
-        <label v-if="activeTab === 'smart'" class="inline-field">
-          <span>分析周期</span>
-          <select v-model.number="smartSelectedPeriod" class="inline-select md-select">
-            <option v-for="period in smartPeriods" :key="period" :value="period">近{{ period }}天</option>
-          </select>
-        </label>
-        <button v-if="activeTab === 'smart'" class="btn btn-primary md-btn md-btn-primary" type="button" @click="runSmartAnalysis">
-          <Search :size="17" />
-          智能补货分析
-        </button>
-        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:create')" class="btn btn-primary md-btn md-btn-primary" type="button" @click="resetDemandForm(); showDemandModal = true">
-          <PackagePlus :size="18" />
-          新增采购
-        </button>
-        <button v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" class="btn md-btn" type="button" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
-          <FileCheck2 :size="17" />
-          需求转计划
-        </button>
-        <button v-if="activeTab === 'orders' && authStore.hasPermission('purchase-order:create')" class="btn btn-primary md-btn md-btn-primary" type="button" @click="resetOrderForm(); showCreateModal = true">
-          <PackagePlus :size="18" />
-          新增订单
-        </button>
+      <!-- 动作条：左侧「业务动作」标题 + 分析周期，右侧动作按钮同行左右分列
+           （flex space-between）。用户诉求：「智能补货分析这个按钮不要单独一行，
+           和业务动作在一行，使用 flex 布局的 space-between 分别在两边对齐就好，
+           很多出现这种情况的页面都要这么调整，使得整体样式统一，
+           然后删掉这个边框背景」。
+           基础布局由 styles/components/spd-filter-bar.css 的 .spd-action-bar 提供。 -->
+      <div v-if="activeTab !== 'plans'" class="spd-action-bar" :class="`action-row--${activeTab}`">
+        <div class="spd-action-bar__main">
+          <div class="section-title">
+            <ClipboardCheck :size="20" />
+            <h3>业务动作</h3>
+          </div>
+          <label v-if="activeTab === 'smart'" class="inline-field">
+            <span>分析周期</span>
+            <select v-model.number="smartSelectedPeriod" class="inline-select md-select">
+              <option v-for="period in smartPeriods" :key="period" :value="period">近{{ period }}天</option>
+            </select>
+          </label>
+        </div>
+        <div v-if="hasAsideActions" class="spd-action-bar__aside">
+        <SpdButton label="智能补货分析" tone="primary" v-if="activeTab === 'smart'" @click="runSmartAnalysis">
+          <template #icon><Search :size="17" /></template>
+        </SpdButton>
+        <SpdButton label="新增采购" tone="primary" v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:create')" @click="resetDemandForm(); showDemandModal = true">
+          <template #icon><PackagePlus :size="18" /></template>
+        </SpdButton>
+        <SpdButton label="需求转计划" tone="primary" v-if="activeTab === 'demands' && authStore.hasPermission('purchase-demand:convert-plan')" :disabled="selectedDemandNos.length === 0" :title="selectedDemandNos.length === 0 ? '请先勾选已审核需求' : ''" @click="generatePlans">
+          <template #icon><FileCheck2 :size="17" /></template>
+        </SpdButton>
+        <SpdButton label="新增订单" tone="primary" v-if="activeTab === 'orders' && authStore.hasPermission('purchase-order:create')" @click="resetOrderForm(); showCreateModal = true">
+          <template #icon><PackagePlus :size="18" /></template>
+        </SpdButton>
         <template v-if="activeTab === 'orders'">
-          <button v-if="authStore.hasPermission('purchase-order:submit')" class="btn md-btn" type="button" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
-            <Send :size="16" /> 提交
-          </button>
-          <button v-if="authStore.hasPermission('purchase-order:approve')" class="btn md-btn" type="button" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
-            <CheckCircle2 :size="16" /> 审批
-          </button>
-          <button
-            v-if="authStore.hasPermission('purchase-order:void')"
-            class="btn btn-danger-soft md-btn"
-            type="button"
+          <SpdButton label="提交" tone="primary" v-if="authStore.hasPermission('purchase-order:submit')" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'draft'" title="仅草稿订单可提交" @click="runSelectedOrderAction('submit')">
+          <template #icon><Send :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="审批" tone="primary" v-if="authStore.hasPermission('purchase-order:approve')" :disabled="orderActionPending || selectedOrder?.orderStatus !== 'pending_approval'" title="仅待审批订单可审批" @click="runSelectedOrderAction('approve')">
+          <template #icon><CheckCircle2 :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="作废" tone="danger" v-if="authStore.hasPermission('purchase-order:void')"
+           
+           
             :disabled="!selectedOrder || !['draft', 'pending_approval', 'approved'].includes(selectedOrder.orderStatus)"
-            @click="openOrderOperation('void')"
-          >
-            <Ban :size="16" /> 作废
-          </button>
-          <button v-if="authStore.hasPermission('purchase-order:create')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="copySelectedOrder">
-            <Copy :size="16" /> 复制订单
-          </button>
-          <button v-if="authStore.hasPermission('purchase-order:attachment')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="chooseOrderAttachment">
-            <Upload :size="16" /> 上传附件
-          </button>
+            @click="openOrderOperation('void')">
+          <template #icon><Ban :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="复制订单" tone="primary" v-if="authStore.hasPermission('purchase-order:create')" :disabled="!selectedOrder" @click="copySelectedOrder">
+          <template #icon><Copy :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="上传附件" tone="primary" v-if="authStore.hasPermission('purchase-order:attachment')" :disabled="!selectedOrder" @click="chooseOrderAttachment">
+          <template #icon><Upload :size="16" /></template>
+        </SpdButton>
           <input ref="orderAttachmentInput" type="file" hidden @change="handleOrderAttachmentUpload" />
-          <button class="btn md-btn" type="button" :disabled="!selectedOrder" @click="openOrderAttachments">
-            <Paperclip :size="16" /> 附件阅览
-          </button>
-          <button v-if="authStore.hasPermission('purchase-order:remark')" class="btn md-btn" type="button" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
-            <MessageSquare :size="16" /> 添加备注
-          </button>
+          <SpdButton label="附件阅览" tone="primary" :disabled="!selectedOrder" @click="openOrderAttachments">
+          <template #icon><Paperclip :size="16" /></template>
+        </SpdButton>
+          <SpdButton label="添加备注" tone="primary" v-if="authStore.hasPermission('purchase-order:remark')" :disabled="!selectedOrder" @click="openOrderOperation('remark')">
+          <template #icon><MessageSquare :size="16" /></template>
+        </SpdButton>
         </template>
-        <button v-if="activeTab === 'tracking' && detail" class="btn md-btn" type="button" @click="detail = null">
-          <X :size="17" />
-          清空跟踪
-        </button>
+        <SpdButton label="清空跟踪" tone="primary" v-if="activeTab === 'tracking' && detail" @click="detail = null">
+          <template #icon><X :size="17" /></template>
+        </SpdButton>
+        </div>
       </div>
 
-      <div v-if="activeTab !== 'smart'" class="hospital-query-grid purchase-query-grid">
+      <SpdFilterBar v-if="activeTab !== 'smart'" class="purchase-query-grid" @submit="loadData" @reset="resetQuery">
         <label v-if="activeTab === 'orders'"><span>订单编号</span><input v-model="query.orderNo" class="md-input" placeholder="CG2026..." /></label>
         <label v-if="activeTab === 'demands'"><span>需求编号</span><input v-model="query.demandNo" class="md-input" placeholder="XQ2026..." /></label>
         <label v-if="activeTab === 'demands'"><span>科室</span><select v-model="query.deptCode" class="md-select"><option value="">全部授权科室</option><option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option></select></label>
@@ -520,41 +547,35 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <div class="purchase-query-actions">
-          <button class="btn md-btn md-btn-primary" type="button" @click="loadData">
-            <Search :size="16" />
-            {{ actionQueryLabel }}
-          </button>
-          <button class="btn md-btn" type="button" @click="resetQuery">
-            <X :size="16" />
-            重置
-          </button>
-        </div>
-      </div>
+        <template #actions>
+          <SpdButton label="重置" tone="neutral" @click="resetQuery">
+            <template #icon><X :size="16" /></template>
+          </SpdButton>
+          <SpdButton :label="actionQueryLabel" tone="primary" @click="loadData">
+            <template #icon><Search :size="16" /></template>
+          </SpdButton>
+        </template>
+      </SpdFilterBar>
 
             <MdDataTableCard v-if="activeTab === 'demands'">
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="purchaseDemandColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="purchaseDemandCols.settingsOpen.value = !purchaseDemandCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: purchaseDemandCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="purchaseDemandColSettingsAnchorRef"
+           
+           
+            @click="purchaseDemandCols.settingsOpen.value = !purchaseDemandCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="purchaseDemandCols.settingsOpen.value"
             ref="purchaseDemandColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': purchaseDemandColSettingsPop.align.value === 'right', 'is-align-up': purchaseDemandColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': purchaseDemandColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchaseDemandColSettingsPop.maxHeight.value + 'px' }"
+            :style="purchaseDemandColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="purchaseDemandCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchaseDemandCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in purchaseDemandCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -569,7 +590,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="purchaseDemandCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="purchaseDemandCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -654,7 +675,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               <template #default="{ row }">
                 <span class="ulc-cell-stack">
                   <span class="item-summary">共 {{ row.itemCount }} 种商品</span>
-                  <button class="btn-link" type="button" @click="openDemandDetail(row)">查看明细</button>
+                  <SpdButton variant="link" label="查看明细" @click="openDemandDetail(row)" />
                 </span>
               </template>
             </el-table-column>
@@ -721,7 +742,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span :class="['status-badge', statusTone(row.demandStatus)]">{{ statusLabel(row.demandStatus) }}</span>
+                <SpdStatusChip :tone="statusTone(row.demandStatus)" :label="statusLabel(row.demandStatus)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -777,26 +798,22 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <MdDataTableCard v-if="activeTab === 'plans'">
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="purchasePlanColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="purchasePlanCols.settingsOpen.value = !purchasePlanCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: purchasePlanCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="purchasePlanColSettingsAnchorRef"
+           
+           
+            @click="purchasePlanCols.settingsOpen.value = !purchasePlanCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="purchasePlanCols.settingsOpen.value"
             ref="purchasePlanColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': purchasePlanColSettingsPop.align.value === 'right', 'is-align-up': purchasePlanColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': purchasePlanColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchasePlanColSettingsPop.maxHeight.value + 'px' }"
+            :style="purchasePlanColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="purchasePlanCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchasePlanCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in purchasePlanCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -811,7 +828,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="purchasePlanCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="purchasePlanCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -917,7 +934,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span>
+                <SpdStatusChip :tone="statusTone(row.planStatus)" :label="statusLabel(row.planStatus)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -974,26 +991,22 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <MdDataTableCard v-if="activeTab === 'orders'">
         <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="purchaseOrderColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="purchaseOrderCols.settingsOpen.value = !purchaseOrderCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: purchaseOrderCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="purchaseOrderColSettingsAnchorRef"
+           
+           
+            @click="purchaseOrderCols.settingsOpen.value = !purchaseOrderCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="purchaseOrderCols.settingsOpen.value"
             ref="purchaseOrderColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': purchaseOrderColSettingsPop.align.value === 'right', 'is-align-up': purchaseOrderColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': purchaseOrderColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchaseOrderColSettingsPop.maxHeight.value + 'px' }"
+            :style="purchaseOrderColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="purchaseOrderCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchaseOrderCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in purchaseOrderCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -1008,7 +1021,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="purchaseOrderCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="purchaseOrderCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -1207,7 +1220,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                 <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span :class="['status-badge', statusTone(row.orderStatus)]">{{ statusLabel(row.orderStatus) }}</span>
+                <SpdStatusChip :tone="statusTone(row.orderStatus)" :label="statusLabel(row.orderStatus)" />
               </template>
             </el-table-column>
             <el-table-column
@@ -1301,7 +1314,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <p>{{ smartAnalysisNo || '正在生成分析' }}</p>
             <h3>智能补货分析</h3>
           </div>
-          <button class="btn-icon" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
 
         <div class="analysis-summary">
@@ -1370,11 +1385,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               <option v-for="dept in departments" :key="dept.deptCode" :value="dept.deptCode">{{ dept.deptName }}</option>
             </select>
           </label>
-          <button class="btn" type="button" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false">关闭</button>
-          <button class="btn btn-primary" type="button" :disabled="smartAnalysisLoading || demandSubmitting || !smartDeptCode || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
-            <PackagePlus :size="18" />
-            生成采购需求
-          </button>
+          <SpdButton label="关闭" tone="neutral" :disabled="demandSubmitting" @click="showSmartAnalysisDialog = false"></SpdButton>
+          <SpdButton label="生成采购需求" tone="primary" :disabled="smartAnalysisLoading || demandSubmitting || !smartDeptCode || smartRows.length === 0" @click="createDemandFromSmartAnalysis">
+          <template #icon><PackagePlus :size="18" /></template>
+        </SpdButton>
         </footer>
       </section>
     </div>
@@ -1386,7 +1400,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
       <section class="edit-modal purchase-detail-modal">
         <header>
           <h3>需求明细 - {{ selectedDemandGroup?.demandNo }}</h3>
-          <button class="btn-icon" type="button" @click="showDemandDetailDialog = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="showDemandDetailDialog = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="detail-summary-bar">
           <span>来源: {{ selectedDemandGroup?.demandSource }}</span>
@@ -1421,7 +1437,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
           </tbody>
         </table>
         <footer>
-          <button class="btn" type="button" @click="showDemandDetailDialog = false">关闭</button>
+          <SpdButton label="关闭" tone="neutral" @click="showDemandDetailDialog = false"></SpdButton>
         </footer>
       </section>
     </div>
@@ -1435,7 +1451,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <p>采购订单明细</p>
             <h3 id="order-detail-title">{{ detail.order.orderNo }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭订单明细" @click="showOrderDetailDialog = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭订单明细" @click="showOrderDetailDialog = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="order-detail-body">
           <section class="purchase-detail-summary order-detail-summary">
@@ -1495,7 +1513,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
         <footer class="purchase-entry-footer">
           <span>订单商品价格与包装信息取创建订单时的业务数据及当前商品目录字段。</span>
           <div>
-            <button class="btn" type="button" @click="showOrderDetailDialog = false">关闭</button>
+            <SpdButton label="关闭" tone="neutral" @click="showOrderDetailDialog = false"></SpdButton>
           </div>
         </footer>
       </section>
@@ -1510,7 +1528,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <p>{{ orderOperationMode === 'void' ? '订单状态处理' : '订单业务记录' }}</p>
             <h3>{{ orderOperationMode === 'void' ? '作废采购订单' : '添加订单备注' }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="orderOperationMode = null"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="orderOperationMode = null">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="order-operation-body">
           <div class="order-operation-order">
@@ -1527,10 +1547,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
           </label>
         </div>
         <footer>
-          <button class="btn" type="button" @click="orderOperationMode = null">取消</button>
-          <button class="btn" :class="{ 'btn-danger-soft': orderOperationMode === 'void', 'btn-primary': orderOperationMode === 'remark' }" type="button" @click="submitOrderOperation">
-            {{ orderOperationMode === 'void' ? '确认作废' : '保存备注' }}
-          </button>
+          <SpdButton label="取消" tone="neutral" @click="orderOperationMode = null"></SpdButton>
+          <SpdButton tone="primary" :class="{ 'btn-danger-soft': orderOperationMode === 'void', 'btn-primary': orderOperationMode === 'remark' }" @click="submitOrderOperation">
+          {{ orderOperationMode === 'void' ? '确认作废' : '保存备注' }}
+        </SpdButton>
         </footer>
       </section>
     </div>
@@ -1544,11 +1564,15 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <p>采购订单附件</p>
             <h3 id="order-attachment-title">{{ selectedOrder.orderNo }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭附件阅览" @click="closeOrderAttachmentDialog"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭附件阅览" @click="closeOrderAttachmentDialog">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="order-attachment-body">
           <aside class="order-attachment-list">
-            <button class="btn" type="button" @click="chooseOrderAttachment"><Upload :size="15" /> 上传附件</button>
+            <SpdButton label="上传附件" tone="primary" @click="chooseOrderAttachment">
+          <template #icon><Upload :size="15" /></template>
+        </SpdButton>
             <p v-if="orderAttachmentsLoading" class="approval-empty">正在加载附件...</p>
             <p v-else-if="orderAttachments.length === 0" class="approval-empty">暂无订单附件</p>
             <ul v-else>
@@ -1557,7 +1581,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                   <strong>{{ attachment.fileName }}</strong>
                   <small>{{ attachment.createTime }} · {{ (attachment.size / 1024).toFixed(1) }} KB</small>
                 </div>
-                <button class="btn-text" type="button" @click="previewOrderAttachment(attachment)"><Eye :size="14" /> 阅览</button>
+                <SpdButton label="阅览" @click="previewOrderAttachment(attachment)">
+                  <template #icon><Eye :size="14" /></template>
+                </SpdButton>
               </li>
             </ul>
           </aside>
@@ -1588,7 +1614,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             <p>采购需求录入</p>
             <h3 id="purchase-entry-title">新增采购</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭新增采购" @click="showDemandModal = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭新增采购" @click="showDemandModal = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
 
         <div class="purchase-entry-body">
@@ -1638,12 +1666,12 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             </div>
 
             <div class="purchase-entry-toolbar">
-              <button class="btn btn-primary" type="button" @click="openProductPicker('hospital')">
-                <Plus :size="17" /> 新增
-              </button>
-              <button class="btn" type="button" @click="openProductPicker('department')">
-                <List :size="17" /> 科室目录新增
-              </button>
+              <SpdButton label="新增" tone="primary" @click="openProductPicker('hospital')">
+          <template #icon><Plus :size="17" /></template>
+        </SpdButton>
+              <SpdButton label="科室目录新增" tone="primary" @click="openProductPicker('department')">
+          <template #icon><List :size="17" /></template>
+        </SpdButton>
               <label class="purchase-entry-search">
                 <Search :size="16" />
                 <span>商品检索</span>
@@ -1698,15 +1726,15 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
         <footer class="purchase-entry-footer">
           <span>保存后可继续审核和生成采购计划；勾选商品后支持一键加入明细。</span>
           <div>
-            <button class="btn" type="button" @click="showDemandModal = false">取消</button>
-            <button class="btn" type="button" :disabled="demandSubmitting" @click="submitDemand(true)">
-              <Plus :size="16" />
-              {{ demandSubmitting ? '保存中…' : '保存并新建' }}
-            </button>
-            <button class="btn btn-primary" type="button" :disabled="demandSubmitting" @click="submitDemand(false)">
-              <Save :size="17" />
-              {{ demandSubmitting ? '保存中…' : '保存并关闭' }}
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="showDemandModal = false"></SpdButton>
+            <SpdButton tone="primary" :disabled="demandSubmitting" @click="submitDemand(true)">
+          <template #icon><Plus :size="16" /></template>
+          {{ demandSubmitting ? '保存中…' : '保存并新建' }}
+        </SpdButton>
+            <SpdButton tone="primary" :disabled="demandSubmitting" @click="submitDemand(false)">
+          <template #icon><Save :size="17" /></template>
+          {{ demandSubmitting ? '保存中…' : '保存并关闭' }}
+        </SpdButton>
           </div>
         </footer>
       </section>
@@ -1718,12 +1746,14 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
       <section class="edit-modal wide" role="dialog" aria-modal="true" aria-labelledby="purchase-product-picker-title">
         <header>
           <h3 id="purchase-product-picker-title">{{ pickerScope === 'department' ? '科室目录新增' : '新增商品' }}</h3>
-          <button class="btn-icon" aria-label="关闭商品选择" @click="showProductPicker = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" aria-label="关闭商品选择" @click="showProductPicker = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <p v-if="pickerScope === 'department'" class="purchase-picker-dept">发起科室：<strong>{{ demandForm.deptName }}</strong></p>
         <form class="purchase-entry-toolbar" @submit.prevent="loadPickerProducts()">
           <label class="purchase-entry-search"><span>商品检索</span><input v-model="pickerKeyword" aria-label="选择商品检索" placeholder="商品编码、名称或规格" /></label>
-          <button class="btn btn-primary" :disabled="pickerLoading">查询</button>
+          <SpdButton label="查询" tone="primary" :disabled="pickerLoading"></SpdButton>
         </form>
         <p v-if="pickerError" class="inline-message" role="alert">{{ pickerError }}</p>
 
@@ -1752,8 +1782,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
         <footer>
           <span>已选 {{ pickerSelected.size }} 项（支持跨页多选）</span>
           <div class="purchase-picker-actions">
-            <button class="btn" type="button" @click="showProductPicker = false">取消</button>
-            <button class="btn btn-primary" type="button" :disabled="!pickerSelected.size || pickerLoading || !!pickerError" @click="addSelectedProducts">加入采购明细</button>
+            <SpdButton label="取消" tone="neutral" @click="showProductPicker = false"></SpdButton>
+            <SpdButton label="加入采购明细" tone="primary" :disabled="!pickerSelected.size || pickerLoading || !!pickerError" @click="addSelectedProducts"></SpdButton>
           </div>
         </footer>
       </section>
@@ -1773,7 +1803,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
               <h3 id="purchase-order-create-title">新增采购订单</h3>
             </div>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭新增采购订单" @click="showCreateModal = false"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭新增采购订单" @click="showCreateModal = false">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
 
         <!-- ====== 顶部概要卡（与右下"合计"呼应） ====== -->
@@ -1887,9 +1919,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                 <Search :size="14" />
                 <input v-model="productSearchQuery" placeholder="商品编码 / 名称 / 规格" />
               </label>
-              <button class="btn" type="button" :disabled="filteredProducts.length === 0" @click="addItem">
-                <Plus :size="14" /> 添加商品
-              </button>
+              <SpdButton label="添加商品" tone="primary" :disabled="filteredProducts.length === 0" @click="addItem">
+          <template #icon><Plus :size="14" /></template>
+        </SpdButton>
             </div>
 
             <!-- 商品行卡列表 -->
@@ -1932,9 +1964,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
                     <strong>¥ {{ ((Number(item.quantity) || 0) * (Number(item.estimatedUnitPrice) || 0)).toString() }}</strong>
                   </div>
                   <div class="purchase-create-item-actions">
-                    <button class="btn-text btn-text-danger" type="button" :disabled="form.items.length === 1" @click="removeItem(index)">
-                      <Trash2 :size="14" /> 删除
-                    </button>
+                    <SpdButton label="删除" :disabled="form.items.length === 1" @click="removeItem(index)">
+                      <template #icon><Trash2 :size="14" /></template>
+                    </SpdButton>
                   </div>
                 </div>
               </article>
@@ -1963,11 +1995,11 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
         <footer class="purchase-create-footer">
           <span>保存后可在"采购订单"中继续提交、审批、发送与收货验收。</span>
           <div>
-            <button class="btn" type="button" @click="showCreateModal = false">取消</button>
-            <button class="btn btn-primary" type="button" :disabled="orderSubmitting" @click="submitCreate">
-              <Save :size="15" />
-              {{ orderSubmitting ? '保存中…' : '保存采购订单' }}
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="showCreateModal = false"></SpdButton>
+            <SpdButton tone="primary" :disabled="orderSubmitting" @click="submitCreate">
+          <template #icon><Save :size="15" /></template>
+          {{ orderSubmitting ? '保存中…' : '保存采购订单' }}
+        </SpdButton>
           </div>
         </footer>
 
@@ -1980,7 +2012,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
       <section class="edit-modal">
         <header>
           <h3>关闭采购订单</h3>
-          <button class="btn-icon" type="button" @click="closeTarget = null"><X :size="18" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="closeTarget = null">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <div class="close-check-panel">
           <article>
@@ -2001,8 +2035,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
           <textarea v-model="closeReason" rows="4" placeholder="请填写关闭原因，系统将写入订单跟踪和审计日志" />
         </label>
         <footer>
-          <button class="btn" type="button" @click="closeTarget = null">取消</button>
-          <button class="btn btn-primary" type="button" :disabled="!closeReason.trim()" @click="submitClose">确认关闭</button>
+          <SpdButton label="取消" tone="neutral" @click="closeTarget = null"></SpdButton>
+          <SpdButton label="确认关闭" tone="primary" :disabled="!closeReason.trim()" @click="submitClose"></SpdButton>
         </footer>
       </section>
     </div>
@@ -2040,10 +2074,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   flex-direction: column;
   gap: 12px;
   min-width: 0;
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--md-radius-md, 10px);
-  box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
+  box-shadow: var(--spd-p-shadow-1);
   padding: 14px 16px 16px;
 }
 
@@ -2062,29 +2096,27 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   border-radius: var(--md-radius, 6px);
 }
 
-/* ---------- 工具条 ---------- */
-.purchase-toolbar {
-  display: flex !important;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  min-height: 0;
-  padding: 10px 12px !important;
-  background: var(--md-bg-page, var(--spd-bg-page)) !important;
-  border: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
-  border-radius: var(--md-radius, 6px) !important;
+/* ---------- 动作条 ----------
+   用户诉求：「智能补货分析这个按钮不要单独一行，和业务动作在一行，
+   使用 flex 布局的 space-between 分别在两边对齐就好，
+   很多出现这种情况的页面都要这么调整，使得整体样式统一，
+   然后删掉这个边框背景」。
+
+   本页动作区不再使用带边框 / 背景的 .hospital-action-row.purchase-toolbar，
+   改用全站统一的 .spd-action-bar（flex + space-between + align-items:center）。
+   基础布局由 styles/components/spd-filter-bar.css 提供，这里只做本页微调。 */
+.purchase-page .spd-action-bar {
+  margin-bottom: 12px;
 }
 
-.purchase-toolbar .btn {
-  min-height: 30px;
-  padding: 0 12px;
-  font-size: var(--spd-font-size-base);
+.purchase-page .spd-action-bar .section-title {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
-.purchase-toolbar .btn svg {
-  width: 15px;
-  height: 15px;
-  flex-shrink: 0;
+.purchase-page .spd-action-bar .inline-select {
+  min-width: 140px;
 }
 
 .purchase-query-actions {
@@ -2096,11 +2128,11 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-product-picker tr.is-picked {
-  background: var(--spd-success-bg, #f0fdf4);
+  background: var(--spd-success-bg, var(--spd-p-primary-bg));
 }
 
 .purchase-product-picker tr.is-picked td {
-  color: var(--spd-text-secondary, #475569);
+  color: var(--spd-text-secondary, var(--spd-p-text-secondary));
 }
 
 .purchase-product-picker .picker-checkbox {
@@ -2109,7 +2141,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-product-picker .picker-checkbox:checked:disabled,
 .purchase-product-picker .picker-checkbox:disabled:checked {
-  accent-color: var(--spd-success, #16a34a);
+  accent-color: var(--spd-success, var(--spd-p-success));
   cursor: not-allowed;
 }
 
@@ -2178,44 +2210,18 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   display: none;
 }
 
-/* ---------- 查询区 ---------- */
-.purchase-query-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 240px));
-  justify-content: start;
-  gap: 10px 14px;
-  padding: 12px !important;
-  background: var(--md-bg-muted, var(--spd-bg-page));
-  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
-  border-radius: var(--md-radius, 6px);
-}
-
-.purchase-query-grid label {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-  width: 100%;
-}
-
-.purchase-query-grid label > span {
-  color: var(--spd-text-secondary);
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-}
-
-.purchase-query-grid .md-input,
-.purchase-query-grid .md-select {
-  min-height: 30px;
-  font-size: var(--spd-font-size-base);
-  width: 100%;
-}
+/* ---------- 查询区 ----------
+   筛选区已统一改用 SpdFilterBar 组件，
+   栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
+   styles/components/spd-filter-bar.css 的「标准规则」统一控制，
+   本页不再覆写列数与间距（避免各页各写一套换行规则）。 */
 
 /* ---------- 列表滚动容器 ---------- */
 .purchase-list-scroll {
   max-height: max(300px, calc(100dvh - 420px));
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
-  background: var(--md-bg-card, #fff);
+  background: var(--md-bg-card, var(--spd-p-bg));
   scrollbar-width: thin;
   scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
 }
@@ -2250,7 +2256,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
+  background: linear-gradient(180deg, var(--spd-p-bg-subtle) 0%, var(--spd-p-success-bg) 100%) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
 }
 
@@ -2264,7 +2270,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-table tbody tr:nth-child(even) td {
-  background: var(--md-bg-muted, #fafbfc);
+  background: var(--md-bg-muted, var(--spd-p-row-stripe));
 }
 
 .purchase-table tbody tr:hover td {
@@ -2333,15 +2339,9 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   box-shadow: inset 3px 0 0 var(--md-primary, var(--spd-primary));
 }
 
-/* ---------- 状态徽标 ---------- */
-.purchase-table .status-badge {
-  min-height: 20px;
-  padding: 0 9px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-  border-radius: 999px;
-}
+/* 【已移除】.purchase-table .status-badge 局部样式（20px 高 / 999px 圆角）。
+   列表状态条统一改用 <SpdStatusChip>（styles/components/spd-status-chip.css），
+   全站共享同一套高度 / 内边距 / 圆角 / 浅底深字配色。 */
 
 /* ---------- 行内操作 ---------- */
 .row-actions {
@@ -2399,13 +2399,13 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .quantity-gap.pending {
-  color: var(--spd-warning-text, #a15c00);
-  background: var(--spd-warning-bg, #fff7e6);
+  color: var(--spd-warning-text, var(--spd-p-warning-text));
+  background: var(--spd-warning-bg, var(--spd-p-warning-bg));
 }
 
 .quantity-gap.done {
-  color: var(--spd-success-text, #087a4d);
-  background: var(--spd-success-bg, #eaf8f2);
+  color: var(--spd-success-text, var(--spd-p-success-text));
+  background: var(--spd-success-bg, var(--spd-p-success-bg));
 }
 
 /* ---------- 明细角标 ---------- */
@@ -2448,7 +2448,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .btn-danger-soft:hover:not(:disabled) {
   border-color: var(--spd-danger) !important;
-  background: color-mix(in srgb, var(--spd-danger) 12%, white) !important;
+  background: color-mix(in srgb, var(--spd-danger) 12%, var(--spd-p-bg)) !important;
   color: var(--spd-danger-text) !important;
 }
 
@@ -2460,10 +2460,6 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
   .purchase-workspace {
     padding: 12px 12px 14px;
-  }
-
-  .purchase-query-grid {
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
 
   .purchase-list-scroll {
@@ -2485,25 +2481,25 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   min-height: 0;
   overflow: auto;
   padding: 18px 22px;
-  background: #f7f9fb;
+  background: var(--spd-p-bg-page);
 }
 
 .order-detail-summary {
   margin-bottom: 14px;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
   padding: 12px 14px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .order-detail-summary strong {
-  color: #24495b;
+  color: var(--spd-p-success-text);
 }
 
 .order-detail-table-wrap {
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .order-detail-table {
@@ -2540,7 +2536,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .order-operation-modal header p {
   margin-bottom: 3px;
-  color: #728596;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -2557,24 +2553,24 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .order-operation-order {
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
   padding: 12px;
-  background: #f7f9fb;
+  background: var(--spd-p-bg-page);
 }
 
 .order-operation-order span,
 .order-operation-body label > span {
-  color: #607587;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
 .order-operation-body textarea {
   resize: vertical;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
   padding: 10px;
-  color: #243f50;
+  color: var(--spd-p-text);
   font: inherit;
 }
 
@@ -2594,15 +2590,15 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   gap: 16px;
   min-height: 0;
   padding: 16px;
-  background: #f7f9fb;
+  background: var(--spd-p-bg-page);
 }
 
 .order-attachment-list,
 .order-attachment-preview {
   min-height: 0;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .order-attachment-list {
@@ -2621,7 +2617,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-bottom: 1px solid #edf1f4;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   padding: 10px 2px;
 }
 
@@ -2633,14 +2629,14 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .order-attachment-list strong {
   overflow: hidden;
-  color: #263f50;
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .order-attachment-list small {
-  color: #8292a1;
+  color: var(--spd-p-text-muted);
 }
 
 .order-attachment-preview {
@@ -2648,7 +2644,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: #f3f6f8;
+  background: var(--spd-p-text-strong);
 }
 
 .order-attachment-preview img,
@@ -2674,7 +2670,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .smart-replenishment-table th,
 .smart-replenishment-table td {
-  border-bottom: 1px solid #e8edf2;
+  border-bottom: 1px solid var(--spd-p-text);
 }
 
 .row-actions {
@@ -2691,7 +2687,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .fulfillment-cell span {
   display: block;
   margin-bottom: 6px;
-  color: #52677a;
+  color: var(--spd-p-text-secondary);
 }
 
 .fulfillment-cell i {
@@ -2700,14 +2696,14 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   height: 6px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e7eef5;
+  background: var(--spd-p-bg-muted);
 }
 
 .fulfillment-cell b {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: #0f766e;
+  background: var(--spd-p-primary);
 }
 
 .quantity-gap {
@@ -2721,13 +2717,13 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .quantity-gap.pending {
-  color: #b45309;
-  background: #fff7ed;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
 }
 
 .quantity-gap.done {
-  color: #0f766e;
-  background: #ecfdf5;
+  color: var(--spd-p-primary);
+  background: var(--spd-p-primary-bg);
 }
 
 .tracking-panel {
@@ -2748,7 +2744,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  color: #52677a;
+  color: var(--spd-p-text-secondary);
 }
 
 .timeline-list {
@@ -2757,16 +2753,16 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .timeline-list article {
-  border: 1px solid #dbe5ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 12px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .timeline-list span,
 .timeline-list small {
   display: block;
-  color: #66788a;
+  color: var(--spd-p-text-secondary);
 }
 
 .modal-mask {
@@ -2776,7 +2772,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(15, 34, 51, 0.35);
+  background: color-mix(in srgb, var(--spd-p-text) 35%, transparent);
 }
 
 .edit-modal {
@@ -2785,8 +2781,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   overflow: auto;
   border-radius: 8px;
   padding: 22px;
-  background: #fff;
-  box-shadow: 0 20px 60px rgba(15, 34, 51, 0.22);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-dialog);
 }
 
 .edit-modal.wide {
@@ -2820,7 +2816,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   margin: 0;
   font-size: var(--spd-font-size-lg);
   font-weight: 600;
-  color: #0f2a3a;
+  color: var(--spd-p-text);
   line-height: var(--spd-lh-tight);
 }
 
@@ -2832,15 +2828,16 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   margin: 0 0 10px;
   padding: 7px 12px;
   border-radius: 6px;
-  background: #f0f7f9;
-  color: #52677a;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-base);
   flex-shrink: 0;
 }
 
 .purchase-picker-dept strong {
-  color: #0f766e;
+  color: var(--spd-p-primary);
   margin-left: 4px;
   font-weight: 600;
 }
@@ -2855,7 +2852,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   min-height: 0;
   max-height: none;
   overflow: auto;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
 }
 
@@ -2869,7 +2866,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   flex-shrink: 0;
   margin-top: 12px;
   padding: 12px 0 0;
-  border-top: 1px solid #ecf0f3;
+  border-top: 1px solid var(--spd-p-info-bg);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2903,8 +2900,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-entry-header {
   padding: 16px 22px;
-  border-bottom: 1px solid #dbe5ee;
-  background: #fff;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-entry-header p,
@@ -2914,12 +2911,12 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-entry-header p {
   margin-bottom: 3px;
-  color: #708396;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-header h3 {
-  color: #15394a;
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-2xl);
 }
 
@@ -2927,15 +2924,15 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   min-height: 0;
   overflow: auto;
   padding: 18px 22px;
-  background: #f7f9fb;
+  background: var(--spd-p-bg-page);
 }
 
 .purchase-entry-section {
   margin: 0 0 16px;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 16px;
-  background: #fff;
+  background: var(--spd-p-bg);
 }
 
 .purchase-entry-detail-section {
@@ -2957,13 +2954,13 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-entry-section-heading h4 {
-  color: #1a3b4d;
+  color: var(--spd-p-text-strong);
   font-size: var(--spd-font-size-lg);
 }
 
 .purchase-entry-section-heading small {
   margin-top: 4px;
-  color: #7b8d9d;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -2976,13 +2973,13 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .purchase-entry-meta-grid label {
   display: grid;
   gap: 6px;
-  color: #425a6b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .purchase-entry-meta-grid em {
-  color: #dc4c4c;
+  color: var(--spd-p-danger);
   font-style: normal;
 }
 
@@ -2991,11 +2988,11 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .purchase-entry-table input,
 .purchase-entry-table select {
   min-height: 38px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 0 10px;
-  background: #fff;
-  color: #243f50;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font: inherit;
 }
 
@@ -3004,8 +3001,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .purchase-entry-table input:focus,
 .purchase-entry-table select:focus,
 .purchase-entry-search:focus-within {
-  border-color: #0f766e;
-  outline: 2px solid rgba(15, 118, 110, 0.12);
+  border-color: var(--spd-p-primary);
+  outline: 2px solid color-mix(in srgb, var(--spd-p-primary) 12%, transparent);
   outline-offset: 0;
 }
 
@@ -3020,16 +3017,16 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-entry-summary span {
-  border: 1px solid #d8e8e5;
+  border: 1px solid var(--spd-p-primary-border);
   border-radius: 999px;
   padding: 5px 10px;
-  background: #f1f8f7;
-  color: #526d6b;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-base);
 }
 
 .purchase-entry-summary strong {
-  color: #0f766e;
+  color: var(--spd-p-primary);
 }
 
 .purchase-entry-toolbar {
@@ -3044,11 +3041,11 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   align-items: center;
   width: min(360px, 100%);
   min-height: 38px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 0 10px;
-  background: #fff;
-  color: #7a8d9c;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-muted);
 }
 
 .purchase-entry-search input {
@@ -3062,7 +3059,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-entry-table-wrap {
   overflow: auto;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 7px;
 }
 
@@ -3072,7 +3069,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-entry-table th {
   white-space: nowrap;
-  background: #f4f7f9;
+  background: var(--spd-p-bg-subtle);
 }
 
 .purchase-entry-table td {
@@ -3090,7 +3087,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-code-cell {
   width: 130px;
-  color: #52697a;
+  color: var(--spd-p-text-secondary);
   font-family: var(--spd-font-family-mono);
 }
 
@@ -3103,7 +3100,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-amount-cell {
-  color: #0f766e;
+  color: var(--spd-p-primary);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -3115,24 +3112,24 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   border: 0;
   padding: 5px 2px;
   background: transparent;
-  color: #c24141;
+  color: var(--spd-p-danger);
   cursor: pointer;
   font: inherit;
 }
 
 .purchase-row-delete:disabled {
-  color: #aab5bf;
+  color: var(--spd-p-text-secondary);
   cursor: not-allowed;
 }
 
 .purchase-entry-footer {
   padding: 14px 22px;
-  border-top: 1px solid #dbe5ee;
-  background: #fff;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-entry-footer > span {
-  color: #718494;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -3160,7 +3157,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .item-editor input,
 .item-editor select {
   min-height: 40px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 0 10px;
   font: inherit;
@@ -3185,10 +3182,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .close-check-panel article {
-  border: 1px solid #dbe5ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--spd-p-bg-muted);
 }
 
 .close-check-panel span,
@@ -3197,7 +3194,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .close-check-panel span {
-  color: #66788a;
+  color: var(--spd-p-text-secondary);
 }
 
 .close-reason-field {
@@ -3209,7 +3206,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .close-reason-field textarea {
   width: 100%;
   resize: vertical;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 10px;
   font: inherit;
@@ -3233,8 +3230,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   overflow: hidden;
   padding: 0;
   border-radius: 14px;
-  background: #f7f9fb;
-  box-shadow: 0 20px 60px rgba(15, 34, 51, 0.22);
+  background: var(--spd-p-bg-page);
+  box-shadow: var(--spd-p-shadow-dialog);
 }
 
 /* ---------- 头部 ---------- */
@@ -3244,8 +3241,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   justify-content: space-between;
   gap: 12px;
   padding: 18px 24px;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-bottom: 1px solid var(--spd-p-border);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-bg-muted) 100%);
 }
 
 .purchase-create-header-main {
@@ -3261,20 +3258,20 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   width: 38px;
   height: 38px;
   border-radius: 10px;
-  background: linear-gradient(180deg, #0f766e 0%, #0b5e57 100%);
-  color: #fff;
-  box-shadow: 0 2px 6px rgba(15, 118, 110, 0.25);
+  background: linear-gradient(180deg, var(--spd-p-primary) 0%, var(--spd-p-primary-strong) 100%);
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .purchase-create-header p {
   margin: 0 0 2px;
-  color: #708396;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
 .purchase-create-header h3 {
   margin: 0;
-  color: #15394a;
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-xl);
   font-weight: 700;
 }
@@ -3285,8 +3282,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 14px 24px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-create-overview-card {
@@ -3323,20 +3320,20 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   width: 30px;
   height: 30px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--spd-p-bg) 70%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.purchase-create-overview-card.tone-blue   { background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%); border-color: #93c5fd; color: #1e3a8a; }
-.purchase-create-overview-card.tone-green  { background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%); border-color: #6ee7b7; color: #065f46; }
-.purchase-create-overview-card.tone-amber  { background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%); border-color: #fcd34d; color: #78350f; }
-.purchase-create-overview-card.tone-purple { background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%); border-color: #c4b5fd; color: #4c1d95; }
+.purchase-create-overview-card.tone-blue   { background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%); border-color: var(--spd-p-info-border); color: var(--spd-p-info-strong); }
+.purchase-create-overview-card.tone-green  { background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%); border-color: var(--spd-p-success); color: var(--spd-p-primary-strong); }
+.purchase-create-overview-card.tone-amber  { background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%); border-color: var(--spd-p-warning-border); color: var(--spd-p-warning-strong); }
+.purchase-create-overview-card.tone-purple { background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%); border-color: var(--spd-p-info-border); color: var(--spd-p-primary-strong); }
 
-.purchase-create-overview-card.tone-blue   .purchase-create-overview-icon { color: #1d4ed8; }
-.purchase-create-overview-card.tone-green  .purchase-create-overview-icon { color: #047857; }
-.purchase-create-overview-card.tone-amber  .purchase-create-overview-icon { color: #b45309; }
-.purchase-create-overview-card.tone-purple .purchase-create-overview-icon { color: #6d28d9; }
+.purchase-create-overview-card.tone-blue   .purchase-create-overview-icon { color: var(--spd-p-info-strong); }
+.purchase-create-overview-card.tone-green  .purchase-create-overview-icon { color: var(--spd-p-success-strong); }
+.purchase-create-overview-card.tone-amber  .purchase-create-overview-icon { color: var(--spd-p-warning-text); }
+.purchase-create-overview-card.tone-purple .purchase-create-overview-icon { color: var(--spd-p-primary); }
 
 /* ---------- 主体：左右双栏 ---------- */
 .purchase-create-body {
@@ -3352,10 +3349,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   display: flex;
   flex-direction: column;
   min-height: 0;
-  border: 1px solid #dfe7ee;
+  border: 1px solid var(--spd-p-border);
   border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   overflow: hidden;
 }
 
@@ -3364,8 +3361,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   align-items: flex-start;
   gap: 10px;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-create-panel-icon {
@@ -3378,19 +3375,19 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   flex-shrink: 0;
 }
 
-.purchase-create-panel-icon.is-green { background: #d1fae5; color: #047857; }
-.purchase-create-panel-icon.is-blue  { background: #dbeafe; color: #1d4ed8; }
+.purchase-create-panel-icon.is-green { background: var(--spd-p-success-bg); color: var(--spd-p-success-strong); }
+.purchase-create-panel-icon.is-blue  { background: var(--spd-p-border); color: var(--spd-p-info-strong); }
 
 .purchase-create-panel-header h4 {
   margin: 0;
-  color: #15394a;
+  color: var(--spd-p-success-text);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
 .purchase-create-panel-header p {
   margin: 2px 0 0;
-  color: #7b8d9d;
+  color: var(--spd-p-text-muted);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -3410,13 +3407,13 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   gap: 6px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #425a6b;
+  color: var(--spd-p-text-secondary);
 }
 
 .purchase-create-field.is-wide { grid-column: 1 / -1; }
 
 .purchase-create-field em {
-  color: #dc4c4c;
+  color: var(--spd-p-danger);
   font-style: normal;
   margin-right: 2px;
 }
@@ -3426,11 +3423,11 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .purchase-create-field textarea {
   width: 100%;
   min-height: 36px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 0 10px;
-  background: #fff;
-  color: #243f50;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font: inherit;
   font-weight: 400;
   font-size: var(--spd-font-size-base);
@@ -3447,24 +3444,24 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .purchase-create-field input:focus,
 .purchase-create-field select:focus,
 .purchase-create-field textarea:focus {
-  border-color: #0f766e;
-  outline: 2px solid rgba(15, 118, 110, 0.12);
+  border-color: var(--spd-p-primary);
+  outline: 2px solid color-mix(in srgb, var(--spd-p-primary) 12%, transparent);
   outline-offset: 0;
 }
 
 .purchase-create-tips {
   margin: 0 16px 16px;
   padding: 10px 12px;
-  border: 1px solid #c7d2fe;
-  background: #f5f7ff;
+  border: 1px solid var(--spd-p-info-border);
+  background: var(--spd-p-info-bg);
   border-radius: 8px;
-  color: #475569;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-loose);
 }
 
-.purchase-create-tips p { margin: 0 0 4px; color: #1e3a8a; }
-.purchase-create-tips strong { color: #1e3a8a; }
+.purchase-create-tips p { margin: 0 0 4px; color: var(--spd-p-info-strong); }
+.purchase-create-tips strong { color: var(--spd-p-info-strong); }
 .purchase-create-tips ul { margin: 0; padding-left: 18px; }
 .purchase-create-tips li { margin-bottom: 2px; }
 
@@ -3474,8 +3471,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-create-search {
@@ -3487,10 +3484,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   max-width: 360px;
   height: 34px;
   padding: 0 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #94a3b8;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-muted);
 }
 
 .purchase-create-search input {
@@ -3499,14 +3496,14 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   border: 0;
   outline: 0;
   background: transparent;
-  color: #102033;
+  color: var(--spd-p-text);
   font: inherit;
   font-size: var(--spd-font-size-base);
 }
 
 .purchase-create-search:focus-within {
-  border-color: #0f766e;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .purchase-create-items {
@@ -3520,16 +3517,16 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-create-item {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fafdfb;
+  background: var(--spd-p-bg);
   padding: 10px 12px;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .purchase-create-item:hover {
-  border-color: #6ee7b7;
-  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+  border-color: var(--spd-p-success);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .purchase-create-item-row {
@@ -3558,17 +3555,17 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   min-height: 34px;
   width: 100%;
   padding: 0 8px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-success-strong);
   font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .purchase-create-item-label {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
   letter-spacing: 0.2px;
@@ -3579,35 +3576,35 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
   padding: 0 8px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font: inherit;
   font-size: var(--spd-font-size-base);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .purchase-create-item-product select.is-empty {
-  color: #94a3b8;
+  color: var(--spd-p-text-muted);
 }
 
 .purchase-create-item-product select:focus,
 .purchase-create-item-cell input:focus {
-  border-color: #0f766e;
-  outline: 2px solid rgba(15, 118, 110, 0.12);
+  border-color: var(--spd-p-primary);
+  outline: 2px solid color-mix(in srgb, var(--spd-p-primary) 12%, transparent);
   outline-offset: 0;
 }
 
 .purchase-create-item-meta {
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: var(--spd-lh-base);
 }
 
 .purchase-create-item-meta.is-placeholder {
-  color: #c2410c;
+  color: var(--spd-p-warning-strong);
   font-style: italic;
 }
 
@@ -3624,10 +3621,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   gap: 3px;
   height: 34px;
   padding: 0 10px;
-  border: 1px solid #fecaca;
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: 6px;
-  background: #fff;
-  color: #b91c1c;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -3635,8 +3632,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 .purchase-create-item-actions .btn-text:hover:not(:disabled) {
-  background: #fee2e2;
-  border-color: #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger-border);
 }
 
 .purchase-create-item-actions .btn-text:disabled {
@@ -3650,8 +3647,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   padding: 12px 14px;
-  border-top: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, #fafdfb 0%, #ecfdf5 100%);
+  border-top: 1px solid var(--spd-p-border);
+  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--spd-p-primary-bg) 100%);
 }
 
 .purchase-create-summary-row {
@@ -3660,15 +3657,15 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-base);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .purchase-create-summary-row strong {
-  color: #047857;
+  color: var(--spd-p-success-strong);
   font-size: var(--spd-font-size-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -3676,12 +3673,12 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-create-summary-row.is-total {
   grid-column: span 3;
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%);
+  border-color: var(--spd-p-success);
 }
 
-.purchase-create-summary-row.is-total span { color: #065f46; font-weight: 600; }
-.purchase-create-summary-row.is-total strong { color: #064e3b; font-size: var(--spd-font-size-2xl); }
+.purchase-create-summary-row.is-total span { color: var(--spd-p-primary-strong); font-weight: 600; }
+.purchase-create-summary-row.is-total strong { color: var(--spd-p-success-strong); font-size: var(--spd-font-size-2xl); }
 
 /* ---------- 底部 ---------- */
 .purchase-create-footer {
@@ -3690,12 +3687,12 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   justify-content: space-between;
   gap: 12px;
   padding: 14px 24px;
-  border-top: 1px solid #e2e8f0;
-  background: #fff;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 .purchase-create-footer > span {
-  color: #708396;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -3738,7 +3735,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .purchase-smart-modal header p {
   margin: 0 0 4px;
-  color: #66788a;
+  color: var(--spd-p-text-secondary);
 }
 
 .analysis-summary {
@@ -3746,19 +3743,19 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   flex-wrap: wrap;
   gap: 12px;
   padding: 12px 0;
-  color: #52677a;
+  color: var(--spd-p-text-secondary);
 }
 
 .analysis-error {
-  color: #b91c1c;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger-border);
 }
 
 .analysis-qty-input {
   width: 96px;
   min-height: 36px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 0 10px;
   font: inherit;
@@ -3766,7 +3763,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .muted-cell {
   display: block;
-  color: #718096;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
 }
 
@@ -3777,10 +3774,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .form-section-title {
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: #1a3b4d;
+  color: var(--spd-p-text);
   margin: 0 0 10px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid #e8edf2;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .product-search-bar {
@@ -3792,7 +3789,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .product-search-input {
   min-height: 38px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 0 12px;
   font: inherit;
@@ -3801,7 +3798,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 
 .product-search-hint {
   font-size: var(--spd-font-size-sm);
-  color: #8899aa;
+  color: var(--spd-p-text-muted);
 }
 
 .item-editor-header {
@@ -3812,7 +3809,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   margin-bottom: 4px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #66788a;
+  color: var(--spd-p-text-secondary);
 }
 
 .demand-item-header {
@@ -3835,7 +3832,7 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 .demand-item-editor input,
 .demand-item-editor select {
   min-height: 40px;
-  border: 1px solid #d6e0ea;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   padding: 0 10px;
   font: inherit;
@@ -3875,10 +3872,10 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   display: flex;
   gap: 20px;
   padding: 12px 16px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
+  background: var(--spd-p-bg-muted);
+  border-bottom: 1px solid var(--spd-p-border);
   font-size: var(--spd-font-size-base);
-  color: #475569;
+  color: var(--spd-p-text-secondary);
 }
 
 .detail-summary-bar span {
@@ -3901,8 +3898,8 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
   min-width: 30px;
   height: 22px;
   border-radius: 999px;
-  background: #eef8f6;
-  color: #0f766e;
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-primary);
   font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 7px;
@@ -3911,7 +3908,6 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
 }
 
 @media (max-width: 860px) {
-  .purchase-query-grid,
   .close-check-panel {
     grid-template-columns: 1fr;
   }

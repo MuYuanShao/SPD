@@ -62,13 +62,13 @@ async function submitLogin() {
         <svg viewBox="0 0 600 900" preserveAspectRatio="xMidYMid slice">
           <defs>
             <linearGradient id="aside-line" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stop-color="#ffffff" stop-opacity="0" />
-              <stop offset="50%" stop-color="#ffffff" stop-opacity="0.45" />
-              <stop offset="100%" stop-color="#ffffff" stop-opacity="0" />
+              <stop offset="0%" stop-color="var(--spd-p-bg)" stop-opacity="0" />
+              <stop offset="50%" stop-color="var(--spd-p-bg)" stop-opacity="0.45" />
+              <stop offset="100%" stop-color="var(--spd-p-bg)" stop-opacity="0" />
             </linearGradient>
             <linearGradient id="aside-fill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#69c0ff" stop-opacity="0.35" />
-              <stop offset="100%" stop-color="#69c0ff" stop-opacity="0" />
+              <stop offset="0%" stop-color="var(--spd-p-info)" stop-opacity="0.35" />
+              <stop offset="100%" stop-color="var(--spd-p-info)" stop-opacity="0" />
             </linearGradient>
           </defs>
           <!-- 心电波 -->
@@ -84,11 +84,11 @@ async function submitLogin() {
             opacity="0.4"
           />
           <!-- 圆环 -->
-          <circle cx="500" cy="780" r="180" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="1" />
-          <circle cx="500" cy="780" r="130" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1" />
-          <circle cx="500" cy="780" r="80" fill="none" stroke="#ffffff" stroke-opacity="0.24" stroke-width="1" />
+          <circle cx="500" cy="780" r="180" fill="none" stroke="var(--spd-p-bg)" stroke-opacity="0.12" stroke-width="1" />
+          <circle cx="500" cy="780" r="130" fill="none" stroke="var(--spd-p-bg)" stroke-opacity="0.18" stroke-width="1" />
+          <circle cx="500" cy="780" r="80" fill="none" stroke="var(--spd-p-bg)" stroke-opacity="0.24" stroke-width="1" />
           <!-- 抽象六边形（医疗分子感） -->
-          <g transform="translate(80 760)" fill="none" stroke="#ffffff" stroke-opacity="0.18" stroke-width="1">
+          <g transform="translate(80 760)" fill="none" stroke="var(--spd-p-bg)" stroke-opacity="0.18" stroke-width="1">
             <polygon points="40,0 80,23 80,69 40,92 0,69 0,23" />
             <polygon points="100,46 140,69 140,115 100,138 60,115 60,69" />
             <polygon points="40,92 80,115 80,161 40,184 0,161 0,115" />

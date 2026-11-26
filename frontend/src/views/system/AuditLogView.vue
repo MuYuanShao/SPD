@@ -33,6 +33,7 @@ import { useListColumns, type ListColumnConfig } from '../../composables/useList
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { formatBusinessText } from '../../utils/chineseDisplay'
+import { notifyError, resolveErrorMessage } from '../../composables/useNotify'
 import {
   fetchAuditLogBizTypes,
   fetchAuditLogDetail,
@@ -104,7 +105,6 @@ const total = ref(0)
 const page = ref(1)
 const size = ref(20)
 const loading = ref(false)
-const error = ref('')
 
 const operationTypeFacets = ref<AuditLogFacet[]>([])
 const bizTypeFacets = ref<AuditLogBizTypeFacet[]>([])
@@ -164,7 +164,6 @@ function operationChipType(op?: string): 'create' | 'update' | 'delete' | 'expor
 
 async function loadList() {
   loading.value = true
-  error.value = ''
   try {
     const data = await fetchAuditLogs({
       ...query.value,
@@ -175,7 +174,7 @@ async function loadList() {
     total.value = data.total
 
   } catch (err: any) {
-    error.value = err?.message || '系统操作记录加载失败'
+    notifyError(resolveErrorMessage(err, '系统操作记录加载失败'))
     rows.value = []
     total.value = 0
   } finally {
@@ -323,39 +322,42 @@ watch(() => query.value.bizType, (v) => {
         <label><span>开始日期</span><input v-model="query.fromDate" type="date" class="sys-input" /></label>
         <label><span>结束日期</span><input v-model="query.toDate" type="date" class="sys-input" /></label>
         <div class="sys-form-actions">
-          <button class="btn" type="button" @click="onReset"><RefreshCw :size="15" /> 重置</button>
-          <button class="btn btn-primary" type="button" @click="onSearch"><Search :size="15" /> 查询</button>
-          <button class="btn" type="button" :disabled="!rows.length" @click="exportJson"><Download :size="15" /> 导出当前页</button>
+          <SpdButton label="重置" tone="neutral" @click="onReset">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="查询" tone="primary" @click="onSearch">
+          <template #icon><Search :size="15" /></template>
+        </SpdButton>
+          <SpdButton label="导出当前页" tone="neutral" :disabled="!rows.length" @click="exportJson">
+          <template #icon><Download :size="15" /></template>
+        </SpdButton>
         </div>
       </div>
     </div>
 
-    <div v-if="error" class="sys-error" role="alert">{{ error }}</div>
+    <!-- 请求失败统一由通用消息接口（Element Plus 消息弹层）抛出，
+         不再在页面上方渲染内联错误条。 -->
 
     <!-- 审计日志表 -->
     <MdDataTableCard class="master-table-card" :loading="loading">
       <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="auditLogColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="auditLogCols.settingsOpen.value = !auditLogCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: auditLogCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="auditLogColSettingsAnchorRef"
+           
+           
+            @click="auditLogCols.settingsOpen.value = !auditLogCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="auditLogCols.settingsOpen.value"
             ref="auditLogColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': auditLogColSettingsPop.align.value === 'right', 'is-align-up': auditLogColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': auditLogColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': auditLogColSettingsPop.maxHeight.value + 'px' }"
+            :style="auditLogColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="auditLogCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="auditLogCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in auditLogCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -370,7 +372,7 @@ watch(() => query.value.bizType, (v) => {
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="auditLogCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="auditLogCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -548,7 +550,9 @@ watch(() => query.value.bizType, (v) => {
       <div class="sys-dialog sys-dialog-xl" role="dialog" aria-modal="true">
         <div class="sys-dialog-header">
           <h3>系统操作记录详情 · #{{ detailRow?.auditId }}</h3>
-          <button class="btn-icon" type="button" @click="closeDetail"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" @click="closeDetail">
+          <template #icon><X :size="16" /></template>
+        </SpdButton>
         </div>
         <div class="sys-dialog-body">
           <div v-if="detailLoading" class="text-center muted">正在加载详情...</div>
@@ -633,7 +637,7 @@ watch(() => query.value.bizType, (v) => {
           </template>
         </div>
         <div class="sys-dialog-footer">
-          <button class="btn" type="button" @click="closeDetail">关闭</button>
+          <SpdButton label="关闭" tone="neutral" @click="closeDetail"></SpdButton>
         </div>
       </div>
     </div>
@@ -677,31 +681,31 @@ watch(() => query.value.bizType, (v) => {
   padding: 14px 18px;
   border: 1px solid;
   border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  background: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sys-kpi-item:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .sys-kpi-item.is-blue {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
+  background: linear-gradient(180deg, var(--spd-p-border) 0%, var(--spd-p-info-border) 100%);
+  border-color: var(--spd-p-info-border);
 }
 .sys-kpi-item.is-green {
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-success-bg) 0%, var(--spd-p-success-border) 100%);
+  border-color: var(--spd-p-success);
 }
 .sys-kpi-item.is-orange {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
+  background: linear-gradient(180deg, var(--spd-p-warning-bg) 0%, var(--spd-p-warning-border) 100%);
+  border-color: var(--spd-p-warning-border);
 }
 .sys-kpi-item.is-purple {
-  background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%);
-  border-color: #c4b5fd;
+  background: linear-gradient(180deg, var(--spd-p-info-bg) 0%, var(--spd-p-info-bg) 100%);
+  border-color: var(--spd-p-info-border);
 }
 
 .sys-kpi-icon {
@@ -711,15 +715,15 @@ watch(() => query.value.bizType, (v) => {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--spd-p-bg) 65%, transparent);
   flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 90%, transparent);
 }
 
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green  .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
-.sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
+.sys-kpi-item.is-blue   .sys-kpi-icon { color: var(--spd-p-info-strong); }
+.sys-kpi-item.is-green  .sys-kpi-icon { color: var(--spd-p-success-strong); }
+.sys-kpi-item.is-orange .sys-kpi-icon { color: var(--spd-p-warning-text); }
+.sys-kpi-item.is-purple .sys-kpi-icon { color: var(--spd-p-primary); }
 
 .sys-kpi-item > div {
   display: grid;
@@ -739,24 +743,24 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-kpi-item.is-blue   .sys-kpi-label,
 .sys-kpi-item.is-blue   .sys-kpi-value,
-.sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
+.sys-kpi-item.is-blue   .sys-kpi-hint { color: var(--spd-p-info-strong); }
 .sys-kpi-item.is-green  .sys-kpi-label,
 .sys-kpi-item.is-green  .sys-kpi-value,
-.sys-kpi-item.is-green  .sys-kpi-hint { color: #065f46; }
+.sys-kpi-item.is-green  .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 .sys-kpi-item.is-orange .sys-kpi-label,
 .sys-kpi-item.is-orange .sys-kpi-value,
-.sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
+.sys-kpi-item.is-orange .sys-kpi-hint { color: var(--spd-p-warning-strong); }
 .sys-kpi-item.is-purple .sys-kpi-label,
 .sys-kpi-item.is-purple .sys-kpi-value,
-.sys-kpi-item.is-purple .sys-kpi-hint { color: #4c1d95; }
+.sys-kpi-item.is-purple .sys-kpi-hint { color: var(--spd-p-primary-strong); }
 
 /* ---------- 查询条件卡 ---------- */
 .sys-form-section {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   padding: 18px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-form-section-header {
@@ -765,7 +769,7 @@ watch(() => query.value.bizType, (v) => {
   gap: 10px;
   margin-bottom: 14px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-form-section-icon {
@@ -779,8 +783,8 @@ watch(() => query.value.bizType, (v) => {
 }
 
 .sys-form-section-icon.is-green {
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
 }
 
 .sys-form-section-header h4 {
@@ -807,7 +811,7 @@ watch(() => query.value.bizType, (v) => {
   gap: 5px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-form-actions {
@@ -823,10 +827,10 @@ watch(() => query.value.bizType, (v) => {
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -834,7 +838,7 @@ watch(() => query.value.bizType, (v) => {
 }
 
 .sys-input:focus,
-.sys-select:focus { outline: none; border-color: #cbd5e1; }
+.sys-select:focus { outline: none; border-color: var(--spd-p-border-strong); }
 
 /* ---------- 按钮 ---------- */
 .btn {
@@ -845,29 +849,29 @@ watch(() => query.value.bizType, (v) => {
   min-height: 32px;
   height: 32px;
   padding: 0 14px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #334155;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.btn:hover:not(:disabled) { background: #f8fafc; border-color: #94a3b8; color: #1e293b; }
+.btn:hover:not(:disabled) { background: var(--spd-p-bg-muted); border-color: var(--spd-p-text-muted); color: var(--spd-p-text-strong); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success) 100%);
+  border-color: var(--spd-p-success-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
+  background: linear-gradient(180deg, var(--spd-p-success) 0%, var(--spd-p-success-strong) 100%);
+  border-color: var(--spd-p-primary-strong);
+  color: var(--spd-p-bg);
 }
 
 .btn-icon {
@@ -879,12 +883,12 @@ watch(() => query.value.bizType, (v) => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
-.btn-icon:hover { background: #f1f5f9; color: #334155; }
+.btn-icon:hover { background: var(--spd-p-bg-muted); color: var(--spd-p-text-strong); }
 
 .btn-text {
   display: inline-flex;
@@ -892,7 +896,7 @@ watch(() => query.value.bizType, (v) => {
   gap: 3px;
   border: none;
   background: transparent;
-  color: #10b981;
+  color: var(--spd-p-success);
   font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
@@ -901,19 +905,19 @@ watch(() => query.value.bizType, (v) => {
   transition: background 0.15s;
 }
 
-.btn-text:hover { background: #d1fae5; }
+.btn-text:hover { background: var(--spd-p-success-bg); }
 
 /* ---------- 消息 / 错误 ---------- */
 .sys-error {
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- Tab ---------- */
@@ -942,21 +946,21 @@ watch(() => query.value.bizType, (v) => {
   white-space: nowrap;
 }
 
-.sys-tab:hover { color: var(--spd-primary); background: #f0fdf9; }
+.sys-tab:hover { color: var(--spd-primary); background: var(--spd-p-primary-bg); }
 .sys-tab.active {
   color: var(--spd-primary);
   border-bottom-color: var(--spd-primary);
-  background: #f0fdf9;
+  background: var(--spd-p-primary-bg);
   font-weight: 600;
 }
 
 /* ---------- 表格 ---------- */
 .sys-table-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
   overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   display: flex;
   flex-direction: column;
 }
@@ -966,8 +970,8 @@ watch(() => query.value.bizType, (v) => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-bottom: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
   gap: 12px;
 }
 
@@ -980,10 +984,10 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-table-card-meta {
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
-.sys-table-card-meta strong { color: #047857; font-weight: 700; }
+.sys-table-card-meta strong { color: var(--spd-p-success-strong); font-weight: 700; }
 
 .sys-table-scroll { overflow-x: auto; }
 
@@ -994,12 +998,12 @@ watch(() => query.value.bizType, (v) => {
 }
 
 .sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
+  background: linear-gradient(180deg, var(--spd-p-primary-bg) 0%, var(--spd-p-success-bg) 100%);
+  border-bottom: 1px solid var(--spd-p-success);
 }
 
 .sys-table th {
-  color: #065f46;
+  color: var(--spd-p-primary-strong);
   font-weight: 700;
   font-size: var(--spd-font-size-table-head);
   text-align: left;
@@ -1010,13 +1014,13 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-table td {
   padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
+  border-bottom: 1px solid var(--spd-p-text-strong);
+  color: var(--spd-p-text-secondary);
   vertical-align: middle;
 }
 
-.sys-table tbody tr:nth-child(even) td { background: #fafdfb; }
-.sys-table tbody tr:hover td { background: #ecfdf5 !important; }
+.sys-table tbody tr:nth-child(even) td { background: var(--spd-p-bg); }
+.sys-table tbody tr:hover td { background: var(--spd-p-primary-bg) !important; }
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 /* 单元格前小图标 */
@@ -1027,37 +1031,39 @@ watch(() => query.value.bizType, (v) => {
   width: 18px;
   height: 18px;
   border-radius: 4px;
-  background: #f1f5f9;
-  color: #475569;
+  /* 浅底深字（此前误用近黑底配深灰字，图标几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
   margin-right: 6px;
   vertical-align: -3px;
 }
 
-.sys-cell-icon.is-muted { background: transparent; color: #94a3b8; }
+.sys-cell-icon.is-muted { background: transparent; color: var(--spd-p-text-muted); }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
+.muted { color: var(--spd-p-text-muted); padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 .audit-remark-cell {
   max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
 }
 
 /* ---------- 通用 tag / chip / badge ---------- */
 .sys-tag.is-code {
   display: inline-flex;
   align-items: center;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 6px;
   padding: 1px 8px;
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
   white-space: nowrap;
-  color: #334155;
-  background: #f1f5f9;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
   font-family: var(--spd-font-family-mono);
 }
 
@@ -1073,16 +1079,16 @@ watch(() => query.value.bizType, (v) => {
   white-space: nowrap;
 }
 
-.sys-chip.is-op-create  { color: #065f46; background: #d1fae5; border-color: #6ee7b7; }
-.sys-chip.is-op-update  { color: #1d4ed8; background: #dbeafe; border-color: #93c5fd; }
-.sys-chip.is-op-delete  { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
-.sys-chip.is-op-export  { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }
-.sys-chip.is-op-import  { color: #b45309; background: #fef3c7; border-color: #fcd34d; }
-.sys-chip.is-op-login   { color: #0e7490; background: #cffafe; border-color: #67e8f9; }
-.sys-chip.is-op-logout  { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
-.sys-chip.is-op-query   { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }
-.sys-chip.is-op-approve { color: #be123c; background: #ffe4e6; border-color: #fda4af; }
-.sys-chip.is-op-default { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
+.sys-chip.is-op-create  { color: var(--spd-p-primary-strong); background: var(--spd-p-success-bg); border-color: var(--spd-p-success); }
+.sys-chip.is-op-update  { color: var(--spd-p-info-strong); background: var(--spd-p-border); border-color: var(--spd-p-info-border); }
+.sys-chip.is-op-delete  { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
+.sys-chip.is-op-export  { color: var(--spd-p-primary); background: var(--spd-p-info-bg); border-color: var(--spd-p-info-border); }
+.sys-chip.is-op-import  { color: var(--spd-p-warning-text); background: var(--spd-p-warning-bg); border-color: var(--spd-p-warning-border); }
+.sys-chip.is-op-login   { color: var(--spd-p-success-text); background: var(--spd-p-info-bg); border-color: var(--spd-p-success); }
+.sys-chip.is-op-logout  { color: var(--spd-p-text-secondary); background: var(--spd-p-bg-muted); border-color: var(--spd-p-border-strong); }
+.sys-chip.is-op-query   { color: var(--spd-p-primary); background: var(--spd-p-primary-bg); border-color: var(--spd-p-primary-hover); }
+.sys-chip.is-op-approve { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
+.sys-chip.is-op-default { color: var(--spd-p-text-secondary); background: var(--spd-p-bg-muted); border-color: var(--spd-p-border-strong); }
 
 .sys-badge {
   display: inline-flex;
@@ -1094,15 +1100,16 @@ watch(() => query.value.bizType, (v) => {
 }
 
 .sys-badge.is-changed {
-  color: #991b1b;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 .sys-badge.is-unchanged {
-  color: #64748b;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--spd-p-border);
 }
 
 /* ---------- 分页 ---------- */
@@ -1111,15 +1118,15 @@ watch(() => query.value.bizType, (v) => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   flex-wrap: wrap;
   gap: 12px;
 }
 
-.sys-pagination strong { color: #047857; font-weight: 700; }
+.sys-pagination strong { color: var(--spd-p-success-strong); font-weight: 700; }
 
 /* ---------- 详情弹窗 ---------- */
 .sys-dialog-mask {
@@ -1129,14 +1136,14 @@ watch(() => query.value.bizType, (v) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 50%, transparent);
   backdrop-filter: blur(2px);
 }
 
 .sys-dialog {
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: var(--spd-radius-lg, 14px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--spd-p-shadow-dialog);
   width: 100%;
   max-width: 600px;
   max-height: 88vh;
@@ -1158,7 +1165,7 @@ watch(() => query.value.bizType, (v) => {
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-dialog-header h3 {
@@ -1181,8 +1188,8 @@ watch(() => query.value.bizType, (v) => {
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 /* 详情信息网格 */
@@ -1197,9 +1204,9 @@ watch(() => query.value.bizType, (v) => {
   align-items: flex-start;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #fafdfb;
+  background: var(--spd-p-bg);
   min-width: 0;
 }
 
@@ -1212,8 +1219,8 @@ watch(() => query.value.bizType, (v) => {
   width: 26px;
   height: 26px;
   border-radius: 6px;
-  background: #d1fae5;
-  color: #047857;
+  background: var(--spd-p-success-bg);
+  color: var(--spd-p-success-strong);
   flex-shrink: 0;
 }
 
@@ -1226,13 +1233,13 @@ watch(() => query.value.bizType, (v) => {
 
 .sys-detail-grid article > div span {
   font-size: var(--spd-font-size-sm);
-  color: #64748b;
+  color: var(--spd-p-text-secondary);
   font-weight: 600;
 }
 
 .sys-detail-grid article > div strong {
   font-size: var(--spd-font-size-base);
-  color: #102033;
+  color: var(--spd-p-text);
   font-weight: 600;
   word-break: break-all;
 }
@@ -1240,20 +1247,20 @@ watch(() => query.value.bizType, (v) => {
 /* 变更对比 / JSON */
 .sys-diff-card {
   margin-top: 10px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
   overflow: hidden;
 }
 
-.sys-diff-card .sys-table tbody tr.is-changed td { background: #fef3c7; }
-.sys-diff-card .sys-table tbody tr.is-changed:hover td { background: #fde68a !important; }
+.sys-diff-card .sys-table tbody tr.is-changed td { background: var(--spd-p-warning-bg); }
+.sys-diff-card .sys-table tbody tr.is-changed:hover td { background: var(--spd-p-warning-border) !important; }
 
 .sys-diff-card code {
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   word-break: break-all;
-  background: rgba(255, 255, 255, 0.7);
+  background: color-mix(in srgb, var(--spd-p-bg) 70%, transparent);
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -1261,9 +1268,9 @@ watch(() => query.value.bizType, (v) => {
 .sys-json {
   margin-top: 10px;
   padding: 14px;
-  background: #0f172a;
+  background: var(--spd-p-text-strong);
   border-radius: 8px;
-  border: 1px solid #1e293b;
+  border: 1px solid var(--spd-p-bg-muted);
   max-height: 360px;
   overflow: auto;
 }
@@ -1272,7 +1279,7 @@ watch(() => query.value.bizType, (v) => {
   margin: 0;
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-base);
-  color: #e2e8f0;
+  color: var(--spd-p-text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
   line-height: var(--spd-lh-base);

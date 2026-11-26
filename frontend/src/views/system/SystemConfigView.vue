@@ -289,9 +289,13 @@ onMounted(loadConfigs)
         </select>
       </div>
       <div class="sys-toolbar-actions">
-        <button class="md-btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
+        <SpdButton label="重置" tone="neutral" @click="resetQuery">
+          <template #icon><RefreshCw :size="15" /></template>
+        </SpdButton>
         <i class="sys-toolbar-sep"></i>
-        <button class="md-btn md-btn-primary" type="button" @click="openCreate"><Plus :size="15" /> 新增配置</button>
+        <SpdButton label="新增配置" tone="primary" @click="openCreate">
+          <template #icon><Plus :size="15" /></template>
+        </SpdButton>
       </div>
     </div>
 
@@ -303,26 +307,22 @@ onMounted(loadConfigs)
     <MdDataTableCard :loading="loading">
       <template #toolbar>
         <div class="ulc-col-settings">
-          <button
-            ref="systemConfigColSettingsAnchorRef"
-            type="button"
-            class="md-btn md-btn-primary"
-            @click="systemConfigCols.settingsOpen.value = !systemConfigCols.settingsOpen.value"
-          >
-            <Columns3 :size="16" />
-            <span>列设置</span>
-            <ChevronDown :size="14" :class="{ rotated: systemConfigCols.settingsOpen.value }" />
-          </button>
+          <SpdButton label="列设置" tone="neutral" ref="systemConfigColSettingsAnchorRef"
+           
+           
+            @click="systemConfigCols.settingsOpen.value = !systemConfigCols.settingsOpen.value">
+          <template #icon><Columns3 :size="16" /></template>
+        </SpdButton>
           <div
             v-if="systemConfigCols.settingsOpen.value"
             ref="systemConfigColSettingsPopRef"
             class="ulc-col-settings-pop"
             :class="{ 'is-align-right': systemConfigColSettingsPop.align.value === 'right', 'is-align-up': systemConfigColSettingsPop.vertical.value === 'up' }"
-            :style="{ '--ulc-pop-offset-y': systemConfigColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': systemConfigColSettingsPop.maxHeight.value + 'px' }"
+            :style="systemConfigColSettingsPop.popStyle.value"
           >
             <header>
               <strong>列展示设置</strong>
-              <button type="button" class="ulc-link" @click="systemConfigCols.resetColumns()">恢复默认</button>
+              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="systemConfigCols.resetColumns()"></SpdButton>
             </header>
             <div class="ulc-col-settings-list">
               <label v-for="col in systemConfigCols.columns.value" :key="col.key" class="ulc-col-settings-item">
@@ -337,7 +337,7 @@ onMounted(loadConfigs)
               </label>
             </div>
             <footer>
-              <button type="button" class="ulc-action" @click="systemConfigCols.settingsOpen.value = false">确定</button>
+              <SpdButton label="确定" tone="primary" @click="systemConfigCols.settingsOpen.value = false"></SpdButton>
             </footer>
           </div>
         </div>
@@ -534,7 +534,9 @@ onMounted(loadConfigs)
       <div class="sys-dialog">
         <div class="sys-dialog-header">
           <h3>{{ dialogMode === 'create' ? '新增配置' : '编辑配置' }}</h3>
-          <button class="md-btn md-btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="dialogOpen = false">
+            <template #icon><X :size="16" /></template>
+          </SpdButton>
         </div>
         <div class="sys-dialog-body">
           <div class="sys-form-grid">
@@ -578,8 +580,10 @@ onMounted(loadConfigs)
           </div>
         </div>
         <div class="sys-dialog-footer">
-          <button class="md-btn" type="button" @click="dialogOpen = false">取消</button>
-          <button class="md-btn md-btn-primary" type="button" @click="saveConfig"><CheckCircle2 :size="15" /> 保存</button>
+          <SpdButton label="取消" tone="neutral" @click="dialogOpen = false"></SpdButton>
+          <SpdButton label="保存" tone="success" @click="saveConfig">
+          <template #icon><CheckCircle2 :size="15" /></template>
+        </SpdButton>
         </div>
       </div>
     </div>
@@ -637,13 +641,13 @@ onMounted(loadConfigs)
 
 .sys-tab:hover {
   color: var(--spd-primary);
-  background: #f0fdf9;
+  background: var(--spd-p-primary-bg);
 }
 
 .sys-tab.active {
   color: var(--spd-primary);
   border-bottom-color: var(--spd-primary);
-  background: #f0fdf9;
+  background: var(--spd-p-primary-bg);
   font-weight: 600;
 }
 
@@ -653,10 +657,10 @@ onMounted(loadConfigs)
   align-items: center;
   gap: 12px;
   padding: 12px 16px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: var(--spd-radius-md, 10px);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--spd-p-shadow-1);
   flex-wrap: wrap;
 }
 
@@ -664,9 +668,9 @@ onMounted(loadConfigs)
   display: flex;
   align-items: center;
   gap: 0;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 7px;
-  background: #fff;
+  background: var(--spd-p-bg);
   overflow: hidden;
   flex: 0 0 300px;
   min-width: 0;
@@ -678,9 +682,9 @@ onMounted(loadConfigs)
   justify-content: center;
   width: 34px;
   height: 34px;
-  color: #64748b;
-  background: #f8fafc;
-  border-right: 1px solid #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  background: var(--spd-p-bg-muted);
+  border-right: 1px solid var(--spd-p-border);
   flex-shrink: 0;
 }
 
@@ -690,13 +694,13 @@ onMounted(loadConfigs)
   height: 34px;
   border: none;
   background: transparent;
-  color: #102033;
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
-.sys-toolbar-search input::placeholder { color: #94a3b8; }
+.sys-toolbar-search input::placeholder { color: var(--spd-p-text-muted); }
 .sys-toolbar-search input:focus { outline: none; }
 
 .sys-toolbar-actions {
@@ -709,18 +713,18 @@ onMounted(loadConfigs)
 .sys-toolbar-sep {
   width: 1px;
   height: 22px;
-  background: #e2e8f0;
+  background: var(--spd-p-border);
   margin: 0 4px;
 }
 
 .sys-toolbar-select {
   min-height: 34px;
   border: none;
-  border-left: 1px solid #e2e8f0;
-  background: #f8fafc;
+  border-left: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg-muted);
   padding: 0 8px;
   flex-shrink: 0;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font: inherit;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -734,24 +738,24 @@ onMounted(loadConfigs)
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fff;
-  border: 1px solid #e2e8f0;
+  background: var(--spd-p-bg);
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  color: #334155;
+  color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .sys-error {
   display: flex;
   align-items: center;
   padding: 8px 14px;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
   border-radius: 8px;
-  color: #991b1b;
+  color: var(--spd-p-danger-strong);
   font-size: var(--spd-font-size-sm);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* ---------- Tag / Chip / Badge ---------- */
@@ -773,9 +777,10 @@ onMounted(loadConfigs)
 }
 
 .sys-tag.is-code {
-  color: #334155;
-  background: #f1f5f9;
-  border-color: #e2e8f0;
+  color: var(--spd-p-text-secondary);
+  /* 浅底深字（此前误用近黑底配深灰字，几乎不可见） */
+  background: var(--spd-p-bg-muted);
+  border-color: var(--spd-p-border);
   font-family: var(--spd-font-family-mono);
   font-size: var(--spd-font-size-sm);
   /* 配置键是长英文标识，需要在断点处折行 */
@@ -783,14 +788,14 @@ onMounted(loadConfigs)
 }
 
 /* 配置类型彩色 tag（与 Tab 主题色对应） */
-.sys-tag.is-type-blue   { color: #1d4ed8; background: #dbeafe; border-color: #93c5fd; }
-.sys-tag.is-type-green  { color: #047857; background: #d1fae5; border-color: #6ee7b7; }
-.sys-tag.is-type-purple { color: #6d28d9; background: #ede9fe; border-color: #c4b5fd; }
-.sys-tag.is-type-orange { color: #b45309; background: #fef3c7; border-color: #fcd34d; }
-.sys-tag.is-type-cyan   { color: #0e7490; background: #cffafe; border-color: #67e8f9; }
-.sys-tag.is-type-teal   { color: #0f766e; background: #ccfbf1; border-color: #5eead4; }
-.sys-tag.is-type-rose   { color: #be123c; background: #ffe4e6; border-color: #fda4af; }
-.sys-tag.is-type-slate  { color: #475569; background: #f1f5f9; border-color: #cbd5e1; }
+.sys-tag.is-type-blue   { color: var(--spd-p-info-strong); background: var(--spd-p-border); border-color: var(--spd-p-info-border); }
+.sys-tag.is-type-green  { color: var(--spd-p-success-strong); background: var(--spd-p-success-bg); border-color: var(--spd-p-success); }
+.sys-tag.is-type-purple { color: var(--spd-p-primary); background: var(--spd-p-info-bg); border-color: var(--spd-p-info-border); }
+.sys-tag.is-type-orange { color: var(--spd-p-warning-text); background: var(--spd-p-warning-bg); border-color: var(--spd-p-warning-border); }
+.sys-tag.is-type-cyan   { color: var(--spd-p-success-text); background: var(--spd-p-info-bg); border-color: var(--spd-p-success); }
+.sys-tag.is-type-teal   { color: var(--spd-p-primary); background: var(--spd-p-primary-bg); border-color: var(--spd-p-primary-hover); }
+.sys-tag.is-type-rose   { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
+.sys-tag.is-type-slate  { color: var(--spd-p-text-secondary); background: var(--spd-p-bg-muted); border-color: var(--spd-p-border-strong); }
 
 /* 风险等级 */
 .sys-chip {
@@ -811,21 +816,21 @@ onMounted(loadConfigs)
 }
 
 .sys-chip.is-risk-high {
-  color: #991b1b;
-  background: #fee2e2;
-  border-color: #fca5a5;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border-color: var(--spd-p-danger-border);
 }
 
 .sys-chip.is-risk-medium {
-  color: #b45309;
-  background: #fef3c7;
-  border-color: #fcd34d;
+  color: var(--spd-p-warning-text);
+  background: var(--spd-p-warning-bg);
+  border-color: var(--spd-p-warning-border);
 }
 
 .sys-chip.is-risk-low {
-  color: #065f46;
-  background: #d1fae5;
-  border-color: #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border-color: var(--spd-p-success);
 }
 
 /* 状态 badge */
@@ -839,15 +844,15 @@ onMounted(loadConfigs)
 }
 
 .sys-badge.is-active {
-  color: #065f46;
-  background: #d1fae5;
-  border: 1px solid #6ee7b7;
+  color: var(--spd-p-primary-strong);
+  background: var(--spd-p-success-bg);
+  border: 1px solid var(--spd-p-success);
 }
 
 .sys-badge.is-stopped {
-  color: #991b1b;
-  background: #fee2e2;
-  border: 1px solid #fca5a5;
+  color: var(--spd-p-danger-strong);
+  background: var(--spd-p-danger-bg);
+  border: 1px solid var(--spd-p-danger-border);
 }
 
 /* ---------- 弹窗 ---------- */
@@ -858,14 +863,14 @@ onMounted(loadConfigs)
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.5);
+  background: color-mix(in srgb, var(--spd-p-text-strong) 50%, transparent);
   backdrop-filter: blur(2px);
 }
 
 .sys-dialog {
-  background: #fff;
+  background: var(--spd-p-bg);
   border-radius: var(--spd-radius-lg, 14px);
-  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.2);
+  box-shadow: var(--spd-p-shadow-dialog);
   width: 100%;
   max-width: 560px;
   max-height: 88vh;
@@ -885,7 +890,7 @@ onMounted(loadConfigs)
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--spd-p-border);
 }
 
 .sys-dialog-header h3 {
@@ -908,8 +913,8 @@ onMounted(loadConfigs)
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid #e2e8f0;
-  background: #fafdfb;
+  border-top: 1px solid var(--spd-p-border);
+  background: var(--spd-p-bg);
 }
 
 /* ---------- 表单 ---------- */
@@ -924,7 +929,7 @@ onMounted(loadConfigs)
   gap: 5px;
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: #4b5b66;
+  color: var(--spd-p-text-secondary);
 }
 
 .sys-form-grid label.wide { grid-column: 1 / -1; }
@@ -934,10 +939,10 @@ onMounted(loadConfigs)
   width: 100%;
   min-height: 34px;
   height: 34px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 0 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -947,15 +952,15 @@ onMounted(loadConfigs)
 .sys-input:focus,
 .sys-select:focus {
   outline: none;
-  border-color: #cbd5e1;
+  border-color: var(--spd-p-border-strong);
 }
 
 .sys-textarea {
   width: 100%;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--spd-p-border-strong);
   border-radius: 6px;
-  background: #fff;
-  color: #102033;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   padding: 8px 10px;
   font-size: var(--spd-font-size-base);
   font-weight: 500;
@@ -964,7 +969,7 @@ onMounted(loadConfigs)
   font-family: var(--spd-font-family-mono);
 }
 
-.sys-textarea:focus { outline: none; border-color: #cbd5e1; }
+.sys-textarea:focus { outline: none; border-color: var(--spd-p-border-strong); }
 
 /* ---------- 响应式 ---------- */
 @media (max-width: 900px) {

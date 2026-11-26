@@ -86,12 +86,10 @@ async function confirmNotice() {
     </template>
     <StatusMessage v-else :message="loadError" tone="error" role="alert" />
     <template #footer>
-      <el-button v-if="notice" type="primary" :loading="saving" @click="confirmNotice">
-        我知道了
-      </el-button>
+      <SpdButton v-if="notice" label="我知道了" tone="primary" :loading="saving" @click="confirmNotice"></SpdButton>
       <template v-else>
-        <el-button :disabled="loading" @click="loadError = ''">稍后查看</el-button>
-        <el-button type="primary" :loading="loading" @click="loadNotice">重试</el-button>
+        <SpdButton label="稍后查看" tone="neutral" :disabled="loading" @click="loadError = ''"></SpdButton>
+        <SpdButton label="重试" tone="primary" :loading="loading" @click="loadNotice"></SpdButton>
       </template>
     </template>
   </el-dialog>

@@ -46,9 +46,9 @@ function closeDialog() {
           <p>打包任务确认</p>
           <h3>选择定数包模板</h3>
         </div>
-        <button class="qts-btn qts-btn-ghost" type="button" aria-label="关闭" @click="closeDialog">
-          <X :size="18" />
-        </button>
+        <SpdButton label="" tone="primary" aria-label="关闭" @click="closeDialog">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
       </header>
 
       <div class="qts-dialog-body">
@@ -103,15 +103,15 @@ function closeDialog() {
                 <td>{{ row.manufacturerName || '-' }}</td>
                 <td><span class="cell-qty">{{ row.quantity }} {{ row.unit }}</span></td>
                 <td>
-                  <span class="status-badge" :class="row.status === '禁用' || row.status === 'disabled' ? 'disabled' : 'enabled'">
-                    {{ formatStatusText(row.status) }}
-                  </span>
+                  <SpdStatusChip
+                    :tone="row.status === '禁用' || row.status === 'disabled' ? 'neutral' : 'success'"
+                    :label="formatStatusText(row.status)"
+                  />
                 </td>
                 <td class="col-action">
-                  <button class="qts-btn qts-btn-primary qts-btn-sm" type="button" @click="emit('select', row)">
-                    <Check :size="13" />
-                    选择
-                  </button>
+                  <SpdButton label="选择" @click="emit('select', row)">
+          <template #icon><Check :size="13" /></template>
+        </SpdButton>
                 </td>
               </tr>
               <tr v-if="loading">
@@ -120,7 +120,7 @@ function closeDialog() {
               <tr v-else-if="error">
                 <td colspan="8" class="qts-empty" role="alert">
                   {{ error }}
-                  <button class="qts-btn qts-btn-sm" type="button" @click="emit('retry')">重试</button>
+                  <SpdButton label="重试" @click="emit('retry')"></SpdButton>
                 </td>
               </tr>
               <tr v-else-if="!templates.length">
@@ -140,10 +140,10 @@ function closeDialog() {
   max-height: 92vh !important;
   display: flex !important;
   flex-direction: column;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   border: 0 !important;
   border-radius: 16px !important;
-  box-shadow: 0 24px 60px -12px rgba(15, 42, 58, 0.35);
+  box-shadow: var(--spd-p-shadow-dialog);
   overflow: hidden;
 }
 
@@ -153,8 +153,8 @@ function closeDialog() {
   justify-content: space-between;
   gap: 16px;
   padding: 18px 24px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
 }
 
 .qts-dialog-title {
@@ -177,7 +177,7 @@ function closeDialog() {
   margin: 0;
   font-size: var(--spd-font-size-xl);
   font-weight: 600;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .qts-dialog-body {
@@ -194,8 +194,8 @@ function closeDialog() {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 18px;
-  background: #f5f8fa;
-  border-bottom: 1px solid #e1e9ee;
+  background: var(--spd-p-bg-subtle);
+  border-bottom: 1px solid var(--spd-p-border);
   flex-wrap: wrap;
 }
 
@@ -209,10 +209,10 @@ function closeDialog() {
 .qts-search-group input {
   min-height: 36px;
   padding: 5px 12px;
-  border: 1px solid #cfdfe7;
+  border: 1px solid var(--spd-p-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #172b3a;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
   min-width: 140px;
@@ -220,8 +220,8 @@ function closeDialog() {
 
 .qts-search-group input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  border-color: var(--spd-p-primary);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qts-toggle {
@@ -230,7 +230,7 @@ function closeDialog() {
   gap: 8px;
   cursor: pointer;
   font-size: var(--spd-font-size-base);
-  color: #566b77;
+  color: var(--spd-p-text-muted);
   font-weight: 500;
   white-space: nowrap;
   user-select: none;
@@ -242,18 +242,18 @@ function closeDialog() {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border: 1.5px solid #cbd5e1;
+  border: 1.5px solid var(--spd-p-border-strong);
   border-radius: 4px;
-  background: #ffffff;
+  background: var(--spd-p-bg);
   color: transparent;
   transition: background 0.18s, border-color 0.18s, color 0.18s;
   flex-shrink: 0;
 }
 
 .qts-toggle-box.on {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
   border-color: transparent;
-  color: #ffffff;
+  color: var(--spd-p-bg);
 }
 
 .qts-table-wrap {
@@ -267,7 +267,7 @@ function closeDialog() {
   border-collapse: collapse;
   table-layout: fixed;
   font-size: var(--spd-font-size-base);
-  color: #172b3a;
+  color: var(--spd-p-text);
 }
 
 .qts-table thead th {
@@ -279,8 +279,8 @@ function closeDialog() {
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.3px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #475569, #334155);
+  color: var(--spd-p-bg);
+  background: linear-gradient(135deg, var(--spd-p-text-secondary), var(--spd-p-text-secondary));
   white-space: nowrap;
 }
 
@@ -291,12 +291,12 @@ function closeDialog() {
 
 .qts-table tbody td {
   padding: 9px 14px;
-  border-bottom: 1px solid #eef2f5;
+  border-bottom: 1px solid var(--spd-p-bg-muted);
   vertical-align: middle;
 }
 
 .qts-table tbody tr:nth-child(even) td {
-  background: #f9fbfc;
+  background: var(--spd-p-bg-muted);
 }
 
 .qts-table tbody tr {
@@ -305,7 +305,7 @@ function closeDialog() {
 }
 
 .qts-table tbody tr:hover td {
-  background: #eef7f8;
+  background: var(--spd-p-primary-bg);
 }
 
 .qts-table tbody td.col-action {
@@ -319,7 +319,7 @@ function closeDialog() {
 }
 
 .cell-code {
-  color: #0f6f78;
+  color: var(--spd-p-primary);
   font-weight: 700;
   font-size: var(--spd-font-size-base);
 }
@@ -328,35 +328,16 @@ function closeDialog() {
   display: inline-block;
   padding: 1px 8px;
   border-radius: 4px;
-  background: rgba(99, 102, 241, 0.1);
-  color: #4f46e5;
+  background: color-mix(in srgb, var(--spd-p-info) 10%, transparent);
+  color: var(--spd-p-primary);
   font-weight: 700;
   font-size: var(--spd-font-size-base);
-}
-
-.status-badge {
-  display: inline-block;
-  padding: 2px 10px;
-  border-radius: 999px;
-  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
-  font-size: var(--spd-font-size-base);
-  font-weight: 400;
-}
-
-.status-badge.enabled {
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-}
-
-.status-badge.disabled {
-  background: rgba(245, 158, 11, 0.12);
-  color: #b45309;
 }
 
 .qts-empty {
   padding: 32px 14px;
   text-align: center;
-  color: #6b7c8f;
+  color: var(--spd-p-text-secondary);
 }
 
 .qts-row {
@@ -390,14 +371,14 @@ function closeDialog() {
 }
 
 .qts-btn-primary {
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: #fff;
-  box-shadow: 0 3px 8px -3px rgba(99, 102, 241, 0.4);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  color: var(--spd-p-bg);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .qts-btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4f46e5, #7c3aed);
-  box-shadow: 0 5px 12px -3px rgba(99, 102, 241, 0.5);
+  background: linear-gradient(135deg, var(--spd-p-primary), var(--spd-p-primary-strong));
+  box-shadow: var(--spd-p-shadow-2);
 }
 
 .qts-btn-ghost {
@@ -405,12 +386,12 @@ function closeDialog() {
   min-height: 32px;
   padding: 0;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.18);
-  color: #ffffff;
-  border-color: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
+  color: var(--spd-p-bg);
+  border-color: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 
 .qts-btn-ghost:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: color-mix(in srgb, var(--spd-p-bg) 30%, transparent);
 }
 </style>

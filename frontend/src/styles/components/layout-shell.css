@@ -1,4 +1,4 @@
-﻿.app-shell {
+.app-shell {
   --sidebar-width: 280px;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
@@ -32,16 +32,16 @@
 }
 
 .nav-list::-webkit-scrollbar-track {
-  background: #edf2f4;
+  background: var(--spd-p-bg-muted);
 }
 
 .nav-list::-webkit-scrollbar-thumb {
-  border: 2px solid #edf2f4;
-  background: #c7d3df;
+  border: 2px solid var(--spd-p-bg-muted);
+  background: var(--spd-p-border-strong);
 }
 
 .nav-list::-webkit-scrollbar-thumb:hover {
-  background: #9eb0c1;
+  background: var(--spd-p-text-secondary);
 }
 
 .brand {
@@ -78,15 +78,15 @@
   flex: 0 0 36px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
-  color: #334652;
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
   cursor: pointer;
 }
 
 .sidebar-toggle:hover {
   color: var(--primary-strong);
-  border-color: #b8d8d2;
-  background: #f4fbf9;
+  border-color: var(--spd-p-primary-border);
+  background: var(--spd-p-primary-bg);
 }
 
 .brand-mark {
@@ -96,7 +96,7 @@
   height: 44px;
   border-radius: 8px;
   background: var(--primary);
-  color: #ffffff;
+  color: var(--spd-p-bg);
   font-weight: 800;
   flex-shrink: 0;
 }
@@ -133,7 +133,7 @@
   min-height: 42px;
   border-radius: 8px;
   padding: 0 12px;
-  color: #334652;
+  color: var(--spd-p-text);
 }
 
 .nav-parent-item {
@@ -159,7 +159,7 @@
 }
 
 .nav-group {
-  border-top: 1px solid #edf2f4;
+  border-top: 1px solid var(--spd-p-bg-muted);
   padding-top: 8px;
 }
 
@@ -205,7 +205,7 @@
 }
 
 .nav-item.router-link-active {
-  background: #dff3ef;
+  background: var(--spd-p-primary-bg);
   color: var(--primary-strong);
   font-weight: 700;
 }

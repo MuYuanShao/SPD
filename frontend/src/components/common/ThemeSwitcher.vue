@@ -185,10 +185,10 @@ onBeforeUnmount(() => {
   gap: 8px;
   height: 32px;
   padding: 0 12px 0 6px;
-  border: 1px solid var(--fli-line, #e5e7eb);
+  border: 1px solid var(--fli-line, var(--spd-p-border));
   border-radius: 999px;
-  background: var(--fli-surface, #ffffff);
-  color: var(--fli-text, #1f2937);
+  background: var(--fli-surface, var(--spd-p-bg));
+  color: var(--fli-text, var(--spd-p-text-secondary));
   cursor: pointer;
   font-size: var(--spd-font-size-base);
   line-height: 1;
@@ -197,13 +197,13 @@ onBeforeUnmount(() => {
 }
 
 .spd-theme-trigger:hover {
-  border-color: var(--fli-brand, #0f766e);
-  box-shadow: 0 2px 8px rgba(15, 118, 110, 0.12);
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .spd-theme-trigger.is-open {
-  border-color: var(--fli-brand, #0f766e);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .spd-theme-trigger-label {
@@ -220,13 +220,13 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5), 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--spd-p-shadow-1);
   flex-shrink: 0;
 }
 
 .spd-theme-swatch-icon {
-  color: rgba(255, 255, 255, 0.95);
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  color: color-mix(in srgb, var(--spd-p-bg) 95%, transparent);
+  filter: drop-shadow(0 1px 1px color-mix(in srgb, var(--spd-p-text-strong) 25%, transparent));
 }
 
 /* 弹出面板 */
@@ -237,12 +237,10 @@ onBeforeUnmount(() => {
   z-index: 2200;
   width: 320px;
   padding: 14px;
-  border: 1px solid var(--fli-line, #e5e7eb);
+  border: 1px solid var(--fli-line, var(--spd-p-border));
   border-radius: 12px;
-  background: var(--fli-surface, #ffffff);
-  box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.14),
-    0 2px 6px rgba(0, 0, 0, 0.06);
+  background: var(--fli-surface, var(--spd-p-bg));
+  box-shadow: var(--spd-p-shadow-3);
   outline: none;
 }
 
@@ -257,18 +255,18 @@ onBeforeUnmount(() => {
 .spd-theme-panel-header--second {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px solid var(--fli-line, #e5e7eb);
+  border-top: 1px solid var(--fli-line, var(--spd-p-border));
 }
 
 .spd-theme-panel-title {
   font-size: var(--spd-font-size-base);
   font-weight: 600;
-  color: var(--fli-text, #1f2937);
+  color: var(--fli-text, var(--spd-p-text-secondary));
 }
 
 .spd-theme-panel-sub {
   font-size: var(--spd-font-size-xs);
-  color: var(--fli-muted, #6b7280);
+  color: var(--fli-muted, var(--spd-p-text-muted));
 }
 
 /* 恢复默认按钮 */
@@ -277,12 +275,12 @@ onBeforeUnmount(() => {
   background: transparent;
   padding: 0;
   font-size: var(--spd-font-size-sm);
-  color: var(--fli-brand, #0f766e);
+  color: var(--fli-brand, var(--spd-p-primary));
   cursor: pointer;
 }
 
 .spd-theme-reset:disabled {
-  color: var(--fli-muted, #6b7280);
+  color: var(--fli-muted, var(--spd-p-text-muted));
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -297,7 +295,7 @@ onBeforeUnmount(() => {
 }
 
 .spd-palette-current strong {
-  color: var(--fli-text, #1f2937);
+  color: var(--fli-text, var(--spd-p-text-secondary));
 }
 
 .spd-palette-current code {
@@ -305,8 +303,8 @@ onBeforeUnmount(() => {
   font-size: var(--spd-font-size-xs);
   padding: 1px 6px;
   border-radius: 4px;
-  background: #f1f5f6;
-  color: #526b78;
+  background: var(--spd-p-bg-muted);
+  color: var(--spd-p-text-secondary);
 }
 
 /* 配色方案卡片网格 */
@@ -321,9 +319,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 10px 8px 8px;
-  border: 1px solid var(--fli-line, #e5e7eb);
+  border: 1px solid var(--fli-line, var(--spd-p-border));
   border-radius: 10px;
-  background: var(--fli-surface, #ffffff);
+  background: var(--fli-surface, var(--spd-p-bg));
   cursor: pointer;
   text-align: left;
   transition: all 0.18s ease;
@@ -332,15 +330,15 @@ onBeforeUnmount(() => {
 }
 
 .spd-scheme-card:hover {
-  border-color: var(--fli-brand, #0f766e);
-  background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  background: color-mix(in srgb, var(--fli-brand, var(--spd-p-primary)) 4%, transparent);
   transform: translateX(2px);
 }
 
 .spd-scheme-card.is-active {
-  border-color: var(--fli-brand, #0f766e);
-  background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
-  box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  background: color-mix(in srgb, var(--fli-brand, var(--spd-p-primary)) 6%, transparent);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 .spd-scheme-card-preview {
@@ -352,7 +350,7 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--spd-p-shadow-1);
   transition: transform 0.2s ease;
 }
 
@@ -361,8 +359,8 @@ onBeforeUnmount(() => {
 }
 
 .spd-scheme-card-check {
-  color: #ffffff;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+  color: var(--spd-p-bg);
+  filter: drop-shadow(0 1px 2px color-mix(in srgb, var(--spd-p-text-strong) 30%, transparent));
 }
 
 .spd-scheme-card-meta {
@@ -376,12 +374,12 @@ onBeforeUnmount(() => {
 .spd-scheme-card-name {
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: var(--fli-text, #1f2937);
+  color: var(--fli-text, var(--spd-p-text-secondary));
 }
 
 .spd-scheme-card-hint {
   font-size: var(--spd-font-size-xs);
-  color: var(--fli-muted, #6b7280);
+  color: var(--fli-muted, var(--spd-p-text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -399,9 +397,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 8px 10px;
-  border: 1px solid var(--fli-line, #e5e7eb);
+  border: 1px solid var(--fli-line, var(--spd-p-border));
   border-radius: 10px;
-  background: var(--fli-surface, #ffffff);
+  background: var(--fli-surface, var(--spd-p-bg));
   cursor: pointer;
   text-align: left;
   transition: all 0.18s ease;
@@ -411,14 +409,14 @@ onBeforeUnmount(() => {
 }
 
 .spd-fontsize-card:hover {
-  border-color: var(--fli-brand, #0f766e);
-  background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  background: color-mix(in srgb, var(--fli-brand, var(--spd-p-primary)) 4%, transparent);
 }
 
 .spd-fontsize-card.is-active {
-  border-color: var(--fli-brand, #0f766e);
-  background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
-  box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
+  border-color: var(--fli-brand, var(--spd-p-primary));
+  background: color-mix(in srgb, var(--fli-brand, var(--spd-p-primary)) 6%, transparent);
+  box-shadow: var(--spd-p-shadow-1);
 }
 
 /* 字号样张：用真实基准字号预览，方便用户直接判断 */
@@ -428,7 +426,7 @@ onBeforeUnmount(() => {
   text-align: center;
   font-weight: 700;
   line-height: var(--spd-lh-tight);
-  color: var(--fli-text, #1f2937);
+  color: var(--fli-text, var(--spd-p-text-secondary));
 }
 
 .spd-fontsize-meta {
@@ -442,7 +440,7 @@ onBeforeUnmount(() => {
 .spd-fontsize-name {
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
-  color: var(--fli-text, #1f2937);
+  color: var(--fli-text, var(--spd-p-text-secondary));
   display: inline-flex;
   align-items: baseline;
   gap: 6px;
@@ -451,19 +449,19 @@ onBeforeUnmount(() => {
 .spd-fontsize-name small {
   font-size: var(--spd-font-size-xs);
   font-weight: 500;
-  color: var(--fli-muted, #6b7280);
+  color: var(--fli-muted, var(--spd-p-text-muted));
 }
 
 .spd-fontsize-hint {
   font-size: var(--spd-font-size-xs);
-  color: var(--fli-muted, #6b7280);
+  color: var(--fli-muted, var(--spd-p-text-muted));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .spd-fontsize-check {
-  color: var(--fli-brand, #0f766e);
+  color: var(--fli-brand, var(--spd-p-primary));
   flex-shrink: 0;
 }
 

@@ -76,10 +76,10 @@ watch(featureCode, loadFeature)
         <p>功能菜单</p>
         <h2>{{ feature?.title || currentMenu.title }}</h2>
       </div>
-      <span class="status-pill">
+      <SpdStatusChip tone="primary">
         <LayoutList :size="16" />
         {{ childMenus.length ? `${childMenus.length} 个子功能` : loading ? '加载中' : '已联动后端' }}
-      </span>
+      </SpdStatusChip>
     </div>
 
     <div v-if="childMenus.length" class="feature-list">
@@ -110,9 +110,9 @@ watch(featureCode, loadFeature)
             <p>{{ feature?.title || currentMenu.title }}</p>
             <h3>{{ actionModal }}</h3>
           </div>
-          <button class="btn-icon" type="button" aria-label="关闭" @click="actionModal = null">
-            <X :size="18" />
-          </button>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="actionModal = null">
+          <template #icon><X :size="18" /></template>
+        </SpdButton>
         </header>
         <form class="supplier-form-grid" @submit.prevent="actionModal = null">
           <label>
@@ -128,11 +128,10 @@ watch(featureCode, loadFeature)
             <textarea placeholder="请输入说明"></textarea>
           </label>
           <div class="dialog-actions">
-            <button class="btn" type="button" @click="actionModal = null">取消</button>
-            <button class="btn btn-primary" type="submit">
-              <Save :size="17" />
-              保存
-            </button>
+            <SpdButton label="取消" tone="neutral" @click="actionModal = null"></SpdButton>
+            <SpdButton label="保存" tone="success" type="submit">
+          <template #icon><Save :size="17" /></template>
+        </SpdButton>
           </div>
         </form>
       </section>

@@ -161,38 +161,100 @@ export function useListColumns(options: UseListColumnsOptions) {
   const maxWidth = options.maxWidth ?? 560
   const fitMode = options.fitMode ?? 'fixed'
 
+  /**
+   * 把持久化数据规整成完整的列配置数组。
+   * ---------------------------------------------------------------------
+   * 【列顺序 = 数组顺序】
+   *   持久化数据本身就是一个 JSON 数组，因此**数组顺序即列顺序**，
+   *   无需新增字段即可向后兼容（旧数据仍是数组，直接按其顺序解读）。
+   *
+   * 【normalize 的顺序规则（关键）】
+   *   1) 先按**已保存的顺序**输出保存过的列（用户手动调过的顺序必须保留）；
+   *   2) 再把**代码里新增、保存之后才出现的列**追加到末尾
+   *      （用户上次保存之后产品新增的列，不能挤掉已有列的顺序）；
+   *   3) 已经没有的列（代码里删掉的）直接丢弃。
+   *
+   * 【向后兼容要点】
+   *   旧版本 normalize() 用 options.defaults.map(...) 重建数组，
+   *   会把顺序强制拉回声明顺序并丢弃用户保存的顺序。
+   *   这里改为「以保存数据的顺序为准」，因此升级后用户已调过的顺序不丢失；
+   *   而宽度 / 显隐 / manual 标记依旧按 key 精确应用到对应的列上。
+   */
   function normalize(saved: Array<Partial<ListColumnConfig> & { key: string }>): ListColumnConfig[] {
-    const map = new Map(saved.map((item) => [item.key, item]))
-    return options.defaults.map((fallback) => {
-      const previous = map.get(fallback.key)
-      const width = Math.min(maxWidth, Math.max(minWidth, Number(previous?.width ?? fallback.width) || fallback.width))
+    const savedByKey = new Map(saved.map((item) => [item.key, item]))
+    const defaultsByKey = new Map(options.defaults.map((item) => [item.key, item]))
+
+    /** 按 defaults 的元数据补全某一列，saved 提供用户数据（宽度 / 显隐 / manual） */
+    const build = (
+      fallback: ListColumnConfig,
+      previous?: Partial<ListColumnConfig> & { key: string }
+    ): ListColumnConfig => {
+      const width = Math.min(
+        maxWidth,
+        Math.max(minWidth, Number(previous?.width ?? fallback.width) || fallback.width)
+      )
       return {
         key: fallback.key,
         label: fallback.label,
         width,
         visible: previous?.visible !== false,
         fixed: fallback?.fixed ?? false,
-        flexible: fallback.flexible ?? false,
-        minFlexibleWidth: fallback.minFlexibleWidth ?? (fallback.flexible ? 160 : undefined),
-        maxWidth: fallback.maxWidth,
-        idealWidth: fallback.idealWidth,
-        weight: fallback.weight,
-        minWidth: fallback.minWidth,
+        flexible: fallback?.flexible ?? false,
+        minFlexibleWidth: fallback?.minFlexibleWidth ?? (fallback?.flexible ? 160 : undefined),
+        maxWidth: fallback?.maxWidth,
+        idealWidth: fallback?.idealWidth,
+        weight: fallback?.weight,
+        minWidth: fallback?.minWidth,
         // fill 来自代码里的 defaults（不是用户可改的数据），
         // 因此始终以 defaults 为准，不从持久化数据读取。
-        fill: fallback.fill === true,
+        fill: fallback?.fill === true,
         // 旧版本持久化的数据没有 manual 字段，一律视为「未手动拖拽」，
         // 这样老用户升级后行为不变，直到他自己拖一次列宽。
         manual: previous?.manual === true
       }
-    })
+    }
+
+    const result: ListColumnConfig[] = []
+    const used = new Set<string>()
+
+    // 1) 已保存的列：保持保存时的顺序
+    for (const item of saved) {
+      if (!item || typeof item.key !== 'string') continue
+      const fallback = defaultsByKey.get(item.key)
+      // 代码里已删除的列直接丢弃
+      if (!fallback) continue
+      if (used.has(item.key)) continue
+      used.add(item.key)
+      result.push(build(fallback, item))
+    }
+
+    // 2) 代码里新增、保存之后才出现的列：追加到末尾
+    for (const fallback of options.defaults) {
+      if (used.has(fallback.key)) continue
+      used.add(fallback.key)
+      result.push(build(fallback))
+    }
+
+    return result
   }
 
   function load(): ListColumnConfig[] {
     try {
       const raw = localStorage.getItem(options.storageKey)
       if (!raw) return options.defaults.map((item) => ({ ...item }))
-      return normalize(JSON.parse(raw) as Array<Partial<ListColumnConfig> & { key: string }>)
+      const parsed = JSON.parse(raw)
+      // 兼容历史格式：早期版本可能存成 { key: {...} } 的对象
+      if (Array.isArray(parsed)) {
+        return normalize(parsed as Array<Partial<ListColumnConfig> & { key: string }>)
+      }
+      if (parsed && typeof parsed === 'object') {
+        return normalize(
+          Object.entries(
+            parsed as Record<string, Partial<ListColumnConfig> & { key: string }>
+          ).map(([key, value]) => ({ ...value, key }))
+        )
+      }
+      return options.defaults.map((item) => ({ ...item }))
     } catch {
       return options.defaults.map((item) => ({ ...item }))
     }
@@ -237,6 +299,18 @@ export function useListColumns(options: UseListColumnsOptions) {
 
   const visibleColumns = computed(() => columns.value.filter((column) => column.visible))
   const visibleColumnCount = computed(() => visibleColumns.value.length)
+
+  /**
+   * 按存储顺序排列的列 key（仅可见列）。
+   * ---------------------------------------------------------------------
+   * 表格的**渲染顺序**就是这个序列：
+   * Element Plus 的 el-table 把列顺序定义为「隐藏的 <th> 元素在 DOM 中的位置」，
+   * 因此只要按本序列渲染 <el-table-column>，表头的实际顺序就会跟着变。
+   */
+  const orderedColumnKeys = computed(() => visibleColumns.value.map((column) => column.key))
+
+  /** 按存储顺序排列的列 key（含隐藏列，用于列设置面板展示） */
+  const orderedAllColumnKeys = computed(() => columns.value.map((column) => column.key))
 
   /**
    * 计算最终生效的列宽 —— **按权重比例铺满内容区**。
@@ -636,7 +710,47 @@ export function useListColumns(options: UseListColumnsOptions) {
   function resetColumns() {
     // 恢复默认时必须一并清掉「手动拖拽」标记，
     // 否则该列会以手动宽度钉死，再也回不到自适应填充。
+    // 同时恢复、**声明顺序**（columns 数组顺序 = 列顺序），
+    // 即「恢复默认」一键把顺序也拉回到代码声明的顺序。
     columns.value = options.defaults.map((item) => ({ ...item, manual: false }))
+    persist()
+    syncLayout()
+  }
+
+  /**
+   * 调整列顺序（上移 / 下移）。
+   * ---------------------------------------------------------------------
+   * 列顺序存在 **columns 数组的顺序** 里，
+   * 因此调序 = 重排数组，持久化也自动带上新顺序（无需新增字段）。
+   *
+   * @param key      要移动的列
+   * @param direction -1 = 上移（向前一列），+1 = 下移（向后一列）
+   */
+  function moveColumn(key: string, direction: -1 | 1) {
+    const index = columns.value.findIndex((column) => column.key === key)
+    if (index === -1) return
+    const target = index + direction
+    if (target < 0 || target >= columns.value.length) return
+    const list = columns.value.slice()
+    const [item] = list.splice(index, 1)
+    list.splice(target, 0, item)
+    columns.value = list
+    persist()
+    syncLayout()
+  }
+
+  /**
+   * 按 key 将列移到指定位置（供拖拽排序等后续扩展使用）。
+   */
+  function moveColumnTo(key: string, toIndex: number) {
+    const index = columns.value.findIndex((column) => column.key === key)
+    if (index === -1) return
+    const clamped = Math.max(0, Math.min(columns.value.length - 1, toIndex))
+    if (clamped === index) return
+    const list = columns.value.slice()
+    const [item] = list.splice(index, 1)
+    list.splice(clamped, 0, item)
+    columns.value = list
     persist()
     syncLayout()
   }
@@ -903,6 +1017,12 @@ export function useListColumns(options: UseListColumnsOptions) {
     isColumnVisible,
     setColumnVisible,
     resetColumns,
+    moveColumn,
+    moveColumnTo,
+    /** 按存储顺序排列的列 key 序列（只含可见列） */
+    orderedColumnKeys,
+    /** 按存储顺序排列的列 key 序列（含隐藏列） */
+    orderedAllColumnKeys,
     persist,
     syncLayout,
     measureContainer,

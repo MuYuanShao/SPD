@@ -538,7 +538,12 @@ onMounted(loadDashboard)
   --blue-50:    var(--spd-p-info-bg);  --blue-100:   var(--spd-p-border);  --blue-300:   var(--spd-p-info-border);  --blue-500:   var(--spd-p-info);  --blue-600:   var(--spd-p-info);
   --slate-0:    var(--spd-p-bg);  --slate-50:   var(--spd-p-bg-muted);  --slate-100:  var(--spd-p-text-strong);  --slate-200:  var(--spd-p-border);
   --slate-300:  var(--spd-p-border-strong);  --slate-400:  var(--spd-p-text-muted);  --slate-500:  var(--spd-p-info-text);  --slate-600:  var(--spd-p-text-secondary);
-  --slate-700:  var(--spd-p-text-secondary);  --slate-800:  var(--spd-p-bg-muted);  --slate-900:  var(--spd-p-text-strong);
+  /* --slate-800 曾误映射到 --spd-p-bg-muted（#eef3f5，近白），
+     而它在 .wb-card-title h2 等处被当作**文字颜色**使用，
+     于是「入库与消耗趋势」等标题在白色卡片上几乎不可见（对比度约 1.06:1）。
+     现在改映射到深色文字令牌 --spd-p-text-strong（#101820，近黑），
+     与用户诉求「建议换成黑色的」一致。 */
+  --slate-700:  var(--spd-p-text-secondary);  --slate-800:  var(--spd-p-text-strong);  --slate-900:  var(--spd-p-text-strong);
 
   --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
   --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;

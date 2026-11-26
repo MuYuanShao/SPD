@@ -1,14 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElDrawer } from 'element-plus/es/components/drawer/index.mjs'
 import 'element-plus/theme-chalk/el-drawer.css'
 import { useRouter } from 'vue-router'
-import { Eye, RefreshCw, Search, SlidersHorizontal } from '@lucide/vue'
+import { ChevronDown, Columns3, Eye, Search, SlidersHorizontal } from '@lucide/vue'
 import MdPageHeader from '../master-data/MdPageHeader.vue'
+import MdDataTableCard from '../master-data/MdDataTableCard.vue'
+import MdPagination from '../master-data/MdPagination.vue'
 import SectionTitle from '../common/SectionTitle.vue'
 import StatusMessage from '../common/StatusMessage.vue'
 import EmptyState from '../common/EmptyState.vue'
-import PaginationControls from '../common/PaginationControls.vue'
 import {
   fetchInventoryEventDetail,
   fetchInventoryEvents,
@@ -20,9 +21,71 @@ import {
   type InventoryTransactionTypeOption
 } from '../../api/inventory'
 import { useAuthStore } from '../../stores/auth'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 
 const router = useRouter()
 const authStore = useAuthStore()
+
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：各列宽度互相独立，拖拽一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const LEDGER_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'eventNo', label: '事件号', width: 170, visible: true, weight: 6, minWidth: 140, maxWidth: 280 },
+  { key: 'scope', label: '科室 / 库房', width: 170, visible: true, flexible: true, idealWidth: 220, weight: 7, minWidth: 130, maxWidth: 320 },
+  { key: 'product', label: '商品', width: 190, visible: true, flexible: true, idealWidth: 240, weight: 8, minWidth: 140, maxWidth: 340 },
+  { key: 'transactionType', label: '交易类型', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'qtyChange', label: '数量', width: 110, visible: true, weight: 4, minWidth: 95, maxWidth: 180 },
+  { key: 'unitPrice', label: '事件单价', width: 110, visible: true, weight: 4, minWidth: 95, maxWidth: 180 },
+  { key: 'amount', label: '金额', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 190 },
+  { key: 'qtyAfter', label: '结存', width: 110, visible: true, weight: 4, minWidth: 95, maxWidth: 180 },
+  { key: 'eventTime', label: '发生时间', width: 150, visible: true, weight: 5, minWidth: 130, maxWidth: 230 },
+  // 「操作」列是最后一列，用 fill 标记吃掉表格右侧剩余空白，
+  // 使整张表铺满内容区（100%）；按钮单行排列，不换行。
+  { key: 'actions', label: '操作', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 320, fill: true }
+]
+
+const ledgerCols = useListColumns({
+  storageKey: 'spd-inventory-event-ledger-cols-v1',
+  defaults: LEDGER_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「商品 / 科室库房」等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ledgerTableRef = ledgerCols.tableRef
+const isLedgerColVisible = (key: string) => ledgerCols.isColumnVisible(key)
+const ledgerColBinding = (key: string) => ledgerCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ledgerActionFix = useActionColumnFix()
+const ledgerActionFixed = computed(() => ledgerActionFix.actionFixedBinding.value)
+
+watch(
+  [ledgerTableRef],
+  () => {
+    ledgerActionFix.observe(ledgerTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ledgerColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ledgerColSettingsPopRef = ref<HTMLElement | null>(null)
+const ledgerColSettingsPop = useColSettingsPopover({
+  open: ledgerCols.settingsOpen,
+  anchorRef: ledgerColSettingsAnchorRef,
+  popRef: ledgerColSettingsPopRef
+})
 
 const rows = ref<InventoryEventRow[]>([])
 const types = ref<InventoryTransactionTypeOption[]>([])
@@ -138,6 +201,14 @@ function openSource(event: InventoryEventDetail) {
   if (target && canOpenSource(event)) void router.push({ path: target.path, query: { sourceNo: event.sourceBizNo } })
 }
 
+/**
+ * 行级样式类名：调价事件（valuation）整行用橙色系底色标记，
+ * 与主色区分 —— 迁移到 el-table 后通过 row-class-name 实现。
+ */
+function ledgerRowClassName({ row }: { row: InventoryEventRow }) {
+  return row.eventCategory === 'valuation' ? 'valuation-row' : ''
+}
+
 onMounted(async () => {
   const [options] = await Promise.allSettled([fetchInventoryTransactionTypes(), load()])
   if (options.status === 'fulfilled') types.value = options.value.rows
@@ -145,11 +216,10 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="md-page inventory-ledger-page">
+  <section class="md-page inventory-ledger-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务 / 库存账务"
       title="库存交易流水"
-      description="按事件发生时快照查询不可变库存事实，主表始终一条事件一行。"
       :loading="loading"
       @refresh="load"
     />
@@ -191,27 +261,228 @@ onMounted(async () => {
 
       <SectionTitle title="流水明细" :level="3"><span class="muted-hint">共 {{ total }} 条事件</span></SectionTitle>
       <StatusMessage v-if="loading" message="正在加载库存交易流水..." tone="info" />
-      <div v-else-if="rows.length" class="table-scroll ledger-table-wrap">
-        <table class="master-table ledger-table">
-          <thead><tr><th>事件号</th><th>科室 / 库房</th><th>商品</th><th>交易类型</th><th>数量</th><th>事件单价</th><th>金额</th><th>结存</th><th>发生时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="row in rows" :key="row.eventNo" :class="{ 'valuation-row': row.eventCategory === 'valuation' }">
-              <td class="code-cell sticky-event">{{ row.eventNo }}</td>
-              <td class="ledger-pair-cell"><strong>{{ row.warehouseName || '-' }}</strong><small>{{ row.deptName || '无科室归属' }}</small></td>
-              <td class="sticky-product"><strong>{{ row.productName }}</strong><small>{{ row.productCode }}</small></td>
-              <td><span class="event-type-chip" :class="row.eventCategory">{{ row.transactionTypeName }}</span></td>
-              <td class="number-cell" :class="{ 'qty-out': Number(row.qtyChange) < 0 }">{{ row.eventCategory === 'valuation' ? '0.0000' : signed(row.qtyChange) }}</td>
-              <td class="number-cell">¥ {{ number(row.unitPrice) }}</td>
-              <td class="number-cell">¥ {{ number(row.eventCategory === 'valuation' ? row.valueChange : row.amount) }}</td>
-              <td class="number-cell">{{ number(row.qtyAfter, 4) }}</td>
-              <td class="time-cell">{{ row.eventTime }}</td>
-              <td><button class="btn-text" type="button" @click="openDetail(row)"><Eye :size="15" />详情<span v-if="row.traceCount">（{{ row.traceCount }}）</span></button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <EmptyState v-else message="当前筛选条件下暂无库存交易流水" />
-      <PaginationControls :page="page" :size="size" :total="total" :loading="loading" @change-page="changePage" @change-size="changeSize" />
+
+      <MdDataTableCard class="ledger-table-card">
+        <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="ledgerColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="ledgerCols.settingsOpen.value = !ledgerCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: ledgerCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="ledgerCols.settingsOpen.value"
+              ref="ledgerColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': ledgerColSettingsPop.align.value === 'right', 'is-align-up': ledgerColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': ledgerColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ledgerColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="ledgerCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in ledgerCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && ledgerCols.visibleColumnCount.value <= 1"
+                    @change="ledgerCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="ledgerCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+        </template>
+        <template #meta-extra>
+          <span class="md-chip primary">共 {{ total }} 条</span>
+        </template>
+
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ledgerTableRef"
+            v-loading="loading"
+            :data="rows"
+            row-key="eventNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="loading ? '正在加载库存交易流水…' : '当前筛选条件下暂无库存交易流水'"
+            :row-class-name="ledgerRowClassName"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ledgerCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="eventNo"
+              v-if="isLedgerColVisible('eventNo')"
+              label="事件号"
+              v-bind="ledgerColBinding('eventNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">事件号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text ledger-event-no">{{ row.eventNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="scope"
+              v-if="isLedgerColVisible('scope')"
+              label="科室 / 库房"
+              v-bind="ledgerColBinding('scope')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室 / 库房</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack ledger-pair-cell">
+                  <span class="ulc-strong ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub">{{ row.deptName || '无科室归属' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isLedgerColVisible('product')"
+              label="商品"
+              v-bind="ledgerColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack sticky-product">
+                  <span class="ulc-strong ulc-wrap-text">{{ row.productName }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ row.productCode }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="transactionType"
+              v-if="isLedgerColVisible('transactionType')"
+              label="交易类型"
+              v-bind="ledgerColBinding('transactionType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">交易类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="event-type-chip" :class="row.eventCategory">{{ row.transactionTypeName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="qtyChange"
+              v-if="isLedgerColVisible('qtyChange')"
+              label="数量"
+              v-bind="ledgerColBinding('qtyChange')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number" :class="{ 'qty-out': Number(row.qtyChange) < 0 }">{{ row.eventCategory === 'valuation' ? '0.0000' : signed(row.qtyChange) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="unitPrice"
+              v-if="isLedgerColVisible('unitPrice')"
+              label="事件单价"
+              v-bind="ledgerColBinding('unitPrice')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">事件单价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number">¥ {{ number(row.unitPrice) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isLedgerColVisible('amount')"
+              label="金额"
+              v-bind="ledgerColBinding('amount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number">¥ {{ number(row.eventCategory === 'valuation' ? row.valueChange : row.amount) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="qtyAfter"
+              v-if="isLedgerColVisible('qtyAfter')"
+              label="结存"
+              v-bind="ledgerColBinding('qtyAfter')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">结存</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number">{{ number(row.qtyAfter, 4) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="eventTime"
+              v-if="isLedgerColVisible('eventTime')"
+              label="发生时间"
+              v-bind="ledgerColBinding('eventTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">发生时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time time-cell">{{ row.eventTime }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isLedgerColVisible('actions')"
+              label="操作"
+              v-bind="ledgerColBinding('actions')"
+              :fixed="ledgerActionFixed"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-actions ledger-actions">
+                  <button class="ulc-action" type="button" @click="openDetail(row)">
+                    <Eye :size="15" />详情
+                  </button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+
+        <template #pagination>
+          <MdPagination
+            :page="page"
+            :total-pages="Math.max(1, Math.ceil(total / size))"
+            :total="total"
+            :size="size"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changeSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <el-drawer v-model="detailOpen" title="库存流水详情" size="min(720px, 92vw)" destroy-on-close>
@@ -243,15 +514,15 @@ onMounted(async () => {
    与采购管理 / 收货验收 / 库存管理 统一到 md 设计语言：
    1. 页头改用 MdPageHeader
    2. 面板 md 卡片化，查询区紧凑
-   3. 表格 md 密度：表头 12px / 9px 12px，表体 13px / 8px 12px
+   3. 表格改用 Element Plus（ulc-table / is-sticky），
+      外观统一由 unified-list.css 提供，
+      本页只补充事件号 / 商品 / 科室库房等本页特有语义
    4. 汇总条去掉硬编码蓝色，改用主色令牌
-   5. 补齐此前缺失的样式：sticky-event / sticky-product /
-      code-cell / number-cell / ledger-table-wrap 等类名在旧版
-      样式表中未定义，导致吸附列与数字对齐从未生效，本次补上。
+   5. 调价事件（valuation）整行橙色系标记
 
-   优先级：.master-table 的 padding / font-size / color 由
-   spd-override.css 以 !important 统一设定，覆盖时加
-   .inventory-ledger-page 前缀提高特指度。
+   说明：原先的原生 <table class="master-table ledger-table">
+   相关样式（表头吸顶、斑马纹、吸附列）已全部移除 ——
+   这些能力改由 el-table + unified-list.css 承担。
    ================================================================ */
 
 /* ---------- 页面外壳 ---------- */
@@ -276,6 +547,12 @@ onMounted(async () => {
   box-shadow: var(--md-shadow-1, 0 1px 2px rgba(0, 0, 0, 0.04));
 }
 
+/* 表格卡片与外层面板之间留出呼吸感 */
+.inventory-ledger-page .ledger-table-card {
+  width: 100%;
+  min-width: 0;
+}
+
 /* ---------- 查询区 ---------- */
 .ledger-filter {
   display: grid;
@@ -298,16 +575,16 @@ onMounted(async () => {
 .ledger-filter label > span,
 .advanced-filters label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
 }
 
 .ledger-filter .md-input,
 .ledger-filter .md-select,
 .advanced-filters .md-input {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .ledger-filter-actions {
@@ -320,7 +597,7 @@ onMounted(async () => {
 .ledger-filter-actions .md-btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .ledger-filter-actions .md-btn svg {
@@ -370,157 +647,67 @@ onMounted(async () => {
   border-radius: var(--md-radius, 6px);
   background: var(--md-bg-muted, var(--spd-bg-page));
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .ledger-summary strong {
   margin-left: 5px;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 .muted-hint {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
-/* ---------- 表格 ---------- */
-.ledger-table-wrap {
-  max-height: max(300px, calc(100dvh - 460px));
-  overflow: auto;
-  border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
-  border-radius: var(--md-radius, 6px);
-  background: var(--md-bg-card, #fff);
-  scrollbar-width: thin;
-  scrollbar-color: var(--md-border, var(--spd-border-default)) transparent;
+/* ---------- 表格 ----------
+   表格本身（表头吸顶 / 斑马纹 / 列宽拖拽 / 右对齐）
+   由 unified-list.css 的 .ulc-table 统一提供，
+   这里只补充本页特有的语义样式。 */
+
+/* 事件号列：等宽字体，保持单行不换行 */
+.ledger-event-no {
+  white-space: nowrap;
 }
 
-.ledger-table-wrap::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.ledger-table-wrap::-webkit-scrollbar-thumb {
-  background: var(--md-border, var(--spd-border-default));
-  border-radius: 4px;
-}
-
-.inventory-ledger-page .ledger-table {
-  min-width: 1160px;
+/* 库房 / 科室 两行结构：与 ulc-cell-stack 叠加使用 */
+.ledger-pair-cell {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 13px !important;
+  max-width: 100%;
+  min-width: 0;
 }
 
-.inventory-ledger-page .ledger-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-  color: var(--md-text-heading) !important;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
-  border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
-}
-
-.inventory-ledger-page .ledger-table tbody td {
-  padding: 8px 12px !important;
-  font-size: 13px !important;
-  color: var(--md-text) !important;
-  border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
-  vertical-align: middle;
-  white-space: nowrap;
-  background: var(--md-bg-card, #fff) !important;
-}
-
-.inventory-ledger-page .ledger-table tbody tr:nth-child(even) td {
-  background: var(--md-bg-muted, #fafbfc) !important;
-}
-
-.inventory-ledger-page .ledger-table tbody tr:hover td {
-  background: var(--md-primary-soft, #f0f7f6) !important;
-}
-
-/* ---------- 吸附列（此前未定义，本次补齐） ---------- */
-.ledger-table .sticky-event {
-  position: sticky;
-  left: 0;
-  z-index: 2;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
-  color: var(--md-text-heading) !important;
-}
-
-/* 商品列不能同为 left:0 —— 会与事件号列叠在一起。
-   这里改为不吸附，仅保留最小宽度；事件号列已足够作为定位锚点。 */
-.ledger-table .sticky-product {
+/* 商品列不参与吸附（与事件号列同为 left:0 会互相叠压），
+   仅保留最小宽度；事件号列已足够作为定位锚点。 */
+.sticky-product {
   min-width: 180px;
 }
 
-/* 吸附列在斑马纹/hover 下需保持不透明，否则会与下方内容透叠 */
-.ledger-table tbody tr:nth-child(even) .sticky-event {
-  background: var(--md-bg-muted, #fafbfc) !important;
-}
-
-.ledger-table tbody tr:hover .sticky-event {
-  background: var(--md-primary-soft, #f0f7f6) !important;
-}
-
-.ledger-table thead th.sticky-event {
-  z-index: 4;
-  background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%) !important;
-}
-
-/* ---------- 数字 / 编码列（此前未定义，本次补齐） ---------- */
-.ledger-table .number-cell {
-  text-align: right;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+/* 数字列：居中 + 等宽字体 + 等宽数字（tabular-nums）
+   与统一列表标准一致：数值列与普通列一样居中。 */
+.ulc-number {
+  display: inline-block;
+  text-align: center;
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
-.ledger-table .code-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
-  white-space: nowrap;
-}
-
-.ledger-table .time-cell {
+/* 时间列 */
+.time-cell {
   font-variant-numeric: tabular-nums;
-  color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   white-space: nowrap;
-}
-
-/* 库房 / 科室 与 商品 / 编码 两行结构 */
-.ledger-table .ledger-pair-cell strong,
-.ledger-table .sticky-product strong {
-  display: block;
-  color: var(--md-text-heading, var(--spd-text-heading));
-  font-weight: 600;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ledger-table .ledger-pair-cell small,
-.ledger-table .sticky-product small {
-  display: block;
-  margin-top: 1px;
-  color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
 }
 
 /* ---------- 出库 / 调价 标识 ---------- */
-/* 需压过上面的 `.inventory-ledger-page .ledger-table tbody td`（同为
-   !important，但特指度更高），故这里加表选择器前缀。 */
-.ledger-table tbody td.qty-out {
-  color: var(--md-danger, var(--spd-danger)) !important;
+.qty-out {
+  color: var(--md-danger, var(--ulc-danger, var(--spd-danger))) !important;
   font-weight: 600;
 }
 
@@ -531,7 +718,7 @@ onMounted(async () => {
   border-radius: 999px;
   background: var(--md-primary-soft, #e8f1ef);
   color: var(--md-primary-strong, var(--md-primary, #0d6b63));
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -542,18 +729,31 @@ onMounted(async () => {
   color: var(--spd-warning-text, #9a5b00);
 }
 
-/* 调价事件：橙色系，与主色区分。
-   同为 !important，需比 tbody td 更高的特指度。 */
-.ledger-table tbody tr.valuation-row td {
+/* 调价事件整行标记：橙色系底色，与主色区分。
+   el-table 的斑马纹与 hover 也需要一并压过，因此用 !important。 */
+.inventory-ledger-page .ulc-table .el-table__row.valuation-row td.el-table__cell {
   background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 45%, white) !important;
 }
 
-.ledger-table tbody tr.valuation-row:hover td {
+.inventory-ledger-page .ulc-table .el-table__row.valuation-row:hover td.el-table__cell {
   background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 70%, white) !important;
 }
 
-.ledger-table tbody tr.valuation-row .sticky-event {
-  background: color-mix(in srgb, var(--spd-warning-bg, #fff4e5) 45%, white) !important;
+/* 操作列：按钮单行不换行 */
+.ledger-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 宽度不足时允许换行，避免按钮横向溢出侵占相邻列 */
+  flex-wrap: wrap;
+  gap: 6px;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.ledger-actions .ulc-action {
+  flex-shrink: 0;
 }
 
 /* ---------- 详情抽屉 ---------- */
@@ -582,12 +782,12 @@ onMounted(async () => {
 .detail-grid span,
 .trace-list span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .detail-grid strong {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   word-break: break-all;
 }
@@ -621,8 +821,8 @@ onMounted(async () => {
 }
 
 .trace-list strong {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-sm);
   color: var(--md-text-heading, var(--spd-text-heading));
 }
 
@@ -632,7 +832,7 @@ onMounted(async () => {
   background: var(--md-bg-muted, var(--spd-bg-page));
   border-radius: var(--md-radius, 6px);
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -666,10 +866,6 @@ onMounted(async () => {
   .ledger-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;
-  }
-
-  .ledger-table-wrap {
-    max-height: max(240px, calc(100dvh - 400px));
   }
 }
 </style>

@@ -5,7 +5,6 @@ import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import 'element-plus/theme-chalk/el-dialog.css'
 import { useRoute } from 'vue-router'
 import { CheckCircle2, ClipboardCheck, Eye, PackageSearch, Plus, RefreshCw, Save, Search, X } from '@lucide/vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import InventoryEventLedger from '../../components/inventory/InventoryEventLedger.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import PageHeader from '../../components/common/PageHeader.vue'
@@ -30,6 +29,17 @@ import {
 } from '../../api/inventory'
 import { fetchClosureOptions, type ClosureOptions } from '../../api/operationalClosure'
 import { useNotify } from '../../composables/useNotify'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const notify = useNotify()
@@ -255,12 +265,6 @@ const title = computed(() => {
   if (mode.value === 'price') return '价格调整'
   return '库存管理'
 })
-const subtitle = computed(() => {
-  if (mode.value === 'events') return '单独追踪入库、出库、盘点、调价等库存事件，保留账务追溯链路。'
-  if (mode.value === 'stocktaking') return '盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。'
-  if (mode.value === 'price') return '批次调价只影响未消耗库存价值，不覆盖历史消耗、结算和计费事实。'
-  return '全院库存余额集中展示，按库房、商品、系统批次查看可用、锁定和隔离库存。'
-})
 
 /** 盘点单状态徽标配色：草稿待复核、已复核归档 */
 function stocktakingTone(status: unknown) {
@@ -420,17 +424,302 @@ watch(mode, () => {
   inventoryPagination.price.page = 1
   if (!isInventoryTransactionLedger.value) void loadData()
 })
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVPRICEADJUST_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'adjustmentNo', label: '调价单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'systemBatch', label: '系统批次', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 220 },
+  { key: 'oldUnitPrice', label: '原价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'newUnitPrice', label: '新价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'affectedQty', label: '影响数量', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'reason', label: '原因', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 320 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const invPriceAdjustCols = useListColumns({
+  storageKey: 'spd-inv-price-adjust-cols-v1',
+  defaults: INVPRICEADJUST_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invPriceAdjustTableRef = invPriceAdjustCols.tableRef
+const isInvPriceAdjustColVisible = (key: string) => invPriceAdjustCols.isColumnVisible(key)
+const invPriceAdjustColBinding = (key: string) => invPriceAdjustCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const invPriceAdjustActionFix = useActionColumnFix()
+const invPriceAdjustActionFixed = computed(() => invPriceAdjustActionFix.actionFixedBinding.value)
+
+watch(
+  [invPriceAdjustTableRef],
+  () => {
+    invPriceAdjustActionFix.observe(invPriceAdjustTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invPriceAdjustColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invPriceAdjustColSettingsPopRef = ref<HTMLElement | null>(null)
+const invPriceAdjustColSettingsPop = useColSettingsPopover({
+  open: invPriceAdjustCols.settingsOpen,
+  anchorRef: invPriceAdjustColSettingsAnchorRef,
+  popRef: invPriceAdjustColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVSTOCKTAKING_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'stocktakingNo', label: '盘点单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'deptName', label: '科室', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'stocktakingType', label: '类型', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'diffQty', label: '差异', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'reason', label: '原因', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 320 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const invStocktakingCols = useListColumns({
+  storageKey: 'spd-inv-stocktaking-cols-v1',
+  defaults: INVSTOCKTAKING_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invStocktakingTableRef = invStocktakingCols.tableRef
+const isInvStocktakingColVisible = (key: string) => invStocktakingCols.isColumnVisible(key)
+const invStocktakingColBinding = (key: string) => invStocktakingCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const invStocktakingActionFix = useActionColumnFix()
+const invStocktakingActionFixed = computed(() => invStocktakingActionFix.actionFixedBinding.value)
+
+watch(
+  [invStocktakingTableRef],
+  () => {
+    invStocktakingActionFix.observe(invStocktakingTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invStocktakingColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invStocktakingColSettingsPopRef = ref<HTMLElement | null>(null)
+const invStocktakingColSettingsPop = useColSettingsPopover({
+  open: invStocktakingCols.settingsOpen,
+  anchorRef: invStocktakingColSettingsAnchorRef,
+  popRef: invStocktakingColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVLOOSESTOCK_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'productName', label: '商品名称', width: 200, visible: true, flexible: true, idealWidth: 280, weight: 8, minWidth: 130, maxWidth: 460 },
+  { key: 'spec', label: '规格型号', width: 160, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'manufacturer', label: '厂家', width: 170, visible: true, flexible: true, idealWidth: 260, weight: 6, minWidth: 104, maxWidth: 400 },
+  { key: 'unit', label: '单位', width: 80, visible: true, weight: 2, minWidth: 56, maxWidth: 110 },
+  { key: 'unitPrice', label: '单价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'systemBatch', label: '系统批次', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'productionBatch', label: '生产批号', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'expireDate', label: '有效期', width: 130, visible: true, weight: 2, minWidth: 110, maxWidth: 190 },
+  { key: 'availableQty', label: '可用数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160, fill: true }
+]
+
+const invLooseStockCols = useListColumns({
+  storageKey: 'spd-inv-loose-stock-cols-v1',
+  defaults: INVLOOSESTOCK_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invLooseStockTableRef = invLooseStockCols.tableRef
+const isInvLooseStockColVisible = (key: string) => invLooseStockCols.isColumnVisible(key)
+const invLooseStockColBinding = (key: string) => invLooseStockCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invLooseStockColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invLooseStockColSettingsPopRef = ref<HTMLElement | null>(null)
+const invLooseStockColSettingsPop = useColSettingsPopover({
+  open: invLooseStockCols.settingsOpen,
+  anchorRef: invLooseStockColSettingsAnchorRef,
+  popRef: invLooseStockColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVCODESTOCK_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'deptName', label: '科室', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, flexible: true, idealWidth: 280, weight: 8, minWidth: 130, maxWidth: 460 },
+  { key: 'spec', label: '规格型号', width: 150, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'registrationNo', label: '注册证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'batchNo', label: '批号', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 210 },
+  { key: 'systemBatch', label: '批次', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'unitPrice', label: '单价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'unit', label: '单位', width: 80, visible: true, weight: 2, minWidth: 56, maxWidth: 110 },
+  { key: 'quantity', label: '数量', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'manufacturer', label: '厂家', width: 160, visible: true, flexible: true, idealWidth: 260, weight: 6, minWidth: 104, maxWidth: 400 },
+  { key: 'supplierName', label: '供应商', width: 160, visible: true, weight: 5, minWidth: 110, maxWidth: 280 },
+  { key: 'uniqueCode', label: '唯一码', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 300 },
+  { key: 'uidCode', label: 'UID码', width: 180, visible: true, weight: 5, minWidth: 140, maxWidth: 300, fill: true }
+]
+
+const invCodeStockCols = useListColumns({
+  storageKey: 'spd-inv-code-stock-cols-v1',
+  defaults: INVCODESTOCK_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invCodeStockTableRef = invCodeStockCols.tableRef
+const isInvCodeStockColVisible = (key: string) => invCodeStockCols.isColumnVisible(key)
+const invCodeStockColBinding = (key: string) => invCodeStockCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invCodeStockColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invCodeStockColSettingsPopRef = ref<HTMLElement | null>(null)
+const invCodeStockColSettingsPop = useColSettingsPopover({
+  open: invCodeStockCols.settingsOpen,
+  anchorRef: invCodeStockColSettingsAnchorRef,
+  popRef: invCodeStockColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVQUOTASTOCK_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'warehouseName', label: '库房', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'deptName', label: '科室', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'packageCode', label: '定数包编码', width: 150, visible: true, weight: 4, minWidth: 120, maxWidth: 230 },
+  { key: 'packageUniqueCode', label: '定数包唯一码', width: 200, visible: true, weight: 5, minWidth: 140, maxWidth: 320 },
+  { key: 'packageName', label: '定数包名称', width: 190, visible: true, flexible: true, idealWidth: 260, weight: 7, minWidth: 130, maxWidth: 420 },
+  { key: 'templateVersion', label: '模板版本', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'productName', label: '商品名称', width: 180, visible: true, flexible: true, idealWidth: 260, weight: 7, minWidth: 130, maxWidth: 420 },
+  { key: 'spec', label: '规格型号', width: 150, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'registrationNo', label: '注册证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'baseUnitPrice', label: '基本单位单价', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'baseUnit', label: '基本单位', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'packageQty', label: '定数包数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'packageQtyTotal', label: '包内数量合计', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'looseQty', label: '散货数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'manufacturer', label: '厂家', width: 160, visible: true, flexible: true, idealWidth: 260, weight: 6, minWidth: 104, maxWidth: 400 },
+  { key: 'supplierName', label: '供应商', width: 160, visible: true, weight: 5, minWidth: 110, maxWidth: 280, fill: true }
+]
+
+const invQuotaStockCols = useListColumns({
+  storageKey: 'spd-inv-quota-stock-cols-v1',
+  defaults: INVQUOTASTOCK_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invQuotaStockTableRef = invQuotaStockCols.tableRef
+const isInvQuotaStockColVisible = (key: string) => invQuotaStockCols.isColumnVisible(key)
+const invQuotaStockColBinding = (key: string) => invQuotaStockCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invQuotaStockColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invQuotaStockColSettingsPopRef = ref<HTMLElement | null>(null)
+const invQuotaStockColSettingsPop = useColSettingsPopover({
+  open: invQuotaStockCols.settingsOpen,
+  anchorRef: invQuotaStockColSettingsAnchorRef,
+  popRef: invQuotaStockColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVBALANCE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'deptName', label: '科室', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 230 },
+  { key: 'productName', label: '商品名称', width: 200, visible: true, flexible: true, idealWidth: 280, weight: 8, minWidth: 130, maxWidth: 460 },
+  { key: 'spec', label: '规格型号', width: 160, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'registrationNo', label: '注册证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'unitPrice', label: '单价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'unit', label: '单位', width: 90, visible: true, weight: 2, minWidth: 56, maxWidth: 130 },
+  { key: 'quantity', label: '数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'manufacturer', label: '厂家', width: 170, visible: true, flexible: true, idealWidth: 260, weight: 6, minWidth: 104, maxWidth: 400 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, weight: 5, minWidth: 110, maxWidth: 280 },
+  { key: 'updateTime', label: '更新时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200, fill: true }
+]
+
+const invBalanceCols = useListColumns({
+  storageKey: 'spd-inv-balance-cols-v1',
+  defaults: INVBALANCE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invBalanceTableRef = invBalanceCols.tableRef
+const isInvBalanceColVisible = (key: string) => invBalanceCols.isColumnVisible(key)
+const invBalanceColBinding = (key: string) => invBalanceCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invBalanceColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invBalanceColSettingsPopRef = ref<HTMLElement | null>(null)
+const invBalanceColSettingsPop = useColSettingsPopover({
+  open: invBalanceCols.settingsOpen,
+  anchorRef: invBalanceColSettingsAnchorRef,
+  popRef: invBalanceColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="purchase-page inventory-page" :class="{ 'price-adjust-page': mode === 'price' }">
+<template><section class="purchase-page inventory-page spd-unified-list" :class="{ 'price-adjust-page': mode === 'price' }">
     <InventoryEventLedger v-if="isInventoryTransactionLedger" />
 
     <MdPageHeader
       v-else-if="mode === 'price'"
       crumb="结算与财务"
       :title="title"
-      :description="subtitle"
       :loading="loading"
       @refresh="loadData"
     />
@@ -439,7 +728,6 @@ watch(mode, () => {
       v-else
       crumb="供应链业务"
       :title="title"
-      :description="subtitle"
       :loading="isInventoryManagement && inventoryTab === 'loose' ? looseStockLoading : loading"
       @refresh="loadData"
     />
@@ -474,58 +762,246 @@ watch(mode, () => {
           </button>
         </form>
 
-        <div class="table-scroll inventory-list-scroll">
-          <table class="master-table inventory-table">
-            <thead>
-              <tr>
-                <th>库房</th>
-                <th>科室</th>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>规格型号</th>
-                <th>注册证号</th>
-                <th>单价</th>
-                <th>单位</th>
-                <th>数量</th>
-                <th>金额</th>
-                <th>厂家</th>
-                <th>供应商</th>
-                <th>更新时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="13" class="inventory-state-cell">正在加载库存...</td>
-              </tr>
-              <tr v-for="row in balances" v-else :key="`${row.warehouseName}|${row.productCode}`">
-                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
-                <td class="inventory-wrap-cell">{{ row.deptName || '-' }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode }}</td>
-                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName }}</td>
-                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
-                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
-                <td>{{ row.unit || '-' }}</td>
-                <td class="inventory-qty-cell">{{ row.qty }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td class="inventory-wrap-cell">{{ row.manufacturerName || '-' }}</td>
-                <td class="inventory-wrap-cell">{{ row.supplierName || '-' }}</td>
-                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-              </tr>
-              <tr v-if="!balances.length && !loading">
-                <td colspan="13" class="inventory-state-cell">暂无库存汇总数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          :page="inventoryPagination.balances.page"
-          :size="inventoryPagination.balances.size"
-          :total="inventoryPagination.balances.total"
-          :loading="loading"
-          @change-page="changeInventoryPage('balances', $event)"
-          @change-size="changeInventoryPageSize('balances', $event)"
-        />
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="invBalanceColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="invBalanceCols.settingsOpen.value = !invBalanceCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: invBalanceCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="invBalanceCols.settingsOpen.value"
+              ref="invBalanceColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': invBalanceColSettingsPop.align.value === 'right', 'is-align-up': invBalanceColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': invBalanceColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invBalanceColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="invBalanceCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in invBalanceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && invBalanceCols.visibleColumnCount.value <= 1"
+                    @change="invBalanceCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="invBalanceCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="invBalanceTableRef"
+              :data="balances"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无库存汇总数据'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => invBalanceCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="warehouseName"
+                v-if="isInvBalanceColVisible('warehouseName')"
+                label="库房"
+                v-bind="invBalanceColBinding('warehouseName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="deptName"
+                v-if="isInvBalanceColVisible('deptName')"
+                label="科室"
+                v-bind="invBalanceColBinding('deptName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">科室</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isInvBalanceColVisible('productCode')"
+                label="商品编码"
+                v-bind="invBalanceColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isInvBalanceColVisible('productName')"
+                label="商品名称"
+                v-bind="invBalanceColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isInvBalanceColVisible('spec')"
+                label="规格型号"
+                v-bind="invBalanceColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格型号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="registrationNo"
+                v-if="isInvBalanceColVisible('registrationNo')"
+                label="注册证号"
+                v-bind="invBalanceColBinding('registrationNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">注册证号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isInvBalanceColVisible('unitPrice')"
+                label="单价"
+                v-bind="invBalanceColBinding('unitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.unitPrice).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unit"
+                v-if="isInvBalanceColVisible('unit')"
+                label="单位"
+                v-bind="invBalanceColBinding('unit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单位</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.unit || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="quantity"
+                v-if="isInvBalanceColVisible('quantity')"
+                label="数量"
+                v-bind="invBalanceColBinding('quantity')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.qty }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="amount"
+                v-if="isInvBalanceColVisible('amount')"
+                label="金额"
+                v-bind="invBalanceColBinding('amount')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">金额</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.amount).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isInvBalanceColVisible('manufacturer')"
+                label="厂家"
+                v-bind="invBalanceColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="supplierName"
+                v-if="isInvBalanceColVisible('supplierName')"
+                label="供应商"
+                v-bind="invBalanceColBinding('supplierName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">供应商</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.supplierName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="updateTime"
+                v-if="isInvBalanceColVisible('updateTime')"
+                label="更新时间"
+                v-bind="invBalanceColBinding('updateTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">更新时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无库存汇总数据" />
+              </template>
+            </el-table>
+          </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.balances.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.balances.total / Math.max(inventoryPagination.balances.size, 1)))"
+            :total="inventoryPagination.balances.total"
+            :size="inventoryPagination.balances.size"
+            :loading="loading"
+            @update:page="changeInventoryPage('balances', $event)"
+            @update:size="changeInventoryPageSize('balances', $event)"
+          />
+        </template>
+      </MdDataTableCard>
       </template>
 
       <!-- 定数包库存查询 -->
@@ -541,74 +1017,315 @@ watch(mode, () => {
           </button>
         </form>
 
-        <div class="table-scroll inventory-list-scroll" role="region" aria-label="定数包库存结果" tabindex="0">
-          <table class="master-table inventory-table">
-            <thead>
-              <tr>
-                <th>库房</th>
-                <th>科室</th>
-                <th>定数包编码</th>
-                <th>定数包唯一码</th>
-                <th>定数包名称</th>
-                <th>模板版本</th>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>规格型号</th>
-                <th>注册证号</th>
-                <th>基本单位单价</th>
-                <th>基本单位</th>
-                <th>定数包数量</th>
-                <th>包内数量合计</th>
-                <th>散货数量</th>
-                <th>金额</th>
-                <th>厂家</th>
-                <th>供应商</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="18" class="inventory-state-cell">正在加载定数包库存...</td>
-              </tr>
-              <tr v-for="row in quotaStockRows" v-else :key="`${row.warehouseId}-${row.templateId}-${row.productId}`">
-                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
-                <td class="inventory-wrap-cell">{{ row.deptName }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.packageCode }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">
-                  <button v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="invQuotaStockColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="invQuotaStockCols.settingsOpen.value = !invQuotaStockCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: invQuotaStockCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="invQuotaStockCols.settingsOpen.value"
+              ref="invQuotaStockColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': invQuotaStockColSettingsPop.align.value === 'right', 'is-align-up': invQuotaStockColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': invQuotaStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invQuotaStockColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="invQuotaStockCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in invQuotaStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && invQuotaStockCols.visibleColumnCount.value <= 1"
+                    @change="invQuotaStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="invQuotaStockCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="invQuotaStockTableRef"
+              :data="quotaStockRows"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无定数包库存'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => invQuotaStockCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="warehouseName"
+                v-if="isInvQuotaStockColVisible('warehouseName')"
+                label="库房"
+                v-bind="invQuotaStockColBinding('warehouseName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="deptName"
+                v-if="isInvQuotaStockColVisible('deptName')"
+                label="科室"
+                v-bind="invQuotaStockColBinding('deptName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">科室</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.deptName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageCode"
+                v-if="isInvQuotaStockColVisible('packageCode')"
+                label="定数包编码"
+                v-bind="invQuotaStockColBinding('packageCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">定数包编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.packageCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageUniqueCode"
+                v-if="isInvQuotaStockColVisible('packageUniqueCode')"
+                label="定数包唯一码"
+                v-bind="invQuotaStockColBinding('packageUniqueCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">定数包唯一码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text"><button v-if="row.packageUniqueCodes && row.packageUniqueCodes.length > 1"
                     class="btn btn-sm" type="button" @click="openQuotaCodes(row.packageUniqueCodes)">
                     查看 {{ row.packageUniqueCodes.length }} 个唯一码
                   </button>
-                  <span v-else>{{ row.packageUniqueCodes?.[0] || '—' }}</span>
-                </td>
-                <td class="inventory-product-cell inventory-wrap-cell">{{ row.packageName }}</td>
-                <td>{{ row.templateVersion ?? '-' }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode || '-' }}</td>
-                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName || '-' }}</td>
-                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
-                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
-                <td>{{ row.unit || '-' }}</td>
-                <td class="inventory-qty-cell">{{ row.packageCount }}</td>
-                <td class="inventory-qty-cell">{{ row.packageQty ?? '-' }}</td>
-                <td class="inventory-qty-cell">{{ row.looseQty }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td class="inventory-wrap-cell">{{ row.manufacturerName }}</td>
-                <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
-              </tr>
-              <tr v-if="!quotaStockRows.length && !loading">
-                <td colspan="18" class="inventory-state-cell">暂无定数包库存数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          :page="inventoryPagination.quotaStock.page"
-          :size="inventoryPagination.quotaStock.size"
-          :total="inventoryPagination.quotaStock.total"
-          :loading="loading"
-          @change-page="changeInventoryPage('quotaStock', $event)"
-          @change-size="changeInventoryPageSize('quotaStock', $event)"
-        />
+                  <span v-else>{{ row.packageUniqueCodes?.[0] || '—' }}</span></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageName"
+                v-if="isInvQuotaStockColVisible('packageName')"
+                label="定数包名称"
+                v-bind="invQuotaStockColBinding('packageName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">定数包名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.packageName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="templateVersion"
+                v-if="isInvQuotaStockColVisible('templateVersion')"
+                label="模板版本"
+                v-bind="invQuotaStockColBinding('templateVersion')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板版本</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.templateVersion ?? '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isInvQuotaStockColVisible('productCode')"
+                label="商品编码"
+                v-bind="invQuotaStockColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isInvQuotaStockColVisible('productName')"
+                label="商品名称"
+                v-bind="invQuotaStockColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isInvQuotaStockColVisible('spec')"
+                label="规格型号"
+                v-bind="invQuotaStockColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格型号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="registrationNo"
+                v-if="isInvQuotaStockColVisible('registrationNo')"
+                label="注册证号"
+                v-bind="invQuotaStockColBinding('registrationNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">注册证号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="baseUnitPrice"
+                v-if="isInvQuotaStockColVisible('baseUnitPrice')"
+                label="基本单位单价"
+                v-bind="invQuotaStockColBinding('baseUnitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">基本单位单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.unitPrice).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="baseUnit"
+                v-if="isInvQuotaStockColVisible('baseUnit')"
+                label="基本单位"
+                v-bind="invQuotaStockColBinding('baseUnit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">基本单位</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.unit || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageQty"
+                v-if="isInvQuotaStockColVisible('packageQty')"
+                label="定数包数量"
+                v-bind="invQuotaStockColBinding('packageQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">定数包数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.packageCount }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageQtyTotal"
+                v-if="isInvQuotaStockColVisible('packageQtyTotal')"
+                label="包内数量合计"
+                v-bind="invQuotaStockColBinding('packageQtyTotal')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">包内数量合计</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.packageQty ?? '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="looseQty"
+                v-if="isInvQuotaStockColVisible('looseQty')"
+                label="散货数量"
+                v-bind="invQuotaStockColBinding('looseQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">散货数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.looseQty }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="amount"
+                v-if="isInvQuotaStockColVisible('amount')"
+                label="金额"
+                v-bind="invQuotaStockColBinding('amount')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">金额</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.amount).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isInvQuotaStockColVisible('manufacturer')"
+                label="厂家"
+                v-bind="invQuotaStockColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="supplierName"
+                v-if="isInvQuotaStockColVisible('supplierName')"
+                label="供应商"
+                v-bind="invQuotaStockColBinding('supplierName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">供应商</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.supplierName }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无定数包库存" />
+              </template>
+            </el-table>
+          </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.quotaStock.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.quotaStock.total / Math.max(inventoryPagination.quotaStock.size, 1)))"
+            :total="inventoryPagination.quotaStock.total"
+            :size="inventoryPagination.quotaStock.size"
+            :loading="loading"
+            @update:page="changeInventoryPage('quotaStock', $event)"
+            @update:size="changeInventoryPageSize('quotaStock', $event)"
+          />
+        </template>
+      </MdDataTableCard>
       </template>
 
       <!-- 唯一码查询 -->
@@ -627,64 +1344,285 @@ watch(mode, () => {
           </button>
         </form>
 
-        <div class="table-scroll inventory-list-scroll">
-          <table class="master-table inventory-table">
-            <thead>
-              <tr>
-                <th>科室</th>
-                <th>库房</th>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>规格型号</th>
-                <th>注册证号</th>
-                <th>批号</th>
-                <th>批次</th>
-                <th>单价</th>
-                <th>单位</th>
-                <th>数量</th>
-                <th>金额</th>
-                <th>厂家</th>
-                <th>供应商</th>
-                <th>唯一码</th>
-                <th>UID码</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td colspan="16" class="inventory-state-cell">正在加载唯一码库存...</td>
-              </tr>
-              <tr v-for="(row, index) in codeStockRows" v-else :key="index">
-                <td class="inventory-wrap-cell">{{ row.deptName }}</td>
-                <td class="inventory-wrap-cell">{{ row.warehouseName }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productCode }}</td>
-                <td class="inventory-product-cell inventory-wrap-cell">{{ row.productName }}</td>
-                <td class="inventory-wrap-cell">{{ row.specModel || '-' }}</td>
-                <td class="inventory-wrap-cell">{{ row.registrationNo || '-' }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.batchNo }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.productionBatchNo }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.unitPrice).toFixed(2) }}</td>
-                <td>{{ row.unit || '-' }}</td>
-                <td class="inventory-qty-cell">{{ row.qty }}</td>
-                <td class="inventory-money-cell">¥ {{ Number(row.amount).toFixed(2) }}</td>
-                <td class="inventory-wrap-cell">{{ row.manufacturerName }}</td>
-                <td class="inventory-wrap-cell">{{ row.supplierName }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.uniqueCode }}</td>
-                <td class="inventory-code-cell inventory-wrap-cell">{{ row.udiCode }}</td>
-              </tr>
-              <tr v-if="!codeStockRows.length && !loading">
-                <td colspan="16" class="inventory-state-cell">暂无唯一码库存数据</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          :page="inventoryPagination.codeStock.page"
-          :size="inventoryPagination.codeStock.size"
-          :total="inventoryPagination.codeStock.total"
-          :loading="loading"
-          @change-page="changeInventoryPage('codeStock', $event)"
-          @change-size="changeInventoryPageSize('codeStock', $event)"
-        />
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="invCodeStockColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="invCodeStockCols.settingsOpen.value = !invCodeStockCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: invCodeStockCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="invCodeStockCols.settingsOpen.value"
+              ref="invCodeStockColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': invCodeStockColSettingsPop.align.value === 'right', 'is-align-up': invCodeStockColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': invCodeStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invCodeStockColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="invCodeStockCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in invCodeStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && invCodeStockCols.visibleColumnCount.value <= 1"
+                    @change="invCodeStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="invCodeStockCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="invCodeStockTableRef"
+              :data="codeStockRows"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无唯一码库存'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => invCodeStockCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="deptName"
+                v-if="isInvCodeStockColVisible('deptName')"
+                label="科室"
+                v-bind="invCodeStockColBinding('deptName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">科室</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.deptName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="warehouseName"
+                v-if="isInvCodeStockColVisible('warehouseName')"
+                label="库房"
+                v-bind="invCodeStockColBinding('warehouseName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isInvCodeStockColVisible('productCode')"
+                label="商品编码"
+                v-bind="invCodeStockColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isInvCodeStockColVisible('productName')"
+                label="商品名称"
+                v-bind="invCodeStockColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isInvCodeStockColVisible('spec')"
+                label="规格型号"
+                v-bind="invCodeStockColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格型号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="registrationNo"
+                v-if="isInvCodeStockColVisible('registrationNo')"
+                label="注册证号"
+                v-bind="invCodeStockColBinding('registrationNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">注册证号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="batchNo"
+                v-if="isInvCodeStockColVisible('batchNo')"
+                label="批号"
+                v-bind="invCodeStockColBinding('batchNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">批号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.batchNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="systemBatch"
+                v-if="isInvCodeStockColVisible('systemBatch')"
+                label="批次"
+                v-bind="invCodeStockColBinding('systemBatch')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">批次</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productionBatchNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isInvCodeStockColVisible('unitPrice')"
+                label="单价"
+                v-bind="invCodeStockColBinding('unitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.unitPrice).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unit"
+                v-if="isInvCodeStockColVisible('unit')"
+                label="单位"
+                v-bind="invCodeStockColBinding('unit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单位</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.unit || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="quantity"
+                v-if="isInvCodeStockColVisible('quantity')"
+                label="数量"
+                v-bind="invCodeStockColBinding('quantity')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.qty }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="amount"
+                v-if="isInvCodeStockColVisible('amount')"
+                label="金额"
+                v-bind="invCodeStockColBinding('amount')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">金额</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.amount).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isInvCodeStockColVisible('manufacturer')"
+                label="厂家"
+                v-bind="invCodeStockColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="supplierName"
+                v-if="isInvCodeStockColVisible('supplierName')"
+                label="供应商"
+                v-bind="invCodeStockColBinding('supplierName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">供应商</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.supplierName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="uniqueCode"
+                v-if="isInvCodeStockColVisible('uniqueCode')"
+                label="唯一码"
+                v-bind="invCodeStockColBinding('uniqueCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">唯一码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.uniqueCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="uidCode"
+                v-if="isInvCodeStockColVisible('uidCode')"
+                label="UID码"
+                v-bind="invCodeStockColBinding('uidCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">UID码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.udiCode }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无唯一码库存" />
+              </template>
+            </el-table>
+          </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.codeStock.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.codeStock.total / Math.max(inventoryPagination.codeStock.size, 1)))"
+            :total="inventoryPagination.codeStock.total"
+            :size="inventoryPagination.codeStock.size"
+            :loading="loading"
+            @update:page="changeInventoryPage('codeStock', $event)"
+            @update:size="changeInventoryPageSize('codeStock', $event)"
+          />
+        </template>
+      </MdDataTableCard>
       </template>
       <template v-else-if="inventoryTab === 'loose'">
         <form class="hospital-query-grid purchase-query-grid inventory-query-grid" aria-label="可用散货查询" @submit.prevent="searchLooseStock">
@@ -694,34 +1632,220 @@ watch(mode, () => {
           <label><span>系统批次</span><input v-model.trim="looseQuery.systemBatchNo" /></label>
           <button class="btn btn-primary" type="submit" :disabled="looseStockLoading"><Search :size="16" />查询</button>
         </form>
-        <div class="table-scroll inventory-list-scroll" role="region" aria-label="可用散货结果" tabindex="0">
-          <table class="master-table inventory-table">
-            <thead>
-              <tr><th>库房</th><th>商品编码</th><th>商品名称</th><th>规格型号</th><th>厂家</th><th>单位</th>
-                <th>单价</th><th>系统批次</th><th>生产批号</th><th>有效期</th><th>可用数量</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in looseStockRows" :key="row.balanceId">
-                <td>{{ row.warehouseName }}</td><td>{{ row.productCode }}</td><td>{{ row.productName }}</td>
-                <td>{{ row.specModel || '—' }}</td><td>{{ row.manufacturerName || '—' }}</td><td>{{ row.unit || '—' }}</td>
-                <td>{{ row.unitPrice == null ? '—' : Number(row.unitPrice).toFixed(2) }}</td>
-                <td>{{ row.systemBatchNo }}</td><td>{{ row.productionBatchNo || '—' }}</td>
-                <td>{{ row.expireDate || '—' }}</td><td>{{ row.availableQty }}</td>
-              </tr>
-              <tr v-if="!looseStockRows.length">
-                <td colspan="11" class="inventory-state-cell" :role="looseStockError ? 'alert' : 'status'">
-                  {{ looseStockError || (looseStockLoading ? '正在加载可用散货…' : '暂无可用散货') }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          :page="inventoryPagination.looseStock.page" :size="inventoryPagination.looseStock.size"
-          :total="inventoryPagination.looseStock.total" :loading="looseStockLoading"
-          @change-page="changeInventoryPage('looseStock', $event)"
-          @change-size="changeInventoryPageSize('looseStock', $event)"
-        />
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="invLooseStockColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="invLooseStockCols.settingsOpen.value = !invLooseStockCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: invLooseStockCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="invLooseStockCols.settingsOpen.value"
+              ref="invLooseStockColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': invLooseStockColSettingsPop.align.value === 'right', 'is-align-up': invLooseStockColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': invLooseStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invLooseStockColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="invLooseStockCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in invLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && invLooseStockCols.visibleColumnCount.value <= 1"
+                    @change="invLooseStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="invLooseStockCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="invLooseStockTableRef"
+              :data="looseStockRows"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无散货库存'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => invLooseStockCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="warehouseName"
+                v-if="isInvLooseStockColVisible('warehouseName')"
+                label="库房"
+                v-bind="invLooseStockColBinding('warehouseName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isInvLooseStockColVisible('productCode')"
+                label="商品编码"
+                v-bind="invLooseStockColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isInvLooseStockColVisible('productName')"
+                label="商品名称"
+                v-bind="invLooseStockColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isInvLooseStockColVisible('spec')"
+                label="规格型号"
+                v-bind="invLooseStockColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格型号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isInvLooseStockColVisible('manufacturer')"
+                label="厂家"
+                v-bind="invLooseStockColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unit"
+                v-if="isInvLooseStockColVisible('unit')"
+                label="单位"
+                v-bind="invLooseStockColBinding('unit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单位</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.unit || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isInvLooseStockColVisible('unitPrice')"
+                label="单价"
+                v-bind="invLooseStockColBinding('unitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.unitPrice == null ? '—' : Number(row.unitPrice).toFixed(2) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="systemBatch"
+                v-if="isInvLooseStockColVisible('systemBatch')"
+                label="系统批次"
+                v-bind="invLooseStockColBinding('systemBatch')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">系统批次</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productionBatch"
+                v-if="isInvLooseStockColVisible('productionBatch')"
+                label="生产批号"
+                v-bind="invLooseStockColBinding('productionBatch')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">生产批号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productionBatchNo || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="expireDate"
+                v-if="isInvLooseStockColVisible('expireDate')"
+                label="有效期"
+                v-bind="invLooseStockColBinding('expireDate')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">有效期</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.expireDate || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="availableQty"
+                v-if="isInvLooseStockColVisible('availableQty')"
+                label="可用数量"
+                v-bind="invLooseStockColBinding('availableQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">可用数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text ulc-number">{{ row.availableQty }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无散货库存" />
+              </template>
+            </el-table>
+          </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.looseStock.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.looseStock.total / Math.max(inventoryPagination.looseStock.size, 1)))"
+            :total="inventoryPagination.looseStock.total"
+            :size="inventoryPagination.looseStock.size"
+            :loading="looseStockLoading"
+            @update:page="changeInventoryPage('looseStock', $event)"
+            @update:size="changeInventoryPageSize('looseStock', $event)"
+          />
+        </template>
+      </MdDataTableCard>
       </template>
     </section>
 
@@ -735,43 +1859,201 @@ watch(mode, () => {
         </button>
       </div>
       <p class="stocktaking-hint">盘点复核后生成盘盈/盘亏库存事件，禁止形成负库存。</p>
-      <div class="table-scroll stocktaking-list-scroll">
-        <table class="master-table purchase-detail-table stocktaking-table">
-          <thead><tr><th>盘点单号</th><th>库房</th><th>科室</th><th>类型</th><th class="numeric-cell">差异</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="9" class="stocktaking-state-cell">正在加载盘点表...</td>
-            </tr>
-            <tr v-if="!stocktakingRows.length && !loading">
-              <td colspan="9" class="stocktaking-state-cell">暂无盘点表，点击右上角「新增盘点表」创建</td>
-            </tr>
-            <tr v-for="row in stocktakingRows" v-else :key="String(row.stocktakingNo)">
-              <td class="stocktaking-no-cell">{{ row.stocktakingNo }}</td>
-              <td>{{ row.warehouseName }}</td>
-              <td>{{ row.deptName || '-' }}</td>
-              <td>{{ row.stocktakingType || '-' }}</td>
-              <td class="stocktaking-diff-cell">{{ row.diffQty ?? '-' }}</td>
-              <td><span :class="['status-badge', stocktakingTone(row.status)]">{{ formatStatusText(row.status) }}</span></td>
-              <td>{{ row.reason || '-' }}</td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td>
-                <div class="row-actions">
-                  <button class="btn-text" type="button" @click="openStocktakingDetail(String(row.stocktakingNo))"><Eye :size="15" /> 明细</button>
-                  <button v-if="row.status === 'draft'" class="btn-text stocktaking-approve-btn" type="button" @click="approveStocktakingRow(String(row.stocktakingNo))"><CheckCircle2 :size="15" /> 复核</button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="inventoryPagination.stocktaking.page"
-        :size="inventoryPagination.stocktaking.size"
-        :total="inventoryPagination.stocktaking.total"
-        :loading="loading"
-        @change-page="changeInventoryPage('stocktaking', $event)"
-        @change-size="changeInventoryPageSize('stocktaking', $event)"
-      />
+
+              <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="invStocktakingColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="invStocktakingCols.settingsOpen.value = !invStocktakingCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: invStocktakingCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="invStocktakingCols.settingsOpen.value"
+            ref="invStocktakingColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': invStocktakingColSettingsPop.align.value === 'right', 'is-align-up': invStocktakingColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': invStocktakingColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invStocktakingColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="invStocktakingCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in invStocktakingCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && invStocktakingCols.visibleColumnCount.value <= 1"
+                  @change="invStocktakingCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="invStocktakingCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="invStocktakingTableRef"
+            :data="stocktakingRows"
+            row-key="stocktakingNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无盘点表'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => invStocktakingCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="stocktakingNo"
+              v-if="isInvStocktakingColVisible('stocktakingNo')"
+              label="盘点单号"
+              v-bind="invStocktakingColBinding('stocktakingNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">盘点单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.stocktakingNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isInvStocktakingColVisible('warehouseName')"
+              label="库房"
+              v-bind="invStocktakingColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isInvStocktakingColVisible('deptName')"
+              label="科室"
+              v-bind="invStocktakingColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="stocktakingType"
+              v-if="isInvStocktakingColVisible('stocktakingType')"
+              label="类型"
+              v-bind="invStocktakingColBinding('stocktakingType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.stocktakingType || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="diffQty"
+              v-if="isInvStocktakingColVisible('diffQty')"
+              label="差异"
+              v-bind="invStocktakingColBinding('diffQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">差异</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.diffQty ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isInvStocktakingColVisible('status')"
+              label="状态"
+              v-bind="invStocktakingColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['status-badge', stocktakingTone(row.status)]">{{ formatStatusText(row.status) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="reason"
+              v-if="isInvStocktakingColVisible('reason')"
+              label="原因"
+              v-bind="invStocktakingColBinding('reason')"
+            >
+              <template #header>
+                <span class="ulc-th-text">原因</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.reason || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isInvStocktakingColVisible('createTime')"
+              label="创建时间"
+              v-bind="invStocktakingColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isInvStocktakingColVisible('actions')"
+              label="操作"
+              v-bind="invStocktakingColBinding('actions')"
+              :fixed="invStocktakingActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click="openStocktakingDetail(String(row.stocktakingNo))" class="ulc-action" type="button"><Eye :size="15" /> 明细</button>
+                <button v-if="row.status === 'draft'" @click="approveStocktakingRow(String(row.stocktakingNo))" class="ulc-action stocktaking-approve-btn" type="button"><CheckCircle2 :size="15" /> 复核</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无盘点表" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.stocktaking.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.stocktaking.total / Math.max(inventoryPagination.stocktaking.size, 1)))"
+            :total="inventoryPagination.stocktaking.total"
+            :size="inventoryPagination.stocktaking.size"
+            :loading="loading"
+            @update:page="changeInventoryPage('stocktaking', $event)"
+            @update:size="changeInventoryPageSize('stocktaking', $event)"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <section v-if="mode === 'price'" class="hospital-catalog-panel">
@@ -788,32 +2070,200 @@ watch(mode, () => {
           保存
         </button>
       </div>
-      <div class="table-scroll">
-        <table class="master-table purchase-detail-table">
-          <thead><tr><th>调价单号</th><th>系统批次</th><th>原价</th><th>新价</th><th>影响数量</th><th>状态</th><th>原因</th><th>创建时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="row in priceRows" :key="String(row.adjustmentNo)">
-              <td>{{ row.adjustmentNo }}</td>
-              <td>{{ row.systemBatchNo }}</td>
-              <td>¥ {{ Number(row.oldUnitPrice).toFixed(2) }}</td>
-              <td>¥ {{ Number(row.newUnitPrice).toFixed(2) }}</td>
-              <td>{{ row.affectedQty }}</td>
-              <td>{{ formatStatusText(row.status) }}</td>
-              <td>{{ row.reason || '-' }}</td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td><button v-if="row.status === 'draft'" class="btn btn-primary btn-sm" type="button" @click="approvePriceRow(String(row.adjustmentNo))"><CheckCircle2 :size="16" /> 审批</button></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="inventoryPagination.price.page"
-        :size="inventoryPagination.price.size"
-        :total="inventoryPagination.price.total"
-        :loading="loading"
-        @change-page="changeInventoryPage('price', $event)"
-        @change-size="changeInventoryPageSize('price', $event)"
-      />
+
+              <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="invPriceAdjustColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="invPriceAdjustCols.settingsOpen.value = !invPriceAdjustCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: invPriceAdjustCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="invPriceAdjustCols.settingsOpen.value"
+            ref="invPriceAdjustColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': invPriceAdjustColSettingsPop.align.value === 'right', 'is-align-up': invPriceAdjustColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': invPriceAdjustColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invPriceAdjustColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="invPriceAdjustCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in invPriceAdjustCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && invPriceAdjustCols.visibleColumnCount.value <= 1"
+                  @change="invPriceAdjustCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="invPriceAdjustCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="invPriceAdjustTableRef"
+            :data="priceRows"
+            row-key="adjustmentNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无调价单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => invPriceAdjustCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="adjustmentNo"
+              v-if="isInvPriceAdjustColVisible('adjustmentNo')"
+              label="调价单号"
+              v-bind="invPriceAdjustColBinding('adjustmentNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">调价单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.adjustmentNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="systemBatch"
+              v-if="isInvPriceAdjustColVisible('systemBatch')"
+              label="系统批次"
+              v-bind="invPriceAdjustColBinding('systemBatch')"
+            >
+              <template #header>
+                <span class="ulc-th-text">系统批次</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="oldUnitPrice"
+              v-if="isInvPriceAdjustColVisible('oldUnitPrice')"
+              label="原价"
+              v-bind="invPriceAdjustColBinding('oldUnitPrice')"
+            >
+              <template #header>
+                <span class="ulc-th-text">原价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.oldUnitPrice).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="newUnitPrice"
+              v-if="isInvPriceAdjustColVisible('newUnitPrice')"
+              label="新价"
+              v-bind="invPriceAdjustColBinding('newUnitPrice')"
+            >
+              <template #header>
+                <span class="ulc-th-text">新价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.newUnitPrice).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="affectedQty"
+              v-if="isInvPriceAdjustColVisible('affectedQty')"
+              label="影响数量"
+              v-bind="invPriceAdjustColBinding('affectedQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">影响数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.affectedQty }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isInvPriceAdjustColVisible('status')"
+              label="状态"
+              v-bind="invPriceAdjustColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatStatusText(row.status) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="reason"
+              v-if="isInvPriceAdjustColVisible('reason')"
+              label="原因"
+              v-bind="invPriceAdjustColBinding('reason')"
+            >
+              <template #header>
+                <span class="ulc-th-text">原因</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.reason || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isInvPriceAdjustColVisible('createTime')"
+              label="创建时间"
+              v-bind="invPriceAdjustColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isInvPriceAdjustColVisible('actions')"
+              label="操作"
+              v-bind="invPriceAdjustColBinding('actions')"
+              :fixed="invPriceAdjustActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button v-if="row.status === 'draft'" @click="approvePriceRow(String(row.adjustmentNo))" class="ulc-action btn-primary btn-sm" type="button"><CheckCircle2 :size="16" /> 审批</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无调价单" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="inventoryPagination.price.page"
+            :total-pages="Math.max(1, Math.ceil(inventoryPagination.price.total / Math.max(inventoryPagination.price.size, 1)))"
+            :total="inventoryPagination.price.total"
+            :size="inventoryPagination.price.size"
+            :loading="loading"
+            @update:page="changeInventoryPage('price', $event)"
+            @update:size="changeInventoryPageSize('price', $event)"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <Teleport to="body">
@@ -981,6 +2431,12 @@ watch(mode, () => {
 </template>
 
 <style scoped>
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
 :global(.el-dialog.quota-stock-codes-dialog) {
   width: min(560px, calc(100vw - 32px)) !important;
 }
@@ -1042,7 +2498,7 @@ watch(mode, () => {
 .inventory-page .inventory-query-tabs button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: var(--md-radius, 6px);
 }
@@ -1067,20 +2523,20 @@ watch(mode, () => {
 
 .inventory-page .inventory-query-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  line-height: var(--spd-lh-tight);
 }
 
 .inventory-page .inventory-query-grid .md-input {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inventory-page .inventory-query-button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inventory-page .inventory-query-button svg {
@@ -1116,7 +2572,7 @@ watch(mode, () => {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .inventory-page .inventory-table thead th {
@@ -1124,8 +2580,8 @@ watch(mode, () => {
   top: 0;
   z-index: 3;
   padding: 9px 12px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -1135,7 +2591,7 @@ watch(mode, () => {
 
 .inventory-page .inventory-table tbody td {
   padding: 8px 12px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -1166,7 +2622,7 @@ watch(mode, () => {
 .inventory-page .stocktaking-title h3 {
   margin: 0;
   color: var(--md-text-heading);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
@@ -1174,7 +2630,7 @@ watch(mode, () => {
   margin-left: auto;
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1185,8 +2641,8 @@ watch(mode, () => {
   background: var(--md-bg-muted, #fafbfc);
   border: 1px solid var(--md-border-soft, var(--spd-border-subtle));
   border-radius: var(--md-radius, 6px);
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .inventory-page .stocktaking-list-scroll {
@@ -1204,7 +2660,7 @@ watch(mode, () => {
   min-width: 980px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .inventory-page .stocktaking-table thead th {
@@ -1215,8 +2671,8 @@ watch(mode, () => {
   color: var(--md-text-heading) !important;
   background: var(--inventory-table-heading-bg) !important;
   border-bottom: 1px solid var(--md-border, var(--spd-border-default)) !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
@@ -1226,7 +2682,7 @@ watch(mode, () => {
   color: var(--md-text) !important;
   background: var(--md-bg-card, #fff);
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
 }
 
@@ -1267,8 +2723,8 @@ watch(mode, () => {
 
 /* ---------- 编码列 ---------- */
 .inventory-page .inventory-table .inventory-code-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-base) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
   white-space: nowrap;
 }
@@ -1303,7 +2759,7 @@ watch(mode, () => {
 
 .inventory-page .inventory-table .inventory-money-cell {
   text-align: right;
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   color: var(--md-text) !important;
   white-space: nowrap;
@@ -1314,7 +2770,7 @@ watch(mode, () => {
   padding: 48px 16px !important;
   text-align: center;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ---------- 提示条 ---------- */
@@ -1325,7 +2781,7 @@ watch(mode, () => {
   border-radius: var(--md-radius, 6px);
   color: var(--spd-primary-text);
   background: var(--spd-primary-bg);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 响应式 ---------- */
@@ -1387,7 +2843,7 @@ watch(mode, () => {
   padding: 0 11px;
   background: var(--md-bg-card, #fff);
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* =====================================================================
@@ -1416,7 +2872,7 @@ watch(mode, () => {
 
 .stocktaking-sheet-dialog > header p {
   margin: 0 0 2px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   color: #1677ff;
@@ -1425,7 +2881,7 @@ watch(mode, () => {
 
 .stocktaking-sheet-dialog > header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #172033;
 }
@@ -1455,7 +2911,7 @@ watch(mode, () => {
 }
 
 .stocktaking-sheet-dialog .supplier-form-grid label > span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #475569;
 }
@@ -1466,7 +2922,7 @@ watch(mode, () => {
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   background: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #1f2937;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
@@ -1496,13 +2952,13 @@ watch(mode, () => {
 }
 
 .stocktaking-scope-head strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #1d4ed8;
 }
 
 .stocktaking-scope-head span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1520,7 +2976,7 @@ watch(mode, () => {
   border: 1px solid #c7d2fe;
   border-radius: 999px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #1e293b;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -1545,7 +3001,7 @@ watch(mode, () => {
   flex-wrap: wrap;
   gap: 6px;
   min-height: 22px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1563,7 +3019,7 @@ watch(mode, () => {
   display: inline-flex;
   align-items: center;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   color: #1d4ed8;
   background: #dbeafe;
@@ -1602,7 +3058,7 @@ watch(mode, () => {
   min-width: 1200px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .stocktaking-detail-table thead th {
@@ -1610,8 +3066,8 @@ watch(mode, () => {
   top: 0;
   z-index: 2;
   padding: 10px 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   color: #1e293b !important;
   background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
   border-bottom: 1px solid #c7d2fe !important;
@@ -1623,7 +3079,7 @@ watch(mode, () => {
   padding: 9px 14px !important;
   border-bottom: 1px solid #f1f5f9 !important;
   color: #334155 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: #fff;
   vertical-align: middle;
 }
@@ -1644,8 +3100,8 @@ watch(mode, () => {
 }
 
 .stocktaking-detail-table .stocktaking-code-cell {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px !important;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-base) !important;
   color: #475569 !important;
   white-space: nowrap;
 }
@@ -1654,7 +3110,7 @@ watch(mode, () => {
   padding: 56px 16px !important;
   text-align: center;
   color: #94a3b8;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-sheet-dialog .dialog-actions {
@@ -1673,7 +3129,7 @@ watch(mode, () => {
   min-width: 100px;
   height: 34px;
   padding: 0 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   border-radius: 6px;
 }

@@ -267,8 +267,18 @@ export function useMasterDataWorkbench() {
     状态: 'status'
   }
 
+  /**
+   * 当前组件是否处于「允许加载主数据」的路由上。
+   *
+   * 主数据列表统一走 `master-data-list` 通配路由；
+   * 配色方案（静墨宣纸 / 暗夜黑）现已是全局主题，不再有独立路由。
+   */
+  function isWorkbenchRoute() {
+    return route.name === 'master-data-list'
+  }
+
   async function loadPage() {
-    if (!active.value || route.name !== 'master-data-list') { needsReload = true; return }
+    if (!active.value || !isWorkbenchRoute()) { needsReload = true; return }
     const request = ++pageRequestVersion
     const expectedCode = code.value
     const hospitalVersion = refreshStore.hospitalCatalogVersion
@@ -488,7 +498,7 @@ export function useMasterDataWorkbench() {
     active.value = true
     if (!loading.value && (needsReload || (isHospitalCatalog.value && loadedHospitalVersion < refreshStore.hospitalCatalogVersion))) await loadPage()
     await nextTick()
-    if (!active.value || route.name !== 'master-data-list' || !isHospitalCatalog.value) return
+    if (!active.value || !isWorkbenchRoute() || !isHospitalCatalog.value) return
     const content = document.querySelector('.spd-content')
     const table = document.querySelector('.md-hospital-table-wrap')
     if (content) content.scrollTop = hospitalScrollTop
@@ -503,7 +513,7 @@ export function useMasterDataWorkbench() {
   watch(() => refreshStore.hospitalCatalogVersion, () => {
     if (!isHospitalCatalog.value) return
     needsReload = true
-    if (active.value && route.name === 'master-data-list') void loadPage()
+    if (active.value && isWorkbenchRoute()) void loadPage()
   })
   watch(code, () => {
     hospitalCurrentPage.value = 1

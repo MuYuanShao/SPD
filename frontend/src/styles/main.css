@@ -1,7 +1,9 @@
 @import "./theme.css";
 @import "./spd-theme.css";
+/* 设计令牌：颜色（唯一颜色来源）与字号（三档） */
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
 @import "./spd-layout.css";
-@import "./spd-side-nav.css";
 @import "./spd-dashboard.css";
 @import "./system/approval-flow-settings.css";
 @import "./system/system-config.css";
@@ -33,10 +35,34 @@
 /* 统一列表样式（斑马纹带边框表格 / 列设置 / 状态条 / 4px 圆角按钮）
    全局引入，保证所有采用 .spd-unified-list 的页面样式一致 */
 @import "./list/unified-list.css";
+/* 内容区整体渐变背景 + 卡片圆角规范（放在最后，收口所有 override） */
+@import "./layout/content-surface.css";
+/* 列宽策略：方案 B（自适应填充），由 feature/ui-col-b-auto-fit 分支引入 */
+@import "./layout/column-strategy-b.css";
+/* 全局配色方案 · 暗夜黑（浅字暗底 + 琥珀金）
+   仅在 <html data-spd-theme="night-black"> 下生效，由顶栏主题切换器切换，全站生效。 */
+@import "./theme/night-black.css";
+/* 全局配色方案 · 静墨宣纸（暖白低墨量）
+   仅在 <html data-spd-theme="calm-paper"> 下生效，由顶栏主题切换器切换，全站生效。 */
+@import "./theme/calm-paper.css";
+
+/* 全局配色方案的浏览器原生控件策略：
+   「暗夜黑」是深色底，需要把滚动条、表单控件、焦点环也切到深色，
+   否则页面上会残留亮白的系统滚动条与白色下拉面板。
+   属性由 stores/theme.ts 的 applyScheme() 写在 <html> 上。 */
+:root[data-color-scheme='dark'] {
+  color-scheme: dark;
+}
+
+:root[data-color-scheme='light'] {
+  color-scheme: light;
+}
 
 :root {
-  color-scheme: light;
-  font-family: Inter, "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color-scheme: light;
+  /* 字体栈收敛：统一使用业务系统栈 --spd-font-family（唯一入口）。
+     登录页独立字体栈见 styles/views/login.css，不参与档位缩放。 */
+  font-family: var(--spd-font-family);
   color: #1b2733;
   background: #f5f7f8;
   --surface: #ffffff;
@@ -63,7 +89,8 @@
   --sidebar-collapsed-padding-y: 16px;
   /* Button system tokens */
   --btn-font-weight: 700;
-  --btn-font-size: 14px;
+  /* B-01 主按钮文字：--spd-font-size-base */
+  --btn-font-size: var(--spd-font-size-base);
   --btn-radius: 8px;
   --btn-min-h: 40px;
   --btn-min-h-sm: 40px;
@@ -176,7 +203,8 @@ textarea:focus-visible {
 .master-page-title h2 {
   margin: 4px 0 8px;
   color: #06152b;
-  font-size: 28px;
+  /* P-01 页面主标题：--spd-font-size-3xl */
+  font-size: var(--spd-font-size-3xl);
 }
 
 
@@ -200,7 +228,8 @@ textarea:focus-visible {
 .standard-page-heading h2 {
   margin: 4px 0 8px;
   color: var(--spd-text-primary);
-  font-size: 28px;
+  /* P-02 页面主标题（Ant 覆盖层）：--spd-font-size-3xl */
+  font-size: var(--spd-font-size-3xl);
 }
 
 .standard-page-actions {
@@ -393,7 +422,8 @@ textarea:focus-visible {
 
 .supplier-form-grid span {
   color: #607285;
-  font-size: 13px;
+  /* R-05 自绘弹窗表单标签：--spd-font-size-sm / 700 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -471,7 +501,8 @@ textarea:focus-visible {
 
 .hospital-query-grid span {
   color: #607285;
-  font-size: 13px;
+  /* R-05 自绘弹窗表单标签：--spd-font-size-sm / 700 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -520,7 +551,9 @@ textarea:focus-visible {
 
 .master-table th {
   color: #607285;
-  font-weight: 800;
+  /* T-14 表格表头：--spd-font-size-table-head / 700（与数据同档） */
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
 }
 
 /* =========================================
@@ -548,7 +581,8 @@ textarea:focus-visible {
 }
 
 .metric-panel strong {
-  font-size: 20px;
+  /* M-05 metric-panel 数值：--spd-font-size-2xl / 700 */
+  font-size: var(--spd-font-size-2xl);
 }
 
 .panel-icon {
@@ -594,11 +628,14 @@ textarea:focus-visible {
   gap: 6px;
   margin-bottom: 14px;
   color: var(--text-muted);
-  font-size: 13px;
+  /* G-16 面包屑：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .breadcrumb-line strong {
   color: #334652;
+  /* D-16 面包屑当前项：非法字重 550 → 600 */
+  font-weight: 600;
 }
 
 .section-title {
@@ -610,7 +647,8 @@ textarea:focus-visible {
 
 .section-title h2 {
   margin: 0;
-  font-size: 18px;
+  /* P-05 区块小标题（section）：--spd-font-size-xl / 700 */
+  font-size: var(--spd-font-size-xl);
 }
 
 .flow-line {
@@ -633,6 +671,8 @@ textarea:focus-visible {
   place-items: center;
   padding: 0 10px;
   white-space: nowrap;
+  /* W-03 流程条节点：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base);
 }
 
 .module-grid {
@@ -655,13 +695,16 @@ textarea:focus-visible {
 
 .module-card h3 {
   margin: 0 0 10px;
-  font-size: 17px;
+  /* W-01 模块卡片标题：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg);
 }
 
 .module-card p {
   margin: 0;
   color: var(--text-muted);
-  line-height: 1.6;
+  /* W-02 模块卡片描述：--spd-font-size-sm + 行高收敛 --spd-lh-loose */
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .detail-heading {
@@ -683,6 +726,8 @@ textarea:focus-visible {
   gap: 10px;
   min-height: 44px;
   padding: 0 12px;
+  /* W-04 特性行文字：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base);
 }
 
 .feature-row.router-link-active,
@@ -794,12 +839,14 @@ textarea:focus-visible {
   align-items: center;
   gap: 8px;
   color: #102033;
-  font-size: 13px;
+  /* 次级说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .packing-template-info-header strong {
   font-weight: 600;
-  font-size: 14px;
+  /* 输入/数据基准：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
 }
 
 .packing-template-info-body {
@@ -815,14 +862,16 @@ textarea:focus-visible {
 }
 
 .info-label {
-  font-size: 11px;
+  /* 辅助层标签：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   color: #7a8b9a;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .info-value {
-  font-size: 13px;
+  /* 数据值：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   color: #102033;
   font-weight: 500;
 }
@@ -831,7 +880,8 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  /* 次级说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   color: #4a5a6a;
   white-space: nowrap;
   cursor: pointer;
@@ -912,7 +962,8 @@ textarea:focus-visible {
   display: block;
   margin-top: 3px;
   color: var(--text-muted);
-  font-size: 12px;
+  /* 表格次级说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .replenishment-analysis-dialog {
@@ -926,6 +977,8 @@ textarea:focus-visible {
   border-bottom: 1px solid var(--line);
   padding: 14px 18px;
   color: #34495f;
+  /* I-06 补货分析汇总：--spd-font-size-base / 700 */
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
@@ -949,6 +1002,8 @@ textarea:focus-visible {
   padding: 0 9px;
   color: #06152b;
   font: inherit;
+  /* I-08 拣配数量输入：--spd-font-size-base / 800 */
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -977,7 +1032,8 @@ textarea:focus-visible {
 }
 
 .picking-panel .section-title.compact h3 {
-  font-size: 15px;
+  /* P-06 / I-07 区块小标题（紧凑）：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg);
 }
 
 .picking-panel tr.selected td {
@@ -1002,7 +1058,8 @@ textarea:focus-visible {
   border-radius: 10px;
   background: #f5f9fb;
   color: #0f6f78;
-  font-size: 12px;
+  /* S-09 包标签 chip：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .package-label-chip:hover {
@@ -1030,12 +1087,14 @@ textarea:focus-visible {
 
 .package-detail-info label span {
   color: #64748b;
-  font-size: 12px;
+  /* 字段标签：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .package-detail-info label strong {
   color: #172b3a;
-  font-size: 13px;
+  /* 数据值：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
   overflow-wrap: anywhere;
 }
 
@@ -1074,12 +1133,14 @@ textarea:focus-visible {
 
 .consumption-resolved strong {
   color: #1e40af;
-  font-size: 13px;
+  /* 次级说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .consumption-resolved small {
   color: #3b82f6;
-  font-size: 12px;
+  /* 辅助层：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
 }
 
 .stocktaking-title {
@@ -1112,12 +1173,14 @@ textarea:focus-visible {
 
 .stocktaking-scope-head strong {
   color: #172b3a;
-  font-size: 14px;
+  /* I-01 盘点范围标题：--spd-font-size-base / 700 */
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-scope-head span {
   color: #6b7c8f;
-  font-size: 12px;
+  /* I-02 盘点范围说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-options {
@@ -1155,7 +1218,8 @@ textarea:focus-visible {
   border-top: 1px solid #e5eef2;
   background: #fbfdfe;
   color: #6b7c8f;
-  font-size: 13px;
+  /* I-03 盘点已选提示：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-selected em {
@@ -1169,7 +1233,8 @@ textarea:focus-visible {
   border-radius: 999px;
   background: #d1fae5;
   color: #047857;
-  font-size: 12px;
+  /* S-10 盘点范围 chip：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-detail-dialog {
@@ -1191,7 +1256,8 @@ textarea:focus-visible {
   border: 1px solid #cbd5e1;
   border-radius: 5px;
   font: inherit;
-  font-size: 13px;
+  /* I-04 盘点数量输入：--spd-font-size-base（数量输入框必须 14px） */
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-detail-table .profit {
@@ -1430,6 +1496,7 @@ textarea:focus-visible {
     width: 58px;
     height: 58px;
     margin-top: 6px;
+    /* 圆形「SPD」装饰水印徽标，尺寸固定（白名单：装饰元素尺寸） */
     font-size: 15px;
   }
 
@@ -1491,13 +1558,15 @@ textarea:focus-visible {
   border-top: 1px solid var(--line);
   background: linear-gradient(90deg, #f4f9fa 0%, #ffffff 72%);
   color: #244b52;
-  font-size: 13px;
+  /* L-01 结算汇总条：--spd-font-size-base / 800 */
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
 .settlement-table-hint {
   color: var(--muted);
-  font-size: 12px;
+  /* L-02 结算汇总提示：--spd-font-size-sm / 500 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1539,7 +1608,9 @@ textarea:focus-visible {
   background: #eaf3f5;
   box-shadow: inset 0 -1px 0 #c8dadd;
   color: #23464d;
-  font-size: 12px;
+  /* L-03 结算明细表头：--spd-font-size-table-head / 700 */
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
   letter-spacing: 0.02em;
 }
 
@@ -1607,7 +1678,7 @@ textarea:focus-visible {
   width: 230px;
   min-width: 230px;
   max-width: 230px;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
   overflow-wrap: anywhere;
 }
 
@@ -1685,7 +1756,7 @@ textarea:focus-visible {
   display: grid;
   gap: 5px;
   min-width: 0;
-  line-height: 1.4;
+  line-height: var(--spd-lh-base);
 }
 
 .settlement-cell-stack > strong,
@@ -1702,7 +1773,8 @@ textarea:focus-visible {
 
 .settlement-cell-meta {
   color: #667f84;
-  font-size: 12px;
+  /* L-05 结算明细元信息：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
 }
 
 .settlement-policy-list > span {
@@ -1715,21 +1787,25 @@ textarea:focus-visible {
 .settlement-policy-list b,
 .settlement-code-list b {
   color: #557278;
-  font-size: 11px;
-  font-weight: 800;
+  /* L-08 结算策略标记：--spd-font-size-xs / 600 */
+  font-size: var(--spd-font-size-xs);
+  font-weight: 600;
 }
 
 .settlement-policy-list small {
   overflow: hidden;
   color: #759096;
-  font-size: 11px;
+  /* L-09 结算策略说明：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .settlement-code-list {
-  font-family: "Cascadia Mono", "Microsoft YaHei UI", monospace;
-  font-size: 12px;
+  font-family: var(--spd-font-family-mono);
+  /* L-07 结算编码列表（等宽）：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .settlement-code-list > span {
@@ -1771,7 +1847,8 @@ textarea:focus-visible {
   align-items: center;
   gap: 4px;
   color: #52747a;
-  font-size: 12px;
+  /* L-11 结算已确认标记：--spd-font-size-sm / 700 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -1839,9 +1916,17 @@ textarea:focus-visible {
     box-shadow 0.16s ease, opacity 0.16s ease !important;
 }
 
-.main-area :where(.btn-icon, .btn-text, .btn-link, button) {
+/* B-05 / B-08：文字按钮走 --spd-font-size-base，链接式按钮走 --spd-font-size-sm
+   （各自在 components/buttons.css 内定义，此处不得再统一覆盖成 base） */
+.main-area :where(.btn-icon, .btn-text, button) {
   font-family: inherit;
   font-size: var(--btn-font-size);
+  vertical-align: middle;
+}
+
+.main-area :where(.btn-link) {
+  font-family: inherit;
+  font-size: var(--spd-font-size-sm);
   vertical-align: middle;
 }
 

@@ -1,4 +1,4 @@
-.approval-config-page {
+﻿.approval-config-page {
   display: grid;
   gap: 10px;
 }
@@ -29,7 +29,7 @@
 
 .approval-config-count strong {
   color: #0f2544;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .approval-config-shell {
@@ -67,7 +67,7 @@
 .approval-config-title h2 {
   margin: 0;
   color: #0f2544;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 800;
   letter-spacing: 0;
 }
@@ -86,7 +86,7 @@
 
 .approval-config-filter span {
   color: #6a7d94;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -170,7 +170,7 @@
   border-radius: 999px;
   background: #eff4fb;
   color: #60758e;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-config-tip {
@@ -180,7 +180,7 @@
   background: #edf5ff;
   color: #164ab9;
   font-weight: 600;
-  line-height: 1.45;
+  line-height: var(--spd-lh-base);
   padding: 9px 12px;
 }
 
@@ -192,7 +192,7 @@
   border-radius: 999px;
   background: #ffffff;
   color: #1f5fe5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
   padding: 0 8px;
 }
@@ -243,19 +243,19 @@
   border-radius: 999px;
   background: #2e63e6;
   color: #ffffff;
-  font-size: 16px;
-  font-weight: 900;
+  font-size: var(--spd-font-size-lg);
+  font-weight: 800;
 }
 
 .approval-timeline-node strong {
   color: #0f2544;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
 .approval-timeline-node span {
   color: #8292aa;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-config-table-wrap {
@@ -275,7 +275,7 @@
 
 .approval-config-table th {
   color: #395169;
-  font-size: 13px;
+  font-size: var(--spd-font-size-table-head);
   font-weight: 800;
 }
 
@@ -356,7 +356,7 @@
 
 .approval-existing-list small {
   color: #8292aa;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 @media (max-width: 1280px) {
@@ -404,8 +404,8 @@
 
 .approval-step-list span {
   color: #526173;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-tight);
 }
 
 .approval-flow-modal {
@@ -456,7 +456,7 @@
   display: block;
   margin-top: 4px;
   color: #748196;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .section-heading.compact {

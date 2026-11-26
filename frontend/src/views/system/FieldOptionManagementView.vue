@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import {
   AlertOctagon,
@@ -25,6 +25,15 @@ import {
 } from '../../api/fieldOptions'
 import PageHeader from '../../components/common/PageHeader.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -41,13 +50,6 @@ const message = ref('')
 const dialogOpen = ref(false)
 const dialogMode = ref<'new-field' | 'new-option' | 'edit-option'>('new-option')
 const editingOptionId = ref<number | null>(null)
-
-const kpiStats = computed(() => [
-  { icon: 'list',  theme: 'blue',   label: '字段数量',   value: fields.value.length, hint: '下拉字段总数' },
-  { icon: 'check', theme: 'green',  label: '启用选项',   value: options.value.filter(o => o.status === 1).length, hint: '当前字段可用项' },
-  { icon: 'stop',  theme: 'red',    label: '停用选项',   value: options.value.filter(o => o.status === 0).length, hint: '已禁用项' },
-  { icon: 'item',  theme: 'orange', label: '当前字段选项',value: options.value.length, hint: activeField.value?.fieldLabel ?? '未选择' }
-])
 
 const filteredFields = computed(() => {
   const q = filterText.value.trim().toLowerCase()
@@ -206,36 +208,76 @@ async function handleRemoveOption(option: FieldOption) {
 }
 
 onMounted(() => loadFields(true))
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const FIELDOPTION_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'optionValue', label: '选项值', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'optionLabel', label: '显示名', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'sortOrder', label: '排序', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'remark', label: '备注', width: 220, visible: true, flexible: true, idealWidth: 280, weight: 6, minWidth: 130, maxWidth: 380 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  // 「操作」列必须出现在 defaults 里：isColumnVisible() 只查 defaults，
+  // 缺少该键时 v-if="isFieldOptionColVisible('actions')" 恒为 false，
+  // 整列不会渲染，「编辑」按钮将完全无法触达。
+  { key: 'actions', label: '操作', width: 140, visible: true, weight: 3, minWidth: 120, maxWidth: 200, fill: true }
+]
+
+const fieldOptionCols = useListColumns({
+  storageKey: 'spd-field-option-cols-v1',
+  defaults: FIELDOPTION_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「备注」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const fieldOptionTableRef = fieldOptionCols.tableRef
+const isFieldOptionColVisible = (key: string) => fieldOptionCols.isColumnVisible(key)
+const fieldOptionColBinding = (key: string) => fieldOptionCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const fieldOptionActionFix = useActionColumnFix()
+const fieldOptionActionFixed = computed(() => fieldOptionActionFix.actionFixedBinding.value)
+
+watch(
+  [fieldOptionTableRef],
+  () => {
+    fieldOptionActionFix.observe(fieldOptionTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const fieldOptionColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const fieldOptionColSettingsPopRef = ref<HTMLElement | null>(null)
+const fieldOptionColSettingsPop = useColSettingsPopover({
+  open: fieldOptionCols.settingsOpen,
+  anchorRef: fieldOptionColSettingsAnchorRef,
+  popRef: fieldOptionColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <div class="sys-page">
+  <div class="sys-page spd-unified-list">
 
     <MdPageHeader
       title="字段管理"
-      description="维护所有表格中下拉选字段的选项，支持新增、修改与停用。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadFields(false)"
     />
-
-    <!-- 顶部 4 张主题色 KPI 卡 -->
-    <section class="sys-kpi-card" aria-label="字段统计">
-      <div v-for="item in kpiStats" :key="item.label" class="sys-kpi-item" :class="`is-${item.theme}`">
-        <i class="sys-kpi-icon" :class="`is-${item.icon}`">
-          <ListTree v-if="item.icon === 'list'" :size="18" />
-          <Check v-else-if="item.icon === 'check'" :size="18" />
-          <X v-else-if="item.icon === 'stop'" :size="18" />
-          <Tags v-else-if="item.icon === 'item'" :size="18" />
-          <FileCog v-else :size="18" />
-        </i>
-        <div>
-          <span class="sys-kpi-label">{{ item.label }}</span>
-          <strong class="sys-kpi-value">{{ item.value }}</strong>
-          <span class="sys-kpi-hint">{{ item.hint }}</span>
-        </div>
-      </div>
-    </section>
 
     <!-- 工具栏（顶部条不放按钮，全部动作放这里） -->
     <div class="sys-toolbar-panel">
@@ -297,41 +339,188 @@ onMounted(() => loadFields(true))
             <p v-if="activeField">字段键 <code>{{ activeField.fieldKey }}</code>，该下拉字段的可用选项如下。</p>
           </div>
         </div>
-        <div v-if="options.length" class="sys-table-scroll">
-          <table class="sys-table">
-            <thead>
-              <tr>
-                <th>选项值</th>
-                <th>显示名</th>
-                <th>排序</th>
-                <th>状态</th>
-                <th>备注</th>
-                <th>创建时间</th>
-                <th>修改时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading"><td colspan="8" class="text-center muted">正在加载字段...</td></tr>
-              <tr v-for="option in options" v-else :key="option.optionId">
-                <td><span class="sys-tag is-code">{{ option.optionValue === '' ? '（空值）' : option.optionValue }}</span></td>
-                <td>{{ option.optionLabel }}</td>
-                <td>{{ option.sortOrder }}</td>
-                <td>
-                  <span :class="['sys-badge', option.status === 1 ? 'is-active' : 'is-stopped']">
-                    {{ option.status === 1 ? '启用' : '停用' }}
-                  </span>
-                </td>
-                <td>{{ option.remark || '-' }}</td>
-                <td class="md-audit-time">{{ option.createTime || '-' }}</td>
-                <td class="md-audit-time">{{ option.updateTime || '-' }}</td>
-                <td>
-                  <button class="btn-text" type="button" @click="openEditOptionDialog(option)">编辑</button>
-                  <button class="btn-text btn-text-danger" type="button" @click="handleRemoveOption(option)">删除</button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="options.length">
+                  <MdDataTableCard class="master-table-card">
+          <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="fieldOptionColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="fieldOptionCols.settingsOpen.value = !fieldOptionCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: fieldOptionCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="fieldOptionCols.settingsOpen.value"
+                ref="fieldOptionColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': fieldOptionColSettingsPop.align.value === 'right', 'is-align-up': fieldOptionColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': fieldOptionColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': fieldOptionColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="fieldOptionCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in fieldOptionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && fieldOptionCols.visibleColumnCount.value <= 1"
+                      @change="fieldOptionCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="fieldOptionCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+          </template>
+          <template #meta-extra>
+            <span class="md-chip primary">共 {{ options.length }} 条</span>
+          </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="fieldOptionTableRef"
+            v-loading="loading"
+            :data="options"
+            row-key="optionId"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'该字段暂无选项'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => fieldOptionCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="optionValue"
+              v-if="isFieldOptionColVisible('optionValue')"
+              label="选项值"
+              v-bind="fieldOptionColBinding('optionValue')"
+            >
+              <template #header>
+                <span class="ulc-th-text">选项值</span>
+              </template>
+              <template #default="{ row }">
+                <span class="sys-tag is-code ulc-wrap-text">{{ row.optionValue === '' ? '（空值）' : row.optionValue }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="optionLabel"
+              v-if="isFieldOptionColVisible('optionLabel')"
+              label="显示名"
+              v-bind="fieldOptionColBinding('optionLabel')"
+            >
+              <template #header>
+                <span class="ulc-th-text">显示名</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ row.optionLabel }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sortOrder"
+              v-if="isFieldOptionColVisible('sortOrder')"
+              label="排序"
+              v-bind="fieldOptionColBinding('sortOrder')"
+            >
+              <template #header>
+                <span class="ulc-th-text">排序</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.sortOrder }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isFieldOptionColVisible('status')"
+              label="状态"
+              v-bind="fieldOptionColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">
+                {{ row.status === 1 ? '启用' : '停用' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="remark"
+              v-if="isFieldOptionColVisible('remark')"
+              label="备注"
+              v-bind="fieldOptionColBinding('remark')"
+            >
+              <template #header>
+                <span class="ulc-th-text">备注</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.remark || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isFieldOptionColVisible('createTime')"
+              label="创建时间"
+              v-bind="fieldOptionColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="md-audit-time">
+                  {{ row.createTime || '-' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isFieldOptionColVisible('updateTime')"
+              label="修改时间"
+              v-bind="fieldOptionColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="md-audit-time">
+                  {{ row.updateTime || '-' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+
+              v-if="isFieldOptionColVisible('actions')"
+
+              label="操作"
+
+              v-bind="fieldOptionColBinding('actions')"
+
+              :fixed="fieldOptionActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-actions">
+                <button class="ulc-action" type="button" @click="openEditOptionDialog(row)">编辑</button>
+                <button class="ulc-action is-danger" type="button" @click="handleRemoveOption(row)">删除</button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
+        </MdDataTableCard>
         </div>
         <p v-else class="text-center muted" style="padding:48px 16px">
           {{ activeField ? '该字段暂无选项，点击"新增选项"添加。' : '请选择左侧字段查看选项' }}
@@ -481,22 +670,22 @@ onMounted(() => loadFields(true))
 }
 
 .sys-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .sys-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   opacity: 0.75;
 }
 
@@ -558,7 +747,7 @@ onMounted(() => loadFields(true))
   background: transparent;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -592,8 +781,8 @@ onMounted(() => loadFields(true))
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -647,8 +836,8 @@ onMounted(() => loadFields(true))
   border: none;
   background: transparent;
   color: #10b981;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -675,7 +864,7 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -687,7 +876,7 @@ onMounted(() => loadFields(true))
   border: 1px solid #fca5a5;
   border-radius: 8px;
   color: #991b1b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -731,7 +920,7 @@ onMounted(() => loadFields(true))
 
 .sys-field-side-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
   flex: 1;
@@ -746,7 +935,7 @@ onMounted(() => loadFields(true))
   border-radius: 999px;
   background: var(--spd-primary);
   color: #fff;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 6px;
 }
@@ -789,14 +978,14 @@ onMounted(() => loadFields(true))
 }
 
 .sys-field-side-name {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .sys-field-side-meta {
-  font-size: 11.5px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* ---------- 表格 ---------- */
@@ -822,14 +1011,14 @@ onMounted(() => loadFields(true))
 
 .sys-table-card-header h4 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
 
 .sys-table-card-header p {
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -838,8 +1027,8 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 4px;
   padding: 1px 6px;
-  font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-xs);
   color: #475569;
 }
 
@@ -848,7 +1037,7 @@ onMounted(() => loadFields(true))
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -859,7 +1048,7 @@ onMounted(() => loadFields(true))
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -878,7 +1067,7 @@ onMounted(() => loadFields(true))
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px 16px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px 16px; font-size: var(--spd-font-size-base); }
 
 /* 选项值 monospace tag */
 .sys-tag.is-code {
@@ -887,13 +1076,12 @@ onMounted(() => loadFields(true))
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   padding: 1px 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   white-space: nowrap;
   color: #334155;
   background: #f1f5f9;
-  font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-family: var(--spd-font-family-mono);
 }
 
 /* 状态 badge */
@@ -902,7 +1090,7 @@ onMounted(() => loadFields(true))
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -958,7 +1146,7 @@ onMounted(() => loadFields(true))
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -990,8 +1178,8 @@ onMounted(() => loadFields(true))
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -1007,7 +1195,7 @@ onMounted(() => loadFields(true))
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }

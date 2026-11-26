@@ -17,7 +17,7 @@
   --el-color-primary-light-9: #edf7f5;
   --el-font-size-base: 14px;
   --el-component-size: 36px;
-  font-family: 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
+  font-family: var(--spd-font-family);
 }
 .main-area {
   container: workspace / inline-size;
@@ -59,9 +59,9 @@
 .main-area :is(.master-page-title h2, .standard-page-heading h2, .detail-heading h2,
 .approval-page-title h1, .approval-detail-header h1, .workbench-hero h1,
 .invoice-header h2, .license-header h2, .udi-header h2, .dept-req-header h2) {
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-3xl) !important;
   margin: 0 !important;
-  line-height: 1.4 !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 .main-area :is(.hospital-catalog-panel, .master-table-card, .master-toolbar,
 .metric-panel, .module-card, .approval-list-panel, .approval-sidebar,
@@ -108,7 +108,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   min-height: 36px !important;
   height: 36px;
   border-radius: 6px !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-family: inherit;
 }
 .main-area :is(.el-input__inner, .el-range-input) {
@@ -124,7 +124,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   outline: 2px solid var(--focus) !important; outline-offset: 2px;
 }
 .main-area :is(table, input[type=number]) { font-variant-numeric: tabular-nums; }
-.main-area table { font-size: 14px; }
+.main-area table { font-size: var(--spd-font-size-base); }
 .main-area :is(.master-table, .hospital-product-table, .el-table) :is(th, td) {
   padding-top: 8px !important; padding-bottom: 8px !important;
 }
@@ -197,7 +197,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
   .cockpit-grid, .cockpit-header { grid-template-columns: minmax(0, 1fr) !important; }
   .main-area .master-toolbar { grid-template-columns: minmax(0, 1fr); }
   .md-hospital-filter { grid-template-columns: minmax(0, 1fr) !important; }
-  .md-table-card .el-table { font-size: 12px; }
+  .md-table-card .el-table { font-size: var(--spd-font-size-base); }
   .md-table-card .el-table :is(th, td) { padding-top: 6px !important; padding-bottom: 6px !important; }
   /* Warehouse table: hide the 2nd-tier columns on phones so the card stays scannable */
   .md-table-card .warehouse-table :is(.warehouse-stats-cell, .warehouse-update-time, .warehouse-location-count-cell),
@@ -218,7 +218,7 @@ select, .btn, .el-input__wrapper, .el-select__wrapper, .el-button,
 .cockpit-header { grid-template-columns: minmax(160px, 1fr) 200px minmax(220px, 2fr) 170px; }
 .cockpit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .cockpit-header > * { min-width: 0; }
-.cockpit-title h1 { font-size: 20px; overflow-wrap: anywhere; }
+.cockpit-title h1 { font-size: var(--spd-font-size-3xl); overflow-wrap: anywhere; }
 .cockpit-panel > header { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
 @media (max-width: 768px) {
   .main-area { padding: 12px; }

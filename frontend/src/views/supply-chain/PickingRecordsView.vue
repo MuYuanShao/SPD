@@ -1,14 +1,24 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch, computed } from 'vue'
 import { History, RotateCcw, Search } from '@lucide/vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { fetchPickingRecords, signDelivery } from '../../api/operationalClosure'
 import { formatStatusText } from '../../utils/chineseDisplay'
 import { formatDateTime } from '../../utils/dateTime'
 import { useNotify } from '../../composables/useNotify'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useAuthStore } from '../../stores/auth'
 
 const notify = useNotify()
@@ -138,14 +148,74 @@ async function confirmReceipt(row: PickingRecord) {
 }
 
 onMounted(loadRecords)
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const PICKINGRECORDS_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'deliveryNo', label: '配送单号', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'requisitionNo', label: '申领单号', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'requisitionType', label: '申领类型', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'requisitionCreateTime', label: '申领单创建时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'deptName', label: '科室', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'warehouseName', label: '出库库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'product', label: '商品信息', width: 200, visible: true, flexible: true, idealWidth: 250, weight: 6, minWidth: 140, maxWidth: 340 },
+  { key: 'quantity', label: '数量', width: 100, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'packageCode', label: '定数包码', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'pickingTime', label: '配送单拣配时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'partialPickingTime', label: '部分拣配完成时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'pickingFinishTime', label: '拣配完成时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'signTime', label: '签收时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const pickingRecordsCols = useListColumns({
+  storageKey: 'spd-picking-records-cols-v1',
+  defaults: PICKINGRECORDS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const pickingRecordsTableRef = pickingRecordsCols.tableRef
+const isPickingRecordsColVisible = (key: string) => pickingRecordsCols.isColumnVisible(key)
+const pickingRecordsColBinding = (key: string) => pickingRecordsCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const pickingRecordsActionFix = useActionColumnFix()
+const pickingRecordsActionFixed = computed(() => pickingRecordsActionFix.actionFixedBinding.value)
+
+watch(
+  [pickingRecordsTableRef],
+  () => {
+    pickingRecordsActionFix.observe(pickingRecordsTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const pickingRecordsColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const pickingRecordsColSettingsPopRef = ref<HTMLElement | null>(null)
+const pickingRecordsColSettingsPop = useColSettingsPopover({
+  open: pickingRecordsCols.settingsOpen,
+  anchorRef: pickingRecordsColSettingsAnchorRef,
+  popRef: pickingRecordsColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <section class="picking-record-page">
+  <section class="picking-record-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务"
       title="拣配记录"
-      description="集中查询中心库拣配出库及科室签收记录"
       :loading="loading"
       @refresh="loadRecords"
     />
@@ -189,58 +259,285 @@ onMounted(loadRecords)
         <span>共 {{ total }} 条</span>
       </div>
 
-      <div class="table-scroll record-table-viewport">
-        <table class="master-table record-table">
-          <thead>
-            <tr>
-              <th>配送单号</th><th>申领单号</th><th>申领类型</th><th>申领单创建时间</th><th>科室</th><th>出库库房</th>
-              <th>商品信息</th><th class="numeric-cell">数量</th><th>定数包码</th>
-              <th>状态</th><th>配送单拣配时间</th><th>部分拣配完成时间</th><th>拣配完成时间</th><th>签收时间</th>
-              <th v-if="auth.canWrite('picking-delivery')">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td :colspan="auth.canWrite('picking-delivery') ? 15 : 14" class="record-empty"><EmptyState message="正在加载拣配记录..." /></td>
-            </tr>
-            <tr v-else-if="!rows.length">
-              <td :colspan="auth.canWrite('picking-delivery') ? 15 : 14" class="record-empty"><EmptyState message="暂无符合条件的拣配记录" /></td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="String(row.deliveryId ?? row.bizNo)">
-              <td class="primary-cell">{{ row.bizNo || '-' }}</td>
-              <td>{{ row.sourceNo || '-' }}</td>
-              <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
-              <td class="md-audit-time">{{ formatDateTime(row.requisitionCreatedAt) }}</td>
-              <td>{{ row.deptName || '-' }}</td>
-              <td>{{ row.warehouseName || '-' }}</td>
-              <td><strong>{{ row.productName || '-' }}</strong><small>{{ row.productCode || '-' }}</small></td>
-              <td class="numeric-cell">{{ quantityText(row.quantity) }}</td>
-              <td>
-                <button v-if="row.labelCodes.length" class="btn btn-sm" type="button" @click="showLabelDetail(row)">
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="pickingRecordsColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="pickingRecordsCols.settingsOpen.value = !pickingRecordsCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: pickingRecordsCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="pickingRecordsCols.settingsOpen.value"
+            ref="pickingRecordsColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': pickingRecordsColSettingsPop.align.value === 'right', 'is-align-up': pickingRecordsColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': pickingRecordsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': pickingRecordsColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="pickingRecordsCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in pickingRecordsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && pickingRecordsCols.visibleColumnCount.value <= 1"
+                  @change="pickingRecordsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="pickingRecordsCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="pickingRecordsTableRef"
+            :data="rows"
+            row-key="deliveryNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无拣配记录'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => pickingRecordsCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="deliveryNo"
+              v-if="isPickingRecordsColVisible('deliveryNo')"
+              label="配送单号"
+              v-bind="pickingRecordsColBinding('deliveryNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">配送单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.bizNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requisitionNo"
+              v-if="isPickingRecordsColVisible('requisitionNo')"
+              label="申领单号"
+              v-bind="pickingRecordsColBinding('requisitionNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申领单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.sourceNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requisitionType"
+              v-if="isPickingRecordsColVisible('requisitionType')"
+              label="申领类型"
+              v-bind="pickingRecordsColBinding('requisitionType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申领类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requisitionCreateTime"
+              v-if="isPickingRecordsColVisible('requisitionCreateTime')"
+              label="申领单创建时间"
+              v-bind="pickingRecordsColBinding('requisitionCreateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申领单创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatDateTime(row.requisitionCreatedAt) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isPickingRecordsColVisible('deptName')"
+              label="科室"
+              v-bind="pickingRecordsColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isPickingRecordsColVisible('warehouseName')"
+              label="出库库房"
+              v-bind="pickingRecordsColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">出库库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isPickingRecordsColVisible('product')"
+              label="商品信息"
+              v-bind="pickingRecordsColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品信息</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-cell-stack picking-product-cell">
+                  <strong>{{ row.productName || '-' }}</strong>
+                  <small>{{ row.productCode || '-' }}</small>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="quantity"
+              v-if="isPickingRecordsColVisible('quantity')"
+              label="数量"
+              v-bind="pickingRecordsColBinding('quantity')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ quantityText(row.quantity) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="packageCode"
+              v-if="isPickingRecordsColVisible('packageCode')"
+              label="定数包码"
+              v-bind="pickingRecordsColBinding('packageCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">定数包码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><button v-if="row.labelCodes.length" class="btn btn-sm" type="button" @click="showLabelDetail(row)">
                   查看详情（{{ row.labelCodes.length }}）
                 </button>
-                <span v-else>-</span>
-              </td>
-              <td><span class="status-badge" :class="row.status === 'signed' ? 'enabled' : 'pending'">{{ formatStatusText(row.status) }}</span></td>
-              <td>{{ row.createTime || '-' }}</td>
-              <td class="md-audit-time">{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
-              <td class="md-audit-time">{{ formatDateTime(row.pickingCompletedAt) }}</td>
-              <td>{{ row.finishTime || '-' }}</td>
-              <td v-if="auth.canWrite('picking-delivery')">
-                <button v-if="row.status === 'picked'" class="btn btn-sm" type="button"
-                  :disabled="loading || Boolean(signingNo)" @click="confirmReceipt(row)">
-                  {{ signingNo === row.bizNo ? '签收中…' : '确认签收' }}
-                </button>
-                <span v-else>-</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="page" :size="size" :total="total" :loading="loading"
-        @change-page="changePage" @change-size="changeSize"
-      />
+                <span v-else>-</span></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isPickingRecordsColVisible('status')"
+              label="状态"
+              v-bind="pickingRecordsColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="status-badge" :class="row.status === 'signed' ? 'enabled' : 'pending'">{{ formatStatusText(row.status) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="pickingTime"
+              v-if="isPickingRecordsColVisible('pickingTime')"
+              label="配送单拣配时间"
+              v-bind="pickingRecordsColBinding('pickingTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">配送单拣配时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="partialPickingTime"
+              v-if="isPickingRecordsColVisible('partialPickingTime')"
+              label="部分拣配完成时间"
+              v-bind="pickingRecordsColBinding('partialPickingTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">部分拣配完成时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatDateTime(row.partialPickingCompletedAt) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="pickingFinishTime"
+              v-if="isPickingRecordsColVisible('pickingFinishTime')"
+              label="拣配完成时间"
+              v-bind="pickingRecordsColBinding('pickingFinishTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">拣配完成时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatDateTime(row.pickingCompletedAt) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="signTime"
+              v-if="isPickingRecordsColVisible('signTime')"
+              label="签收时间"
+              v-bind="pickingRecordsColBinding('signTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">签收时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.finishTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isPickingRecordsColVisible('actions')"
+              label="操作"
+              v-bind="pickingRecordsColBinding('actions')"
+              :fixed="pickingRecordsActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button v-if="row.status === 'picked'"
+                  :disabled="loading || Boolean(signingNo)" @click="confirmReceipt(row)" class="ulc-action btn-sm" type="button">{{ signingNo === row.bizNo ? '签收中…' : '确认签收' }}</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无拣配记录" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="page"
+            :total-pages="Math.max(1, Math.ceil(total / Math.max(size, 1)))"
+            :total="total"
+            :size="size"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changeSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <el-dialog v-model="labelDetailOpen" title="定数包码详情" width="min(560px, 92vw)" append-to-body destroy-on-close>
@@ -266,6 +563,29 @@ onMounted(loadRecords)
      2. 查询区与表格合并为单张工作区卡片，避免两层卡片割裂
      3. 表格 md 密度：表头 12px、表体 13px、sticky 表头
    ===================================================================== */
+
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
+/* ---------- 商品信息列：名称 + 编码（两行堆叠，整体超宽才换行） ---------- */
+.picking-product-cell {
+  gap: 2px;
+}
+
+.picking-product-cell strong {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.picking-product-cell small {
+  color: var(--md-text-muted, var(--spd-text-tertiary));
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+}
+
 .picking-record-page {
   box-sizing: border-box;
   display: flex;
@@ -313,7 +633,7 @@ onMounted(loadRecords)
 
 .record-query-grid label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -328,7 +648,7 @@ onMounted(loadRecords)
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   outline: none;
 }
 
@@ -347,7 +667,7 @@ onMounted(loadRecords)
 .record-query-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -363,14 +683,14 @@ onMounted(loadRecords)
 .record-table-title h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .record-table-title > span {
   margin-left: auto;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -398,7 +718,7 @@ onMounted(loadRecords)
   padding: 9px 12px !important;
   background: var(--md-bg-subtle, #f6f8fb) !important;
   color: var(--md-text-secondary, var(--spd-text-secondary)) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 600 !important;
   white-space: nowrap;
   border-bottom: 1px solid var(--md-border, var(--spd-border-subtle)) !important;
@@ -408,7 +728,7 @@ onMounted(loadRecords)
   height: 40px;
   padding: 9px 12px !important;
   color: var(--md-text, var(--spd-text-primary)) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   vertical-align: middle;
   background: var(--md-bg-card, #fff) !important;
   border-bottom: 1px solid var(--md-border-subtle, var(--spd-border-subtle)) !important;
@@ -433,7 +753,7 @@ onMounted(loadRecords)
 .record-table td small {
   margin-top: 3px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .record-table .primary-cell {

@@ -141,7 +141,7 @@ function onTab(key: string) { emit('update:modelValue', key) }
 }
 .sys-search-label {
   color: var(--md-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -167,7 +167,7 @@ function onTab(key: string) { emit('update:modelValue', key) }
   outline: 0;
   background: transparent;
   color: var(--md-text);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   padding: 0 12px;
   min-height: 34px;
   box-sizing: border-box;

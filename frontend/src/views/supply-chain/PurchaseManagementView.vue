@@ -27,9 +27,19 @@ import { useNotify } from '../../composables/useNotify'
 import { usePurchaseManagement } from '../../composables/usePurchaseManagement'
 import { useAuthStore } from '../../stores/auth'
 import EmptyState from '../../components/common/EmptyState.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import PurchasePlanDetailDialog from '../../components/purchase/PurchasePlanDetailDialog.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 
 const {
@@ -243,14 +253,184 @@ async function handleOrderAttachmentUpload(event: Event) {
   await uploadSelectedOrderAttachment(file)
   input.value = ''
 }
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const PURCHASEORDER_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '选择', width: 70, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'orderNo', label: '订单编号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 300 },
+  { key: 'source', label: '来源', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'detailCount', label: '明细数', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'purchaseQty', label: '采购数量', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'fulfillProgress', label: '履约进度', width: 120, visible: true, weight: 2, minWidth: 100, maxWidth: 170 },
+  { key: 'remainingQty', label: '剩余数量', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'totalAmount', label: '总金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'expectedArrival', label: '预计到货', width: 120, visible: true, weight: 2, minWidth: 100, maxWidth: 170 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 320 }
+]
+
+const purchaseOrderCols = useListColumns({
+  storageKey: 'spd-purchase-order-cols-v1',
+  defaults: PURCHASEORDER_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const purchaseOrderTableRef = purchaseOrderCols.tableRef
+const isPurchaseOrderColVisible = (key: string) => purchaseOrderCols.isColumnVisible(key)
+const purchaseOrderColBinding = (key: string) => purchaseOrderCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const purchaseOrderActionFix = useActionColumnFix()
+const purchaseOrderActionFixed = computed(() => purchaseOrderActionFix.actionFixedBinding.value)
+
+watch(
+  [purchaseOrderTableRef],
+  () => {
+    purchaseOrderActionFix.observe(purchaseOrderTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const purchaseOrderColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const purchaseOrderColSettingsPopRef = ref<HTMLElement | null>(null)
+const purchaseOrderColSettingsPop = useColSettingsPopover({
+  open: purchaseOrderCols.settingsOpen,
+  anchorRef: purchaseOrderColSettingsAnchorRef,
+  popRef: purchaseOrderColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const PURCHASEPLAN_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'planNo', label: '计划编号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'detailCount', label: '商品明细数', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'orderCount', label: '已生成订单数', width: 120, visible: true, weight: 2, minWidth: 100, maxWidth: 170 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'supplierCount', label: '配送商数', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'sourceDept', label: '发起科室', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 320 }
+]
+
+const purchasePlanCols = useListColumns({
+  storageKey: 'spd-purchase-plan-cols-v1',
+  defaults: PURCHASEPLAN_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const purchasePlanTableRef = purchasePlanCols.tableRef
+const isPurchasePlanColVisible = (key: string) => purchasePlanCols.isColumnVisible(key)
+const purchasePlanColBinding = (key: string) => purchasePlanCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const purchasePlanActionFix = useActionColumnFix()
+const purchasePlanActionFixed = computed(() => purchasePlanActionFix.actionFixedBinding.value)
+
+watch(
+  [purchasePlanTableRef],
+  () => {
+    purchasePlanActionFix.observe(purchasePlanTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const purchasePlanColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const purchasePlanColSettingsPopRef = ref<HTMLElement | null>(null)
+const purchasePlanColSettingsPop = useColSettingsPopover({
+  open: purchasePlanCols.settingsOpen,
+  anchorRef: purchasePlanColSettingsAnchorRef,
+  popRef: purchasePlanColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const PURCHASEDEMAND_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '选择', width: 70, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'demandNo', label: '需求编号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'source', label: '来源', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'deptName', label: '科室', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productSummary', label: '商品明细', width: 220, visible: true, weight: 5, minWidth: 140, maxWidth: 320 },
+  { key: 'requiredQty', label: '需求总数', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'suggestedQty', label: '建议采购量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'urgency', label: '紧急程度', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const purchaseDemandCols = useListColumns({
+  storageKey: 'spd-purchase-demand-cols-v1',
+  defaults: PURCHASEDEMAND_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const purchaseDemandTableRef = purchaseDemandCols.tableRef
+const isPurchaseDemandColVisible = (key: string) => purchaseDemandCols.isColumnVisible(key)
+const purchaseDemandColBinding = (key: string) => purchaseDemandCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const purchaseDemandActionFix = useActionColumnFix()
+const purchaseDemandActionFixed = computed(() => purchaseDemandActionFix.actionFixedBinding.value)
+
+watch(
+  [purchaseDemandTableRef],
+  () => {
+    purchaseDemandActionFix.observe(purchaseDemandTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const purchaseDemandColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const purchaseDemandColSettingsPopRef = ref<HTMLElement | null>(null)
+const purchaseDemandColSettingsPop = useColSettingsPopover({
+  open: purchaseDemandCols.settingsOpen,
+  anchorRef: purchaseDemandColSettingsAnchorRef,
+  popRef: purchaseDemandColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <section class="md-page purchase-page">
+  <section class="md-page purchase-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务"
       title="采购管理"
-      description="需求池、采购计划、采购订单、订单跟踪按子流程拆分；验收入库按最新医院目录采购价生成系统批次单价。"
       :loading="loading"
       @refresh="loadData"
     />
@@ -352,214 +532,724 @@ async function handleOrderAttachmentUpload(event: Event) {
         </div>
       </div>
 
-      <div v-if="activeTab === 'demands'" class="table-scroll purchase-list-scroll">
-        <table class="master-table purchase-table purchase-demand-table">
-          <thead>
-            <tr>
-              <th class="order-select-column">选择</th>
-              <th>需求编号</th>
-              <th>来源</th>
-              <th>科室</th>
-              <th>商品明细</th>
-              <th>需求总数</th>
-              <th>建议采购量</th>
-              <th class="numeric-cell">金额</th>
-              <th>紧急程度</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="12" class="approval-empty">正在加载采购需求...</td>
-            </tr>
-            <tr v-for="group in demandGroups" v-else :key="group.demandNo" class="demand-group-row">
-              <td><input v-model="selectedDemandNos" type="checkbox" :value="group.demandNo" :disabled="group.demandStatus !== 'approved'" :aria-label="`选择需求 ${group.demandNo}`" /></td>
-              <td>
-                <strong>{{ group.demandNo }}</strong>
-                <span class="item-count-badge">{{ group.itemCount }}项</span>
-              </td>
-              <td>{{ formatBusinessText(group.demandSource) }}</td>
-              <td>{{ group.deptName || '-' }}</td>
-              <td class="demand-group-items-cell">
-                <span class="item-summary">共 {{ group.itemCount }} 种商品</span>
-                <button class="btn-link" type="button" @click="openDemandDetail(group)">查看明细</button>
-              </td>
-              <td>{{ group.totalQuantity }}</td>
-              <td>{{ group.totalSuggestedQty }}</td>
-              <td class="numeric-cell">¥ {{ group.totalAmount.toFixed(2) }}</td>
-              <td>{{ formatBusinessText(group.urgentLevel) }}</td>
-              <td><span :class="['status-badge', statusTone(group.demandStatus)]">{{ statusLabel(group.demandStatus) }}</span></td>
-              <td class="md-audit-time">{{ group.createTime || '-' }}</td>
-              <td class="row-actions">
-                <button v-if="group.demandStatus === 'draft' && authStore.hasPermission('purchase-demand:submit')" class="btn-text" @click="runDemandAction(group, 'submit')">提交</button>
-                <button v-if="group.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:review')" class="btn-text" @click="runDemandAction(group, 'approve')">审核通过</button>
-                <button v-if="group.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:reject')" class="btn-text btn-text-danger" @click="runDemandAction(group, 'reject')">驳回</button>
-              </td>
-            </tr>
-            <tr v-if="!loading && demandGroups.length === 0">
-              <td colspan="12" class="approval-empty"><EmptyState message="暂无采购需求，请调整筛选条件或新建采购需求" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        v-if="activeTab === 'demands'"
-        :page="purchasePagination.demands.page"
-        :size="purchasePagination.demands.size"
-        :total="purchasePagination.demands.total"
-        :loading="loading"
-        @change-page="changePurchasePage('demands', $event)"
-        @change-size="changePurchasePageSize('demands', $event)"
-      />
-
-      <div v-if="activeTab === 'plans'" class="table-scroll purchase-list-scroll">
-        <table class="master-table purchase-table purchase-plan-table">
-          <thead>
-            <tr>
-              <th>计划编号</th>
-              <th>商品明细数</th>
-              <th>已生成订单数</th>
-              <th>金额</th>
-              <th>配送商数</th>
-              <th>发起科室</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="9" class="approval-empty">正在加载采购计划...</td>
-            </tr>
-            <tr v-for="row in plans" v-else :key="row.planNo">
-              <td class="document-no-cell">{{ row.planNo }}</td>
-              <td>{{ row.itemCount }}</td>
-              <td>{{ row.orderCount }}</td>
-              <td class="purchase-plan-amount">{{ row.amount == null ? '历史未记录' : `¥ ${Number(row.amount).toFixed(2)}` }}</td>
-              <td>{{ row.supplierCount }}</td>
-              <td>{{ row.initiatingDeptName || '-' }}</td>
-              <td><span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span></td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td class="row-actions">
-                <button class="btn-text" @click="planDetailNo = row.planNo">明细/配送商</button>
-                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:approve')" class="btn-text" @click="runPlanAction(row, 'approve')">计划审核</button>
-                <button v-if="row.planStatus === 'approved' && authStore.hasPermission('purchase-plan:execute')" class="btn-text" @click="runPlanAction(row, 'execute')">转订单</button>
-                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:reject')" class="btn-text btn-text-danger" @click="runPlanAction(row, 'reject')">驳回</button>
-              </td>
-            </tr>
-            <tr v-if="!loading && plans.length === 0">
-              <td colspan="9" class="approval-empty"><EmptyState message="暂无采购计划" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        v-if="activeTab === 'plans'"
-        :page="purchasePagination.plans.page"
-        :size="purchasePagination.plans.size"
-        :total="purchasePagination.plans.total"
-        :loading="loading"
-        @change-page="changePurchasePage('plans', $event)"
-        @change-size="changePurchasePageSize('plans', $event)"
-      />
-
-      <div v-if="activeTab === 'orders'" class="table-scroll purchase-list-scroll">
-        <table class="master-table purchase-table">
-          <thead>
-            <tr>
-              <th class="order-select-column">选择</th>
-              <th>订单编号</th>
-              <th>供应商</th>
-              <th>来源</th>
-              <th>明细数</th>
-              <th>采购数量</th>
-              <th>履约进度</th>
-              <th>剩余数量</th>
-              <th>总金额</th>
-              <th>预计到货</th>
-              <th>创建时间</th>
-              <th>修改时间</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="14" class="approval-empty">正在加载采购订单...</td>
-            </tr>
-            <tr
-              v-for="row in rows"
-              v-else
-              :key="row.orderNo"
-              :class="{ 'selected-order-row': selectedOrder?.orderNo === row.orderNo }"
-              @click="selectOrder(row)"
-            >
-              <td class="order-select-column">
+            <MdDataTableCard v-if="activeTab === 'demands'">
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="purchaseDemandColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="purchaseDemandCols.settingsOpen.value = !purchaseDemandCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: purchaseDemandCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="purchaseDemandCols.settingsOpen.value"
+            ref="purchaseDemandColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': purchaseDemandColSettingsPop.align.value === 'right', 'is-align-up': purchaseDemandColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': purchaseDemandColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchaseDemandColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="purchaseDemandCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in purchaseDemandCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                 <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && purchaseDemandCols.visibleColumnCount.value <= 1"
+                  @change="purchaseDemandCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="purchaseDemandCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="purchaseDemandTableRef"
+            :data="demandGroups"
+            row-key="demandNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无需求单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => purchaseDemandCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isPurchaseDemandColVisible('selection')"
+              label="选择"
+              v-bind="purchaseDemandColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text">选择</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input v-model="selectedDemandNos" type="checkbox" :value="row.demandNo" :disabled="row.demandStatus !== 'approved'" :aria-label="`选择需求 ${row.demandNo}`" /></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="demandNo"
+              v-if="isPurchaseDemandColVisible('demandNo')"
+              label="需求编号"
+              v-bind="purchaseDemandColBinding('demandNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">需求编号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">
+                  <span class="ulc-joined-part">{{ row.demandNo }}</span>
+                  <span class="ulc-joined-part">{{ row.itemCount }}项</span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="source"
+              v-if="isPurchaseDemandColVisible('source')"
+              label="来源"
+              v-bind="purchaseDemandColBinding('source')"
+            >
+              <template #header>
+                <span class="ulc-th-text">来源</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatBusinessText(row.demandSource) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isPurchaseDemandColVisible('deptName')"
+              label="科室"
+              v-bind="purchaseDemandColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="productSummary"
+              v-if="isPurchaseDemandColVisible('productSummary')"
+              label="商品明细"
+              v-bind="purchaseDemandColBinding('productSummary')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品明细</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-cell-stack">
+                  <span class="item-summary">共 {{ row.itemCount }} 种商品</span>
+                  <button class="btn-link" type="button" @click="openDemandDetail(row)">查看明细</button>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requiredQty"
+              v-if="isPurchaseDemandColVisible('requiredQty')"
+              label="需求总数"
+              v-bind="purchaseDemandColBinding('requiredQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">需求总数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.totalQuantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="suggestedQty"
+              v-if="isPurchaseDemandColVisible('suggestedQty')"
+              label="建议采购量"
+              v-bind="purchaseDemandColBinding('suggestedQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">建议采购量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.totalSuggestedQty }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isPurchaseDemandColVisible('amount')"
+              label="金额"
+              v-bind="purchaseDemandColBinding('amount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ row.totalAmount.toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="urgency"
+              v-if="isPurchaseDemandColVisible('urgency')"
+              label="紧急程度"
+              v-bind="purchaseDemandColBinding('urgency')"
+            >
+              <template #header>
+                <span class="ulc-th-text">紧急程度</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatBusinessText(row.urgentLevel) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isPurchaseDemandColVisible('status')"
+              label="状态"
+              v-bind="purchaseDemandColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['status-badge', statusTone(row.demandStatus)]">{{ statusLabel(row.demandStatus) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isPurchaseDemandColVisible('createTime')"
+              label="创建时间"
+              v-bind="purchaseDemandColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isPurchaseDemandColVisible('actions')"
+              label="操作"
+              v-bind="purchaseDemandColBinding('actions')"
+              :fixed="purchaseDemandActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button v-if="row.demandStatus === 'draft' && authStore.hasPermission('purchase-demand:submit')" @click="runDemandAction(row, 'submit')" class="ulc-action" type="button">提交</button>
+                <button v-if="row.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:review')" @click="runDemandAction(row, 'approve')" class="ulc-action" type="button">审核通过</button>
+                <button v-if="row.demandStatus === 'pending_review' && authStore.hasPermission('purchase-demand:reject')" @click="runDemandAction(row, 'reject')" class="ulc-action" type="button">驳回</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无需求单" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="purchasePagination.demands.page"
+            :total-pages="Math.max(1, Math.ceil(purchasePagination.demands.total / Math.max(purchasePagination.demands.size, 1)))"
+            :total="purchasePagination.demands.total"
+            :size="purchasePagination.demands.size"
+            :loading="loading"
+            @update:page="changePurchasePage('demands', $event)"
+            @update:size="changePurchasePageSize('demands', $event)"
+          />
+        </template>
+      </MdDataTableCard>
+
+            <MdDataTableCard v-if="activeTab === 'plans'">
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="purchasePlanColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="purchasePlanCols.settingsOpen.value = !purchasePlanCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: purchasePlanCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="purchasePlanCols.settingsOpen.value"
+            ref="purchasePlanColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': purchasePlanColSettingsPop.align.value === 'right', 'is-align-up': purchasePlanColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': purchasePlanColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchasePlanColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="purchasePlanCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in purchasePlanCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && purchasePlanCols.visibleColumnCount.value <= 1"
+                  @change="purchasePlanCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="purchasePlanCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="purchasePlanTableRef"
+            :data="plans"
+            row-key="planNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无采购计划'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => purchasePlanCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="planNo"
+              v-if="isPurchasePlanColVisible('planNo')"
+              label="计划编号"
+              v-bind="purchasePlanColBinding('planNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">计划编号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.planNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="detailCount"
+              v-if="isPurchasePlanColVisible('detailCount')"
+              label="商品明细数"
+              v-bind="purchasePlanColBinding('detailCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品明细数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.itemCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="orderCount"
+              v-if="isPurchasePlanColVisible('orderCount')"
+              label="已生成订单数"
+              v-bind="purchasePlanColBinding('orderCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">已生成订单数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.orderCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isPurchasePlanColVisible('amount')"
+              label="金额"
+              v-bind="purchasePlanColBinding('amount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.amount == null ? '历史未记录' : `¥ ${Number(row.amount).toFixed(2)}` }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplierCount"
+              v-if="isPurchasePlanColVisible('supplierCount')"
+              label="配送商数"
+              v-bind="purchasePlanColBinding('supplierCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">配送商数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.supplierCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceDept"
+              v-if="isPurchasePlanColVisible('sourceDept')"
+              label="发起科室"
+              v-bind="purchasePlanColBinding('sourceDept')"
+            >
+              <template #header>
+                <span class="ulc-th-text">发起科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.initiatingDeptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isPurchasePlanColVisible('status')"
+              label="状态"
+              v-bind="purchasePlanColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['status-badge', statusTone(row.planStatus)]">{{ statusLabel(row.planStatus) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isPurchasePlanColVisible('createTime')"
+              label="创建时间"
+              v-bind="purchasePlanColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isPurchasePlanColVisible('actions')"
+              label="操作"
+              v-bind="purchasePlanColBinding('actions')"
+              :fixed="purchasePlanActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click="planDetailNo = row.planNo" class="ulc-action" type="button">明细/配送商</button>
+                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:approve')" @click="runPlanAction(row, 'approve')" class="ulc-action" type="button">计划审核</button>
+                <button v-if="row.planStatus === 'approved' && authStore.hasPermission('purchase-plan:execute')" @click="runPlanAction(row, 'execute')" class="ulc-action" type="button">转订单</button>
+                <button v-if="row.planStatus === 'draft' && authStore.hasPermission('purchase-plan:reject')" @click="runPlanAction(row, 'reject')" class="ulc-action" type="button">驳回</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无采购计划" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="purchasePagination.plans.page"
+            :total-pages="Math.max(1, Math.ceil(purchasePagination.plans.total / Math.max(purchasePagination.plans.size, 1)))"
+            :total="purchasePagination.plans.total"
+            :size="purchasePagination.plans.size"
+            :loading="loading"
+            @update:page="changePurchasePage('plans', $event)"
+            @update:size="changePurchasePageSize('plans', $event)"
+          />
+        </template>
+      </MdDataTableCard>
+
+            <MdDataTableCard v-if="activeTab === 'orders'">
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="purchaseOrderColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="purchaseOrderCols.settingsOpen.value = !purchaseOrderCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: purchaseOrderCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="purchaseOrderCols.settingsOpen.value"
+            ref="purchaseOrderColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': purchaseOrderColSettingsPop.align.value === 'right', 'is-align-up': purchaseOrderColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': purchaseOrderColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': purchaseOrderColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="purchaseOrderCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in purchaseOrderCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && purchaseOrderCols.visibleColumnCount.value <= 1"
+                  @change="purchaseOrderCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="purchaseOrderCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="purchaseOrderTableRef"
+            :data="rows"
+            row-key="orderNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无采购订单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => purchaseOrderCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isPurchaseOrderColVisible('selection')"
+              label="选择"
+              v-bind="purchaseOrderColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text">选择</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input
                   type="radio"
                   name="purchase-order-selection"
                   :checked="selectedOrder?.orderNo === row.orderNo"
                   :aria-label="`选择订单 ${row.orderNo}`"
                   @change="selectOrder(row)"
-                />
-              </td>
-              <td class="document-no-cell">{{ row.orderNo }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ formatBusinessText(row.orderSource) }}</td>
-              <td>{{ row.itemCount }}</td>
-              <td>{{ row.orderQuantity }}</td>
-              <td>
-                <div class="fulfillment-cell">
+                /></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="orderNo"
+              v-if="isPurchaseOrderColVisible('orderNo')"
+              label="订单编号"
+              v-bind="purchaseOrderColBinding('orderNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">订单编号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.orderNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplierName"
+              v-if="isPurchaseOrderColVisible('supplierName')"
+              label="供应商"
+              v-bind="purchaseOrderColBinding('supplierName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">供应商</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.supplierName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="source"
+              v-if="isPurchaseOrderColVisible('source')"
+              label="来源"
+              v-bind="purchaseOrderColBinding('source')"
+            >
+              <template #header>
+                <span class="ulc-th-text">来源</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatBusinessText(row.orderSource) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="detailCount"
+              v-if="isPurchaseOrderColVisible('detailCount')"
+              label="明细数"
+              v-bind="purchaseOrderColBinding('detailCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">明细数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.itemCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="purchaseQty"
+              v-if="isPurchaseOrderColVisible('purchaseQty')"
+              label="采购数量"
+              v-bind="purchaseOrderColBinding('purchaseQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">采购数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.orderQuantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="fulfillProgress"
+              v-if="isPurchaseOrderColVisible('fulfillProgress')"
+              label="履约进度"
+              v-bind="purchaseOrderColBinding('fulfillProgress')"
+            >
+              <template #header>
+                <span class="ulc-th-text">履约进度</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-cell-stack fulfillment-cell">
                   <span>{{ row.receivedQuantity }} / {{ row.orderQuantity }}</span>
                   <i>
                     <b :style="{ width: `${Math.min(100, Math.round((Number(row.receivedQuantity || 0) / Math.max(1, Number(row.orderQuantity || 0))) * 100))}%` }" />
                   </i>
-                </div>
-              </td>
-              <td>
-                <span :class="['quantity-gap', remainingQty(row) > 0 ? 'pending' : 'done']">
-                  {{ remainingQty(row) }}
                 </span>
-              </td>
-              <td>¥ {{ Number(row.totalAmount).toFixed(2) }}</td>
-              <td>{{ row.expectedArrivalDate || '-' }}</td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-              <td><span :class="['status-badge', statusTone(row.orderStatus)]">{{ statusLabel(row.orderStatus) }}</span></td>
-              <td class="row-actions">
-                <button class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
-                <button class="btn-text" @click="openTracking(row)"><List :size="15" /> 跟踪</button>
-                <button v-if="row.orderStatus === 'approved' && authStore.hasPermission('purchase-order:send')" class="btn-text" :disabled="orderActionPending" @click="runOrderAction(row, 'send')">
-                  <Send :size="15" /> 发送
-                </button>
-                <button
-                  v-if="['approved', 'sent'].includes(row.orderStatus) && authStore.hasPermission('purchase-order:close')"
-                  class="btn-text"
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="remainingQty"
+              v-if="isPurchaseOrderColVisible('remainingQty')"
+              label="剩余数量"
+              v-bind="purchaseOrderColBinding('remainingQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">剩余数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">
+                  <span :class="['quantity-gap', remainingQty(row) > 0 ? 'pending' : 'done']">
+                    {{ remainingQty(row) }}
+                  </span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="totalAmount"
+              v-if="isPurchaseOrderColVisible('totalAmount')"
+              label="总金额"
+              v-bind="purchaseOrderColBinding('totalAmount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">总金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.totalAmount).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="expectedArrival"
+              v-if="isPurchaseOrderColVisible('expectedArrival')"
+              label="预计到货"
+              v-bind="purchaseOrderColBinding('expectedArrival')"
+            >
+              <template #header>
+                <span class="ulc-th-text">预计到货</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.expectedArrivalDate || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isPurchaseOrderColVisible('createTime')"
+              label="创建时间"
+              v-bind="purchaseOrderColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isPurchaseOrderColVisible('updateTime')"
+              label="修改时间"
+              v-bind="purchaseOrderColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isPurchaseOrderColVisible('status')"
+              label="状态"
+              v-bind="purchaseOrderColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['status-badge', statusTone(row.orderStatus)]">{{ statusLabel(row.orderStatus) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isPurchaseOrderColVisible('actions')"
+              label="操作"
+              v-bind="purchaseOrderColBinding('actions')"
+              :fixed="purchaseOrderActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click="openDetail(row)" class="ulc-action" type="button"><Eye :size="15" /> 查看</button>
+                <button @click="openTracking(row)" class="ulc-action" type="button"><List :size="15" /> 跟踪</button>
+                <button v-if="row.orderStatus === 'approved' && authStore.hasPermission('purchase-order:send')" :disabled="orderActionPending" @click="runOrderAction(row, 'send')" class="ulc-action" type="button"><Send :size="15" /> 发送</button>
+                <button v-if="['approved', 'sent'].includes(row.orderStatus) && authStore.hasPermission('purchase-order:close')"
                   :class="{ 'btn-text-muted': !canCloseOrder(row) }"
                   :title="canCloseOrder(row) ? '填写关闭原因后关闭订单' : '需先完成收货验收'"
-                  @click="requestClose(row)"
-                >
-                  {{ canCloseOrder(row) ? '关闭' : '待收货' }}
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!loading && rows.length === 0">
-              <td colspan="14" class="approval-empty">暂无采购订单</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        v-if="activeTab === 'orders'"
-        :page="purchasePagination.orders.page"
-        :size="purchasePagination.orders.size"
-        :total="purchasePagination.orders.total"
-        :loading="loading"
-        @change-page="changePurchasePage('orders', $event)"
-        @change-size="changePurchasePageSize('orders', $event)"
-      />
+                  @click="requestClose(row)" class="ulc-action" type="button">{{ canCloseOrder(row) ? '关闭' : '待收货' }}</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无采购订单" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="purchasePagination.orders.page"
+            :total-pages="Math.max(1, Math.ceil(purchasePagination.orders.total / Math.max(purchasePagination.orders.size, 1)))"
+            :total="purchasePagination.orders.total"
+            :size="purchasePagination.orders.size"
+            :loading="loading"
+            @update:page="changePurchasePage('orders', $event)"
+            @update:size="changePurchasePageSize('orders', $event)"
+          />
+        </template>
+      </MdDataTableCard>
 
       <div v-if="activeTab === 'tracking'" class="tracking-panel">
         <div v-if="!detail" class="approval-empty">请从采购订单点击“查看”进入订单跟踪。</div>
@@ -1050,7 +1740,15 @@ async function handleOrderAttachmentUpload(event: Event) {
             </tbody>
           </table>
         </div>
-        <PaginationControls :page="pickerPagination.page" :size="pickerPagination.size" :total="pickerPagination.total" :loading="pickerLoading" @change-page="loadPickerProducts" @change-size="pickerPagination.size = $event; loadPickerProducts()" />
+        <MdPagination
+          :page="pickerPagination.page"
+          :total-pages="Math.max(1, Math.ceil(pickerPagination.total / Math.max(pickerPagination.size, 1)))"
+          :total="pickerPagination.total"
+          :size="pickerPagination.size"
+          :loading="pickerLoading"
+          @update:page="loadPickerProducts"
+          @update:size="pickerPagination.size = $event; loadPickerProducts()"
+        />
         <footer>
           <span>已选 {{ pickerSelected.size }} 项（支持跨页多选）</span>
           <div class="purchase-picker-actions">
@@ -1323,6 +2021,13 @@ async function handleOrderAttachmentUpload(event: Event) {
    3. 表格：md-table 密度（13px / 10px 12px）、sticky 表头、卡片化滚动容器
    4. 业务列强化：单据号等宽、金额右对齐、选中行主色条、状态徽标收敛
    ===================================================================== */
+
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
 .purchase-page.md-page {
   /* md-page 自带 padding-bottom 40px，这里只收紧顶部间距 */
   padding: 16px 20px 24px;
@@ -1352,7 +2057,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-tabs button {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border-radius: var(--md-radius, 6px);
 }
@@ -1373,7 +2078,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-toolbar .btn {
   min-height: 30px;
   padding: 0 12px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-toolbar .btn svg {
@@ -1409,25 +2114,25 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .purchase-product-picker-mask .master-table {
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-product-picker-mask .master-table thead th {
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   padding: 10px 12px !important;
 }
 
 .purchase-product-picker-mask .master-table tbody td {
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   padding: 10px 12px !important;
-  line-height: 1.55;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-query-actions .btn {
   min-height: 30px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-query-actions .btn svg {
@@ -1443,12 +2148,12 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: var(--md-radius, 6px);
   color: var(--spd-primary-text);
   background: var(--spd-primary-bg);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .inline-select {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .inline-field {
@@ -1456,14 +2161,14 @@ async function handleOrderAttachmentUpload(event: Event) {
   align-items: center;
   gap: 6px;
   color: var(--spd-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .action-hint {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
   margin-left: auto;
 }
 
@@ -1494,14 +2199,14 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-query-grid label > span {
   color: var(--spd-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .purchase-query-grid .md-input,
 .purchase-query-grid .md-select {
   min-height: 30px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   width: 100%;
 }
 
@@ -1531,8 +2236,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table {
   min-width: 100%;
   width: 100%;
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-table thead th {
@@ -1540,8 +2245,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   top: 0;
   z-index: 3;
   padding: 10px 12px !important;
-  font-size: 13px !important;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700;
   letter-spacing: 0.2px;
   white-space: nowrap;
   color: var(--md-text-heading) !important;
@@ -1551,8 +2256,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-table tbody td {
   padding: 10px 12px !important;
-  font-size: 14px !important;
-  line-height: 1.55;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
   color: var(--md-text) !important;
   border-bottom: 1px solid var(--md-border-soft, var(--spd-border-subtle)) !important;
   vertical-align: middle;
@@ -1573,21 +2278,21 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-table tbody td small {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   margin-top: 1px;
 }
 
 /* ---------- 单据号 / 金额 ---------- */
 .document-no-cell {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
-  font-size: 12px !important;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   color: var(--md-text-heading) !important;
   white-space: nowrap;
 }
 
 .purchase-plan-amount {
-  font-family: var(--md-font-mono, ui-monospace, monospace);
+  font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   color: var(--md-primary-strong, var(--spd-text-heading));
@@ -1632,8 +2337,9 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table .status-badge {
   min-height: 20px;
   padding: 0 9px;
-  font-size: 11px;
-  font-weight: 600;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
   border-radius: 999px;
 }
 
@@ -1648,7 +2354,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .row-actions .btn-text {
   min-height: 24px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ---------- 履约进度 ---------- */
@@ -1660,7 +2366,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .fulfillment-cell span {
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: var(--md-text-muted, var(--spd-text-tertiary));
 }
 
@@ -1688,7 +2394,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 0 8px;
   border-radius: var(--md-radius-sm, 4px);
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -1711,13 +2417,13 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 999px;
   background: var(--md-bg-muted, var(--spd-bg-page));
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
 }
 
 .item-summary {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .demand-group-items-cell {
@@ -1730,7 +2436,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-table .approval-empty {
   padding: 52px 16px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   text-align: center;
 }
 
@@ -1835,7 +2541,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-operation-modal header p {
   margin-bottom: 3px;
   color: #728596;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .order-operation-body {
@@ -1860,7 +2566,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-operation-order span,
 .order-operation-body label > span {
   color: #607587;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .order-operation-body textarea {
@@ -1928,7 +2634,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .order-attachment-list strong {
   overflow: hidden;
   color: #263f50;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2112,10 +2818,10 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-product-picker-mask header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #0f2a3a;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
 }
 
 .purchase-product-picker-mask header .btn-icon {
@@ -2128,8 +2834,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #f0f7f9;
   color: #52677a;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
   flex-shrink: 0;
 }
 
@@ -2209,12 +2915,12 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-entry-header p {
   margin-bottom: 3px;
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-header h3 {
   color: #15394a;
-  font-size: 20px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .purchase-entry-body {
@@ -2252,13 +2958,13 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-entry-section-heading h4 {
   color: #1a3b4d;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .purchase-entry-section-heading small {
   margin-top: 4px;
   color: #7b8d9d;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-meta-grid {
@@ -2271,7 +2977,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   display: grid;
   gap: 6px;
   color: #425a6b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -2319,7 +3025,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 5px 10px;
   background: #f1f8f7;
   color: #526d6b;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-entry-summary strong {
@@ -2385,7 +3091,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-code-cell {
   width: 130px;
   color: #52697a;
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .purchase-product-cell {
@@ -2427,7 +3133,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-entry-footer > span {
   color: #718494;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-entry-footer > div {
@@ -2563,13 +3269,13 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-header p {
   margin: 0 0 2px;
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-create-header h3 {
   margin: 0;
   color: #15394a;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 700;
 }
 
@@ -2595,16 +3301,16 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-overview-card small {
   display: block;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   opacity: 0.85;
   margin-bottom: 2px;
 }
 
 .purchase-create-overview-card strong {
   display: block;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2678,14 +3384,14 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-panel-header h4 {
   margin: 0;
   color: #15394a;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
 .purchase-create-panel-header p {
   margin: 2px 0 0;
   color: #7b8d9d;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ---------- 左栏：采购信息表单 ---------- */
@@ -2702,7 +3408,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .purchase-create-field {
   display: grid;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #425a6b;
 }
@@ -2727,7 +3433,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   color: #243f50;
   font: inherit;
   font-weight: 400;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -2735,7 +3441,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   min-height: 70px;
   padding: 8px 10px;
   resize: vertical;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-create-field input:focus,
@@ -2753,8 +3459,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: #f5f7ff;
   border-radius: 8px;
   color: #475569;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .purchase-create-tips p { margin: 0 0 4px; color: #1e3a8a; }
@@ -2795,7 +3501,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: transparent;
   color: #102033;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .purchase-create-search:focus-within {
@@ -2856,14 +3562,14 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #ecfdf5;
   color: #047857;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .purchase-create-item-label {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   letter-spacing: 0.2px;
 }
@@ -2879,7 +3585,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   background: #fff;
   color: #102033;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
@@ -2896,8 +3602,8 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-item-meta {
   color: #64748b;
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .purchase-create-item-meta.is-placeholder {
@@ -2922,8 +3628,8 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 6px;
   background: #fff;
   color: #b91c1c;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
@@ -2957,13 +3663,13 @@ async function handleOrderAttachmentUpload(event: Event) {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
 }
 
 .purchase-create-summary-row strong {
   color: #047857;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -2975,7 +3681,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .purchase-create-summary-row.is-total span { color: #065f46; font-weight: 600; }
-.purchase-create-summary-row.is-total strong { color: #064e3b; font-size: 18px; }
+.purchase-create-summary-row.is-total strong { color: #064e3b; font-size: var(--spd-font-size-2xl); }
 
 /* ---------- 底部 ---------- */
 .purchase-create-footer {
@@ -2990,7 +3696,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .purchase-create-footer > span {
   color: #708396;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .purchase-create-footer > div {
@@ -3061,7 +3767,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 .muted-cell {
   display: block;
   color: #718096;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .form-section {
@@ -3069,7 +3775,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .form-section-title {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #1a3b4d;
   margin: 0 0 10px 0;
@@ -3094,7 +3800,7 @@ async function handleOrderAttachmentUpload(event: Event) {
 }
 
 .product-search-hint {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #8899aa;
 }
 
@@ -3104,7 +3810,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   gap: 8px;
   padding: 0 2px;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: #66788a;
 }
@@ -3159,9 +3865,9 @@ async function handleOrderAttachmentUpload(event: Event) {
 
 .demand-group-items-cell .item-summary {
   display: block;
-  font-size: 14px;
-  font-weight: 600;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-base);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight);
   margin-bottom: 4px;
 }
 
@@ -3171,7 +3877,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   padding: 12px 16px;
   background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
 }
 
@@ -3197,7 +3903,7 @@ async function handleOrderAttachmentUpload(event: Event) {
   border-radius: 999px;
   background: #eef8f6;
   color: #0f766e;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   padding: 0 7px;
   margin-left: 6px;

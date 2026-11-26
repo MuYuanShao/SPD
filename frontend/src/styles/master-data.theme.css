@@ -78,9 +78,12 @@
   --md-shadow-2: 0 4px 12px -2px rgba(13, 93, 74, 0.08), 0 2px 6px -2px rgba(13, 93, 74, 0.04);
   --md-shadow-3: 0 12px 32px -4px rgba(13, 93, 74, 0.16), 0 4px 12px -4px rgba(13, 93, 74, 0.08);
 
-  /* === 字号 === */
-  --md-font: -apple-system, "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --md-font-mono: "SF Mono", "Cascadia Mono", Consolas, monospace;
+  /* === 字体 ===
+     D-17 字体栈收敛：原为独立的 --md-font / --md-font-mono 两套，
+     现统一指向 --spd-font-family / --spd-font-family-mono，
+     全站业务字体栈唯一来源为 spd-theme.css 的 --spd-font-family。 */
+  --md-font: var(--spd-font-family);
+  --md-font-mono: var(--spd-font-family-mono);
 }
 
 /* ===================================================================
@@ -91,8 +94,9 @@
   background: var(--md-bg-page);
   color: var(--md-text);
   font-family: var(--md-font);
-  font-size: 14px;
-  line-height: 1.5;
+  /* 正文基准：--spd-font-size-base */
+  font-size: var(--spd-font-size-base, 14px);
+  line-height: var(--spd-lh-base, 1.5);
   min-height: 100%;
   padding: 0 0 40px;
   display: flex;
@@ -168,8 +172,10 @@
   align-items: center;
   gap: 8px;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 12px;
+  /* 次级说明：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm, 13px);
   font-weight: 500;
+  line-height: var(--spd-lh-base, 1.5);
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
@@ -192,26 +198,30 @@
 .md-header-title {
   margin: 0;
   color: var(--md-text-inverse);
-  font-size: 22px;
+  /* P-01 页面主标题：--spd-font-size-3xl / 600 */
+  font-size: var(--spd-font-size-3xl, 24px);
   font-weight: 600;
   letter-spacing: -0.2px;
   display: flex;
   align-items: center;
   gap: 10px;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .md-header-title small {
-  font-size: 13px;
+  /* P-03 页面副标题：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm, 13px);
   color: rgba(255, 255, 255, 0.66);
   font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-header-sub {
   margin: 0;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
-  line-height: 1.5;
+  /* P-03 页面副标题：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm, 13px);
+  line-height: var(--spd-lh-base, 1.5);
   max-width: 760px;
 }
 
@@ -271,7 +281,7 @@
 .md-panel {
   background: var(--md-bg-card);
   border: 1px solid var(--md-border);
-  border-radius: var(--md-radius-md);
+  border-radius: var(--md-radius-lg);
   box-shadow: var(--md-shadow-1);
   display: flex;
   flex-direction: column;
@@ -294,8 +304,10 @@
   align-items: center;
   gap: 8px;
   color: var(--md-text-heading);
-  font-size: 15px;
+  /* P-04 区块小标题（面板）：--spd-font-size-lg / 600 */
+  font-size: var(--spd-font-size-lg, 16px);
   font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-panel-title::before {
@@ -328,8 +340,10 @@
   background: linear-gradient(135deg, #06b6d4 0%, #6366f1 50%, #8b5cf6 100%);
   color: #ffffff;
   font: inherit;
-  font-size: 13px;
+  /* B-03 md-* 按钮：--spd-font-size-base / 600 */
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   white-space: nowrap;
   box-shadow: 0 2px 6px -2px rgba(99, 102, 241, 0.45);
@@ -440,7 +454,8 @@
   border: 0;
   background: transparent;
   color: #2563eb;
-  font-size: 13px;
+  /* B-05 文字按钮：--spd-font-size-base / 600 */
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
   cursor: pointer;
   display: inline-flex;
@@ -512,14 +527,15 @@
 .md-btn-lg {
   min-height: 38px;
   padding: 0 20px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base, 14px);
   border-radius: 12px;
 }
 
+/* B-06 小号按钮：--spd-font-size-sm（13/15/17px） */
 .md-btn-sm {
   min-height: 26px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm, 13px);
   border-radius: 8px;
 }
 
@@ -553,8 +569,10 @@
   background: transparent;
   color: var(--md-text-secondary);
   font: inherit;
-  font-size: 13px;
+  /* 页签文字：--spd-font-size-base */
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 500;
+  line-height: var(--spd-lh-base, 1.5);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.18s ease;
@@ -582,8 +600,10 @@
   padding: 0 6px;
   background: var(--md-border-soft);
   color: var(--md-text-muted);
-  font-size: 11px;
+  /* S-06 Tab 计数徽标：--spd-font-size-xs / 600 */
+  font-size: var(--spd-font-size-xs, 11px);
   font-weight: 600;
+  line-height: 1;
   border-radius: 999px;
   margin-left: 4px;
 }
@@ -610,10 +630,12 @@
   min-width: 0;
 }
 
+/* F-04 md-* 查询区标签：--spd-font-size-sm / 600 */
 .md-query label > span {
   color: var(--md-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-input,
@@ -627,7 +649,10 @@
   color: var(--md-text);
   padding: 0 10px;
   font: inherit;
-  font-size: 13px;
+  /* F-05 md-* 输入框文字：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   transition: all 0.18s ease;
   box-sizing: border-box;
 }
@@ -637,13 +662,17 @@
   min-height: 80px;
   resize: vertical;
   font-family: inherit;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
+/* F-11 占位符：继承控件字号 */
 .md-input::placeholder,
-.md-textarea::placeholder {
+.md-textarea::placeholder,
+.md-select::placeholder {
   color: var(--md-text-muted);
   opacity: 0.7;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
 }
 
 .md-input:hover,
@@ -693,7 +722,7 @@
 .md-table-card {
   background: var(--md-bg-card);
   border: 1px solid var(--md-border);
-  border-radius: var(--md-radius-md);
+  border-radius: var(--md-radius-lg);
   box-shadow: var(--md-shadow-1);
   overflow: hidden;
   display: flex;
@@ -711,6 +740,8 @@
   flex-wrap: wrap;
   background: var(--md-bg-card);
   min-height: 48px;
+  /* 工具条是卡片首行，顶部两角随卡片圆角 */
+  border-radius: var(--md-radius-lg) var(--md-radius-lg) 0 0;
 }
 
 .md-table-toolbar-main {
@@ -736,8 +767,10 @@
   border: 1px solid rgba(13, 107, 99, 0.24);
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  /* S-05 md-* 通用 chip：--spd-font-size-base / 600 */
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .md-table-wrap {
@@ -763,7 +796,10 @@
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  /* T-08 md-* 表格数据：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   color: var(--md-text);
   min-width: 720px;
 }
@@ -774,8 +810,10 @@
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  /* T-09 md-* 表格表头：--spd-font-size-table-head / 700 */
+  font-size: var(--spd-font-size-table-head, 14px);
+  line-height: var(--spd-lh-tight, 1.35);
   letter-spacing: 0.2px;
   text-align: left;
   white-space: nowrap;
@@ -793,6 +831,10 @@
   border-bottom: 1px solid var(--md-border-soft);
   border-right: 1px solid var(--md-border-soft);
   color: var(--md-text);
+  /* T-08 md-* 表格数据：--spd-font-size-base / 400 / 1.35 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   white-space: nowrap;
   vertical-align: middle;
 }
@@ -867,13 +909,18 @@
 .md-table .row-actions .md-btn-text {
   min-height: 24px;
   padding: 0 6px;
-  font-size: 12px;
+  /* B-08 链接式按钮：--spd-font-size-sm / 600 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 600;
 }
 
+/* T-12 md-* 单元格等宽：--spd-font-size-base / 400 */
 .md-cell-mono {
   font-family: var(--md-font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   color: var(--md-text-secondary);
 }
 
@@ -884,16 +931,22 @@
   max-width: 240px;
 }
 
+/* T-10 md-* 单元格主名：--spd-font-size-base / 700 */
 .md-cell-name strong {
   color: var(--md-text-heading);
-  font-weight: 600;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight, 1.35);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* T-11 md-* 单元格副名：--spd-font-size-sm / 400 */
 .md-cell-name small {
   color: var(--md-text-muted);
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -911,14 +964,16 @@
 }
 
 /* ===== 状态徽章 ===== */
+/* S-04 md-* 状态徽章：--spd-font-size-base / 600 / 1.35 */
 .md-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
   white-space: nowrap;
   border: 1px solid transparent;
   background: var(--md-bg-muted);
@@ -963,13 +1018,15 @@
   border-color: var(--md-border);
 }
 
+/* S-05 md-* 通用 chip：--spd-font-size-base / 600 / 1.35 */
 .md-chip {
   display: inline-flex;
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
   white-space: nowrap;
   background: var(--md-bg-muted);
   color: var(--md-text-secondary);
@@ -1011,7 +1068,10 @@
   gap: 16px;
   padding: 12px 18px;
   background: var(--md-bg-card);
-  font-size: 13px;
+  /* N-05 md-* 分页容器：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   color: var(--md-text-secondary);
   flex-shrink: 0;
 }
@@ -1053,17 +1113,21 @@
   gap: 6px;
 }
 
+/* N-06 md-* 分页按钮：--spd-font-size-sm / 500 / 1 */
 .md-pagination .md-btn {
   min-height: 28px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm, 13px);
   font-weight: 500;
+  line-height: 1;
 }
 
 .md-page-indicator {
   padding: 0 10px;
   color: var(--md-text-heading);
+  font-size: var(--spd-font-size-sm, 13px);
   font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
   font-family: var(--md-font-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -1077,7 +1141,9 @@
   gap: 12px;
   padding: 56px 20px;
   color: var(--md-text-muted);
-  font-size: 14px;
+  /* E-02 空态标题基准：--spd-font-size-base */
+  font-size: var(--spd-font-size-base, 14px);
+  line-height: var(--spd-lh-base, 1.5);
   background: var(--md-bg-muted);
   border: 1px dashed var(--md-border);
   border-radius: var(--md-radius);
@@ -1089,16 +1155,21 @@
   opacity: 0.6;
 }
 
+/* E-02 空态标题：--spd-font-size-base / 600 */
 .md-empty strong {
   color: var(--md-text-secondary);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
+/* E-03 空态说明：--spd-font-size-sm / 400 */
 .md-empty p {
   margin: 0;
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-loading {
@@ -1109,7 +1180,10 @@
   gap: 12px;
   padding: 56px 20px;
   color: var(--md-text-muted);
-  font-size: 14px;
+  /* E-04 加载提示：--spd-font-size-base / 400 / 1.5 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-loading-spinner {
@@ -1132,7 +1206,10 @@
   color: var(--md-danger-text);
   border: 1px solid var(--md-danger-border);
   border-radius: var(--md-radius);
-  font-size: 13px;
+  /* O-14 错误提示条：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1145,7 +1222,10 @@
   color: var(--md-primary-strong);
   border: 1px solid rgba(13, 107, 99, 0.24);
   border-radius: var(--md-radius);
-  font-size: 13px;
+  /* O-13 全局消息提示：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1201,8 +1281,10 @@
   align-items: center;
   gap: 8px;
   color: var(--md-text-heading);
-  font-size: 16px;
+  /* O-03 md-* 弹窗标题：--spd-font-size-2xl / 600 */
+  font-size: var(--spd-font-size-2xl, 20px);
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .md-dialog-header h3::before {
@@ -1214,10 +1296,13 @@
   border-radius: 2px;
 }
 
+/* O-04 弹窗副标题：--spd-font-size-sm / 400 */
 .md-dialog-header p {
   margin: 4px 0 0;
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-dialog-body {
@@ -1253,14 +1338,16 @@
   margin-bottom: 0;
 }
 
+/* P-07 弹窗章节标题：--spd-font-size-sm / 600 */
 .md-form-section h4 {
   margin: 0;
   display: flex;
   align-items: center;
   gap: 6px;
   color: var(--md-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm, 13px);
   font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-form-section h4::before {
@@ -1296,10 +1383,12 @@
   grid-column: 1 / -1;
 }
 
+/* R-01 表单字段标签：--spd-font-size-sm / 600 */
 .md-form-grid label > span {
   color: var(--md-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .md-form-grid label > span .required {
@@ -1307,14 +1396,20 @@
   margin-left: 2px;
 }
 
+/* R-02 字段辅助说明：--spd-font-size-sm / 400 */
 .md-form-grid small {
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
+/* R-08 字数 / 计数提示：--spd-font-size-xs */
 .md-form-hint {
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs, 11px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   margin-top: 2px;
 }
 
@@ -1349,7 +1444,8 @@
   outline: 0;
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
   color: var(--md-text);
   min-height: 0;
   padding: 0;

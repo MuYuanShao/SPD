@@ -13,13 +13,16 @@
    ===================================================================== */
 
 /* ===== Page 容器 ===== */
+/* 页面外边距与其他统一列表页保持一致：左/上/右/下均为 16px，区块间距 16px。
+   之前使用 --spd-page-padding(24px)，导致待审批目录的
+   左边与上边留白比其他页面明显偏大。 */
 .approval-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
-  padding: var(--spd-page-padding, 24px) !important;
+  padding: 16px !important;
   min-height: 100%;
   display: grid !important;
-  gap: 20px;
+  gap: 16px !important;
   box-sizing: border-box;
 }
 
@@ -66,7 +69,7 @@
 .approval-page-title h2 {
   margin: 0 0 6px !important;
   color: #ffffff !important;
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   letter-spacing: -0.2px !important;
   font-family: var(--spd-font-family-display) !important;
@@ -76,8 +79,8 @@
 .approval-page-title p {
   margin: 0 !important;
   color: rgba(255, 255, 255, 0.85) !important;
-  font-size: 13px !important;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-loose);
   position: relative;
 }
 
@@ -138,7 +141,7 @@
 .approval-metric-card span {
   color: var(--spd-text-secondary) !important;
   font-weight: 500 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   text-transform: none;
   letter-spacing: 0;
 }
@@ -147,9 +150,9 @@
   display: block !important;
   margin-top: 4px !important;
   color: var(--spd-text-heading) !important;
-  font-size: 28px !important;
+  font-size: var(--spd-font-size-4xl) !important;
   font-weight: 700 !important;
-  line-height: 1.2;
+  line-height: 1;
   font-family: var(--spd-font-family-display) !important;
 }
 
@@ -157,8 +160,8 @@
   display: block !important;
   margin-top: 4px !important;
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px !important;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-xs) !important;
+  line-height: var(--spd-lh-tight);
 }
 
 .approval-metric-card.alert strong {
@@ -184,8 +187,8 @@
 /* ===== 侧边栏 ===== */
 .approval-sidebar-card,
 .approval-list-card {
-  background: var(--spd-bg-container) !important;
-  border: 1px solid var(--spd-border-subtle) !important;
+  background: var(--ulc-bg-container, var(--spd-bg-container)) !important;
+  border: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   box-shadow: var(--spd-shadow-1) !important;
   color: var(--spd-text-primary) !important;
@@ -221,7 +224,7 @@
 
 .approval-sidebar-title h3 {
   margin: 0 !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
   font-family: var(--spd-font-family-display) !important;
@@ -230,13 +233,14 @@
 .approval-sidebar-title p {
   margin: 4px 0 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-tight);
 }
 
 .approval-sidebar-title .el-icon,
 .approval-sidebar-title > svg {
   color: var(--primary) !important;
+  /* 侧栏标题图标尺寸固定（白名单：图标尺寸） */
   font-size: 20px;
 }
 
@@ -278,7 +282,7 @@
 
 .approval-task-item span {
   font-weight: 600 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: inherit;
 }
 
@@ -290,7 +294,7 @@
   border-radius: 999px;
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   padding: 0 8px;
 }
@@ -303,7 +307,7 @@
 
 .approval-task-item.orange svg,
 .approval-task-item.orange > div > svg {
-  color: #fa8c16;
+  color: var(--ulc-warning, var(--spd-c-warning, #9a6114));
 }
 
 .approval-task-item.blue svg,
@@ -313,7 +317,7 @@
 
 .approval-task-item.green svg,
 .approval-task-item.green > div > svg {
-  color: #52c41a;
+  color: var(--ulc-success, var(--spd-c-success, #2f7d5b));
 }
 
 /* ===== 子列表 ===== */
@@ -336,7 +340,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 6px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
   transition: all 0.18s ease;
   text-align: left;
@@ -357,7 +361,7 @@
 .approval-sub-list em {
   color: var(--spd-text-tertiary) !important;
   font-style: normal;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 
@@ -390,7 +394,7 @@
 .approval-context h3 {
   margin: 0 0 6px !important;
   color: var(--spd-text-heading) !important;
-  font-size: 18px !important;
+  font-size: var(--spd-font-size-xl) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display) !important;
   letter-spacing: -0.2px;
@@ -399,8 +403,8 @@
 .approval-context p {
   margin: 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-base);
 }
 
 .approval-action-row {
@@ -432,7 +436,7 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   transition: all 0.18s ease;
 }
 
@@ -512,14 +516,14 @@
 
 .approval-field-nav-head strong {
   color: var(--spd-text-heading) !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600;
   font-family: var(--spd-font-family-display);
 }
 
 .approval-field-nav-head span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -535,7 +539,7 @@
   background: transparent;
   border: 0;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   padding: 6px 12px;
   border-radius: var(--spd-radius-sm, 4px) 4px 0 0;
@@ -583,7 +587,7 @@
   background: var(--spd-bg-page, #f0f2f5);
   border: 1px solid transparent;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.18s ease;
@@ -603,12 +607,14 @@
   font-weight: 600;
 }
 
-/* ===== 表格容器 ===== */
+/* ===== 表格容器 =====
+   横向/纵向滚动都由 Element Plus 内部的 .el-scrollbar__wrap 负责，
+   外壳若再自己滚动一次，就会出现「两条横向滚动条」。
+   这里只保留相对定位（供列设置浮层定位使用），不再自己滚动。 */
 .approval-wide-table-shell {
   position: relative;
   max-height: 480px;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);
 }
@@ -623,32 +629,51 @@
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
 }
 
+/* 配色统一走 --ulc-* 令牌（与标准列表页一致）：
+   表头 --ulc-primary / 斑马纹 --ulc-row-stripe / 悬停 --ulc-row-hover / 边框 --ulc-border */
 .approval-wide-table thead {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%);
+  background: var(--ulc-primary, var(--primary));
 }
 
 .approval-wide-table th,
 .approval-wide-table td {
   overflow: hidden;
-  border-right: 1px solid var(--spd-border-subtle) !important;
-  border-bottom: 1px solid var(--spd-border-subtle) !important;
-  padding: 12px !important;
+  border-right: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
+  border-bottom: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
+  /* G-1 表格数据单元格行高 --spd-lh-tight；留白随字号档位缩放 */
+  padding: var(--spd-table-cell-padding-y, 10px) 8px !important;
+  line-height: var(--spd-lh-tight, 1.35);
   text-align: left;
-  text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* 表头保持单行（列名不长，超长反而难读） */
+.approval-wide-table th {
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ===== 单元格文字超长换行 =====
+   与标准列表页（科室库房目录）一致：文字超过列宽就换行，
+   而不是被截断成省略号，保证内容完整可读。 */
+.approval-wide-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-wide-table th {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 82%, #ffffff) 0%, var(--primary) 100%) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   font-family: var(--spd-font-family-display) !important;
+  line-height: var(--spd-lh-tight, 1.35);
   letter-spacing: 0;
   border-right-color: rgba(255, 255, 255, 0.22) !important;
   border-bottom: 0 !important;
@@ -658,48 +683,44 @@
 
 .approval-wide-table td {
   color: var(--spd-text-primary) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
+}
+
+/* ===== 列宽刚性锁定（配合 <colgroup> 使用）=====
+   <colgroup> 是 HTML 表格中唯一能逐列精确声明宽度的元素。
+   浏览器据此固定每列宽度，拖动任一列时**不再**把剩余空间
+   重新分配给其它列，从而做到「拖动一列不影响相邻列」。
+
+   这里再给单元格补一层 max-width 约束，防止长内容反向撑开列宽。 */
+.approval-wide-table th,
+.approval-wide-table td {
+  max-width: 100%;
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: #ffffff;
+  background: var(--ulc-bg-container, #ffffff);
 }
 
 .approval-wide-table tbody tr:hover td {
-  background: var(--spd-primary-bg) !important;
+  background: var(--ulc-row-hover, #e8f1f1) !important;
 }
 
 .approval-wide-table tbody tr:has(input:checked) td {
-  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
-  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+  background: var(--spd-c-primary-soft) !important;
+  border-bottom-color: color-mix(in srgb, var(--ulc-primary) 15%, var(--ulc-border));
 }
 
-/* ===== Sticky 列：仅操作列固定，其余列随横向滚动 =====
-   阴影改为一次性伪元素绘制，避免横向滚动时每帧重算 box-shadow */
-.approval-sticky-action {
-  position: sticky;
-  right: 0;
-  z-index: 2;
-  width: 250px;
-  min-width: 250px;
-  background: var(--spd-bg-container) !important;
-}
-
-.approval-sticky-action::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 100%;
-  bottom: 0;
-  width: 10px;
-  pointer-events: none;
-  background: linear-gradient(to right, rgba(15, 23, 42, 0) 0%, rgba(15, 23, 42, 0.06) 100%);
-}
-
-thead .approval-sticky-action {
-  z-index: 3;
-  background: var(--primary) !important;
-  color: #ffffff !important;
+/* ===== 「操作」列：普通列，随表格横向滚动 =====
+   ---------------------------------------------------------------------
+   之前该列使用 `position: sticky; right: 0` 固定在视口右缘，
+   但表头单元格仍停在表格原位 —— 横向滚动后表头与按钮错位、对不上列。
+   现在操作列回归普通列：
+     - 与其它数据列一样随表格横向滚动
+     - 与其它数据列一样提供拖拽热区（.ulc-col-resizer）
+     - 表头与单元格永远同列 */
+.approval-col-action {
+  /* 宽度由 <colgroup> 与内联 style 决定，此处不写死 */
+  text-align: center !important;
 }
 
 /* 非固定列：宽度与对齐 */
@@ -717,11 +738,15 @@ thead .approval-sticky-action {
 }
 
 /* ===== 单元格内容 ===== */
+/* 商品名称与规格：超长换行，不截断 */
 .approval-product-cell strong,
 .approval-product-cell small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
   text-align: center;
 }
 
@@ -733,7 +758,7 @@ thead .approval-sticky-action {
 .approval-product-cell small {
   margin-top: 4px;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-money {
@@ -744,13 +769,18 @@ thead .approval-sticky-action {
 }
 
 .approval-no {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 6px;
   color: var(--primary) !important;
   font-weight: 700;
   font-family: var(--spd-font-family-mono);
+  /* 单号过长时换行，不截断 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .approval-no svg {
@@ -762,8 +792,8 @@ thead .approval-sticky-action {
   max-width: 240px;
   min-width: 160px;
   color: #fa541c !important;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-tight);
   white-space: normal;
   word-break: break-all;
 }
@@ -776,7 +806,7 @@ thead .approval-sticky-action {
   border-radius: var(--spd-radius-sm, 4px);
   padding: 0 8px;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   background: var(--spd-primary-bg);
   color: var(--primary);
@@ -790,27 +820,27 @@ thead .approval-sticky-action {
 }
 
 .approval-type.change {
-  background: #f9f0ff;
-  color: #722ed1;
-  border-color: #d3adf7;
+  background: var(--spd-c-chip-bg-info);
+  color: var(--spd-c-info);
+  border-color: var(--spd-c-info-border);
 }
 
 .approval-type.qualification {
-  background: #f6ffed;
-  color: #52c41a;
-  border-color: #b7eb8f;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
+  border-color: var(--spd-c-success-border);
 }
 
 .approval-type.price {
-  background: #fff7e6;
-  color: #fa8c16;
-  border-color: #ffd591;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
+  border-color: var(--spd-c-warning-border);
 }
 
 .approval-type.deactivate {
-  background: #fff1f0;
-  color: #f5222d;
-  border-color: #ffa39e;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
+  border-color: var(--spd-c-danger-border);
 }
 
 /* ===== 状态 Chip ===== */
@@ -822,13 +852,13 @@ thead .approval-sticky-action {
   border-radius: 999px;
   padding: 0 10px;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
 .approval-status.orange {
-  background: #fff7e6;
-  color: #d46b08;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
 }
 
 .approval-status.blue {
@@ -837,13 +867,13 @@ thead .approval-sticky-action {
 }
 
 .approval-status.red {
-  background: #fff1f0;
-  color: #cf1322;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
 }
 
 .approval-status.green {
-  background: #f6ffed;
-  color: #389e0d;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
 }
 
 /* ===== 风险 Chip ===== */
@@ -853,7 +883,7 @@ thead .approval-sticky-action {
   min-height: 22px;
   border-radius: 999px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -863,9 +893,9 @@ thead .approval-sticky-action {
 }
 
 .approval-risk-chip.orange {
-  background: #fff7e6;
-  color: #d46b08;
-  border: 1px solid #ffd591;
+  background: var(--spd-c-chip-bg-warning);
+  color: var(--spd-c-warning);
+  border: 1px solid var(--spd-c-warning-border);
 }
 
 .approval-risk-chip.blue {
@@ -875,15 +905,15 @@ thead .approval-sticky-action {
 }
 
 .approval-risk-chip.green {
-  background: #f6ffed;
-  color: #389e0d;
-  border: 1px solid #b7eb8f;
+  background: var(--spd-c-chip-bg-success);
+  color: var(--spd-c-success);
+  border: 1px solid var(--spd-c-success-border);
 }
 
 .approval-risk-chip.red {
-  background: #fff1f0;
-  color: #cf1322;
-  border: 1px solid #ffa39e;
+  background: var(--spd-c-chip-bg-danger);
+  color: var(--spd-c-danger);
+  border: 1px solid var(--spd-c-danger-border);
 }
 
 /* ===== 行操作 ===== */
@@ -897,7 +927,7 @@ thead .approval-sticky-action {
 .approval-row-actions .btn {
   min-height: 28px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   border-radius: var(--spd-radius-sm, 4px);
   border: 1px solid var(--spd-border-default);
   background: var(--spd-bg-container);
@@ -938,15 +968,19 @@ thead .approval-sticky-action {
   accent-color: var(--primary);
 }
 
-/* ===== 横向滚动条（自定义） =====
-   与统一列表其他页面一致：表格容器与分页之间不留多余空隙 */
+/* ===== 横向滚动条 =====
+   ---------------------------------------------------------------------
+   表格横向/纵向滚动**只由** Element Plus 内部的 .el-scrollbar__wrap 负责
+   （其原生滚动条被 --hidden-default 隐藏，由 .el-scrollbar__bar 绘制）。
+   外壳若再自己滚动一次，就会出现「两条横向滚动条」；
+   页面若再画一根自定义滚动条轨道，同样会在悬浮时冒出第二根。
+   因此这里只保留相对定位（供列设置浮层定位使用），不再自己滚动。 */
 .approval-wide-table-shell {
   position: relative;
   /* 层级低于工具栏（z-index: 30），避免「列设置」浮层被表格容器裁切/遮挡 */
   z-index: 1;
   max-height: 480px;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);
   margin-bottom: 0 !important;
@@ -961,40 +995,12 @@ thead .approval-sticky-action {
 
 /* 表格容器圆角：配合 overflow auto 生效，滚动条不受影响 */
 .approval-wide-table-shell {
-  border-radius: var(--spd-radius-md, 8px) var(--spd-radius-md, 8px) 0 0;
+  border-radius: 12px 12px 0 0;
 }
 
 .approval-list-card .md-pagination {
-  border-radius: 0 0 var(--spd-radius-md, 8px) var(--spd-radius-md, 8px);
+  border-radius: 0 0 12px 12px;
   overflow: hidden;
-}
-
-.approval-wide-scroll-rail {
-  position: relative;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--spd-bg-page, #f0f2f5);
-  margin: 0 18px !important;
-  cursor: pointer;
-}
-
-.approval-wide-scroll-thumb {
-  position: absolute;
-  inset-block: 1px;
-  left: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.2);
-  cursor: grab;
-  transition: background 0.15s ease;
-}
-
-.approval-wide-scroll-thumb:hover,
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  background: var(--primary);
-}
-
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  cursor: grabbing;
 }
 
 /* ===== 批量操作条 ===== */
@@ -1007,7 +1013,7 @@ thead .approval-sticky-action {
   background: var(--spd-primary-bg) !important;
   border-top: 1px solid color-mix(in srgb, var(--primary) 18%, transparent) !important;
   border-radius: 0 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-primary);
 }
 
@@ -1023,7 +1029,7 @@ thead .approval-sticky-action {
   border-radius: var(--spd-radius-sm, 4px);
   padding: 0 10px;
   min-height: 28px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1054,7 +1060,7 @@ thead .approval-sticky-action {
 
 .approval-empty-state p {
   color: var(--spd-text-tertiary) !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   margin: 0;
 }
 
@@ -1069,7 +1075,7 @@ thead .approval-sticky-action {
   justify-content: space-between;
   padding: 14px 24px !important;
   margin: 0 !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-secondary);
   border-top: 1px solid var(--spd-border-subtle);
   background: var(--spd-bg-container);
@@ -1077,7 +1083,7 @@ thead .approval-sticky-action {
 
 .approval-pagination-info {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-pagination-pages {
@@ -1153,7 +1159,7 @@ thead .approval-sticky-action {
   color: var(--spd-text-primary);
   padding: 0 8px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   cursor: pointer;
   text-align: left;
 }
@@ -1171,7 +1177,7 @@ thead .approval-sticky-action {
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent);
   color: var(--primary);
   border-radius: var(--spd-radius, 6px);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ===== 响应式 ===== */
@@ -1229,7 +1235,7 @@ thead .approval-sticky-action {
   border-radius: 4px !important;
   background: var(--primary) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
   display: inline-flex !important;
   align-items: center !important;
@@ -1296,7 +1302,7 @@ thead .approval-sticky-action {
   background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 0 10px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
   text-align: left;
   box-sizing: border-box;
@@ -1371,7 +1377,7 @@ body .approval-create-dialog.approval-create-dialog,
 .approval-create-head p {
   margin: 0 !important;
   color: var(--primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500;
   letter-spacing: 0;
   text-transform: none;
@@ -1380,7 +1386,7 @@ body .approval-create-dialog.approval-create-dialog,
 .approval-create-head h3 {
   margin: 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   font-weight: 600 !important;
   font-family: var(--spd-font-family-display);
   letter-spacing: -0.2px;
@@ -1441,7 +1447,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 14px 0 8px;
   border-bottom: 1px dashed var(--spd-border-subtle);
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   display: flex;
   align-items: center;
@@ -1470,7 +1476,7 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-create-section .supplier-form-grid label > span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
 }
 
@@ -1484,7 +1490,7 @@ body .approval-create-dialog.approval-create-dialog,
   padding: 0 10px !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   transition: all 0.18s ease;
   box-sizing: border-box;
 }
@@ -1532,7 +1538,7 @@ body .approval-create-dialog.approval-create-dialog,
   border: 1px solid var(--spd-border-default) !important;
   border-radius: var(--spd-radius, 6px) !important;
   padding: 0 10px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: var(--spd-bg-container) !important;
   box-sizing: border-box;
 }
@@ -1558,7 +1564,7 @@ body .approval-create-dialog.approval-create-dialog,
   color: var(--spd-text-primary) !important;
   padding: 8px 10px !important;
   cursor: pointer;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   min-height: 0 !important;
   height: auto !important;
   box-sizing: border-box;
@@ -1573,13 +1579,13 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-source-results button strong {
   color: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .approval-source-results button span {
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-source-selected {
@@ -1589,7 +1595,7 @@ body .approval-create-dialog.approval-create-dialog,
   border: 1px solid color-mix(in srgb, var(--primary) 25%, transparent) !important;
   border-radius: var(--spd-radius, 6px) !important;
   color: var(--primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .approval-attachment-summary {
@@ -1604,13 +1610,13 @@ body .approval-create-dialog.approval-create-dialog,
 
 .approval-attachment-summary strong {
   color: var(--spd-text-heading);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .approval-attachment-summary span {
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-upload-list {
@@ -1627,7 +1633,7 @@ body .approval-create-dialog.approval-create-dialog,
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   padding: 0 10px !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
 }
 
@@ -1653,7 +1659,7 @@ body .approval-create-dialog.approval-create-dialog,
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   cursor: pointer;
   box-sizing: border-box;
 }
@@ -1690,8 +1696,8 @@ body .approval-create-dialog.approval-create-dialog,
   border-radius: var(--spd-radius, 6px) !important;
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px !important;
-  font-weight: 500 !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600 !important;
   display: inline-flex !important;
   align-items: center !important;
   gap: 6px;
@@ -1773,8 +1779,8 @@ body .column-settings-dialog.column-settings-dialog {
 .col-settings-tip {
   margin: 0 0 16px;
   color: var(--spd-text-secondary);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-loose);
 }
 
 .col-settings-grid {
@@ -1794,7 +1800,7 @@ body .column-settings-dialog.column-settings-dialog {
   background: var(--spd-bg-container);
   cursor: pointer;
   transition: all 0.18s ease;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-primary);
   box-sizing: border-box;
 }
@@ -1829,14 +1835,14 @@ body .column-settings-dialog.column-settings-dialog {
   font-family: var(--spd-font-family-mono) !important;
   font-variant-numeric: tabular-nums;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .approval-time {
   font-family: var(--spd-font-family-mono) !important;
   font-variant-numeric: tabular-nums;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   white-space: nowrap !important;
 }
 
@@ -1850,14 +1856,15 @@ body .column-settings-dialog.column-settings-dialog {
    ===================================================================== */
 
 /* ===== 表头：主题色实底（去掉渐变） ===== */
+/* 配色对齐标准列表页：统一走 --ulc-* 令牌，不再写死主题色与渐变 */
 .approval-wide-table thead {
-  background: var(--primary) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
 }
 
 .approval-wide-table th {
-  background: var(--primary) !important;
+  background: var(--ulc-primary, var(--primary)) !important;
   color: #ffffff !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-table-head) !important;
   font-weight: 700 !important;
   border-right-color: rgba(255, 255, 255, 0.22) !important;
   border-bottom: 0 !important;
@@ -1865,10 +1872,11 @@ body .column-settings-dialog.column-settings-dialog {
   white-space: nowrap;
 }
 
-/* 表头内容：文字与列宽拖拽手柄
-   手柄使用普通 inline 元素（非绝对定位），保证鼠标命中区域可靠 */
-.approval-wide-table th:has(> .ulc-col-grip) {
-  padding-right: 18px !important;
+/* 表头内容：文字与列宽拖拽热区
+   热区贴在列的标准右边框上（绝对定位），拖拽时只改变列宽，
+   不新增任何可见线条，表头分割线与下方各行的列分隔线始终完全对齐。 */
+.approval-wide-table th {
+  position: relative;
 }
 
 .approval-wide-table th > .ulc-th-text {
@@ -1879,28 +1887,24 @@ body .column-settings-dialog.column-settings-dialog {
   text-overflow: ellipsis;
 }
 
-.approval-wide-table th > .ulc-col-grip {
-  display: inline-block;
-  vertical-align: middle;
+.approval-wide-table th > .ulc-col-resizer {
+  position: absolute;
+  top: 0;
+  right: -4px;
   width: 8px;
-  height: 18px;
-  margin-left: 6px;
-  border-radius: 3px;
+  height: 100%;
   cursor: col-resize;
-  opacity: 0.6;
-  background: rgba(255, 255, 255, 0.32);
-  transition: opacity 0.15s ease, background 0.15s ease;
+  background: transparent;
+  transition: background 0.15s ease;
 }
 
-.approval-wide-table th > .ulc-col-grip:hover {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.55);
+.approval-wide-table th > .ulc-col-resizer:hover {
+  background: rgba(255, 255, 255, 0.45);
 }
 
 thead .approval-sticky-check,
 thead .approval-sticky-no,
-thead .approval-sticky-product,
-thead .approval-sticky-action {
+thead .approval-sticky-product {
   background: var(--primary) !important;
   color: #ffffff !important;
 }
@@ -1913,7 +1917,7 @@ thead .approval-sticky-action {
 
 .approval-wide-table td {
   color: var(--spd-text-primary) !important;
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* 左侧固定列内部文字仍保持左对齐，避免长文本难读 */
@@ -1922,33 +1926,27 @@ thead .approval-sticky-action {
   text-align: left !important;
 }
 
-/* ===== 斑马纹：奇数行浅色底 ===== */
-.approval-wide-table tbody tr:nth-child(odd) td {
-  background: #f6fafb;
-}
-
+/* ===== 斑马纹 =====
+   与标准列表页（科室库房目录）保持同一套观感与**同一套奇偶方向**：
+   标准页用的是 Element Plus 的 .el-table__row--striped，它落在**偶数行**，
+   所以这里也改成「偶数行浅色、奇数行纯白」，避免两页放在一起时深浅交错。 */
 .approval-wide-table tbody tr:nth-child(even) td {
-  background: #ffffff;
+  background: var(--ulc-row-stripe, #f7fafb);
 }
 
-/* 固定列（仅操作列）同样跟随斑马纹，否则会出现白底断层 */
-.approval-wide-table tbody tr:nth-child(odd) td.approval-sticky-action {
-  background: #f6fafb !important;
+.approval-wide-table tbody tr:nth-child(odd) td {
+  background: var(--ulc-bg-container, #ffffff);
 }
 
-.approval-wide-table tbody tr:nth-child(even) td.approval-sticky-action {
-  background: #ffffff !important;
+/* 操作列已是普通列，斑马纹 / 悬停 / 选中态由通用规则统一覆盖 */
+
+.approval-wide-table tbody tr:hover td {
+  background: var(--ulc-row-hover, #e8f1f1) !important;
 }
 
-.approval-wide-table tbody tr:hover td,
-.approval-wide-table tbody tr:hover td.approval-sticky-action {
-  background: #eaf4f6 !important;
-}
-
-.approval-wide-table tbody tr:has(input:checked) td,
-.approval-wide-table tbody tr:has(input:checked) td.approval-sticky-action {
-  background: color-mix(in srgb, var(--primary) 8%, #ffffff) !important;
-  border-bottom-color: color-mix(in srgb, var(--primary) 15%, var(--spd-border-subtle));
+.approval-wide-table tbody tr:has(input:checked) td {
+  background: var(--spd-c-primary-soft) !important;
+  border-bottom-color: color-mix(in srgb, var(--ulc-primary) 15%, var(--ulc-border));
 }
 
 /* ===== 顶部概览卡片已移除 ===== */
@@ -1985,7 +1983,7 @@ thead .approval-sticky-action {
 
 .approval-filter-row .ulc-filter-fields label > span {
   color: #405564;
-  font-size: 14px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -2018,7 +2016,7 @@ thead .approval-sticky-action {
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   background: transparent;
   color: var(--spd-text-primary);
 }
@@ -2077,12 +2075,12 @@ thead .approval-sticky-action {
 
 .approval-filter-row .ulc-filter-select .el-select__placeholder,
 .approval-filter-row .ulc-filter-select .el-select__selected-item {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
 /* ===== 操作列按钮：4px 圆角 + 实色背景 ===== */
-.approval-sticky-action .ulc-actions {
+.approval-col-action .ulc-actions {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2090,7 +2088,7 @@ thead .approval-sticky-action {
   flex-wrap: nowrap;
 }
 
-.approval-sticky-action .ulc-action {
+.approval-col-action .ulc-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2101,7 +2099,7 @@ thead .approval-sticky-action {
   border-radius: 4px;
   background: var(--primary);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
   white-space: nowrap;
@@ -2110,12 +2108,12 @@ thead .approval-sticky-action {
   transition: background 0.18s, box-shadow 0.18s;
 }
 
-.approval-sticky-action .ulc-action:hover {
+.approval-col-action .ulc-action:hover {
   filter: brightness(0.93);
   box-shadow: 0 2px 6px -2px rgba(16, 40, 40, 0.28);
 }
 
-.approval-sticky-action .ulc-action.is-danger {
+.approval-col-action .ulc-action.is-danger {
   background: #c0392b;
 }
 
@@ -2131,7 +2129,7 @@ thead .approval-sticky-action {
   border-radius: 4px;
   background: var(--primary);
   color: #fff;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   line-height: 1;
   cursor: pointer;

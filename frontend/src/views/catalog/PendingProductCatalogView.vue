@@ -6,13 +6,16 @@ import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, C
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
-import { useApprovalTableScroll } from '../../composables/useApprovalTableScroll'
 import { usePendingProductBatchApproval } from '../../composables/usePendingProductBatchApproval'
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
 import { usePendingProductImportExport } from '../../composables/usePendingProductImportExport'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { formatDateTime } from '../../utils/dateTime'
 import {
   approvalRiskLabels,
@@ -339,22 +342,29 @@ const taskGroups = computed(() => [
   }
 ])
 
-const allVisibleSelected = computed(() => {
-  return rows.value.length > 0 && rows.value.every((row) => selectedNos.value.includes(row.no))
-})
+function onApprovalRowSelect(selection: PendingProductApplicationRow[], row: PendingProductApplicationRow) {
+  const selected = selection.some(item => item.no === row.no)
+  selectedNos.value = selected
+    ? [...new Set([...selectedNos.value, row.no])]
+    : selectedNos.value.filter(no => no !== row.no)
+}
 
-const {
-  approvalTableShellRef,
-  approvalScrollTrackRef,
-  approvalScrollDragging,
-  approvalScrollState,
-  updateApprovalScrollState,
-  handleApprovalScroll,
-  jumpApprovalTableScroll,
-  startApprovalScrollDrag,
-  moveApprovalScrollDrag,
-  endApprovalScrollDrag
-} = useApprovalTableScroll()
+/** 把 `selectedNos` 的状态回灌到表格勾选列 */
+function syncTableSelection() {
+  const table = approvalTableRef.value
+  if (!table) return
+  table.clearSelection()
+  if (selectedNos.value.length) {
+    const visible = rows.value
+    visible.forEach((row) => {
+      if (selectedNos.value.includes(row.no)) table.toggleRowSelection(row, true)
+    })
+  }
+}
+
+watch([selectedNos, rows], () => {
+  nextTick(syncTableSelection)
+}, { flush: 'post' })
 
 const { currentPage, pageSize, changePage, changePageSize, resetPage } =
   usePendingProductCatalogPagination({
@@ -362,11 +372,12 @@ const { currentPage, pageSize, changePage, changePageSize, resetPage } =
     reload: loadApplications
   })
 
-function toggleAllRows() {
+function onApprovalSelectAll(selection: PendingProductApplicationRow[]) {
   const visible = new Set(rows.value.map(row => row.no))
-  selectedNos.value = allVisibleSelected.value
-    ? selectedNos.value.filter(no => !visible.has(no))
-    : [...new Set([...selectedNos.value, ...visible])]
+  selectedNos.value = [
+    ...selectedNos.value.filter(no => !visible.has(no)),
+    ...selection.map(row => row.no)
+  ]
 }
 
 const {
@@ -393,35 +404,43 @@ const {
 // ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
 // 固定列（不允许隐藏）：审批单号、商品名称 / 规格、操作
 const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'type', label: '申请类型', width: 120, visible: true },
-  { key: 'applicant', label: '申请人', width: 110, visible: true },
-  { key: 'time', label: '提交时间', width: 180, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'productCode', label: '商品编码', width: 150, visible: true },
-  { key: 'specModel', label: '规格型号', width: 150, visible: true },
-  { key: 'supplier', label: '供应商', width: 180, visible: true },
-  { key: 'manufacturer', label: '厂家', width: 180, visible: true },
-  { key: 'registrationNo', label: '注册证号', width: 160, visible: true },
-  { key: 'contractCode', label: '合同编码', width: 150, visible: true },
-  { key: 'firstCategory', label: '一级分类', width: 130, visible: true },
-  { key: 'secondCategory', label: '二级分类', width: 130, visible: true },
-  { key: 'thirdCategory', label: '三级分类', width: 130, visible: true },
-  { key: 'volumeBased', label: '是否带量', width: 110, visible: true },
-  { key: 'centralized', label: '是否集采', width: 110, visible: true },
-  { key: 'domestic', label: '是否国产', width: 110, visible: true },
-  { key: 'chargeable', label: '是否收费', width: 110, visible: true },
-  { key: 'keyMonitored', label: '重点监控', width: 120, visible: true },
-  { key: 'purchasePrice', label: '采购价', width: 120, visible: true },
-  { key: 'udiCode', label: 'UDI 编码', width: 180, visible: true },
-  { key: 'risk', label: '风险标签', width: 180, visible: true },
-  { key: 'wait', label: '节点 / 等待', width: 150, visible: true },
-  { key: 'changeSummary', label: '变更记录', width: 200, visible: true }
+  { key: 'no', label: '审批单号', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 220 },
+  { key: 'product', label: '商品名称 / 规格', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'type', label: '申请类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'applicant', label: '申请人', width: 100, visible: true, weight: 3, minWidth: 85, maxWidth: 160 },
+  { key: 'time', label: '提交时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'productCode', label: '商品编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'specModel', label: '规格型号', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'supplier', label: '供应商', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'manufacturer', label: '厂家', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'registrationNo', label: '注册证号', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'contractCode', label: '合同编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'firstCategory', label: '一级分类', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'secondCategory', label: '二级分类', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'thirdCategory', label: '三级分类', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'volumeBased', label: '是否带量', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'centralized', label: '是否集采', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'domestic', label: '是否国产', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'chargeable', label: '是否收费', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'keyMonitored', label: '重点监控', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'purchasePrice', label: '采购价', width: 100, visible: true, weight: 2, minWidth: 85, maxWidth: 140 },
+  { key: 'udiCode', label: 'UDI 编码', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'risk', label: '风险标签', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'wait', label: '节点 / 等待', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 190 },
+  { key: 'changeSummary', label: '变更记录', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const approvalCols = useListColumns({
   storageKey: 'spd-pending-product-approval-cols-v1',
-  defaults: APPROVAL_COL_DEFAULTS
+  defaults: APPROVAL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
 
 const batchLeadingWidths = {
@@ -433,7 +452,9 @@ const batchColumns = [
     ...APPROVAL_COL_DEFAULTS.find(column => column.key === key)!,
     width: batchLeadingWidths[key]
   })),
-  ...APPROVAL_COL_DEFAULTS.filter(column => !Object.hasOwn(batchLeadingWidths, column.key))
+  ...APPROVAL_COL_DEFAULTS.filter(column =>
+    !['no', 'product', 'actions'].includes(column.key) && !Object.hasOwn(batchLeadingWidths, column.key)
+  )
 ]
 const batchActionText = computed(() => ({
   approve: '通过', return: '退回修改', reject: '驳回'
@@ -468,10 +489,24 @@ function batchApprovalCell(row: PendingProductApplicationRow, key: string) {
 }
 
 const isColVisible = (key: string) => approvalCols.isColumnVisible(key)
-const approvalColWidth = (key: string) => approvalCols.columnWidth(key)
-const startApprovalColDrag = (key: string, event: MouseEvent) => approvalCols.startColumnDrag(key, event)
-const visibleDataColumnCount = computed(() => approvalCols.visibleColumnCount.value)
-const approvalTableSpan = computed(() => visibleDataColumnCount.value + 4)
+const approvalColBinding = (key: string) => approvalCols.columnBinding(key)
+
+/** 操作列固定：出现横向滚动条时才固定右侧 */
+const approvalActionFix = useActionColumnFix()
+const approvalActionFixed = computed(() => approvalActionFix.actionFixedBinding.value)
+const approvalTableRef = approvalCols.tableRef
+watch(approvalTableRef, (el) => {
+  if (el) approvalActionFix.observe(el)
+}, { immediate: true })
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const approvalColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const approvalColSettingsPopRef = ref<HTMLElement | null>(null)
+const approvalColSettingsPop = useColSettingsPopover({
+  open: approvalCols.settingsOpen,
+  anchorRef: approvalColSettingsAnchorRef,
+  popRef: approvalColSettingsPopRef
+})
 
 /** 提交时间统一输出 YYYY-MM-DD HH:MM:SS */
 function approvalTimeText(row: PendingProductApplicationRow) {
@@ -531,13 +566,6 @@ function approvalStatusChipClass(tone?: string): string {
   }
   return map[tone ?? ''] ?? 'is-neutral'
 }
-
-/** 表格最小宽度 = 固定列（勾选 48 + 审批单号 170 + 商品 250 + 操作 250）+ 各可见数据列宽之和 */
-const FIXED_COL_WIDTH = 48 + 170 + 250 + 250
-const approvalTableMinWidth = computed(() => {
-  const dynamicWidth = approvalCols.visibleColumns.value.reduce((sum, col) => sum + col.width, 0)
-  return FIXED_COL_WIDTH + dynamicWidth
-})
 
 async function loadApplications() {
   if (!active.value || route.name !== 'pending-product-catalog') { needsReload = true; return }
@@ -603,7 +631,6 @@ function rowEditRoute(row: PendingProductApplicationRow) {
 
 onMounted(() => {
   void loadApplications()
-  requestAnimationFrame(updateApprovalScrollState)
   document.addEventListener('click', handleOutsideClick)
 })
 watch([activeTypeKey, activeScope, activeMineStatus], () => {
@@ -642,14 +669,12 @@ onDeactivated(() => {
   loading.value = false
 })
 onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
-watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
 </script>
 
 <template>
   <section class="approval-page spd-unified-list">
     <MdPageHeader
       title="待审批目录"
-      description="审核商品准入、信息变更、资质更新与价格调整申请。"
       :loading="loading"
       @refresh="loadApplications"
     />
@@ -756,195 +781,422 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           </div>
         </form>
 
-        <!-- 工具栏按钮：与统一列表其他页面保持一致 -->
-        <div class="approval-action-row md-table-toolbar">
-          <div class="md-table-toolbar-main">
-            <template v-if="activeScope === 'todo'">
-              <button type="button" class="md-btn md-btn-primary" @click="openCreateModal">
-                <Plus :size="16" />
-                新增
+        <MdDataTableCard>
+          <template #toolbar>
+            <div class="md-table-toolbar-main">
+              <template v-if="activeScope === 'todo'">
+                <button type="button" class="md-btn md-btn-primary" @click="openCreateModal">
+                  <Plus :size="16" />
+                  新增
+                </button>
+                <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
+                  <summary class="md-btn md-btn-primary" tabindex="0">
+                    <FileUp :size="16" />
+                    <span>导入</span>
+                    <ChevronDown :size="14" />
+                  </summary>
+                  <div>
+                    <button class="btn-text" type="button" @click="downloadTemplate">
+                      <FileDown :size="15" />
+                      模板导出
+                    </button>
+                    <button class="btn-text" type="button" @click="importInput?.click()">
+                      <FileUp :size="15" />
+                      按模板导入
+                    </button>
+                  </div>
+                </details>
+                <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
+              </template>
+              <button type="button" class="md-btn md-btn-primary" @click="exportRows">
+                <Download :size="16" />
+                <span>导出</span>
               </button>
-              <details class="import-menu" ref="importMenuRef" @toggle="handleImportMenuToggle">
-                <summary class="md-btn md-btn-primary" tabindex="0">
-                  <FileUp :size="16" />
-                  <span>导入</span>
-                  <ChevronDown :size="14" />
-                </summary>
-                <div>
-                  <button class="btn-text" type="button" @click="downloadTemplate">
-                    <FileDown :size="15" />
-                    模板导出
-                  </button>
-                  <button class="btn-text" type="button" @click="importInput?.click()">
-                    <FileUp :size="15" />
-                    按模板导入
-                  </button>
+              <div class="ulc-col-settings">
+                <button
+                  ref="approvalColSettingsAnchorRef"
+                  type="button"
+                  class="md-btn md-btn-primary"
+                  @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value"
+                >
+                  <Columns3 :size="16" />
+                  <span>列设置</span>
+                  <ChevronDown :size="14" :class="{ rotated: approvalCols.settingsOpen.value }" />
+                </button>
+                <div
+                  v-if="approvalCols.settingsOpen.value"
+                  ref="approvalColSettingsPopRef"
+                  class="ulc-col-settings-pop"
+                  :class="{ 'is-align-right': approvalColSettingsPop.align.value === 'right', 'is-align-up': approvalColSettingsPop.vertical.value === 'up' }"
+                  :style="{ '--ulc-pop-offset-y': approvalColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': approvalColSettingsPop.maxHeight.value + 'px' }"
+                >
+                  <header>
+                    <strong>列展示设置</strong>
+                    <button type="button" class="ulc-link" @click="approvalCols.resetColumns()">恢复默认</button>
+                  </header>
+                  <div class="ulc-col-settings-list">
+                    <label v-for="col in approvalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                      <input
+                        type="checkbox"
+                        :checked="col.visible"
+                        :disabled="col.visible && approvalCols.visibleColumnCount.value <= 1"
+                        @change="approvalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ col.label }}</span>
+                      <small>{{ col.width }}px</small>
+                    </label>
+                  </div>
+                  <footer>
+                    <button type="button" class="ulc-action" @click="approvalCols.settingsOpen.value = false">确定</button>
+                  </footer>
                 </div>
-              </details>
-              <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
-            </template>
-            <button type="button" class="md-btn md-btn-primary" @click="exportRows">
-              <Download :size="16" />
-              <span>导出</span>
-            </button>
-            <div class="ulc-col-settings">
-              <button type="button" class="md-btn md-btn-primary" @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value">
-                <Columns3 :size="16" />
-                <span>列设置</span>
-                <ChevronDown :size="14" :class="{ rotated: approvalCols.settingsOpen.value }" />
-              </button>
-              <div v-if="approvalCols.settingsOpen.value" class="ulc-col-settings-pop">
-                <header>
-                  <strong>列展示设置</strong>
-                  <button type="button" class="ulc-link" @click="approvalCols.resetColumns()">恢复默认</button>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in approvalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && approvalCols.visibleColumnCount.value <= 1"
-                      @change="approvalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <button type="button" class="ulc-action" @click="approvalCols.settingsOpen.value = false">确定</button>
-                </footer>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div ref="approvalTableShellRef" class="approval-wide-table-shell" @scroll="handleApprovalScroll">
-          <table class="approval-wide-table" :style="{ minWidth: approvalTableMinWidth + 'px' }">
-            <thead>
-              <tr>
-                <th class="approval-col-check">
-                  <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllRows" />
-                </th>
-                <th class="approval-col-no">审批单号</th>
-                <th class="approval-col-product">商品名称 / 规格</th>
-                <th v-if="isColVisible('type')" :style="{ width: approvalColWidth('type') + 'px' }">
-                  <span class="ulc-th-text">申请类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('type', $event)" />
-                </th>
-                <th v-if="isColVisible('applicant')" :style="{ width: approvalColWidth('applicant') + 'px' }">
-                  <span class="ulc-th-text">申请人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('applicant', $event)" />
-                </th>
-                <th v-if="isColVisible('time')" :style="{ width: approvalColWidth('time') + 'px' }">
-                  <span class="ulc-th-text">提交时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('time', $event)" />
-                </th>
-                <th v-if="isColVisible('createTime')" :style="{ width: approvalColWidth('createTime') + 'px' }">
-                  <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('createTime', $event)" />
-                </th>
-                <th v-if="isColVisible('updateTime')" :style="{ width: approvalColWidth('updateTime') + 'px' }">
-                  <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('updateTime', $event)" />
-                </th>
-                <th v-if="isColVisible('productCode')" :style="{ width: approvalColWidth('productCode') + 'px' }">
-                  <span class="ulc-th-text">商品编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('productCode', $event)" />
-                </th>
-                <th v-if="isColVisible('specModel')" :style="{ width: approvalColWidth('specModel') + 'px' }">
-                  <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('specModel', $event)" />
-                </th>
-                <th v-if="isColVisible('supplier')" :style="{ width: approvalColWidth('supplier') + 'px' }">
-                  <span class="ulc-th-text">供应商</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('supplier', $event)" />
-                </th>
-                <th v-if="isColVisible('manufacturer')" :style="{ width: approvalColWidth('manufacturer') + 'px' }">
-                  <span class="ulc-th-text">厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('manufacturer', $event)" />
-                </th>
-                <th v-if="isColVisible('registrationNo')" :style="{ width: approvalColWidth('registrationNo') + 'px' }">
-                  <span class="ulc-th-text">注册证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('registrationNo', $event)" />
-                </th>
-                <th v-if="isColVisible('contractCode')" :style="{ width: approvalColWidth('contractCode') + 'px' }">
-                  <span class="ulc-th-text">合同编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('contractCode', $event)" />
-                </th>
-                <th v-if="isColVisible('firstCategory')" :style="{ width: approvalColWidth('firstCategory') + 'px' }">
-                  <span class="ulc-th-text">一级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('firstCategory', $event)" />
-                </th>
-                <th v-if="isColVisible('secondCategory')" :style="{ width: approvalColWidth('secondCategory') + 'px' }">
-                  <span class="ulc-th-text">二级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('secondCategory', $event)" />
-                </th>
-                <th v-if="isColVisible('thirdCategory')" :style="{ width: approvalColWidth('thirdCategory') + 'px' }">
-                  <span class="ulc-th-text">三级分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('thirdCategory', $event)" />
-                </th>
-                <th v-if="isColVisible('volumeBased')" :style="{ width: approvalColWidth('volumeBased') + 'px' }">
-                  <span class="ulc-th-text">是否带量</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('volumeBased', $event)" />
-                </th>
-                <th v-if="isColVisible('centralized')" :style="{ width: approvalColWidth('centralized') + 'px' }">
-                  <span class="ulc-th-text">是否集采</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('centralized', $event)" />
-                </th>
-                <th v-if="isColVisible('domestic')" :style="{ width: approvalColWidth('domestic') + 'px' }">
-                  <span class="ulc-th-text">是否国产</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('domestic', $event)" />
-                </th>
-                <th v-if="isColVisible('chargeable')" :style="{ width: approvalColWidth('chargeable') + 'px' }">
-                  <span class="ulc-th-text">是否收费</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('chargeable', $event)" />
-                </th>
-                <th v-if="isColVisible('keyMonitored')" :style="{ width: approvalColWidth('keyMonitored') + 'px' }">
-                  <span class="ulc-th-text">重点监控</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('keyMonitored', $event)" />
-                </th>
-                <th v-if="isColVisible('purchasePrice')" :style="{ width: approvalColWidth('purchasePrice') + 'px' }">
-                  <span class="ulc-th-text">采购价</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('purchasePrice', $event)" />
-                </th>
-                <th v-if="isColVisible('udiCode')" :style="{ width: approvalColWidth('udiCode') + 'px' }">
-                  <span class="ulc-th-text">UDI 编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('udiCode', $event)" />
-                </th>
-                <th v-if="isColVisible('risk')" :style="{ width: approvalColWidth('risk') + 'px' }">
-                  <span class="ulc-th-text">风险标签</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('risk', $event)" />
-                </th>
-                <th v-if="isColVisible('wait')" :style="{ width: approvalColWidth('wait') + 'px' }">
-                  <span class="ulc-th-text">节点 / 等待</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('wait', $event)" />
-                </th>
-                <th v-if="isColVisible('changeSummary')" :style="{ width: approvalColWidth('changeSummary') + 'px' }">
-                  <span class="ulc-th-text">变更记录</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startApprovalColDrag('changeSummary', $event)" />
-                </th>
-                <th class="approval-sticky-action">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading">
-                <td :colspan="approvalTableSpan"><StatusMessage message="正在加载待审批任务..." tone="info" /></td>
-              </tr>
-              <tr v-else-if="error">
-                <td :colspan="approvalTableSpan"><StatusMessage :message="error" tone="error" /></td>
-              </tr>
-              <tr v-for="row in rows" v-else :key="row.no">
-                <td class="approval-col-check">
-                  <input v-model="selectedNos" type="checkbox" :value="row.no" />
-                </td>
-                <td class="approval-col-no">
-                  <div class="approval-no">
-                    <AlertTriangle v-if="row.warning" :size="15" />
-                    <span>{{ row.no }}</span>
-                  </div>
-                </td>
-                <td class="approval-col-product approval-product-cell">
-                  <strong :title="row.product">{{ row.product }}</strong>
-                  <small :title="row.specModel || row.supplier">{{ row.specModel || '-' }} · {{ row.supplier }}</small>
-                </td>
-                <td v-if="isColVisible('type')"><span class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span></td>
-                <td v-if="isColVisible('applicant')"><span class="ulc-strong">{{ approvalWideField(row, 'applicant') }}</span></td>
-                <td v-if="isColVisible('time')" class="approval-time"><span class="ulc-time">{{ approvalTimeText(row) }}</span></td>
-                <td v-if="isColVisible('createTime')" class="approval-time"><span class="ulc-time">{{ formatDateTime(row.createTime) }}</span></td>
-                <td v-if="isColVisible('updateTime')" class="approval-time"><span class="ulc-time">{{ formatDateTime(row.updateTime) }}</span></td>
-                <td v-if="isColVisible('productCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'productCode') }}</span></td>
-                <td v-if="isColVisible('specModel')"><span class="ulc-strong">{{ approvalWideField(row, 'specModel') }}</span></td>
-                <td v-if="isColVisible('supplier')"><span class="ulc-strong">{{ approvalWideField(row, 'supplier') }}</span></td>
-                <td v-if="isColVisible('manufacturer')"><span class="ulc-strong">{{ approvalWideField(row, 'manufacturer') }}</span></td>
-                <td v-if="isColVisible('registrationNo')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'registrationNo') }}</span></td>
-                <td v-if="isColVisible('contractCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'contractCode') }}</span></td>
-                <td v-if="isColVisible('firstCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'firstCategory') }}</span></td>
-                <td v-if="isColVisible('secondCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'secondCategory') }}</span></td>
-                <td v-if="isColVisible('thirdCategory')"><span class="ulc-strong">{{ approvalWideField(row, 'thirdCategory') }}</span></td>
-                <td v-if="isColVisible('volumeBased')"><span class="ulc-tag">{{ approvalWideField(row, 'volumeBased') }}</span></td>
-                <td v-if="isColVisible('centralized')"><span class="ulc-tag">{{ approvalWideField(row, 'centralized') }}</span></td>
-                <td v-if="isColVisible('domestic')"><span class="ulc-tag">{{ approvalWideField(row, 'domestic') }}</span></td>
-                <td v-if="isColVisible('chargeable')"><span class="ulc-tag">{{ approvalWideField(row, 'chargeable') }}</span></td>
-                <td v-if="isColVisible('keyMonitored')"><span class="ulc-tag">{{ approvalWideField(row, 'keyMonitored') }}</span></td>
-                <td v-if="isColVisible('purchasePrice')" class="approval-money"><span class="ulc-strong">{{ approvalWideField(row, 'purchasePrice') }}</span></td>
-                <td v-if="isColVisible('udiCode')" class="approval-mono"><span class="ulc-mono">{{ approvalWideField(row, 'udiCode') }}</span></td>
-                <td v-if="isColVisible('risk')">
+          </template>
+          <template #meta-extra>
+            <span class="md-chip primary">共 {{ totalItems.toLocaleString('zh-CN') }} 条</span>
+          </template>
+          <div class="approval-wide-table-shell">
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="approvalTableRef"
+                v-loading="loading"
+                class="ulc-table is-sticky"
+                :data="rows"
+                row-key="no"
+                border
+                stripe
+                max-height="560"
+                style="width: 100%"
+                empty-text="当前分类暂无待审批任务"
+                @select="onApprovalRowSelect"
+                @select-all="onApprovalSelectAll"
+                @header-dragend="(width: number, oldWidth: number, column: any) => approvalCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+            <el-table-column
+              column-key="selection"
+              type="selection"
+              width="48"
+              align="center"
+              :reserve-selection="false"
+            />
+            <el-table-column
+              column-key="no"
+              v-if="isColVisible('no')"
+              label="审批单号"
+              v-bind="approvalColBinding('no')"
+            >
+              <template #header>
+                <span class="ulc-th-text">审批单号</span>
+              </template>
+              <template #default="{ row }">
+                <div class="approval-no">
+                  <AlertTriangle v-if="row.warning" :size="15" />
+                  <span class="ulc-wrap-text">{{ row.no }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isColVisible('product')"
+              label="商品名称 / 规格"
+              v-bind="approvalColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品名称 / 规格</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong ulc-wrap-text" :title="row.product">{{ row.product }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub" :title="row.specModel || row.supplier">{{ row.specModel || '-' }} · {{ row.supplier }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="type"
+              v-if="isColVisible('type')"
+              label="申请类型"
+              v-bind="approvalColBinding('type')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申请类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-chip" :class="approvalTypeChipClass(row.type)">{{ row.type }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="applicant"
+              v-if="isColVisible('applicant')"
+              label="申请人"
+              v-bind="approvalColBinding('applicant')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申请人</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'applicant') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="time"
+              v-if="isColVisible('time')"
+              label="提交时间"
+              v-bind="approvalColBinding('time')"
+            >
+              <template #header>
+                <span class="ulc-th-text">提交时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ approvalTimeText(row) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isColVisible('createTime')"
+              label="创建时间"
+              v-bind="approvalColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isColVisible('updateTime')"
+              label="修改时间"
+              v-bind="approvalColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-time">{{ formatDateTime(row.updateTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="productCode"
+              v-if="isColVisible('productCode')"
+              label="商品编码"
+              v-bind="approvalColBinding('productCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品编码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text">{{ approvalWideField(row, 'productCode') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="specModel"
+              v-if="isColVisible('specModel')"
+              label="规格型号"
+              v-bind="approvalColBinding('specModel')"
+            >
+              <template #header>
+                <span class="ulc-th-text">规格型号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'specModel') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplier"
+              v-if="isColVisible('supplier')"
+              label="供应商"
+              v-bind="approvalColBinding('supplier')"
+            >
+              <template #header>
+                <span class="ulc-th-text">供应商</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'supplier') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="manufacturer"
+              v-if="isColVisible('manufacturer')"
+              label="厂家"
+              v-bind="approvalColBinding('manufacturer')"
+            >
+              <template #header>
+                <span class="ulc-th-text">厂家</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'manufacturer') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="registrationNo"
+              v-if="isColVisible('registrationNo')"
+              label="注册证号"
+              v-bind="approvalColBinding('registrationNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">注册证号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text">{{ approvalWideField(row, 'registrationNo') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="contractCode"
+              v-if="isColVisible('contractCode')"
+              label="合同编码"
+              v-bind="approvalColBinding('contractCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">合同编码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text">{{ approvalWideField(row, 'contractCode') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="firstCategory"
+              v-if="isColVisible('firstCategory')"
+              label="一级分类"
+              v-bind="approvalColBinding('firstCategory')"
+            >
+              <template #header>
+                <span class="ulc-th-text">一级分类</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'firstCategory') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="secondCategory"
+              v-if="isColVisible('secondCategory')"
+              label="二级分类"
+              v-bind="approvalColBinding('secondCategory')"
+            >
+              <template #header>
+                <span class="ulc-th-text">二级分类</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'secondCategory') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="thirdCategory"
+              v-if="isColVisible('thirdCategory')"
+              label="三级分类"
+              v-bind="approvalColBinding('thirdCategory')"
+            >
+              <template #header>
+                <span class="ulc-th-text">三级分类</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'thirdCategory') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="volumeBased"
+              v-if="isColVisible('volumeBased')"
+              label="是否带量"
+              v-bind="approvalColBinding('volumeBased')"
+            >
+              <template #header>
+                <span class="ulc-th-text">是否带量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-tag">{{ approvalWideField(row, 'volumeBased') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="centralized"
+              v-if="isColVisible('centralized')"
+              label="是否集采"
+              v-bind="approvalColBinding('centralized')"
+            >
+              <template #header>
+                <span class="ulc-th-text">是否集采</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-tag">{{ approvalWideField(row, 'centralized') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="domestic"
+              v-if="isColVisible('domestic')"
+              label="是否国产"
+              v-bind="approvalColBinding('domestic')"
+            >
+              <template #header>
+                <span class="ulc-th-text">是否国产</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-tag">{{ approvalWideField(row, 'domestic') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="chargeable"
+              v-if="isColVisible('chargeable')"
+              label="是否收费"
+              v-bind="approvalColBinding('chargeable')"
+            >
+              <template #header>
+                <span class="ulc-th-text">是否收费</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-tag">{{ approvalWideField(row, 'chargeable') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="keyMonitored"
+              v-if="isColVisible('keyMonitored')"
+              label="重点监控"
+              v-bind="approvalColBinding('keyMonitored')"
+            >
+              <template #header>
+                <span class="ulc-th-text">重点监控</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-tag">{{ approvalWideField(row, 'keyMonitored') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="purchasePrice"
+              v-if="isColVisible('purchasePrice')"
+              label="采购价"
+              v-bind="approvalColBinding('purchasePrice')"
+            >
+              <template #header>
+                <span class="ulc-th-text">采购价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'purchasePrice') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="udiCode"
+              v-if="isColVisible('udiCode')"
+              label="UDI 编码"
+              v-bind="approvalColBinding('udiCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">UDI 编码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text">{{ approvalWideField(row, 'udiCode') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="risk"
+              v-if="isColVisible('risk')"
+              label="风险标签"
+              v-bind="approvalColBinding('risk')"
+            >
+              <template #header>
+                <span class="ulc-th-text">风险标签</span>
+              </template>
+              <template #default="{ row }">
+                <!-- 多值标签：整体作为一个块，超宽时整体换行，不逐个标签单独折行 -->
+                <span class="ulc-inline-tags">
                   <span
                     v-for="label in approvalRiskLabels(row)"
                     :key="label"
@@ -953,79 +1205,84 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
                   >
                     {{ label }}
                   </span>
-                </td>
-                <td v-if="isColVisible('wait')">
-                  <span class="ulc-chip" :class="approvalStatusChipClass(row.statusTone)">
-                    <Clock3 v-if="row.statusTone === 'orange'" :size="12" />
-                    <Send v-else-if="row.statusTone === 'blue'" :size="12" />
-                    <XCircle v-else :size="12" />
-                    {{ approvalWideField(row, 'wait') }}
-                  </span>
-                </td>
-                <td v-if="isColVisible('changeSummary')" class="approval-change-summary"><span class="ulc-strong">{{ row.changeSummary || '-' }}</span></td>
-                <td class="approval-sticky-action">
-                  <div class="ulc-actions">
-                    <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="wait"
+              v-if="isColVisible('wait')"
+              label="节点 / 等待"
+              v-bind="approvalColBinding('wait')"
+            >
+              <template #header>
+                <span class="ulc-th-text">节点 / 等待</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-chip" :class="approvalStatusChipClass(row.statusTone)">
+                  <Clock3 v-if="row.statusTone === 'orange'" :size="12" />
+                  <Send v-else-if="row.statusTone === 'blue'" :size="12" />
+                  <XCircle v-else :size="12" />
+                  {{ approvalWideField(row, 'wait') }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="changeSummary"
+              v-if="isColVisible('changeSummary')"
+              label="变更记录"
+              v-bind="approvalColBinding('changeSummary')"
+            >
+              <template #header>
+                <span class="ulc-th-text">变更记录</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ row.changeSummary || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isColVisible('actions')"
+              label="操作"
+              v-bind="approvalColBinding('actions')"
+              :fixed="approvalActionFixed"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
+                  <RouterLink
+                    v-if="activeScope !== 'todo' && !isReturnedMineDirectory"
+                    class="ulc-action"
+                    :to="rowDetailRoute(row)"
+                  >
+                    查看
+                  </RouterLink>
+                  <template v-else>
                     <RouterLink
-                      v-if="activeScope !== 'todo' && !isReturnedMineDirectory"
                       class="ulc-action"
                       :to="rowDetailRoute(row)"
                     >
                       查看
                     </RouterLink>
-                    <template v-else>
-                      <RouterLink
-                        class="ulc-action"
-                        :to="rowDetailRoute(row)"
-                      >
-                        查看
-                      </RouterLink>
-                      <RouterLink
-                        class="ulc-action"
-                        :to="rowEditRoute(row)"
-                      >
-                        {{ rowPrimaryActionLabel() }}
-                      </RouterLink>
-                    </template>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="!loading && !error && rows.length === 0">
-                <td :colspan="approvalTableSpan">
-                  <div class="approval-empty-state">
-                    <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                    </svg>
-                    <EmptyState message="当前分类暂无待审批任务" />
-                    <button v-if="activeScope === 'todo'" class="btn btn-primary" type="button" @click="openCreateModal">
-                      <Plus :size="17" /> 去新增
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div
-          ref="approvalScrollTrackRef"
-          class="approval-wide-scroll-rail"
-          :class="{ dragging: approvalScrollDragging }"
-          role="scrollbar"
-          aria-orientation="horizontal"
-          :aria-valuenow="Math.round(approvalScrollState.scrollLeft)"
-          :aria-valuemax="Math.max(0, approvalScrollState.scrollWidth - approvalScrollState.clientWidth)"
-          tabindex="0"
-          @pointerdown="jumpApprovalTableScroll"
-        >
-          <span
-            class="approval-wide-scroll-thumb"
-            @pointerdown.stop="startApprovalScrollDrag"
-            @pointermove="moveApprovalScrollDrag"
-            @pointerup="endApprovalScrollDrag"
-            @pointercancel="endApprovalScrollDrag"
-          ></span>
-        </div>
+                    <RouterLink
+                      class="ulc-action"
+                      :to="rowEditRoute(row)"
+                    >
+                      {{ rowPrimaryActionLabel() }}
+                    </RouterLink>
+                  </template>
+                </div>
+              </template>
+            </el-table-column>
+                <template #empty>
+                  <StatusMessage v-if="error" :message="error" tone="error" />
+                  <MdEmptyState v-else text="当前分类暂无待审批任务" hint="调整左侧审批队列或筛选条件" />
+                </template>
+              </el-table>
+            </div>
+          </div>
 
         <div v-if="selectedNos.length" class="approval-batch-bar">
           <span>已选择 {{ selectedNos.length }} 条</span>
@@ -1043,15 +1300,18 @@ watch(rows, () => requestAnimationFrame(updateApprovalScrollState))
           </button>
         </div>
 
-        <MdPagination
-          :page="currentPage"
-          :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
-          :total="totalItems"
-          :size="pageSize"
-          :loading="loading"
-          @update:page="changePage"
-          @update:size="changePageSize"
-        />
+          <template #pagination>
+            <MdPagination
+              :page="currentPage"
+              :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
+              :total="totalItems"
+              :size="pageSize"
+              :loading="loading"
+              @update:page="changePage"
+              @update:size="changePageSize"
+            />
+          </template>
+        </MdDataTableCard>
       </main>
     </div>
 

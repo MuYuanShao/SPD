@@ -9,7 +9,7 @@
   flex-direction: row;
   height: 100vh;
   overflow: hidden;
-  background: var(--spd-bg-page);
+  background: var(--spd-bg-page-gradient);
 }
 
 /* 右侧主区域：顶部导航栏 + 页面主体，纵向排列 */
@@ -35,6 +35,38 @@
   flex-shrink: 0;
 }
 
+/* 顶栏品牌区（原左侧导航品牌下沉而来） */
+.spd-topnav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+  margin-right: 24px;
+}
+
+.spd-topnav-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+  color: #ffffff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+
+.spd-topnav-brand-text {
+  /* G-01 顶栏品牌文字：--spd-font-size-lg / 800 */
+  font-size: var(--spd-font-size-lg);
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--spd-text-primary);
+  white-space: nowrap;
+}
+
 .spd-topnav-logo {
   display: flex;
   align-items: center;
@@ -52,6 +84,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 图标尺寸固定 20px，不参与字号档位（白名单：图标尺寸） */
   font-size: 20px;
   color: white;
   box-shadow: 0 2px 8px var(--spd-primary-glow);
@@ -59,7 +92,8 @@
 }
 
 .spd-logo-name {
-  font-size: 15px;
+  /* G-01 同族品牌文字：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-primary);
   letter-spacing: -0.3px;
@@ -89,7 +123,8 @@
   gap: 6px;
   padding: 0 16px;
   height: 100%;
-  font-size: 14px;
+  /* G-02 顶栏主菜单项：--spd-font-size-base / 500 */
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   color: var(--spd-text-secondary);
   transition: color 0.2s;
@@ -99,6 +134,7 @@
 }
 
 .spd-menu-label .el-icon {
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 15px;
   flex-shrink: 0;
 }
@@ -108,8 +144,20 @@
   color: var(--spd-primary);
 }
 
+/* 悬浮即展开：整列加浅色底，保证与下拉面板连成一体 */
+.spd-menu-item--hover:hover {
+  background: var(--spd-primary-bg);
+}
+
+.spd-menu-item--hover:hover .spd-menu-label,
+.spd-menu-item--hover.active .spd-menu-label {
+  color: var(--spd-primary);
+}
+
 .spd-menu-caret {
-  font-size: 11px !important;
+  /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸）
+     D-18：改为令牌，取消裸 px 11px */
+  font-size: var(--spd-font-size-xs) !important;
   color: var(--spd-text-tertiary);
   margin-left: 2px;
   transition: transform 0.2s ease;
@@ -135,15 +183,15 @@
 /* ============== 下拉子菜单 ============== */
 .spd-menu-dropdown {
   position: absolute;
-  top: calc(100% + 8px);
+  top: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
   min-width: 200px;
   background: var(--spd-bg-surface);
   border: 1px solid var(--spd-border-default);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10), 0 2px 8px rgba(15, 23, 42, 0.06);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12), 0 2px 8px rgba(15, 23, 42, 0.06);
   padding: 6px;
 }
 
@@ -160,7 +208,8 @@
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  font-size: 12px;
+  /* G-03 顶栏下拉分组标题：--spd-font-size-xs / 700 */
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
   color: var(--spd-text-secondary);
   cursor: pointer;
@@ -174,6 +223,7 @@
 }
 
 .spd-dropdown-group-title .el-icon {
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 12px;
   transition: transform 0.2s;
   color: var(--spd-text-placeholder);
@@ -192,7 +242,8 @@
   border-radius: 6px;
   text-decoration: none;
   color: var(--spd-text-secondary);
-  font-size: 13.5px;
+  /* G-04 顶栏下拉叶子链接：--spd-font-size-sm / 500 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   transition: all 0.15s;
   white-space: nowrap;
@@ -218,6 +269,7 @@
   border-radius: 6px;
   background: var(--spd-bg-hover);
   flex-shrink: 0;
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 14px;
   transition: all 0.15s;
 }
@@ -236,7 +288,8 @@
 }
 
 .spd-dropdown-link-name {
-  font-size: 13.5px;
+  /* G-04 顶栏下拉叶子链接文字：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 /* 下拉动画 */
@@ -273,6 +326,7 @@
   justify-content: center;
   color: var(--spd-text-secondary);
   transition: all 0.15s;
+  /* G-05 顶栏图标按钮：图标 16px 固定（白名单：图标尺寸） */
   font-size: 16px;
 }
 
@@ -315,19 +369,23 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  /* G-07 顶栏用户头像文字：--spd-font-size-sm / 700，单行控件行高 1 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
+  line-height: 1;
   flex-shrink: 0;
 }
 
 .spd-user-name {
-  font-size: 13px;
+  /* G-06 顶栏用户姓名：--spd-font-size-sm / 600 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: var(--spd-text-primary);
   white-space: nowrap;
 }
 
 .spd-user-caret {
+  /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸） */
   font-size: 12px;
   color: var(--spd-text-tertiary);
 }
@@ -354,28 +412,34 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  /* 用户资料区头像文字：--spd-font-size-sm / 700 */
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
+  line-height: 1;
   flex-shrink: 0;
 }
 
 .spd-user-profile-name {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--spd-text-primary);
 }
 
 .spd-user-profile-dept {
-  font-size: 11px;
+  /* 部门副信息属辅助说明：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-text-tertiary);
   margin-top: 2px;
 }
 
-:deep(.el-dropdown-menu__item) {
+/* G-08 用户下拉菜单项：--spd-font-size-sm / 400
+   注：spd-layout.css 是全局样式表（非 scoped），此处不能用 :deep()，
+   否则整条规则不生效。 */
+.el-dropdown-menu__item {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   padding: 9px 16px;
 }
 
@@ -403,8 +467,10 @@
   align-items: center;
   gap: 6px;
   padding: 10px 10px 8px;
-  font-size: 12px;
-  font-weight: 600;
+  /* G-10 迷你侧栏分组标题：--spd-font-size-xs / 700
+     与 spd-override.css / theme.css 的 11px !important 强制值对齐 */
+  font-size: var(--spd-font-size-xs);
+  font-weight: 700;
   color: var(--spd-text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -413,6 +479,7 @@
 }
 
 .spd-mini-sidebar-title .el-icon {
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 13px;
   color: var(--spd-primary);
 }
@@ -432,7 +499,8 @@
   border-radius: 6px;
   text-decoration: none;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  /* G-11 迷你侧栏一级项：--spd-font-size-sm / 500（激活 600） */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   transition: all 0.12s;
   position: relative;
@@ -462,6 +530,7 @@
 }
 
 .spd-mini-nav-item .el-icon {
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 15px;
   flex-shrink: 0;
 }
@@ -506,7 +575,8 @@
   border-radius: 6px;
   cursor: pointer;
   user-select: none;
-  font-size: 12.5px;
+  /* G-12 迷你侧栏二级分组：--spd-font-size-xs / 600 */
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   color: var(--spd-text-secondary);
   transition: background 0.12s, color 0.12s;
@@ -518,7 +588,8 @@
 }
 
 .spd-mini-nav-group-caret {
-  font-size: 11px;
+  /* 折叠箭头为装饰性图标，尺寸固定（白名单：图标尺寸） */
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-text-tertiary);
   transition: transform 0.2s ease;
   flex-shrink: 0;
@@ -537,8 +608,10 @@
 }
 
 .spd-mini-nav-group-count {
-  font-size: 11px;
-  font-weight: 500;
+  /* G-13 迷你侧栏计数徽标：--spd-font-size-xs / 600，单行控件行高 1 */
+  font-size: var(--spd-font-size-xs);
+  font-weight: 600;
+  line-height: 1;
   color: var(--spd-text-tertiary);
   background: var(--spd-bg-hover);
   padding: 1px 7px;
@@ -577,7 +650,8 @@
   border-radius: 6px;
   text-decoration: none;
   color: var(--spd-text-secondary);
-  font-size: 12.5px;
+  /* 迷你侧栏三级项：--spd-font-size-sm / 500（激活 600） */
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   transition: all 0.12s;
   position: relative;
@@ -617,6 +691,7 @@
 }
 
 .spd-mini-nav-sub-icon {
+  /* 图标尺寸固定，不参与字号档位（白名单：图标尺寸） */
   font-size: 13px;
   flex-shrink: 0;
   color: var(--spd-text-tertiary);
@@ -667,7 +742,8 @@
   overflow: hidden;
   min-width: 0;
   min-height: 0;
-  background: var(--spd-bg-page);
+  /* 透出 .spd-content 的渐变背景 */
+  background: transparent;
 }
 
 /* ============== Tab Bar ============== */
@@ -701,7 +777,8 @@
   gap: 6px;
   padding: 5px 14px;
   border-radius: 6px;
-  font-size: 13px;
+  /* G-09 页签栏页签文字：--spd-font-size-base / 400（激活 700） */
+  font-size: var(--spd-font-size-base);
   color: var(--spd-text-secondary);
   cursor: pointer;
   white-space: nowrap;
@@ -721,7 +798,7 @@
   background: var(--spd-primary-bg);
   color: var(--spd-primary);
   border-color: var(--spd-primary-border);
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .spd-tabbar-tab-label {
@@ -737,7 +814,8 @@
   width: 16px;
   height: 16px;
   border-radius: 4px;
-  font-size: 11px;
+  /* 页签关闭按钮：装饰性图标，尺寸固定（白名单：图标尺寸） */
+  font-size: var(--spd-font-size-xs);
   color: var(--spd-text-tertiary);
   transition: all 0.15s;
   margin-left: 2px;
@@ -758,9 +836,10 @@
 }
 
 /* ============== 内容区 ============== */
+/* 内容区整体渐变背景（设计稿指定），各业务页面容器保持透明以透出该渐变 */
 .spd-content {
   flex: 1 1 auto;
-  background: var(--spd-bg-page);
+  background: var(--spd-bg-page-gradient);
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;

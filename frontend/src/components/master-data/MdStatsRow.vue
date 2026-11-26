@@ -109,7 +109,7 @@ withDefaults(
   align-items: center;
   gap: 8px;
   color: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -125,7 +125,7 @@ withDefaults(
 
 .md-stat-label {
   color: rgba(255, 255, 255, 0.92);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.2px;
 }
@@ -136,17 +136,17 @@ withDefaults(
   gap: 6px;
   color: #ffffff;
   font-family: var(--md-font-mono);
-  font-size: 30px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: var(--spd-lh-tight);
   letter-spacing: -0.5px;
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
 }
 
 .md-stat-value small {
   font-family: var(--md-font);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
   color: rgba(255, 255, 255, 0.85);
   letter-spacing: 0;

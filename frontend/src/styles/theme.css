@@ -1,11 +1,12 @@
 /* =====================================================================
-   Theme System — 医疗蓝 / 暖意黄 / 森林绿
-   通过 data-theme 属性切换：默认 (无) = 医疗蓝
-   --------------------------------------------------------------------- */
+   Theme System — 默认配色（青玉）
+   ---------------------------------------------------------------------
+   主色不再由用户切换：`:root` 固定为青玉 #1f6f6d。
+   用户可切换的是「配色方案」（data-spd-theme），见 styles/theme/*.css。
+   ===================================================================== */
 
 /* 所有主题共享的 Element Plus 颜色变量（由主色派生） */
-:root,
-:root[data-theme] {
+:root {
   /* Element Plus 品牌色 — 派生色由主题主色决定 */
   --el-color-primary: var(--theme-primary);
   --el-color-primary-dark-2: var(--theme-primary-strong);
@@ -19,14 +20,16 @@
   --el-text-color-primary: var(--theme-text);
 }
 
-:root,
-:root[data-theme="medical-blue"] {
+:root {
   color-scheme: light;
 
-  /* 基础调色板 — 对齐 web-vue 医疗蓝 (Ant Design 蓝) */
-  --theme-primary: #1890ff;
-  --theme-primary-strong: #096dd9;
-  --theme-accent: #40a9ff;
+  /* 基础调色板 — 青玉（低明艳版本）
+     说明：设计要求「在青玉色基础上继续降低明艳程度」，
+     因此默认主题主色为低明度青玉 #1f6f6d，
+     仅保留少量辅助蓝作为语义色（信息 / 链接）。 */
+  --theme-primary: #1f6f6d;
+  --theme-primary-strong: #175a58;
+  --theme-accent: #2b827f;
   --theme-bg: #f0f2f5;
   --theme-surface: #ffffff;
   --theme-line: #e8eaec;
@@ -62,88 +65,11 @@
   --fli-line: var(--theme-line);
 }
 
-:root[data-theme="warm-yellow"] {
-  color-scheme: light;
-
-  /* 暖意黄 — 对齐 web-vue (Ant Design 金) */
-  --theme-primary: #faad14;
-  --theme-primary-strong: #d48806;
-  --theme-accent: #ffc53d;
-  --theme-bg: #fffbe6;
-  --theme-surface: #ffffff;
-  --theme-line: #ffe58f;
-  --theme-text: #3d2814;
-  --theme-text-muted: #8c6e3a;
-  --theme-focus: #ffc53d;
-
-  --theme-mint: #fff7e6;
-  --theme-aqua: #ffe7ba;
-  --theme-warm: #fff1b8;
-  --theme-warm-strong: #fa8c16;
-
-  --sidebar-bg: #ffffff;
-  --topbar-bg: #fffbe6;
-
-  --card-bg: #ffffff;
-  --header-bg: #fff7d6;
-  --row-hover: #fff5cc;
-  --row-stripe: #fffaeb;
-  --shadow-soft: 0 16px 48px rgba(250, 173, 20, 0.14);
-
-  --fli-brand: var(--theme-primary);
-  --fli-brand-strong: var(--theme-primary-strong);
-  --fli-accent: var(--theme-accent);
-  --fli-background: var(--theme-bg);
-  --fli-surface: var(--theme-surface);
-  --fli-text: var(--theme-text);
-  --fli-muted: var(--theme-text-muted);
-  --fli-line: var(--theme-line);
-}
-
-:root[data-theme="forest-green"] {
-  color-scheme: light;
-
-  /* 森林绿 — 对齐 web-vue (Ant Design 绿) */
-  --theme-primary: #52c41a;
-  --theme-primary-strong: #389e0d;
-  --theme-accent: #73d13d;
-  --theme-bg: #f6ffed;
-  --theme-surface: #ffffff;
-  --theme-line: #b7eb8f;
-  --theme-text: #1f3a14;
-  --theme-text-muted: #5b7a4a;
-  --theme-focus: #73d13d;
-
-  --theme-mint: #d9f7be;
-  --theme-aqua: #b7eb8f;
-  --theme-warm: #fffbe6;
-  --theme-warm-strong: #faad14;
-
-  --sidebar-bg: #ffffff;
-  --topbar-bg: #f6ffed;
-
-  --card-bg: #ffffff;
-  --header-bg: #f6ffed;
-  --row-hover: #e8f7d8;
-  --row-stripe: #fcffef;
-  --shadow-soft: 0 16px 48px rgba(82, 196, 26, 0.14);
-
-  --fli-brand: var(--theme-primary);
-  --fli-brand-strong: var(--theme-primary-strong);
-  --fli-accent: var(--theme-accent);
-  --fli-background: var(--theme-bg);
-  --fli-surface: var(--theme-surface);
-  --fli-text: var(--theme-text);
-  --fli-muted: var(--theme-text-muted);
-  --fli-line: var(--theme-line);
-}
-
 /* =====================================================================
    主题应用到 :root 现有 token
    这样 main.css 中所有用 var(--primary) 的组件都会跟随主题
    --------------------------------------------------------------------- */
-:root,
-:root[data-theme] {
+:root {
   --primary: var(--theme-primary);
   --primary-strong: var(--theme-primary-strong);
   --accent: var(--theme-accent);
@@ -359,13 +285,15 @@ a.el-link {
 
 .app-shell .brand-link strong {
   color: var(--spd-text-primary) !important;
-  font-size: 15px;
+  /* G-01 品牌文字：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
 }
 
 .app-shell .brand-link small {
   color: var(--spd-text-tertiary) !important;
-  font-size: 11px;
+  /* 辅助层文字：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs);
 }
 
 .app-shell .brand-mark {
@@ -498,7 +426,8 @@ a.el-link {
 .spd-dropdown-group-title {
   color: var(--spd-text-tertiary) !important;
   text-transform: uppercase;
-  font-size: 11px !important;
+  /* G-03 顶栏下拉分组标题：--spd-font-size-xs（与 spd-override.css 对齐） */
+  font-size: var(--spd-font-size-xs) !important;
   letter-spacing: 0.5px;
 }
 
@@ -514,7 +443,8 @@ a.el-link {
   background: var(--spd-primary-bg) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
   text-transform: uppercase;
-  font-size: 11px !important;
+  /* G-10 迷你侧栏分组标题：--spd-font-size-xs（与 spd-override.css 对齐） */
+  font-size: var(--spd-font-size-xs) !important;
   letter-spacing: 0.5px;
 }
 
@@ -628,8 +558,9 @@ a.el-link {
   background: var(--spd-bg-hover) !important;
 }
 
+/* 内容区：设计稿指定的整体渐变背景 */
 .spd-content {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
 }
 
 .spd-content-inner {
@@ -642,7 +573,7 @@ a.el-link {
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -658,7 +589,7 @@ a.el-link {
   color: var(--spd-text-primary) !important;
   border: 1px solid var(--spd-border-default) !important;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-  border-radius: 8px !important;
+  border-radius: 12px !important;
 }
 
 .standard-page-title,
@@ -701,8 +632,7 @@ a.el-link {
 /* 业务工作台模块卡片色块：跟随主题 */
 .spd-module-header,
 .spd-child-icon,
-.spd-theme-trigger,
-.spd-theme-card-preview {
+.spd-theme-trigger {
   color: inherit;
 }
 
@@ -713,111 +643,4 @@ a.el-link {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--primary);
-}
-
-/* =====================================================================
-   主题切换器 UI
-   --------------------------------------------------------------------- */
-.theme-switcher {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card-bg);
-  cursor: pointer;
-  color: var(--text);
-  transition: all 0.16s ease;
-}
-
-.theme-switcher:hover {
-  border-color: var(--primary);
-}
-
-.theme-switcher[aria-expanded="true"] {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
-}
-
-.theme-switcher .theme-active-dot {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  flex-shrink: 0;
-}
-
-.theme-switcher .theme-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
-  letter-spacing: 0.2px;
-  white-space: nowrap;
-}
-
-.theme-switcher .theme-caret {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.theme-menu {
-  display: grid !important;
-  gap: 4px;
-  padding: 6px;
-  min-width: 180px;
-}
-
-.theme-menu .theme-option {
-  display: grid;
-  grid-template-columns: 22px 1fr auto;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  cursor: pointer;
-  user-select: none;
-  color: var(--text);
-  transition: background-color 0.12s ease;
-}
-
-.theme-menu .theme-option:hover {
-  background: var(--row-hover);
-}
-
-.theme-menu .theme-option.is-active {
-  background: color-mix(in srgb, var(--primary) 14%, transparent);
-  color: var(--primary-strong);
-}
-
-.theme-menu .theme-option-dot {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.5);
-}
-
-.theme-menu .theme-option-label {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.theme-menu .theme-option-check {
-  color: var(--primary);
-  display: inline-flex;
-  align-items: center;
-}
-
-.theme-menu .theme-option-hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 1px;
-  font-weight: 500;
-}
-
-@media (max-width: 760px) {
-  .theme-switcher .theme-label {
-    display: none;
-  }
 }

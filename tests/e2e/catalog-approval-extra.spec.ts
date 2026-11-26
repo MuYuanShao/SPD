@@ -64,16 +64,14 @@ async function setupApproval(page: Page, options: { final?: boolean; fail?: bool
 }
 
 async function openFirstApproval(page: Page) {
-  await page.locator('.approval-sticky-action .btn-primary').first().click()
+  await page.locator('.approval-wide-table-shell').getByRole('link', { name: '审批', exact: true }).first().click()
   await expect(page.locator('.approval-detail-header h2')).toBeVisible()
 }
 
 async function openApprovalMenu(page: Page) {
-  const nav = page.getByRole('navigation')
-  await nav.getByText('基础数据管理', { exact: true }).click()
-  const link = nav.getByRole('link', { name: '待审批目录', exact: true })
-  if (!await link.isVisible()) await nav.getByText('商品目录', { exact: true }).click()
-  await link.click()
+  const nav = page.locator('.spd-topnav-menu')
+  await nav.getByText('基础数据管理', { exact: true }).hover()
+  await nav.getByRole('link', { name: '待审批目录', exact: true }).click()
 }
 
 test('直达详情返回保留审批范围和类型且只有一个业务标签', async ({ page }) => {
@@ -100,7 +98,7 @@ test('未保存修改取消离开后仍可继续编辑', async ({ page }) => {
   await expect(name).toHaveValue('未保存商品名称')
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: '返回待审批目录' }).click()
-  await expect(page.locator('.approval-wide-table')).toBeVisible()
+  await expect(page.locator('.approval-wide-table-shell')).toBeVisible()
 })
 
 test('A详情延迟返回不能覆盖已经显示的B详情', async ({ page }) => {
@@ -112,10 +110,10 @@ test('A详情延迟返回不能覆盖已经显示的B详情', async ({ page }) =
     await route.fallback()
   })
   await page.goto('/features/pending-product-catalog?scope=todo&type=new')
-  await page.locator('.approval-sticky-action .btn-primary').first().click()
+  await page.locator('.approval-wide-table-shell').getByRole('link', { name: '审批', exact: true }).first().click()
   await expect(page).toHaveURL(/SP-APP-001/)
   await page.getByRole('button', { name: '返回待审批目录' }).click()
-  await page.locator('.approval-sticky-action .btn-primary').nth(1).click()
+  await page.locator('.approval-wide-table-shell').getByRole('link', { name: '审批', exact: true }).nth(1).click()
   await expect(page.locator('.approval-detail-header h2')).toContainText('SP-APP-002')
   const delivered = page.waitForResponse(response => new URL(response.url()).pathname === '/api/pending-product-applications/SP-APP-001')
   releaseA()
@@ -140,7 +138,7 @@ test('待审批目录使用配置节点名称并按节点进行整表筛选', as
     }) })
   })
   await page.goto('/features/pending-product-catalog')
-  const table = page.locator('.approval-wide-table')
+  const table = page.locator('.approval-wide-table-shell')
   await expect(table.getByText('FLOW-001', { exact: true }).first()).toBeVisible()
   await page.locator('label').filter({ has: page.getByRole('combobox', { name: '审批状态' }) })
     .locator('.el-select__wrapper').click()
@@ -160,12 +158,12 @@ test('跨页勾选 26 条审批单并在请求中断后核对状态', async ({ p
     await route.abort('timedout')
   })
   await page.goto('/features/pending-product-catalog')
-  const table = page.locator('.approval-wide-table')
+  const table = page.locator('.approval-wide-table-shell')
   await expect(table.getByText(state.application(25), { exact: true }).first()).toBeVisible()
-  await table.locator('thead input[type=checkbox]').check()
+  await table.locator('thead .el-checkbox').click()
   await page.locator('.md-pagination .btn-next').click()
   await expect(table.getByText(state.application(26), { exact: true }).first()).toBeVisible()
-  await table.locator('thead input[type=checkbox]').check()
+  await table.locator('thead .el-checkbox').click()
   await expect(page.getByText('已选择 26 条', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: '批量通过', exact: true }).click()
   const dialog = page.getByRole('dialog')
@@ -195,7 +193,7 @@ for (const successCount of [0, 1, 2]) {
     await expect(page.getByText('原有目录商品', { exact: true })).toBeVisible()
     const initial = state.hospitalReads()
     await openApprovalMenu(page)
-    await page.locator('.approval-wide-table thead input[type=checkbox]').check()
+    await page.locator('.approval-wide-table-shell thead .el-checkbox').click()
     await page.getByRole('button', { name: '批量通过', exact: true }).click()
     await page.getByRole('dialog').getByRole('button', { name: '确认通过 2 条', exact: true }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
@@ -279,7 +277,7 @@ test('A审批意见不带入B详情', async ({ page }) => {
   await openFirstApproval(page)
   await page.locator('.approval-opinion-card textarea').fill('A专属意见')
   await page.getByRole('button', { name: '返回待审批目录' }).click()
-  await page.locator('.approval-sticky-action .btn-primary').nth(1).click()
+  await page.locator('.approval-wide-table-shell').getByRole('link', { name: '审批', exact: true }).nth(1).click()
   await expect(page.locator('.approval-detail-header h2')).toContainText('SP-APP-002')
   await expect(page.locator('.approval-opinion-card textarea')).toHaveValue('')
 })

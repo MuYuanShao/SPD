@@ -1,16 +1,26 @@
 /* ============================================================
    Element Plus overrides for hospital catalog table
+   ---------------------------------------------------------------------
+   字号依据：docs/ui-review/spd-typography-spec-final.md 第 4.4 节
+   - T-13 原生 el-table 数据：--spd-font-size-base / 400 / 1.35
+   - T-14 原生 el-table 表头：--spd-font-size-table-head / 700 / 1.35
    ============================================================ */
 .el-table {
   --el-table-border-color: var(--line, #e2e8f0);
   --el-table-header-bg-color: #f6f8fa;
   --el-table-tr-bg-color: #ffffff;
   --el-table-header-text-color: #607285;
-  font-size: 14px;
+  /* T-13 原生 el-table 数据 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 .el-table th.el-table__cell {
   background-color: #f6f8fa;
-  font-weight: 800;
+  /* T-14 原生 el-table 表头 */
+  font-size: var(--spd-font-size-table-head, 14px);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight, 1.35);
   color: #607285;
 }
 .el-table .el-table__cell {
@@ -36,7 +46,10 @@
   padding: 4px 6px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
+  /* 列设置浮层列项：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   white-space: nowrap;
 }
 .column-setting-item:hover {
@@ -62,13 +75,18 @@
 
 .column-nav-head strong {
   color: #102033;
-  font-size: 15px;
+  /* 区块小标题：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg, 16px);
+  font-weight: 700;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .column-nav-head span {
   color: #607588;
-  font-size: 13px;
-  font-weight: 700;
+  /* 段标题右侧元信息：--spd-font-size-sm / 600 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 /* Drag-scroll support for subnav-chips (column nav) */
@@ -109,6 +127,10 @@
   border-collapse: separate;
   border-spacing: 0;
   table-layout: fixed;
+  /* T-15 原生表格数据：--spd-font-size-base / 400 / 1.35 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .hospital-product-table th,
@@ -128,7 +150,10 @@
   z-index: 2;
   background: #f6f8fa;
   color: #607285;
-  font-weight: 800;
+  /* T-14 表头：--spd-font-size-table-head / 700 / 1.35 */
+  font-size: var(--spd-font-size-table-head, 14px);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .hospital-product-table td {

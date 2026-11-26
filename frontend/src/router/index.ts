@@ -2,6 +2,7 @@ import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vu
 import {
   featureCatalogRedirects,
   featureCodesByViewFamily,
+  featureMenuPermissionCode,
   featureRouteTarget,
   type FeatureViewFamily
 } from '../config/featureCatalog'
@@ -302,9 +303,9 @@ function permissionCodeForRoute(to: RouteLocationNormalized) {
   if (to.name === 'dashboard' || to.name === 'dashboard-realtime') return 'dashboard'
   if (String(to.name).startsWith('hospital-product-')) return 'hospital-product-catalog'
   if (to.name === 'pending-product-approval-detail') return 'pending-product-catalog'
-  if (to.params.code) return String(to.params.code)
+  if (to.params.code) return featureMenuPermissionCode(String(to.params.code))
   const featureMatch = to.path.match(/^\/features\/([^/]+)/)
-  return featureMatch?.[1] ?? null
+  return featureMatch ? featureMenuPermissionCode(featureMatch[1]) : null
 }
 
 router.beforeEach(async (to) => {

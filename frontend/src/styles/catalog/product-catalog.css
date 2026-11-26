@@ -90,7 +90,7 @@
 
 .approval-node span {
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-node.done {
@@ -147,7 +147,7 @@
   background: #f3f6f8;
   color: #334652;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .field-status-title {

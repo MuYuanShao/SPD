@@ -24,7 +24,7 @@
 
 .config-summary-grid strong {
   color: #06152b;
-  font-size: 24px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .system-config-layout {
@@ -163,8 +163,8 @@
   border-radius: 8px;
   background: #f8fafb;
   padding: 8px;
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 13px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 

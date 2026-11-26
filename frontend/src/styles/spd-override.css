@@ -151,7 +151,7 @@
 .spd-dropdown-group-title {
   color: var(--spd-text-tertiary) !important;
   text-transform: uppercase;
-  font-size: 11px !important;
+  font-size: var(--spd-font-size-xs) !important;
   letter-spacing: 0.6px;
 }
 
@@ -167,7 +167,7 @@
   color: var(--primary) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
   text-transform: uppercase;
-  font-size: 11px !important;
+  font-size: var(--spd-font-size-xs) !important;
   letter-spacing: 0.6px;
 }
 
@@ -313,8 +313,9 @@
 }
 
 /* ========== 主体区 ========== */
+/* 内容区整体渐变背景（设计稿指定） */
 .spd-content {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
 }
 
 .spd-content-inner {
@@ -327,7 +328,7 @@
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 16px;
 }
@@ -582,7 +583,8 @@ a.el-link {
   --el-table-header-text-color: var(--spd-text-primary) !important;
   --el-table-row-hover-bg-color: var(--spd-primary-bg) !important;
   --el-table-striped-row-bg-color: #fafbfc !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-tight) !important;
   color: var(--spd-text-primary) !important;
 }
 
@@ -590,6 +592,7 @@ a.el-link {
   background-color: var(--spd-bg-hover) !important;
   color: var(--spd-text-primary) !important;
   font-weight: 700 !important;
+  font-size: var(--spd-font-size-table-head) !important;
   border-bottom: 1px solid var(--spd-border-default) !important;
   padding: 10px 12px !important;
 }
@@ -650,7 +653,7 @@ a.el-link {
 .workflow-page,
 .report-page,
 .dashboard-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: var(--spd-page-padding) !important;
   min-height: 100%;
@@ -680,18 +683,18 @@ a.el-link {
 }
 
 .standard-page-heading h2 {
-  font-size: 20px !important;
+  font-size: var(--spd-font-size-3xl) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
   margin: 0 0 4px !important;
-  line-height: 1.4;
+  line-height: var(--spd-lh-tight);
   letter-spacing: -0.2px;
 }
 
 .standard-page-heading p,
 .standard-page-heading span {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   margin: 0 !important;
 }
 
@@ -747,7 +750,7 @@ a.el-link {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading);
   margin: 0;
@@ -810,7 +813,7 @@ a.el-link {
 .workflow-band-title {
   color: var(--spd-text-heading) !important;
   font-weight: 600 !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   margin: 0 !important;
 }
 
@@ -821,14 +824,14 @@ a.el-link {
 .metric-panel .metric-label,
 .metric-panel .metric-hint {
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 .metric-panel .metric-value {
   color: var(--spd-text-heading) !important;
   font-weight: 700;
-  font-size: 24px;
-  line-height: 1.2;
+  font-size: var(--spd-font-size-2xl);
+  line-height: var(--spd-lh-tight);
 }
 
 /* =====================================================================
@@ -842,20 +845,22 @@ a.el-link {
   transition: all 0.2s cubic-bezier(0.645, 0.045, 0.355, 1) !important;
   height: 32px !important;
   padding: 4px 15px !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
+/* 小号按钮族 —— 13px / 15px / 17px（12px 已从按钮体系移除） */
 .el-button--small {
   height: 24px !important;
   padding: 0 7px !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   border-radius: var(--spd-radius-sm) !important;
 }
 
 .el-button--large {
   height: 40px !important;
   padding: 6.4px 15px !important;
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-lg) !important;
   border-radius: var(--spd-radius) !important;
 }
 
@@ -922,15 +927,27 @@ a.el-link {
   color: var(--spd-text-primary) !important;
 }
 
+/* 输入控件文字 —— 14px / 16px / 18px，字重 400 */
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner,
+.el-input__inner,
+.el-select__selected-item {
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 400 !important;
+  line-height: var(--spd-lh-base) !important;
+}
+
 .el-input__inner::placeholder {
   color: var(--spd-text-placeholder) !important;
 }
 
-/* Form Label */
+/* Form Label —— 表单字段标签 13px / 600（标签不得小于控件） */
 .el-form-item__label {
   color: var(--spd-text-heading) !important;
-  font-weight: 400 !important;
-  font-size: 14px !important;
+  font-weight: 600 !important;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 /* Card — 极简无边框版 */
@@ -961,9 +978,10 @@ a.el-link {
 }
 
 .el-dialog__title {
-  font-size: 16px !important;
+  font-size: var(--spd-font-size-2xl) !important;
   font-weight: 600 !important;
   color: var(--spd-text-heading) !important;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .el-dialog__body {
@@ -984,7 +1002,7 @@ a.el-link {
   --el-table-header-text-color: var(--spd-text-heading) !important;
   --el-table-row-hover-bg-color: var(--spd-bg-active) !important;
   --el-table-striped-row-bg-color: #fafafa !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   color: var(--spd-text-primary) !important;
   border-radius: 0 !important;
 }
@@ -992,8 +1010,9 @@ a.el-link {
 .el-table th.el-table__cell {
   background-color: #fafafa !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
+  font-weight: 700 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  line-height: var(--spd-lh-tight) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
   padding: 12px 0 !important;
 }
@@ -1002,6 +1021,19 @@ a.el-link {
   padding: 12px 0 !important;
   color: var(--spd-text-primary) !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;
+}
+
+/* T-13 / T-14 显式落到 Element Plus 实际渲染文本的 .cell 节点，
+   避免被 Element 默认样式或表头内层元素覆盖。 */
+.el-table td.el-table__cell .cell {
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 400;
+  line-height: var(--spd-lh-tight) !important;
+}
+.el-table th.el-table__cell .cell {
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700;
+  line-height: var(--spd-lh-tight) !important;
 }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
@@ -1034,6 +1066,35 @@ a.el-link {
   background-color: var(--primary) !important;
   color: #ffffff !important;
   border-radius: var(--spd-radius-sm) !important;
+}
+
+/* D-10 / N-01~N-04 Element Plus 原生分页组件字号跟随档位
+   页码 / 上下页按钮：--spd-font-size-sm（13/15/17px）
+   汇总文案 / 每页条数：--spd-font-size-sm */
+.el-pagination {
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 400;
+  line-height: var(--spd-lh-base) !important;
+}
+.el-pagination .el-pager li,
+.el-pagination .btn-prev,
+.el-pagination .btn-next {
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 500;
+  line-height: var(--spd-lh-tight) !important;
+}
+.el-pagination .el-pagination__total,
+.el-pagination .el-pagination__jump,
+.el-pagination .el-pagination__sizes {
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 400;
+}
+/* 分页「每页 [N] 条」下拉与跳页输入框 */
+.el-pagination .el-select__wrapper,
+.el-pagination .el-input__wrapper,
+.el-pagination .el-input__inner {
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 400;
 }
 
 /* Menu */
@@ -1088,6 +1149,36 @@ a.el-link {
 .el-message {
   border-radius: var(--spd-radius) !important;
   border: none !important;
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-base) !important;
+}
+
+/* 确认框：标题 2xl / 正文 base */
+.el-message-box__title {
+  font-size: var(--spd-font-size-2xl) !important;
+  font-weight: 600 !important;
+}
+.el-message-box__message {
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-loose) !important;
+}
+
+/* 下拉选项 —— 14px / 16px / 18px */
+.el-select-dropdown__item {
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-tight) !important;
+}
+
+/* Tooltip —— 13px / 15px / 17px */
+.el-tooltip__popper,
+.el-popper.is-dark,
+.el-popper.is-light {
+  font-size: var(--spd-font-size-sm) !important;
+  line-height: var(--spd-lh-base) !important;
+}
+.el-tooltip__popper .el-popper__content,
+.el-popper .el-popper__content {
+  font-size: var(--spd-font-size-sm) !important;
 }
 
 /* 业务 mask（z-index 99999）会盖住 ElMessage，强制把全局通知提到最顶层。
@@ -1133,13 +1224,13 @@ body {
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-line-height-base) !important;
   color: var(--spd-text-primary) !important;
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #app {
-  background: var(--spd-bg-page) !important;
+  background: var(--spd-bg-page-gradient) !important;
   color: var(--spd-text-primary) !important;
   font-family: var(--spd-font-family) !important;
 }
@@ -1173,7 +1264,7 @@ a, .el-link, .primary-text {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .master-table thead,
@@ -1188,13 +1279,17 @@ a, .el-link, .primary-text {
   border-color: var(--spd-border-subtle) !important;
   color: var(--spd-text-primary) !important;
   padding: 12px 14px !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
   text-align: left;
 }
 
 .master-table th,
 .settlement-detail-table th {
-  font-weight: 600 !important;
+  font-weight: 700 !important;
+  /* T-09 / D-09 表头跟随字号档位：--spd-font-size-table-head */
+  font-size: var(--spd-font-size-table-head) !important;
+  line-height: var(--spd-lh-tight) !important;
   color: var(--spd-text-heading) !important;
   background: #fafafa !important;
   border-bottom: 1px solid var(--spd-border-subtle) !important;

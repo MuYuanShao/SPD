@@ -37,7 +37,7 @@
 
 /* ===== 页面壳 ===== */
 .master-page {
-  background: var(--spd-bg-page) !important;
+  background: transparent !important;
   color: var(--spd-text-primary) !important;
   padding: 24px 32px 40px !important;
   min-height: 100%;
@@ -74,8 +74,10 @@
 
 .master-page-title h2 {
   color: var(--spd-text-heading) !important;
-  font-size: 22px !important;
+  /* P-01 页面主标题：--spd-font-size-3xl / 600 */
+  font-size: var(--spd-font-size-3xl, 24px) !important;
   font-weight: 600 !important;
+  line-height: var(--spd-lh-tight, 1.35) !important;
   font-family: var(--spd-font-family-display) !important;
   margin: 0 !important;
   letter-spacing: -0.2px;
@@ -87,8 +89,9 @@
 .master-page-title > div > span {
   margin: 6px 0 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
-  line-height: 1.5;
+  /* P-03 页面副标题：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm, 13px) !important;
+  line-height: var(--spd-lh-base, 1.5) !important;
 }
 
 .master-page-title .panel-icon,
@@ -159,7 +162,10 @@
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 14px;
+  /* F-09 主搜索框文字：--spd-font-size-base / 400 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   background: transparent;
   color: var(--spd-text-primary);
 }
@@ -177,7 +183,7 @@
 .master-table-card {
   background: var(--spd-bg-container) !important;
   border: 1px solid var(--spd-border-subtle) !important;
-  border-radius: var(--spd-radius-md, 8px) !important;
+  border-radius: 12px !important;
   box-shadow: var(--spd-shadow-1) !important;
   padding: 0 !important;
   overflow: hidden;
@@ -202,12 +208,15 @@
 }
 
 /* ===== 表格 ===== */
+/* T-15 .master-table 数据：--spd-font-size-base / 400 / 1.35 */
 .master-table {
   width: 100% !important;
   border-collapse: separate !important;
   border-spacing: 0 !important;
   min-width: 820px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   color: var(--spd-text-primary) !important;
 }
 
@@ -245,7 +254,10 @@
   min-width: 100% !important;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  /* T-15 表格数据：--spd-font-size-base / 400 / 1.35 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
   color: var(--spd-text-primary);
 }
 
@@ -265,7 +277,10 @@
   gap: 12px;
   padding: 16px 20px !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  /* N-01 分页汇总文案：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   border-top: 1px solid var(--spd-border-subtle);
   background: var(--spd-bg-container);
   min-width: 0;
@@ -283,6 +298,7 @@
   min-width: 0;
 }
 
+/* N-03 分页输入框 */
 .hospital-pagination input,
 .hospital-pagination select,
 .hospital-page-jump input {
@@ -293,7 +309,10 @@
   color: var(--spd-text-primary) !important;
   padding: 0 10px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .hospital-pagination input:focus,
@@ -313,6 +332,7 @@
   -webkit-appearance: none;
 }
 
+/* N-02 分页页码 / 上下页按钮 */
 .hospital-pagination .btn {
   min-height: 32px;
   padding: 0 12px;
@@ -320,8 +340,9 @@
   background: var(--spd-bg-container) !important;
   color: var(--spd-text-primary) !important;
   border-radius: var(--spd-radius-sm, 4px) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base, 14px) !important;
   font-weight: 500 !important;
+  line-height: 1;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -351,11 +372,14 @@
   color: #ffffff !important;
 }
 
+/* N-04 分页当前页指示 */
 .hospital-page-indicator {
   min-width: 100px;
   text-align: center;
   color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-sm, 13px);
   font-weight: 600;
+  line-height: var(--spd-lh-base, 1.5);
   font-family: var(--spd-font-family-mono);
   font-variant-numeric: tabular-nums;
 }
@@ -384,8 +408,10 @@
 .master-table th {
   background: #fafafa !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600 !important;
-  font-size: 14px !important;
+  /* 表格表头：--spd-font-size-table-head / 700 / 1.35 */
+  font-weight: 700 !important;
+  font-size: var(--spd-font-size-table-head, 14px) !important;
+  line-height: var(--spd-lh-tight, 1.35) !important;
   font-family: var(--spd-font-family-display);
   letter-spacing: 0;
 }
@@ -426,8 +452,10 @@
 .module-board h2,
 .module-detail h2 {
   color: var(--spd-text-heading) !important;
-  font-size: 18px !important;
-  font-weight: 600 !important;
+  /* P-05 区块小标题：--spd-font-size-xl / 700 */
+  font-size: var(--spd-font-size-xl, 18px) !important;
+  font-weight: 700 !important;
+  line-height: var(--spd-lh-tight, 1.35) !important;
   font-family: var(--spd-font-family-display) !important;
   margin: 0 0 12px !important;
 }
@@ -452,17 +480,20 @@
 
 .module-card h3 {
   margin: 0 !important;
-  font-size: 16px !important;
+  /* W-01 模块卡片标题：--spd-font-size-lg / 700 */
+  font-size: var(--spd-font-size-lg, 16px) !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600;
+  font-weight: 700;
+  line-height: var(--spd-lh-tight, 1.35);
   font-family: var(--spd-font-family-display);
 }
 
 .module-card p {
   margin: 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
-  line-height: 1.6;
+  /* W-02 模块卡片描述：--spd-font-size-sm / 400 / 1.65 */
+  font-size: var(--spd-font-size-sm, 13px) !important;
+  line-height: var(--spd-lh-loose, 1.65);
 }
 
 .module-grid {
@@ -494,7 +525,10 @@
   min-height: 44px;
   padding: 0 14px;
   color: var(--spd-text-primary) !important;
-  font-size: 14px;
+  /* W-04 特性行文字：--spd-font-size-base / 400 / 1.5 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
   transition: all 0.18s ease;
 }
 
@@ -534,9 +568,11 @@
 
 .section-title h2 {
   margin: 0 !important;
-  font-size: 18px !important;
+  /* P-05 区块小标题（section）：--spd-font-size-xl / 700 */
+  font-size: var(--spd-font-size-xl, 18px) !important;
   color: var(--spd-text-heading) !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
+  line-height: var(--spd-lh-tight, 1.35) !important;
   font-family: var(--spd-font-family-display);
 }
 
@@ -544,8 +580,11 @@
   margin: 0 !important;
 }
 
+/* P-06 区块小标题（紧凑）：--spd-font-size-lg / 700 */
 .section-title.compact h3 {
-  font-size: 15px !important;
+  font-size: var(--spd-font-size-lg, 16px) !important;
+  font-weight: 700 !important;
+  line-height: var(--spd-lh-tight, 1.35) !important;
 }
 
 /* ===== Flow Line（流程指示） ===== */
@@ -566,7 +605,10 @@
   border: 1px solid var(--spd-border-subtle) !important;
   border-radius: var(--spd-radius, 6px) !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  /* W-03 流程条节点：--spd-font-size-base / 400 / 1.35 */
+  font-size: var(--spd-font-size-base, 14px);
+  font-weight: 400;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 /* ===== 面包屑 ===== */
@@ -577,7 +619,10 @@
   gap: 6px;
   margin-bottom: 14px;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  /* G-16 面包屑：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .breadcrumb-line strong {
@@ -620,26 +665,30 @@
 .metric-panel p {
   margin: 0 !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px !important;
-  font-weight: 500;
+  /* M-06 metric-panel 标签：--spd-font-size-sm / 400 / 1.5 */
+  font-size: var(--spd-font-size-sm, 13px) !important;
+  font-weight: 400 !important;
+  line-height: var(--spd-lh-base, 1.5) !important;
 }
 
+/* M-05 metric-panel 数值：--spd-font-size-2xl / 700 */
 .metric-panel strong {
-  font-size: 26px !important;
+  font-size: var(--spd-font-size-2xl, 20px) !important;
   font-weight: 700 !important;
   color: var(--spd-text-heading) !important;
   font-family: var(--spd-font-family-display);
   display: block;
   margin-top: 4px;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight, 1.35);
 }
 
 .metric-panel small,
 .metric-panel .metric-hint {
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-xs, 11px) !important;
   color: var(--spd-text-tertiary) !important;
   display: block;
   margin-top: 4px;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .metric-panel .panel-icon {
@@ -702,16 +751,20 @@
 
 .column-nav-head strong {
   color: var(--spd-text-heading) !important;
-  font-size: 15px !important;
+  /* P-04 区块小标题：--spd-font-size-lg / 600 */
+  font-size: var(--spd-font-size-lg, 16px) !important;
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
   font-family: var(--spd-font-family-display);
   letter-spacing: -0.2px;
 }
 
 .column-nav-head span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px !important;
+  /* 计数徽标：--spd-font-size-xs */
+  font-size: var(--spd-font-size-xs, 11px) !important;
   font-weight: 500;
+  line-height: var(--spd-lh-base, 1.5);
   background: var(--spd-bg-page);
   padding: 3px 10px;
   border-radius: 999px;
@@ -825,15 +878,20 @@
 .product-selector-dialog header p {
   margin: 0;
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  /* O-04 弹窗副标题：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm, 13px);
+  font-weight: 400;
+  line-height: var(--spd-lh-base, 1.5);
 }
 
 .supplier-dialog header h3,
 .product-selector-dialog header h3 {
   margin: 4px 0 0 !important;
   color: var(--spd-text-heading) !important;
-  font-size: 16px !important;
+  /* O-02 自绘弹窗标题：--spd-font-size-2xl / 600 */
+  font-size: var(--spd-font-size-2xl, 20px) !important;
   font-weight: 600;
+  line-height: var(--spd-lh-tight, 1.35);
   font-family: var(--spd-font-family-display);
 }
 
@@ -875,7 +933,7 @@
 
 .supplier-form-grid span {
   color: var(--spd-text-heading) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500;
 }
 
@@ -889,7 +947,7 @@
   color: var(--spd-text-primary) !important;
   padding: 0 12px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   transition: all 0.18s ease;
   width: 100%;
 }
@@ -926,7 +984,7 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 6px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-primary);
   cursor: pointer;
 }
@@ -976,7 +1034,7 @@
   padding: 0 14px !important;
   height: 32px !important;
   min-height: 32px !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 500 !important;
   display: inline-flex !important;
   align-items: center;
@@ -1027,7 +1085,7 @@
 .architecture-note p {
   margin: 0 !important;
   color: var(--spd-text-primary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   line-height: 1.5;
 }
 
@@ -1044,17 +1102,17 @@
 .empty-state p {
   color: var(--spd-text-tertiary) !important;
   margin: 8px 0 0 !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .muted {
   color: var(--spd-text-tertiary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .error-text {
   color: #f5222d !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .success-text {
@@ -1081,13 +1139,13 @@
 
 .stocktaking-scope-head strong {
   color: var(--spd-text-heading) !important;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .stocktaking-scope-head span {
   color: var(--spd-text-secondary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-options {
@@ -1108,7 +1166,7 @@
   color: var(--spd-text-primary) !important;
   cursor: pointer;
   transition: all 0.18s ease;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 
 .stocktaking-scope-option:hover {
@@ -1132,7 +1190,7 @@
   border-top: 1px solid var(--spd-border-subtle);
   background: var(--spd-bg-page) !important;
   color: var(--spd-text-secondary) !important;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .stocktaking-scope-selected em {
@@ -1147,7 +1205,7 @@
   border-radius: 999px;
   background: var(--spd-primary-bg) !important;
   color: var(--primary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1170,7 +1228,7 @@
   border-radius: 999px;
   background: var(--spd-bg-page) !important;
   color: var(--primary) !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 

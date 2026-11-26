@@ -54,7 +54,7 @@
   align-items: center;
   gap: 8px;
   color: #203541;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -64,7 +64,7 @@
 
 .manufacturer-filter-heading small {
   color: #667987;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .manufacturer-management-panel .manufacturer-query-grid {
@@ -80,7 +80,7 @@
 
 .manufacturer-management-panel .manufacturer-query-grid label > span {
   color: #405564;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
 
@@ -131,7 +131,7 @@
   align-items: center;
   gap: 8px;
   color: #647784;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -207,8 +207,8 @@
 .manufacturer-table .manufacturer-code-cell,
 .manufacturer-table .manufacturer-license-cell {
   color: #31515e;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -217,7 +217,7 @@
   max-width: 260px;
   overflow: hidden;
   color: #102b36;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   text-overflow: ellipsis;
 }
 
@@ -231,8 +231,8 @@
   background: #eef8f6;
   padding: 0 9px;
   color: #0b665f;
-  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-xs);
   font-weight: 700;
 }
 
@@ -258,12 +258,12 @@
 
 .manufacturer-contact-cell strong {
   color: #233c47;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .manufacturer-contact-cell span {
   color: #667987;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -274,7 +274,7 @@
   min-height: 26px;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
 }
 
@@ -338,7 +338,7 @@
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
   color: #4f46e5;
   font-weight: 600;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-xs);
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
 }
 
@@ -381,21 +381,21 @@
   align-items: center;
   gap: 7px;
   color: #0f766e !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
   letter-spacing: 0.04em;
 }
 
 .manufacturer-dialog .manufacturer-dialog-title {
   margin-top: 5px;
-  font-size: 21px;
-  line-height: 1.25;
+  font-size: var(--spd-font-size-2xl);
+  line-height: var(--spd-lh-tight);
 }
 
 .manufacturer-dialog-subtitle {
   margin-top: 5px !important;
   color: #667987 !important;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .manufacturer-dialog .manufacturer-dialog-close {
@@ -434,7 +434,7 @@
   border-bottom: 1px solid #edf2f3;
   padding-bottom: 6px;
   color: #203b46;
-  font-size: 14px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 800;
 }
 
@@ -451,7 +451,7 @@
 
 .manufacturer-dialog-form .required-mark {
   color: #b42318;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .manufacturer-dialog-form input {
@@ -478,7 +478,7 @@
 
 .manufacturer-form-hint {
   color: #7a8b95;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 500;
 }
 

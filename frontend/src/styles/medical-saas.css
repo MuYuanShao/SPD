@@ -31,7 +31,9 @@
   --btn-min-h: 40px;
   --btn-min-h-sm: 32px;
   --sidebar-bg: #ffffff;
-  font-family: "Segoe UI Variable", "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  /* 字体栈收敛：统一使用业务系统栈 --spd-font-family（唯一入口）。
+     登录页独立字体栈见 styles/views/login.css，不参与档位缩放。 */
+  font-family: var(--spd-font-family);
   color: #26334d;
   background: var(--saas-bg);
 }
@@ -40,7 +42,7 @@ body {
   color: #26334d;
   background: var(--saas-bg);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -104,7 +106,7 @@ body {
 
 .nav-group-toggle {
   color: #26334d;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .nav-item:hover,
@@ -117,7 +119,7 @@ body {
   color: #0958d9;
   background: #eaf4ff;
   box-shadow: inset 3px 0 #1677ff;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .main-area {
@@ -138,8 +140,8 @@ body {
 
 .topbar h1 {
   color: #172033;
-  font-size: 17px;
-  font-weight: 650;
+  font-size: var(--spd-font-size-lg);
+  font-weight: 600;
   letter-spacing: 0.01em;
 }
 
@@ -225,21 +227,24 @@ body {
 .dept-req-header h2 {
   margin: 0 0 6px !important;
   color: var(--saas-heading) !important;
-  font-size: clamp(22px, 1.55vw, 26px) !important;
-  font-weight: 650 !important;
-  line-height: 1.3 !important;
+  /* P-01 / P-02 页面主标题：--spd-font-size-3xl（24/26/28px），跟随字号档位 */
+  font-size: var(--spd-font-size-3xl) !important;
+  font-weight: 600 !important;
+  line-height: var(--spd-lh-tight) !important;
   letter-spacing: -0.015em !important;
 }
 
 .breadcrumb-line {
   margin: 0 !important;
   color: #8a95a6 !important;
-  font-size: 13px;
+  /* G-16 面包屑：--spd-font-size-sm */
+  font-size: var(--spd-font-size-sm);
 }
 
 .breadcrumb-line strong {
   color: #4b5870;
-  font-weight: 550;
+  /* D-16 面包屑当前项：非法字重 550 → 600 */
+  font-weight: 600;
 }
 
 /* Cards and operational panels */
@@ -349,7 +354,7 @@ body {
 .section-title h3,
 .section-title strong {
   color: #172033;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .section-title > svg,
@@ -531,7 +536,8 @@ body {
 .master-table,
 .hospital-product-table {
   color: #34415a;
-  font-size: 13px;
+  /* T-15 / T-13 表格数据：--spd-font-size-base */
+  font-size: var(--spd-font-size-base);
 }
 
 .master-table thead th,
@@ -543,7 +549,7 @@ body {
   border-bottom-color: #dfe5ed !important;
   color: #45536b !important;
   background: #f7f9fc !important;
-  font-weight: 650 !important;
+  font-weight: 600 !important;
 }
 
 .master-table tbody td,

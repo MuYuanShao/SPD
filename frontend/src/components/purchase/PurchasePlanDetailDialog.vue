@@ -78,7 +78,7 @@ async function save(itemId: number, supplierId: number) {
 .plan-detail-mask { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; background: #0006; padding: 24px; }
 .plan-detail-dialog { background: white; border-radius: 8px; padding: 20px; width: min(1180px, 96vw); max-height: 90vh; overflow: auto; }
 header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-p { margin: 12px 0; color: #475569; font-size: 13px; }
+p { margin: 12px 0; color: #475569; font-size: var(--spd-font-size-sm); }
 .plan-detail-scroll { overflow-x: auto; }
 table { min-width: 1000px; width: 100%; }
 td { white-space: nowrap; }

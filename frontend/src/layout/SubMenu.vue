@@ -48,7 +48,7 @@ const { auth, pages, activeCode } = useLayoutNavigation()
   display: flex;
   align-items: center;
   padding: 0 16px;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   text-decoration: none;
   border-bottom: 2px solid transparent;

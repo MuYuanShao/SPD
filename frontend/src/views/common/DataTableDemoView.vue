@@ -266,15 +266,15 @@ onMounted(() => {
   background: transparent;
   outline: none;
   color: var(--spd-text-primary);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 .spd-data-table__hint {
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-secondary);
   font-weight: 500;
 }
 .spd-row-action {
   padding: 0 6px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-sm) !important;
 }
 </style>

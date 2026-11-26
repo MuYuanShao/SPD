@@ -20,8 +20,8 @@ import {
   Users,
   X
 } from '@lucide/vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import {
   assignRolePermissions,
   assignUserRoles,
@@ -44,6 +44,15 @@ import {
   type UserPayload
 } from '../../api/foundation'
 import { useAuthStore } from '../../stores/auth'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const route = useRoute()
@@ -89,23 +98,6 @@ const permissionForm = reactive({
 const selectedUser = computed(() => users.value.find(item => item.userId === selectedUserIds.value[0]))
 const selectedRole = computed(() => roles.value.find(item => item.roleId === selectedRoleIds.value[0]))
 const title = computed(() => pageMode.value === 'role' ? '角色权限' : '用户管理')
-const subtitle = computed(() =>
-  pageMode.value === 'role'
-    ? '维护角色、菜单按钮权限与数据权限范围。'
-    : '维护系统账号、所属科室、角色分配与密码重置。'
-)
-const userStats = computed(() => [
-  { icon: 'user', theme: 'blue',   label: '总用户数',     value: users.value.length,                                    hint: '当前筛选条件下' },
-  { icon: 'check', theme: 'green', label: '启用用户',     value: users.value.filter(item => item.status === 1).length,   hint: '账号正常' },
-  { icon: 'stop',  theme: 'red',   label: '停用用户',     value: users.value.filter(item => item.status === 0).length,   hint: '已禁用账号' },
-  { icon: 'role',  theme: 'purple',label: '已分配角色',   value: users.value.filter(item => item.roleNames).length,      hint: '含角色绑定' },
-])
-const roleStats = computed(() => [
-  { icon: 'role',  theme: 'blue',   label: '总角色数',     value: roles.value.length,                                          hint: '当前筛选条件下' },
-  { icon: 'check', theme: 'green', label: '启用角色',     value: roles.value.filter(item => item.status === 1).length,         hint: '角色状态正常' },
-  { icon: 'perm',  theme: 'orange',label: '权限点',       value: permissions.value.length,                                      hint: '菜单 + 按钮' },
-  { icon: 'user',  theme: 'purple',label: '关联用户',     value: roles.value.reduce((sum, item) => sum + Number(item.userCount || 0), 0), hint: '各角色绑定人数' },
-])
 
 function roleIdsFrom(row?: UserRow) {
   return row?.roleIds ? row.roleIds.split(',').map(Number).filter(Boolean) : []
@@ -297,39 +289,121 @@ watch(pageMode, () => {
   rolePagination.page = 1
   loadAll()
 })
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const USERLIST_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '', width: 48, visible: true, weight: 0, minWidth: 48, maxWidth: 48 },
+  { key: 'username', label: '用户名', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 210 },
+  { key: 'realName', label: '真实姓名', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'deptName', label: '所属科室', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'roleNames', label: '角色', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'phone', label: '手机', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 190 },
+  { key: 'email', label: '邮箱', width: 190, visible: true, weight: 4, minWidth: 140, maxWidth: 280 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'updateTime', label: '更新时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  // 「操作」列必须出现在 defaults 里：isColumnVisible() 只查 defaults，
+  // 缺少该键时 v-if="isUserListColVisible('actions')" 恒为 false，
+  // 整列不会渲染，「编辑」等按钮将完全无法触达。
+  { key: 'actions', label: '操作', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 220, fill: true }
+]
+
+const userListCols = useListColumns({
+  storageKey: 'spd-user-list-cols-v1',
+  defaults: USERLIST_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 角色 / 邮箱等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const userListTableRef = userListCols.tableRef
+const isUserListColVisible = (key: string) => userListCols.isColumnVisible(key)
+const userListColBinding = (key: string) => userListCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const userListActionFix = useActionColumnFix()
+const userListActionFixed = computed(() => userListActionFix.actionFixedBinding.value)
+
+watch(
+  [userListTableRef],
+  () => {
+    userListActionFix.observe(userListTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const userListColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const userListColSettingsPopRef = ref<HTMLElement | null>(null)
+const userListColSettingsPop = useColSettingsPopover({
+  open: userListCols.settingsOpen,
+  anchorRef: userListColSettingsAnchorRef,
+  popRef: userListColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const ROLELIST_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '', width: 48, visible: true, weight: 0, minWidth: 48, maxWidth: 48 },
+  { key: 'roleName', label: '角色名称', width: 150, visible: true, weight: 5, minWidth: 110, maxWidth: 220 },
+  { key: 'roleCode', label: '角色编码', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 230 },
+  { key: 'dataScope', label: '数据权限', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'userCount', label: '用户数', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'permissionCount', label: '权限点', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 80, maxWidth: 130 },
+  { key: 'description', label: '说明', width: 220, visible: true, flexible: true, idealWidth: 280, weight: 6, minWidth: 130, maxWidth: 380 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220, fill: true }
+]
+
+const roleListCols = useListColumns({
+  storageKey: 'spd-role-list-cols-v1',
+  defaults: ROLELIST_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「说明」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const roleListTableRef = roleListCols.tableRef
+const isRoleListColVisible = (key: string) => roleListCols.isColumnVisible(key)
+const roleListColBinding = (key: string) => roleListCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const roleListColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const roleListColSettingsPopRef = ref<HTMLElement | null>(null)
+const roleListColSettingsPop = useColSettingsPopover({
+  open: roleListCols.settingsOpen,
+  anchorRef: roleListColSettingsAnchorRef,
+  popRef: roleListColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <div class="sys-page">
+  <div class="sys-page spd-unified-list">
 
     <MdPageHeader
       :title="title"
-      :description="subtitle"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadAll"
     />
-
-    <!-- 顶部 4 项 KPI 摘要 -->
-    <section class="sys-kpi-card" aria-label="系统统计">
-      <template v-for="item in (pageMode === 'role' ? roleStats : userStats)" :key="item.label">
-        <div class="sys-kpi-item" :class="`is-${item.theme}`">
-          <i class="sys-kpi-icon" :class="`is-${item.icon}`">
-            <Users v-if="item.icon === 'user'" :size="18" />
-            <ShieldCheck v-else-if="item.icon === 'check'" :size="18" />
-            <Shield v-else-if="item.icon === 'role'" :size="18" />
-            <ShieldCheck v-else-if="item.icon === 'perm'" :size="18" />
-            <UserX v-else-if="item.icon === 'stop'" :size="18" />
-            <Users v-else :size="18" />
-          </i>
-          <div>
-            <span class="sys-kpi-label">{{ item.label }}</span>
-            <strong class="sys-kpi-value">{{ item.value }}</strong>
-            <span class="sys-kpi-hint">{{ item.hint }}</span>
-          </div>
-        </div>
-      </template>
-    </section>
 
     <!-- Tab -->
     <div class="sys-tabs">
@@ -385,90 +459,441 @@ watch(pageMode, () => {
     <div class="sys-content">
 
       <!-- 用户列表 -->
-      <div v-if="pageMode === 'user'" class="sys-table-card">
-        <div class="sys-table-scroll">
-          <table class="sys-table">
-            <thead>
-              <tr>
-                <th style="width:40px"></th>
-                <th>用户名</th>
-                <th>真实姓名</th>
-                <th>所属科室</th>
-                <th>角色</th>
-                <th>手机</th>
-                <th>邮箱</th>
-                <th>状态</th>
-                <th>创建时间</th>
-                <th>更新时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading"><td colspan="11" class="text-center muted">正在加载...</td></tr>
-              <tr v-else-if="!users.length"><td colspan="11" class="text-center muted">暂无数据</td></tr>
-              <tr v-else v-for="row in users" :key="row.userId">
-                <td><input type="checkbox" :checked="selectedUserIds.includes(row.userId)" @change="onUserCheckbox(row.userId, $event)" /></td>
-                <td>{{ row.username }}</td>
-                <td>{{ row.realName }}</td>
-                <td>{{ row.deptName || '-' }}</td>
-                <td><span class="sys-tag is-role">{{ row.roleNames || '未分配' }}</span></td>
-                <td>{{ row.phone || '-' }}</td>
-                <td>{{ row.email || '-' }}</td>
-                <td><span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
-                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-                <td>{{ row.updateTime || '-' }}</td>
-                <td><button class="btn-text" type="button" @click="openUserEdit(row)"><Pencil :size="13" /> 编辑</button></td>
-              </tr>
-            </tbody>
-          </table>
+      <MdDataTableCard v-if="pageMode === 'user'" class="master-table-card">
+          <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="userListColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="userListCols.settingsOpen.value = !userListCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: userListCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="userListCols.settingsOpen.value"
+                ref="userListColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': userListColSettingsPop.align.value === 'right', 'is-align-up': userListColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': userListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': userListColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="userListCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in userListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && userListCols.visibleColumnCount.value <= 1"
+                      @change="userListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="userListCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+          </template>
+          <template #meta-extra>
+            <span class="md-chip primary">共 {{ userPagination.total }} 条</span>
+          </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="userListTableRef"
+            v-loading="loading"
+            :data="users"
+            row-key="userId"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无用户数据'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => userListCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isUserListColVisible('selection')"
+              label=""
+              v-bind="userListColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text"></span>
+              </template>
+              <template #default="{ row }">
+                <input type="checkbox" :checked="selectedUserIds.includes(row.userId)" @change="onUserCheckbox(row.userId, $event)" />
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="username"
+              v-if="isUserListColVisible('username')"
+              label="用户名"
+              v-bind="userListColBinding('username')"
+            >
+              <template #header>
+                <span class="ulc-th-text">用户名</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-mono ulc-wrap-text">{{ row.username }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="realName"
+              v-if="isUserListColVisible('realName')"
+              label="真实姓名"
+              v-bind="userListColBinding('realName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">真实姓名</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ row.realName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isUserListColVisible('deptName')"
+              label="所属科室"
+              v-bind="userListColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">所属科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="roleNames"
+              v-if="isUserListColVisible('roleNames')"
+              label="角色"
+              v-bind="userListColBinding('roleNames')"
+            >
+              <template #header>
+                <span class="ulc-th-text">角色</span>
+              </template>
+              <template #default="{ row }">
+                <span class="sys-tag is-role ulc-wrap-text">{{ row.roleNames || '未分配' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="phone"
+              v-if="isUserListColVisible('phone')"
+              label="手机"
+              v-bind="userListColBinding('phone')"
+            >
+              <template #header>
+                <span class="ulc-th-text">手机</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.phone || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="email"
+              v-if="isUserListColVisible('email')"
+              label="邮箱"
+              v-bind="userListColBinding('email')"
+            >
+              <template #header>
+                <span class="ulc-th-text">邮箱</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.email || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isUserListColVisible('status')"
+              label="状态"
+              v-bind="userListColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isUserListColVisible('createTime')"
+              label="创建时间"
+              v-bind="userListColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="md-audit-time">
+                  {{ row.createTime || '-' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isUserListColVisible('updateTime')"
+              label="更新时间"
+              v-bind="userListColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">更新时间</span>
+              </template>
+              <template #default="{ row }">
+                {{ row.updateTime || '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+
+              v-if="isUserListColVisible('actions')"
+
+              label="操作"
+
+              v-bind="userListColBinding('actions')"
+
+              :fixed="userListActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-actions">
+                <button class="ulc-action" type="button" @click="openUserEdit(row)"><Pencil :size="13" /> 编辑</button>
+                </div>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-        <div class="sys-pagination">
-          <span>共 <strong>{{ userPagination.total }}</strong> 条</span>
-          <PaginationControls :page="userPagination.page" :size="userPagination.size" :total="userPagination.total" :loading="loading" @change-page="changeUserPage" @change-size="changeUserPageSize" />
-        </div>
-      </div>
+        <template #pagination>
+          <MdPagination
+            :page="userPagination.page"
+            :total-pages="Math.max(1, Math.ceil(userPagination.total / userPagination.size))"
+            :total="userPagination.total"
+            :size="userPagination.size"
+            :loading="loading"
+            @update:page="changeUserPage"
+            @update:size="changeUserPageSize"
+          />
+        </template>
+      </MdDataTableCard>
 
       <!-- 角色列表 -->
-      <div v-else class="sys-table-card">
-        <div class="sys-table-scroll">
-          <table class="sys-table">
-            <thead>
-              <tr>
-                <th style="width:40px"></th>
-                <th>角色名称</th>
-                <th>角色编码</th>
-                <th>数据权限</th>
-                <th>用户数</th>
-                <th>权限点</th>
-                <th>状态</th>
-                <th>说明</th>
-                <th>创建时间</th>
-                <th>修改时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading"><td colspan="10" class="text-center muted">正在加载...</td></tr>
-              <tr v-else-if="!roles.length"><td colspan="10" class="text-center muted">暂无数据</td></tr>
-              <tr v-else v-for="row in roles" :key="row.roleId">
-                <td><input type="checkbox" :checked="selectedRoleIds.includes(row.roleId)" @change="onRoleCheckbox(row.roleId, $event)" /></td>
-                <td>{{ row.roleName }}</td>
-                <td><span class="sys-tag is-code">{{ row.roleCode }}</span></td>
-                <td>{{ dataScopeName(row.dataScope) }}</td>
-                <td>{{ row.userCount }}</td>
-                <td>{{ row.permissionCount }}</td>
-                <td><span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span></td>
-                <td>{{ row.description || '-' }}</td>
-                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
+      <MdDataTableCard v-else class="master-table-card">
+          <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="roleListColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="roleListCols.settingsOpen.value = !roleListCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: roleListCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="roleListCols.settingsOpen.value"
+                ref="roleListColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': roleListColSettingsPop.align.value === 'right', 'is-align-up': roleListColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': roleListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': roleListColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="roleListCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in roleListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && roleListCols.visibleColumnCount.value <= 1"
+                      @change="roleListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="roleListCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+          </template>
+          <template #meta-extra>
+            <span class="md-chip primary">共 {{ rolePagination.total }} 条</span>
+          </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="roleListTableRef"
+            v-loading="loading"
+            :data="roles"
+            row-key="roleId"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无角色数据'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => roleListCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isRoleListColVisible('selection')"
+              label=""
+              v-bind="roleListColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text"></span>
+              </template>
+              <template #default="{ row }">
+                <input type="checkbox" :checked="selectedRoleIds.includes(row.roleId)" @change="onRoleCheckbox(row.roleId, $event)" />
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="roleName"
+              v-if="isRoleListColVisible('roleName')"
+              label="角色名称"
+              v-bind="roleListColBinding('roleName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">角色名称</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ row.roleName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="roleCode"
+              v-if="isRoleListColVisible('roleCode')"
+              label="角色编码"
+              v-bind="roleListColBinding('roleCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">角色编码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="sys-tag is-code ulc-wrap-text">{{ row.roleCode }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="dataScope"
+              v-if="isRoleListColVisible('dataScope')"
+              label="数据权限"
+              v-bind="roleListColBinding('dataScope')"
+            >
+              <template #header>
+                <span class="ulc-th-text">数据权限</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ dataScopeName(row.dataScope) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="userCount"
+              v-if="isRoleListColVisible('userCount')"
+              label="用户数"
+              v-bind="roleListColBinding('userCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">用户数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.userCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="permissionCount"
+              v-if="isRoleListColVisible('permissionCount')"
+              label="权限点"
+              v-bind="roleListColBinding('permissionCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">权限点</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.permissionCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isRoleListColVisible('status')"
+              label="状态"
+              v-bind="roleListColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">{{ row.status === 1 ? '启用' : '停用' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="description"
+              v-if="isRoleListColVisible('description')"
+              label="说明"
+              v-bind="roleListColBinding('description')"
+            >
+              <template #header>
+                <span class="ulc-th-text">说明</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.description || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isRoleListColVisible('createTime')"
+              label="创建时间"
+              v-bind="roleListColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="md-audit-time">
+                  {{ row.createTime || '-' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isRoleListColVisible('updateTime')"
+              label="修改时间"
+              v-bind="roleListColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="md-audit-time">
+                  {{ row.updateTime || '-' }}
+                </span>
+              </template>
+            </el-table-column>
+          </el-table>
         </div>
-        <div class="sys-pagination">
-          <span>共 <strong>{{ rolePagination.total }}</strong> 条</span>
-          <PaginationControls :page="rolePagination.page" :size="rolePagination.size" :total="rolePagination.total" :loading="loading" @change-page="changeRolePage" @change-size="changeRolePageSize" />
-        </div>
-      </div>
+        <template #pagination>
+          <MdPagination
+            :page="rolePagination.page"
+            :total-pages="Math.max(1, Math.ceil(rolePagination.total / rolePagination.size))"
+            :total="rolePagination.total"
+            :size="rolePagination.size"
+            :loading="loading"
+            @update:page="changeRolePage"
+            @update:size="changeRolePageSize"
+          />
+        </template>
+      </MdDataTableCard>
     </div>
 
     <!-- 弹窗 -->
@@ -652,22 +1077,22 @@ watch(pageMode, () => {
 }
 
 .sys-kpi-label {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   opacity: 0.85;
 }
 
 .sys-kpi-value {
-  font-size: 18px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: var(--spd-lh-tight);
   font-variant-numeric: tabular-nums;
 }
 
 .sys-kpi-hint {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 400;
-  line-height: 1.3;
+  line-height: var(--spd-lh-tight);
   opacity: 0.75;
 }
 
@@ -705,7 +1130,7 @@ watch(pageMode, () => {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -769,7 +1194,7 @@ watch(pageMode, () => {
   background: transparent;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -803,8 +1228,8 @@ watch(pageMode, () => {
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
@@ -870,8 +1295,8 @@ watch(pageMode, () => {
   border: none;
   background: transparent;
   color: #10b981;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 4px;
@@ -889,7 +1314,7 @@ watch(pageMode, () => {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -916,7 +1341,7 @@ watch(pageMode, () => {
 .sys-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .sys-table thead tr {
@@ -927,7 +1352,7 @@ watch(pageMode, () => {
 .sys-table th {
   color: #065f46;
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
   text-align: left;
   padding: 10px 12px;
   white-space: nowrap;
@@ -946,18 +1371,24 @@ watch(pageMode, () => {
 .sys-table tbody tr:last-child td { border-bottom: none; }
 
 .text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px; font-size: 13px; }
+.muted { color: #94a3b8; padding: 32px; font-size: var(--spd-font-size-base); }
 
 /* 角色 / 编码 tag */
 .sys-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border: 1px solid;
   border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+  padding: 2px 8px;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
+  /* 文字居中于色块内；宽度不足时换行而不是横向溢出侵占相邻列 */
+  text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .sys-tag.is-role {
@@ -970,8 +1401,10 @@ watch(pageMode, () => {
   color: #334155;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-sm);
+  /* 角色编码是长英文标识，需要在断点处折行 */
+  word-break: break-word;
 }
 
 /* 状态 badge */
@@ -980,7 +1413,7 @@ watch(pageMode, () => {
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -1003,7 +1436,7 @@ watch(pageMode, () => {
   justify-content: space-between;
   padding: 10px 14px;
   border-top: 1px solid #f1f5f9;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: #64748b;
 }
 
@@ -1049,7 +1482,7 @@ watch(pageMode, () => {
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -1081,8 +1514,8 @@ watch(pageMode, () => {
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -1098,7 +1531,7 @@ watch(pageMode, () => {
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }
@@ -1122,7 +1555,7 @@ watch(pageMode, () => {
   background: #fff;
   color: #102033;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   resize: vertical;
   min-height: 60px;
@@ -1132,7 +1565,7 @@ watch(pageMode, () => {
 
 .sys-error {
   color: #b91c1c;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   margin: 0;
 }
@@ -1158,7 +1591,7 @@ watch(pageMode, () => {
   gap: 7px;
   padding: 5px 8px;
   border-radius: 5px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #334155;
   font-weight: 500;
   cursor: pointer;

@@ -1,20 +1,16 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import McpConnectionSettings from '../../components/system/McpConnectionSettings.vue'
 import {
-  AlertOctagon,
-  Check,
   CheckCircle2,
+  ChevronDown,
   ClipboardList,
   Cog,
+  Columns3,
   Database,
-  Edit3,
-  GitBranch,
-  KeyRound,
   Plus,
   RefreshCw,
-  Save,
   Search,
   Settings,
   Shield,
@@ -32,6 +28,10 @@ import {
   type SystemConfigRow
 } from '../../api/systemConfig'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 
 const configTypes = [
   { code: '',          label: '全部配置',     desc: '查看所有配置项',         icon: 'list',     theme: 'slate'   },
@@ -68,23 +68,68 @@ const form = ref<SystemConfigPayload>({
   status: 1
 })
 
-const summary = computed(() => {
-  const enabled = rows.value.filter((row) => row.status === '启用').length
-  const stopped = rows.value.filter((row) => row.status === '停用').length
-  const highRisk = rows.value.filter((row) => row.riskLevel === 'high').length
-  const workflow = rows.value.filter((row) => row.configType === 'workflow').length
-  return [
-    { icon: 'list',  theme: 'blue',   label: '配置总数',  value: rows.value.length, hint: '当前筛选条件下' },
-    { icon: 'check', theme: 'green',  label: '启用配置',  value: enabled,            hint: '生效中' },
-    { icon: 'stop',  theme: 'red',    label: '停用配置',  value: stopped,            hint: '已禁用' },
-    { icon: 'risk',  theme: 'orange', label: '高风险配置',value: highRisk,           hint: '需重点关注' },
-    { icon: 'flow',  theme: 'purple', label: '流程配置',  value: workflow,           hint: 'workflow 类型' }
-  ]
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 使用默认的 'fixed'：每列宽度互相独立，
+       拖拽某一列不会因为容器宽度变化而影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const SYSTEM_CONFIG_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'configType', label: '配置类型', width: 110, visible: true, weight: 4, minWidth: 100, maxWidth: 190 },
+  { key: 'configName', label: '配置名称', width: 160, visible: true, flexible: true, idealWidth: 220, weight: 8, minWidth: 130, maxWidth: 320 },
+  { key: 'scopeType', label: '适用范围', width: 100, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'scopeId', label: '适用对象', width: 110, visible: true, weight: 4, minWidth: 95, maxWidth: 220 },
+  { key: 'configKey', label: '配置键', width: 150, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 120, maxWidth: 300 },
+  { key: 'configValue', label: '配置值', width: 170, visible: true, flexible: true, idealWidth: 260, weight: 6, minWidth: 130, maxWidth: 380 },
+  { key: 'effectiveMode', label: '生效方式', width: 100, visible: true, weight: 3, minWidth: 90, maxWidth: 170 },
+  { key: 'riskLevel', label: '风险', width: 80, visible: true, weight: 2, minWidth: 72, maxWidth: 130 },
+  { key: 'status', label: '状态', width: 80, visible: true, weight: 2, minWidth: 72, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 140, visible: true, weight: 4, minWidth: 125, maxWidth: 200 },
+  { key: 'updateTime', label: '更新时间', width: 140, visible: true, weight: 4, minWidth: 125, maxWidth: 200 },
+  // 「操作」列是最后一列，用 fill 标记吃掉表格右侧剩余空白，
+  // 使整张表铺满内容区（100%）；按钮单行排列，不换行。
+  { key: 'actions', label: '操作', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 400, fill: true }
+]
+
+const systemConfigCols = useListColumns({
+  storageKey: 'spd-system-config-cols-v1',
+  defaults: SYSTEM_CONFIG_COL_DEFAULTS,
+  // 方案 C：混合策略 —— 按权重把内容区宽度铺满给所有列，
+  // 长文本列（配置名称 / 配置键 / 配置值）额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
 })
 
-function iconFor(code: string) {
-  return configTypes.find(t => t.code === code)?.icon ?? 'list'
-}
+const systemConfigTableRef = systemConfigCols.tableRef
+const isSystemConfigColVisible = (key: string) => systemConfigCols.isColumnVisible(key)
+const systemConfigColBinding = (key: string) => systemConfigCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const systemConfigActionFix = useActionColumnFix()
+const systemConfigActionFixed = computed(() => systemConfigActionFix.actionFixedBinding.value)
+
+watch(
+  [systemConfigTableRef],
+  () => {
+    systemConfigActionFix.observe(systemConfigTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const systemConfigColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const systemConfigColSettingsPopRef = ref<HTMLElement | null>(null)
+const systemConfigColSettingsPop = useColSettingsPopover({
+  open: systemConfigCols.settingsOpen,
+  anchorRef: systemConfigColSettingsAnchorRef,
+  popRef: systemConfigColSettingsPopRef
+})
+
 function themeFor(code: string) {
   return configTypes.find(t => t.code === code)?.theme ?? 'slate'
 }
@@ -199,34 +244,14 @@ onMounted(loadConfigs)
 </script>
 
 <template>
-  <div class="sys-page">
+  <div class="sys-page spd-unified-list">
 
     <MdPageHeader
       title="系统配置"
-      description="为基础信息、流程、权限、参数、审计、数据和系统集成提供统一配置中心。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadConfigs"
     />
-
-    <!-- 顶部 5 张主题色 KPI 卡 -->
-    <section class="sys-kpi-card sys-kpi-card-5" aria-label="系统配置统计">
-      <div v-for="item in summary" :key="item.label" class="sys-kpi-item" :class="`is-${item.theme}`">
-        <i class="sys-kpi-icon" :class="`is-${item.icon}`">
-          <ClipboardList v-if="item.icon === 'list'" :size="18" />
-          <Check v-else-if="item.icon === 'check'" :size="18" />
-          <X v-else-if="item.icon === 'stop'" :size="18" />
-          <AlertOctagon v-else-if="item.icon === 'risk'" :size="18" />
-          <Workflow v-else-if="item.icon === 'flow'" :size="18" />
-          <Settings v-else :size="18" />
-        </i>
-        <div>
-          <span class="sys-kpi-label">{{ item.label }}</span>
-          <strong class="sys-kpi-value">{{ item.value }}</strong>
-          <span class="sys-kpi-hint">{{ item.hint }}</span>
-        </div>
-      </div>
-    </section>
 
     <!-- 类型导航 Tab -->
     <div class="sys-tabs">
@@ -252,21 +277,21 @@ onMounted(loadConfigs)
 
     <McpConnectionSettings v-if="activeType === 'integration'" @saved="loadConfigs" />
 
-    <!-- 工具栏 -->
-    <div class="sys-toolbar-panel">
+    <!-- 工具栏：使用 md-table-toolbar 以继承标准列表按钮的主题配色 -->
+    <div class="sys-toolbar-panel md-table-toolbar">
       <div class="sys-toolbar-search">
         <i class="sys-toolbar-search-icon"><Search :size="15" /></i>
         <input v-model.trim="keyword" placeholder="配置键 / 配置名" @keyup.enter="loadConfigs" />
-        <select v-model="status" style="min-height:34px;border:none;border-left:1px solid #e2e8f0;background:#f8fafc;padding:0 8px;flex-shrink:0">
+        <select v-model="status" class="sys-toolbar-select">
           <option value="">全部</option>
           <option value="启用">启用</option>
           <option value="停用">停用</option>
         </select>
       </div>
       <div class="sys-toolbar-actions">
-        <button class="btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
+        <button class="md-btn" type="button" @click="resetQuery"><RefreshCw :size="15" /> 重置</button>
         <i class="sys-toolbar-sep"></i>
-        <button class="btn btn-primary" type="button" @click="openCreate"><Plus :size="15" /> 新增配置</button>
+        <button class="md-btn md-btn-primary" type="button" @click="openCreate"><Plus :size="15" /> 新增配置</button>
       </div>
     </div>
 
@@ -275,59 +300,233 @@ onMounted(loadConfigs)
     <div v-if="actionError" class="sys-error" role="alert">{{ actionError }}</div>
 
     <!-- 配置表 -->
-    <div class="sys-table-card">
-      <div class="sys-table-scroll">
-        <table class="sys-table">
-          <thead>
-            <tr>
-              <th>配置类型</th>
-              <th>配置名称</th>
-              <th>适用范围</th>
-              <th>适用对象</th>
-              <th>配置键</th>
-              <th>配置值</th>
-              <th>生效方式</th>
-              <th>风险</th>
-              <th>状态</th>
-              <th>创建时间</th>
-              <th>更新时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td colspan="12" class="text-center muted">正在加载...</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="12" class="text-center muted">暂无配置</td></tr>
-            <tr v-else v-for="row in rows" :key="row.configId">
-              <td>
-                <span :class="['sys-tag', `is-type-${themeFor(row.configType)}`]">{{ labelFor(row.configType) }}</span>
-              </td>
-              <td>{{ row.configName }}</td>
-              <td>{{ row.scopeType }}</td>
-              <td>{{ row.scopeId }}</td>
-              <td><span class="sys-tag is-code">{{ row.configKey }}</span></td>
-              <td class="config-value-cell" :title="row.configValue">{{ row.configValue }}</td>
-              <td>{{ row.effectiveMode }}</td>
-              <td>
-                <span :class="['sys-chip', `is-risk-${row.riskLevel}`]">
-                  {{ row.riskLevel === 'high' ? '高' : row.riskLevel === 'medium' ? '中' : '低' }}
-                </span>
-              </td>
-              <td>
-                <span :class="['sys-badge', row.status === '启用' ? 'is-active' : 'is-stopped']">
-                  {{ formatStatusText(row.status) }}
-                </span>
-              </td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td>{{ row.updateTime }}</td>
-              <td>
-                <button class="btn-text" type="button" @click="openEdit(row)">编辑</button>
-                <button class="btn-text" type="button" @click="toggleStatus(row)">{{ row.status === '启用' ? '停用' : '启用' }}</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <MdDataTableCard :loading="loading">
+      <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="systemConfigColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="systemConfigCols.settingsOpen.value = !systemConfigCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: systemConfigCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="systemConfigCols.settingsOpen.value"
+            ref="systemConfigColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': systemConfigColSettingsPop.align.value === 'right', 'is-align-up': systemConfigColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': systemConfigColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': systemConfigColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="systemConfigCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in systemConfigCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && systemConfigCols.visibleColumnCount.value <= 1"
+                  @change="systemConfigCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="systemConfigCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ rows.length }} 条</span>
+      </template>
+
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="systemConfigTableRef"
+          v-loading="loading"
+          :data="rows"
+          stripe
+          border
+          row-key="configId"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在加载系统配置…' : '暂无配置'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => systemConfigCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="configType"
+            v-if="isSystemConfigColVisible('configType')"
+            prop="configType"
+            v-bind="systemConfigColBinding('configType')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配置类型</span>
+            </template>
+            <template #default="{ row }">
+              <span :class="['sys-tag', `is-type-${themeFor(row.configType)}`]">{{ labelFor(row.configType) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="configName"
+            v-if="isSystemConfigColVisible('configName')"
+            prop="configName"
+            v-bind="systemConfigColBinding('configName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配置名称</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-strong ulc-wrap-text">{{ row.configName }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="scopeType"
+            v-if="isSystemConfigColVisible('scopeType')"
+            prop="scopeType"
+            v-bind="systemConfigColBinding('scopeType')"
+          >
+            <template #header>
+              <span class="ulc-th-text">适用范围</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.scopeType }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="scopeId"
+            v-if="isSystemConfigColVisible('scopeId')"
+            prop="scopeId"
+            v-bind="systemConfigColBinding('scopeId')"
+          >
+            <template #header>
+              <span class="ulc-th-text">适用对象</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.scopeId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="configKey"
+            v-if="isSystemConfigColVisible('configKey')"
+            prop="configKey"
+            v-bind="systemConfigColBinding('configKey')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配置键</span>
+            </template>
+            <template #default="{ row }">
+              <span class="sys-tag is-code ulc-wrap-text">{{ row.configKey }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="configValue"
+            v-if="isSystemConfigColVisible('configValue')"
+            prop="configValue"
+            v-bind="systemConfigColBinding('configValue')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配置值</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-mono ulc-wrap-text">{{ row.configValue }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="effectiveMode"
+            v-if="isSystemConfigColVisible('effectiveMode')"
+            prop="effectiveMode"
+            v-bind="systemConfigColBinding('effectiveMode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">生效方式</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.effectiveMode }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="riskLevel"
+            v-if="isSystemConfigColVisible('riskLevel')"
+            prop="riskLevel"
+            v-bind="systemConfigColBinding('riskLevel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">风险</span>
+            </template>
+            <template #default="{ row }">
+              <span :class="['sys-chip', `is-risk-${row.riskLevel}`]">
+                {{ row.riskLevel === 'high' ? '高' : row.riskLevel === 'medium' ? '中' : '低' }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="status"
+            v-if="isSystemConfigColVisible('status')"
+            prop="status"
+            v-bind="systemConfigColBinding('status')"
+          >
+            <template #header>
+              <span class="ulc-th-text">状态</span>
+            </template>
+            <template #default="{ row }">
+              <span :class="['sys-badge', row.status === '启用' ? 'is-active' : 'is-stopped']">
+                {{ formatStatusText(row.status) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="createTime"
+            v-if="isSystemConfigColVisible('createTime')"
+            prop="createTime"
+            v-bind="systemConfigColBinding('createTime')"
+          >
+            <template #header>
+              <span class="ulc-th-text">创建时间</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-time">{{ row.createTime || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="updateTime"
+            v-if="isSystemConfigColVisible('updateTime')"
+            prop="updateTime"
+            v-bind="systemConfigColBinding('updateTime')"
+          >
+            <template #header>
+              <span class="ulc-th-text">更新时间</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-time">{{ row.updateTime }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="actions"
+            v-if="isSystemConfigColVisible('actions')"
+            label="操作"
+            v-bind="systemConfigColBinding('actions')"
+            :fixed="systemConfigActionFixed"
+          >
+            <template #header>
+              <span class="ulc-th-text">操作</span>
+            </template>
+            <template #default="{ row }">
+              <div class="ulc-actions">
+                <button class="ulc-action" type="button" @click="openEdit(row)">编辑</button>
+                <button class="ulc-action is-info" type="button" @click="toggleStatus(row)">{{ row.status === '启用' ? '停用' : '启用' }}</button>
+              </div>
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
-    </div>
+    </MdDataTableCard>
 
     <!-- 弹窗 -->
     <Teleport to="body">
@@ -335,7 +534,7 @@ onMounted(loadConfigs)
       <div class="sys-dialog">
         <div class="sys-dialog-header">
           <h3>{{ dialogMode === 'create' ? '新增配置' : '编辑配置' }}</h3>
-          <button class="btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
+          <button class="md-btn md-btn-icon" type="button" @click="dialogOpen = false"><X :size="16" /></button>
         </div>
         <div class="sys-dialog-body">
           <div class="sys-form-grid">
@@ -379,8 +578,8 @@ onMounted(loadConfigs)
           </div>
         </div>
         <div class="sys-dialog-footer">
-          <button class="btn" type="button" @click="dialogOpen = false">取消</button>
-          <button class="btn btn-primary" type="button" @click="saveConfig"><CheckCircle2 :size="15" /> 保存</button>
+          <button class="md-btn" type="button" @click="dialogOpen = false">取消</button>
+          <button class="md-btn md-btn-primary" type="button" @click="saveConfig"><CheckCircle2 :size="15" /> 保存</button>
         </div>
       </div>
     </div>
@@ -394,11 +593,11 @@ onMounted(loadConfigs)
    系统管理 · 系统配置
    ---------------------------------------------------------------------
    设计目标：
-   1. 顶部 5 张主题色 KPI 卡。
-   2. Tab：图标 + 文字 underline 激活态（绿色）。
-   3. 工具栏：搜索框 + 动作按钮组。
-   4. 表格：浅绿渐变表头，配置类型彩色 tag，状态 badge，配置值 monospace 省略。
-   5. 弹窗：统一表单控件。
+   1. 类型 Tab：图标 + 文字 underline 激活态。
+   2. 工具栏：搜索框 + 动作按钮组（使用全局 md-btn 主题按钮）。
+   3. 表格：统一由 unified-list.css 的 .ulc-table 提供外观，
+      配置类型彩色 tag、状态 badge 等本页特有样式在此补充。
+   4. 弹窗：统一表单控件。
    ===================================================================== */
 .sys-page {
   display: flex;
@@ -409,148 +608,6 @@ onMounted(loadConfigs)
   padding: 16px 20px 24px;
   box-sizing: border-box;
 }
-
-/* ---------- 顶部 5 项 KPI 摘要 ---------- */
-.sys-kpi-card {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.sys-kpi-card-5 {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.sys-kpi-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border: 1px solid;
-  border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.sys-kpi-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-.sys-kpi-item.is-blue {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
-}
-.sys-kpi-item.is-green {
-  background: linear-gradient(180deg, #d1fae5 0%, #a7f3d0 100%);
-  border-color: #6ee7b7;
-}
-.sys-kpi-item.is-red {
-  background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
-  border-color: #fca5a5;
-}
-.sys-kpi-item.is-orange {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
-}
-.sys-kpi-item.is-purple {
-  background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%);
-  border-color: #c4b5fd;
-}
-.sys-kpi-item.is-cyan {
-  background: linear-gradient(180deg, #cffafe 0%, #a5f3fc 100%);
-  border-color: #67e8f9;
-}
-.sys-kpi-item.is-teal {
-  background: linear-gradient(180deg, #ccfbf1 0%, #99f6e4 100%);
-  border-color: #5eead4;
-}
-.sys-kpi-item.is-rose {
-  background: linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%);
-  border-color: #fda4af;
-}
-.sys-kpi-item.is-slate {
-  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
-  border-color: #94a3b8;
-}
-
-.sys-kpi-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-}
-
-.sys-kpi-item.is-blue   .sys-kpi-icon { color: #1d4ed8; }
-.sys-kpi-item.is-green .sys-kpi-icon { color: #047857; }
-.sys-kpi-item.is-red    .sys-kpi-icon { color: #b91c1c; }
-.sys-kpi-item.is-orange .sys-kpi-icon { color: #b45309; }
-.sys-kpi-item.is-purple .sys-kpi-icon { color: #6d28d9; }
-.sys-kpi-item.is-cyan   .sys-kpi-icon { color: #0e7490; }
-.sys-kpi-item.is-teal   .sys-kpi-icon { color: #0f766e; }
-.sys-kpi-item.is-rose   .sys-kpi-icon { color: #be123c; }
-.sys-kpi-item.is-slate  .sys-kpi-icon { color: #475569; }
-
-.sys-kpi-item > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.sys-kpi-label {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.sys-kpi-value {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-.sys-kpi-hint {
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.3;
-  opacity: 0.75;
-}
-
-.sys-kpi-item.is-blue   .sys-kpi-label,
-.sys-kpi-item.is-blue   .sys-kpi-value,
-.sys-kpi-item.is-blue   .sys-kpi-hint { color: #1e3a8a; }
-.sys-kpi-item.is-green .sys-kpi-label,
-.sys-kpi-item.is-green .sys-kpi-value,
-.sys-kpi-item.is-green .sys-kpi-hint { color: #065f46; }
-.sys-kpi-item.is-red    .sys-kpi-label,
-.sys-kpi-item.is-red    .sys-kpi-value,
-.sys-kpi-item.is-red    .sys-kpi-hint { color: #7f1d1d; }
-.sys-kpi-item.is-orange .sys-kpi-label,
-.sys-kpi-item.is-orange .sys-kpi-value,
-.sys-kpi-item.is-orange .sys-kpi-hint { color: #78350f; }
-.sys-kpi-item.is-purple .sys-kpi-label,
-.sys-kpi-item.is-purple .sys-kpi-value,
-.sys-kpi-item.is-purple .sys-kpi-hint { color: #4c1d95; }
-.sys-kpi-item.is-cyan   .sys-kpi-label,
-.sys-kpi-item.is-cyan   .sys-kpi-value,
-.sys-kpi-item.is-cyan   .sys-kpi-hint { color: #155e75; }
-.sys-kpi-item.is-teal   .sys-kpi-label,
-.sys-kpi-item.is-teal   .sys-kpi-value,
-.sys-kpi-item.is-teal   .sys-kpi-hint { color: #134e4a; }
-.sys-kpi-item.is-rose   .sys-kpi-label,
-.sys-kpi-item.is-rose   .sys-kpi-value,
-.sys-kpi-item.is-rose   .sys-kpi-hint { color: #881337; }
-.sys-kpi-item.is-slate  .sys-kpi-label,
-.sys-kpi-item.is-slate  .sys-kpi-value,
-.sys-kpi-item.is-slate  .sys-kpi-hint { color: #1e293b; }
 
 /* ---------- Tab ---------- */
 .sys-tabs {
@@ -570,7 +627,7 @@ onMounted(loadConfigs)
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--spd-text-secondary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: color 0.15s, border-color 0.15s;
@@ -635,7 +692,7 @@ onMounted(loadConfigs)
   background: transparent;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
 }
 
@@ -656,83 +713,21 @@ onMounted(loadConfigs)
   margin: 0 4px;
 }
 
-/* ---------- 按钮 ---------- */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  min-height: 32px;
-  height: 32px;
-  padding: 0 14px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  background: #fff;
-  color: #334155;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.btn:hover:not(:disabled) {
+.sys-toolbar-select {
+  min-height: 34px;
+  border: none;
+  border-left: 1px solid #e2e8f0;
   background: #f8fafc;
-  border-color: #94a3b8;
-  color: #1e293b;
-}
-
-.btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
-.btn-primary {
-  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
-  border-color: #047857;
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(180deg, #059669 0%, #047857 100%);
-  border-color: #065f46;
-  color: #fff;
-}
-
-.btn-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: #64748b;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.btn-icon:hover {
-  background: #f1f5f9;
+  padding: 0 8px;
+  flex-shrink: 0;
   color: #334155;
-}
-
-.btn-text {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  border: none;
-  background: transparent;
-  color: #10b981;
-  font-size: 12px;
+  font: inherit;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
-  cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: background 0.15s;
 }
 
-.btn-text:hover { background: #d1fae5; }
+/* 操作列统一使用 .ulc-actions / .ulc-action（见 unified-list.css），
+   此处不再自定义按钮样式，避免覆盖三套主题配色。 */
 
 /* ---------- 消息条 ---------- */
 .sys-msg {
@@ -743,7 +738,7 @@ onMounted(loadConfigs)
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
 
@@ -755,74 +750,36 @@ onMounted(loadConfigs)
   border: 1px solid #fca5a5;
   border-radius: 8px;
   color: #991b1b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   box-shadow: 0 1px 2px rgba(0,0,0,0.04);
 }
-
-/* ---------- 表格 ---------- */
-.sys-table-card {
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--spd-radius-md, 10px);
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
-
-.sys-table-scroll { overflow-x: auto; }
-
-.sys-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.sys-table thead tr {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%);
-  border-bottom: 1px solid #6ee7b7;
-}
-
-.sys-table th {
-  color: #065f46;
-  font-weight: 700;
-  font-size: 12px;
-  text-align: left;
-  padding: 10px 12px;
-  white-space: nowrap;
-  letter-spacing: 0.3px;
-}
-
-.sys-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
-  vertical-align: middle;
-}
-
-.sys-table tbody tr:nth-child(even) td { background: #fafdfb; }
-.sys-table tbody tr:hover td { background: #ecfdf5 !important; }
-.sys-table tbody tr:last-child td { border-bottom: none; }
-
-.text-center { text-align: center; }
-.muted { color: #94a3b8; padding: 32px; font-size: 13px; }
 
 /* ---------- Tag / Chip / Badge ---------- */
 .sys-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border: 1px solid;
   border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  white-space: nowrap;
+  padding: 2px 8px;
+  font-size: var(--spd-font-size-base);
+  font-weight: 600;
+  /* 文字居中于色块内；宽度不足时换行而不是横向溢出侵占相邻列 */
+  text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .sys-tag.is-code {
   color: #334155;
   background: #f1f5f9;
   border-color: #e2e8f0;
-  font-family: var(--spd-font-mono), monospace;
-  font-size: 11.5px;
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-sm);
+  /* 配置键是长英文标识，需要在断点处折行 */
+  word-break: break-word;
 }
 
 /* 配置类型彩色 tag（与 Tab 主题色对应） */
@@ -839,11 +796,18 @@ onMounted(loadConfigs)
 .sys-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: 6px;
   padding: 2px 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   border: 1px solid;
+  /* 文字居中于色块内；宽度不足时换行而不是横向溢出侵占相邻列 */
+  text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .sys-chip.is-risk-high {
@@ -870,7 +834,7 @@ onMounted(loadConfigs)
   align-items: center;
   border-radius: 999px;
   padding: 2px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
@@ -884,16 +848,6 @@ onMounted(loadConfigs)
   color: #991b1b;
   background: #fee2e2;
   border: 1px solid #fca5a5;
-}
-
-.config-value-cell {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: var(--spd-font-mono), monospace;
-  font-size: 12px;
-  color: #475569;
 }
 
 /* ---------- 弹窗 ---------- */
@@ -936,7 +890,7 @@ onMounted(loadConfigs)
 
 .sys-dialog-header h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: var(--spd-text-heading);
 }
@@ -968,8 +922,8 @@ onMounted(loadConfigs)
 .sys-form-grid label {
   display: grid;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
   color: #4b5b66;
 }
 
@@ -985,7 +939,7 @@ onMounted(loadConfigs)
   background: #fff;
   color: #102033;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s;
 }
@@ -1003,31 +957,22 @@ onMounted(loadConfigs)
   background: #fff;
   color: #102033;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   resize: vertical;
   min-height: 80px;
-  font-family: var(--spd-font-mono), monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .sys-textarea:focus { outline: none; border-color: #cbd5e1; }
 
 /* ---------- 响应式 ---------- */
-@media (max-width: 1400px) {
-  .sys-kpi-card-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (max-width: 1200px) {
-  .sys-kpi-card { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .sys-kpi-card-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
 @media (max-width: 900px) {
   .sys-toolbar-panel { gap: 10px; }
   .sys-toolbar-search { flex: 1; min-width: 0; }
   .sys-form-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 640px) {
-  .sys-kpi-card,
-  .sys-kpi-card-5 { grid-template-columns: 1fr; }
   .sys-page { padding: 12px; }
 }
 </style>

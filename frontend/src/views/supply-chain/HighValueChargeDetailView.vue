@@ -28,10 +28,20 @@ import {
   Wallet
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import HighValueOperationsPanel from '../../components/supply-chain/HighValueOperationsPanel.vue'
 import { useChargeDetailQuery } from '../../composables/useChargeDetailQuery'
 import { useAuthStore } from '../../stores/auth'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import type { HighValueChargeDetail } from '../../api/highValueCharges'
 
 const auth = useAuthStore()
@@ -54,12 +64,25 @@ const errorMessage = ref('')
 const { filters, rows, loading, currentPage, pageSize, totalItems,
   loadData, search, reset, changePage, changePageSize, notify, confirm } = useChargeDetailQuery()
 
+/** 统一列表的表格容器（用于横向滚动按钮定位到 el-table 内部滚动区） */
 const tableScrollRef = ref<HTMLElement | null>(null)
 const tableScrollState = ref({ left: 0, max: 0 })
 let resizeObserver: ResizeObserver | undefined
 
+/**
+ * 取得 el-table 内部真正负责横向滚动的容器。
+ * 统一列表改造后表格由 Element Plus 自己滚动（.el-scrollbar__wrap），
+ * 外层 .ulc-table-wrap 不再滚动。
+ */
+function getChargeTableScrollEl(): HTMLElement | null {
+  const root = tableScrollRef.value
+  if (!root) return null
+  const wrap = root.querySelector<HTMLElement>('.el-scrollbar__wrap')
+  return wrap || root
+}
+
 function updateTableScrollState() {
-  const el = tableScrollRef.value
+  const el = getChargeTableScrollEl()
   if (!el) {
     tableScrollState.value = { left: 0, max: 0 }
     return
@@ -71,7 +94,7 @@ function updateTableScrollState() {
 }
 
 function setChargeTableScrollLeft(left: number) {
-  const el = tableScrollRef.value
+  const el = getChargeTableScrollEl()
   if (!el) return
   const max = Math.max(0, el.scrollWidth - el.clientWidth)
   el.scrollLeft = Math.min(max, Math.max(0, left))
@@ -79,7 +102,7 @@ function setChargeTableScrollLeft(left: number) {
 }
 
 function scrollChargeTable(direction: 'left' | 'right') {
-  const el = tableScrollRef.value
+  const el = getChargeTableScrollEl()
   if (!el) return
   updateTableScrollState()
   const distance = Math.max(360, Math.round(el.clientWidth * 0.72))
@@ -190,24 +213,72 @@ function toggleRow(row: HighValueChargeDetail) {
 }
 
 watch(rows, async () => { await nextTick(); updateTableScrollState() })
-onMounted(() => {
+onMounted(async () => {
+  await nextTick()
   resizeObserver = new ResizeObserver(updateTableScrollState)
-  if (tableScrollRef.value) {
-    resizeObserver.observe(tableScrollRef.value)
-    const table = tableScrollRef.value.querySelector('table')
+  const root = tableScrollRef.value
+  if (root) {
+    resizeObserver.observe(root)
+    const wrap = root.querySelector<HTMLElement>('.el-scrollbar__wrap')
+    if (wrap) {
+      resizeObserver.observe(wrap)
+      wrap.addEventListener('scroll', updateTableScrollState, { passive: true })
+    }
+    const table = root.querySelector('table')
     if (table) resizeObserver.observe(table)
   }
   updateTableScrollState()
 })
 onBeforeUnmount(() => resizeObserver?.disconnect())
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const HVCHARGEDETAIL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'chargeNo', label: '计费单号', width: 180, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'patient', label: '患者信息', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 8, minWidth: 140, maxWidth: 340 },
+  { key: 'product', label: '商品信息', width: 220, visible: true, flexible: true, idealWidth: 260, weight: 9, minWidth: 150, maxWidth: 380 },
+  { key: 'col3', label: '供应商 / 厂家', width: 170, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'registrationNo', label: '注册证', width: 170, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'col5', label: 'UDI / 唯一码', width: 180, visible: true, flexible: true, idealWidth: 220, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'quantity', label: '数量', width: 110, visible: true, weight: 3, minWidth: 95, maxWidth: 170 },
+  { key: 'unitPrice', label: '单价', width: 110, visible: true, weight: 3, minWidth: 95, maxWidth: 170 },
+  { key: 'amount', label: '金额', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'chargeTime', label: '计费时间', width: 170, visible: true, weight: 4, minWidth: 140, maxWidth: 240, fill: true }
+]
+
+const hvChargeDetailCols = useListColumns({
+  storageKey: 'spd-hv-charge-detail-cols-v1',
+  defaults: HVCHARGEDETAIL_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「患者信息 / 商品信息 / 供应商厂家」等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const hvChargeDetailTableRef = hvChargeDetailCols.tableRef
+const isHvChargeDetailColVisible = (key: string) => hvChargeDetailCols.isColumnVisible(key)
+const hvChargeDetailColBinding = (key: string) => hvChargeDetailCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const hvChargeDetailColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const hvChargeDetailColSettingsPopRef = ref<HTMLElement | null>(null)
+const hvChargeDetailColSettingsPop = useColSettingsPopover({
+  open: hvChargeDetailCols.settingsOpen,
+  anchorRef: hvChargeDetailColSettingsAnchorRef,
+  popRef: hvChargeDetailColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="charge-detail-page" aria-label="收费耗材明细查询">
+<template><section class="charge-detail-page spd-unified-list" aria-label="收费耗材明细查询">
     <MdPageHeader
       crumb="供应链业务"
       title="收费耗材明细查询"
-      description="按患者、商品、日期、唯一码、厂家供应商等条件查询高值耗材计费明细"
       :loading="loading"
       @refresh="loadData"
     />
@@ -357,219 +428,257 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
           </div>
         </div>
 
-        <div id="charge-detail-table-scroll" ref="tableScrollRef" class="charge-detail-scroll" @scroll="updateTableScrollState">
-          <table class="charge-detail-table">
-            <thead>
-              <tr>
-                <th>计费单号</th>
-                <th>患者信息</th>
-                <th>商品信息</th>
-                <th>供应商 / 厂家</th>
-                <th>注册证</th>
-                <th>UDI / 唯一码</th>
-                <th>数量</th>
-                <th>单价</th>
-                <th>金额</th>
-                <th>计费时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading" class="charge-state-row">
-                <td colspan="10">
-                  <div class="charge-state-cell is-loading">
-                    <RefreshCw :size="20" class="spin" />
-                    <span>正在加载收费耗材明细...</span>
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="hvChargeDetailColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="hvChargeDetailCols.settingsOpen.value = !hvChargeDetailCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: hvChargeDetailCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="hvChargeDetailCols.settingsOpen.value"
+              ref="hvChargeDetailColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': hvChargeDetailColSettingsPop.align.value === 'right', 'is-align-up': hvChargeDetailColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': hvChargeDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': hvChargeDetailColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="hvChargeDetailCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in hvChargeDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && hvChargeDetailCols.visibleColumnCount.value <= 1"
+                    @change="hvChargeDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="hvChargeDetailCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div ref="tableScrollRef" class="ulc-table-wrap">
+            <el-table
+              ref="hvChargeDetailTableRef"
+              :data="rows"
+              row-key="bizNo"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无计费明细'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => hvChargeDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="chargeNo"
+                v-if="isHvChargeDetailColVisible('chargeNo')"
+                label="计费单号"
+                v-bind="hvChargeDetailColBinding('chargeNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">计费单号</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.bizNo || '-' }}</span>
+                    <span class="ulc-sub ulc-wrap-text is-sub" v-if="row.externalChargeNo">外单 {{ row.externalChargeNo }}</span>
                   </div>
-                </td>
-              </tr>
-              <tr v-else-if="errorMessage" class="charge-state-row">
-                <td colspan="10">
-                  <div class="charge-state-cell is-error">
-                    <AlertCircle :size="20" />
-                    <span>{{ errorMessage }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="patient"
+                v-if="isHvChargeDetailColVisible('patient')"
+                label="患者信息"
+                v-bind="hvChargeDetailColBinding('patient')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">患者信息</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.patientName || '-' }}</span>
+                    <span class="ulc-sub ulc-wrap-text is-sub">
+                      <User :size="11" />
+                      {{ row.patientNo || '-' }}
+                    </span>
+                    <span class="ulc-sub ulc-wrap-text is-sub">
+                      <Building2 :size="11" />
+                      {{ row.deptName || '-' }}
+                    </span>
                   </div>
-                </td>
-              </tr>
-              <tr v-else-if="!rows.length" class="charge-state-row">
-                <td colspan="10">
-                  <div class="charge-state-cell is-empty">
-                    <Info :size="20" />
-                    <span>暂无收费耗材明细，请调整查询条件后重试</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="product"
+                v-if="isHvChargeDetailColVisible('product')"
+                label="商品信息"
+                v-bind="hvChargeDetailColBinding('product')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品信息</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.productName || '-' }}</span>
+                    <span class="ulc-mono ulc-wrap-text">
+                      <Hash :size="11" />
+                      {{ row.productCode || '-' }}
+                    </span>
+                    <span class="ulc-sub ulc-wrap-text is-sub">
+                      {{ row.specModel || '-' }} · {{ row.unit || '-' }}
+                    </span>
                   </div>
-                </td>
-              </tr>
-              <template v-else>
-                <template v-for="row in rows" :key="String(row.bizNo)">
-                  <tr
-                    :class="['charge-data-row', { selected: expandedRow === String(row.bizNo) }]"
-                    @click="toggleRow(row)"
-                  >
-                    <td>
-                      <strong class="charge-biz-no">{{ row.bizNo }}</strong>
-                      <span class="muted-cell" v-if="row.externalChargeNo">外单 {{ row.externalChargeNo }}</span>
-                    </td>
-                    <td>
-                      <div class="charge-cell-stack">
-                        <strong>{{ row.patientName || '-' }}</strong>
-                        <span class="muted-cell">
-                          <User :size="11" />
-                          {{ row.patientNo || '-' }}
-                        </span>
-                        <span class="muted-cell">
-                          <Building2 :size="11" />
-                          {{ row.deptName || '-' }}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="charge-cell-stack">
-                        <strong>{{ row.productName || '-' }}</strong>
-                        <span class="muted-cell">
-                          <Hash :size="11" />
-                          {{ row.productCode || '-' }}
-                        </span>
-                        <span class="muted-cell">
-                          {{ row.specModel || '-' }} · {{ row.unit || '-' }}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="charge-cell-stack">
-                        <strong>{{ row.supplierName || '-' }}</strong>
-                        <span class="muted-cell">{{ row.manufacturerName || '-' }}</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="charge-cell-stack">
-                        <strong>{{ row.registrationNo || '-' }}</strong>
-                        <span class="muted-cell" v-if="row.registrationExpireDate">
-                          到期 {{ row.registrationExpireDate }}
-                        </span>
-                        <span v-else class="muted-cell">—</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="charge-cell-stack">
-                        <span class="charge-mono" data-testid="charge-unique-code">
-                          <Tag :size="11" />
-                          {{ row.uniqueCode || '-' }}
-                        </span>
-                        <span class="charge-mono">
-                          <ShieldCheck :size="11" />
-                          {{ row.udiCode || '-' }}
-                        </span>
-                      </div>
-                    </td>
-                    <td class="numeric-cell">
-                      <strong>{{ row.chargeQuantity ?? '-' }}</strong>
-                    </td>
-                    <td class="numeric-cell charge-money">
-                      <span>{{ money(row.unitPrice, 4) }}</span>
-                    </td>
-                    <td class="numeric-cell charge-amount">
-                      <strong>¥{{ money(row.chargeAmount) }}</strong>
-                    </td>
-                    <td>
-                      <span class="time-pill" :class="`tone-${timeTone(row.chargeTime || row.createTime)}`">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="col3"
+                v-if="isHvChargeDetailColVisible('col3')"
+                label="供应商 / 厂家"
+                v-bind="hvChargeDetailColBinding('col3')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">供应商 / 厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.supplierName || '-' }}</span>
+                    <span class="ulc-sub ulc-wrap-text is-sub">{{ row.manufacturerName || '-' }}</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="registrationNo"
+                v-if="isHvChargeDetailColVisible('registrationNo')"
+                label="注册证"
+                v-bind="hvChargeDetailColBinding('registrationNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">注册证</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+                    <span class="ulc-sub ulc-wrap-text is-sub" v-if="row.registrationExpireDate">
+                      到期 {{ row.registrationExpireDate }}
+                    </span>
+                    <span v-else class="ulc-sub ulc-wrap-text is-sub">—</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="col5"
+                v-if="isHvChargeDetailColVisible('col5')"
+                label="UDI / 唯一码"
+                v-bind="hvChargeDetailColBinding('col5')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">UDI / 唯一码</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span class="ulc-mono ulc-wrap-text" data-testid="charge-unique-code">
+                      <Tag :size="11" />
+                      {{ row.uniqueCode || '-' }}
+                    </span>
+                    <span class="ulc-mono ulc-wrap-text">
+                      <ShieldCheck :size="11" />
+                      {{ row.udiCode || '-' }}
+                    </span>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="quantity"
+                v-if="isHvChargeDetailColVisible('quantity')"
+                label="数量"
+                v-bind="hvChargeDetailColBinding('quantity')"
+                align="right"
+              >
+                <template #header>
+                  <span class="ulc-th-text">数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number ulc-wrap-text"><strong>{{ row.chargeQuantity ?? '-' }}</strong></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isHvChargeDetailColVisible('unitPrice')"
+                label="单价"
+                v-bind="hvChargeDetailColBinding('unitPrice')"
+                align="right"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number ulc-wrap-text"><span>{{ money(row.unitPrice, 4) }}</span></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="amount"
+                v-if="isHvChargeDetailColVisible('amount')"
+                label="金额"
+                v-bind="hvChargeDetailColBinding('amount')"
+                align="right"
+              >
+                <template #header>
+                  <span class="ulc-th-text">金额</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number ulc-wrap-text"><strong>¥{{ money(row.chargeAmount) }}</strong></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="chargeTime"
+                v-if="isHvChargeDetailColVisible('chargeTime')"
+                label="计费时间"
+                v-bind="hvChargeDetailColBinding('chargeTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">计费时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="time-pill" :class="`tone-${timeTone(row.chargeTime || row.createTime)}`">
                         {{ timeText(row.chargeTime || row.createTime) }}
                       </span>
                       <span class="muted-cell charge-time">
                         <Calendar :size="11" />
                         {{ row.chargeTime || row.createTime || '-' }}
                       </span>
-                    </td>
-                  </tr>
-                  <tr v-if="expandedRow === String(row.bizNo)" class="charge-detail-row">
-                    <td colspan="10">
-                      <div class="charge-detail-grid">
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">计费单号</span>
-                          <span class="charge-detail-value charge-mono">{{ row.bizNo }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">外部单号</span>
-                          <span class="charge-detail-value">{{ row.externalChargeNo || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">患者号</span>
-                          <span class="charge-detail-value">{{ row.patientNo || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">患者姓名</span>
-                          <span class="charge-detail-value">{{ row.patientName || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">科室</span>
-                          <span class="charge-detail-value">{{ row.deptName || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">商品编码</span>
-                          <span class="charge-detail-value charge-mono">{{ row.productCode || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">商品名称</span>
-                          <span class="charge-detail-value">{{ row.productName || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">规格 / 单位</span>
-                          <span class="charge-detail-value">{{ row.specModel || '—' }} / {{ row.unit || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">供应商</span>
-                          <span class="charge-detail-value">{{ row.supplierName || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">生产厂家</span>
-                          <span class="charge-detail-value">{{ row.manufacturerName || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">注册证号</span>
-                          <span class="charge-detail-value charge-mono">{{ row.registrationNo || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">注册证到期</span>
-                          <span class="charge-detail-value">{{ row.registrationExpireDate || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">唯一码</span>
-                          <span class="charge-detail-value charge-mono">{{ row.uniqueCode || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">UDI</span>
-                          <span class="charge-detail-value charge-mono">{{ row.udiCode || '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">数量</span>
-                          <span class="charge-detail-value">{{ row.chargeQuantity ?? '—' }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">单价</span>
-                          <span class="charge-detail-value">¥{{ money(row.unitPrice, 4) }}</span>
-                        </div>
-                        <div class="charge-detail-item charge-amount-cell">
-                          <span class="charge-detail-label">金额</span>
-                          <span class="charge-detail-value charge-amount-strong">¥{{ money(row.chargeAmount) }}</span>
-                        </div>
-                        <div class="charge-detail-item">
-                          <span class="charge-detail-label">计费时间</span>
-                          <span class="charge-detail-value">{{ row.chargeTime || row.createTime || '—' }}</span>
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
                 </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无计费明细" />
               </template>
-            </tbody>
-          </table>
-        </div>
-        <PaginationControls
-          :page="currentPage"
-          :size="pageSize"
-          :total="totalItems"
-          :loading="loading"
-          @change-page="changePage"
-          @change-size="changePageSize"
-        />
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="currentPage"
+              :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
+              :total="totalItems"
+              :size="pageSize"
+              :loading="loading"
+              @update:page="changePage"
+              @update:size="changePageSize"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
     </template>
   </section>
@@ -625,7 +734,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   border-radius: 6px 6px 0 0;
   background: transparent;
   color: var(--spd-text-secondary, #607285);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
@@ -689,14 +798,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-filter-head strong {
   display: block;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .charge-filter-head small {
   display: block;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .charge-query-grid {
@@ -717,8 +826,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   align-items: center;
   gap: 4px;
   color: var(--spd-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .charge-query-grid label > span :deep(svg) {
@@ -737,7 +846,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   background: var(--spd-bg-container);
   color: var(--spd-text-primary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -775,7 +884,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 4px;
   height: 34px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   border-radius: 6px;
 }
@@ -833,7 +942,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   border: 1px solid;
   border-radius: 999px;
   background: #fff;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   transition: transform 0.1s ease;
 }
 
@@ -857,7 +966,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-summary-value {
   margin-left: auto;
   color: var(--spd-text-heading);
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -968,14 +1077,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-section-title h3 {
   margin: 0;
   color: var(--spd-text-heading);
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .charge-section-title p {
   margin: 2px 0 0;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .charge-section-title-right {
@@ -991,7 +1100,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 4px;
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   border-radius: 6px;
   transition: all 0.15s ease;
@@ -1097,7 +1206,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   min-width: 1780px;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .charge-detail-table thead th {
@@ -1105,8 +1214,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   top: 0;
   z-index: 2;
   padding: 10px 14px !important;
-  font-size: 12px !important;
-  font-weight: 600 !important;
+  font-size: var(--spd-font-size-table-head) !important;
+  font-weight: 700 !important;
   color: #1e293b !important;
   background: linear-gradient(180deg, #f0f7ff 0%, #e0efff 100%) !important;
   border-bottom: 1px solid #c7d2fe !important;
@@ -1119,7 +1228,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   padding: 10px 14px !important;
   border-bottom: 1px solid #f1f5f9 !important;
   color: #334155 !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   background: #fff;
   vertical-align: top;
 }
@@ -1159,15 +1268,15 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 .charge-cell-stack strong {
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
 
 .charge-biz-no {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #1d4ed8 !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 600 !important;
 }
 
@@ -1177,7 +1286,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   gap: 3px;
   margin-top: 1px;
   color: var(--spd-text-tertiary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 400;
 }
 
@@ -1187,9 +1296,9 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 }
 
 .charge-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace !important;
+  font-family: var(--spd-font-family-mono) !important;
   color: #475569 !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .numeric-cell {
@@ -1200,18 +1309,18 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 
 .numeric-cell strong {
   color: var(--spd-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .charge-money {
   color: #475569;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-base) !important;
 }
 
 .charge-amount strong {
   color: #b91c1c;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
@@ -1224,7 +1333,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   align-items: center;
   padding: 1px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -1267,7 +1376,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
   height: 200px;
   padding: 32px 16px;
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   background: #fafbfc;
 }
 
@@ -1316,21 +1425,21 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 .charge-detail-label {
   flex: 0 0 auto;
   color: var(--spd-text-secondary);
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
 .charge-detail-value {
   min-width: 0;
   color: var(--spd-text-primary);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 
 .charge-amount-strong {
   color: #b91c1c !important;
-  font-size: 14px !important;
+  font-size: var(--spd-font-size-base) !important;
   font-weight: 700 !important;
 }
 

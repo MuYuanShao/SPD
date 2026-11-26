@@ -6,6 +6,16 @@ import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { useAuthStore } from '../../stores/auth'
 import { useNotify } from '../../composables/useNotify'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import {
   cancelWarehouseReturn, fetchStockReturnCandidates, fetchStockReturnOptions, fetchStockReturns, submitStockReturn,
   type ReturnCandidate, type ReturnRecord, type ReturnSelection
@@ -194,10 +204,136 @@ async function cancel(record: ReturnRecord) {
 }
 
 onMounted(refresh)
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const STOCKRETURNCANDIDATES_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '选择', width: 70, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'product', label: '商品', width: 220, visible: true, flexible: true, idealWidth: 300, weight: 8, minWidth: 130, maxWidth: 460 },
+  { key: 'batchNo', label: '批号', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'stockCode', label: '库存码', width: 170, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'returnableQty', label: '可退数量', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'returnQty', label: '本次退货', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190, fill: true }
+]
+
+const stockReturnCandidatesCols = useListColumns({
+  storageKey: 'spd-stock-return-candidates-cols-v1',
+  defaults: STOCKRETURNCANDIDATES_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const stockReturnCandidatesTableRef = stockReturnCandidatesCols.tableRef
+const isStockReturnCandidatesColVisible = (key: string) => stockReturnCandidatesCols.isColumnVisible(key)
+const stockReturnCandidatesColBinding = (key: string) => stockReturnCandidatesCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const stockReturnCandidatesColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const stockReturnCandidatesColSettingsPopRef = ref<HTMLElement | null>(null)
+const stockReturnCandidatesColSettingsPop = useColSettingsPopover({
+  open: stockReturnCandidatesCols.settingsOpen,
+  anchorRef: stockReturnCandidatesColSettingsAnchorRef,
+  popRef: stockReturnCandidatesColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const STOCKRETURNLIST_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'returnNo', label: '退货单号', width: 180, visible: true, weight: 4, minWidth: 140, maxWidth: 280 },
+  { key: 'type', label: '类型', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'sourceWarehouse', label: '来源库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'receiver', label: '接收方', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'baseQty', label: '基本数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'recordTime', label: '登记时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const stockReturnListCols = useListColumns({
+  storageKey: 'spd-stock-return-list-cols-v1',
+  defaults: STOCKRETURNLIST_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const stockReturnListTableRef = stockReturnListCols.tableRef
+const isStockReturnListColVisible = (key: string) => stockReturnListCols.isColumnVisible(key)
+const stockReturnListColBinding = (key: string) => stockReturnListCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const stockReturnListActionFix = useActionColumnFix()
+const stockReturnListActionFixed = computed(() => stockReturnListActionFix.actionFixedBinding.value)
+
+watch(
+  [stockReturnListTableRef],
+  () => {
+    stockReturnListActionFix.observe(stockReturnListTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const stockReturnListColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const stockReturnListColSettingsPopRef = ref<HTMLElement | null>(null)
+const stockReturnListColSettingsPop = useColSettingsPopover({
+  open: stockReturnListCols.settingsOpen,
+  anchorRef: stockReturnListColSettingsAnchorRef,
+  popRef: stockReturnListColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const STOCKRETURNITEMS_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'product', label: '商品信息', width: 220, visible: true, flexible: true, idealWidth: 300, weight: 8, minWidth: 140, maxWidth: 460 },
+  { key: 'batchStock', label: '批号 / 库存码', width: 170, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'registrationNo', label: '注册证', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'manufacturer', label: '厂家', width: 160, visible: true, weight: 5, minWidth: 110, maxWidth: 280 },
+  { key: 'unit', label: '单位', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'returnQty', label: '退货数量', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190, fill: true }
+]
+
+const stockReturnItemsCols = useListColumns({
+  storageKey: 'spd-stock-return-items-cols-v1',
+  defaults: STOCKRETURNITEMS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const stockReturnItemsTableRef = stockReturnItemsCols.tableRef
+const isStockReturnItemsColVisible = (key: string) => stockReturnItemsCols.isColumnVisible(key)
+const stockReturnItemsColBinding = (key: string) => stockReturnItemsCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const stockReturnItemsColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const stockReturnItemsColSettingsPopRef = ref<HTMLElement | null>(null)
+const stockReturnItemsColSettingsPop = useColSettingsPopover({
+  open: stockReturnItemsCols.settingsOpen,
+  anchorRef: stockReturnItemsColSettingsAnchorRef,
+  popRef: stockReturnItemsColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="return-page">
+<template><section class="return-page spd-unified-list">
     <MdPageHeader crumb="供应链业务" title="退货管理" :loading="loading" @refresh="refresh" />
     <StatusMessage :message="error" tone="error" role="alert" />
     <section v-if="canWrite" class="hospital-catalog-panel">
@@ -223,23 +359,153 @@ onMounted(refresh)
         <label>关键词<input v-model.trim="keyword" class="md-input" placeholder="商品或追溯码" :disabled="submitting" /></label>
         <button class="md-btn md-btn-primary" type="submit" :disabled="!choiceReady || searching || submitting">查询可退库存</button>
       </form>
-      <div class="table-scroll">
-        <table class="master-table">
-          <thead><tr><th>选择</th><th>商品</th><th>批号</th><th>库存码</th><th>可退数量</th><th>本次退货</th></tr></thead>
-          <tbody>
-            <tr v-for="row in candidates" :key="row.id">
-              <td><input type="checkbox" :aria-label="`选择 ${row.code}`" :checked="row.id in selected"
-                :disabled="submitting" @change="toggle(row, ($event.target as HTMLInputElement).checked)" /></td>
-              <td>{{ row.productCode }} · {{ row.productName }}</td><td>{{ row.batchNo }}</td><td>{{ row.code }}</td>
-              <td>{{ row.availableQuantity }}{{ row.packageQuantity ? ` 包（每包 ${row.packageQuantity}）` : '' }}</td>
-              <td><input v-if="selectionType === 'batch' && row.id in selected" v-model.number="selected[row.id]"
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="stockReturnCandidatesColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="stockReturnCandidatesCols.settingsOpen.value = !stockReturnCandidatesCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: stockReturnCandidatesCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="stockReturnCandidatesCols.settingsOpen.value"
+            ref="stockReturnCandidatesColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': stockReturnCandidatesColSettingsPop.align.value === 'right', 'is-align-up': stockReturnCandidatesColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': stockReturnCandidatesColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnCandidatesColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="stockReturnCandidatesCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in stockReturnCandidatesCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && stockReturnCandidatesCols.visibleColumnCount.value <= 1"
+                  @change="stockReturnCandidatesCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="stockReturnCandidatesCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="stockReturnCandidatesTableRef"
+            :data="candidates"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无可退库存'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnCandidatesCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isStockReturnCandidatesColVisible('selection')"
+              label="选择"
+              v-bind="stockReturnCandidatesColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text">选择</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input type="checkbox" :aria-label="`选择 ${row.code}`" :checked="row.id in selected"
+                :disabled="submitting" @change="toggle(row, ($event.target as HTMLInputElement).checked)" /></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isStockReturnCandidatesColVisible('product')"
+              label="商品"
+              v-bind="stockReturnCandidatesColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">
+                  <span class="ulc-joined-part">{{ row.productCode }}</span>
+                  <span class="ulc-joined-part">{{ row.productName }}</span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="batchNo"
+              v-if="isStockReturnCandidatesColVisible('batchNo')"
+              label="批号"
+              v-bind="stockReturnCandidatesColBinding('batchNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">批号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.batchNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="stockCode"
+              v-if="isStockReturnCandidatesColVisible('stockCode')"
+              label="库存码"
+              v-bind="stockReturnCandidatesColBinding('stockCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库存码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.code }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="returnableQty"
+              v-if="isStockReturnCandidatesColVisible('returnableQty')"
+              label="可退数量"
+              v-bind="stockReturnCandidatesColBinding('returnableQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">可退数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">
+                  <span class="ulc-joined-part ulc-number">{{ row.availableQuantity }}</span>
+                  <span class="ulc-joined-part" v-if="row.packageQuantity">包（每包 {{ row.packageQuantity }}）</span>
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="returnQty"
+              v-if="isStockReturnCandidatesColVisible('returnQty')"
+              label="本次退货"
+              v-bind="stockReturnCandidatesColBinding('returnQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">本次退货</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input v-if="selectionType === 'batch' && row.id in selected" v-model.number="selected[row.id]"
                 class="md-input return-quantity" type="number" min="1" :max="row.availableQuantity" :disabled="submitting" :aria-label="`${row.code} 退货数量`" />
-                <span v-else>{{ selected[row.id] ?? '—' }}</span></td>
-            </tr>
-            <tr v-if="!candidates.length"><td colspan="6"><EmptyState :message="searching ? '正在查询可退库存...' : '暂无可退库存，请选择库房并查询'" /></td></tr>
-          </tbody>
-        </table>
-      </div>
+                <span v-else>{{ selected[row.id] ?? '—' }}</span></span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无可退库存" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
       <div class="return-actions">
         <button type="button" class="md-btn" :disabled="!candidates.length || submitting" @click="selectAll">批量选择查询结果</button>
         <label>退货原因<input v-model.trim="reason" class="md-input" maxlength="500" :disabled="submitting" /></label>
@@ -250,43 +516,331 @@ onMounted(refresh)
     </section>
     <section class="hospital-catalog-panel">
       <h3>退货记录</h3>
-      <div class="table-scroll">
-        <table class="master-table">
-          <thead><tr><th>退货单号</th><th>类型</th><th>来源库房</th><th>接收方</th><th>基本数量</th><th>状态</th><th>登记时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="record in records" :key="record.returnNo">
-              <td>{{ record.returnNo }}</td><td>{{ record.kind === 'department' ? '科室退库' : '供应商退货' }}</td>
-              <td>{{ record.sourceWarehouse }}</td><td>{{ record.destinationWarehouse || record.supplierName }}</td>
-              <td>{{ record.quantity }}</td><td>{{ record.status === 'pending_confirm' ? '待拣配配送确认' : record.status === 'confirmed' ? '已完成' : '已取消' }}</td>
-              <td>{{ record.createTime }}</td><td><button v-if="canWrite && record.status === 'pending_confirm'" class="md-btn" type="button"
-                :disabled="submitting" @click="cancel(record)">取消退库</button></td>
-            </tr>
-            <tr v-if="!records.length"><td colspan="8"><EmptyState :message="loading ? '正在加载退货记录...' : '暂无退货记录'" /></td></tr>
-          </tbody>
-        </table>
-      </div>
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="stockReturnListColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="stockReturnListCols.settingsOpen.value = !stockReturnListCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: stockReturnListCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="stockReturnListCols.settingsOpen.value"
+            ref="stockReturnListColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': stockReturnListColSettingsPop.align.value === 'right', 'is-align-up': stockReturnListColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': stockReturnListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnListColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="stockReturnListCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in stockReturnListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && stockReturnListCols.visibleColumnCount.value <= 1"
+                  @change="stockReturnListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="stockReturnListCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="stockReturnListTableRef"
+            :data="records"
+            row-key="returnNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无退货单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnListCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="returnNo"
+              v-if="isStockReturnListColVisible('returnNo')"
+              label="退货单号"
+              v-bind="stockReturnListColBinding('returnNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">退货单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.returnNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="type"
+              v-if="isStockReturnListColVisible('type')"
+              label="类型"
+              v-bind="stockReturnListColBinding('type')"
+            >
+              <template #header>
+                <span class="ulc-th-text">类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.kind === 'department' ? '科室退库' : '供应商退货' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceWarehouse"
+              v-if="isStockReturnListColVisible('sourceWarehouse')"
+              label="来源库房"
+              v-bind="stockReturnListColBinding('sourceWarehouse')"
+            >
+              <template #header>
+                <span class="ulc-th-text">来源库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.sourceWarehouse }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="receiver"
+              v-if="isStockReturnListColVisible('receiver')"
+              label="接收方"
+              v-bind="stockReturnListColBinding('receiver')"
+            >
+              <template #header>
+                <span class="ulc-th-text">接收方</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.destinationWarehouse || row.supplierName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="baseQty"
+              v-if="isStockReturnListColVisible('baseQty')"
+              label="基本数量"
+              v-bind="stockReturnListColBinding('baseQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">基本数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.quantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isStockReturnListColVisible('status')"
+              label="状态"
+              v-bind="stockReturnListColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.status === 'pending_confirm' ? '待拣配配送确认' : row.status === 'confirmed' ? '已完成' : '已取消' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="recordTime"
+              v-if="isStockReturnListColVisible('recordTime')"
+              label="登记时间"
+              v-bind="stockReturnListColBinding('recordTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">登记时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isStockReturnListColVisible('actions')"
+              label="操作"
+              v-bind="stockReturnListColBinding('actions')"
+              :fixed="stockReturnListActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button v-if="canWrite && row.status === 'pending_confirm'"
+                :disabled="submitting" @click="cancel(row)" class="ulc-action md-btn" type="button">取消退库</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无退货单" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
     </section>
     <el-dialog v-model="confirmationOpen" title="确认退货" class="stock-return-confirm-dialog"
       modal-class="stock-return-confirm-overlay" append-to-body destroy-on-close :close-on-click-modal="false">
       <p class="return-confirm-note">提交后将预占二级库库存，待拣配配送确认后转入中心库。</p>
-      <div class="table-scroll return-confirm-table" role="region" aria-label="退货商品明细" tabindex="0">
-        <table class="master-table">
-          <thead>
-            <tr><th>商品信息</th><th>批号 / 库存码</th><th>注册证</th><th>厂家</th><th>单位</th><th>退货数量</th><th>金额</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in confirmationRows" :key="row.id">
-              <td>{{ row.productName }}<span class="return-confirm-detail">{{ row.productCode }}<template v-if="row.specModel"> · {{ row.specModel }}</template></span></td>
-              <td>{{ row.batchNo || '—' }}<span v-if="row.code !== row.batchNo" class="return-confirm-detail">{{ row.code }}</span></td>
-              <td>{{ row.registrationNo || '—' }}</td>
-              <td>{{ row.manufacturerName || '—' }}</td>
-              <td>{{ row.unit || '—' }}</td>
-              <td class="return-confirm-number">{{ row.baseQuantity }}<span v-if="row.packageQuantity" class="return-confirm-detail">{{ row.quantity }} 包</span></td>
-              <td class="return-confirm-number">{{ row.amount == null ? '待核实' : money.format(row.amount / 100) }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="stockReturnItemsColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="stockReturnItemsCols.settingsOpen.value = !stockReturnItemsCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: stockReturnItemsCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="stockReturnItemsCols.settingsOpen.value"
+            ref="stockReturnItemsColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': stockReturnItemsColSettingsPop.align.value === 'right', 'is-align-up': stockReturnItemsColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': stockReturnItemsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': stockReturnItemsColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="stockReturnItemsCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in stockReturnItemsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && stockReturnItemsCols.visibleColumnCount.value <= 1"
+                  @change="stockReturnItemsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="stockReturnItemsCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="stockReturnItemsTableRef"
+            :data="confirmationRows"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无退货明细'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnItemsCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="product"
+              v-if="isStockReturnItemsColVisible('product')"
+              label="商品信息"
+              v-bind="stockReturnItemsColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品信息</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.productName }}<span class="return-confirm-detail">{{ row.productCode }}<template v-if="row.specModel"> · {{ row.specModel }}</template></span></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="batchStock"
+              v-if="isStockReturnItemsColVisible('batchStock')"
+              label="批号 / 库存码"
+              v-bind="stockReturnItemsColBinding('batchStock')"
+            >
+              <template #header>
+                <span class="ulc-th-text">批号 / 库存码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.batchNo || '—' }}<span v-if="row.code !== row.batchNo" class="return-confirm-detail">{{ row.code }}</span></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="registrationNo"
+              v-if="isStockReturnItemsColVisible('registrationNo')"
+              label="注册证"
+              v-bind="stockReturnItemsColBinding('registrationNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">注册证</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.registrationNo || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="manufacturer"
+              v-if="isStockReturnItemsColVisible('manufacturer')"
+              label="厂家"
+              v-bind="stockReturnItemsColBinding('manufacturer')"
+            >
+              <template #header>
+                <span class="ulc-th-text">厂家</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.manufacturerName || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="unit"
+              v-if="isStockReturnItemsColVisible('unit')"
+              label="单位"
+              v-bind="stockReturnItemsColBinding('unit')"
+            >
+              <template #header>
+                <span class="ulc-th-text">单位</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.unit || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="returnQty"
+              v-if="isStockReturnItemsColVisible('returnQty')"
+              label="退货数量"
+              v-bind="stockReturnItemsColBinding('returnQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">退货数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.baseQuantity }}<span v-if="row.packageQuantity" class="return-confirm-detail">{{ row.quantity }} 包</span></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isStockReturnItemsColVisible('amount')"
+              label="金额"
+              v-bind="stockReturnItemsColBinding('amount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.amount == null ? '待核实' : money.format(row.amount / 100) }}</span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无退货明细" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
       <dl class="return-confirm-totals">
         <div><dt>数量汇总</dt><dd>{{ quantitySummary }}</dd></div>
         <div><dt>金额汇总</dt><dd>{{ amountSummary }}</dd></div>
@@ -306,6 +860,12 @@ onMounted(refresh)
 .return-filters label, .return-actions label { display: grid; gap: 4px; min-width: 0; }
 .return-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 12px; }
 .return-quantity { width: 100px; }
+
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
 :global(.stock-return-confirm-overlay .el-overlay-dialog) {
   display: grid;
   place-items: center;
@@ -321,7 +881,7 @@ onMounted(refresh)
 .return-confirm-table { max-height: min(44vh, 420px); overflow: auto; }
 .return-confirm-table table { min-width: 780px; }
 .return-confirm-table th { position: sticky; top: 0; z-index: 1; background: var(--el-fill-color-light); }
-.return-confirm-detail { display: block; color: var(--el-text-color-secondary); font-size: 12px; }
+.return-confirm-detail { display: block; color: var(--el-text-color-secondary); font-size: var(--spd-font-size-sm); }
 .return-confirm-number { text-align: right; font-variant-numeric: tabular-nums; }
 .return-confirm-totals { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 24px; margin: 12px 0 0; }
 .return-confirm-totals > div { display: flex; align-items: baseline; gap: 8px; }

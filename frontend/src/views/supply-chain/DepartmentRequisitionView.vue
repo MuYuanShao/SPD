@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { AlertTriangle, ArrowLeft, Eye, History, Info, Minus, Plus, RotateCcw, Search, ShoppingCart, UserPlus, X } from '@lucide/vue'
 import { ElDialog } from 'element-plus'
 import 'element-plus/theme-chalk/el-dialog.css'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
@@ -28,6 +27,17 @@ import {
 import { formatStatusText } from '../../utils/chineseDisplay'
 import { useAuthStore } from '../../stores/auth'
 import { usePagedFilters } from '../../composables/usePagedFilters'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -586,14 +596,194 @@ async function changeWarehouse() {
   currentPage.value = 1
   await loadCatalog()
 }
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const DEPTREQORDERS_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'documentNo', label: '单据号', width: 180, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'deptName', label: '科室', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'applicant', label: '请购人', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'requisitionTime', label: '申领时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'totalQty', label: '商品总数量', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'totalAmount', label: '总金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'status', label: '状态', width: 130, visible: true, weight: 2, minWidth: 90, maxWidth: 170 },
+  { key: 'actions', label: '操作', width: 160, visible: true, fill: true, minWidth: 130, maxWidth: 240 }
+]
+
+const deptReqOrdersCols = useListColumns({
+  storageKey: 'spd-dept-req-orders-cols-v1',
+  defaults: DEPTREQORDERS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const deptReqOrdersTableRef = deptReqOrdersCols.tableRef
+const isDeptReqOrdersColVisible = (key: string) => deptReqOrdersCols.isColumnVisible(key)
+const deptReqOrdersColBinding = (key: string) => deptReqOrdersCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const deptReqOrdersActionFix = useActionColumnFix()
+const deptReqOrdersActionFixed = computed(() => deptReqOrdersActionFix.actionFixedBinding.value)
+
+watch(
+  [deptReqOrdersTableRef],
+  () => {
+    deptReqOrdersActionFix.observe(deptReqOrdersTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const deptReqOrdersColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const deptReqOrdersColSettingsPopRef = ref<HTMLElement | null>(null)
+const deptReqOrdersColSettingsPop = useColSettingsPopover({
+  open: deptReqOrdersCols.settingsOpen,
+  anchorRef: deptReqOrdersColSettingsAnchorRef,
+  popRef: deptReqOrdersColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const DEPTREQPRODUCTS_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'col0', label: '', width: 60, visible: true, weight: 1, minWidth: 48, maxWidth: 80 },
+  { key: 'productCode', label: '商品编码', width: 160, visible: true, weight: 3, minWidth: 120, maxWidth: 210 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'spec', label: '规格型号', width: 170, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'col4', label: '生产厂家', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 280 },
+  { key: 'baseUnit', label: '基本单位', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'looseAvailable', label: '散货可用', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'packageAvailable', label: '定数包可用', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'defaultRequisition', label: '默认申领', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'requisitionQty', label: '申领数量', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'convertedQty', label: '本次折算', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'template', label: '模板', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'unitPrice', label: '单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'chargeable', label: '是否收费', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'centralized', label: '是否集采', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150, fill: true }
+]
+
+const deptReqProductsCols = useListColumns({
+  storageKey: 'spd-dept-req-products-cols-v1',
+  defaults: DEPTREQPRODUCTS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const deptReqProductsTableRef = deptReqProductsCols.tableRef
+const isDeptReqProductsColVisible = (key: string) => deptReqProductsCols.isColumnVisible(key)
+const deptReqProductsColBinding = (key: string) => deptReqProductsCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const deptReqProductsColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const deptReqProductsColSettingsPopRef = ref<HTMLElement | null>(null)
+const deptReqProductsColSettingsPop = useColSettingsPopover({
+  open: deptReqProductsCols.settingsOpen,
+  anchorRef: deptReqProductsColSettingsAnchorRef,
+  popRef: deptReqProductsColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const DEPTREQDETAIL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'productCode', label: '商品编码', width: 160, visible: true, weight: 3, minWidth: 120, maxWidth: 210 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'requisitionMode', label: '申领模式', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'template', label: '模板', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'conversion', label: '换算', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'manufacturer', label: '厂家', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 280 },
+  { key: 'unitPrice', label: '单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'col7', label: '申请数量', width: 130, visible: true, weight: 2, minWidth: 90, maxWidth: 170 },
+  { key: 'approvedQty', label: '审批数量', width: 130, visible: true, weight: 2, minWidth: 90, maxWidth: 170 },
+  { key: 'fulfillProgress', label: '履约进度', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'uniqueCode', label: '唯一码', width: 170, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'applyAmount', label: '申请金额', width: 130, visible: true, weight: 2, minWidth: 90, maxWidth: 170 },
+  { key: 'registrationNo', label: '注册证', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240, fill: true }
+]
+
+const deptReqDetailCols = useListColumns({
+  storageKey: 'spd-dept-req-detail-cols-v1',
+  defaults: DEPTREQDETAIL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const deptReqDetailTableRef = deptReqDetailCols.tableRef
+const isDeptReqDetailColVisible = (key: string) => deptReqDetailCols.isColumnVisible(key)
+const deptReqDetailColBinding = (key: string) => deptReqDetailCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const deptReqDetailColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const deptReqDetailColSettingsPopRef = ref<HTMLElement | null>(null)
+const deptReqDetailColSettingsPop = useColSettingsPopover({
+  open: deptReqDetailCols.settingsOpen,
+  anchorRef: deptReqDetailColSettingsAnchorRef,
+  popRef: deptReqDetailColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const DEPTREQSMART_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '选择', width: 80, visible: true, weight: 1, minWidth: 60, maxWidth: 110 },
+  { key: 'deptTarget', label: '科室 / 目标库', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 260 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'mode', label: '模式', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'periodicDemand', label: '周期需求', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'targetStock', label: '目标库库存', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'sourceAvailable', label: '来源库可用', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'suggestedRequisition', label: '建议申领', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 200, fill: true }
+]
+
+const deptReqSmartCols = useListColumns({
+  storageKey: 'spd-dept-req-smart-cols-v1',
+  defaults: DEPTREQSMART_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const deptReqSmartTableRef = deptReqSmartCols.tableRef
+const isDeptReqSmartColVisible = (key: string) => deptReqSmartCols.isColumnVisible(key)
+const deptReqSmartColBinding = (key: string) => deptReqSmartCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const deptReqSmartColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const deptReqSmartColSettingsPopRef = ref<HTMLElement | null>(null)
+const deptReqSmartColSettingsPop = useColSettingsPopover({
+  open: deptReqSmartCols.settingsOpen,
+  anchorRef: deptReqSmartColSettingsAnchorRef,
+  popRef: deptReqSmartColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="dept-req-page">
+<template><section class="dept-req-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务"
       title="科室申领"
-      description="统一申请散货、定数包和高值耗材"
       :loading="loading"
       @refresh="refreshCurrentView"
     />
@@ -637,63 +827,202 @@ async function changeWarehouse() {
           </div>
         </form>
         <StatusMessage :message="historyFilterError" tone="error" role="alert" />
-        <table class="dept-req-table requisition-order-table">
-          <thead>
-            <tr>
-              <th>单据号</th>
-              <th>科室</th>
-              <th>库房</th>
-              <th>请购人</th>
-              <th>申领时间</th>
-              <th>商品总数量</th>
-              <th>总金额</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="9"><EmptyState message="正在加载科室申领记录..." /></td>
-            </tr>
-            <tr v-else-if="error">
-              <td colspan="9"><EmptyState message="科室申领记录加载失败" /></td>
-            </tr>
-            <template v-else>
-              <tr v-for="order in requisitionOrders" :key="String(order.bizNo)">
-                <td><strong>{{ order.bizNo || '-' }}</strong></td>
-                <td>{{ order.deptName || '-' }}</td>
-                <td>{{ order.warehouseName || '-' }}</td>
-                <td>{{ order.applicantName || '-' }}</td>
-                <td>{{ order.createTime || '-' }}</td>
-                <td>{{ order.totalQuantity || 0 }}</td>
-                <td>{{ money(order.totalAmount) }}</td>
-                <td>{{ formatStatusText(order.status) }}</td>
-                <td>
-                  <button class="btn btn-sm" type="button" @click="openDetails(order.bizNo)">
-                    <Eye :size="15" />
-                    查看明细
-                  </button>
-                  <button v-if="canApproveRequisition && order.status === 'pending_approval'"
-                    class="btn btn-sm btn-primary" type="button" :disabled="!!approvingRequisitionNo"
-                    @click="approveRequisition(order)">
-                    {{ approvingRequisitionNo === order.bizNo ? '审批中…' : '审批通过' }}
-                  </button>
-                </td>
-              </tr>
+              <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="deptReqOrdersColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="deptReqOrdersCols.settingsOpen.value = !deptReqOrdersCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: deptReqOrdersCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="deptReqOrdersCols.settingsOpen.value"
+            ref="deptReqOrdersColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': deptReqOrdersColSettingsPop.align.value === 'right', 'is-align-up': deptReqOrdersColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': deptReqOrdersColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqOrdersColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="deptReqOrdersCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in deptReqOrdersCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && deptReqOrdersCols.visibleColumnCount.value <= 1"
+                  @change="deptReqOrdersCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="deptReqOrdersCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="deptReqOrdersTableRef"
+            :data="requisitionOrders"
+            row-key="requisitionNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无申领单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => deptReqOrdersCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="documentNo"
+              v-if="isDeptReqOrdersColVisible('documentNo')"
+              label="单据号"
+              v-bind="deptReqOrdersColBinding('documentNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">单据号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.bizNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isDeptReqOrdersColVisible('deptName')"
+              label="科室"
+              v-bind="deptReqOrdersColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isDeptReqOrdersColVisible('warehouseName')"
+              label="库房"
+              v-bind="deptReqOrdersColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="applicant"
+              v-if="isDeptReqOrdersColVisible('applicant')"
+              label="请购人"
+              v-bind="deptReqOrdersColBinding('applicant')"
+            >
+              <template #header>
+                <span class="ulc-th-text">请购人</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.applicantName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requisitionTime"
+              v-if="isDeptReqOrdersColVisible('requisitionTime')"
+              label="申领时间"
+              v-bind="deptReqOrdersColBinding('requisitionTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申领时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="totalQty"
+              v-if="isDeptReqOrdersColVisible('totalQty')"
+              label="商品总数量"
+              v-bind="deptReqOrdersColBinding('totalQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品总数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number">{{ row.totalQuantity || 0 }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="totalAmount"
+              v-if="isDeptReqOrdersColVisible('totalAmount')"
+              label="总金额"
+              v-bind="deptReqOrdersColBinding('totalAmount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">总金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number">{{ money(row.totalAmount) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isDeptReqOrdersColVisible('status')"
+              label="状态"
+              v-bind="deptReqOrdersColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatStatusText(row.status) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isDeptReqOrdersColVisible('actions')"
+              label="操作"
+              v-bind="deptReqOrdersColBinding('actions')"
+              :fixed="deptReqOrdersActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click="openDetails(row.bizNo)" class="ulc-action btn-sm" type="button"><Eye :size="15" />
+                    查看明细</button>
+                <button v-if="canApproveRequisition && row.status === 'pending_approval'" :disabled="!!approvingRequisitionNo"
+                    @click="approveRequisition(row)" class="ulc-action btn-sm btn-primary" type="button">{{ approvingRequisitionNo === row.bizNo ? '审批中…' : '审批通过' }}</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无申领单" />
             </template>
-            <tr v-if="!loading && !error && requisitionOrders.length === 0">
-              <td colspan="9"><EmptyState message="暂无科室申领记录" /></td>
-            </tr>
-          </tbody>
-        </table>
-        <PaginationControls
-          :page="historyPage"
-          :size="historySize"
-          :total="historyTotal"
-          :loading="loading"
-          @change-page="changeHistoryPage"
-          @change-size="changeHistorySize"
-        />
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="historyPage"
+            :total-pages="Math.max(1, Math.ceil(historyTotal / historySize))"
+            :total="historyTotal"
+            :size="historySize"
+            :loading="loading"
+            @update:page="changeHistoryPage"
+            @update:size="changeHistorySize"
+          />
+        </template>
+      </MdDataTableCard>
       </section>
 
     <ElDialog
@@ -845,95 +1174,307 @@ async function changeWarehouse() {
           <span class="dept-req-catalog-meta">共 {{ totalItems }} 条 · 第 {{ currentPage }} / {{ Math.max(1, Math.ceil(totalItems / pageSize)) }} 页</span>
         </div>
         <div class="dept-req-catalog-body">
-          <table class="dept-req-table requisition-catalog-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" @change="toggleAllProducts" /></th>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>规格型号</th>
-                <th>生产厂家</th>
-                <th>基本单位</th>
-                <th>散货可用</th>
-                <th>定数包可用</th>
-                <th>默认申领</th>
-                <th>申领数量</th>
-                <th>本次折算</th>
-                <th>模板</th>
-                <th>状态</th>
-                <th>单价</th>
-                <th>是否收费</th>
-                <th>是否集采</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading || optionsLoading">
-                <td colspan="16"><EmptyState message="正在加载科室申领目录..." /></td>
-              </tr>
-              <tr v-else-if="error || warehouseSetupMessage">
-                <td colspan="16"><EmptyState :message="error || warehouseSetupMessage" /></td>
-              </tr>
-              <template v-else>
-                <tr
-                  v-for="item in filteredProducts"
-                  :key="item.productCode"
-                  :class="{ selected: item.selected, low: item.requisitionStatus.includes('缺货') }"
-                >
-                  <td><input v-model="item.selected" :disabled="submitting" type="checkbox" /></td>
-                  <td>{{ item.productCode }}</td>
-                  <td>
-                    <strong>{{ item.productName }}</strong>
-                    <small>{{ item.supplierName }}</small>
-                  </td>
-                  <td>{{ item.specModel }}</td>
-                  <td>{{ item.manufacturerName }}</td>
-                  <td>{{ item.baseUnit }}</td>
-                  <td>{{ item.looseAvailableQty }} {{ item.baseUnit }}</td>
-                  <td>
-                    <strong>{{ item.packageAvailableQty }} 包</strong>
-                    <small v-if="item.packageQuantity">1 包 = {{ item.packageQuantity }} {{ item.packageUnit }}</small>
-                  </td>
-                  <td>
-                    <select v-model="item.mode" :disabled="submitting" @change="normalizeQuantity(item)">
-                      <option v-if="item.allowedModes.includes('loose')" value="loose">散货</option>
-                      <option v-if="item.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
-                      <option v-if="item.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
-                    </select>
-                  </td>
-                  <td>
-                    <div class="qty-stepper">
-                      <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(item, -1)"><Minus :size="12" /></button>
-                      <input v-integer-quantity v-model.number="item.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(item)" />
-                      <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(item, 1)"><Plus :size="12" /></button>
+                  <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="deptReqProductsColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="deptReqProductsCols.settingsOpen.value = !deptReqProductsCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: deptReqProductsCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="deptReqProductsCols.settingsOpen.value"
+              ref="deptReqProductsColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': deptReqProductsColSettingsPop.align.value === 'right', 'is-align-up': deptReqProductsColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': deptReqProductsColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqProductsColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="deptReqProductsCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in deptReqProductsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && deptReqProductsCols.visibleColumnCount.value <= 1"
+                    @change="deptReqProductsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="deptReqProductsCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="deptReqProductsTableRef"
+              :data="filteredProducts"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无可申领商品'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => deptReqProductsCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="col0"
+                v-if="isDeptReqProductsColVisible('col0')"
+                label=""
+                v-bind="deptReqProductsColBinding('col0')"
+              >
+                <template #header>
+                  <span class="ulc-th-text"></span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text"><input v-model="row.selected" :disabled="submitting" type="checkbox" /></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isDeptReqProductsColVisible('productCode')"
+                label="商品编码"
+                v-bind="deptReqProductsColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isDeptReqProductsColVisible('productName')"
+                label="商品名称"
+                v-bind="deptReqProductsColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <strong>{{ row.productName }}</strong>
+                    <small>{{ row.supplierName }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isDeptReqProductsColVisible('spec')"
+                label="规格型号"
+                v-bind="deptReqProductsColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格型号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="col4"
+                v-if="isDeptReqProductsColVisible('col4')"
+                label="生产厂家"
+                v-bind="deptReqProductsColBinding('col4')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">生产厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="baseUnit"
+                v-if="isDeptReqProductsColVisible('baseUnit')"
+                label="基本单位"
+                v-bind="deptReqProductsColBinding('baseUnit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">基本单位</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.baseUnit }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="looseAvailable"
+                v-if="isDeptReqProductsColVisible('looseAvailable')"
+                label="散货可用"
+                v-bind="deptReqProductsColBinding('looseAvailable')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">散货可用</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined">{{ row.looseAvailableQty }} {{ row.baseUnit }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageAvailable"
+                v-if="isDeptReqProductsColVisible('packageAvailable')"
+                label="定数包可用"
+                v-bind="deptReqProductsColBinding('packageAvailable')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">定数包可用</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <strong>{{ row.packageAvailableQty }} 包</strong>
+                    <small v-if="row.packageQuantity">1 包 = {{ row.packageQuantity }} {{ row.packageUnit }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="defaultRequisition"
+                v-if="isDeptReqProductsColVisible('defaultRequisition')"
+                label="默认申领"
+                v-bind="deptReqProductsColBinding('defaultRequisition')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">默认申领</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text"><select v-model="row.mode" :disabled="submitting" @change="normalizeQuantity(row)">
+                      <option v-if="row.allowedModes.includes('loose')" value="loose">散货</option>
+                      <option v-if="row.allowedModes.includes('quota_package')" value="quota_package">定数包</option>
+                      <option v-if="row.allowedModes.includes('high_value')" value="high_value">高值耗材</option>
+                    </select></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="requisitionQty"
+                v-if="isDeptReqProductsColVisible('requisitionQty')"
+                label="申领数量"
+                v-bind="deptReqProductsColBinding('requisitionQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">申领数量</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="qty-stepper">
+                      <button class="btn-text" type="button" :disabled="submitting" aria-label="减少申领数量" @click="stepQuantity(row, -1)"><Minus :size="12" /></button>
+                      <input v-integer-quantity v-model.number="row.quantity" type="number" min="1" step="1" aria-label="申领数量" :disabled="submitting" @change="normalizeQuantity(row)" />
+                      <button class="btn-text" type="button" :disabled="submitting" aria-label="增加申领数量" @click="stepQuantity(row, 1)"><Plus :size="12" /></button>
                     </div>
-                    <small>{{ unitByMode(item) }}</small>
-                    <small v-if="item.quantity > availableByMode(item)" class="shortage">超过当前可用库存，按实际需求申领</small>
-                  </td>
-                  <td>{{ baseQtyByMode(item) }} {{ item.baseUnit }}</td>
-                  <td>
-                    <strong>{{ item.templateCode }}</strong>
-                    <small>{{ item.templateName }}</small>
-                  </td>
-                  <td>{{ formatStatusText(item.requisitionStatus) }}</td>
-                  <td>{{ item.unitPrice }}</td>
-                  <td>{{ Number(item.chargeable) === 1 ? '是' : '否' }}</td>
-                  <td>{{ Number(item.centralized) === 1 ? '是' : '否' }}</td>
-                </tr>
+                    <small>{{ unitByMode(row) }}</small>
+                    <small v-if="row.quantity > availableByMode(row)" class="shortage">超过当前可用库存，按实际需求申领</small>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="convertedQty"
+                v-if="isDeptReqProductsColVisible('convertedQty')"
+                label="本次折算"
+                v-bind="deptReqProductsColBinding('convertedQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">本次折算</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined">{{ baseQtyByMode(row) }} {{ row.baseUnit }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="template"
+                v-if="isDeptReqProductsColVisible('template')"
+                label="模板"
+                v-bind="deptReqProductsColBinding('template')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <strong>{{ row.templateCode }}</strong>
+                    <small>{{ row.templateName }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isDeptReqProductsColVisible('status')"
+                label="状态"
+                v-bind="deptReqProductsColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ formatStatusText(row.requisitionStatus) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isDeptReqProductsColVisible('unitPrice')"
+                label="单价"
+                v-bind="deptReqProductsColBinding('unitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number">{{ row.unitPrice }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="chargeable"
+                v-if="isDeptReqProductsColVisible('chargeable')"
+                label="是否收费"
+                v-bind="deptReqProductsColBinding('chargeable')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">是否收费</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ Number(row.chargeable) === 1 ? '是' : '否' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="centralized"
+                v-if="isDeptReqProductsColVisible('centralized')"
+                label="是否集采"
+                v-bind="deptReqProductsColBinding('centralized')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">是否集采</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ Number(row.centralized) === 1 ? '是' : '否' }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <!-- 空态优先显示前置条件提示：
+                     未选科室 / 未关联收货库房 / 未选供货库房时，
+                     说明具体原因，而不是笼统显示「暂无可申领商品」。 -->
+                <MdEmptyState :text="error || warehouseSetupMessage || '暂无可申领商品'" />
               </template>
-              <tr v-if="!loading && !error && filteredProducts.length === 0">
-                <td colspan="16"><EmptyState message="当前科室暂无可申领目录" /></td>
-              </tr>
-            </tbody>
-          </table>
-          <PaginationControls
-            v-if="requisitionStarted"
+            </el-table>
+          </div>
+        <template #pagination>
+          <MdPagination
             :page="currentPage"
-            :size="pageSize"
+            :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
             :total="totalItems"
+            :size="pageSize"
             :loading="loading"
-            @change-page="changePage"
-            @change-size="changePageSize"
+            @update:page="changePage"
+            @update:size="changePageSize"
           />
+        </template>
+        </MdDataTableCard>
         </div>
       </div>
     </ElDialog>
@@ -951,66 +1492,244 @@ async function changeWarehouse() {
           </button>
         </header>
         <StatusMessage :message="approvalError" tone="error" />
-        <div class="dept-req-table-wrap">
-          <table class="dept-req-table requisition-detail-table">
-            <thead>
-              <tr>
-                <th>商品编码</th>
-                <th>商品名称</th>
-                <th>申领模式</th>
-                <th>模板</th>
-                <th>换算</th>
-                <th>厂家</th>
-                <th>单价</th>
-                <th>申请数量</th>
-                <th v-if="approvalMode">审批数量</th>
-                <th>履约进度</th>
-                <th>唯一码</th>
-                <th>申请金额</th>
-                <th>注册证</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="detailLoading">
-                <td :colspan="approvalMode ? 13 : 12"><EmptyState message="正在加载申领明细..." /></td>
-              </tr>
-              <tr v-else-if="detailRows.length === 0">
-                <td :colspan="approvalMode ? 13 : 12"><EmptyState message="暂无申领明细" /></td>
-              </tr>
-              <template v-else>
-                <tr v-for="item in detailRows" :key="Number(item.itemId)">
-                  <td>{{ item.productCode || '-' }}</td>
-                  <td>{{ item.productName || '-' }}<small v-if="item.specModel">{{ item.specModel }}</small></td>
-                  <td>{{ item.itemType === 'quota_package' ? '定数包' : item.itemType === 'high_value' ? '高值耗材' : '散货' }}</td>
-                  <td>
-                    <strong v-if="item.templateCode">{{ item.templateCode }} v{{ item.templateVersion }}</strong>
-                    <span v-else>-</span>
-                  </td>
-                  <td>
-                    <span v-if="item.packageCount">{{ item.packageCount }} 包 × {{ item.packageQuantity }} {{ item.packageUnit }}</span>
-                    <span v-else>-</span>
-                  </td>
-                  <td>{{ item.manufacturerName || '-' }}</td>
-                  <td>{{ money(item.unitPrice) }}</td>
-                  <td>{{ item.applyQuantity || 0 }}</td>
-                  <td v-if="approvalMode">
-                    <template v-if="approvalFactor(item) > 0 && !Number(item.pickedQuantity)">
-                      <input v-model.number="approvalQuantities[Number(item.itemId)]" class="dept-req-approval-quantity"
-                        type="number" inputmode="numeric" min="1" step="1" :aria-label="`${item.productCode} 审批数量`"
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="deptReqDetailColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="deptReqDetailCols.settingsOpen.value = !deptReqDetailCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: deptReqDetailCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="deptReqDetailCols.settingsOpen.value"
+              ref="deptReqDetailColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': deptReqDetailColSettingsPop.align.value === 'right', 'is-align-up': deptReqDetailColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': deptReqDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqDetailColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="deptReqDetailCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in deptReqDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && deptReqDetailCols.visibleColumnCount.value <= 1"
+                    @change="deptReqDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="deptReqDetailCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="deptReqDetailTableRef"
+              :data="detailRows"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无申领明细'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => deptReqDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="productCode"
+                v-if="isDeptReqDetailColVisible('productCode')"
+                label="商品编码"
+                v-bind="deptReqDetailColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isDeptReqDetailColVisible('productName')"
+                label="商品名称"
+                v-bind="deptReqDetailColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-cell-stack">
+                    <span>{{ row.productName || '-' }}</span>
+                    <small v-if="row.specModel">{{ row.specModel }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="requisitionMode"
+                v-if="isDeptReqDetailColVisible('requisitionMode')"
+                label="申领模式"
+                v-bind="deptReqDetailColBinding('requisitionMode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">申领模式</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.itemType === 'quota_package' ? '定数包' : row.itemType === 'high_value' ? '高值耗材' : '散货' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="template"
+                v-if="isDeptReqDetailColVisible('template')"
+                label="模板"
+                v-bind="deptReqDetailColBinding('template')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.templateCode ? `${row.templateCode} v${row.templateVersion}` : '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="conversion"
+                v-if="isDeptReqDetailColVisible('conversion')"
+                label="换算"
+                v-bind="deptReqDetailColBinding('conversion')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">换算</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined">{{ row.packageCount ? `${row.packageCount} 包 × ${row.packageQuantity} ${row.packageUnit}` : '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isDeptReqDetailColVisible('manufacturer')"
+                label="厂家"
+                v-bind="deptReqDetailColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="unitPrice"
+                v-if="isDeptReqDetailColVisible('unitPrice')"
+                label="单价"
+                v-bind="deptReqDetailColBinding('unitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number">{{ money(row.unitPrice) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="col7"
+                v-if="isDeptReqDetailColVisible('col7')"
+                label="申请数量"
+                v-bind="deptReqDetailColBinding('col7')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">申请数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number">{{ row.applyQuantity || 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="approvedQty"
+                v-if="isDeptReqDetailColVisible('approvedQty')"
+                label="审批数量"
+                v-bind="deptReqDetailColBinding('approvedQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">审批数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text"><template v-if="approvalFactor(row) > 0 && !Number(row.pickedQuantity)">
+                      <input v-model.number="approvalQuantities[Number(row.itemId)]" class="dept-req-approval-quantity"
+                        type="number" inputmode="numeric" min="1" step="1" :aria-label="`${row.productCode} 审批数量`"
                         :disabled="!!approvingRequisitionNo" />
-                      <small>{{ item.itemType === 'quota_package' ? '包' : item.unit }}</small>
+                      <small>{{ row.itemType === 'quota_package' ? '包' : row.unit }}</small>
                     </template>
-                    <span v-else>沿用申请数量</span>
-                  </td>
-                  <td>{{ item.pickedQuantity || 0 }} / {{ item.applyQuantity || 0 }}，剩余 {{ item.remainingQuantity || 0 }}</td>
-                  <td>{{ item.uniqueCodes || (item.itemType === 'high_value' ? '待拣配绑定' : '-') }}</td>
-                  <td>{{ money(item.applyAmount) }}</td>
-                  <td>{{ item.registrationNo || '-' }}</td>
-                </tr>
+                    <span v-else>沿用申请数量</span></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="fulfillProgress"
+                v-if="isDeptReqDetailColVisible('fulfillProgress')"
+                label="履约进度"
+                v-bind="deptReqDetailColBinding('fulfillProgress')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">履约进度</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined">{{ row.pickedQuantity || 0 }} / {{ row.applyQuantity || 0 }}，剩余 {{ row.remainingQuantity || 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="uniqueCode"
+                v-if="isDeptReqDetailColVisible('uniqueCode')"
+                label="唯一码"
+                v-bind="deptReqDetailColBinding('uniqueCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">唯一码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.uniqueCodes || (row.itemType === 'high_value' ? '待拣配绑定' : '-') }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="applyAmount"
+                v-if="isDeptReqDetailColVisible('applyAmount')"
+                label="申请金额"
+                v-bind="deptReqDetailColBinding('applyAmount')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">申请金额</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-number">{{ money(row.applyAmount) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="registrationNo"
+                v-if="isDeptReqDetailColVisible('registrationNo')"
+                label="注册证"
+                v-bind="deptReqDetailColBinding('registrationNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">注册证</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无申领明细" />
               </template>
-            </tbody>
-          </table>
-        </div>
+            </el-table>
+          </div>
+        </MdDataTableCard>
         <footer v-if="approvalMode" class="dept-req-approval-actions">
           <button class="btn" type="button" :disabled="!!approvingRequisitionNo" @click="closeDetails">取消</button>
           <button class="btn btn-primary" type="button" :disabled="detailLoading || !detailRows.length || !!approvingRequisitionNo"
@@ -1032,30 +1751,177 @@ async function changeWarehouse() {
         </label>
         <span>建议量可调整；来源中心库不足不会截断真实需求。</span>
       </div>
-      <div class="dept-req-table-wrap smart-table-wrap">
-        <table class="dept-req-table smart-table">
-          <thead>
-            <tr><th>选择</th><th>科室 / 目标库</th><th>商品</th><th>模式</th><th>周期需求</th><th>目标库库存</th><th>来源库可用</th><th>建议申领</th></tr>
-          </thead>
-          <tbody>
-            <tr v-if="smartLoading"><td colspan="8"><EmptyState message="正在计算智能补货建议..." /></td></tr>
-            <tr v-for="row in smartRows" :key="row.analysisItemId">
-              <td><input v-model="row.selected" type="checkbox" /></td>
-              <td><strong>{{ row.deptName }}</strong><small>{{ row.warehouseName }}</small></td>
-              <td><strong>{{ row.productName }}</strong><small>{{ row.productCode }}</small></td>
-              <td>{{ row.itemMode === 'quota_package' ? '定数包' : row.itemMode === 'high_value' ? '高值耗材' : '散货' }}</td>
-              <td>{{ row.periodDemand }} {{ row.baseUnit }}</td>
-              <td>{{ row.currentQty }} {{ row.baseUnit }}</td>
-              <td :class="{ shortage: Number(row.sourceAvailableQty) < Number(row.shortageQty) }">{{ row.sourceAvailableQty }} {{ row.baseUnit }}</td>
-              <td>
-                <input v-integer-quantity v-model.number="row.recommendedQty" type="number" min="0" step="1" :disabled="!row.selected" />
-                <small>{{ row.itemMode === 'quota_package' ? '包' : row.baseUnit }}</small>
-              </td>
-            </tr>
-            <tr v-if="!smartLoading && smartRows.length === 0"><td colspan="8"><EmptyState message="当前范围没有补货建议" /></td></tr>
-          </tbody>
-        </table>
-      </div>
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="deptReqSmartColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="deptReqSmartCols.settingsOpen.value = !deptReqSmartCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: deptReqSmartCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="deptReqSmartCols.settingsOpen.value"
+            ref="deptReqSmartColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': deptReqSmartColSettingsPop.align.value === 'right', 'is-align-up': deptReqSmartColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': deptReqSmartColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': deptReqSmartColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="deptReqSmartCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in deptReqSmartCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && deptReqSmartCols.visibleColumnCount.value <= 1"
+                  @change="deptReqSmartCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="deptReqSmartCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="deptReqSmartTableRef"
+            :data="smartRows"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无智能补货建议'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => deptReqSmartCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="selection"
+              v-if="isDeptReqSmartColVisible('selection')"
+              label="选择"
+              v-bind="deptReqSmartColBinding('selection')"
+            >
+              <template #header>
+                <span class="ulc-th-text">选择</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input v-model="row.selected" type="checkbox" /></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptTarget"
+              v-if="isDeptReqSmartColVisible('deptTarget')"
+              label="科室 / 目标库"
+              v-bind="deptReqSmartColBinding('deptTarget')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室 / 目标库</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <strong>{{ row.deptName }}</strong>
+                  <small>{{ row.warehouseName }}</small>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isDeptReqSmartColVisible('product')"
+              label="商品"
+              v-bind="deptReqSmartColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <strong>{{ row.productName }}</strong>
+                  <small>{{ row.productCode }}</small>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="mode"
+              v-if="isDeptReqSmartColVisible('mode')"
+              label="模式"
+              v-bind="deptReqSmartColBinding('mode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">模式</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.itemMode === 'quota_package' ? '定数包' : row.itemMode === 'high_value' ? '高值耗材' : '散货' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="periodicDemand"
+              v-if="isDeptReqSmartColVisible('periodicDemand')"
+              label="周期需求"
+              v-bind="deptReqSmartColBinding('periodicDemand')"
+            >
+              <template #header>
+                <span class="ulc-th-text">周期需求</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">{{ row.periodDemand }} {{ row.baseUnit }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="targetStock"
+              v-if="isDeptReqSmartColVisible('targetStock')"
+              label="目标库库存"
+              v-bind="deptReqSmartColBinding('targetStock')"
+            >
+              <template #header>
+                <span class="ulc-th-text">目标库库存</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">{{ row.currentQty }} {{ row.baseUnit }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceAvailable"
+              v-if="isDeptReqSmartColVisible('sourceAvailable')"
+              label="来源库可用"
+              v-bind="deptReqSmartColBinding('sourceAvailable')"
+            >
+              <template #header>
+                <span class="ulc-th-text">来源库可用</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-joined">{{ row.sourceAvailableQty }} {{ row.baseUnit }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="suggestedRequisition"
+              v-if="isDeptReqSmartColVisible('suggestedRequisition')"
+              label="建议申领"
+              v-bind="deptReqSmartColBinding('suggestedRequisition')"
+            >
+              <template #header>
+                <span class="ulc-th-text">建议申领</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><input v-integer-quantity v-model.number="row.recommendedQty" type="number" min="0" step="1" :disabled="!row.selected" />
+                <small>{{ row.itemMode === 'quota_package' ? '包' : row.baseUnit }}</small></span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无智能补货建议" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
       <template #footer>
         <div class="dept-req-smart-footer">
           <button class="btn" type="button" :disabled="smartGenerating" @click="smartOpen = false">取消</button>
@@ -1105,7 +1971,7 @@ async function changeWarehouse() {
 .dept-req-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1134,7 +2000,7 @@ async function changeWarehouse() {
   min-height: 22px;
   padding: 0 8px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
 
@@ -1173,7 +2039,7 @@ async function changeWarehouse() {
 
 .dept-req-filters label > span {
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
@@ -1188,7 +2054,7 @@ async function changeWarehouse() {
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   outline: none;
 }
 
@@ -1207,7 +2073,7 @@ async function changeWarehouse() {
 .dept-req-filter-actions .btn {
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
   white-space: nowrap;
 }
@@ -1249,14 +2115,14 @@ async function changeWarehouse() {
 .dept-req-section-title h3 {
   margin: 0;
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
 }
 
 .dept-req-section-title > span {
   margin-left: auto;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1266,7 +2132,7 @@ async function changeWarehouse() {
   margin-left: auto;
   min-height: 32px;
   padding: 0 14px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: var(--spd-radius-sm, 6px);
 }
 
@@ -1275,7 +2141,7 @@ async function changeWarehouse() {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .dept-req-table th,
@@ -1295,8 +2161,9 @@ async function changeWarehouse() {
   z-index: 2;
   background: var(--md-bg-subtle, #f6f8fb);
   color: var(--md-text-secondary, var(--spd-text-secondary));
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 700;
+  line-height: var(--spd-lh-tight);
 }
 
 .dept-req-table td {
@@ -1336,7 +2203,7 @@ async function changeWarehouse() {
 .requisition-catalog-table small {
   margin-top: 2px;
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .requisition-catalog-table select {
@@ -1346,7 +2213,7 @@ async function changeWarehouse() {
   background: var(--md-bg-card, #fff);
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .requisition-catalog-table .shortage {
@@ -1381,13 +2248,13 @@ async function changeWarehouse() {
 
 .dept-req-selected-head strong {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .dept-req-selected-head span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .dept-req-selected-list {
@@ -1415,7 +2282,7 @@ async function changeWarehouse() {
 
 .dept-req-selected-list label span {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   white-space: nowrap;
 }
 
@@ -1426,23 +2293,23 @@ async function changeWarehouse() {
   border: 1px solid var(--md-border, var(--spd-border-subtle));
   border-radius: var(--spd-radius-sm, 6px);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .selected-code {
   color: var(--md-primary, var(--primary));
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .selected-name {
   color: var(--md-text-heading, var(--spd-text-heading));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .selected-spec {
   color: var(--md-text-muted, var(--spd-text-tertiary));
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1450,7 +2317,7 @@ async function changeWarehouse() {
 
 .selected-total {
   color: var(--md-text, var(--spd-text-primary));
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -1487,7 +2354,7 @@ async function changeWarehouse() {
   border: 0;
   border-inline: 1px solid var(--md-border, var(--spd-border-subtle));
   text-align: center;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1536,12 +2403,12 @@ async function changeWarehouse() {
 
 .dept-req-modal > header span {
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-modal > header strong {
   color: #102033;
-  font-size: 18px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .dept-req-modal .dept-req-table-wrap {
@@ -1637,7 +2504,7 @@ async function changeWarehouse() {
 }
 
 .dept-req-smart-dialog :deep(.el-dialog__title) {
-  font-size: 16px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #1f2937;
 }
@@ -1659,7 +2526,7 @@ async function changeWarehouse() {
   min-width: 96px;
   height: 34px;
   padding: 0 18px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   border-radius: 6px;
 }
 
@@ -1674,7 +2541,7 @@ async function changeWarehouse() {
   background: #f8fafc;
   border-bottom: 1px solid #eef0f4;
   color: #475569;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .smart-toolbar label {
@@ -1689,7 +2556,7 @@ async function changeWarehouse() {
   border: 1px solid #e5e7eb;
   border-radius: 5px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   background: #fff;
   color: #1f2937;
 }
@@ -1809,8 +2676,9 @@ async function changeWarehouse() {
 }
 
 .dept-req-dialog-title > span {
-  font-size: 17px;
+  font-size: var(--spd-font-size-2xl);
   font-weight: 600;
+  line-height: var(--spd-lh-tight);
   color: #1f2937;
   letter-spacing: 0.2px;
 }
@@ -1827,7 +2695,7 @@ async function changeWarehouse() {
   gap: 4px;
   padding: 0 10px;
   height: 28px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #1e3a8a;
   background: #eef4ff;
   border-radius: 14px;
@@ -1841,7 +2709,7 @@ async function changeWarehouse() {
 .dept-req-dialog-submit .btn {
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   border-radius: 6px;
 }
 
@@ -1867,9 +2735,9 @@ async function changeWarehouse() {
 }
 
 .dept-req-filterbar-item > span {
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7280;
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0.3px;
 }
 
@@ -1877,7 +2745,7 @@ async function changeWarehouse() {
 .dept-req-filterbar-item > select {
   height: 30px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   color: #1f2937;
   background: #f8fafc;
   border: 1px solid #e5e7eb;
@@ -1903,7 +2771,7 @@ async function changeWarehouse() {
 .dept-req-filterbar-actions .btn {
   height: 30px;
   padding: 0 12px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   border-radius: 5px;
 }
 
@@ -1912,7 +2780,7 @@ async function changeWarehouse() {
   flex: 0 0 auto;
   padding: 8px 22px;
   background: #f8fafc;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #475569;
   display: flex;
   align-items: center;
@@ -1960,12 +2828,12 @@ async function changeWarehouse() {
 
 .dept-req-selected-head strong {
   color: #1e3a8a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .dept-req-selected-head span {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .dept-req-selected-list {
@@ -1984,13 +2852,15 @@ async function changeWarehouse() {
   padding: 6px 8px;
   background: #fff;
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
 }
 
 .dept-req-selected-list .selected-code {
-  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
   color: #1e3a8a;
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
+  font-variant-numeric: tabular-nums;
   background: #f1f5f9;
   padding: 1px 6px;
   border-radius: 3px;
@@ -1999,13 +2869,13 @@ async function changeWarehouse() {
 .dept-req-selected-list .selected-name {
   color: #1f2937;
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   min-width: 140px;
 }
 
 .dept-req-selected-list .selected-spec {
   color: #64748b;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2016,13 +2886,13 @@ async function changeWarehouse() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7280;
 }
 
 .dept-req-selected-list label select {
   height: 26px;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   border: 1px solid #e5e7eb;
   border-radius: 4px;
   background: #fff;
@@ -2052,12 +2922,15 @@ async function changeWarehouse() {
   border-left: 1px solid #e5e7eb;
   border-right: 1px solid #e5e7eb;
   text-align: center;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
+  font-variant-numeric: tabular-nums;
 }
 
 .dept-req-selected-list .selected-total {
   color: #475569;
-  font-size: 11px;
+  font-size: var(--spd-font-size-base);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
   min-width: 80px;
 }
 
@@ -2065,7 +2938,7 @@ async function changeWarehouse() {
   background: transparent;
   border: none;
   color: #dc2626;
-  font-size: 11px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -2100,7 +2973,7 @@ async function changeWarehouse() {
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: #1f2937;
 }
@@ -2110,7 +2983,7 @@ async function changeWarehouse() {
 }
 
 .dept-req-catalog-meta {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   font-variant-numeric: tabular-nums;
 }
@@ -2126,7 +2999,7 @@ async function changeWarehouse() {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
 }
 
 .dept-req-catalog-body thead th {
@@ -2134,9 +3007,10 @@ async function changeWarehouse() {
   top: 0;
   z-index: 1;
   background: #fff;
-  font-weight: 600;
+  font-weight: 700;
   color: #334155;
-  font-size: 12px;
+  font-size: var(--spd-font-size-table-head);
+  line-height: var(--spd-lh-tight);
   letter-spacing: 0.2px;
   padding: 8px 10px;
   text-align: left;
@@ -2146,7 +3020,8 @@ async function changeWarehouse() {
 
 .dept-req-catalog-body tbody td {
   padding: 7px 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-tight);
   color: #1f2937;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
@@ -2163,5 +3038,11 @@ async function changeWarehouse() {
 .dept-req-catalog-body tbody tr.low {
   background: #fef2f2;
 }
+
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体，便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
 </style>
 

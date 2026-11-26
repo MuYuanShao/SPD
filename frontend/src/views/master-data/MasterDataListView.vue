@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Ban,
   Building2,
@@ -31,6 +31,7 @@ import { useHospitalProductManagement } from '../../composables/useHospitalProdu
 import { useMasterDataExchange } from '../../composables/useMasterDataExchange'
 import { useMasterDataWorkbench } from '../../composables/useMasterDataWorkbench'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { formatDateTime } from '../../utils/dateTime'
 import { useOrganizationMasterData } from '../../composables/useOrganizationMasterData'
 import { useSpdConfirm } from '../../composables/useSpdConfirm'
@@ -63,6 +64,7 @@ import '../../styles/master-data/department-management.css'
 import '../../styles/master-data/department-warehouse-catalog.css'
 import { useAuthStore } from '../../stores/auth'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 
 const authStore = useAuthStore()
@@ -386,108 +388,33 @@ function closeHospitalDetail() {
   hospitalDetailCode.value = ''
 }
 // ===== 医院目录单表：列宽拖拽 + 列设置（localStorage 持久化） =====
-interface HospitalCatalogCol {
-  key: 'product' | 'spec' | 'vendor' | 'price' | 'status' | 'createTime' | 'updateTime'
-  label: string
-  width: number
-  visible: boolean
-}
-const HOSPITAL_COLS_KEY = 'spd-hospital-catalog-cols-v1'
-const HOSPITAL_COL_DEFAULTS: HospitalCatalogCol[] = [
-  { key: 'product', label: '商品 / 编码', width: 300, visible: true },
-  { key: 'spec', label: '规格型号', width: 170, visible: true },
-  { key: 'vendor', label: '厂家 / 供应商', width: 250, visible: true },
-  { key: 'price', label: '单价', width: 140, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
+// 与科室库房目录等其他统一列表页共用 useListColumns，保证交互与持久化行为一致。
+const HOSPITAL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'product', label: '商品 / 编码', width: 240, visible: true, weight: 8, minWidth: 160, maxWidth: 420 },
+  { key: 'spec', label: '规格型号', width: 160, visible: true, weight: 5, minWidth: 110, maxWidth: 280 },
+  { key: 'vendor', label: '厂家 / 供应商', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'price', label: '单价', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
-function loadHospitalCols(): HospitalCatalogCol[] {
-  try {
-    const raw = localStorage.getItem(HOSPITAL_COLS_KEY)
-    if (!raw) return HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-    const saved = JSON.parse(raw) as Array<Partial<HospitalCatalogCol> & { key: HospitalCatalogCol['key'] }>
-    const map = new Map(saved.map((s) => [s.key, s]))
-    return HOSPITAL_COL_DEFAULTS.map((d) => ({
-      key: d.key,
-      label: d.label,
-      width: Math.min(560, Math.max(90, Number(map.get(d.key)?.width ?? d.width) || d.width)),
-      visible: map.get(d.key)?.visible !== false
-    }))
-  } catch {
-    return HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-  }
-}
-const hospitalCols = ref<HospitalCatalogCol[]>(loadHospitalCols())
-const hospitalColSettingsOpen = ref(false)
-const visibleHospitalCols = computed(() => hospitalCols.value.filter((c) => c.visible))
-const hospitalTableRef = ref()
-function colWidth(key: HospitalCatalogCol['key']) {
-  return hospitalCols.value.find((c) => c.key === key)?.width ?? 150
-}
-function isHospitalColVisible(key: HospitalCatalogCol['key']) {
-  return hospitalCols.value.some((c) => c.key === key && c.visible)
-}
+const hospitalCols = useListColumns({
+  storageKey: 'spd-hospital-catalog-cols-v1',
+  defaults: HOSPITAL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  // 预留勾选列宽度：<el-table-column type="selection" width="48" />
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
+})
+const hospitalColBinding = (key: string) => hospitalCols.columnBinding(key)
+const hospitalTableRef = hospitalCols.tableRef
+const hospitalColSettingsOpen = hospitalCols.settingsOpen
+const visibleHospitalCols = hospitalCols.visibleColumns
+const isHospitalColVisible = (key: string) => hospitalCols.isColumnVisible(key)
 function onHospitalSelectionChange(selection: Array<Record<string, unknown>>) {
   selectedCodes.value = selection.map((row) => String((row as Record<string, unknown>).code))
-}
-function onHospitalHeaderDragend(newWidth: number, _oldWidth: number, column: unknown) {
-  const label = String((column as { label?: unknown }).label ?? '')
-  const target = hospitalCols.value.find((c) => c.label === label)
-  if (target && Number.isFinite(newWidth)) {
-    target.width = Math.min(560, Math.max(90, Math.round(newWidth)))
-    persistHospitalCols()
-  }
-}
-let hospitalDragState: { key: HospitalCatalogCol['key']; startX: number; startWidth: number } | null = null
-function startHospitalColDrag(key: HospitalCatalogCol['key'], ev: MouseEvent) {
-  const col = hospitalCols.value.find((c) => c.key === key)
-  if (!col) return
-  ev.preventDefault()
-  ev.stopPropagation()
-  hospitalDragState = { key, startX: ev.clientX, startWidth: col.width }
-  document.body.style.userSelect = 'none'
-  document.body.style.cursor = 'col-resize'
-  const onMove = (e: MouseEvent) => {
-    if (!hospitalDragState) return
-    const delta = e.clientX - hospitalDragState.startX
-    col.width = Math.min(560, Math.max(90, hospitalDragState.startWidth + delta))
-    try {
-      hospitalTableRef.value?.doLayout?.()
-    } catch { /* 忽略 */ }
-  }
-  const onUp = () => {
-    hospitalDragState = null
-    document.body.style.userSelect = ''
-    document.body.style.cursor = ''
-    persistHospitalCols()
-    try {
-      hospitalTableRef.value?.doLayout?.()
-    } catch { /* 忽略 */ }
-    window.removeEventListener('mousemove', onMove)
-    window.removeEventListener('mouseup', onUp)
-  }
-  window.addEventListener('mousemove', onMove)
-  window.addEventListener('mouseup', onUp)
-}
-function clearHospitalSelection() {
-  selectedCodes.value = []
-  try {
-    hospitalTableRef.value?.clearSelection?.()
-  } catch { /* 忽略 */ }
-}
-function persistHospitalCols() {
-  try {
-    localStorage.setItem(HOSPITAL_COLS_KEY, JSON.stringify(hospitalCols.value))
-  } catch { /* 忽略持久化失败 */ }
-}
-function resetHospitalCols() {
-  hospitalCols.value = HOSPITAL_COL_DEFAULTS.map((c) => ({ ...c }))
-  persistHospitalCols()
-}
-function hospitalInitial(value: unknown) {
-  const text = String(value ?? '').trim()
-  return text ? text.slice(0, 1) : '商'
 }
 function hospitalAttrTags(row: Record<string, unknown>) {
   const tags: Array<{ text: string; hot: boolean }> = []
@@ -505,55 +432,87 @@ function formatListDateTime(value: unknown) {
 }
 
 const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '科室编码', width: 150, visible: true },
-  { key: 'name', label: '科室名称', width: 200, visible: true },
-  { key: 'org', label: '组织归属', width: 220, visible: true },
-  { key: 'finance', label: '财务科室映射', width: 200, visible: true },
-  { key: 'manager', label: '负责人', width: 180, visible: true },
-  { key: 'address', label: '科室地址', width: 220, visible: true },
-  { key: 'warehouse', label: '关联库房', width: 180, visible: true },
-  { key: 'source', label: '原数据标识', width: 160, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '科室编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '科室名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'org', label: '组织归属', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'finance', label: '财务科室映射', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'manager', label: '负责人', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'address', label: '科室地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'warehouse', label: '关联库房', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'source', label: '原数据标识', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
+/**
+ * 科室库房目录列定义 —— 按实测内容排名得到的权重比例分配
+ * ---------------------------------------------------------------------
+ * 列宽不是拍脑袋定的，而是用 canvas 按真实字体量出每列内容的自然宽度，
+ * 再据此排出名次、换算成权重，最后按权重比例铺满内容区。
+ *
+ *   排名  列              内容P90   权重   保底   基准   上限
+ *    1   商品名称             789     9     104     171     560
+    2   生产厂家             464     7     104     156     420
+    3   规格型号             188     5     104     141     280
+    4   科室 / 库房          156     3     119     141     175
+    5   更新时间             148     3     104     126     175
+    6   商品编码             132     2     104     119     150
+    7   维护来源              56     2      56      71     105
+    8   状态                28     2      56      71      92
+ *
+ * 分配机制（useListColumns.ts → effectiveWidths）：
+ *   1. 先给每列发「保底宽度」，短列不会被压到放不下表头；
+ *   2. 剩余空间按「权重」比例分配 —— 字多的列权重高，自然份额大；
+ *   3. 某列超过上限时把超出部分回收，重新分给还有空间的列。
+ *
+ * 结果：表格默认**恰好铺满内容区**，右侧不留空白、也不出现横向滚动；
+ * 同时「状态」「维护来源」这类字少的列只拿到与其内容匹配的宽度，
+ * 不会像早期版本那样被撑成 139–241px 的空旷大块。
+ *
+ * 基准合计 996（+ 选择列 48 + 操作列 200 = 1244），
+ * 恰好等于 1280px 内容区宽度。
+ */
 const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'scope', label: '科室 / 库房', width: 230, visible: true },
-  { key: 'productCode', label: '商品编码', width: 160, visible: true },
-  { key: 'productName', label: '商品名称', width: 200, visible: true },
-  { key: 'spec', label: '规格型号', width: 160, visible: true },
-  { key: 'manufacturer', label: '生产厂家', width: 200, visible: true },
-  { key: 'source', label: '维护来源', width: 130, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '更新时间', width: 190, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'scope', label: '科室 / 库房', width: 141, visible: true, weight: 3, minWidth: 119, maxWidth: 175 },
+  { key: 'productCode', label: '商品编码', width: 119, visible: true, weight: 2, minWidth: 104, maxWidth: 150 },
+  { key: 'productName', label: '商品名称', width: 171, visible: true, flexible: true, idealWidth: 300, weight: 9, minWidth: 104, maxWidth: 560 },
+  { key: 'spec', label: '规格型号', width: 141, visible: true, flexible: true, idealWidth: 190, weight: 5, minWidth: 104, maxWidth: 280 },
+  { key: 'manufacturer', label: '生产厂家', width: 156, visible: true, flexible: true, idealWidth: 280, weight: 7, minWidth: 104, maxWidth: 420 },
+  { key: 'source', label: '维护来源', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 105 },
+  { key: 'status', label: '状态', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 92 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '更新时间', width: 126, visible: true, weight: 3, minWidth: 104, maxWidth: 175 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 260 }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '库房编码', width: 150, visible: true },
-  { key: 'name', label: '库房名称', width: 190, visible: true },
-  { key: 'type', label: '库房类型', width: 140, visible: true },
-  { key: 'campus', label: '所属院区', width: 170, visible: true },
-  { key: 'dept', label: '关联科室', width: 190, visible: true },
-  { key: 'participateStats', label: '统计', width: 120, visible: true },
-  { key: 'receivingEnabled', label: '允许收货', width: 130, visible: true },
-  { key: 'statsCategories', label: '统计分类', width: 170, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'locationCount', label: '货位数量', width: 120, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '库房编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '库房名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'type', label: '库房类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'campus', label: '所属院区', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'dept', label: '关联科室', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'participateStats', label: '统计', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'receivingEnabled', label: '允许收货', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'statsCategories', label: '统计分类', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'locationCount', label: '货位数量', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const CAMPUS_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '院区编码', width: 150, visible: true },
-  { key: 'name', label: '院区名称', width: 190, visible: true },
-  { key: 'address', label: '院区地址', width: 240, visible: true },
-  { key: 'manager', label: '负责人', width: 170, visible: true },
-  { key: 'sortOrder', label: '排序', width: 110, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '院区编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '院区名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'address', label: '院区地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'manager', label: '负责人', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'sortOrder', label: '排序', width: 80, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const PARTNER_TIME_COLUMNS = [
@@ -562,55 +521,79 @@ const PARTNER_TIME_COLUMNS = [
 ]
 
 const SUPPLIER_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '供应商编码', width: 150, visible: true },
-  { key: 'name', label: '供应商名称', width: 200, visible: true },
-  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true },
-  { key: 'businessLicenseNo', label: '经营许可证号', width: 170, visible: true },
-  { key: 'type', label: '类型', width: 130, visible: true },
-  { key: 'grade', label: '等级', width: 110, visible: true },
-  { key: 'contact', label: '联系人', width: 170, visible: true },
-  { key: 'email', label: '邮箱', width: 190, visible: true },
-  { key: 'address', label: '地址', width: 220, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  ...PARTNER_TIME_COLUMNS
+  { key: 'code', label: '供应商编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '供应商名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true, weight: 5, minWidth: 150, maxWidth: 260 },
+  { key: 'businessLicenseNo', label: '经营许可证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'type', label: '类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'grade', label: '等级', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'contact', label: '联系人', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'email', label: '邮箱', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'address', label: '地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const MANUFACTURER_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '厂家编码', width: 150, visible: true },
-  { key: 'name', label: '厂家名称', width: 200, visible: true },
-  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true },
-  { key: 'licenseNo', label: '生产许可证号', width: 180, visible: true },
-  { key: 'contact', label: '联系人', width: 170, visible: true },
-  { key: 'address', label: '地址', width: 240, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  ...PARTNER_TIME_COLUMNS
+  { key: 'code', label: '厂家编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '厂家名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true, weight: 5, minWidth: 150, maxWidth: 260 },
+  { key: 'licenseNo', label: '生产许可证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'contact', label: '联系人', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'address', label: '地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const departmentCols = useListColumns({
   storageKey: 'spd-department-cols-v1',
-  defaults: DEPARTMENT_COL_DEFAULTS
+  defaults: DEPARTMENT_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
+const departmentColBinding = (key: string) => departmentCols.columnBinding(key)
 const catalogCols = useListColumns({
-  storageKey: 'spd-department-warehouse-catalog-cols-v1',
-  defaults: CATALOG_COL_DEFAULTS
+  storageKey: 'spd-department-warehouse-catalog-cols-v4',
+  defaults: CATALOG_COL_DEFAULTS,
+  // 方案 C：混合策略 —— 字多的列（商品名称 / 规格型号 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
+  fitMode: 'hybrid',
+  // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',
-  defaults: WAREHOUSE_COL_DEFAULTS
+  defaults: WAREHOUSE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const warehouseColBinding = (key: string) => warehouseCols.columnBinding(key)
 const campusCols = useListColumns({
   storageKey: 'spd-campus-cols-v1',
-  defaults: CAMPUS_COL_DEFAULTS
+  defaults: CAMPUS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const campusColBinding = (key: string) => campusCols.columnBinding(key)
 const supplierCols = useListColumns({
   storageKey: 'spd-supplier-cols-v1',
-  defaults: SUPPLIER_COL_DEFAULTS
+  defaults: SUPPLIER_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const supplierColBinding = (key: string) => supplierCols.columnBinding(key)
 const manufacturerCols = useListColumns({
   storageKey: 'spd-manufacturer-cols-v1',
-  defaults: MANUFACTURER_COL_DEFAULTS
+  defaults: MANUFACTURER_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
 
+const manufacturerColBinding = (key: string) => manufacturerCols.columnBinding(key)
 const departmentTableRef = departmentCols.tableRef
 const catalogTableRef = catalogCols.tableRef
 const warehouseTableRef = warehouseCols.tableRef
@@ -620,27 +603,154 @@ const manufacturerTableRef = manufacturerCols.tableRef
 
 const isDepartmentColVisible = (key: string) => departmentCols.isColumnVisible(key)
 const departmentColWidth = (key: string) => departmentCols.columnWidth(key)
-const startDepartmentColDrag = (key: string, event: MouseEvent) => departmentCols.startColumnDrag(key, event)
 
 const isCatalogColVisible = (key: string) => catalogCols.isColumnVisible(key)
 const catalogColWidth = (key: string) => catalogCols.columnWidth(key)
-const startCatalogColDrag = (key: string, event: MouseEvent) => catalogCols.startColumnDrag(key, event)
+/** 目录列宽绑定：使用计算后的最终列宽（弹性列受上限约束，短字段不被挤压） */
+const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
+
+/* ------------------------------------------------------------------
+ * 科室库房目录表格：表头固定
+ * ------------------------------------------------------------------
+ * 需求：页面/内容区整体滚动时表头不固定（随内容滚走）；
+ *      表格内部出现滚动条时，表头固定在表格容器顶部，方便确认当前列。
+ *
+ * 实现：给 el-table 设置 max-height，Element Plus 会把超出的行收进
+ *      表格自身的滚动容器（.el-table__body-wrapper），表头留在容器顶部不动。
+ *      高度按「内容区可视高度 - 表格上方占用高度 - 分页区预留」动态计算，
+ *      用 ResizeObserver 跟随视口宽度、字号档位、内容区高度变化重算，
+ *      避免硬编码像素在不同分辨率下出现大片留白或表格被压扁。
+ * ------------------------------------------------------------------ */
+
+/** 表格最大高度（px），由 measureCatalogTableMaxHeight 更新 */
+const catalogTableMaxHeight = ref(0)
+
+/** 分页区预留高度（px）：分页条 + 间距 */
+const CATALOG_PAGINATION_RESERVE = 76
+/** 最小可用高度（px）：低于此值时不再压缩，避免表格只剩一两行 */
+const CATALOG_MIN_TABLE_HEIGHT = 260
+
+let catalogTableResizeObserver: ResizeObserver | undefined
+
+/**
+ * 计算表格可用的最大高度。
+ * 以内容区（main.spd-content）为基准，减去表格上方元素（标题、筛选区、工具栏）
+ * 实际占用的高度与分页区预留高度。
+ */
+function measureCatalogTableMaxHeight() {
+  const tableEl = catalogTableRef.value?.$el as HTMLElement | undefined
+  if (!tableEl) return
+  const contentEl = tableEl.closest('.spd-content') as HTMLElement | null
+  const container = contentEl ?? (document.querySelector('.spd-content') as HTMLElement | null)
+  if (!container) return
+
+  // 内容区可视高度
+  const containerClientH = container.clientHeight
+  if (!containerClientH) return
+
+  // 表格顶部相对内容区顶部的偏移（标题 + 筛选区 + 工具栏）
+  const containerRect = container.getBoundingClientRect()
+  const tableRect = tableEl.getBoundingClientRect()
+  const offsetTop = Math.max(0, Math.round(tableRect.top - containerRect.top + container.scrollTop))
+
+  const available = containerClientH - offsetTop - CATALOG_PAGINATION_RESERVE
+  catalogTableMaxHeight.value = Math.max(CATALOG_MIN_TABLE_HEIGHT, available)
+}
+
+/** 字号档位变化会改变行高，进而改变表格高度，需要重算可用高度 */
+function setupCatalogTableResizeObserver() {
+  if (typeof ResizeObserver === 'undefined') return
+  const contentEl = document.querySelector('.spd-content') as HTMLElement | null
+  if (!contentEl) return
+  catalogTableResizeObserver = new ResizeObserver(() => {
+    measureCatalogTableMaxHeight()
+  })
+  catalogTableResizeObserver.observe(contentEl)
+}
+
+onMounted(() => {
+  measureCatalogTableMaxHeight()
+  setupCatalogTableResizeObserver()
+  // 数据加载完成后行数变化，需要重算
+  watch(
+    () => page.value?.rows?.length,
+    () => {
+      // 等 DOM 更新后再测量
+      requestAnimationFrame(measureCatalogTableMaxHeight)
+    }
+  )
+})
+
+onBeforeUnmount(() => {
+  catalogTableResizeObserver?.disconnect()
+  catalogTableResizeObserver = undefined
+})
 
 const isWarehouseColVisible = (key: string) => warehouseCols.isColumnVisible(key)
 const warehouseColWidth = (key: string) => warehouseCols.columnWidth(key)
-const startWarehouseColDrag = (key: string, event: MouseEvent) => warehouseCols.startColumnDrag(key, event)
 
 const isCampusColVisible = (key: string) => campusCols.isColumnVisible(key)
 const campusColWidth = (key: string) => campusCols.columnWidth(key)
-const startCampusColDrag = (key: string, event: MouseEvent) => campusCols.startColumnDrag(key, event)
 
 const isSupplierColVisible = (key: string) => supplierCols.isColumnVisible(key)
 const supplierColWidth = (key: string) => supplierCols.columnWidth(key)
-const startSupplierColDrag = (key: string, event: MouseEvent) => supplierCols.startColumnDrag(key, event)
 
 const isManufacturerColVisible = (key: string) => manufacturerCols.isColumnVisible(key)
 const manufacturerColWidth = (key: string) => manufacturerCols.columnWidth(key)
-const startManufacturerColDrag = (key: string, event: MouseEvent) => manufacturerCols.startColumnDrag(key, event)
+
+/**
+ * ===== 「操作」列统一固定规则 =====
+ * ---------------------------------------------------------------------
+ * 所有基础数据管理列表页共用同一套策略：
+ * **表格出现横向滚动条时才固定操作列；没有滚动条时不固定。**
+ *
+ * 没有横向滚动时操作列本来就在视野里，固定它反而会让
+ * Element Plus 多渲染一份 .el-table__fixed-right 副本（像是多了一列）；
+ * 出现横向滚动时才固定，保证用户往右看数据时操作按钮始终可见。
+ *
+ * 判定依据是实际溢出，而不是列数 —— 列宽会随拖拽、窗口大小、
+ * 主题与字号档位变化，用列数判断容易与实际不符。
+ *
+ * 每个页面有自己的表格，因此各用一个实例分别观察自己的滚动容器。
+ */
+const hospitalActionFix = useActionColumnFix()
+const supplierActionFix = useActionColumnFix()
+const manufacturerActionFix = useActionColumnFix()
+const campusActionFix = useActionColumnFix()
+const departmentActionFix = useActionColumnFix()
+const catalogActionFix = useActionColumnFix()
+const warehouseActionFix = useActionColumnFix()
+
+/**
+ * 绑定到 el-table-column 的 fixed 属性。
+ *
+ * 注意：这里必须摊平成顶层 computed。
+ * setup 返回的普通对象不会被 Vue 模板自动解包，
+ * 模板里写 hospitalActionFix.actionFixedBinding 拿到的是
+ * ComputedRef 对象本身而不是值，Element Plus 会当成「不固定」。
+ */
+const hospitalActionFixed = computed(() => hospitalActionFix.actionFixedBinding.value)
+const supplierActionFixed = computed(() => supplierActionFix.actionFixedBinding.value)
+const manufacturerActionFixed = computed(() => manufacturerActionFix.actionFixedBinding.value)
+const campusActionFixed = computed(() => campusActionFix.actionFixedBinding.value)
+const departmentActionFixed = computed(() => departmentActionFix.actionFixedBinding.value)
+const catalogActionFixed = computed(() => catalogActionFix.actionFixedBinding.value)
+const warehouseActionFixed = computed(() => warehouseActionFix.actionFixedBinding.value)
+
+/** 表格渲染完成后开始观察横向溢出 */
+watch(
+  [hospitalTableRef, supplierTableRef, manufacturerTableRef, campusTableRef, departmentTableRef, catalogTableRef, warehouseTableRef],
+  () => {
+    hospitalActionFix.observe(hospitalTableRef.value)
+    supplierActionFix.observe(supplierTableRef.value)
+    manufacturerActionFix.observe(manufacturerTableRef.value)
+    campusActionFix.observe(campusTableRef.value)
+    departmentActionFix.observe(departmentTableRef.value)
+    catalogActionFix.observe(catalogTableRef.value)
+    warehouseActionFix.observe(warehouseTableRef.value)
+  },
+  { flush: 'post' }
+)
 
 /**
  * 维护来源状态条配色：不同来源用不同颜色区分。
@@ -696,13 +806,63 @@ function warehouseFlagChipClass(enabled: unknown) {
   return enabled ? 'is-success' : 'is-neutral'
 }
 
+/* ===== 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） ===== */
+const hospitalColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const hospitalColSettingsPopRef = ref<HTMLElement | null>(null)
+const hospitalColSettingsPop = useColSettingsPopover({
+  open: hospitalCols.settingsOpen,
+  anchorRef: hospitalColSettingsAnchorRef,
+  popRef: hospitalColSettingsPopRef
+})
+const supplierColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const supplierColSettingsPopRef = ref<HTMLElement | null>(null)
+const supplierColSettingsPop = useColSettingsPopover({
+  open: supplierCols.settingsOpen,
+  anchorRef: supplierColSettingsAnchorRef,
+  popRef: supplierColSettingsPopRef
+})
+const manufacturerColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const manufacturerColSettingsPopRef = ref<HTMLElement | null>(null)
+const manufacturerColSettingsPop = useColSettingsPopover({
+  open: manufacturerCols.settingsOpen,
+  anchorRef: manufacturerColSettingsAnchorRef,
+  popRef: manufacturerColSettingsPopRef
+})
+const campusColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const campusColSettingsPopRef = ref<HTMLElement | null>(null)
+const campusColSettingsPop = useColSettingsPopover({
+  open: campusCols.settingsOpen,
+  anchorRef: campusColSettingsAnchorRef,
+  popRef: campusColSettingsPopRef
+})
+const departmentColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const departmentColSettingsPopRef = ref<HTMLElement | null>(null)
+const departmentColSettingsPop = useColSettingsPopover({
+  open: departmentCols.settingsOpen,
+  anchorRef: departmentColSettingsAnchorRef,
+  popRef: departmentColSettingsPopRef
+})
+const catalogColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const catalogColSettingsPopRef = ref<HTMLElement | null>(null)
+const catalogColSettingsPop = useColSettingsPopover({
+  open: catalogCols.settingsOpen,
+  anchorRef: catalogColSettingsAnchorRef,
+  popRef: catalogColSettingsPopRef
+})
+const warehouseColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const warehouseColSettingsPopRef = ref<HTMLElement | null>(null)
+const warehouseColSettingsPop = useColSettingsPopover({
+  open: warehouseCols.settingsOpen,
+  anchorRef: warehouseColSettingsAnchorRef,
+  popRef: warehouseColSettingsPopRef
+})
+
 </script>
 
 <template>
   <section
-    class="master-page"
+    class="master-page spd-unified-list"
     :class="{
-      'master-page--hospital': isHospitalCatalog,
       'master-page--aligned': isHospitalCatalog || isSupplierManagement || isManufacturerManagement || isCampusManagement || isDepartmentManagement || isDepartmentWarehouseCatalog || isWarehouseManagement
     }"
   >
@@ -749,321 +909,371 @@ function warehouseFlagChipClass(enabled: unknown) {
       </button>
     </nav>
 
-    <section v-if="isHospitalCatalog" class="md-hospital-page catalog-redesign">
+    <section v-if="isHospitalCatalog" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="医院商品目录"
-        description="维护本院正式可用商品，次要字段收进详情抽屉。"
         :loading="loading"
         @refresh="loadPage"
       />
 
-      <form class="md-hospital-filter catalog-filter" @submit.prevent="submitHospitalQuery">
-        <label>
-          <span>商品编码</span>
-          <input
-            v-model.trim="hospitalQuery.productCode"
-            class="md-input"
-            type="search"
-            placeholder="模糊查询商品编码"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>商品名称</span>
-          <input
-            v-model.trim="hospitalQuery.productName"
-            class="md-input"
-            type="search"
-            placeholder="模糊查询商品名称"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>厂家 / 供应商</span>
-          <input
-            v-model.trim="hospitalQuery.vendorKeyword"
-            class="md-input"
-            type="search"
-            placeholder="厂家或供应商名称"
-            autocomplete="off"
-          />
-        </label>
-        <label>
-          <span>状态</span>
-          <select v-model="hospitalQuery.status" class="md-select" aria-label="商品状态">
-            <option value="">全部状态</option>
-            <option value="启用">启用</option>
-            <option value="停用">停用</option>
-          </select>
-        </label>
-        <template v-if="hospitalShowMore">
+      <form class="md-hospital-filter ulc-filter spd-unified-list" @submit.prevent="submitHospitalQuery">
+        <div class="ulc-filter-fields">
           <label>
-            <span>规格型号</span>
+            <span>商品编码</span>
             <input
-              v-model.trim="hospitalQuery.specModel"
+              v-model.trim="hospitalQuery.productCode"
               class="md-input"
               type="search"
-              placeholder="规格或型号"
+              placeholder="模糊查询商品编码"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>供应商</span>
+            <span>商品名称</span>
             <input
-              v-model.trim="hospitalQuery.supplierName"
+              v-model.trim="hospitalQuery.productName"
               class="md-input"
               type="search"
-              placeholder="供应商名称"
+              placeholder="模糊查询商品名称"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>单价</span>
+            <span>厂家 / 供应商</span>
             <input
-              v-model.trim="hospitalQuery.price"
+              v-model.trim="hospitalQuery.vendorKeyword"
               class="md-input"
               type="search"
-              placeholder="单价"
+              placeholder="厂家或供应商名称"
               autocomplete="off"
             />
           </label>
           <label>
-            <span>是否集采</span>
-            <select v-model="hospitalQuery.isCentralized" class="md-select">
-              <option value="">全部</option>
-              <option value="是">是</option>
-              <option value="否">否</option>
-            </select>
+            <span>状态</span>
+            <el-select v-model="hospitalQuery.status" placeholder="全部状态" clearable aria-label="筛选商品状态">
+              <el-option label="全部状态" value="" />
+              <el-option label="启用" value="启用" />
+              <el-option label="停用" value="停用" />
+            </el-select>
           </label>
-          <label>
-            <span>招采子编码</span>
-            <input
-              v-model.trim="hospitalQuery.tenderCode"
-              class="md-input"
-              type="search"
-              placeholder="招采子编码"
-              autocomplete="off"
-            />
-          </label>
-        </template>
-        <div class="filter-actions">
-          <button type="button" class="cat-btn cat-btn-more" @click="hospitalShowMore = !hospitalShowMore">
+          <template v-if="hospitalShowMore">
+            <label>
+              <span>规格型号</span>
+              <input
+                v-model.trim="hospitalQuery.specModel"
+                class="md-input"
+                type="search"
+                placeholder="规格或型号"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>供应商</span>
+              <input
+                v-model.trim="hospitalQuery.supplierName"
+                class="md-input"
+                type="search"
+                placeholder="供应商名称"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>单价</span>
+              <input
+                v-model.trim="hospitalQuery.price"
+                class="md-input"
+                type="search"
+                placeholder="单价"
+                autocomplete="off"
+              />
+            </label>
+            <label>
+              <span>是否集采</span>
+              <el-select v-model="hospitalQuery.isCentralized" placeholder="全部" clearable aria-label="筛选是否集采">
+                <el-option label="全部" value="" />
+                <el-option label="是" value="是" />
+                <el-option label="否" value="否" />
+              </el-select>
+            </label>
+            <label>
+              <span>招采子编码</span>
+              <input
+                v-model.trim="hospitalQuery.tenderCode"
+                class="md-input"
+                type="search"
+                placeholder="招采子编码"
+                autocomplete="off"
+              />
+            </label>
+          </template>
+        </div>
+        <div class="md-hospital-filter-actions ulc-filter-actions">
+          <button type="button" class="md-btn" @click="hospitalShowMore = !hospitalShowMore">
             {{ hospitalShowMore ? '收起' : '更多' }}
-            <ChevronDown :size="14" :class="{ 'rotated': hospitalShowMore }" />
+            <ChevronDown :size="16" :class="{ rotated: hospitalShowMore }" />
           </button>
-          <button type="button" class="cat-btn cat-btn-reset" @click="resetHospitalQuery">
-            <RefreshCw :size="14" />
+          <button type="button" class="md-btn" @click="resetHospitalQuery">
+            <RefreshCw :size="16" />
             <span>重置</span>
           </button>
-          <button type="submit" class="cat-btn cat-btn-query">
-            <Search :size="14" />
+          <button type="submit" class="md-btn md-btn-primary">
+            <Search :size="16" />
             <span>查询</span>
           </button>
         </div>
       </form>
+    </section>
 
-      <div class="catalog-panel">
-        <div class="toolbar">
-          <div class="toolbar-main">
+    <section
+      v-if="isHospitalCatalog"
+      class="master-table-card master-table-card-flat spd-unified-list hospital-product-list-card"
+    >
+      <MdDataTableCard :loading="loading" :meta-count="`共 ${hospitalTotal} 个`">
+        <template #toolbar>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="openCreateProduct"
+          >
+            <Plus :size="16" />
+            <span>新增</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            :disabled="selectedCodes.length !== 1"
+            @click="openEditProduct()"
+          >
+            <Pencil :size="16" />
+            <span>修改</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-primary"
+            :disabled="!selectedCodes.length"
+            @click="batchEditSelectedProducts"
+          >
+            <Edit3 :size="16" />
+            <span>批量修改</span>
+          </button>
+          <button
+            v-if="authStore.canWrite(code)"
+            type="button"
+            class="md-btn md-btn-danger"
+            :disabled="!selectedCodes.length"
+            @click="disableProducts()"
+          >
+            <Ban :size="16" />
+            <span>停用</span>
+          </button>
+          <button type="button" class="md-btn md-btn-primary" @click="exportHospitalCatalog">
+            <Download :size="16" />
+            <span>导出</span>
+          </button>
+          <div class="ulc-col-settings">
             <button
-              v-if="authStore.canWrite(code)"
+              ref="hospitalColSettingsAnchorRef"
               type="button"
-              class="cat-btn cat-btn-add"
-              @click="openCreateProduct"
+              class="md-btn md-btn-primary"
+              @click="hospitalColSettingsOpen = !hospitalColSettingsOpen"
             >
-              <Plus :size="15" />
-              <span>新增</span>
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: hospitalColSettingsOpen }" />
             </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-edit"
-              :disabled="selectedCodes.length !== 1"
-              @click="openEditProduct()"
+            <div
+              v-if="hospitalColSettingsOpen"
+              ref="hospitalColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': hospitalColSettingsPop.align.value === 'right', 'is-align-up': hospitalColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': hospitalColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': hospitalColSettingsPop.maxHeight.value + 'px' }"
             >
-              <Pencil :size="14" />
-              <span>修改</span>
-            </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-batch"
-              :disabled="!selectedCodes.length"
-              @click="batchEditSelectedProducts"
-            >
-              <Edit3 :size="14" />
-              <span>批量修改</span>
-            </button>
-            <button
-              v-if="authStore.canWrite(code)"
-              type="button"
-              class="cat-btn cat-btn-stop"
-              :disabled="!selectedCodes.length"
-              @click="disableProducts()"
-            >
-              <Ban :size="14" />
-              <span>停用</span>
-            </button>
-            <button type="button" class="cat-btn cat-btn-export" @click="exportHospitalCatalog">
-              <Download :size="14" />
-              <span>导出</span>
-            </button>
-            <div class="col-setting-wrap">
-              <button type="button" class="cat-btn cat-btn-cols" @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
-                <Columns3 :size="14" />
-                <span>列设置</span>
-                <ChevronDown :size="13" :class="{ rotated: hospitalColSettingsOpen }" />
-              </button>
-              <div v-if="hospitalColSettingsOpen" class="col-setting-pop">
-                <header>
-                  <strong>列展示设置</strong>
-                  <button type="button" class="link" @click="resetHospitalCols">恢复默认</button>
-                </header>
-                <label v-for="col in hospitalCols" :key="col.key" class="col-setting-item">
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="hospitalCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in hospitalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                   <input
                     type="checkbox"
                     :checked="col.visible"
                     :disabled="col.visible && visibleHospitalCols.length <= 1"
-                    @change="col.visible = ($event.target as HTMLInputElement).checked; persistHospitalCols()"
+                    @change="hospitalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
                   />
                   <span>{{ col.label }}</span>
                   <small>{{ col.width }}px</small>
                 </label>
-                <footer>
-                  <button type="button" class="cat-btn cat-btn-query cat-btn-sm" @click="hospitalColSettingsOpen = false">确定</button>
-                </footer>
               </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="hospitalColSettingsOpen = false">确定</button>
+              </footer>
             </div>
           </div>
-          <div class="toolbar-info">
-            <span class="chip is-primary">共 {{ hospitalTotal }} 条</span>
-            <span v-if="selectedCodes.length" class="chip is-green">已选 {{ selectedCodes.length }}</span>
-          </div>
-        </div>
-
-        <div v-if="selectedCodes.length" class="batch on">
-          <b>已选择 {{ selectedCodes.length }} 项</b>
-          <span class="spacer"></span>
-          <button type="button" class="cat-btn cat-btn-edit" :disabled="selectedCodes.length !== 1" @click="openEditProduct()">修改</button>
-          <button type="button" class="cat-btn cat-btn-stop" @click="disableProducts()">批量停用</button>
-          <button type="button" class="cat-btn cat-btn-reset" @click="clearHospitalSelection">取消选择</button>
-        </div>
-
-        <MdEmptyState v-if="error" :text="error" />
-        <div v-else class="hospital-table-fill">
+        </template>
+        <template #meta-extra>
+          <span v-if="selectedCodes.length" class="md-chip primary">已选 {{ selectedCodes.length }} 条</span>
+        </template>
+        <div class="ulc-table-wrap">
           <el-table
             ref="hospitalTableRef"
             v-loading="loading"
+            class="ulc-table is-sticky"
             :data="page?.rows ?? []"
+            row-key="code"
             border
             stripe
-            highlight-current-row
-            style="width: 100%"
-            class="hospital-el-table"
-            :row-key="(row: Record<string, unknown>) => String(row.code)"
-            :header-cell-style="{ background: 'var(--cat-primary)', color: '#fff', fontWeight: 700 }"
+            max-height="560" style="width: 100%"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
-            @header-dragend="onHospitalHeaderDragend"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => hospitalCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="product"
               v-if="isHospitalColVisible('product')"
               label="商品 / 编码"
-              :min-width="colWidth('product')"
-              show-overflow-tooltip
+              v-bind="hospitalColBinding('product')"
             >
               <template #header>
-                <span class="hospital-th-text">商品 / 编码</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('product', $event)" />
+                <span class="ulc-th-text">商品 / 编码</span>
               </template>
               <template #default="{ row }">
-                <div class="tpl-cell">
-                  <div class="tpl-badge">{{ hospitalInitial((row as Record<string, unknown>).name) }}</div>
-                  <div class="tpl-txt">
-                    <div class="tpl-name" :title="String((row as Record<string, unknown>).name)">{{ (row as Record<string, unknown>).name ?? '-' }}</div>
-                    <div class="tpl-meta"><code>{{ (row as Record<string, unknown>).code }}</code><span v-for="tag in hospitalAttrTags(row as Record<string, unknown>)" :key="tag.text" class="mini-tag" :class="{ hot: tag.hot }">{{ tag.text }}</span></div>
-                  </div>
+                <div class="ulc-cell-stack">
+                  <!-- 商品名称与编码各自超长时单独换行 -->
+                  <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).name ?? '-' }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ (row as Record<string, unknown>).code }}</span>
+                  <span class="ulc-inline-tags">
+                    <span v-for="tag in hospitalAttrTags(row as Record<string, unknown>)" :key="tag.text" class="ulc-tag" :class="{ 'is-hot': tag.hot }">{{ tag.text }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="spec"
               v-if="isHospitalColVisible('spec')"
               label="规格型号"
               prop="spec"
-              :min-width="colWidth('spec')"
-              show-overflow-tooltip
+              v-bind="hospitalColBinding('spec')"
             >
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).spec ?? '-' }}</span>
+              </template>
               <template #header>
-                <span class="hospital-th-text">规格型号</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('spec', $event)" />
+                <span class="ulc-th-text">规格型号</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="vendor"
               v-if="isHospitalColVisible('vendor')"
               label="厂家 / 供应商"
-              :min-width="colWidth('vendor')"
-              show-overflow-tooltip
+              v-bind="hospitalColBinding('vendor')"
             >
               <template #header>
-                <span class="hospital-th-text">厂家 / 供应商</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('vendor', $event)" />
+                <span class="ulc-th-text">厂家 / 供应商</span>
               </template>
               <template #default="{ row }">
-                <div class="vendor-cell">
-                  <strong :title="String((row as Record<string, unknown>).manufacturer ?? '-')">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</strong>
-                  <span :title="String((row as Record<string, unknown>).supplier ?? '-')">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
+                <div class="ulc-cell-stack">
+                  <!-- 厂家与供应商是两个独立字段，各自超长时单独换行 -->
+                  <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).manufacturer ?? '-' }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub">{{ (row as Record<string, unknown>).supplier ?? '-' }}</span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="price"
               v-if="isHospitalColVisible('price')"
               label="单价"
-              :min-width="colWidth('price')"
-              align="right"
-            >
-              <template #header>
-                <span class="hospital-th-text">单价</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('price', $event)" />
-              </template>
-              <template #default="{ row }">
-                <span class="qty"><b>{{ (row as Record<string, unknown>).price ?? '-' }}</b><span>{{ String((row as Record<string, unknown>).unit ?? '') }}</span></span>
-              </template>
-            </el-table-column>
-            <el-table-column
-              v-if="isHospitalColVisible('status')"
-              label="状态"
-              :min-width="colWidth('status')"
+              v-bind="hospitalColBinding('price')"
               align="center"
             >
               <template #header>
-                <span class="hospital-th-text">状态</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('status', $event)" />
+                <span class="ulc-th-text">单价</span>
               </template>
               <template #default="{ row }">
-                <span class="status" :class="String((row as Record<string, unknown>).status) === '启用' ? 'on' : 'off'"><i></i>{{ (row as Record<string, unknown>).status ?? '-' }}</span>
+                <div class="ulc-cell-stack">
+                  <!-- 单价与单位是一个整体：整体放得下就保持一行，整体超出列宽才折行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ (row as Record<string, unknown>).price ?? '-' }}</span>
+                    <span class="ulc-sub">{{ String((row as Record<string, unknown>).unit ?? '') }}</span>
+                  </span>
+                </div>
               </template>
             </el-table-column>
-            <el-table-column v-if="isHospitalColVisible('createTime')" label="创建时间" :min-width="colWidth('createTime')">
+            <el-table-column
+            column-key="status"
+              v-if="isHospitalColVisible('status')"
+              label="状态"
+              v-bind="hospitalColBinding('status')"
+              align="center"
+            >
               <template #header>
-                <span class="hospital-th-text">创建时间</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('createTime', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
-                <span>{{ formatListDateTime(row.createTime) }}</span>
+                <span class="ulc-chip" :class="String((row as Record<string, unknown>).status) === '启用' ? 'is-success' : 'is-danger'">
+                  {{ (row as Record<string, unknown>).status ?? '-' }}
+                </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isHospitalColVisible('updateTime')" label="修改时间" :min-width="colWidth('updateTime')">
+            <el-table-column
+              column-key="createTime"
+              v-if="isHospitalColVisible('createTime')"
+              label="创建时间"
+              v-bind="hospitalColBinding('createTime')"
+              align="center"
+            >
               <template #header>
-                <span class="hospital-th-text">修改时间</span><i class="hospital-col-grip" title="拖动调节列宽" @mousedown="startHospitalColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
+
               </template>
               <template #default="{ row }">
-                <span>{{ formatListDateTime(row.updateTime) }}</span>
+                <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).createTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="300" align="center" fixed="right">
+            <el-table-column
+              column-key="updateTime"
+              v-if="isHospitalColVisible('updateTime')"
+              label="修改时间"
+              v-bind="hospitalColBinding('updateTime')"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+
+              </template>
               <template #default="{ row }">
-                <div class="row-act">
-                  <button type="button" class="act act-detail" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
-                  <RouterLink class="act act-pack" :to="{ name: 'hospital-product-detail', params: { productCode: String((row as Record<string, unknown>).code) } }">查看</RouterLink>
-                  <button v-if="authStore.canWrite(code)" type="button" class="act act-edit" @click="openEditProduct(String((row as Record<string, unknown>).code), false)">修改</button>
+                <span class="ulc-time">{{ formatListDateTime((row as Record<string, unknown>).updateTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+
+              v-if="isHospitalColVisible('actions')"
+
+              label="操作"
+
+              v-bind="hospitalColBinding('actions')"
+
+              :fixed="hospitalActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
+              <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button type="button" class="ulc-action is-outline" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
+                  <RouterLink class="ulc-action is-neutral" :to="{ name: 'hospital-product-detail', params: { productCode: String((row as Record<string, unknown>).code) } }">查看</RouterLink>
+                  <button v-if="authStore.canWrite(code)" type="button" class="ulc-action" @click="openEditProduct(String((row as Record<string, unknown>).code), false)">修改</button>
                   <template v-if="authStore.canWrite(code)">
-                    <button v-if="row.status === '停用'" type="button" class="act act-pack" @click="enableProducts([String(row.code)])">启用</button>
-                    <button v-else type="button" class="act act-stop" @click="disableProducts([String(row.code)])">停用</button>
+                    <button v-if="row.status === '停用'" type="button" class="ulc-action is-info" @click="enableProducts([String(row.code)])">启用</button>
+                    <button v-else type="button" class="ulc-action is-danger" @click="disableProducts([String((row as Record<string, unknown>).code)])">停用</button>
                   </template>
                 </div>
               </template>
@@ -1073,8 +1283,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table>
         </div>
-
-        <div class="pager">
+        <template #pagination>
           <MdPagination
             :page="hospitalCurrentPage"
             :total-pages="hospitalPageTotal"
@@ -1084,8 +1293,8 @@ function warehouseFlagChipClass(enabled: unknown) {
             @update:page="loadHospitalPage"
             @update:size="changeHospitalPageSize"
           />
-        </div>
-      </div>
+        </template>
+      </MdDataTableCard>
 
       <div v-if="hospitalDrawerOpen" class="catalog-mask" @click="closeHospitalDetail"></div>
       <aside v-if="hospitalDrawerOpen && hospitalDetailRow" class="catalog-drawer" role="dialog" aria-label="商品详情">
@@ -1142,7 +1351,6 @@ function warehouseFlagChipClass(enabled: unknown) {
       <MdPageHeader
         v-if="!isPartnerCombined"
         title="供应商管理"
-        description="维护供应商档案，统一管理名称、类型、联系人、信用代码与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1195,7 +1403,6 @@ function warehouseFlagChipClass(enabled: unknown) {
       <MdPageHeader
         v-if="!isPartnerCombined"
         title="厂家管理"
-        description="维护生产厂家档案，统一管理名称、生产许可证号、联系人与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1247,7 +1454,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isCampusManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="院区管理"
-        description="维护医院院区档案，统一管理编码、名称、地址与启停状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1299,7 +1505,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isDepartmentManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="科室管理"
-        description="维护医院科室档案，统一管理编码、类型、关联库房与状态。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1371,7 +1576,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isDepartmentWarehouseCatalog" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="科室库房目录"
-        description="维护科室与库房的商品目录关系，按科室、库房、商品、状态快速检索。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1432,7 +1636,6 @@ function warehouseFlagChipClass(enabled: unknown) {
     <section v-else-if="isWarehouseManagement" class="md-partner-page spd-unified-list">
       <MdPageHeader
         title="库房 / 货位管理"
-        description="维护医院库房与货位档案，按库房名称、编码、状态快速检索。"
         :loading="loading"
         @refresh="loadPage"
       />
@@ -1592,12 +1795,15 @@ function warehouseFlagChipClass(enabled: unknown) {
           </button>
           <input ref="importInput" class="hidden-file-input" type="file" accept=".csv" @change="handleSupplierImport" />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value">
+            <button type="button" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: supplierCols.settingsOpen.value }" />
             </button>
-            <div v-if="supplierCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="supplierCols.settingsOpen.value" ref="supplierColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': supplierColSettingsPop.align.value === 'right', 'is-align-up': supplierColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': supplierColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': supplierColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="supplierCols.resetColumns()">恢复默认</button>
@@ -1627,88 +1833,92 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="supplierTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的供应商"
             @selection-change="onSupplierSelectionChange"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => supplierCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isSupplierColVisible('code')"
               label="供应商编码"
-              :min-width="supplierColWidth('code')"
+              v-bind="supplierColBinding('code')"
             >
               <template #header>
-                <span class="ulc-th-text">供应商编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('code', $event)" />
+                <span class="ulc-th-text">供应商编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isSupplierColVisible('name')"
               label="供应商名称"
-              :min-width="supplierColWidth('name')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('name')"
             >
               <template #header>
-                <span class="ulc-th-text">供应商名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('name', $event)" />
+                <span class="ulc-th-text">供应商名称</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.name || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="creditCode"
               v-if="isSupplierColVisible('creditCode')"
               label="统一社会信用代码"
-              :min-width="supplierColWidth('creditCode')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('creditCode')"
             >
               <template #header>
-                <span class="ulc-th-text">统一社会信用代码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('creditCode', $event)" />
+                <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="businessLicenseNo"
               v-if="isSupplierColVisible('businessLicenseNo')"
               label="经营许可证号"
-              :min-width="supplierColWidth('businessLicenseNo')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('businessLicenseNo')"
             >
               <template #header>
-                <span class="ulc-th-text">经营许可证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('businessLicenseNo', $event)" />
+                <span class="ulc-th-text">经营许可证号</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.businessLicenseNo || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.businessLicenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="type"
               v-if="isSupplierColVisible('type')"
               label="类型"
-              :min-width="supplierColWidth('type')"
+              v-bind="supplierColBinding('type')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('type', $event)" />
+                <span class="ulc-th-text">类型</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.type || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="grade"
               v-if="isSupplierColVisible('grade')"
               label="等级"
-              :min-width="supplierColWidth('grade')"
+              v-bind="supplierColBinding('grade')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">等级</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('grade', $event)" />
+                <span class="ulc-th-text">等级</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="row.grade && row.grade !== '-' ? 'is-primary' : 'is-neutral'">
@@ -1717,50 +1927,54 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="contact"
               v-if="isSupplierColVisible('contact')"
               label="联系人"
-              :min-width="supplierColWidth('contact')"
+              v-bind="supplierColBinding('contact')"
             >
               <template #header>
-                <span class="ulc-th-text">联系人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('contact', $event)" />
+                <span class="ulc-th-text">联系人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.contactName || '-' }}</span>
-                  <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  <!-- 联系人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.contactName || '-' }}</span>
+                    <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="email"
               v-if="isSupplierColVisible('email')"
               label="邮箱"
-              :min-width="supplierColWidth('email')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('email')"
             >
               <template #header>
-                <span class="ulc-th-text">邮箱</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('email', $event)" />
+                <span class="ulc-th-text">邮箱</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.email || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.email || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isSupplierColVisible('address')"
               label="地址"
-              :min-width="supplierColWidth('address')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('address')"
             >
               <template #header>
-                <span class="ulc-th-text">地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('address', $event)" />
+                <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
-              <el-table-column v-if="isSupplierColVisible(column.key)" :label="column.label" :min-width="supplierColWidth(column.key)">
+              <el-table-column :column-key="column.key" v-if="isSupplierColVisible(column.key)" :label="column.label" v-bind="supplierColBinding(column.key)">
                 <template #header>
-                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag(column.key, $event)" />
+                  <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
                 <template #default="{ row }">
                   <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
@@ -1768,13 +1982,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </el-table-column>
             </template>
             <el-table-column
+            column-key="status"
               v-if="isSupplierColVisible('status')"
               label="状态"
-              :min-width="supplierColWidth('status')"
+              v-bind="supplierColBinding('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startSupplierColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -1782,7 +1997,24 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              column-key="actions"
+
+              v-if="isSupplierColVisible('actions')"
+
+              label="操作"
+
+              v-bind="supplierColBinding('actions')"
+
+              :fixed="supplierActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -1884,12 +2116,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleManufacturerImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value">
+            <button type="button" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: manufacturerCols.settingsOpen.value }" />
             </button>
-            <div v-if="manufacturerCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="manufacturerCols.settingsOpen.value" ref="manufacturerColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': manufacturerColSettingsPop.align.value === 'right', 'is-align-up': manufacturerColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': manufacturerColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': manufacturerColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="manufacturerCols.resetColumns()">恢复默认</button>
@@ -1919,99 +2154,105 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="manufacturerTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的厂家"
             @selection-change="onManufacturerSelectionChange"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => manufacturerCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isManufacturerColVisible('code')"
               label="厂家编码"
-              :min-width="manufacturerColWidth('code')"
+              v-bind="manufacturerColBinding('code')"
             >
               <template #header>
-                <span class="ulc-th-text">厂家编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('code', $event)" />
+                <span class="ulc-th-text">厂家编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isManufacturerColVisible('name')"
               label="厂家名称"
-              :min-width="manufacturerColWidth('name')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('name')"
             >
               <template #header>
-                <span class="ulc-th-text">厂家名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('name', $event)" />
+                <span class="ulc-th-text">厂家名称</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.name || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="creditCode"
               v-if="isManufacturerColVisible('creditCode')"
               label="统一社会信用代码"
-              :min-width="manufacturerColWidth('creditCode')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('creditCode')"
             >
               <template #header>
-                <span class="ulc-th-text">统一社会信用代码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('creditCode', $event)" />
+                <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="licenseNo"
               v-if="isManufacturerColVisible('licenseNo')"
               label="生产许可证号"
-              :min-width="manufacturerColWidth('licenseNo')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('licenseNo')"
             >
               <template #header>
-                <span class="ulc-th-text">生产许可证号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('licenseNo', $event)" />
+                <span class="ulc-th-text">生产许可证号</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.licenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="contact"
               v-if="isManufacturerColVisible('contact')"
               label="联系人"
-              :min-width="manufacturerColWidth('contact')"
+              v-bind="manufacturerColBinding('contact')"
             >
               <template #header>
-                <span class="ulc-th-text">联系人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('contact', $event)" />
+                <span class="ulc-th-text">联系人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.contactName || '-' }}</span>
-                  <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  <!-- 联系人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.contactName || '-' }}</span>
+                    <span class="ulc-sub">{{ row.contactPhone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isManufacturerColVisible('address')"
               label="地址"
-              :min-width="manufacturerColWidth('address')"
-              show-overflow-to-toololtip
+              v-bind="manufacturerColBinding('address')"
             >
               <template #header>
-                <span class="ulc-th-text">地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('address', $event)" />
+                <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
-              <el-table-column v-if="isManufacturerColVisible(column.key)" :label="column.label" :min-width="manufacturerColWidth(column.key)">
+              <el-table-column :column-key="column.key" v-if="isManufacturerColVisible(column.key)" :label="column.label" v-bind="manufacturerColBinding(column.key)">
                 <template #header>
-                  <span class="ulc-th-text">{{ column.label }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag(column.key, $event)" />
+                  <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
                 <template #default="{ row }">
                   <span class="ulc-time">{{ formatListDateTime(row[column.key]) }}</span>
@@ -2019,13 +2260,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </el-table-column>
             </template>
             <el-table-column
+            column-key="status"
               v-if="isManufacturerColVisible('status')"
               label="状态"
-              :min-width="manufacturerColWidth('status')"
+              v-bind="manufacturerColBinding('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startManufacturerColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -2033,7 +2275,24 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              column-key="actions"
+
+              v-if="isManufacturerColVisible('actions')"
+
+              label="操作"
+
+              v-bind="manufacturerColBinding('actions')"
+
+              :fixed="manufacturerActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2109,12 +2368,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             <span>删除</span>
           </button>
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value">
+            <button type="button" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: campusCols.settingsOpen.value }" />
             </button>
-            <div v-if="campusCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="campusCols.settingsOpen.value" ref="campusColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': campusColSettingsPop.align.value === 'right', 'is-align-up': campusColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': campusColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': campusColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="campusCols.resetColumns()">恢复默认</button>
@@ -2144,93 +2406,101 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="campusTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的院区"
             @selection-change="onCampusSelectionChange"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => campusCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isCampusColVisible('code')"
               label="院区编码"
-              :min-width="campusColWidth('code')"
+              v-bind="campusColBinding('code')"
             >
               <template #header>
-                <span class="ulc-th-text">院区编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('code', $event)" />
+                <span class="ulc-th-text">院区编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isCampusColVisible('name')"
               label="院区名称"
-              :min-width="campusColWidth('name')"
-              show-overflow-tooltip
+              v-bind="campusColBinding('name')"
             >
               <template #header>
-                <span class="ulc-th-text">院区名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('name', $event)" />
+                <span class="ulc-th-text">院区名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name || '-' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
                   <span class="ulc-sub">组织基础档案</span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isCampusColVisible('address')"
               label="院区地址"
-              :min-width="campusColWidth('address')"
-              show-overflow-tooltip
+              v-bind="campusColBinding('address')"
             >
               <template #header>
-                <span class="ulc-th-text">院区地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('address', $event)" />
+                <span class="ulc-th-text">院区地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="manager"
               v-if="isCampusColVisible('manager')"
               label="负责人"
-              :min-width="campusColWidth('manager')"
+              v-bind="campusColBinding('manager')"
             >
               <template #header>
-                <span class="ulc-th-text">负责人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('manager', $event)" />
+                <span class="ulc-th-text">负责人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.manager || '-' }}</span>
-                  <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  <!-- 负责人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.manager || '-' }}</span>
+                    <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="sortOrder"
               v-if="isCampusColVisible('sortOrder')"
               label="排序"
-              :min-width="campusColWidth('sortOrder')"
+              v-bind="campusColBinding('sortOrder')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">排序</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('sortOrder', $event)" />
+                <span class="ulc-th-text">排序</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.sortOrder ?? 0 }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isCampusColVisible('status')"
               label="状态"
-              :min-width="campusColWidth('status')"
+              v-bind="campusColBinding('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -2238,28 +2508,46 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isCampusColVisible('createTime')" label="创建时间" :min-width="campusColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isCampusColVisible('createTime')" label="创建时间" v-bind="campusColBinding('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isCampusColVisible('updateTime')"
               label="修改时间"
-              :min-width="campusColWidth('updateTime')"
+              v-bind="campusColBinding('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCampusColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="220" align="center" fixed="right">
+            <el-table-column
+              column-key="actions"
+
+              v-if="isCampusColVisible('actions')"
+
+              label="操作"
+
+              v-bind="campusColBinding('actions')"
+
+              :fixed="campusActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2373,12 +2661,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleDepartmentImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value">
+            <button type="button" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: departmentCols.settingsOpen.value }" />
             </button>
-            <div v-if="departmentCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="departmentCols.settingsOpen.value" ref="departmentColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': departmentColSettingsPop.align.value === 'right', 'is-align-up': departmentColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': departmentColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': departmentColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="departmentCols.resetColumns()">恢复默认</button>
@@ -2408,55 +2699,58 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="departmentTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的科室"
             @selection-change="onDepartmentSelectionChange"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => departmentCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isDepartmentColVisible('code')"
               label="科室编码"
-              :min-width="departmentColWidth('code')"
+              v-bind="departmentColBinding('code')"
             >
               <template #header>
-                <span class="ulc-th-text">科室编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('code', $event)" />
+                <span class="ulc-th-text">科室编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isDepartmentColVisible('name')"
               label="科室名称"
-              :min-width="departmentColWidth('name')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('name')"
             >
               <template #header>
-                <span class="ulc-th-text">科室名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('name', $event)" />
+                <span class="ulc-th-text">科室名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name }}</span>
                   <span class="ulc-sub">{{ row.deptAttribute || '科室档案' }}</span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="org"
               v-if="isDepartmentColVisible('org')"
               label="组织归属"
-              :min-width="departmentColWidth('org')"
+              v-bind="departmentColBinding('org')"
             >
               <template #header>
-                <span class="ulc-th-text">组织归属</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('org', $event)" />
+                <span class="ulc-th-text">组织归属</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.campus || '未归属院区' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.campus || '未归属院区' }}</span>
                   <div class="ulc-inline-tags">
                     <span class="ulc-tag">{{ row.deptType || '-' }}</span>
                     <span class="ulc-tag">{{ row.deptAttribute || '-' }}</span>
@@ -2465,82 +2759,91 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="finance"
               v-if="isDepartmentColVisible('finance')"
               label="财务科室映射"
-              :min-width="departmentColWidth('finance')"
+              v-bind="departmentColBinding('finance')"
             >
               <template #header>
-                <span class="ulc-th-text">财务科室映射</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('finance', $event)" />
+                <span class="ulc-th-text">财务科室映射</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.financeDept || '-' }}</span>
-                  <span class="ulc-sub ulc-mono">{{ row.financeDeptCode || '-' }}</span>
+                  <!-- 财务科室与编码是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.financeDept || '-' }}</span>
+                    <span class="ulc-sub ulc-mono">{{ row.financeDeptCode || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="manager"
               v-if="isDepartmentColVisible('manager')"
               label="负责人"
-              :min-width="departmentColWidth('manager')"
+              v-bind="departmentColBinding('manager')"
             >
               <template #header>
-                <span class="ulc-th-text">负责人</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('manager', $event)" />
+                <span class="ulc-th-text">负责人</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.manager || '-' }}</span>
-                  <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  <!-- 负责人与电话是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.manager || '-' }}</span>
+                    <span class="ulc-sub">{{ row.phone || '-' }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="address"
               v-if="isDepartmentColVisible('address')"
               label="科室地址"
-              :min-width="departmentColWidth('address')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('address')"
             >
               <template #header>
-                <span class="ulc-th-text">科室地址</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('address', $event)" />
+                <span class="ulc-th-text">科室地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="warehouse"
               v-if="isDepartmentColVisible('warehouse')"
               label="关联库房"
-              :min-width="departmentColWidth('warehouse')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('warehouse')"
             >
               <template #header>
-                <span class="ulc-th-text">关联库房</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('warehouse', $event)" />
+                <span class="ulc-th-text">关联库房</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.relatedWarehouse || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.relatedWarehouse || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="source"
               v-if="isDepartmentColVisible('source')"
               label="原数据标识"
-              :min-width="departmentColWidth('source')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('source')"
             >
               <template #header>
-                <span class="ulc-th-text">原数据标识</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('source', $event)" />
+                <span class="ulc-th-text">原数据标识</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.sourceFlag || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.sourceFlag || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isDepartmentColVisible('status')"
               label="状态"
-              :min-width="departmentColWidth('status')"
+              v-bind="departmentColBinding('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="String(row.status) === '正常' ? 'is-success' : 'is-danger'">
@@ -2548,28 +2851,46 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isDepartmentColVisible('createTime')" label="创建时间" :min-width="departmentColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isDepartmentColVisible('createTime')" label="创建时间" v-bind="departmentColBinding('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isDepartmentColVisible('updateTime')"
               label="修改时间"
-              :min-width="departmentColWidth('updateTime')"
+              v-bind="departmentColBinding('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startDepartmentColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+            <el-table-column
+              column-key="actions"
+
+              v-if="isDepartmentColVisible('actions')"
+
+              label="操作"
+
+              v-bind="departmentColBinding('actions')"
+
+              :fixed="departmentActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action" @click="openEditDepartment(row, false)">编辑</button>
@@ -2668,12 +2989,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             <span>删除</span>
           </button>
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value">
+            <button type="button" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: catalogCols.settingsOpen.value }" />
             </button>
-            <div v-if="catalogCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="catalogCols.settingsOpen.value" ref="catalogColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': catalogColSettingsPop.align.value === 'right', 'is-align-up': catalogColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': catalogColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': catalogColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="catalogCols.resetColumns()">恢复默认</button>
@@ -2700,7 +3024,7 @@ function warehouseFlagChipClass(enabled: unknown) {
         <el-table
           ref="catalogTableRef"
           v-loading="loading"
-          class="ulc-table"
+          class="ulc-table is-sticky"
           :data="page.rows"
           row-key="code"
           border
@@ -2708,86 +3032,90 @@ function warehouseFlagChipClass(enabled: unknown) {
           style="width: 100%"
           empty-text="暂无符合条件的科室库房目录"
           @selection-change="onCatalogSelectionChange"
-        >
+          :max-height="catalogTableMaxHeight || undefined"
+          @header-dragend="(width: number, oldWidth: number, column: any) => catalogCols.handleHeaderDragEnd(width, oldWidth, column)">
           <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
           <el-table-column
+            column-key="scope"
             v-if="isCatalogColVisible('scope')"
             label="科室 / 库房"
-            :min-width="catalogColWidth('scope')"
+            v-bind="catalogColBinding('scope')"
           >
             <template #header>
-              <span class="ulc-th-text">科室 / 库房</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('scope', $event)" />
+              <span class="ulc-th-text">科室 / 库房</span>
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
-                <span class="ulc-strong">{{ row.deptName || '-' }}</span>
-                <span class="ulc-sub">{{ row.warehouseName ? `库房名称：${row.warehouseName}` : '未关联库房' }}</span>
-                <span class="ulc-sub">库房等级：{{ row.warehouseType || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.deptName || '-' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">{{ row.warehouseName ? `库房名称：${row.warehouseName}` : '未关联库房' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">库房等级：{{ row.warehouseType || '-' }}</span>
               </div>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="productCode"
             v-if="isCatalogColVisible('productCode')"
             label="商品编码"
-            :min-width="catalogColWidth('productCode')"
+            v-bind="catalogColBinding('productCode')"
           >
             <template #header>
-              <span class="ulc-th-text">商品编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('productCode', $event)" />
+              <span class="ulc-th-text">商品编码</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-mono">{{ row.productCode || '-' }}</span>
+              <span class="ulc-mono ulc-wrap-text">{{ row.productCode || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="productName"
             v-if="isCatalogColVisible('productName')"
             label="商品名称"
-            :min-width="catalogColWidth('productName')"
-            show-overflow-tooltip
+            v-bind="catalogColBinding('productName')"
           >
             <template #header>
-              <span class="ulc-th-text">商品名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('productName', $event)" />
+              <span class="ulc-th-text">商品名称</span>
             </template>
             <template #default="{ row }">
               <div class="ulc-cell-stack">
-                <span class="ulc-strong">{{ row.productName || '-' }}</span>
-                <span class="ulc-sub">科室可申领商品</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.productName || '-' }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">科室可申领商品</span>
               </div>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="spec"
             v-if="isCatalogColVisible('spec')"
             label="规格型号"
-            :min-width="catalogColWidth('spec')"
-            show-overflow-tooltip
+            v-bind="catalogColBinding('spec')"
           >
             <template #header>
-              <span class="ulc-th-text">规格型号</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('spec', $event)" />
+              <span class="ulc-th-text">规格型号</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-strong">{{ row.specModel || '-' }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ row.specModel || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="manufacturer"
             v-if="isCatalogColVisible('manufacturer')"
             label="生产厂家"
-            :min-width="catalogColWidth('manufacturer')"
-            show-overflow-tooltip
+            v-bind="catalogColBinding('manufacturer')"
           >
             <template #header>
-              <span class="ulc-th-text">生产厂家</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('manufacturer', $event)" />
+              <span class="ulc-th-text">生产厂家</span>
             </template>
             <template #default="{ row }">
-              <span class="ulc-strong">{{ row.manufacturerName || '-' }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="source"
             v-if="isCatalogColVisible('source')"
             label="维护来源"
-            :min-width="catalogColWidth('source')"
+            v-bind="catalogColBinding('source')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">维护来源</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('source', $event)" />
+              <span class="ulc-th-text">维护来源</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-chip" :class="catalogSourceChipClass(row.sourceType)">
@@ -2796,13 +3124,14 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="status"
             v-if="isCatalogColVisible('status')"
             label="状态"
-            :min-width="catalogColWidth('status')"
+            v-bind="catalogColBinding('status')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('status', $event)" />
+              <span class="ulc-th-text">状态</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-chip" :class="String(row.status) === '启用' ? 'is-success' : 'is-danger'">
@@ -2810,28 +3139,47 @@ function warehouseFlagChipClass(enabled: unknown) {
               </span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isCatalogColVisible('createTime')" label="创建时间" :min-width="catalogColWidth('createTime')">
+          <el-table-column column-key="createTime"v-if="isCatalogColVisible('createTime')" label="创建时间" v-bind="catalogColBinding('createTime')">
             <template #header>
-              <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('createTime', $event)" />
+              <span class="ulc-th-text">创建时间</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
             </template>
           </el-table-column>
           <el-table-column
+            column-key="updateTime"
             v-if="isCatalogColVisible('updateTime')"
             label="更新时间"
-            :min-width="catalogColWidth('updateTime')"
+            v-bind="catalogColBinding('updateTime')"
             align="center"
           >
             <template #header>
-              <span class="ulc-th-text">更新时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startCatalogColDrag('updateTime', $event)" />
+              <span class="ulc-th-text">更新时间</span>
             </template>
             <template #default="{ row }">
               <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+          <el-table-column
+            column-key="actions"
+
+            v-if="isCatalogColVisible('actions')"
+
+            label="操作"
+
+
+
+            :fixed="catalogActionFixed"
+            v-bind="catalogColBinding('actions')"
+          >
+
+            <template #header>
+
+              <span class="ulc-th-text">操作</span>
+
+            </template>
+
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
@@ -2940,12 +3288,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleWarehouseImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value">
+            <button type="button" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: warehouseCols.settingsOpen.value }" />
             </button>
-            <div v-if="warehouseCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="warehouseCols.settingsOpen.value" ref="warehouseColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': warehouseColSettingsPop.align.value === 'right', 'is-align-up': warehouseColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': warehouseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': warehouseColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="warehouseCols.resetColumns()">恢复默认</button>
@@ -2972,92 +3323,100 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="warehouseTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的库房"
             @selection-change="onWarehouseSelectionChange"
-          >
+
+            @header-dragend="(width: number, oldWidth: number, column: any) => warehouseCols.handleHeaderDragEnd(width, oldWidth, column)">
             <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
             <el-table-column
+            column-key="code"
               v-if="isWarehouseColVisible('code')"
               label="库房编码"
-              :min-width="warehouseColWidth('code')"
+              v-bind="warehouseColBinding('code')"
             >
               <template #header>
-                <span class="ulc-th-text">库房编码</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('code', $event)" />
+                <span class="ulc-th-text">库房编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="name"
               v-if="isWarehouseColVisible('name')"
               label="库房名称"
-              :min-width="warehouseColWidth('name')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('name')"
             >
               <template #header>
-                <span class="ulc-th-text">库房名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('name', $event)" />
+                <span class="ulc-th-text">库房名称</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.name || '-' }}</span>
+                  <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
                   <span v-if="row.needsDepartmentFix" class="ulc-chip is-warning">需补科室</span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="type"
               v-if="isWarehouseColVisible('type')"
               label="库房类型"
-              :min-width="warehouseColWidth('type')"
+              v-bind="warehouseColBinding('type')"
             >
               <template #header>
-                <span class="ulc-th-text">库房类型</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('type', $event)" />
+                <span class="ulc-th-text">库房类型</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-tag">{{ row.type || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="campus"
               v-if="isWarehouseColVisible('campus')"
               label="所属院区"
-              :min-width="warehouseColWidth('campus')"
+              v-bind="warehouseColBinding('campus')"
             >
               <template #header>
-                <span class="ulc-th-text">所属院区</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('campus', $event)" />
+                <span class="ulc-th-text">所属院区</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.campus || '未归属院区' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.campus || '未归属院区' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="dept"
               v-if="isWarehouseColVisible('dept')"
               label="关联科室"
-              :min-width="warehouseColWidth('dept')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('dept')"
             >
               <template #header>
-                <span class="ulc-th-text">关联科室</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('dept', $event)" />
+                <span class="ulc-th-text">关联科室</span>
               </template>
               <template #default="{ row }">
                 <div class="ulc-cell-stack">
-                  <span class="ulc-strong">{{ row.dept || '-' }}</span>
-                  <span v-if="row.deptCode" class="ulc-sub ulc-mono">{{ row.deptCode }}</span>
+                  <!-- 科室与编码是一个整体：整体放得下就保持一行 -->
+                  <span class="ulc-joined">
+                    <span class="ulc-strong">{{ row.dept || '-' }}</span>
+                    <span v-if="row.deptCode" class="ulc-sub ulc-mono">{{ row.deptCode }}</span>
+                  </span>
                 </div>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="participateStats"
               v-if="isWarehouseColVisible('participateStats')"
               label="统计"
-              :min-width="warehouseColWidth('participateStats')"
+              v-bind="warehouseColBinding('participateStats')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">统计</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('participateStats', $event)" />
+                <span class="ulc-th-text">统计</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="warehouseFlagChipClass(row.participateStats === '参与')">
@@ -3066,13 +3425,14 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="receivingEnabled"
               v-if="isWarehouseColVisible('receivingEnabled')"
               label="允许收货"
-              :min-width="warehouseColWidth('receivingEnabled')"
+              v-bind="warehouseColBinding('receivingEnabled')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">允许收货</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('receivingEnabled', $event)" />
+                <span class="ulc-th-text">允许收货</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="warehouseFlagChipClass(row.receivingEnabled)">
@@ -3081,26 +3441,27 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+            column-key="statsCategories"
               v-if="isWarehouseColVisible('statsCategories')"
               label="统计分类"
-              :min-width="warehouseColWidth('statsCategories')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('statsCategories')"
             >
               <template #header>
-                <span class="ulc-th-text">统计分类</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('statsCategories', $event)" />
+                <span class="ulc-th-text">统计分类</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.statsCategories || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.statsCategories || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="status"
               v-if="isWarehouseColVisible('status')"
               label="状态"
-              :min-width="warehouseColWidth('status')"
+              v-bind="warehouseColBinding('status')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('status', $event)" />
+                <span class="ulc-th-text">状态</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-chip" :class="statusChipClass(row.status)">
@@ -3108,41 +3469,60 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isWarehouseColVisible('createTime')" label="创建时间" :min-width="warehouseColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isWarehouseColVisible('createTime')" label="创建时间" v-bind="warehouseColBinding('createTime')">
               <template #header>
-                <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('createTime', $event)" />
+                <span class="ulc-th-text">创建时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.createTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="updateTime"
               v-if="isWarehouseColVisible('updateTime')"
               label="修改时间"
-              :min-width="warehouseColWidth('updateTime')"
+              v-bind="warehouseColBinding('updateTime')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('updateTime', $event)" />
+                <span class="ulc-th-text">修改时间</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-time">{{ formatListDateTime(row.updateTime) }}</span>
               </template>
             </el-table-column>
             <el-table-column
+            column-key="locationCount"
               v-if="isWarehouseColVisible('locationCount')"
               label="货位数量"
-              :min-width="warehouseColWidth('locationCount')"
+              v-bind="warehouseColBinding('locationCount')"
               align="center"
             >
               <template #header>
-                <span class="ulc-th-text">货位数量</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startWarehouseColDrag('locationCount', $event)" />
+                <span class="ulc-th-text">货位数量</span>
               </template>
               <template #default="{ row }">
                 <span class="ulc-strong">{{ row.locationCount ?? 0 }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" :min-width="260" align="center" fixed="right">
+            <el-table-column
+              column-key="actions"
+
+              v-if="isWarehouseColVisible('actions')"
+
+              label="操作"
+
+              v-bind="warehouseColBinding('actions')"
+
+              :fixed="warehouseActionFixed"
+            >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -3191,108 +3571,6 @@ function warehouseFlagChipClass(enabled: unknown) {
         </template>
       </MdDataTableCard>
 
-      <!-- Other pages: native table -->
-      <table v-else-if="page" class="master-table">
-        <thead>
-          <tr>
-            <th v-if="selectableRows" class="selection-cell">
-              <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllRows" />
-            </th>
-            <th v-for="column in page?.columns" :key="column">{{ column }}</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, rowIndex) in page?.rows" :key="rowIndex">
-            <td v-if="selectableRows" class="selection-cell">
-              <input v-model="selectedCodes" type="checkbox" :value="String(row.code)" />
-            </td>
-            <td v-for="key in rowKeys" :key="key">{{ row[key] }}</td>
-            <td>
-              <RouterLink
-                v-if="code === 'hospital-product-catalog'"
-                class="btn-text"
-                :to="{ name: 'hospital-product-detail', params: { productCode: String(row.code) } }"
-              >
-                查看
-              </RouterLink>
-              <button
-                v-if="code === 'hospital-product-catalog'"
-                type="button"
-                class="btn-text"
-                @click="openEditProduct(String(row.code), false)"
-              >
-                修改
-              </button>
-              <button
-                v-if="code === 'hospital-product-catalog'"
-                type="button"
-                class="btn-text btn-text-danger"
-                @click="disableProducts([String(row.code)])"
-              >
-                停用
-              </button>
-              <template v-else-if="code === 'supplier-management'">
-                <button type="button" class="btn-text" @click="openEditSupplier(row, false)">修改</button>
-                <button type="button" class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }" @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)">
-                  {{ row.status === '停用' ? '启用' : '停用' }}
-                </button>
-              </template>
-              <template v-else-if="code === 'manufacturer-management'">
-                <button type="button" class="btn-text" @click="openEditManufacturer(row, false)">修改</button>
-                <button
-                  type="button"
-                  class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }"
-                  @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
-                >
-                  {{ row.status === '停用' ? '启用' : '停用' }}
-                </button>
-              </template>
-              <template v-else-if="code === 'campus-management'">
-                <button type="button" class="btn-text" @click="openEditCampus(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedCampuses([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <template v-else-if="code === 'department-management'">
-                <button type="button" class="btn-text" @click="openEditDepartment(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedDepartments([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <template v-else-if="code === 'department-warehouse-catalog'">
-                <button type="button" class="btn-text" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text"
-                  @click="updateSelectedDepartmentWarehouseCatalogStatus(String(row.status) === '停用' ? 1 : 0, [String(row.code)])"
-                >
-                  {{ String(row.status) === '停用' ? '启用' : '停用' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedDepartmentWarehouseCatalogs([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <button v-else type="button" class="btn-text">查看</button>
-            </td>
-          </tr>
-          <tr v-if="!page?.rows.length">
-            <td class="approval-empty" :colspan="(page?.columns.length || 0) + (selectableRows ? 2 : 1)">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
     </section>
 
     <div v-if="isHospitalCatalog && submittedApplicationNo" class="standard-status-message is-info">
@@ -3478,7 +3756,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   --el-fill-color-lighter: #f8fafc;
   overflow: visible;
   border-radius: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table__inner-wrapper) {
@@ -3522,7 +3800,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .department-warehouse-catalog-list-card :deep(.el-table .cell) {
   padding: 0;
-  line-height: 1.5;
+  line-height: var(--spd-lh-base);
 }
 
 .department-warehouse-catalog-list-card :deep(.el-table__fixed),
@@ -3560,19 +3838,6 @@ function warehouseFlagChipClass(enabled: unknown) {
   margin: 0 !important;
 }
 
-.md-hospital-page {
-  display: grid;
-  gap: 16px;
-  padding: 0;
-  min-width: 0;
-  max-width: 100%;
-  background: var(--md-bg-page);
-  color: var(--md-text);
-  font-family: var(--md-font);
-  font-size: 14px;
-  line-height: 1.5;
-}
-
 /* ===== 筛选行（对齐待审批目录 .approval-filter-row 的视觉与行为） ===== */
 .md-hospital-filter:not(.spd-unified-list) {
   display: grid;
@@ -3602,8 +3867,8 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-hospital-filter:not(.spd-unified-list) label > span {
   color: var(--md-text-secondary);
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .md-hospital-filter-actions {
@@ -3655,13 +3920,13 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-column-settings-head strong {
   color: var(--md-text-heading);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
 }
 
 .md-column-settings-head small {
   color: var(--md-text-muted);
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .md-column-settings-foot {
@@ -3687,7 +3952,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .md-column-setting-item span {
   color: var(--md-text);
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 /* ===== 医院目录表格 ===== */
@@ -3725,7 +3990,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: var(--md-text);
 }
 
@@ -3735,8 +4000,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
   padding: 10px 12px;
   border-bottom: 2px solid var(--md-border-strong);
@@ -3832,7 +4097,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 .md-row-actions .md-btn-text {
   min-height: 26px;
   padding: 0 8px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   display: inline-flex;
   align-items: center;
   gap: 3px;
@@ -3850,8 +4115,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   background: var(--md-bg-page);
   color: var(--md-text);
   font-family: var(--md-font);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
 .md-partner-page .master-table-card {
@@ -3920,8 +4185,8 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 2;
   background: linear-gradient(180deg, #f5f9f8 0%, #e8f0ed 100%);
   color: var(--md-text-heading);
-  font-weight: 600;
-  font-size: 12px;
+  font-weight: 700;
+  font-size: var(--spd-font-size-table-head);
   letter-spacing: 0.2px;
   padding: 10px 12px;
   border-bottom: 2px solid var(--md-border-strong);
@@ -4011,809 +4276,6 @@ function warehouseFlagChipClass(enabled: unknown) {
   background: var(--md-primary-soft);
 }
 
-/* ============================================================
-   医院商品目录精简版（对齐定数包模板维护新版 mockup）
-   主题深青 #0f766e / 白底行 / 表头主题色 / 圆角实色按钮
-   ============================================================ */
-.catalog-redesign {
-  /* 跟随系统主题：默认墨绿，切换主题时自动跟随 --primary */
-  --cat-primary: var(--primary, var(--md-primary, #0f766e));
-  --cat-deep: var(--primary-strong, var(--md-primary-strong, #0b5750));
-  --cat-dark: color-mix(in srgb, var(--primary-strong, #0b5750) 88%, #06231f);
-  --cat-mid: color-mix(in srgb, var(--primary, #0f766e) 82%, #ffffff);
-  --cat-soft: color-mix(in srgb, var(--primary, #0f766e) 9%, #ffffff);
-  --cat-soft2: color-mix(in srgb, var(--primary, #0f766e) 15%, #ffffff);
-  --cat-line: color-mix(in srgb, var(--primary, #0f766e) 32%, #ffffff);
-  --cat-text: #10201f;
-  --cat-text2: #3d5654;
-  --cat-text3: #4e6361;
-  --cat-card: #ffffff;
-  --cat-border: color-mix(in srgb, var(--primary, #0f766e) 18%, #e2e8e8);
-  --cat-border-soft: #eaf0ef;
-  display: grid;
-  gap: 14px;
-}
-
-/* 医院商品目录筛选区。
-   注意：`.md-hospital-filter:not(.spd-unified-list)`（特异性 0,3,0）会覆盖 display，
-   所以这里用同等特异性 + 后置顺序接管该容器的布局。
-
-   布局用 grid：前 4 列为筛选字段（1fr），第 5 列用 max-content 专门放操作按钮组，
-   保证「更多 / 重置 / 查询」有足够宽度；按钮组用 grid-row:1 固定在右上角，
-   展开更多条件时也不会换行到其他行、更不会与「状态」输入框重叠。 */
-.md-hospital-filter.catalog-filter {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(130px, 1fr)) max-content;
-  gap: 10px;
-  align-items: end;
-  padding: 12px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, var(--cat-soft) 0%, var(--cat-soft2) 100%);
-  box-shadow: inset 0 0 0 1px var(--cat-line);
-  border: 0;
-}
-
-.md-hospital-filter.catalog-filter label {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  box-shadow: none;
-}
-
-.md-hospital-filter.catalog-filter label > span {
-  color: var(--cat-dark);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.md-hospital-filter.catalog-filter .md-input,
-.md-hospital-filter.catalog-filter .md-select,
-.md-hospital-filter.catalog-filter input,
-.md-hospital-filter.catalog-filter select {
-  height: 34px;
-  padding: 0 11px;
-  border: 1px solid var(--cat-line);
-  border-radius: 6px;
-  background: #fff;
-  color: var(--cat-text);
-  font-size: 14px;
-}
-
-.md-hospital-filter.catalog-filter input:hover,
-.md-hospital-filter.catalog-filter select:hover {
-  border-color: var(--cat-primary);
-}
-
-.md-hospital-filter.catalog-filter input:focus,
-.md-hospital-filter.catalog-filter select:focus {
-  outline: 0;
-  border-color: var(--cat-primary);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
-}
-
-/* 操作按钮组：固定在第一行最后一列，不再随字段数量换行。 */
-.md-hospital-filter.catalog-filter .filter-actions {
-  grid-column: 5;
-  grid-row: 1;
-  align-self: end;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: nowrap;
-  gap: 8px;
-  min-width: max-content;
-  margin: 0;
-  padding: 0 0 1px;
-  border: 0;
-}
-
-/* 筛选操作区：布局由 .md-hospital-filter.catalog-filter .filter-actions 接管，
-   这里只保留旋转图标动效。 */
-.catalog-redesign .filter-actions .rotated {
-  transform: rotate(180deg);
-}
-
-.catalog-redesign .cat-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 16px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--cat-primary);
-  color: #fff;
-  font-size: 14.5px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: filter 0.15s, box-shadow 0.15s, transform 0.05s;
-}
-
-.catalog-redesign .cat-btn:hover:not(:disabled) {
-  filter: brightness(0.93);
-  box-shadow: 0 2px 8px rgba(16, 40, 40, 0.18);
-}
-
-.catalog-redesign .cat-btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.catalog-redesign .cat-btn:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.catalog-redesign .cat-btn-add,
-.catalog-redesign .cat-btn-query,
-.catalog-redesign .cat-btn-edit,
-.catalog-redesign .cat-btn-batch,
-.catalog-redesign .cat-btn-cols,
-.catalog-redesign .cat-btn-more {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-stop {
-  background: #c0392b;
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-export {
-  background: #0e7490;
-  color: #fff;
-}
-
-.catalog-redesign .cat-btn-reset {
-  background: #5b7371;
-  color: #fff;
-}
-
-/* 全局 master-data-list.override.css 用 !important 把 .master-page 内按钮漂白，
-   这里用更高优先级 + !important 抢回医院目录的实色按钮 */
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn,
-.master-page.master-page--hospital .catalog-redesign .col-setting-pop footer .cat-btn {
-  background: var(--cat-primary) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-  box-shadow: 0 2px 8px rgba(16, 40, 40, 0.18) !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-add,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-query,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-query,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-edit,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-edit,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-batch,
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-cols,
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-more,
-.master-page.master-page--hospital .catalog-redesign .col-setting-pop footer .cat-btn-query {
-  background: var(--cat-primary) !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-stop,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-stop {
-  background: #c0392b !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .toolbar .toolbar-main .cat-btn-export {
-  background: #0e7490 !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.master-page.master-page--hospital .catalog-redesign .catalog-filter .filter-actions .cat-btn-reset,
-.master-page.master-page--hospital .catalog-redesign .catalog-panel .batch .cat-btn-reset {
-  background: #5b7371 !important;
-  border-color: transparent !important;
-  color: #fff !important;
-}
-
-.catalog-redesign .cat-btn-sm {
-  height: 30px;
-  padding: 0 14px;
-  font-size: 13.5px;
-}
-
-.catalog-redesign .col-setting-wrap {
-  position: relative;
-}
-
-.catalog-redesign .col-setting-wrap .rotated {
-  transform: rotate(180deg);
-}
-
-.catalog-redesign .col-setting-pop {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: 40;
-  width: 250px;
-  padding: 12px 12px 10px;
-  border-radius: 10px;
-  background: #fff;
-  border: 1px solid var(--cat-border);
-  box-shadow: 0 12px 32px rgba(9, 45, 43, 0.18);
-}
-
-.catalog-redesign .col-setting-pop header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-  color: var(--cat-dark);
-  font-size: 13.5px;
-  font-weight: 700;
-}
-
-.catalog-redesign .col-setting-pop header .link {
-  border: 0;
-  background: transparent;
-  color: var(--cat-primary);
-  font-size: 12.5px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 6px;
-  border-radius: 6px;
-  color: var(--cat-text);
-  font-size: 13.5px;
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item:hover {
-  background: var(--cat-soft);
-}
-
-.catalog-redesign .col-setting-item input {
-  width: 15px;
-  height: 15px;
-  accent-color: var(--cat-primary);
-  cursor: pointer;
-}
-
-.catalog-redesign .col-setting-item small {
-  margin-left: auto;
-  color: var(--cat-text3);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-}
-
-.catalog-redesign .col-setting-pop footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 8px;
-}
-
-.catalog-panel table.catalog-resizable thead th {
-  position: relative;
-  overflow: visible;
-}
-
-.catalog-panel table.catalog-resizable .th-label {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel table.catalog-resizable .col-resizer {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  right: -1px;
-  width: 9px;
-  margin-right: -4px;
-  border-radius: 4px;
-  cursor: col-resize;
-  background: transparent;
-  transition: background 0.15s;
-  touch-action: none;
-}
-
-.catalog-panel table.catalog-resizable .col-resizer::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 4px;
-  width: 2px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.45);
-}
-
-.catalog-panel table.catalog-resizable thead th:hover .col-resizer::after {
-  background: #fff;
-}
-
-.catalog-panel table.catalog-resizable thead th:hover .col-resizer {
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.catalog-panel {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 14px 16px 16px;
-  border-radius: 12px;
-  background: var(--cat-card);
-  box-shadow: 0 2px 6px rgba(16, 40, 40, 0.09);
-  border: 0;
-}
-
-.catalog-panel .toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px 2px;
-  flex-wrap: wrap;
-}
-
-.catalog-panel .toolbar-main {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.catalog-panel .toolbar-info {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.catalog-panel .chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 13px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.catalog-panel .chip.is-primary {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-panel .chip.is-green {
-  background: #e6f6ef;
-  color: #046b4c;
-  box-shadow: inset 0 0 0 1px #b6e2d0;
-}
-
-.catalog-panel .batch {
-  display: none;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--cat-soft) 0%, var(--cat-soft2) 100%);
-  box-shadow: inset 0 0 0 1px var(--cat-line);
-}
-
-.catalog-panel .batch.on {
-  display: flex;
-}
-
-.catalog-panel .batch b {
-  color: var(--cat-dark);
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.catalog-panel .batch .spacer,
-.catalog-panel .spacer {
-  flex: 1;
-}
-
-.catalog-panel .table-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--cat-border);
-  border-radius: 8px;
-  background: #fff;
-}
-
-.catalog-panel {
-  width: 100%;
-}
-
-.catalog-redesign .hospital-table-fill {
-  width: 100%;
-  border: 1px solid var(--cat-border);
-  border-radius: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-
-.catalog-redesign .hospital-table-fill .hospital-el-table {
-  width: 100%;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th {
-  background: var(--cat-primary) !important;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th .cell {
-  color: #fff;
-  font-weight: 700;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th .cell:has(.hospital-col-grip) {
-  display: flex;
-  align-items: center;
-  padding-right: 14px;
-  overflow: visible;
-}
-
-.catalog-redesign .hospital-th-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.catalog-redesign .hospital-col-grip {
-  position: absolute;
-  top: 0;
-  right: -5px;
-  width: 10px;
-  height: 100%;
-  cursor: col-resize;
-  touch-action: none;
-  z-index: 5;
-}
-
-.catalog-redesign .hospital-col-grip::after {
-  content: "";
-  position: absolute;
-  top: 10px;
-  bottom: 10px;
-  left: 4px;
-  width: 1px;
-  border-radius: 1px;
-  background: rgba(255, 255, 255, 0.28);
-  transition: background 0.15s, box-shadow 0.15s, width 0.15s;
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th:hover .hospital-col-grip::after {
-  left: 4px;
-  width: 2px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
-}
-
-.catalog-redesign .hospital-el-table .el-table__header th {
-  position: relative;
-}
-
-.catalog-redesign .hospital-el-table .el-table__body td {
-  border-right: 1px solid var(--el-table-border-color, #e5e7eb);
-}
-
-.catalog-redesign .hospital-el-table .el-table__body td .cell {
-  overflow: hidden;
-}
-
-.catalog-panel table.grid {
-  display: block;
-  width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  --cols: 48px minmax(0, 2fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 0.75fr) minmax(0, 0.7fr) 320px;
-}
-
-.catalog-panel table.catalog-grid {
-  font-size: 14px;
-}
-
-.catalog-panel .grid thead,
-.catalog-panel .grid tbody {
-  display: block;
-}
-
-.catalog-panel .grid tr {
-  display: grid;
-  grid-template-columns: var(--cols);
-  align-items: stretch;
-}
-
-.catalog-panel .grid thead th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  padding: 11px 13px;
-  background: linear-gradient(180deg, var(--cat-mid) 0%, var(--cat-primary) 100%);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 700;
-  text-align: left;
-  white-space: nowrap;
-  border: 0;
-  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.catalog-panel .grid thead th.c-act {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .grid tbody td {
-  display: flex;
-  align-items: center;
-  padding: 11px 13px;
-  min-width: 0;
-  background: #fff;
-  border: 0;
-  border-bottom: 1px solid var(--cat-border-soft);
-  vertical-align: middle;
-  color: var(--cat-text);
-  font-size: 14px;
-  white-space: normal;
-}
-
-.catalog-panel .grid tbody tr,
-.catalog-panel .grid tbody tr:nth-child(even),
-.catalog-panel .grid tbody tr:hover,
-.catalog-panel .grid tbody tr.sel,
-.catalog-panel .grid tbody tr.sel:hover {
-  background: #fff;
-}
-
-.catalog-panel .grid tbody tr:hover td,
-.catalog-panel .grid tbody tr.sel td,
-.catalog-panel .grid tbody tr.sel:hover td {
-  background: #fff;
-}
-
-.catalog-panel .grid tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-.catalog-panel .grid td.c-act {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .col-sel {
-  justify-content: center;
-  text-align: center;
-}
-
-.catalog-panel .col-sel input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--cat-primary);
-  cursor: pointer;
-  vertical-align: middle;
-}
-
-.catalog-panel .tpl-cell {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  min-width: 0;
-}
-
-.catalog-panel .tpl-badge {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, var(--cat-primary) 0%, var(--cat-deep) 100%);
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
-  flex-shrink: 0;
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--cat-primary) 35%, transparent);
-}
-
-.catalog-panel .tpl-txt {
-  min-width: 0;
-}
-
-.catalog-panel .tpl-name {
-  font-weight: 700;
-  font-size: 14.5px;
-  color: var(--cat-text);
-  line-height: 1.35;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .tpl-meta {
-  margin-top: 3px;
-  color: var(--cat-text3);
-  font-size: 12.5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.catalog-panel .tpl-meta code {
-  font-family: ui-monospace, Consolas, monospace;
-  padding: 1px 7px;
-  border-radius: 4px;
-  background: #eef1f1;
-  color: var(--cat-text2);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.catalog-panel .mini-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 1px 8px;
-  border-radius: 999px;
-  background: #eef1f1;
-  color: var(--cat-text2);
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: inset 0 0 0 1px var(--cat-border);
-}
-
-.catalog-panel .mini-tag.hot {
-  background: var(--cat-primary);
-  color: #fff;
-  box-shadow: none;
-}
-
-.catalog-panel .vendor-cell {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.catalog-panel .vendor-cell strong {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--cat-text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .vendor-cell span {
-  font-size: 12.5px;
-  color: var(--cat-text3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.catalog-panel .qty {
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.catalog-panel .qty b {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--cat-text);
-}
-
-.catalog-panel .qty span {
-  margin-left: 4px;
-  color: var(--cat-text3);
-  font-size: 13px;
-}
-
-.catalog-panel .status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.catalog-panel .status i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: 0 0 7px;
-}
-
-.catalog-panel .status.on {
-  color: #046b4c;
-}
-
-.catalog-panel .status.off {
-  color: #5f6d73;
-}
-
-.catalog-panel .row-act {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-
-.catalog-panel .act {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 29px;
-  padding: 0 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-  text-decoration: none;
-  transition: filter 0.15s, box-shadow 0.15s, transform 0.05s;
-}
-
-.catalog-panel .act:hover {
-  filter: brightness(0.93);
-  box-shadow: 0 2px 7px rgba(16, 40, 40, 0.2);
-}
-
-.catalog-panel .act:active {
-  transform: translateY(1px);
-}
-
-.catalog-panel .act-detail {
-  background: #0e7490;
-  color: #fff;
-}
-
-.catalog-panel .act-edit {
-  background: #0958d9;
-  color: #fff;
-}
-
-.catalog-panel .act-pack {
-  background: var(--cat-primary);
-  color: #fff;
-}
-
-.catalog-panel .act-stop {
-  background: #c0392b;
-  color: #fff;
-}
-
-.catalog-panel .pager {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 2px 0;
-  color: var(--cat-text2);
-  font-size: 13.5px;
-}
-
 .catalog-mask {
   position: fixed;
   inset: 0;
@@ -4821,7 +4283,16 @@ function warehouseFlagChipClass(enabled: unknown) {
   z-index: 90;
 }
 
+/* 医院商品目录详情抽屉（保留原有 cat-* 主题变量，跟随系统主题色） */
 .catalog-drawer {
+  --cat-primary: var(--primary, var(--md-primary, #0f766e));
+  --cat-deep: var(--primary-strong, var(--md-primary-strong, #0b5750));
+  --cat-dark: color-mix(in srgb, var(--primary-strong, #0b5750) 88%, #06231f);
+  --cat-soft: color-mix(in srgb, var(--primary, #0f766e) 9%, #ffffff);
+  --cat-line: color-mix(in srgb, var(--primary, #0f766e) 32%, #ffffff);
+  --cat-text: #10201f;
+  --cat-text2: #3d5654;
+  --cat-border: color-mix(in srgb, var(--primary, #0f766e) 18%, #e2e8e8);
   position: fixed;
   top: 0;
   right: 0;
@@ -4856,16 +4327,16 @@ function warehouseFlagChipClass(enabled: unknown) {
 
 .catalog-drawer .drawer-head h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 700;
   color: #fff;
 }
 
 .catalog-drawer .drawer-head p {
   margin: 4px 0 0;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   color: rgba(255, 255, 255, 0.85);
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .catalog-drawer .drawer-close {
@@ -4900,7 +4371,7 @@ function warehouseFlagChipClass(enabled: unknown) {
   align-items: center;
   gap: 8px;
   margin: 0 0 10px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--cat-dark);
 }
@@ -4926,21 +4397,21 @@ function warehouseFlagChipClass(enabled: unknown) {
 .catalog-drawer .d-item > span {
   display: block;
   color: var(--cat-deep);
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   margin-bottom: 3px;
   font-weight: 600;
 }
 
 .catalog-drawer .d-item > strong {
   display: block;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   color: var(--cat-text);
   word-break: break-all;
 }
 
 .catalog-drawer .d-item > strong.mono {
-  font-family: ui-monospace, Consolas, monospace;
+  font-family: var(--spd-font-family-mono);
 }
 
 .catalog-drawer .d-item.full {
@@ -4956,7 +4427,7 @@ function warehouseFlagChipClass(enabled: unknown) {
 .catalog-drawer .tag {
   padding: 4px 13px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   background: #fff;
   color: var(--cat-text2);
@@ -4969,18 +4440,4 @@ function warehouseFlagChipClass(enabled: unknown) {
   box-shadow: none;
 }
 
-@media (max-width: 1200px) {
-  /* 窄屏：字段改为 3 列，操作按钮组独占一行右对齐 */
-  .md-hospital-filter.catalog-filter {
-    grid-template-columns: repeat(3, minmax(120px, 1fr)) max-content;
-  }
-  .md-hospital-filter.catalog-filter .filter-actions {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    justify-content: flex-end;
-  }
-  .catalog-panel table.grid {
-    --cols: 48px minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 0.75fr) minmax(0, 0.7fr) 300px;
-  }
-}
 </style>

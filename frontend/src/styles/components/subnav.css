@@ -7,7 +7,7 @@
   --subnav-btn-padding-x: 12px;
   --subnav-btn-gap: 8px;
   --subnav-btn-radius: 8px;
-  --subnav-btn-font-size: 13px;
+  --subnav-btn-font-size: var(--spd-font-size-base);
   --subnav-btn-font-weight: 700;
   --subnav-btn-border: 1px solid var(--line);
   --subnav-btn-bg: #ffffff;
@@ -71,7 +71,7 @@
   flex: 0 0 auto;
   border-radius: 999px;
   min-height: 26px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
 }
 
 /* Vertical navigation panel 鈥?matches sidebar style */
@@ -91,7 +91,7 @@
   background: transparent;
   color: #334652;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   text-align: left;
   cursor: pointer;
   transition: background 0.12s ease;

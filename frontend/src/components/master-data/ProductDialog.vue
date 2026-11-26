@@ -187,7 +187,7 @@ function handleSupplierChange() {
   padding: 10px 0 8px;
   border-bottom: 1px solid var(--line);
   color: #102033;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
 }
 
@@ -215,7 +215,7 @@ function handleSupplierChange() {
   border-radius: var(--spd-radius, 6px);
   background: var(--spd-bg-container, #ffffff);
   color: var(--spd-text-primary, #1f2a37);
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   box-sizing: border-box;
@@ -254,7 +254,7 @@ function handleSupplierChange() {
   min-height: 32px !important;
   height: 32px !important;
   padding: 0 16px !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   border-radius: var(--spd-radius, 6px) !important;
   border: 1px solid var(--spd-border-default, #d9dde2) !important;
   background: var(--spd-bg-container, #ffffff) !important;
@@ -297,7 +297,7 @@ function handleSupplierChange() {
 
 .product-dialog-section .supplier-form-grid label > span {
   color: var(--spd-text-secondary, #5b6b7a) !important;
-  font-size: 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
   font-weight: 500 !important;
 }
 
@@ -310,7 +310,7 @@ function handleSupplierChange() {
   padding: 0 10px !important;
   background: var(--spd-bg-container, #ffffff) !important;
   color: var(--spd-text-primary, #1f2a37) !important;
-  font-size: 13px !important;
+  font-size: var(--spd-font-size-base) !important;
   transition: all 0.18s ease;
   box-sizing: border-box;
   width: 100%;

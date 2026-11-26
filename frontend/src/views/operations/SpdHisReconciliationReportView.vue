@@ -1,18 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  AlertTriangle,
+  ChevronDown,
+  Columns3,
   Download,
   FileSpreadsheet,
   ListChecks,
   RefreshCw,
   Search,
-  Wallet,
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import {
   exportSpdHisReconciliationExcel,
   fetchSpdHisReconciliation,
@@ -43,6 +47,69 @@ const loading = ref(false)
 const exporting = ref(false)
 const error = ref('')
 const summary = ref<ReconciliationSummary>(emptySummary())
+
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 使用默认的 'fixed'：每列宽度互相独立，
+       拖拽某一列不会因为容器宽度变化而影响其它列；
+     - 列宽与列显隐持久化到 localStorage。
+   ===================================================================== */
+const RECONCILIATION_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'index', label: '序号', width: 64, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'reconciliationDate', label: '核对日期', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 160 },
+  { key: 'productCode', label: '耗材编码', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'medicalInsuranceCode', label: '医保编码', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'hisMedicalInsuranceCode', label: 'HIS 医保编码', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 210 },
+  { key: 'productName', label: '耗材名称', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 9, minWidth: 150, maxWidth: 380 },
+  { key: 'specModel', label: '规格', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'departmentName', label: '科室', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'patient', label: '患者 / 住院号', width: 180, visible: true, flexible: true, idealWidth: 220, weight: 7, minWidth: 140, maxWidth: 300 },
+  { key: 'spdConsumptionQuantity', label: 'SPD 消耗数量', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 190 },
+  { key: 'hisChargeQuantity', label: 'HIS 计费数量', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 190 },
+  { key: 'differenceQuantity', label: '差异数量', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 170 },
+  { key: 'differenceAmount', label: '差异金额', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 190 },
+  { key: 'chargeTime', label: '收费时间', width: 160, visible: true, weight: 5, minWidth: 130, maxWidth: 240 },
+  { key: 'differenceReason', label: '差异原因标记', width: 160, visible: true, weight: 5, minWidth: 130, maxWidth: 240 },
+  { key: 'riskLevel', label: '风险标记', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160, fill: true }
+]
+
+const reconciliationCols = useListColumns({
+  storageKey: 'spd-his-reconciliation-cols-v1',
+  defaults: RECONCILIATION_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「耗材名称 / 患者」等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const reconciliationTableRef = reconciliationCols.tableRef
+const isReconciliationColVisible = (key: string) => reconciliationCols.isColumnVisible(key)
+const reconciliationColBinding = (key: string) => reconciliationCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const reconciliationActionFix = useActionColumnFix()
+const reconciliationActionFixed = computed(() => reconciliationActionFix.actionFixedBinding.value)
+
+watch(
+  [reconciliationTableRef],
+  () => {
+    reconciliationActionFix.observe(reconciliationTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const reconciliationColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const reconciliationColSettingsPopRef = ref<HTMLElement | null>(null)
+const reconciliationColSettingsPop = useColSettingsPopover({
+  open: reconciliationCols.settingsOpen,
+  anchorRef: reconciliationColSettingsAnchorRef,
+  popRef: reconciliationColSettingsPopRef
+})
 
 function formatInputDate(value: Date) {
   const year = value.getFullYear()
@@ -171,51 +238,14 @@ onMounted(() => void loadReport())
 </script>
 
 <template>
-  <main class="report-page reconciliation-page">
+  <main class="report-page reconciliation-page spd-unified-list">
     <MdPageHeader
       crumb="运营与决策 / 报表中心 / 医保合规与 DRG"
       title="SPD 消耗 - HIS 收费核对对账报表"
-      description="SPD 实际消耗数据与 HIS 收费明细按患者、耗材、科室及自然日核对，患者信息仅脱敏展示。"
       :loading="loading"
       :show-refresh="false"
       @refresh="loadReport"
     />
-
-    <!-- 顶部 4 项 KPI 摘要 -->
-    <section class="report-kpi-card" aria-label="对账结果汇总">
-      <div class="report-kpi-item is-total">
-        <i class="report-kpi-icon is-total"><ListChecks :size="18" /></i>
-        <div>
-          <span class="report-kpi-label">核对记录数</span>
-          <strong class="report-kpi-value">{{ summary.totalCount.toLocaleString('zh-CN') }} <small>条</small></strong>
-          <span class="report-kpi-hint">当前筛选条件下共 {{ total.toLocaleString('zh-CN') }} 条</span>
-        </div>
-      </div>
-      <div class="report-kpi-item is-exception">
-        <i class="report-kpi-icon is-exception"><AlertTriangle :size="18" /></i>
-        <div>
-          <span class="report-kpi-label">异常记录数</span>
-          <strong class="report-kpi-value">{{ summary.exceptionCount.toLocaleString('zh-CN') }} <small>条</small></strong>
-          <span class="report-kpi-hint">漏计费 / 重复计费 / 疑似串换</span>
-        </div>
-      </div>
-      <div class="report-kpi-item is-missing">
-        <i class="report-kpi-icon is-missing"><FileSpreadsheet :size="18" /></i>
-        <div>
-          <span class="report-kpi-label">漏计费</span>
-          <strong class="report-kpi-value">{{ summary.missingChargeCount.toLocaleString('zh-CN') }} <small>条</small></strong>
-          <span class="report-kpi-hint">SPD 已消耗但 HIS 未计费</span>
-        </div>
-      </div>
-      <div class="report-kpi-item is-amount">
-        <i class="report-kpi-icon is-amount"><Wallet :size="18" /></i>
-        <div>
-          <span class="report-kpi-label">差异金额</span>
-          <strong class="report-kpi-value">¥{{ amount(summary.differenceAmount) }}</strong>
-          <span class="report-kpi-hint">含税金额差（SPD - HIS）</span>
-        </div>
-      </div>
-    </section>
 
     <StatusMessage :message="error" tone="error" role="alert" />
 
@@ -248,12 +278,12 @@ onMounted(() => void loadReport())
         <i class="section-title-icon is-summary"><ListChecks :size="16" /></i>
         <div>
           <h3>风险汇总</h3>
-          <p>本屏按风险类型聚合，按风险等级标记的差异金额已在 KPI 卡体现。</p>
+          <p>按风险类型聚合；顶部 KPI 卡已移除，汇总指标统一在此展示。</p>
         </div>
       </div>
       <div class="report-summary">
-        <span class="summary-text">共 <strong>{{ summary.totalCount.toLocaleString('zh-CN') }}</strong> 条</span>
-        <span class="summary-text">异常 <strong class="danger-text">{{ summary.exceptionCount.toLocaleString('zh-CN') }}</strong> 条</span>
+        <span class="summary-text">核对记录数 <strong>{{ summary.totalCount.toLocaleString('zh-CN') }}</strong> 条</span>
+        <span class="summary-text">异常记录数 <strong class="danger-text">{{ summary.exceptionCount.toLocaleString('zh-CN') }}</strong> 条</span>
         <span class="summary-text">差异金额 <strong class="danger-text">¥{{ amount(summary.differenceAmount) }}</strong></span>
         <i class="divider"></i>
         <span class="summary-chip missing">漏计费 {{ summary.missingChargeCount }}</span>
@@ -262,54 +292,258 @@ onMounted(() => void loadReport())
       </div>
     </section>
 
-    <section class="report-table-card" :aria-busy="loading">
-      <el-table
-        :data="rows"
-        stripe
-        row-key="reconciliationDate"
-        class="report-table reconciliation-table"
-        :empty-text="loading ? '正在加载…' : '当前筛选条件下暂无对账数据'"
-      >
-        <el-table-column type="index" label="序号" width="64" align="center" :index="(i: number) => (Number(query.page) - 1) * Number(query.size) + i + 1" />
-        <el-table-column prop="reconciliationDate" label="核对日期" width="120" />
-        <el-table-column prop="productCode" label="耗材编码" min-width="120" />
-        <el-table-column prop="medicalInsuranceCode" label="医保编码" min-width="120" />
-        <el-table-column prop="hisMedicalInsuranceCode" label="HIS 医保编码" min-width="120" />
-        <el-table-column prop="productName" label="耗材名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="specModel" label="规格" min-width="120" />
-        <el-table-column prop="departmentName" label="科室" min-width="120" />
-        <el-table-column label="患者 / 住院号" min-width="180">
-          <template #default="{ row }"><strong>{{ row.patientName }}</strong><small class="cell-sub">{{ row.patientNo }}</small></template>
-        </el-table-column>
-        <el-table-column prop="spdConsumptionQuantity" label="SPD 消耗数量" width="120" align="right">
-          <template #default="{ row }">{{ quantity(row.spdConsumptionQuantity) }}</template>
-        </el-table-column>
-        <el-table-column prop="hisChargeQuantity" label="HIS 计费数量" width="120" align="right">
-          <template #default="{ row }">{{ quantity(row.hisChargeQuantity) }}</template>
-        </el-table-column>
-        <el-table-column prop="differenceQuantity" label="差异数量" width="110" align="right" :cell-class-name="'diff-cell'">
-          <template #default="{ row }">{{ difference(row.differenceQuantity) }}</template>
-        </el-table-column>
-        <el-table-column prop="differenceAmount" label="差异金额" width="120" align="right" :cell-class-name="'diff-cell'">
-          <template #default="{ row }">¥{{ amount(row.differenceAmount) }}</template>
-        </el-table-column>
-        <el-table-column prop="chargeTime" label="收费时间" min-width="160" />
-        <el-table-column prop="differenceReason" label="差异原因标记" min-width="160">
-          <template #default="{ row }"><span class="reason-tag" :class="row.riskCode.toLowerCase()">{{ row.differenceReason }}</span></template>
-        </el-table-column>
-        <el-table-column prop="riskLevel" label="风险标记" width="100" fixed="right">
-          <template #default="{ row }"><span class="risk-tag" :class="row.riskCode.toLowerCase()">{{ row.riskLevel }}</span></template>
-        </el-table-column>
-      </el-table>
-      <PaginationControls
-        :page="Number(query.page)"
-        :size="Number(query.size)"
-        :total="total"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changeSize"
-      />
-    </section>
+    <MdDataTableCard :loading="loading">
+      <template #toolbar>
+        <!-- 查询 / 重置 / 导出 按钮保留在「查询条件」面板内，
+             表格工具条只承载列设置，避免同一动作出现两处。 -->
+        <div class="ulc-col-settings">
+          <button
+            ref="reconciliationColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="reconciliationCols.settingsOpen.value = !reconciliationCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: reconciliationCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="reconciliationCols.settingsOpen.value"
+            ref="reconciliationColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': reconciliationColSettingsPop.align.value === 'right', 'is-align-up': reconciliationColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': reconciliationColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': reconciliationColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="reconciliationCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in reconciliationCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && reconciliationCols.visibleColumnCount.value <= 1"
+                  @change="reconciliationCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="reconciliationCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total.toLocaleString('zh-CN') }} 条</span>
+      </template>
+
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="reconciliationTableRef"
+          v-loading="loading"
+          :data="rows"
+          stripe
+          border
+          row-key="reconciliationDate"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在加载…' : '当前筛选条件下暂无对账数据'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => reconciliationCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="index"
+            v-if="isReconciliationColVisible('index')"
+            type="index"
+            align="center"
+            v-bind="reconciliationColBinding('index')"
+            :index="(i: number) => (Number(query.page) - 1) * Number(query.size) + i + 1"
+          >
+            <template #header>
+              <span class="ulc-th-text">序号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="reconciliationDate"
+            v-if="isReconciliationColVisible('reconciliationDate')"
+            prop="reconciliationDate"
+            v-bind="reconciliationColBinding('reconciliationDate')"
+          >
+            <template #header>
+              <span class="ulc-th-text">核对日期</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productCode"
+            v-if="isReconciliationColVisible('productCode')"
+            prop="productCode"
+            v-bind="reconciliationColBinding('productCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">耗材编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="medicalInsuranceCode"
+            v-if="isReconciliationColVisible('medicalInsuranceCode')"
+            prop="medicalInsuranceCode"
+            v-bind="reconciliationColBinding('medicalInsuranceCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">医保编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="hisMedicalInsuranceCode"
+            v-if="isReconciliationColVisible('hisMedicalInsuranceCode')"
+            prop="hisMedicalInsuranceCode"
+            v-bind="reconciliationColBinding('hisMedicalInsuranceCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">HIS 医保编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productName"
+            v-if="isReconciliationColVisible('productName')"
+            prop="productName"
+            v-bind="reconciliationColBinding('productName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">耗材名称</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="specModel"
+            v-if="isReconciliationColVisible('specModel')"
+            prop="specModel"
+            v-bind="reconciliationColBinding('specModel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">规格</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="departmentName"
+            v-if="isReconciliationColVisible('departmentName')"
+            prop="departmentName"
+            v-bind="reconciliationColBinding('departmentName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">科室</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="patient"
+            v-if="isReconciliationColVisible('patient')"
+            v-bind="reconciliationColBinding('patient')"
+          >
+            <template #header>
+              <span class="ulc-th-text">患者 / 住院号</span>
+            </template>
+            <template #default="{ row }">
+              <div class="ulc-cell-stack">
+                <span class="ulc-strong ulc-wrap-text">{{ row.patientName }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">{{ row.patientNo }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="spdConsumptionQuantity"
+            v-if="isReconciliationColVisible('spdConsumptionQuantity')"
+            prop="spdConsumptionQuantity"
+            v-bind="reconciliationColBinding('spdConsumptionQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">SPD 消耗数量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.spdConsumptionQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="hisChargeQuantity"
+            v-if="isReconciliationColVisible('hisChargeQuantity')"
+            prop="hisChargeQuantity"
+            v-bind="reconciliationColBinding('hisChargeQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">HIS 计费数量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.hisChargeQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="differenceQuantity"
+            v-if="isReconciliationColVisible('differenceQuantity')"
+            prop="differenceQuantity"
+            :cell-class-name="'diff-cell'"
+            v-bind="reconciliationColBinding('differenceQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">差异数量</span>
+            </template>
+            <template #default="{ row }">{{ difference(row.differenceQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="differenceAmount"
+            v-if="isReconciliationColVisible('differenceAmount')"
+            prop="differenceAmount"
+            :cell-class-name="'diff-cell'"
+            v-bind="reconciliationColBinding('differenceAmount')"
+          >
+            <template #header>
+              <span class="ulc-th-text">差异金额</span>
+            </template>
+            <template #default="{ row }">¥{{ amount(row.differenceAmount) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="chargeTime"
+            v-if="isReconciliationColVisible('chargeTime')"
+            prop="chargeTime"
+            v-bind="reconciliationColBinding('chargeTime')"
+          >
+            <template #header>
+              <span class="ulc-th-text">收费时间</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="differenceReason"
+            v-if="isReconciliationColVisible('differenceReason')"
+            prop="differenceReason"
+            v-bind="reconciliationColBinding('differenceReason')"
+          >
+            <template #header>
+              <span class="ulc-th-text">差异原因标记</span>
+            </template>
+            <template #default="{ row }"><span class="reason-tag" :class="row.riskCode.toLowerCase()">{{ row.differenceReason }}</span></template>
+          </el-table-column>
+          <el-table-column
+            column-key="riskLevel"
+            v-if="isReconciliationColVisible('riskLevel')"
+            prop="riskLevel"
+            :fixed="reconciliationActionFixed"
+            v-bind="reconciliationColBinding('riskLevel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">风险标记</span>
+            </template>
+            <template #default="{ row }"><span class="risk-tag" :class="row.riskCode.toLowerCase()">{{ row.riskLevel }}</span></template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #pagination>
+        <MdPagination
+          :page="Number(query.page)"
+          :total-pages="Math.max(1, Math.ceil(total / Number(query.size)))"
+          :total="total"
+          :size="Number(query.size)"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changeSize"
+        />
+      </template>
+    </MdDataTableCard>
   </main>
 </template>
 
@@ -337,134 +571,9 @@ onMounted(() => void loadReport())
   border-radius: var(--spd-radius-md, 10px);
 }
 
-/* ---------- 顶部 4 项 KPI 摘要（4 张不同主题色卡） ---------- */
-.report-kpi-card {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.report-kpi-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  border: 1px solid;
-  border-radius: var(--spd-radius-md, 10px);
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.report-kpi-item:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
-}
-
-/* ① 蓝色：共 N 条 */
-.report-kpi-item.is-total {
-  background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
-  border-color: #93c5fd;
-}
-
-/* ② 红色：异常 */
-.report-kpi-item.is-exception {
-  background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%);
-  border-color: #fca5a5;
-}
-
-/* ③ 金色：漏计费 */
-.report-kpi-item.is-missing {
-  background: linear-gradient(180deg, #fef3c7 0%, #fde68a 100%);
-  border-color: #fcd34d;
-}
-
-/* ④ 紫色：差异金额 */
-.report-kpi-item.is-amount {
-  background: linear-gradient(180deg, #ede9fe 0%, #ddd6fe 100%);
-  border-color: #c4b5fd;
-}
-
-.report-kpi-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.65);
-  flex-shrink: 0;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-}
-
-.report-kpi-item.is-total .report-kpi-icon {
-  color: #1d4ed8;
-}
-.report-kpi-item.is-exception .report-kpi-icon {
-  color: #b91c1c;
-}
-.report-kpi-item.is-missing .report-kpi-icon {
-  color: #b45309;
-}
-.report-kpi-item.is-amount .report-kpi-icon {
-  color: #6d28d9;
-}
-
-.report-kpi-item > div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.report-kpi-label {
-  font-size: 12px;
-  font-weight: 500;
-  opacity: 0.85;
-}
-
-.report-kpi-value {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-}
-
-.report-kpi-value small {
-  font-size: 12px;
-  font-weight: 400;
-  margin-left: 2px;
-  opacity: 0.75;
-}
-
-.report-kpi-hint {
-  font-size: 11px;
-  font-weight: 400;
-  line-height: 1.3;
-  opacity: 0.75;
-}
-
-/* 文字颜色对应主题 */
-.report-kpi-item.is-total .report-kpi-label,
-.report-kpi-item.is-total .report-kpi-value,
-.report-kpi-item.is-total .report-kpi-hint {
-  color: #1e3a8a;
-}
-.report-kpi-item.is-exception .report-kpi-label,
-.report-kpi-item.is-exception .report-kpi-value,
-.report-kpi-item.is-exception .report-kpi-hint {
-  color: #7f1d1d;
-}
-.report-kpi-item.is-missing .report-kpi-label,
-.report-kpi-item.is-missing .report-kpi-value,
-.report-kpi-item.is-missing .report-kpi-hint {
-  color: #78350f;
-}
-.report-kpi-item.is-amount .report-kpi-label,
-.report-kpi-item.is-amount .report-kpi-value,
-.report-kpi-item.is-amount .report-kpi-hint {
-  color: #4c1d95;
-}
+/* ---------- 顶部 4 项 KPI 摘要 ----------
+   顶部 KPI 卡已按产品方向移除；核对记录数 / 异常记录数 / 漏计费 / 差异金额
+   已合并到「风险汇总」条中，避免同一指标在页面上重复出现。 */
 
 /* ---------- 通用面板 ---------- */
 .report-panel {
@@ -505,14 +614,14 @@ onMounted(() => void loadReport())
 
 .section-title h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
   font-weight: 600;
   color: var(--spd-text-heading);
 }
 
 .section-title p {
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: var(--spd-text-tertiary);
 }
 
@@ -546,8 +655,8 @@ onMounted(() => void loadReport())
   gap: 5px;
   min-width: 0;
   color: #4b5b66;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
 }
 
 .report-filters input,
@@ -561,6 +670,7 @@ onMounted(() => void loadReport())
   color: #102033;
   padding: 0 10px;
   font: inherit;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -590,7 +700,7 @@ onMounted(() => void loadReport())
   align-items: center;
   gap: 6px;
   min-height: 36px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: #455463;
   white-space: nowrap;
@@ -622,7 +732,7 @@ onMounted(() => void loadReport())
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 16px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #455463;
 }
 
@@ -632,7 +742,7 @@ onMounted(() => void loadReport())
 
 .report-summary strong {
   color: #102033;
-  font-size: 15px;
+  font-size: var(--spd-font-size-base);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -654,7 +764,7 @@ onMounted(() => void loadReport())
   border-radius: 999px;
   border: 1px solid;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -696,7 +806,7 @@ onMounted(() => void loadReport())
   border-radius: 6px;
   background: #fff;
   color: #334155;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
@@ -724,69 +834,21 @@ onMounted(() => void loadReport())
   color: #fff;
 }
 
-/* ---------- 表格卡片 ---------- */
-.report-table-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: #fff;
-  border: 1px solid #e2e8f0;
-  border-radius: var(--spd-radius-md, 10px);
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
-}
+/* ---------- 表格 ----------
+   表头 / 斑马纹 / 拖拽热区等通用外观由 unified-list.css 的
+   .spd-unified-list .ulc-table 提供，这里只保留本页特有的
+   差异列与风险标签样式。 */
 
-.reconciliation-table {
-  width: 100%;
-  font-size: 13px;
-}
-
-.reconciliation-table :deep(th) {
-  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%) !important;
-  border-bottom: 1px solid #6ee7b7 !important;
-}
-
-.reconciliation-table :deep(th .cell) {
-  color: #065f46;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-}
-
-.reconciliation-table :deep(.el-table__header-wrapper) {
-  border-bottom: 1px solid #6ee7b7;
-}
-
-.reconciliation-table :deep(td) {
-  border-bottom: 1px solid #f1f5f9;
-  color: #334155;
-}
-
-.reconciliation-table :deep(.el-table__row--striped td) {
-  background: #fafdfb !important;
-}
-
-.reconciliation-table :deep(.el-table__row:hover td) {
-  background: #ecfdf5 !important;
-}
-
-.reconciliation-table :deep(.cell-sub) {
-  display: block;
-  margin-top: 2px;
-  color: #64748b;
-  font-size: 11.5px;
-  font-weight: 400;
-}
-
-.reconciliation-table :deep(.diff-cell) {
+/* 差异列：红字加粗 */
+.ulc-table :deep(.diff-cell) {
   color: #b91c1c;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
 /* 风险 / 原因 tag */
-.reconciliation-table :deep(.reason-tag),
-.reconciliation-table :deep(.risk-tag) {
+.ulc-table :deep(.reason-tag),
+.ulc-table :deep(.risk-tag) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -794,34 +856,34 @@ onMounted(() => void loadReport())
   border: 1px solid;
   border-radius: 999px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-base);
   font-weight: 700;
   white-space: nowrap;
 }
 
-.reconciliation-table :deep(.reason-tag.missing_charge),
-.reconciliation-table :deep(.risk-tag.missing_charge) {
+.ulc-table :deep(.reason-tag.missing_charge),
+.ulc-table :deep(.risk-tag.missing_charge) {
   border-color: #fca5a5;
   color: #b42318;
   background: #fee2e2;
 }
 
-.reconciliation-table :deep(.reason-tag.duplicate_charge),
-.reconciliation-table :deep(.risk-tag.duplicate_charge) {
+.ulc-table :deep(.reason-tag.duplicate_charge),
+.ulc-table :deep(.risk-tag.duplicate_charge) {
   border-color: #fcd34d;
   color: #a15c08;
   background: #fef3c7;
 }
 
-.reconciliation-table :deep(.reason-tag.suspected_swap),
-.reconciliation-table :deep(.risk-tag.suspected_swap) {
+.ulc-table :deep(.reason-tag.suspected_swap),
+.ulc-table :deep(.risk-tag.suspected_swap) {
   border-color: #93c5fd;
   color: #255ea8;
   background: #dbeafe;
 }
 
-.reconciliation-table :deep(.reason-tag.consistent),
-.reconciliation-table :deep(.risk-tag.consistent) {
+.ulc-table :deep(.reason-tag.consistent),
+.ulc-table :deep(.risk-tag.consistent) {
   border-color: #6ee7b7;
   color: #087268;
   background: #d1fae5;
@@ -837,9 +899,6 @@ onMounted(() => void loadReport())
   .report-filters {
     grid-template-columns: repeat(2, minmax(160px, 1fr));
   }
-  .report-kpi-card {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 @media (max-width: 720px) {
   .report-filters {
@@ -851,9 +910,6 @@ onMounted(() => void loadReport())
   }
   .report-actions .btn {
     width: 100%;
-  }
-  .report-kpi-card {
-    grid-template-columns: 1fr;
   }
   .report-page {
     padding: 12px;
@@ -880,7 +936,7 @@ onMounted(() => void loadReport())
     padding: 0 !important;
   }
   .report-summary-panel,
-  .report-table-card {
+  .md-table-card {
     box-shadow: none;
     border-color: #ccc;
   }

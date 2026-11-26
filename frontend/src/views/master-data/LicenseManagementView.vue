@@ -1,11 +1,15 @@
-<script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+﻿<script setup lang="ts">
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { Check, Columns3, ChevronDown, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import { useNotify } from '../../composables/useNotify'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { formatDateTime } from '../../utils/dateTime'
 import {
   createLicense,
@@ -42,7 +46,7 @@ const notify = useNotify()
 const rows = ref<LicenseRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const size = 20
+const size = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -156,7 +160,7 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    const result = await fetchLicenses(activeTab.value, keyword.value, page.value, size)
+    const result = await fetchLicenses(activeTab.value, keyword.value, page.value, size.value)
     rows.value = result.rows
     total.value = result.total
   } catch (err) {
@@ -164,6 +168,19 @@ async function loadList() {
   } finally {
     loading.value = false
   }
+}
+
+/** 翻页（MdPagination） */
+function changePage(next: number) {
+  page.value = next
+  loadList()
+}
+
+/** 修改每页条数（MdPagination） */
+function changeSize(next: number) {
+  size.value = next
+  page.value = 1
+  loadList()
 }
 
 function switchTab(type: LicenseType) {
@@ -372,26 +389,57 @@ const isContract = computed(() => activeTab.value === 'contract')
 
 // ===== 统一列表：列宽拖拽 + 列设置 + 统一斑马纹表格 =====
 const LICENSE_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'licenseName', label: '证照名称', width: 220, visible: true },
-  { key: 'licenseNo', label: '证照编号', width: 180, visible: true },
-  { key: 'owner', label: '所属主体', width: 200, visible: true },
-  { key: 'issueDate', label: '签发日期', width: 150, visible: true },
-  { key: 'expireDate', label: '有效期至', width: 150, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'attachmentCount', label: '附件', width: 110, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
+  { key: 'licenseName', label: '证照名称', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'licenseNo', label: '证照编号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'owner', label: '所属主体', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'issueDate', label: '签发日期', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 180 },
+  { key: 'expireDate', label: '有效期至', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 180 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'attachmentCount', label: '附件', width: 80, visible: true, weight: 2, minWidth: 70, maxWidth: 120 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const licenseCols = useListColumns({
   storageKey: 'spd-license-cols-v1',
-  defaults: LICENSE_COL_DEFAULTS
+  defaults: LICENSE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
 })
 const licenseTableRef = licenseCols.tableRef
 
 const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
 const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
-const startLicenseColDrag = (key: string, event: MouseEvent) => licenseCols.startColumnDrag(key, event)
+const licenseColBinding = (key: string) => licenseCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const licenseColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const licenseColSettingsPopRef = ref<HTMLElement | null>(null)
+const licenseColSettingsPop = useColSettingsPopover({
+  open: licenseCols.settingsOpen,
+  anchorRef: licenseColSettingsAnchorRef,
+  popRef: licenseColSettingsPopRef
+})
+
+/**
+ * 「操作」列统一固定规则（与其它基础数据管理页一致）：
+ * **表格出现横向滚动条时才固定；没有滚动条时不固定。**
+ */
+const licenseActionFix = useActionColumnFix()
+
+/**
+ * 绑定到 el-table-column 的 fixed 属性。
+ *
+ * 注意：必须摊平成顶层 computed。
+ * setup 返回的普通对象不会被 Vue 模板自动解包，
+ * 模板里写 licenseActionFix.actionFixedBinding 拿到的是
+ * ComputedRef 对象本身而不是值，Element Plus 会当成「不固定」。
+ */
+const licenseActionFixed = computed(() => licenseActionFix.actionFixedBinding.value)
+
+/** 表格渲染完成后开始观察横向溢出 */
+watch(licenseTableRef, (tableRef) => licenseActionFix.observe(tableRef), { flush: 'post' })
 
 /** 证照状态条配色：有效为成功色，其余（失效 / 已过期 / 尚未生效）为警示色 */
 function licenseStatusChipClass(row: LicenseRow) {
@@ -440,7 +488,6 @@ onUnmounted(closePreview)
     <MdPageHeader
       crumb="基础数据管理"
       title="证照管理"
-      description="集中管理商品、供应商、厂家的证照与合同，支持附件上传与阅览。"
     />
 
     <div class="license-tabs">
@@ -468,12 +515,30 @@ onUnmounted(closePreview)
         <button class="md-btn md-btn-primary" type="button" @click="openCreateModal">
           <Plus :size="16" /> 新增{{ activeTabInfo.label }}
         </button>
+      </div>
+    </div>
+
+    <p v-if="error" class="license-error">{{ error }}</p>
+
+    <MdDataTableCard>
+      <template #toolbar>
         <div class="ulc-col-settings">
-          <button type="button" class="md-btn md-btn-primary" @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value">
+          <button
+            ref="licenseColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value"
+          >
             <Columns3 :size="16" /> 列设置
             <ChevronDown :size="14" :class="{ rotated: licenseCols.settingsOpen.value }" />
           </button>
-          <div v-if="licenseCols.settingsOpen.value" class="ulc-col-settings-pop">
+          <div
+            v-if="licenseCols.settingsOpen.value"
+            ref="licenseColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': licenseColSettingsPop.align.value === 'right', 'is-align-up': licenseColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': licenseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': licenseColSettingsPop.maxHeight.value + 'px' }"
+          >
             <header>
               <strong>列展示设置</strong>
               <button type="button" class="ulc-link" @click="licenseCols.resetColumns()">恢复默认</button>
@@ -495,118 +560,122 @@ onUnmounted(closePreview)
             </footer>
           </div>
         </div>
-      </div>
-    </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total }} 条</span>
+      </template>
 
-    <p v-if="error" class="license-error">{{ error }}</p>
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="licenseTableRef"
+          v-loading="loading"
+          class="ulc-table is-sticky"
+          :data="rows"
+          row-key="id"
+          border
+          stripe
+          max-height="560" style="width: 100%"
+          :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
 
-    <div class="ulc-table-wrap">
-      <el-table
-        ref="licenseTableRef"
-        v-loading="loading"
-        class="ulc-table"
-        :data="rows"
-        row-key="id"
-        border
-        stripe
-        style="width: 100%"
-        :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
-      >
+          @header-dragend="(width: number, oldWidth: number, column: any) => licenseCols.handleHeaderDragEnd(width, oldWidth, column)">
         <el-table-column
+            column-key="licenseName"
           v-if="isLicenseColVisible('licenseName')"
           label="证照名称"
-          :min-width="licenseColWidth('licenseName')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('licenseName')"
         >
           <template #header>
-            <span class="ulc-th-text">证照名称</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseName', $event)" />
+            <span class="ulc-th-text">证照名称</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
-              <span class="ulc-strong">{{ row.licenseName }}</span>
-              <span v-if="row.sourceSystem === 'MCP-UI'" class="ulc-sub">MCP审批同步</span>
+              <span class="ulc-wrap-text ulc-strong">{{ row.licenseName }}</span>
+              <span v-if="row.sourceSystem === 'MCP-UI'" class="ulc-sub ulc-wrap-text is-sub">MCP审批同步</span>
             </div>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="licenseNo"
           v-if="isLicenseColVisible('licenseNo')"
           :label="isContract ? '合同编号' : '证照编号'"
-          :min-width="licenseColWidth('licenseNo')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('licenseNo')"
         >
           <template #header>
-            <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('licenseNo', $event)" />
+            <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span>
           </template>
           <template #default="{ row }">
-            <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
+            <span class="ulc-wrap-text ulc-mono">{{ row.licenseNo || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="owner"
           v-if="isLicenseColVisible('owner')"
           :label="isContract ? '合同双方' : activeTabInfo.ownerLabel"
-          :min-width="licenseColWidth('owner')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('owner')"
         >
           <template #header>
-            <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('owner', $event)" />
+            <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
-              <span class="ulc-strong">{{ licenseOwnerText(row) }}</span>
-              <span v-if="licenseOwnerSubText(row)" class="ulc-sub">{{ licenseOwnerSubText(row) }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ licenseOwnerText(row) }}</span>
+              <span v-if="licenseOwnerSubText(row)" class="ulc-sub ulc-wrap-text is-sub">{{ licenseOwnerSubText(row) }}</span>
             </div>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="issueDate"
           v-if="isLicenseColVisible('issueDate')"
           :label="licenseIssueHeader()"
-          :min-width="licenseColWidth('issueDate')"
+          v-bind="licenseColBinding('issueDate')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">{{ licenseIssueHeader() }}</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('issueDate', $event)" />
+            <span class="ulc-th-text">{{ licenseIssueHeader() }}</span>
           </template>
           <template #default="{ row }">
-            <span class="ulc-strong">{{ licenseIssueValue(row) }}</span>
+            <span class="ulc-wrap-text ulc-strong">{{ licenseIssueValue(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="expireDate"
           v-if="isLicenseColVisible('expireDate')"
           label="有效期至"
-          :min-width="licenseColWidth('expireDate')"
+          v-bind="licenseColBinding('expireDate')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">有效期至</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('expireDate', $event)" />
+            <span class="ulc-th-text">有效期至</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.expireDate || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="isLicenseColVisible('createTime')" label="创建时间" :min-width="licenseColWidth('createTime')">
+        <el-table-column column-key="createTime"v-if="isLicenseColVisible('createTime')" label="创建时间" v-bind="licenseColBinding('createTime')">
           <template #header>
-            <span class="ulc-th-text">创建时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('createTime', $event)" />
+            <span class="ulc-th-text">创建时间</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.createTime || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="isLicenseColVisible('updateTime')" label="修改时间" :min-width="licenseColWidth('updateTime')">
+        <el-table-column column-key="updateTime"v-if="isLicenseColVisible('updateTime')" label="修改时间" v-bind="licenseColBinding('updateTime')">
           <template #header>
-            <span class="ulc-th-text">修改时间</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('updateTime', $event)" />
+            <span class="ulc-th-text">修改时间</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-time">{{ row.updateTime || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column
+            column-key="status"
           v-if="isLicenseColVisible('status')"
           label="状态"
-          :min-width="licenseColWidth('status')"
+          v-bind="licenseColBinding('status')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">状态</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('status', $event)" />
+            <span class="ulc-th-text">状态</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-chip" :class="licenseStatusChipClass(row)">
@@ -615,19 +684,31 @@ onUnmounted(closePreview)
           </template>
         </el-table-column>
         <el-table-column
+            column-key="attachmentCount"
           v-if="isLicenseColVisible('attachmentCount')"
           label="附件"
-          :min-width="licenseColWidth('attachmentCount')"
+          v-bind="licenseColBinding('attachmentCount')"
           align="center"
         >
           <template #header>
-            <span class="ulc-th-text">附件</span><i class="ulc-col-grip" title="拖动调节列宽" @mousedown="startLicenseColDrag('attachmentCount', $event)" />
+            <span class="ulc-th-text">附件</span>
           </template>
           <template #default="{ row }">
             <span class="ulc-tag">{{ row.attachmentCount ?? 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :min-width="300" align="center" fixed="right">
+        <el-table-column column-key="actions"
+ v-if="isLicenseColVisible('actions')"
+ label="操作"
+ v-bind="licenseColBinding('actions')"
+ :fixed="licenseActionFixed">
+
+          <template #header>
+
+            <span class="ulc-th-text">操作</span>
+
+          </template>
+
           <template #default="{ row }">
             <div class="ulc-actions">
               <button
@@ -669,12 +750,19 @@ onUnmounted(closePreview)
           <MdEmptyState :text="`暂无${activeTabInfo.label}数据`" hint="点击右上角新增" />
         </template>
       </el-table>
-      <div v-if="total > size" class="license-pagination">
-        <button class="btn" type="button" :disabled="page <= 1" @click="page--; loadList()">上一页</button>
-        <span>第 {{ page }} 页 / 共 {{ Math.ceil(total / size) }} 页（{{ total }} 条）</span>
-        <button class="btn" type="button" :disabled="page >= Math.ceil(total / size)" @click="page++; loadList()">下一页</button>
       </div>
-    </div>
+      <template #pagination>
+        <MdPagination
+          :page="page"
+          :total-pages="Math.max(1, Math.ceil(total / size))"
+          :total="total"
+          :size="size"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changeSize"
+        />
+      </template>
+    </MdDataTableCard>
 
     <!-- 新增 / 编辑证照 -->
     <Teleport to="body">
@@ -1005,7 +1093,7 @@ onUnmounted(closePreview)
   padding: 5px 14px;
   border: 1px solid transparent;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   cursor: pointer;
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s, color 0.18s;
@@ -1021,7 +1109,7 @@ onUnmounted(closePreview)
 }
 
 .lf-btn-sm {
-  min-height: 26px; padding: 2px 10px; font-size: 12px; border-radius: 6px;
+  min-height: 26px; padding: 2px 10px; font-size: var(--spd-font-size-sm); border-radius: 6px;
 }
 
 .lf-btn-primary {
@@ -1081,9 +1169,9 @@ onUnmounted(closePreview)
   width: 100%;
   background: var(--md-bg-page, #f5f7f8);
   color: var(--md-text, #1d2a35);
-  font-family: var(--md-font, "Inter", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif);
-  font-size: 14px;
-  line-height: 1.5;
+  font-family: var(--spd-font-family);
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
 .license-tabs {
@@ -1102,7 +1190,7 @@ onUnmounted(closePreview)
   background: transparent;
   padding: 0 16px;
   min-height: 34px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #475569;
   cursor: pointer;
   border-radius: 6px;
@@ -1144,29 +1232,26 @@ onUnmounted(closePreview)
 .license-search input {
   flex: 1;
   min-width: 0;
-  padding: 8px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  font-size: 14px;
+  /* 与标准列表页一致：控件总高 38px（box-sizing 统一后由 min-height 决定） */
+  box-sizing: border-box;
+  min-height: 38px;
+  padding: 0 12px;
+  /* 与标准列表页（科室库房目录）一致：边框走 --ulc-border 令牌 */
+  border: 1px solid var(--ulc-border, #d5e0e5);
+  border-radius: var(--ulc-radius, 4px);
+  background: var(--ulc-bg-container, #fff);
+  color: var(--spd-text-primary);
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 .license-search input:focus {
   outline: none;
-  border-color: var(--primary, #1677ff);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #1677ff) 15%, transparent);
+  border-color: var(--ulc-primary, #1f6f6d);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ulc-primary, #1f6f6d) 15%, transparent);
 }
 
-.license-message { color: #047857; font-size: 13px; margin: 0 0 8px; }
-.license-error { color: #b91c1c; font-size: 13px; margin: 0 0 8px; }
-
-.license-pagination {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  font-size: 13px;
-  color: #64748b;
-}
+.license-message { color: #047857; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
+.license-error { color: #b91c1c; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
 
 /* ============================================================
    新增/编辑证照弹窗
@@ -1203,7 +1288,7 @@ onUnmounted(closePreview)
 .lf-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
@@ -1211,7 +1296,7 @@ onUnmounted(closePreview)
 
 .lf-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1219,7 +1304,7 @@ onUnmounted(closePreview)
 .lf-dialog-tag {
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 .lf-dialog-tag-renew {
@@ -1260,9 +1345,9 @@ onUnmounted(closePreview)
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .lf-field.wide { grid-column: 1 / -1; }
@@ -1276,7 +1361,7 @@ onUnmounted(closePreview)
   border-radius: 6px;
   background: #ffffff;
   color: #172b3a;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   transition: border-color 0.18s, box-shadow 0.18s;
 }
 .lf-field input:focus,
@@ -1288,7 +1373,7 @@ onUnmounted(closePreview)
 }
 .lf-field input[readonly] { background: #f0f3f5; color: #6b7c8f; cursor: not-allowed; }
 .lf-field textarea { min-height: 60px; resize: vertical; }
-.lf-field small { color: #94a3b8; font-size: 11px; }
+.lf-field small { color: #94a3b8; font-size: var(--spd-font-size-xs); }
 
 .lf-remark { }
 
@@ -1327,7 +1412,7 @@ onUnmounted(closePreview)
   border-radius: 6px;
   background: transparent;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   cursor: pointer;
   transition: background 0.15s;
@@ -1340,13 +1425,13 @@ onUnmounted(closePreview)
   gap: 8px;
   padding-top: 6px;
   border-top: 1px solid #eef2f5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #566b77;
 }
 
 .lf-owner-empty {
   color: #6b7c8f;
-  font-size: 12.5px;
+  font-size: var(--spd-font-size-sm);
   margin: 0;
 }
 
@@ -1358,7 +1443,7 @@ onUnmounted(closePreview)
   gap: 4px;
   padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   background: rgba(34,197,94,0.12);
   color: #15803d;
@@ -1386,16 +1471,16 @@ onUnmounted(closePreview)
 }
 .lf-upload-header > span {
   color: #475569;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
 }
-.lf-upload-header > small { color: #94a3b8; font-size: 12px; }
+.lf-upload-header > small { color: #94a3b8; font-size: var(--spd-font-size-sm); }
 
 .lf-upload-success {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #15803d;
   margin: 0;
 }
@@ -1424,12 +1509,12 @@ onUnmounted(closePreview)
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
 }
 
 .lf-file-size {
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1437,7 +1522,7 @@ onUnmounted(closePreview)
 
 .lf-upload-hint {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .lf-dialog-message {
@@ -1488,14 +1573,14 @@ onUnmounted(closePreview)
 .la-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
 }
 .la-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1532,7 +1617,7 @@ onUnmounted(closePreview)
 }
 .la-upload-row span {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .la-attachment-items {
@@ -1562,14 +1647,14 @@ onUnmounted(closePreview)
   min-width: 0;
 }
 .la-attachment-info strong {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .la-attachment-info span {
-  font-size: 12px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
 }
 
@@ -1614,7 +1699,7 @@ onUnmounted(closePreview)
   color: #cbd5e1;
 }
 .la-preview-placeholder p {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #94a3b8;
 }
 
@@ -1652,14 +1737,14 @@ onUnmounted(closePreview)
 .lh-dialog-title p {
   width: 100%;
   margin: 0 0 4px;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 500;
   letter-spacing: 0.5px;
   opacity: 0.85;
 }
 .lh-dialog-title h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--spd-font-size-xl);
   font-weight: 600;
   color: #ffffff;
 }
@@ -1700,7 +1785,7 @@ onUnmounted(closePreview)
   border-radius: 999px;
   background: linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.15));
   color: #4f46e5;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 700;
 }
 
@@ -1709,13 +1794,13 @@ onUnmounted(closePreview)
   border-radius: 999px;
   background: rgba(245,158,11,0.12);
   color: #b45309;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
 
 .lh-revision-op,
 .lh-revision-time {
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
   color: #6b7c8f;
 }
 
@@ -1733,7 +1818,7 @@ onUnmounted(closePreview)
 }
 
 .lh-rev-label {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: #94a3b8;
   font-weight: 600;
   text-transform: uppercase;
@@ -1741,7 +1826,7 @@ onUnmounted(closePreview)
 }
 
 .lh-rev-value {
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   color: #172b3a;
   font-weight: 500;
 }
@@ -1755,7 +1840,7 @@ onUnmounted(closePreview)
 
 .lh-rev-no-files {
   color: #94a3b8;
-  font-size: 12px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .status-badge {
@@ -1763,8 +1848,9 @@ onUnmounted(closePreview)
   align-items: center;
   padding: 2px 10px;
   border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
+  /* S-08 状态徽标：--spd-font-size-base + 字重 400 */
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
   background: rgba(34,197,94,0.12);
   color: #15803d;
   border: 1px solid rgba(34,197,94,0.3);

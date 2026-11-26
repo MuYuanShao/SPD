@@ -1,0 +1,157 @@
+/* =====================================================================
+   SPD 字号系统（三档：小 / 中 / 大）
+   ---------------------------------------------------------------------
+   面向 30 岁以上中长期使用者：
+   - 小（standard）：14px 基准，适合视力正常的桌面显示器
+   - 中（large）  ：16px 基准，约放大 114%，默认档，适合日常办公
+   - 大（xlarge）  ：18px 基准，约放大 129%，适合视力偏弱或高分辨率远距使用
+
+   切换方式：在 <html> 上写入 data-font-size="standard|xlarge"，
+   所有字号均由此处的基准推导，整站等比缩放。
+   默认档「中」不写属性（applyFontSize 会移除属性），
+   因此 :root 的基准值必须就是「中」的 16px。
+
+   本文件在 spd-theme.css 之后引入，因此这里的 --spd-font-size-* 定义
+   会覆盖 spd-theme.css 中的同名固定值，从而让既有样式自动跟随档位。
+
+   唯一依据：docs/ui-review/spd-typography-spec-final.md（v3.0 定稿）
+   ===================================================================== */
+
+:root {
+  /* 基准字号：所有 --spd-font-size-* 均由此推导
+     默认档 =「中」(16px)，与 DEFAULT_FONT_SIZE = 'large' 对应。
+     注意：applyFontSize() 在默认档会**移除** data-font-size 属性，
+     因此「无属性」必须落在默认档上，否则默认档会退化成「小」。 */
+  --spd-fs-base: 16px;
+
+  /* 登录页字体栈（独立体系）
+     登录页不参与字号档位缩放，字体栈与业务系统 --spd-font-family 隔离。
+     全站只允许 2 套字体栈：本令牌（登录页）+ --spd-font-family（业务系统）。
+     注：本令牌由字号整改任务补齐（Stream 1 未定义）。 */
+  --spd-font-family-login: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+
+  /* 行高随字号放大而略微收紧，避免大字号下版面松散
+     - tight 1.35：按钮 / 状态条 / 徽标 / 表格单元格
+     - base  1.5 ：正文默认 / 表格数据 / 输入控件
+     - loose 1.65：长段落 / 说明文字 / 弹窗正文 */
+  --spd-lh-tight: 1.35;
+  --spd-lh-base: 1.5;
+  --spd-lh-loose: 1.65;
+
+  /* 表格单元格上下留白（大字号下略微放大，保持呼吸感） */
+  --spd-table-cell-padding-y: 12px;
+}
+
+/* 「小」档 —— 常规显示器 · 密度优先 */
+:root[data-font-size='standard'] {
+  --spd-fs-base: 14px;
+  --spd-table-cell-padding-y: 10px;
+}
+
+/* 「大」档 —— 视力偏弱 · 高分辨率远距 */
+:root[data-font-size='xlarge'] {
+  --spd-fs-base: 18px;
+  --spd-table-cell-padding-y: 13px;
+}
+
+/* =====================================================================
+   覆盖 spd-theme.css 的固定字号，使其跟随基准字号等比缩放
+   ---------------------------------------------------------------------
+   典型用途速查（standard / large / xlarge 三档值）：
+   ===================================================================== */
+:root {
+  /* 角标 / 计数徽标 / 纯装饰标签 / 编码 chip
+     仅限「不需要用户读取判断」的辅助信息（G-10 白名单）。
+     11px / 13px / 15px */
+  --spd-font-size-xs: calc(var(--spd-fs-base) - 3px);
+
+  /* 次级说明 / 筛选标签 / 表单标签 / 辅助文本
+     13px / 15px / 17px */
+  --spd-font-size-sm: calc(var(--spd-fs-base) - 1px);
+
+  /* 表格数据单元格 / 正文基准 / 输入控件文字 / 按钮文字
+     14px / 16px / 18px */
+  --spd-font-size-base: var(--spd-fs-base);
+
+  /* 正文强调文本 —— 段落中略微提亮的句子、摘要关键结论、卡片描述重点词
+     【禁止】用于表格数据（表格数据一律 --spd-font-size-base）
+     15px / 17px / 19px */
+  --spd-font-size-md: calc(var(--spd-fs-base) + 1px);
+
+  /* 区块小标题 / 卡片标题 / 面板标题条
+     16px / 18px / 20px */
+  --spd-font-size-lg: calc(var(--spd-fs-base) + 2px);
+
+  /* 弹窗内区块标题 / 二级标题
+     18px / 20px / 22px */
+  --spd-font-size-xl: calc(var(--spd-fs-base) + 4px);
+
+  /* 弹窗标题 / 统计数值（标准页）
+     20px / 22px / 24px */
+  --spd-font-size-2xl: calc(var(--spd-fs-base) + 6px);
+
+  /* 页面主标题
+     24px / 26px / 28px */
+  --spd-font-size-3xl: calc(var(--spd-fs-base) + 10px);
+
+  /* 展示型大数值（驾驶舱时钟）
+     30px / 32px / 34px */
+  --spd-font-size-4xl: calc(var(--spd-fs-base) + 16px);
+
+  /* 超大展示数值（驾驶舱 KPI）
+     38px / 40px / 42px */
+  --spd-font-size-5xl: calc(var(--spd-fs-base) + 24px);
+
+  /* ------------------------------------------------------------------
+     表格表头专用。
+     与 --spd-font-size-base 同值（14 / 16 / 18px），表头与数据**同档**，
+     靠「字重 700 + 表头底色 + 字距 0.02em」区分层级，不靠放大字号。
+     14px / 16px / 18px
+     ------------------------------------------------------------------ */
+  --spd-font-size-table-head: var(--spd-font-size-base);
+}
+
+/* =====================================================================
+   图表字号体系（ECharts canvas 专用）
+   ---------------------------------------------------------------------
+   ECharts 的 fontSize 是 canvas 像素值，不接受 CSS var() 表达式，
+   因此图表不能直接消费 --spd-font-size-*，必须由 JS 读取本组令牌
+   的实际像素值后喂给 ECharts，并在字号档位变化时重新读取 + 重绘。
+
+   图表字号整体比同页正文**轻一档**（差值 ≥ 1px），且使用
+   -2px / -1px / 0 / +1px 的相对基准，不复用 --spd-font-size-* 的偏移。
+   ===================================================================== */
+:root {
+  /* 图表微型角标（预留，当前不使用）
+     11px / 13px / 15px */
+  --spd-chart-font-xs: calc(var(--spd-fs-base) - 3px);
+
+  /* 坐标轴刻度 / X 轴、Y 轴名称
+     12px / 14px / 16px */
+  --spd-chart-font-sm: calc(var(--spd-fs-base) - 2px);
+
+  /* 图例文字
+     13px / 15px / 17px */
+  --spd-chart-font-base: calc(var(--spd-fs-base) - 1px);
+
+  /* 数据标签 / Tooltip 标题
+     14px / 16px / 18px */
+  --spd-chart-font-lg: var(--spd-font-size-base);
+
+  /* Tooltip 正文
+     15px / 17px / 19px */
+  --spd-chart-font-xl: calc(var(--spd-fs-base) + 1px);
+}
+
+/* =====================================================================
+   字号档位对「根字号」的落地
+   html 的 font-size 直接跟随基准，整站 rem 体系等比放大。
+   ===================================================================== */
+html {
+  font-size: var(--spd-fs-base);
+}
+
+body {
+  font-size: var(--spd-fs-base);
+  line-height: var(--spd-lh-base);
+}

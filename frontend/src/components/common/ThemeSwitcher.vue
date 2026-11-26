@@ -1,20 +1,41 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { Check, Palette } from '@lucide/vue'
-import { THEMES, useThemeStore, type ThemeId } from '../../stores/theme'
+import {
+  SCHEMES,
+  FONT_SIZES,
+  DEFAULT_FONT_SIZE,
+  useThemeStore,
+  type SchemeId,
+  type FontSizeId
+} from '../../stores/theme'
 
 const themeStore = useThemeStore()
 const open = ref(false)
 const rootRef = ref<HTMLElement | null>(null)
 const panelRef = ref<HTMLElement | null>(null)
 
-const active = computed(() => THEMES.find((t) => t.id === themeStore.current) ?? THEMES[0])
+const activeScheme = computed(
+  () => SCHEMES.find((s) => s.id === themeStore.scheme) ?? SCHEMES[0]
+)
+const activeFontSize = computed(
+  () => FONT_SIZES.find((f) => f.id === themeStore.fontSize) ?? FONT_SIZES[0]
+)
 
-function pick(id: ThemeId) {
-  if (themeStore.current !== id) {
-    themeStore.setTheme(id)
+function pickScheme(id: SchemeId) {
+  if (themeStore.scheme !== id) {
+    themeStore.setScheme(id)
   }
-  open.value = false
+}
+
+function pickFontSize(id: FontSizeId) {
+  if (themeStore.fontSize !== id) {
+    themeStore.setFontSize(id)
+  }
+}
+
+function resetFontSize() {
+  pickFontSize(DEFAULT_FONT_SIZE)
 }
 
 function toggle() {
@@ -36,12 +57,6 @@ function handleKey(event: KeyboardEvent) {
   if (!open.value) return
   if (event.key === 'Escape') {
     open.value = false
-  } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-    event.preventDefault()
-    const idx = THEMES.findIndex((t) => t.id === themeStore.current)
-    const dir = event.key === 'ArrowDown' ? 1 : -1
-    const next = (idx + dir + THEMES.length) % THEMES.length
-    pick(THEMES[next].id)
   }
 }
 
@@ -63,14 +78,14 @@ onBeforeUnmount(() => {
       :class="{ 'is-open': open }"
       :aria-expanded="open"
       aria-haspopup="dialog"
-      :aria-label="`当前主题：${active.name}，点击切换主题`"
-      :title="active.name"
+      :aria-label="`当前配色方案：${activeScheme.name}，点击切换配色方案与界面字号`"
+      :title="activeScheme.name"
       @click.stop="toggle"
     >
-      <span class="spd-theme-swatch" :style="{ background: active.swatch }">
+      <span class="spd-theme-swatch" :style="{ background: activeScheme.swatch }">
         <Palette :size="14" class="spd-theme-swatch-icon" />
       </span>
-      <span class="spd-theme-trigger-label">{{ active.name }}</span>
+      <span class="spd-theme-trigger-label">{{ activeScheme.name }}</span>
     </button>
 
     <Transition name="spd-theme-pop">
@@ -79,32 +94,78 @@ onBeforeUnmount(() => {
         ref="panelRef"
         class="spd-theme-panel"
         role="dialog"
-        aria-label="选择主题"
+        aria-label="选择配色方案与界面字号"
         tabindex="-1"
         @click.stop
       >
+        <!-- 配色方案：静墨宣纸 / 暗夜黑 / 标准白（全站生效） -->
         <div class="spd-theme-panel-header">
-          <span class="spd-theme-panel-title">选择主题</span>
-          <span class="spd-theme-panel-sub">实时预览 · 自动保存</span>
+          <span class="spd-theme-panel-title">配色方案</span>
+          <span class="spd-theme-panel-sub">全站生效 · 自动保存</span>
         </div>
-        <div class="spd-theme-grid">
+
+        <div class="spd-scheme-grid" role="radiogroup" aria-label="配色方案">
           <button
-            v-for="t in THEMES"
-            :key="t.id"
+            v-for="s in SCHEMES"
+            :key="s.id"
             type="button"
-            role="option"
-            :aria-selected="t.id === themeStore.current"
-            :class="['spd-theme-card', { 'is-active': t.id === themeStore.current }]"
-            @click="pick(t.id)"
+            role="radio"
+            :aria-checked="s.id === themeStore.scheme"
+            :class="['spd-scheme-card', { 'is-active': s.id === themeStore.scheme }]"
+            @click="pickScheme(s.id)"
           >
-            <span class="spd-theme-card-preview" :style="{ background: t.swatch }">
-              <Check v-if="t.id === themeStore.current" :size="22" class="spd-theme-card-check" />
+            <span class="spd-scheme-card-preview" :style="{ background: s.swatch }">
+              <Check v-if="s.id === themeStore.scheme" :size="18" class="spd-scheme-card-check" />
             </span>
-            <span class="spd-theme-card-meta">
-              <span class="spd-theme-card-name">{{ t.name }}</span>
-              <span class="spd-theme-card-hint">{{ t.hint }}</span>
+            <span class="spd-scheme-card-meta">
+              <span class="spd-scheme-card-name">{{ s.name }}</span>
+              <span class="spd-scheme-card-hint">{{ s.hint }}</span>
             </span>
           </button>
+        </div>
+
+        <div class="spd-theme-panel-sub spd-palette-current">
+          当前配色方案：<strong>{{ activeScheme.name }}</strong>
+        </div>
+
+        <!-- 字号档位：小 / 中 / 大 -->
+        <div class="spd-theme-panel-header spd-theme-panel-header--second">
+          <span class="spd-theme-panel-title">界面字号</span>
+          <button
+            type="button"
+            class="spd-theme-reset"
+            :disabled="themeStore.fontSize === DEFAULT_FONT_SIZE"
+            @click="resetFontSize"
+          >
+            恢复默认
+          </button>
+        </div>
+
+        <div class="spd-fontsize-grid" role="radiogroup" aria-label="界面字号">
+          <button
+            v-for="f in FONT_SIZES"
+            :key="f.id"
+            type="button"
+            role="radio"
+            :aria-checked="f.id === themeStore.fontSize"
+            :class="['spd-fontsize-card', { 'is-active': f.id === themeStore.fontSize }]"
+            @click="pickFontSize(f.id)"
+          >
+            <span class="spd-fontsize-sample" :style="{ fontSize: f.base }">Aa</span>
+            <span class="spd-fontsize-meta">
+              <span class="spd-fontsize-name">
+                {{ f.name }}
+                <small>{{ f.base }}</small>
+              </span>
+              <span class="spd-fontsize-hint">{{ f.hint }}</span>
+            </span>
+            <Check v-if="f.id === themeStore.fontSize" :size="16" class="spd-fontsize-check" />
+          </button>
+        </div>
+
+        <div class="spd-theme-panel-sub spd-palette-current">
+          当前字号：<strong>{{ activeFontSize.name }}</strong>
+          <code>{{ activeFontSize.base }}</code>
         </div>
       </div>
     </Transition>
@@ -129,7 +190,7 @@ onBeforeUnmount(() => {
   background: var(--fli-surface, #ffffff);
   color: var(--fli-text, #1f2937);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
   line-height: 1;
   transition: all 0.18s ease;
   user-select: none;
@@ -187,31 +248,75 @@ onBeforeUnmount(() => {
 
 .spd-theme-panel-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
   padding: 0 2px;
 }
 
+.spd-theme-panel-header--second {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--fli-line, #e5e7eb);
+}
+
 .spd-theme-panel-title {
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   font-weight: 600;
   color: var(--fli-text, #1f2937);
 }
 
 .spd-theme-panel-sub {
-  font-size: 11px;
+  font-size: var(--spd-font-size-xs);
   color: var(--fli-muted, #6b7280);
 }
 
-/* 主题卡片网格 */
-.spd-theme-grid {
+/* 恢复默认按钮 */
+.spd-theme-reset {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--spd-font-size-sm);
+  color: var(--fli-brand, #0f766e);
+  cursor: pointer;
+}
+
+.spd-theme-reset:disabled {
+  color: var(--fli-muted, #6b7280);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 当前状态摘要行 */
+.spd-palette-current {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.spd-palette-current strong {
+  color: var(--fli-text, #1f2937);
+}
+
+.spd-palette-current code {
+  font-family: var(--spd-font-family-mono);
+  font-size: var(--spd-font-size-xs);
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #f1f5f6;
+  color: #526b78;
+}
+
+/* 配色方案卡片网格 */
+.spd-scheme-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
 }
 
-.spd-theme-card {
+.spd-scheme-card {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -226,19 +331,19 @@ onBeforeUnmount(() => {
   color: inherit;
 }
 
-.spd-theme-card:hover {
+.spd-scheme-card:hover {
   border-color: var(--fli-brand, #0f766e);
   background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
   transform: translateX(2px);
 }
 
-.spd-theme-card.is-active {
+.spd-scheme-card.is-active {
   border-color: var(--fli-brand, #0f766e);
   background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
   box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
 }
 
-.spd-theme-card-preview {
+.spd-scheme-card-preview {
   position: relative;
   width: 56px;
   height: 40px;
@@ -251,16 +356,16 @@ onBeforeUnmount(() => {
   transition: transform 0.2s ease;
 }
 
-.spd-theme-card:hover .spd-theme-card-preview {
+.spd-scheme-card:hover .spd-scheme-card-preview {
   transform: scale(1.04);
 }
 
-.spd-theme-card-check {
+.spd-scheme-card-check {
   color: #ffffff;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
-.spd-theme-card-meta {
+.spd-scheme-card-meta {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -268,18 +373,98 @@ onBeforeUnmount(() => {
   flex: 1;
 }
 
-.spd-theme-card-name {
-  font-size: 13px;
+.spd-scheme-card-name {
+  font-size: var(--spd-font-size-sm);
   font-weight: 600;
   color: var(--fli-text, #1f2937);
 }
 
-.spd-theme-card-hint {
-  font-size: 11px;
+.spd-scheme-card-hint {
+  font-size: var(--spd-font-size-xs);
   color: var(--fli-muted, #6b7280);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* 字号档位卡片 */
+.spd-fontsize-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.spd-fontsize-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--fli-line, #e5e7eb);
+  border-radius: 10px;
+  background: var(--fli-surface, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.18s ease;
+  font: inherit;
+  color: inherit;
+  position: relative;
+}
+
+.spd-fontsize-card:hover {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 4%, transparent);
+}
+
+.spd-fontsize-card.is-active {
+  border-color: var(--fli-brand, #0f766e);
+  background: color-mix(in srgb, var(--fli-brand, #0f766e) 6%, transparent);
+  box-shadow: 0 0 0 1px var(--fli-brand, #0f766e) inset;
+}
+
+/* 字号样张：用真实基准字号预览，方便用户直接判断 */
+.spd-fontsize-sample {
+  width: 44px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 700;
+  line-height: var(--spd-lh-tight);
+  color: var(--fli-text, #1f2937);
+}
+
+.spd-fontsize-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.spd-fontsize-name {
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  color: var(--fli-text, #1f2937);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.spd-fontsize-name small {
+  font-size: var(--spd-font-size-xs);
+  font-weight: 500;
+  color: var(--fli-muted, #6b7280);
+}
+
+.spd-fontsize-hint {
+  font-size: var(--spd-font-size-xs);
+  color: var(--fli-muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spd-fontsize-check {
+  color: var(--fli-brand, #0f766e);
+  flex-shrink: 0;
 }
 
 /* 弹出动画 */

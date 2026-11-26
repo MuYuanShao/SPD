@@ -135,7 +135,7 @@ onMounted(load)
 </template>
 
 <style scoped>
-.connection-description { margin: 12px 0; color: #64748b; font-size: 13px; overflow-wrap: anywhere; }
+.connection-description { margin: 12px 0; color: #64748b; font-size: var(--spd-font-size-sm); overflow-wrap: anywhere; }
 .phase2-toggle { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .phase2-toggle input { width: auto; }
 .phase3-status { margin-top: 16px; }

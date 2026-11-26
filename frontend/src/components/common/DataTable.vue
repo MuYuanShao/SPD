@@ -264,6 +264,6 @@ function handleSelectAll(selection: Row[]) {
   justify-content: center;
   padding: 48px 12px;
   color: var(--spd-text-tertiary, rgba(0, 0, 0, 0.45));
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
 }
 </style>

@@ -6,14 +6,14 @@
 .approval-page-title h2 {
   margin: 0 0 8px;
   color: #06152b;
-  font-size: 30px;
+  font-size: var(--spd-font-size-3xl);
   letter-spacing: 0;
 }
 
 .approval-page-title p {
   margin: 0;
   color: #607285;
-  font-size: 17px;
+  font-size: var(--spd-font-size-sm);
 }
 
 .approval-workspace {
@@ -45,7 +45,7 @@
 
 .approval-sidebar-title h3 {
   margin: 0;
-  font-size: 21px;
+  font-size: var(--spd-font-size-xl);
 }
 
 .approval-task-list {
@@ -104,7 +104,7 @@
   border-radius: 999px;
   background: #f1f3f6;
   color: #607285;
-  font-size: 14px;
+  font-size: var(--spd-font-size-xs);
 }
 
 .approval-task-item.orange svg {
@@ -167,7 +167,7 @@
 .approval-context h3 {
   margin: 0 0 6px;
   color: #06152b;
-  font-size: 22px;
+  font-size: var(--spd-font-size-2xl);
 }
 
 .approval-context p {
@@ -202,7 +202,7 @@
   background: #f3f6f8;
   color: #607285;
   padding: 0 10px;
-  font-size: 13px;
+  font-size: var(--spd-font-size-base);
 }
 
 .approval-filter-row {
@@ -483,7 +483,7 @@
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-base);
   color: #334652;
 }
 .approval-batch-bar > span {
@@ -498,12 +498,12 @@
   justify-content: space-between;
   padding: 16px 0 8px;
   margin-top: 8px;
-  font-size: 14px;
+  font-size: var(--spd-font-size-sm);
   color: #475569;
 }
 .approval-pagination-info {
   color: #64748b;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 .approval-pagination-pages {
   display: flex;
@@ -529,7 +529,7 @@
 }
 .approval-empty-state p {
   color: #94a3b8;
-  font-size: 15px;
+  font-size: var(--spd-font-size-sm);
   margin: 0;
 }
 
@@ -556,7 +556,7 @@
   display: block;
   margin-top: 10px;
   color: #102033;
-  font-size: 26px;
+  font-size: var(--spd-font-size-2xl);
   line-height: 1;
 }
 
@@ -577,7 +577,7 @@
 .approval-sidebar-title p {
   margin: 4px 0 0;
   color: #607285;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
 }
 
 /* ── Approval task list — aligned with subnav-panel look ── */
@@ -659,21 +659,24 @@
 
 .approval-field-nav-head strong {
   color: #102033;
-  font-size: 15px;
+  font-size: var(--spd-font-size-lg);
 }
 
 .approval-field-nav-head span {
   color: #607285;
-  font-size: 13px;
+  font-size: var(--spd-font-size-sm);
   font-weight: 800;
 }
 
+/*
+ * 待审批目录表格外壳。
+ * ---------------------------------------------------------------------
+ * 统一列表改造后表格由 Element Plus（el-table）渲染，
+ * 横向/纵向滚动都由 Element Plus 内部的 .el-scrollbar__wrap 负责，
+ * 因此外壳不再自己滚动，只保留相对定位。
+ */
 .approval-wide-table-shell {
   position: relative;
-  max-height: 360px;
-  overflow-x: auto;
-  overflow-y: auto;
-  scrollbar-width: none;
 }
 
 .approval-wide-table-shell::-webkit-scrollbar {
@@ -699,15 +702,26 @@
   border-bottom: 1px solid #edf2f4;
   padding: 10px 12px;
   text-align: left;
-  text-overflow: ellipsis;
   vertical-align: middle;
+}
+
+/* 表头保持单行；单元格文字超长换行（不截断） */
+.approval-wide-table th {
   white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.approval-wide-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-wide-table th {
   color: #516679;
-  font-size: 13px;
-  font-weight: 900;
+  font-size: var(--spd-font-size-table-head);
+  font-weight: 800;
 }
 
 .approval-wide-table tbody tr:nth-child(even) td {
@@ -718,74 +732,46 @@
   background: #f7fbfc;
 }
 
-.approval-sticky-check,
-.approval-sticky-no,
-.approval-sticky-product,
-.approval-sticky-action {
-  position: sticky;
-  z-index: 2;
-  background: #ffffff;
-}
-
-thead .approval-sticky-check,
-thead .approval-sticky-no,
-thead .approval-sticky-product,
-thead .approval-sticky-action {
-  z-index: 3;
-  background: #f1f5f8;
-}
-
-.approval-sticky-check {
-  left: 0;
-  width: 46px;
-  text-align: center !important;
-  box-shadow: 8px 0 12px rgba(16, 32, 51, 0.04);
-}
-
-.approval-sticky-no {
-  left: 46px;
-  width: 150px;
-}
-
-.approval-sticky-product {
-  left: 196px;
-  width: 230px;
-  box-shadow: 10px 0 16px rgba(16, 32, 51, 0.06);
-}
-
-.approval-sticky-action {
-  right: 0;
-  width: 250px;
-  min-width: 250px;
-  text-align: right !important;
-  box-shadow: -10px 0 16px rgba(16, 32, 51, 0.06);
-}
+/* ---------------------------------------------------------------------
+ * 旧版 sticky 列样式（.approval-sticky-check / -no / -product / -action）已移除。
+ * ---------------------------------------------------------------------
+ * 当前表格不使用左侧或右侧固定列：
+ * - 左侧三列（勾选 / 审批单号 / 商品名称）与其它列一样随表格横向滚动；
+ * - 「操作」列同样是普通列，并提供与数据列一致的拖拽热区。
+ * 原先的右侧 sticky 操作列会让表头停在原位、单元格被吸到视口右缘，
+ * 横向滚动后表头与按钮对不上列，故一并去掉。
+ * --------------------------------------------------------------------- */
 
 .approval-change-summary {
   max-width: 240px;
   min-width: 160px;
   color: #dc2626;
-  font-size: 0.8125rem;
-  line-height: 1.4;
+  /* T-04 单元格次级说明：--spd-font-size-sm（13/15/17px），跟随字号档位 */
+  font-size: var(--spd-font-size-sm);
+  line-height: var(--spd-lh-tight);
   white-space: normal;
   word-break: break-all;
 }
 
-.approval-wide-table th:not(.approval-sticky-check):not(.approval-sticky-no):not(.approval-sticky-product):not(.approval-sticky-action):not(.approval-change-summary),
-.approval-wide-table td:not(.approval-sticky-check):not(.approval-sticky-no):not(.approval-sticky-product):not(.approval-sticky-action):not(.approval-change-summary) {
+/* 普通数据列的兜底宽度（<colgroup> 已显式声明宽度，此处仅作补充） */
+.approval-wide-table th:not(.approval-change-summary),
+.approval-wide-table td:not(.approval-change-summary) {
   width: 120px;
 }
 
 .approval-product-cell strong,
 .approval-product-cell small {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  text-overflow: clip;
 }
 
 .approval-product-cell strong {
   color: #17293b;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-product-cell small {
@@ -795,7 +781,7 @@ thead .approval-sticky-action {
 
 .approval-money {
   color: #0f766e;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .approval-risk-chip {
@@ -804,8 +790,8 @@ thead .approval-sticky-action {
   min-height: 24px;
   border-radius: 999px;
   padding: 0 8px;
-  font-size: 12px;
-  font-weight: 900;
+  font-size: var(--spd-font-size-base);
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -837,33 +823,6 @@ thead .approval-sticky-action {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-}
-
-.approval-wide-scroll-rail {
-  position: relative;
-  height: 12px;
-  border-radius: 999px;
-  background: #e8eef3;
-  margin: 10px 18px 14px;
-  cursor: pointer;
-}
-
-.approval-wide-scroll-thumb {
-  position: absolute;
-  inset-block: 2px;
-  left: 0;
-  border-radius: 999px;
-  background: #8298aa;
-  cursor: grab;
-}
-
-.approval-wide-scroll-thumb:hover,
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  background: #61798e;
-}
-
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  cursor: grabbing;
 }
 
 .approval-batch-bar {

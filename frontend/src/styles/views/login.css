@@ -17,7 +17,8 @@
   grid-template-columns: minmax(360px, 38%) 1fr;
   background: #0a1426;
   color: var(--spd-text-primary, #1f2937);
-  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  /* 登录页独立字体体系：固定不随字号档位缩放 */
+  font-family: var(--spd-font-family-login);
   overflow: hidden;
 }
 
@@ -456,7 +457,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  /* D-07：标签不得小于输入框（输入框 14px），故标签取 13px */
+  font-size: 13px;
   font-weight: 600;
   color: #334652;
   letter-spacing: 0.04em;

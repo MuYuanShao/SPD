@@ -264,33 +264,18 @@ const pickingRecordsColSettingsPop = useColSettingsPopover({
             @click="pickingRecordsCols.settingsOpen.value = !pickingRecordsCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="pickingRecordsCols.settingsOpen.value"
-            ref="pickingRecordsColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': pickingRecordsColSettingsPop.align.value === 'right', 'is-align-up': pickingRecordsColSettingsPop.vertical.value === 'up' }"
-            :style="pickingRecordsColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="pickingRecordsCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in pickingRecordsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && pickingRecordsCols.visibleColumnCount.value <= 1"
-                  @change="pickingRecordsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="pickingRecordsCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="pickingRecordsCols.settingsOpen.value"
+ref="pickingRecordsColSettingsPopRef"
+:class="{ 'is-align-right': pickingRecordsColSettingsPop.align.value === 'right', 'is-align-up': pickingRecordsColSettingsPop.vertical.value === 'up' }"
+:style="pickingRecordsColSettingsPop.popStyle.value"
+:columns="pickingRecordsCols.columns.value"
+:visible-column-count="pickingRecordsCols.visibleColumnCount.value"
+@toggle="pickingRecordsCols.setColumnVisible"
+@move="pickingRecordsCols.moveColumn"
+@reset="pickingRecordsCols.resetColumns()"
+@confirm="pickingRecordsCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

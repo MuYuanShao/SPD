@@ -492,33 +492,18 @@ const roleListColSettingsPop = useColSettingsPopover({
                 @click="userListCols.settingsOpen.value = !userListCols.settingsOpen.value">
                 <template #icon><Columns3 :size="16" /></template>
               </SpdButton>
-              <div
-                v-if="userListCols.settingsOpen.value"
-                ref="userListColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': userListColSettingsPop.align.value === 'right', 'is-align-up': userListColSettingsPop.vertical.value === 'up' }"
-                :style="userListColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="userListCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in userListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && userListCols.visibleColumnCount.value <= 1"
-                      @change="userListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="userListCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="userListCols.settingsOpen.value"
+ref="userListColSettingsPopRef"
+:class="{ 'is-align-right': userListColSettingsPop.align.value === 'right', 'is-align-up': userListColSettingsPop.vertical.value === 'up' }"
+:style="userListColSettingsPop.popStyle.value"
+:columns="userListCols.columns.value"
+:visible-column-count="userListCols.visibleColumnCount.value"
+@toggle="userListCols.setColumnVisible"
+@move="userListCols.moveColumn"
+@reset="userListCols.resetColumns()"
+@confirm="userListCols.settingsOpen.value = false"
+          />
             </div>
           </template>
           <template #meta-extra>
@@ -716,33 +701,18 @@ const roleListColSettingsPop = useColSettingsPopover({
                 @click="roleListCols.settingsOpen.value = !roleListCols.settingsOpen.value">
                 <template #icon><Columns3 :size="16" /></template>
               </SpdButton>
-              <div
-                v-if="roleListCols.settingsOpen.value"
-                ref="roleListColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': roleListColSettingsPop.align.value === 'right', 'is-align-up': roleListColSettingsPop.vertical.value === 'up' }"
-                :style="roleListColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="roleListCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in roleListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && roleListCols.visibleColumnCount.value <= 1"
-                      @change="roleListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="roleListCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="roleListCols.settingsOpen.value"
+ref="roleListColSettingsPopRef"
+:class="{ 'is-align-right': roleListColSettingsPop.align.value === 'right', 'is-align-up': roleListColSettingsPop.vertical.value === 'up' }"
+:style="roleListColSettingsPop.popStyle.value"
+:columns="roleListCols.columns.value"
+:visible-column-count="roleListCols.visibleColumnCount.value"
+@toggle="roleListCols.setColumnVisible"
+@move="roleListCols.moveColumn"
+@reset="roleListCols.resetColumns()"
+@confirm="roleListCols.settingsOpen.value = false"
+          />
             </div>
           </template>
           <template #meta-extra>

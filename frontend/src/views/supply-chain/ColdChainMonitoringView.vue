@@ -365,33 +365,18 @@ const coldChainColSettingsPop = useColSettingsPopover({
             @click="coldChainCols.settingsOpen.value = !coldChainCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="coldChainCols.settingsOpen.value"
-            ref="coldChainColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': coldChainColSettingsPop.align.value === 'right', 'is-align-up': coldChainColSettingsPop.vertical.value === 'up' }"
-            :style="coldChainColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="coldChainCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in coldChainCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && coldChainCols.visibleColumnCount.value <= 1"
-                  @change="coldChainCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="coldChainCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="coldChainCols.settingsOpen.value"
+ref="coldChainColSettingsPopRef"
+:class="{ 'is-align-right': coldChainColSettingsPop.align.value === 'right', 'is-align-up': coldChainColSettingsPop.vertical.value === 'up' }"
+:style="coldChainColSettingsPop.popStyle.value"
+:columns="coldChainCols.columns.value"
+:visible-column-count="coldChainCols.visibleColumnCount.value"
+@toggle="coldChainCols.setColumnVisible"
+@move="coldChainCols.moveColumn"
+@reset="coldChainCols.resetColumns()"
+@confirm="coldChainCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

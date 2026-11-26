@@ -172,33 +172,18 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
             @click="inventoryDetailCols.settingsOpen.value = !inventoryDetailCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="inventoryDetailCols.settingsOpen.value"
-            ref="inventoryDetailColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': inventoryDetailColSettingsPop.align.value === 'right', 'is-align-up': inventoryDetailColSettingsPop.vertical.value === 'up' }"
-            :style="inventoryDetailColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="inventoryDetailCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in inventoryDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && inventoryDetailCols.visibleColumnCount.value <= 1"
-                  @change="inventoryDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="inventoryDetailCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="inventoryDetailCols.settingsOpen.value"
+ref="inventoryDetailColSettingsPopRef"
+:class="{ 'is-align-right': inventoryDetailColSettingsPop.align.value === 'right', 'is-align-up': inventoryDetailColSettingsPop.vertical.value === 'up' }"
+:style="inventoryDetailColSettingsPop.popStyle.value"
+:columns="inventoryDetailCols.columns.value"
+:visible-column-count="inventoryDetailCols.visibleColumnCount.value"
+@toggle="inventoryDetailCols.setColumnVisible"
+@move="inventoryDetailCols.moveColumn"
+@reset="inventoryDetailCols.resetColumns()"
+@confirm="inventoryDetailCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

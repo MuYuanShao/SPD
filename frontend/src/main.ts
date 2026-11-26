@@ -8,6 +8,8 @@ import { router } from './router'
 import SpdButton from './components/common/SpdButton.vue'
 import SpdFilterBar from './components/common/SpdFilterBar.vue'
 import SpdStatusChip from './components/common/SpdStatusChip.vue'
+import SpdColumnSettings from './components/common/SpdColumnSettings.vue'
+import SpdOrderedColumns from './components/common/SpdOrderedColumns.vue'
 import { ElCheckbox } from 'element-plus/es/components/checkbox/index.mjs'
 import { ElPopover } from 'element-plus/es/components/popover/index.mjs'
 import { ElTable, ElTableColumn } from 'element-plus/es/components/table/index.mjs'
@@ -101,6 +103,19 @@ app.component('SpdFilterBar', SpdFilterBar)
    列表里的状态标签统一走这一个组件：几何（内边距 / 圆角 / 高度）与
    配色（浅色底 + 深色字）全部取自令牌，三套配色方案自动适配。 */
 app.component('SpdStatusChip', SpdStatusChip)
+
+/* 全站通用「列展示设置」面板组件 SpdColumnSettings（样式：components/spd-column-settings.css）
+   把此前在 26 个列表页各写一份的列设置浮层收敛成一处：
+   勾选显隐 + 显示列宽 + ▲ / ▼ 调整列顺序 + 恢复默认 + 确定。
+   全局注册一次即可在任意模板中使用，无需逐文件 import。 */
+app.component('SpdColumnSettings', SpdColumnSettings)
+
+/* 全站通用「按存储顺序渲染表格列」组件 SpdOrderedColumns
+   把 el-table-column 的书写顺序从模板搬到数据里：
+   组件按 useListColumns().columns 的数组顺序（即用户保存的顺序）渲染列，
+   因此「列设置」里调整顺序后，**渲染出来的表头顺序真的跟着变**，刷新后依然保持。
+   详见 components/common/SpdOrderedColumns.vue 的说明。 */
+app.component('SpdOrderedColumns', SpdOrderedColumns)
 
 for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElIcon, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty, ElSelect, ElOption]) {
   app.use(component)

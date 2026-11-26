@@ -4,6 +4,7 @@ import {
   uploadPendingProductAttachment,
   type PendingProductApplicationPayload
 } from '../api/pendingProductApplications'
+import { notifySuccess } from './useNotify'
 
 export function usePendingProductCreateForm(options: {
   message: Ref<string>
@@ -57,11 +58,14 @@ export function usePendingProductCreateForm(options: {
     }
     if (failedFiles.length) {
       createAttachments.value = failedFiles
-      options.message.value = `审批单 ${createdApplicationNo.value} 已创建，${failedFiles.length} 个附件上传失败；请再次提交重试附件`
-      throw new Error(options.message.value)
+      const text = `审批单 ${createdApplicationNo.value} 已创建，${failedFiles.length} 个附件上传失败；请再次提交重试附件`
+      // 失败信息由调用方（视图层）通过 Element Plus message 统一抛出，
+      // 这里只负责抛出异常，不再重复提示，避免同一错误弹两次。
+      throw new Error(text)
     }
     const codeSuffix = createdProductCode.value ? `（商品编码 ${createdProductCode.value}）` : ''
-    options.message.value = `已生成待审批单：${createdApplicationNo.value}${codeSuffix}`
+    // 「新增成功」以 Element Plus message 提示，不占用页面布局
+    notifySuccess(`已生成待审批单：${createdApplicationNo.value}${codeSuffix}`)
     options.showCreateModal.value = false
     resetCreateForm()
     await options.reload()

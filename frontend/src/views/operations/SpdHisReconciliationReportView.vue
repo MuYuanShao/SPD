@@ -311,33 +311,18 @@ onMounted(() => void loadReport())
             @click="reconciliationCols.settingsOpen.value = !reconciliationCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="reconciliationCols.settingsOpen.value"
-            ref="reconciliationColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': reconciliationColSettingsPop.align.value === 'right', 'is-align-up': reconciliationColSettingsPop.vertical.value === 'up' }"
-            :style="reconciliationColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="reconciliationCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in reconciliationCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && reconciliationCols.visibleColumnCount.value <= 1"
-                  @change="reconciliationCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="reconciliationCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="reconciliationCols.settingsOpen.value"
+ref="reconciliationColSettingsPopRef"
+:class="{ 'is-align-right': reconciliationColSettingsPop.align.value === 'right', 'is-align-up': reconciliationColSettingsPop.vertical.value === 'up' }"
+:style="reconciliationColSettingsPop.popStyle.value"
+:columns="reconciliationCols.columns.value"
+:visible-column-count="reconciliationCols.visibleColumnCount.value"
+@toggle="reconciliationCols.setColumnVisible"
+@move="reconciliationCols.moveColumn"
+@reset="reconciliationCols.resetColumns()"
+@confirm="reconciliationCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

@@ -430,33 +430,18 @@ onMounted(() => {
             @click="activeCols.settingsOpen.value = !activeCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="activeCols.settingsOpen.value"
-            ref="regulatoryColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': regulatoryColSettingsPop.align.value === 'right', 'is-align-up': regulatoryColSettingsPop.vertical.value === 'up' }"
-            :style="regulatoryColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="activeCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in activeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && activeCols.visibleColumnCount.value <= 1"
-                  @change="activeCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="activeCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="activeCols.settingsOpen.value"
+ref="regulatoryColSettingsPopRef"
+:class="{ 'is-align-right': regulatoryColSettingsPop.align.value === 'right', 'is-align-up': regulatoryColSettingsPop.vertical.value === 'up' }"
+:style="regulatoryColSettingsPop.popStyle.value"
+:columns="activeCols.columns.value"
+:visible-column-count="activeCols.visibleColumnCount.value"
+@toggle="activeCols.setColumnVisible"
+@move="activeCols.moveColumn"
+@reset="activeCols.resetColumns()"
+@confirm="activeCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

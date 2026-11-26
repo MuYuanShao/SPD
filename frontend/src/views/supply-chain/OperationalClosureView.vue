@@ -2079,33 +2079,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             @click="ocRecallInventoryCols.settingsOpen.value = !ocRecallInventoryCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="ocRecallInventoryCols.settingsOpen.value"
-            ref="ocRecallInventoryColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': ocRecallInventoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallInventoryColSettingsPop.vertical.value === 'up' }"
-            :style="ocRecallInventoryColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallInventoryCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in ocRecallInventoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && ocRecallInventoryCols.visibleColumnCount.value <= 1"
-                  @change="ocRecallInventoryCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="ocRecallInventoryCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="ocRecallInventoryCols.settingsOpen.value"
+ref="ocRecallInventoryColSettingsPopRef"
+:class="{ 'is-align-right': ocRecallInventoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallInventoryColSettingsPop.vertical.value === 'up' }"
+:style="ocRecallInventoryColSettingsPop.popStyle.value"
+:columns="ocRecallInventoryCols.columns.value"
+:visible-column-count="ocRecallInventoryCols.visibleColumnCount.value"
+@toggle="ocRecallInventoryCols.setColumnVisible"
+@move="ocRecallInventoryCols.moveColumn"
+@reset="ocRecallInventoryCols.resetColumns()"
+@confirm="ocRecallInventoryCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -2303,33 +2288,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 @click="ocPickingRequisitionCols.settingsOpen.value = !ocPickingRequisitionCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="ocPickingRequisitionCols.settingsOpen.value"
-                ref="ocPickingRequisitionColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': ocPickingRequisitionColSettingsPop.align.value === 'right', 'is-align-up': ocPickingRequisitionColSettingsPop.vertical.value === 'up' }"
-                :style="ocPickingRequisitionColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingRequisitionCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in ocPickingRequisitionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && ocPickingRequisitionCols.visibleColumnCount.value <= 1"
-                      @change="ocPickingRequisitionCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="ocPickingRequisitionCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="ocPickingRequisitionCols.settingsOpen.value"
+ref="ocPickingRequisitionColSettingsPopRef"
+:class="{ 'is-align-right': ocPickingRequisitionColSettingsPop.align.value === 'right', 'is-align-up': ocPickingRequisitionColSettingsPop.vertical.value === 'up' }"
+:style="ocPickingRequisitionColSettingsPop.popStyle.value"
+:columns="ocPickingRequisitionCols.columns.value"
+:visible-column-count="ocPickingRequisitionCols.visibleColumnCount.value"
+@toggle="ocPickingRequisitionCols.setColumnVisible"
+@move="ocPickingRequisitionCols.moveColumn"
+@reset="ocPickingRequisitionCols.resetColumns()"
+@confirm="ocPickingRequisitionCols.settingsOpen.value = false"
+          />
             </div>
             </template>
             <div class="ulc-table-wrap">
@@ -2549,33 +2519,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 @click="ocPickingUniqueCodeCols.settingsOpen.value = !ocPickingUniqueCodeCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="ocPickingUniqueCodeCols.settingsOpen.value"
-                ref="ocPickingUniqueCodeColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': ocPickingUniqueCodeColSettingsPop.align.value === 'right', 'is-align-up': ocPickingUniqueCodeColSettingsPop.vertical.value === 'up' }"
-                :style="ocPickingUniqueCodeColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingUniqueCodeCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in ocPickingUniqueCodeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && ocPickingUniqueCodeCols.visibleColumnCount.value <= 1"
-                      @change="ocPickingUniqueCodeCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="ocPickingUniqueCodeCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="ocPickingUniqueCodeCols.settingsOpen.value"
+ref="ocPickingUniqueCodeColSettingsPopRef"
+:class="{ 'is-align-right': ocPickingUniqueCodeColSettingsPop.align.value === 'right', 'is-align-up': ocPickingUniqueCodeColSettingsPop.vertical.value === 'up' }"
+:style="ocPickingUniqueCodeColSettingsPop.popStyle.value"
+:columns="ocPickingUniqueCodeCols.columns.value"
+:visible-column-count="ocPickingUniqueCodeCols.visibleColumnCount.value"
+@toggle="ocPickingUniqueCodeCols.setColumnVisible"
+@move="ocPickingUniqueCodeCols.moveColumn"
+@reset="ocPickingUniqueCodeCols.resetColumns()"
+@confirm="ocPickingUniqueCodeCols.settingsOpen.value = false"
+          />
             </div>
             </template>
             <div class="ulc-table-wrap">
@@ -2699,33 +2654,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 @click="ocPickingQuotaPackageCols.settingsOpen.value = !ocPickingQuotaPackageCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="ocPickingQuotaPackageCols.settingsOpen.value"
-                ref="ocPickingQuotaPackageColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': ocPickingQuotaPackageColSettingsPop.align.value === 'right', 'is-align-up': ocPickingQuotaPackageColSettingsPop.vertical.value === 'up' }"
-                :style="ocPickingQuotaPackageColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingQuotaPackageCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in ocPickingQuotaPackageCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && ocPickingQuotaPackageCols.visibleColumnCount.value <= 1"
-                      @change="ocPickingQuotaPackageCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="ocPickingQuotaPackageCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="ocPickingQuotaPackageCols.settingsOpen.value"
+ref="ocPickingQuotaPackageColSettingsPopRef"
+:class="{ 'is-align-right': ocPickingQuotaPackageColSettingsPop.align.value === 'right', 'is-align-up': ocPickingQuotaPackageColSettingsPop.vertical.value === 'up' }"
+:style="ocPickingQuotaPackageColSettingsPop.popStyle.value"
+:columns="ocPickingQuotaPackageCols.columns.value"
+:visible-column-count="ocPickingQuotaPackageCols.visibleColumnCount.value"
+@toggle="ocPickingQuotaPackageCols.setColumnVisible"
+@move="ocPickingQuotaPackageCols.moveColumn"
+@reset="ocPickingQuotaPackageCols.resetColumns()"
+@confirm="ocPickingQuotaPackageCols.settingsOpen.value = false"
+          />
             </div>
             </template>
             <div class="ulc-table-wrap">
@@ -2873,33 +2813,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 @click="ocPickingLooseCols.settingsOpen.value = !ocPickingLooseCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="ocPickingLooseCols.settingsOpen.value"
-                ref="ocPickingLooseColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': ocPickingLooseColSettingsPop.align.value === 'right', 'is-align-up': ocPickingLooseColSettingsPop.vertical.value === 'up' }"
-                :style="ocPickingLooseColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocPickingLooseCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in ocPickingLooseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && ocPickingLooseCols.visibleColumnCount.value <= 1"
-                      @change="ocPickingLooseCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="ocPickingLooseCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="ocPickingLooseCols.settingsOpen.value"
+ref="ocPickingLooseColSettingsPopRef"
+:class="{ 'is-align-right': ocPickingLooseColSettingsPop.align.value === 'right', 'is-align-up': ocPickingLooseColSettingsPop.vertical.value === 'up' }"
+:style="ocPickingLooseColSettingsPop.popStyle.value"
+:columns="ocPickingLooseCols.columns.value"
+:visible-column-count="ocPickingLooseCols.visibleColumnCount.value"
+@toggle="ocPickingLooseCols.setColumnVisible"
+@move="ocPickingLooseCols.moveColumn"
+@reset="ocPickingLooseCols.resetColumns()"
+@confirm="ocPickingLooseCols.settingsOpen.value = false"
+          />
             </div>
             </template>
             <div class="ulc-table-wrap">
@@ -3013,33 +2938,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             @click="ocReturnQueueCols.settingsOpen.value = !ocReturnQueueCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="ocReturnQueueCols.settingsOpen.value"
-            ref="ocReturnQueueColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': ocReturnQueueColSettingsPop.align.value === 'right', 'is-align-up': ocReturnQueueColSettingsPop.vertical.value === 'up' }"
-            :style="ocReturnQueueColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocReturnQueueCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in ocReturnQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && ocReturnQueueCols.visibleColumnCount.value <= 1"
-                  @change="ocReturnQueueCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="ocReturnQueueCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="ocReturnQueueCols.settingsOpen.value"
+ref="ocReturnQueueColSettingsPopRef"
+:class="{ 'is-align-right': ocReturnQueueColSettingsPop.align.value === 'right', 'is-align-up': ocReturnQueueColSettingsPop.vertical.value === 'up' }"
+:style="ocReturnQueueColSettingsPop.popStyle.value"
+:columns="ocReturnQueueCols.columns.value"
+:visible-column-count="ocReturnQueueCols.visibleColumnCount.value"
+@toggle="ocReturnQueueCols.setColumnVisible"
+@move="ocReturnQueueCols.moveColumn"
+@reset="ocReturnQueueCols.resetColumns()"
+@confirm="ocReturnQueueCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -3169,33 +3079,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             @click="ocRecallQueueCols.settingsOpen.value = !ocRecallQueueCols.settingsOpen.value">
             <template #icon><Columns3 :size="16" /></template>
           </SpdButton>
-          <div
-            v-if="ocRecallQueueCols.settingsOpen.value"
-            ref="ocRecallQueueColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': ocRecallQueueColSettingsPop.align.value === 'right', 'is-align-up': ocRecallQueueColSettingsPop.vertical.value === 'up' }"
-            :style="ocRecallQueueColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallQueueCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in ocRecallQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && ocRecallQueueCols.visibleColumnCount.value <= 1"
-                  @change="ocRecallQueueCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="ocRecallQueueCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="ocRecallQueueCols.settingsOpen.value"
+ref="ocRecallQueueColSettingsPopRef"
+:class="{ 'is-align-right': ocRecallQueueColSettingsPop.align.value === 'right', 'is-align-up': ocRecallQueueColSettingsPop.vertical.value === 'up' }"
+:style="ocRecallQueueColSettingsPop.popStyle.value"
+:columns="ocRecallQueueCols.columns.value"
+:visible-column-count="ocRecallQueueCols.visibleColumnCount.value"
+@toggle="ocRecallQueueCols.setColumnVisible"
+@move="ocRecallQueueCols.moveColumn"
+@reset="ocRecallQueueCols.resetColumns()"
+@confirm="ocRecallQueueCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -3376,33 +3271,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             @click="ocSettlementCols.settingsOpen.value = !ocSettlementCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="ocSettlementCols.settingsOpen.value"
-            ref="ocSettlementColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': ocSettlementColSettingsPop.align.value === 'right', 'is-align-up': ocSettlementColSettingsPop.vertical.value === 'up' }"
-            :style="ocSettlementColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocSettlementCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in ocSettlementCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && ocSettlementCols.visibleColumnCount.value <= 1"
-                  @change="ocSettlementCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="ocSettlementCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="ocSettlementCols.settingsOpen.value"
+ref="ocSettlementColSettingsPopRef"
+:class="{ 'is-align-right': ocSettlementColSettingsPop.align.value === 'right', 'is-align-up': ocSettlementColSettingsPop.vertical.value === 'up' }"
+:style="ocSettlementColSettingsPop.popStyle.value"
+:columns="ocSettlementCols.columns.value"
+:visible-column-count="ocSettlementCols.visibleColumnCount.value"
+@toggle="ocSettlementCols.setColumnVisible"
+@move="ocSettlementCols.moveColumn"
+@reset="ocSettlementCols.resetColumns()"
+@confirm="ocSettlementCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -3748,33 +3628,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
             @click="ocRedFlushCols.settingsOpen.value = !ocRedFlushCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="ocRedFlushCols.settingsOpen.value"
-            ref="ocRedFlushColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': ocRedFlushColSettingsPop.align.value === 'right', 'is-align-up': ocRedFlushColSettingsPop.vertical.value === 'up' }"
-            :style="ocRedFlushColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRedFlushCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in ocRedFlushCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && ocRedFlushCols.visibleColumnCount.value <= 1"
-                  @change="ocRedFlushCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="ocRedFlushCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="ocRedFlushCols.settingsOpen.value"
+ref="ocRedFlushColSettingsPopRef"
+:class="{ 'is-align-right': ocRedFlushColSettingsPop.align.value === 'right', 'is-align-up': ocRedFlushColSettingsPop.vertical.value === 'up' }"
+:style="ocRedFlushColSettingsPop.popStyle.value"
+:columns="ocRedFlushCols.columns.value"
+:visible-column-count="ocRedFlushCols.visibleColumnCount.value"
+@toggle="ocRedFlushCols.setColumnVisible"
+@move="ocRedFlushCols.moveColumn"
+@reset="ocRedFlushCols.resetColumns()"
+@confirm="ocRedFlushCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -3925,33 +3790,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               @click="ocRecallHistoryCols.settingsOpen.value = !ocRecallHistoryCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="ocRecallHistoryCols.settingsOpen.value"
-              ref="ocRecallHistoryColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': ocRecallHistoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallHistoryColSettingsPop.vertical.value === 'up' }"
-              :style="ocRecallHistoryColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocRecallHistoryCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in ocRecallHistoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && ocRecallHistoryCols.visibleColumnCount.value <= 1"
-                    @change="ocRecallHistoryCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="ocRecallHistoryCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="ocRecallHistoryCols.settingsOpen.value"
+ref="ocRecallHistoryColSettingsPopRef"
+:class="{ 'is-align-right': ocRecallHistoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallHistoryColSettingsPop.vertical.value === 'up' }"
+:style="ocRecallHistoryColSettingsPop.popStyle.value"
+:columns="ocRecallHistoryCols.columns.value"
+:visible-column-count="ocRecallHistoryCols.visibleColumnCount.value"
+@toggle="ocRecallHistoryCols.setColumnVisible"
+@move="ocRecallHistoryCols.moveColumn"
+@reset="ocRecallHistoryCols.resetColumns()"
+@confirm="ocRecallHistoryCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -4114,33 +3964,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
                 @click="ocClosureDocCols.settingsOpen.value = !ocClosureDocCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="ocClosureDocCols.settingsOpen.value"
-                ref="ocClosureDocColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': ocClosureDocColSettingsPop.align.value === 'right', 'is-align-up': ocClosureDocColSettingsPop.vertical.value === 'up' }"
-                :style="ocClosureDocColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocClosureDocCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in ocClosureDocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && ocClosureDocCols.visibleColumnCount.value <= 1"
-                      @change="ocClosureDocCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="ocClosureDocCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="ocClosureDocCols.settingsOpen.value"
+ref="ocClosureDocColSettingsPopRef"
+:class="{ 'is-align-right': ocClosureDocColSettingsPop.align.value === 'right', 'is-align-up': ocClosureDocColSettingsPop.vertical.value === 'up' }"
+:style="ocClosureDocColSettingsPop.popStyle.value"
+:columns="ocClosureDocCols.columns.value"
+:visible-column-count="ocClosureDocCols.visibleColumnCount.value"
+@toggle="ocClosureDocCols.setColumnVisible"
+@move="ocClosureDocCols.moveColumn"
+@reset="ocClosureDocCols.resetColumns()"
+@confirm="ocClosureDocCols.settingsOpen.value = false"
+          />
             </div>
           </template>
           <div class="ulc-table-wrap">
@@ -4365,33 +4200,18 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
               @click="ocReplenishmentAnalysisCols.settingsOpen.value = !ocReplenishmentAnalysisCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="ocReplenishmentAnalysisCols.settingsOpen.value"
-              ref="ocReplenishmentAnalysisColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': ocReplenishmentAnalysisColSettingsPop.align.value === 'right', 'is-align-up': ocReplenishmentAnalysisColSettingsPop.vertical.value === 'up' }"
-              :style="ocReplenishmentAnalysisColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ocReplenishmentAnalysisCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in ocReplenishmentAnalysisCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && ocReplenishmentAnalysisCols.visibleColumnCount.value <= 1"
-                    @change="ocReplenishmentAnalysisCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="ocReplenishmentAnalysisCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="ocReplenishmentAnalysisCols.settingsOpen.value"
+ref="ocReplenishmentAnalysisColSettingsPopRef"
+:class="{ 'is-align-right': ocReplenishmentAnalysisColSettingsPop.align.value === 'right', 'is-align-up': ocReplenishmentAnalysisColSettingsPop.vertical.value === 'up' }"
+:style="ocReplenishmentAnalysisColSettingsPop.popStyle.value"
+:columns="ocReplenishmentAnalysisCols.columns.value"
+:visible-column-count="ocReplenishmentAnalysisCols.visibleColumnCount.value"
+@toggle="ocReplenishmentAnalysisCols.setColumnVisible"
+@move="ocReplenishmentAnalysisCols.moveColumn"
+@reset="ocReplenishmentAnalysisCols.resetColumns()"
+@confirm="ocReplenishmentAnalysisCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">

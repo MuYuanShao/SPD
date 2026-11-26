@@ -69,6 +69,21 @@
   box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
 }
 
+/* Element Plus 内层 input 必须「无边框」——
+   外层 wrapper 已经画了 1px 边框环，内层若再有一层实体边框，
+   就会变成「输入框外面还有一个框」（用户报的分页器输入框问题）。
+   这里把内层 input 的边框/背景/圆角/阴影全部清空，
+   让外层 wrapper 成为唯一的边框来源。 */
+.el-input__inner,
+.el-select__input,
+.el-range-input {
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none !important;
+  outline: none;
+}
+
 .el-input__wrapper:hover,
 .el-select__wrapper:hover {
   box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
@@ -122,8 +137,18 @@
  * ---------------------------------------------------------------------
  * 排除 checkbox / radio / hidden / range / color / file —— 它们不是
  * 「文本输入框」，强行定高会破坏交互。
+ *
+ * 【重要：必须排除 Element Plus 的内部 input】
+ *   .el-input__inner / .el-select__input / .el-range-input 这些
+ *   是 Element Plus 控件的**内层**元素，它们的外观由外层
+ *   .el-input__wrapper / .el-select__wrapper 负责
+ *   （边框是 1px 的 inset box-shadow 环）。
+ *   若这里的通用 input 规则也命中它们，就会**再画一层实体边框**，
+ *   表现就是「输入框外面还有一个框」——
+ *   分页器的「跳页输入框」「每页条数」最明显（用户报的问题）。
+ *   因此这里统一排除所有 EP 内层 input。
  * ===================================================================== */
-input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']),
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):not(.el-input__inner):not(.el-select__input):not(.el-range-input):not(.el-range-input),
 select,
 .md-input,
 .md-select {
@@ -142,14 +167,14 @@ select,
   line-height: var(--spd-lh-base);
 }
 
-input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):hover,
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):not(.el-input__inner):not(.el-select__input):not(.el-range-input):hover,
 select:hover,
 .md-input:hover,
 .md-select:hover {
   border-color: var(--spd-p-field-border-hover);
 }
 
-input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):focus,
+input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):not(.el-input__inner):not(.el-select__input):not(.el-range-input):focus,
 select:focus,
 .md-input:focus,
 .md-select:focus {

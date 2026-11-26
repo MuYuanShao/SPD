@@ -573,7 +573,10 @@
    这里只保留相对定位（供列设置浮层定位使用），不再自己滚动。 */
 .approval-wide-table-shell {
   position: relative;
-  max-height: 480px;
+  /* 【分页器被数据盖住 —— 根因修复（详见下方同选择器的第二处规则）】
+     外壳不能用 max-height 钉死高度再 overflow: visible ——
+     那会让内部表格溢出外壳并压在下方分页器上。 */
+  max-height: none;
   overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);
@@ -939,7 +942,22 @@
   position: relative;
   /* 层级低于工具栏（z-index: 30），避免「列设置」浮层被表格容器裁切/遮挡 */
   z-index: 1;
-  max-height: 480px;
+  /* 【分页器被数据盖住 —— 根因修复】
+     这里原本写的是 `max-height: 480px; overflow: visible;`：
+       - max-height 把外壳高度钉死在 480px；
+       - overflow: visible 让内部表格**溢出**外壳继续绘制，
+         而内部的 .el-scrollbar__wrap 并没有被这个 max-height 约束，
+         于是表格（实测 560px）比外壳（480px）高 80px，
+         多出来的部分直接压在下方 .md-pagination 上 ——
+         表现就是「数据量一多，分页器被数据盖住」。
+
+     正确做法：外壳**不再设 max-height**，让高度由内容自然撑开；
+     纵向滚动继续交给 Element Plus 内部的 .el-scrollbar__wrap
+     （el-table 上的 max-height="560" 已经负责内部滚动），
+     外壳只负责「相对定位 + 容纳内容」，永远比表格高。
+
+     这样外壳高度 = 表格高度 + 0，分页器自然落在表格下方，不会被覆盖。 */
+  max-height: none;
   overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);

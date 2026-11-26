@@ -559,33 +559,18 @@ const receivingListColSettingsPop = useColSettingsPopover({
             @click="receivingListCols.settingsOpen.value = !receivingListCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="receivingListCols.settingsOpen.value"
-            ref="receivingListColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': receivingListColSettingsPop.align.value === 'right', 'is-align-up': receivingListColSettingsPop.vertical.value === 'up' }"
-            :style="receivingListColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="receivingListCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in receivingListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && receivingListCols.visibleColumnCount.value <= 1"
-                  @change="receivingListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="receivingListCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="receivingListCols.settingsOpen.value"
+ref="receivingListColSettingsPopRef"
+:class="{ 'is-align-right': receivingListColSettingsPop.align.value === 'right', 'is-align-up': receivingListColSettingsPop.vertical.value === 'up' }"
+:style="receivingListColSettingsPop.popStyle.value"
+:columns="receivingListCols.columns.value"
+:visible-column-count="receivingListCols.visibleColumnCount.value"
+@toggle="receivingListCols.setColumnVisible"
+@move="receivingListCols.moveColumn"
+@reset="receivingListCols.resetColumns()"
+@confirm="receivingListCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

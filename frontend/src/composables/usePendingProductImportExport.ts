@@ -5,6 +5,7 @@ import {
   importPendingProductApplications
 } from '../api/pendingProductApplications'
 import { downloadCsvContent } from '../utils/downloadCsv'
+import { notifyError, notifySuccess } from './useNotify'
 
 interface UsePendingProductImportExportOptions {
   activeTypeKey: Ref<string> | ComputedRef<string>
@@ -48,10 +49,12 @@ export function usePendingProductImportExport({
       const duplicateText = result.duplicateRows ? `，${result.duplicateRows} 行目录已存在被跳过` : ''
       const otherSkipped = (result.skippedRows ?? 0) - (result.duplicateRows ?? 0)
       const skippedText = otherSkipped > 0 ? `，${otherSkipped} 行格式异常被跳过` : ''
-      message.value = result.message || `已导入 ${result.importedRows} 条待审批单${duplicateText}${skippedText}`
+      // 导入结果以 Element Plus message 提示，不在页面上内联渲染
+      notifySuccess(result.message || `已导入 ${result.importedRows} 条待审批单${duplicateText}${skippedText}`)
       await reload()
     } catch (err) {
-      message.value = err instanceof Error ? err.message : '导入失败'
+      // 失败同样以 message 抛出
+      notifyError(err instanceof Error ? err.message : '导入失败')
     } finally {
       input.value = ''
     }

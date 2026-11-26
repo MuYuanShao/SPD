@@ -103,8 +103,12 @@ export interface UseColSettingsPopoverOptions {
   open: Ref<boolean>
   /** 触发按钮的 ref（DOM 元素或 Vue 组件实例均可） */
   anchorRef: Ref<ColSettingsAnchor>
-  /** 浮层元素的 ref */
-  popRef: Ref<HTMLElement | null | undefined>
+  /**
+   * 浮层元素的 ref。
+   * 可以是 DOM 元素，也可以是组件实例
+   * （例如共享的 <SpdColumnSettings> 组件 —— 它 expose 了根元素 `el`）。
+   */
+  popRef: Ref<ColSettingsAnchor>
 }
 
 export function useColSettingsPopover(options: UseColSettingsPopoverOptions) {
@@ -143,7 +147,9 @@ export function useColSettingsPopover(options: UseColSettingsPopoverOptions) {
   /** 测量锚点与视口，按可用空间决定方向与高度 */
   function measure() {
     const anchor = resolveAnchorElement(options.anchorRef.value)
-    const pop = options.popRef.value
+    // 浮层可能是 DOM 元素，也可能是组件实例（共享的 <SpdColumnSettings>），
+    // 统一归一化成 DOM 元素后再量尺寸。
+    const pop = resolveAnchorElement(options.popRef.value)
     if (!anchor || !pop) return
 
     const anchorRect = anchor.getBoundingClientRect()

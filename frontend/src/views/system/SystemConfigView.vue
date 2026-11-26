@@ -313,33 +313,18 @@ onMounted(loadConfigs)
             @click="systemConfigCols.settingsOpen.value = !systemConfigCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="systemConfigCols.settingsOpen.value"
-            ref="systemConfigColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': systemConfigColSettingsPop.align.value === 'right', 'is-align-up': systemConfigColSettingsPop.vertical.value === 'up' }"
-            :style="systemConfigColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="systemConfigCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in systemConfigCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && systemConfigCols.visibleColumnCount.value <= 1"
-                  @change="systemConfigCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="systemConfigCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="systemConfigCols.settingsOpen.value"
+ref="systemConfigColSettingsPopRef"
+:class="{ 'is-align-right': systemConfigColSettingsPop.align.value === 'right', 'is-align-up': systemConfigColSettingsPop.vertical.value === 'up' }"
+:style="systemConfigColSettingsPop.popStyle.value"
+:columns="systemConfigCols.columns.value"
+:visible-column-count="systemConfigCols.visibleColumnCount.value"
+@toggle="systemConfigCols.setColumnVisible"
+@move="systemConfigCols.moveColumn"
+@reset="systemConfigCols.resetColumns()"
+@confirm="systemConfigCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

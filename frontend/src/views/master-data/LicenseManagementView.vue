@@ -532,33 +532,18 @@ onUnmounted(closePreview)
             @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="licenseCols.settingsOpen.value"
-            ref="licenseColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': licenseColSettingsPop.align.value === 'right', 'is-align-up': licenseColSettingsPop.vertical.value === 'up' }"
-            :style="licenseColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="licenseCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in licenseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && licenseCols.visibleColumnCount.value <= 1"
-                  @change="licenseCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="licenseCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="licenseCols.settingsOpen.value"
+ref="licenseColSettingsPopRef"
+:class="{ 'is-align-right': licenseColSettingsPop.align.value === 'right', 'is-align-up': licenseColSettingsPop.vertical.value === 'up' }"
+:style="licenseColSettingsPop.popStyle.value"
+:columns="licenseCols.columns.value"
+:visible-column-count="licenseCols.visibleColumnCount.value"
+@toggle="licenseCols.setColumnVisible"
+@move="licenseCols.moveColumn"
+@reset="licenseCols.resetColumns()"
+@confirm="licenseCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

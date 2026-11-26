@@ -771,33 +771,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               @click="invBalanceCols.settingsOpen.value = !invBalanceCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="invBalanceCols.settingsOpen.value"
-              ref="invBalanceColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': invBalanceColSettingsPop.align.value === 'right', 'is-align-up': invBalanceColSettingsPop.vertical.value === 'up' }"
-              :style="invBalanceColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invBalanceCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in invBalanceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && invBalanceCols.visibleColumnCount.value <= 1"
-                    @change="invBalanceCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="invBalanceCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="invBalanceCols.settingsOpen.value"
+ref="invBalanceColSettingsPopRef"
+:class="{ 'is-align-right': invBalanceColSettingsPop.align.value === 'right', 'is-align-up': invBalanceColSettingsPop.vertical.value === 'up' }"
+:style="invBalanceColSettingsPop.popStyle.value"
+:columns="invBalanceCols.columns.value"
+:visible-column-count="invBalanceCols.visibleColumnCount.value"
+@toggle="invBalanceCols.setColumnVisible"
+@move="invBalanceCols.moveColumn"
+@reset="invBalanceCols.resetColumns()"
+@confirm="invBalanceCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1018,33 +1003,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               @click="invQuotaStockCols.settingsOpen.value = !invQuotaStockCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="invQuotaStockCols.settingsOpen.value"
-              ref="invQuotaStockColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': invQuotaStockColSettingsPop.align.value === 'right', 'is-align-up': invQuotaStockColSettingsPop.vertical.value === 'up' }"
-              :style="invQuotaStockColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invQuotaStockCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in invQuotaStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && invQuotaStockCols.visibleColumnCount.value <= 1"
-                    @change="invQuotaStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="invQuotaStockCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="invQuotaStockCols.settingsOpen.value"
+ref="invQuotaStockColSettingsPopRef"
+:class="{ 'is-align-right': invQuotaStockColSettingsPop.align.value === 'right', 'is-align-up': invQuotaStockColSettingsPop.vertical.value === 'up' }"
+:style="invQuotaStockColSettingsPop.popStyle.value"
+:columns="invQuotaStockCols.columns.value"
+:visible-column-count="invQuotaStockCols.visibleColumnCount.value"
+@toggle="invQuotaStockCols.setColumnVisible"
+@move="invQuotaStockCols.moveColumn"
+@reset="invQuotaStockCols.resetColumns()"
+@confirm="invQuotaStockCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1337,33 +1307,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               @click="invCodeStockCols.settingsOpen.value = !invCodeStockCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="invCodeStockCols.settingsOpen.value"
-              ref="invCodeStockColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': invCodeStockColSettingsPop.align.value === 'right', 'is-align-up': invCodeStockColSettingsPop.vertical.value === 'up' }"
-              :style="invCodeStockColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invCodeStockCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in invCodeStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && invCodeStockCols.visibleColumnCount.value <= 1"
-                    @change="invCodeStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="invCodeStockCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="invCodeStockCols.settingsOpen.value"
+ref="invCodeStockColSettingsPopRef"
+:class="{ 'is-align-right': invCodeStockColSettingsPop.align.value === 'right', 'is-align-up': invCodeStockColSettingsPop.vertical.value === 'up' }"
+:style="invCodeStockColSettingsPop.popStyle.value"
+:columns="invCodeStockCols.columns.value"
+:visible-column-count="invCodeStockCols.visibleColumnCount.value"
+@toggle="invCodeStockCols.setColumnVisible"
+@move="invCodeStockCols.moveColumn"
+@reset="invCodeStockCols.resetColumns()"
+@confirm="invCodeStockCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1620,33 +1575,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
               @click="invLooseStockCols.settingsOpen.value = !invLooseStockCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="invLooseStockCols.settingsOpen.value"
-              ref="invLooseStockColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': invLooseStockColSettingsPop.align.value === 'right', 'is-align-up': invLooseStockColSettingsPop.vertical.value === 'up' }"
-              :style="invLooseStockColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invLooseStockCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in invLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && invLooseStockCols.visibleColumnCount.value <= 1"
-                    @change="invLooseStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="invLooseStockCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="invLooseStockCols.settingsOpen.value"
+ref="invLooseStockColSettingsPopRef"
+:class="{ 'is-align-right': invLooseStockColSettingsPop.align.value === 'right', 'is-align-up': invLooseStockColSettingsPop.vertical.value === 'up' }"
+:style="invLooseStockColSettingsPop.popStyle.value"
+:columns="invLooseStockCols.columns.value"
+:visible-column-count="invLooseStockCols.visibleColumnCount.value"
+@toggle="invLooseStockCols.setColumnVisible"
+@move="invLooseStockCols.moveColumn"
+@reset="invLooseStockCols.resetColumns()"
+@confirm="invLooseStockCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1843,33 +1783,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
             @click="invStocktakingCols.settingsOpen.value = !invStocktakingCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="invStocktakingCols.settingsOpen.value"
-            ref="invStocktakingColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': invStocktakingColSettingsPop.align.value === 'right', 'is-align-up': invStocktakingColSettingsPop.vertical.value === 'up' }"
-            :style="invStocktakingColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invStocktakingCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in invStocktakingCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && invStocktakingCols.visibleColumnCount.value <= 1"
-                  @change="invStocktakingCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="invStocktakingCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="invStocktakingCols.settingsOpen.value"
+ref="invStocktakingColSettingsPopRef"
+:class="{ 'is-align-right': invStocktakingColSettingsPop.align.value === 'right', 'is-align-up': invStocktakingColSettingsPop.vertical.value === 'up' }"
+:style="invStocktakingColSettingsPop.popStyle.value"
+:columns="invStocktakingCols.columns.value"
+:visible-column-count="invStocktakingCols.visibleColumnCount.value"
+@toggle="invStocktakingCols.setColumnVisible"
+@move="invStocktakingCols.moveColumn"
+@reset="invStocktakingCols.resetColumns()"
+@confirm="invStocktakingCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -2051,33 +1976,18 @@ const invBalanceColSettingsPop = useColSettingsPopover({
             @click="invPriceAdjustCols.settingsOpen.value = !invPriceAdjustCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="invPriceAdjustCols.settingsOpen.value"
-            ref="invPriceAdjustColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': invPriceAdjustColSettingsPop.align.value === 'right', 'is-align-up': invPriceAdjustColSettingsPop.vertical.value === 'up' }"
-            :style="invPriceAdjustColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invPriceAdjustCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in invPriceAdjustCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && invPriceAdjustCols.visibleColumnCount.value <= 1"
-                  @change="invPriceAdjustCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="invPriceAdjustCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="invPriceAdjustCols.settingsOpen.value"
+ref="invPriceAdjustColSettingsPopRef"
+:class="{ 'is-align-right': invPriceAdjustColSettingsPop.align.value === 'right', 'is-align-up': invPriceAdjustColSettingsPop.vertical.value === 'up' }"
+:style="invPriceAdjustColSettingsPop.popStyle.value"
+:columns="invPriceAdjustCols.columns.value"
+:visible-column-count="invPriceAdjustCols.visibleColumnCount.value"
+@toggle="invPriceAdjustCols.setColumnVisible"
+@move="invPriceAdjustCols.moveColumn"
+@reset="invPriceAdjustCols.resetColumns()"
+@confirm="invPriceAdjustCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

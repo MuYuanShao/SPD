@@ -66,6 +66,11 @@
    .spd-ellipsis-cell 三个工具类，以及 data-tip 纯 CSS 悬浮提示气泡。
    颜色全部取自 tokens/palette.css，三套配色方案自动适配。 */
 @import "./components/spd-text-overflow.css";
+/* 全站列展示设置面板 SpdColumnSettings 的样式（唯一出处）
+   排在 spd-text-overflow.css 之后：浮层几何仍由 list/unified-list.css 承担，
+   本文件只补「列顺序调节按钮（▲ / ▼）」的样式与面板内新增布局类，
+   颜色全部取自 tokens/palette.css，三套配色方案自动适配。 */
+@import "./components/spd-column-settings.css";
 /* 【注意】全站输入控件统一规格（components/spd-input.css）
    **不在此处引入** —— 它必须排在 styles/responsive-medical.css 之后，
    才能把该文件里 .main-area 内 input 的 36px !important 规则压回 34px。

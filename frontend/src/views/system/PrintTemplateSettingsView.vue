@@ -245,33 +245,18 @@ const printTemplateColSettingsPop = useColSettingsPopover({
               @click="printTemplateCols.settingsOpen.value = !printTemplateCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="printTemplateCols.settingsOpen.value"
-              ref="printTemplateColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': printTemplateColSettingsPop.align.value === 'right', 'is-align-up': printTemplateColSettingsPop.vertical.value === 'up' }"
-              :style="printTemplateColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="printTemplateCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in printTemplateCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && printTemplateCols.visibleColumnCount.value <= 1"
-                    @change="printTemplateCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="printTemplateCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="printTemplateCols.settingsOpen.value"
+ref="printTemplateColSettingsPopRef"
+:class="{ 'is-align-right': printTemplateColSettingsPop.align.value === 'right', 'is-align-up': printTemplateColSettingsPop.vertical.value === 'up' }"
+:style="printTemplateColSettingsPop.popStyle.value"
+:columns="printTemplateCols.columns.value"
+:visible-column-count="printTemplateCols.visibleColumnCount.value"
+@toggle="printTemplateCols.setColumnVisible"
+@move="printTemplateCols.moveColumn"
+@reset="printTemplateCols.resetColumns()"
+@confirm="printTemplateCols.settingsOpen.value = false"
+          />
           </div>
       </template>
       <MdEmptyState v-if="loading" text="正在加载打印模板..." :loading="true" />

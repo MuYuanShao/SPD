@@ -348,33 +348,21 @@ watch(() => query.value.bizType, (v) => {
             @click="auditLogCols.settingsOpen.value = !auditLogCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
+          <SpdColumnSettings
             v-if="auditLogCols.settingsOpen.value"
             ref="auditLogColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': auditLogColSettingsPop.align.value === 'right', 'is-align-up': auditLogColSettingsPop.vertical.value === 'up' }"
+            :class="{
+              'is-align-right': auditLogColSettingsPop.align.value === 'right',
+              'is-align-up': auditLogColSettingsPop.vertical.value === 'up'
+            }"
             :style="auditLogColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="auditLogCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in auditLogCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && auditLogCols.visibleColumnCount.value <= 1"
-                  @change="auditLogCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="auditLogCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+            :columns="auditLogCols.columns.value"
+            :visible-column-count="auditLogCols.visibleColumnCount.value"
+            @toggle="auditLogCols.setColumnVisible"
+            @move="auditLogCols.moveColumn"
+            @reset="auditLogCols.resetColumns()"
+            @confirm="auditLogCols.settingsOpen.value = false"
+          />
         </div>
       </template>
       <template #meta-extra>

@@ -1,5 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
+import { notifyError, notifySuccess } from './useNotify'
 
 export type PendingProductBatchAction = 'approve' | 'return' | 'reject'
 
@@ -52,14 +53,16 @@ export function usePendingProductBatchApproval(options: {
       if (result.successCount > 0) refreshStore.changed({ catalogChanged: true })
       const actionLabel =
         batchApproveAction.value === 'approve' ? '审批通过' : batchApproveAction.value === 'return' ? '退回修改' : '驳回'
-      options.message.value = `已${actionLabel} ${result.successCount} 条${
+      // 批量审批结果以 Element Plus message 提示，不在页面上内联渲染
+      notifySuccess(`已${actionLabel} ${result.successCount} 条${
         result.failCount > 0 ? `，${result.failCount} 条操作失败` : ''
-      }`
+      }`)
       showBatchApproveModal.value = false
       options.selectedNos.value = []
       await options.reload()
     } catch (err) {
-      options.error.value = err instanceof Error ? err.message : '批量审批操作失败'
+      // 失败同样以 message 抛出
+      notifyError(err instanceof Error ? err.message : '批量审批操作失败')
     } finally {
       batchApproveLoading.value = false
     }

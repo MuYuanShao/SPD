@@ -301,33 +301,18 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
                   @click="activeCockpitCols.settingsOpen.value = !activeCockpitCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-                <div
-                  v-if="activeCockpitCols.settingsOpen.value"
-                  ref="cockpitColSettingsPopRef"
-                  class="ulc-col-settings-pop"
-                  :class="{ 'is-align-right': cockpitColSettingsPop.align.value === 'right', 'is-align-up': cockpitColSettingsPop.vertical.value === 'up' }"
-                  :style="cockpitColSettingsPop.popStyle.value"
-                >
-                  <header>
-                    <strong>列展示设置</strong>
-                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="activeCockpitCols.resetColumns()"></SpdButton>
-                  </header>
-                  <div class="ulc-col-settings-list">
-                    <label v-for="col in activeCockpitCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                      <input
-                        type="checkbox"
-                        :checked="col.visible"
-                        :disabled="col.visible && activeCockpitCols.visibleColumnCount.value <= 1"
-                        @change="activeCockpitCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                      />
-                      <span>{{ col.label }}</span>
-                      <small>{{ col.width }}px</small>
-                    </label>
-                  </div>
-                  <footer>
-                    <SpdButton label="确定" tone="primary" @click="activeCockpitCols.settingsOpen.value = false"></SpdButton>
-                  </footer>
-                </div>
+                <SpdColumnSettings
+v-if="activeCockpitCols.settingsOpen.value"
+ref="cockpitColSettingsPopRef"
+:class="{ 'is-align-right': cockpitColSettingsPop.align.value === 'right', 'is-align-up': cockpitColSettingsPop.vertical.value === 'up' }"
+:style="cockpitColSettingsPop.popStyle.value"
+:columns="activeCockpitCols.columns.value"
+:visible-column-count="activeCockpitCols.visibleColumnCount.value"
+@toggle="activeCockpitCols.setColumnVisible"
+@move="activeCockpitCols.moveColumn"
+@reset="activeCockpitCols.resetColumns()"
+@confirm="activeCockpitCols.settingsOpen.value = false"
+          />
               </div>
             </template>
             <template #meta-extra>

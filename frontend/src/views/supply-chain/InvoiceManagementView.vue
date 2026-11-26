@@ -301,33 +301,18 @@ const invoiceDetailColSettingsPop = useColSettingsPopover({
             @click="invoiceDetailCols.settingsOpen.value = !invoiceDetailCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="invoiceDetailCols.settingsOpen.value"
-            ref="invoiceDetailColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': invoiceDetailColSettingsPop.align.value === 'right', 'is-align-up': invoiceDetailColSettingsPop.vertical.value === 'up' }"
-            :style="invoiceDetailColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="invoiceDetailCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in invoiceDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && invoiceDetailCols.visibleColumnCount.value <= 1"
-                  @change="invoiceDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="invoiceDetailCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="invoiceDetailCols.settingsOpen.value"
+ref="invoiceDetailColSettingsPopRef"
+:class="{ 'is-align-right': invoiceDetailColSettingsPop.align.value === 'right', 'is-align-up': invoiceDetailColSettingsPop.vertical.value === 'up' }"
+:style="invoiceDetailColSettingsPop.popStyle.value"
+:columns="invoiceDetailCols.columns.value"
+:visible-column-count="invoiceDetailCols.visibleColumnCount.value"
+@toggle="invoiceDetailCols.setColumnVisible"
+@move="invoiceDetailCols.moveColumn"
+@reset="invoiceDetailCols.resetColumns()"
+@confirm="invoiceDetailCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

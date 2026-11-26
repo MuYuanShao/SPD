@@ -273,33 +273,18 @@ onMounted(async () => {
               @click="ledgerCols.settingsOpen.value = !ledgerCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="ledgerCols.settingsOpen.value"
-              ref="ledgerColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': ledgerColSettingsPop.align.value === 'right', 'is-align-up': ledgerColSettingsPop.vertical.value === 'up' }"
-              :style="ledgerColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="ledgerCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in ledgerCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && ledgerCols.visibleColumnCount.value <= 1"
-                    @change="ledgerCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="ledgerCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="ledgerCols.settingsOpen.value"
+ref="ledgerColSettingsPopRef"
+:class="{ 'is-align-right': ledgerColSettingsPop.align.value === 'right', 'is-align-up': ledgerColSettingsPop.vertical.value === 'up' }"
+:style="ledgerColSettingsPop.popStyle.value"
+:columns="ledgerCols.columns.value"
+:visible-column-count="ledgerCols.visibleColumnCount.value"
+@toggle="ledgerCols.setColumnVisible"
+@move="ledgerCols.moveColumn"
+@reset="ledgerCols.resetColumns()"
+@confirm="ledgerCols.settingsOpen.value = false"
+          />
           </div>
         </template>
         <template #meta-extra>

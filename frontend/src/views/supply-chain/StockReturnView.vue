@@ -368,33 +368,18 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
             @click="stockReturnCandidatesCols.settingsOpen.value = !stockReturnCandidatesCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="stockReturnCandidatesCols.settingsOpen.value"
-            ref="stockReturnCandidatesColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': stockReturnCandidatesColSettingsPop.align.value === 'right', 'is-align-up': stockReturnCandidatesColSettingsPop.vertical.value === 'up' }"
-            :style="stockReturnCandidatesColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnCandidatesCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in stockReturnCandidatesCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && stockReturnCandidatesCols.visibleColumnCount.value <= 1"
-                  @change="stockReturnCandidatesCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="stockReturnCandidatesCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="stockReturnCandidatesCols.settingsOpen.value"
+ref="stockReturnCandidatesColSettingsPopRef"
+:class="{ 'is-align-right': stockReturnCandidatesColSettingsPop.align.value === 'right', 'is-align-up': stockReturnCandidatesColSettingsPop.vertical.value === 'up' }"
+:style="stockReturnCandidatesColSettingsPop.popStyle.value"
+:columns="stockReturnCandidatesCols.columns.value"
+:visible-column-count="stockReturnCandidatesCols.visibleColumnCount.value"
+@toggle="stockReturnCandidatesCols.setColumnVisible"
+@move="stockReturnCandidatesCols.moveColumn"
+@reset="stockReturnCandidatesCols.resetColumns()"
+@confirm="stockReturnCandidatesCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -521,33 +506,18 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
             @click="stockReturnListCols.settingsOpen.value = !stockReturnListCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="stockReturnListCols.settingsOpen.value"
-            ref="stockReturnListColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': stockReturnListColSettingsPop.align.value === 'right', 'is-align-up': stockReturnListColSettingsPop.vertical.value === 'up' }"
-            :style="stockReturnListColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnListCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in stockReturnListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && stockReturnListCols.visibleColumnCount.value <= 1"
-                  @change="stockReturnListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="stockReturnListCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="stockReturnListCols.settingsOpen.value"
+ref="stockReturnListColSettingsPopRef"
+:class="{ 'is-align-right': stockReturnListColSettingsPop.align.value === 'right', 'is-align-up': stockReturnListColSettingsPop.vertical.value === 'up' }"
+:style="stockReturnListColSettingsPop.popStyle.value"
+:columns="stockReturnListCols.columns.value"
+:visible-column-count="stockReturnListCols.visibleColumnCount.value"
+@toggle="stockReturnListCols.setColumnVisible"
+@move="stockReturnListCols.moveColumn"
+@reset="stockReturnListCols.resetColumns()"
+@confirm="stockReturnListCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -691,33 +661,18 @@ const stockReturnItemsColSettingsPop = useColSettingsPopover({
             @click="stockReturnItemsCols.settingsOpen.value = !stockReturnItemsCols.settingsOpen.value">
             <template #icon><Columns3 :size="16" /></template>
           </SpdButton>
-          <div
-            v-if="stockReturnItemsCols.settingsOpen.value"
-            ref="stockReturnItemsColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': stockReturnItemsColSettingsPop.align.value === 'right', 'is-align-up': stockReturnItemsColSettingsPop.vertical.value === 'up' }"
-            :style="stockReturnItemsColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="stockReturnItemsCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in stockReturnItemsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && stockReturnItemsCols.visibleColumnCount.value <= 1"
-                  @change="stockReturnItemsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="stockReturnItemsCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="stockReturnItemsCols.settingsOpen.value"
+ref="stockReturnItemsColSettingsPopRef"
+:class="{ 'is-align-right': stockReturnItemsColSettingsPop.align.value === 'right', 'is-align-up': stockReturnItemsColSettingsPop.vertical.value === 'up' }"
+:style="stockReturnItemsColSettingsPop.popStyle.value"
+:columns="stockReturnItemsCols.columns.value"
+:visible-column-count="stockReturnItemsCols.visibleColumnCount.value"
+@toggle="stockReturnItemsCols.setColumnVisible"
+@move="stockReturnItemsCols.moveColumn"
+@reset="stockReturnItemsCols.resetColumns()"
+@confirm="stockReturnItemsCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

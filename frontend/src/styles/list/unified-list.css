@@ -245,60 +245,43 @@
   line-height: var(--spd-lh-tight, 1.35);
 }
 
-/* ===== 表格单元格：超长文本一律「省略号 + 悬浮 tip」 =====
+/* ===== 表格单元格：超长文本一律「自动换行」（而不是省略号截断） =====
    ---------------------------------------------------------------------
-   需求（用户澄清）：
-     「文字过长导致列宽无法容纳时，或者其他表单无法容纳时，
-       使用省略号，悬浮上去出现一个tip来显示完整文字就好」
+   用户最新澄清（回退到原本的版本）：
+     「现在列表文字过长让它自动换行，不用省略号了，回到原本的版本」
 
-   【为什么改成省略号，而不是换行】
-     换行会把行高撑得很高，密集列表因此失去可扫读性；
-     省略号保持行高统一，完整信息通过悬浮提示补齐。
+   【行为】
+     - .cell 允许换行（white-space: normal + overflow-wrap: anywhere），
+       长字段自动折行，信息完整可读，不再截断成「…」。
+     - 换行后仍保持居中与正常行距。
 
    【实现要点】
-     1) .cell 是 flex 容器：裸文本会成为匿名 flex item，
+     1) Element Plus 的 show-overflow-tooltip 会给 .cell 加上
+        white-space: nowrap + text-overflow: ellipsis + overflow: hidden，
+        导致长字段被截断。这里统一覆盖为「换行」；
+     2) .cell 是 flex 容器：裸文本会成为匿名 flex item，
         默认 min-width:auto 会让它保持自身宽度不收缩，
         于是长文本会撑破单元格、侵占相邻列。
         → .cell 用 `width: 100% + min-width: 0` 铺满列宽，
           子元素用 `min-width: 0` 允许收缩；
-     2) 子元素（.ulc-wrap-text / .spd-ellipsis 等）自己负责省略，
-        裸文本则由 .cell 的 overflow:hidden + text-overflow:ellipsis 裁切；
-     3) 各页面在这些单元格上写 title 属性（或 data-tip），
-        悬浮即可看到完整文字（title 由各视图负责，样式见
-        styles/components/spd-text-overflow.css）；
-     4) 这里用 !important 强制覆盖各页面 scoped 样式里的
-        white-space: nowrap / normal，保证全站行为一致。
-
-   ⚠️ 不要对 .cell 使用 `max-width: 0`：
-     那是 table 布局下的经典技巧，但在 flex 容器里会把内容盒
-     直接压成 0（只剩内边距），导致状态条 / 按钮被挤成一条线。
-     这里改用 width:100% + min-width:0，同样能约束住溢出。
+     3) 需要鼠标提示的字段由各自的 title 属性提供。
 
    ⚠️ 关于 .cell 的 overflow：
-     必须保持 hidden（Element Plus 的默认行为）。
-     内置的 show-overflow-tooltip 正是靠比较
-     `.cell.scrollWidth > .cell.clientWidth` 判断「是否溢出」，
-     改成 visible 会让内置提示永远不出现。
-     真正产生「…」的是**显式省略号元素**
-     （.ulc-wrap-text / .spd-ellipsis*，它们自带 overflow:hidden），
-     .cell 的 hidden 只是兜底，防止裸文本横向侵占相邻列。
-
-   ⚠️ 关于 .cell 的 position：
-     保持 static（不要设 relative）。
-     data-tip 的纯 CSS 气泡是省略号元素的 ::after（绝对定位），
-     包含块是最近的已定位祖先。Element Plus 已给
-     `td.el-table__cell` 设了 `position: relative` 且 td 的 overflow 是 visible，
-     气泡因此能溢出 .cell 的裁切、完整显示出来。
-
-   注意：完整的文字提示需要各视图写 title / data-tip；
-   本文件只负责「省略号」这一半（另一半由 spd-text-overflow.css 提供）。 */
+     这里必须用 visible（而不是 hidden）：
+     换行后的内容不应再被裁切，overflow:hidden 会把折行内容切掉。
+     ⚠️ 也不要对 .cell 使用 `max-width: 0`：
+     那是 table 布局下的经典技巧，但在 flex 容器里会把内容盒
+     直接压成 0（只剩内边距），导致状态条 / 按钮被挤成一条线。
+     这里改用 width:100% + min-width:0，同样能约束住溢出。 */
 .spd-unified-list .ulc-table td.el-table__cell .cell {
   /* 铺满列宽（而不是 max-width:0），配合子元素的 min-width:0 约束溢出 */
   width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap !important;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
   /* 刻意不做定位基准：data-tip 气泡的包含块落在
      td.el-table__cell（position:relative; overflow:visible）上。 */
   position: static;
@@ -311,21 +294,20 @@
   max-width: 100%;
 }
 
-/* 显式声明了「省略号」的元素（.ulc-wrap-text / .spd-ellipsis 等）
-   豁免上面 .cell 的 nowrap 继承，保持自身语义：
-     - 单行省略类：nowrap + ellipsis；
-     - 多行夹断类：normal（clamp 必须换行才生效）。 */
+/* 换行规则同样适用于显式声明了省略号的元素
+   （.ulc-wrap-text / .spd-ellipsis 等）——
+   用户要求回到「自动换行」版本，它们不再截断。 */
 .spd-unified-list .ulc-table td.el-table__cell .cell .ulc-wrap-text,
 .spd-unified-list .ulc-table td.el-table__cell .cell .spd-ellipsis,
 .spd-unified-list .ulc-table td.el-table__cell .cell .spd-ellipsis-cell {
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  white-space: nowrap !important;
-  overflow-wrap: normal !important;
-  word-break: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
 }
 
-/* 多行夹断（.spd-ellipsis-multi）例外：它需要换行才能夹断 */
+/* 多行夹断（.spd-ellipsis-multi）保持夹断语义（它本来就需要换行才生效） */
 .spd-unified-list .ulc-table td.el-table__cell .cell .spd-ellipsis-multi {
   overflow: hidden !important;
   white-space: normal !important;
@@ -396,53 +378,45 @@
   min-width: 0;
 }
 
-/* ===== 单元格内的普通文本：超长省略（不折行） =====
-   需求：「文字过长导致列宽无法容纳时……使用省略号，悬浮上去出现一个
-   tip 来显示完整文字」。
-   Element Plus 默认给 .cell 的就是 white-space: nowrap + overflow: hidden，
-   这里补上 text-overflow: ellipsis 与 width: 100% + min-width: 0，
-   让省略号真正生效（否则只有裁切、没有「…」）。
-
-   overflow 保持 hidden：Element Plus 内置的 show-overflow-tooltip
-   依赖 `.cell.scrollWidth > .cell.clientWidth` 判断是否溢出，
-   改成 visible 内置提示就永远不出现；
-   裁切交给省略号子元素（.ulc-wrap-text / .spd-ellipsis*），
-   裸文本单元格由 .cell 的 hidden 兜底。 */
+/* ===== 单元格内的普通文本：超长自动换行（不截断） =====
+   用户最新澄清：「现在列表文字过长让它自动换行，不用省略号了，
+   回到原本的版本」。
+   Element Plus 默认给 .cell 的是 white-space: nowrap + overflow: hidden，
+   这里统一覆盖为「换行」，保证信息完整；
+   需要鼠标提示的字段由各自的 title 属性提供。 */
 .spd-unified-list .ulc-table td.el-table__cell .cell {
   width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap !important;
-  overflow-wrap: normal;
-  word-break: normal;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   line-height: var(--spd-lh-tight, 1.35);
 }
 
-/* .cell 直接包裹文本时（未使用 .ulc-cell-stack），同样省略 */
+/* .cell 直接包裹文本时（未使用 .ulc-cell-stack），同样允许换行 */
 .spd-unified-list .ulc-table td.el-table__cell > .cell {
-  white-space: nowrap !important;
+  white-space: normal !important;
 }
 
 /* ===== 长文本列（商品名称 / 生产厂家 等） =====
    ---------------------------------------------------------------------
-   需求（用户澄清）：
-     「文字过长导致列宽无法容纳时，或者其他表单无法容纳时，
-       使用省略号，悬浮上去出现一个tip来显示完整文字就好」
+   用户最新澄清：「现在列表文字过长让它自动换行，不用省略号了，
+   回到原本的版本」
 
-   因此长文本列**不再换行**（换行会把行高撑得很高，破坏密集列表的可扫读性），
-   改为「单行 + 省略号」：
-     - .ulc-wrap-text 自身负责省略；
-     - 完整文字通过原生 title 属性（或 data-tip）悬浮显示；
-   若页面未写 title，可用 data-tip + CSS 气泡（见 spd-text-overflow.css）。 */
+   因此长文本列回到「自动换行」：
+     - white-space: normal + overflow-wrap: anywhere + word-break: break-word，
+       长字段自动折行，信息完整可读；
+     - 需要鼠标提示的字段仍可写 title 属性。 */
 .spd-unified-list .ulc-wrap-text {
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   /* T-07 长文本换行：base + 行高 tight */
   font-size: var(--spd-font-size-base, 14px);
   line-height: var(--spd-lh-tight, 1.35);
@@ -473,28 +447,30 @@
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-family: var(--spd-font-family-mono, ui-monospace, monospace);
-  /* 数值超长时省略而不是折行（保持行高统一） */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 数值超长时自动换行（回到原本版本，不截断） */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* ===== 拼接文本（单价 + 单位 等） =====
    ---------------------------------------------------------------------
-   需求：「0.50 个」这类**拼接**的内容是一个整体，
-   放不下时整体省略（配合 title 提示完整文字），不拆散折行。 */
+   「0.50 个」这类**拼接**的内容是一个整体，
+   放不下时整体换行（配合 title 提示完整文字），不拆散折行。 */
 .spd-unified-list .ulc-joined {
   display: block;
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
-/* 拼接文本的内层片段：保持在一行内，不单独折行。
-   整体放不下时由外层省略，避免长编码 / 长电话横向溢出侵占相邻列。 */
+/* 拼接文本的内层片段：始终保持在一行内，不单独折行。
+   整体放不下时由外层换行，避免长编码 / 长电话横向溢出侵占相邻列。 */
 .spd-unified-list .ulc-joined > span {
   display: inline;
   white-space: nowrap;
@@ -981,10 +957,12 @@
   font-weight: 400;
   line-height: var(--spd-lh-tight, 1.35);
   font-variant-numeric: tabular-nums;
-  /* 时间超长时省略而不是折行（保持行高统一） */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* 时间超长时自动换行（回到原本版本，不截断） */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   max-width: 100%;
   min-width: 0;
 }

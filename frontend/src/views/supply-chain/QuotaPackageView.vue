@@ -1255,33 +1255,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               @click="quotaTemplateCols.settingsOpen.value = !quotaTemplateCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="quotaTemplateCols.settingsOpen.value"
-              ref="quotaTemplateColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': quotaTemplateColSettingsPop.align.value === 'right', 'is-align-up': quotaTemplateColSettingsPop.vertical.value === 'up' }"
-              :style="quotaTemplateColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaTemplateCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in quotaTemplateCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && quotaTemplateCols.visibleColumnCount.value <= 1"
-                    @change="quotaTemplateCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="quotaTemplateCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="quotaTemplateCols.settingsOpen.value"
+ref="quotaTemplateColSettingsPopRef"
+:class="{ 'is-align-right': quotaTemplateColSettingsPop.align.value === 'right', 'is-align-up': quotaTemplateColSettingsPop.vertical.value === 'up' }"
+:style="quotaTemplateColSettingsPop.popStyle.value"
+:columns="quotaTemplateCols.columns.value"
+:visible-column-count="quotaTemplateCols.visibleColumnCount.value"
+@toggle="quotaTemplateCols.setColumnVisible"
+@move="quotaTemplateCols.moveColumn"
+@reset="quotaTemplateCols.resetColumns()"
+@confirm="quotaTemplateCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <template #meta-extra>
@@ -1629,33 +1614,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                   @click="quotaLooseStockCols.settingsOpen.value = !quotaLooseStockCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-                <div
-                  v-if="quotaLooseStockCols.settingsOpen.value"
-                  ref="quotaLooseStockColSettingsPopRef"
-                  class="ulc-col-settings-pop"
-                  :class="{ 'is-align-right': quotaLooseStockColSettingsPop.align.value === 'right', 'is-align-up': quotaLooseStockColSettingsPop.vertical.value === 'up' }"
-                  :style="quotaLooseStockColSettingsPop.popStyle.value"
-                >
-                  <header>
-                    <strong>列展示设置</strong>
-                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLooseStockCols.resetColumns()"></SpdButton>
-                  </header>
-                  <div class="ulc-col-settings-list">
-                    <label v-for="col in quotaLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                      <input
-                        type="checkbox"
-                        :checked="col.visible"
-                        :disabled="col.visible && quotaLooseStockCols.visibleColumnCount.value <= 1"
-                        @change="quotaLooseStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                      />
-                      <span>{{ col.label }}</span>
-                      <small>{{ col.width }}px</small>
-                    </label>
-                  </div>
-                  <footer>
-                    <SpdButton label="确定" tone="primary" @click="quotaLooseStockCols.settingsOpen.value = false"></SpdButton>
-                  </footer>
-                </div>
+                <SpdColumnSettings
+v-if="quotaLooseStockCols.settingsOpen.value"
+ref="quotaLooseStockColSettingsPopRef"
+:class="{ 'is-align-right': quotaLooseStockColSettingsPop.align.value === 'right', 'is-align-up': quotaLooseStockColSettingsPop.vertical.value === 'up' }"
+:style="quotaLooseStockColSettingsPop.popStyle.value"
+:columns="quotaLooseStockCols.columns.value"
+:visible-column-count="quotaLooseStockCols.visibleColumnCount.value"
+@toggle="quotaLooseStockCols.setColumnVisible"
+@move="quotaLooseStockCols.moveColumn"
+@reset="quotaLooseStockCols.resetColumns()"
+@confirm="quotaLooseStockCols.settingsOpen.value = false"
+          />
               </div>
               </template>
               <div class="ulc-table-wrap">
@@ -1774,33 +1744,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                   @click="quotaReceivingAllocCols.settingsOpen.value = !quotaReceivingAllocCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-                <div
-                  v-if="quotaReceivingAllocCols.settingsOpen.value"
-                  ref="quotaReceivingAllocColSettingsPopRef"
-                  class="ulc-col-settings-pop"
-                  :class="{ 'is-align-right': quotaReceivingAllocColSettingsPop.align.value === 'right', 'is-align-up': quotaReceivingAllocColSettingsPop.vertical.value === 'up' }"
-                  :style="quotaReceivingAllocColSettingsPop.popStyle.value"
-                >
-                  <header>
-                    <strong>列展示设置</strong>
-                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaReceivingAllocCols.resetColumns()"></SpdButton>
-                  </header>
-                  <div class="ulc-col-settings-list">
-                    <label v-for="col in quotaReceivingAllocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                      <input
-                        type="checkbox"
-                        :checked="col.visible"
-                        :disabled="col.visible && quotaReceivingAllocCols.visibleColumnCount.value <= 1"
-                        @change="quotaReceivingAllocCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                      />
-                      <span>{{ col.label }}</span>
-                      <small>{{ col.width }}px</small>
-                    </label>
-                  </div>
-                  <footer>
-                    <SpdButton label="确定" tone="primary" @click="quotaReceivingAllocCols.settingsOpen.value = false"></SpdButton>
-                  </footer>
-                </div>
+                <SpdColumnSettings
+v-if="quotaReceivingAllocCols.settingsOpen.value"
+ref="quotaReceivingAllocColSettingsPopRef"
+:class="{ 'is-align-right': quotaReceivingAllocColSettingsPop.align.value === 'right', 'is-align-up': quotaReceivingAllocColSettingsPop.vertical.value === 'up' }"
+:style="quotaReceivingAllocColSettingsPop.popStyle.value"
+:columns="quotaReceivingAllocCols.columns.value"
+:visible-column-count="quotaReceivingAllocCols.visibleColumnCount.value"
+@toggle="quotaReceivingAllocCols.setColumnVisible"
+@move="quotaReceivingAllocCols.moveColumn"
+@reset="quotaReceivingAllocCols.resetColumns()"
+@confirm="quotaReceivingAllocCols.settingsOpen.value = false"
+          />
               </div>
               </template>
               <div class="ulc-table-wrap">
@@ -2039,33 +1994,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 @click="quotaPackingTaskCols.settingsOpen.value = !quotaPackingTaskCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="quotaPackingTaskCols.settingsOpen.value"
-                ref="quotaPackingTaskColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': quotaPackingTaskColSettingsPop.align.value === 'right', 'is-align-up': quotaPackingTaskColSettingsPop.vertical.value === 'up' }"
-                :style="quotaPackingTaskColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaPackingTaskCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in quotaPackingTaskCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && quotaPackingTaskCols.visibleColumnCount.value <= 1"
-                      @change="quotaPackingTaskCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="quotaPackingTaskCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="quotaPackingTaskCols.settingsOpen.value"
+ref="quotaPackingTaskColSettingsPopRef"
+:class="{ 'is-align-right': quotaPackingTaskColSettingsPop.align.value === 'right', 'is-align-up': quotaPackingTaskColSettingsPop.vertical.value === 'up' }"
+:style="quotaPackingTaskColSettingsPop.popStyle.value"
+:columns="quotaPackingTaskCols.columns.value"
+:visible-column-count="quotaPackingTaskCols.visibleColumnCount.value"
+@toggle="quotaPackingTaskCols.setColumnVisible"
+@move="quotaPackingTaskCols.moveColumn"
+@reset="quotaPackingTaskCols.resetColumns()"
+@confirm="quotaPackingTaskCols.settingsOpen.value = false"
+          />
             </div>
             </template>
             <div class="ulc-table-wrap">
@@ -2393,33 +2333,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               @click="quotaLabelCols.settingsOpen.value = !quotaLabelCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="quotaLabelCols.settingsOpen.value"
-              ref="quotaLabelColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': quotaLabelColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelColSettingsPop.vertical.value === 'up' }"
-              :style="quotaLabelColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLabelCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in quotaLabelCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && quotaLabelCols.visibleColumnCount.value <= 1"
-                    @change="quotaLabelCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="quotaLabelCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="quotaLabelCols.settingsOpen.value"
+ref="quotaLabelColSettingsPopRef"
+:class="{ 'is-align-right': quotaLabelColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelColSettingsPop.vertical.value === 'up' }"
+:style="quotaLabelColSettingsPop.popStyle.value"
+:columns="quotaLabelCols.columns.value"
+:visible-column-count="quotaLabelCols.visibleColumnCount.value"
+@toggle="quotaLabelCols.setColumnVisible"
+@move="quotaLabelCols.moveColumn"
+@reset="quotaLabelCols.resetColumns()"
+@confirm="quotaLabelCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -2681,33 +2606,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               @click="quotaLabelEventCols.settingsOpen.value = !quotaLabelEventCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="quotaLabelEventCols.settingsOpen.value"
-              ref="quotaLabelEventColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': quotaLabelEventColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelEventColSettingsPop.vertical.value === 'up' }"
-              :style="quotaLabelEventColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaLabelEventCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in quotaLabelEventCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && quotaLabelEventCols.visibleColumnCount.value <= 1"
-                    @change="quotaLabelEventCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="quotaLabelEventCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="quotaLabelEventCols.settingsOpen.value"
+ref="quotaLabelEventColSettingsPopRef"
+:class="{ 'is-align-right': quotaLabelEventColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelEventColSettingsPop.vertical.value === 'up' }"
+:style="quotaLabelEventColSettingsPop.popStyle.value"
+:columns="quotaLabelEventCols.columns.value"
+:visible-column-count="quotaLabelEventCols.visibleColumnCount.value"
+@toggle="quotaLabelEventCols.setColumnVisible"
+@move="quotaLabelEventCols.moveColumn"
+@reset="quotaLabelEventCols.resetColumns()"
+@confirm="quotaLabelEventCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -2908,33 +2818,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
                 @click="quotaSnapshotCols.settingsOpen.value = !quotaSnapshotCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="quotaSnapshotCols.settingsOpen.value"
-                ref="quotaSnapshotColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': quotaSnapshotColSettingsPop.align.value === 'right', 'is-align-up': quotaSnapshotColSettingsPop.vertical.value === 'up' }"
-                :style="quotaSnapshotColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaSnapshotCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in quotaSnapshotCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && quotaSnapshotCols.visibleColumnCount.value <= 1"
-                      @change="quotaSnapshotCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="quotaSnapshotCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="quotaSnapshotCols.settingsOpen.value"
+ref="quotaSnapshotColSettingsPopRef"
+:class="{ 'is-align-right': quotaSnapshotColSettingsPop.align.value === 'right', 'is-align-up': quotaSnapshotColSettingsPop.vertical.value === 'up' }"
+:style="quotaSnapshotColSettingsPop.popStyle.value"
+:columns="quotaSnapshotCols.columns.value"
+:visible-column-count="quotaSnapshotCols.visibleColumnCount.value"
+@toggle="quotaSnapshotCols.setColumnVisible"
+@move="quotaSnapshotCols.moveColumn"
+@reset="quotaSnapshotCols.resetColumns()"
+@confirm="quotaSnapshotCols.settingsOpen.value = false"
+          />
             </div>
           </template>
           <div class="ulc-table-wrap">
@@ -3109,33 +3004,18 @@ const quotaSnapshotColSettingsPop = useColSettingsPopover({
               @click="quotaSafetyCols.settingsOpen.value = !quotaSafetyCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="quotaSafetyCols.settingsOpen.value"
-              ref="quotaSafetyColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': quotaSafetyColSettingsPop.align.value === 'right', 'is-align-up': quotaSafetyColSettingsPop.vertical.value === 'up' }"
-              :style="quotaSafetyColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="quotaSafetyCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in quotaSafetyCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && quotaSafetyCols.visibleColumnCount.value <= 1"
-                    @change="quotaSafetyCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="quotaSafetyCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="quotaSafetyCols.settingsOpen.value"
+ref="quotaSafetyColSettingsPopRef"
+:class="{ 'is-align-right': quotaSafetyColSettingsPop.align.value === 'right', 'is-align-up': quotaSafetyColSettingsPop.vertical.value === 'up' }"
+:style="quotaSafetyColSettingsPop.popStyle.value"
+:columns="quotaSafetyCols.columns.value"
+:visible-column-count="quotaSafetyCols.visibleColumnCount.value"
+@toggle="quotaSafetyCols.setColumnVisible"
+@move="quotaSafetyCols.moveColumn"
+@reset="quotaSafetyCols.resetColumns()"
+@confirm="quotaSafetyCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">

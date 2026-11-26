@@ -566,33 +566,18 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             @click="purchaseDemandCols.settingsOpen.value = !purchaseDemandCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="purchaseDemandCols.settingsOpen.value"
-            ref="purchaseDemandColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': purchaseDemandColSettingsPop.align.value === 'right', 'is-align-up': purchaseDemandColSettingsPop.vertical.value === 'up' }"
-            :style="purchaseDemandColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchaseDemandCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in purchaseDemandCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && purchaseDemandCols.visibleColumnCount.value <= 1"
-                  @change="purchaseDemandCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="purchaseDemandCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="purchaseDemandCols.settingsOpen.value"
+ref="purchaseDemandColSettingsPopRef"
+:class="{ 'is-align-right': purchaseDemandColSettingsPop.align.value === 'right', 'is-align-up': purchaseDemandColSettingsPop.vertical.value === 'up' }"
+:style="purchaseDemandColSettingsPop.popStyle.value"
+:columns="purchaseDemandCols.columns.value"
+:visible-column-count="purchaseDemandCols.visibleColumnCount.value"
+@toggle="purchaseDemandCols.setColumnVisible"
+@move="purchaseDemandCols.moveColumn"
+@reset="purchaseDemandCols.resetColumns()"
+@confirm="purchaseDemandCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -804,33 +789,18 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             @click="purchasePlanCols.settingsOpen.value = !purchasePlanCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="purchasePlanCols.settingsOpen.value"
-            ref="purchasePlanColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': purchasePlanColSettingsPop.align.value === 'right', 'is-align-up': purchasePlanColSettingsPop.vertical.value === 'up' }"
-            :style="purchasePlanColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchasePlanCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in purchasePlanCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && purchasePlanCols.visibleColumnCount.value <= 1"
-                  @change="purchasePlanCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="purchasePlanCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="purchasePlanCols.settingsOpen.value"
+ref="purchasePlanColSettingsPopRef"
+:class="{ 'is-align-right': purchasePlanColSettingsPop.align.value === 'right', 'is-align-up': purchasePlanColSettingsPop.vertical.value === 'up' }"
+:style="purchasePlanColSettingsPop.popStyle.value"
+:columns="purchasePlanCols.columns.value"
+:visible-column-count="purchasePlanCols.visibleColumnCount.value"
+@toggle="purchasePlanCols.setColumnVisible"
+@move="purchasePlanCols.moveColumn"
+@reset="purchasePlanCols.resetColumns()"
+@confirm="purchasePlanCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -997,33 +967,18 @@ const purchaseDemandColSettingsPop = useColSettingsPopover({
             @click="purchaseOrderCols.settingsOpen.value = !purchaseOrderCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="purchaseOrderCols.settingsOpen.value"
-            ref="purchaseOrderColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': purchaseOrderColSettingsPop.align.value === 'right', 'is-align-up': purchaseOrderColSettingsPop.vertical.value === 'up' }"
-            :style="purchaseOrderColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="purchaseOrderCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in purchaseOrderCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && purchaseOrderCols.visibleColumnCount.value <= 1"
-                  @change="purchaseOrderCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="purchaseOrderCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="purchaseOrderCols.settingsOpen.value"
+ref="purchaseOrderColSettingsPopRef"
+:class="{ 'is-align-right': purchaseOrderColSettingsPop.align.value === 'right', 'is-align-up': purchaseOrderColSettingsPop.vertical.value === 'up' }"
+:style="purchaseOrderColSettingsPop.popStyle.value"
+:columns="purchaseOrderCols.columns.value"
+:visible-column-count="purchaseOrderCols.visibleColumnCount.value"
+@toggle="purchaseOrderCols.setColumnVisible"
+@move="purchaseOrderCols.moveColumn"
+@reset="purchaseOrderCols.resetColumns()"
+@confirm="purchaseOrderCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

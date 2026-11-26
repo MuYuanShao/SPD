@@ -27,7 +27,7 @@
  *   本组件不新增视觉规范；新增的顺序按钮样式写在
  *   styles/components/spd-column-settings.css。
  */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { ChevronDown, ChevronUp } from '@lucide/vue'
 import SpdButton from './SpdButton.vue'
 import type { ListColumnConfig } from '../../composables/useListColumns'
@@ -71,10 +71,29 @@ function handleToggle(event: Event, key: string) {
   const input = event.target as HTMLInputElement
   emit('toggle', key, input.checked)
 }
+
+/* ============================================================================
+ * 暴露根 DOM 元素
+ * ----------------------------------------------------------------------------
+ * 「列设置」浮层用 useColSettingsPopover 做视口钳制，
+ * 它需要测量浮层自身的尺寸（offsetWidth）与位置。
+ * 模板 ref 绑到组件时拿到的是组件的公开实例，
+ * 因此这里显式 expose 根元素，调用方才能把它当作 HTMLElement 使用。
+ * ========================================================================== */
+const rootEl = ref<HTMLElement | null>(null)
+
+defineExpose({
+  /** 根元素（浮层面板本体） */
+  get el() {
+    return rootEl.value
+  },
+  /** 与 el 等价的兼容别名 */
+  $el: rootEl
+})
 </script>
 
 <template>
-  <div class="ulc-col-settings-pop spd-column-settings">
+  <div ref="rootEl" class="ulc-col-settings-pop spd-column-settings">
     <header>
       <strong>列展示设置</strong>
       <SpdButton label="恢复默认" variant="text" tone="neutral" @click="emit('reset')" />

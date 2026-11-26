@@ -842,33 +842,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
             @click="deptReqOrdersCols.settingsOpen.value = !deptReqOrdersCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="deptReqOrdersCols.settingsOpen.value"
-            ref="deptReqOrdersColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': deptReqOrdersColSettingsPop.align.value === 'right', 'is-align-up': deptReqOrdersColSettingsPop.vertical.value === 'up' }"
-            :style="deptReqOrdersColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqOrdersCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in deptReqOrdersCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && deptReqOrdersCols.visibleColumnCount.value <= 1"
-                  @change="deptReqOrdersCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="deptReqOrdersCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="deptReqOrdersCols.settingsOpen.value"
+ref="deptReqOrdersColSettingsPopRef"
+:class="{ 'is-align-right': deptReqOrdersColSettingsPop.align.value === 'right', 'is-align-up': deptReqOrdersColSettingsPop.vertical.value === 'up' }"
+:style="deptReqOrdersColSettingsPop.popStyle.value"
+:columns="deptReqOrdersCols.columns.value"
+:visible-column-count="deptReqOrdersCols.visibleColumnCount.value"
+@toggle="deptReqOrdersCols.setColumnVisible"
+@move="deptReqOrdersCols.moveColumn"
+@reset="deptReqOrdersCols.resetColumns()"
+@confirm="deptReqOrdersCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">
@@ -1184,33 +1169,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               @click="deptReqProductsCols.settingsOpen.value = !deptReqProductsCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="deptReqProductsCols.settingsOpen.value"
-              ref="deptReqProductsColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': deptReqProductsColSettingsPop.align.value === 'right', 'is-align-up': deptReqProductsColSettingsPop.vertical.value === 'up' }"
-              :style="deptReqProductsColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqProductsCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in deptReqProductsCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && deptReqProductsCols.visibleColumnCount.value <= 1"
-                    @change="deptReqProductsCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="deptReqProductsCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="deptReqProductsCols.settingsOpen.value"
+ref="deptReqProductsColSettingsPopRef"
+:class="{ 'is-align-right': deptReqProductsColSettingsPop.align.value === 'right', 'is-align-up': deptReqProductsColSettingsPop.vertical.value === 'up' }"
+:style="deptReqProductsColSettingsPop.popStyle.value"
+:columns="deptReqProductsCols.columns.value"
+:visible-column-count="deptReqProductsCols.visibleColumnCount.value"
+@toggle="deptReqProductsCols.setColumnVisible"
+@move="deptReqProductsCols.moveColumn"
+@reset="deptReqProductsCols.resetColumns()"
+@confirm="deptReqProductsCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1501,33 +1471,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
               @click="deptReqDetailCols.settingsOpen.value = !deptReqDetailCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="deptReqDetailCols.settingsOpen.value"
-              ref="deptReqDetailColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': deptReqDetailColSettingsPop.align.value === 'right', 'is-align-up': deptReqDetailColSettingsPop.vertical.value === 'up' }"
-              :style="deptReqDetailColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqDetailCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in deptReqDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && deptReqDetailCols.visibleColumnCount.value <= 1"
-                    @change="deptReqDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="deptReqDetailCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="deptReqDetailCols.settingsOpen.value"
+ref="deptReqDetailColSettingsPopRef"
+:class="{ 'is-align-right': deptReqDetailColSettingsPop.align.value === 'right', 'is-align-up': deptReqDetailColSettingsPop.vertical.value === 'up' }"
+:style="deptReqDetailColSettingsPop.popStyle.value"
+:columns="deptReqDetailCols.columns.value"
+:visible-column-count="deptReqDetailCols.visibleColumnCount.value"
+@toggle="deptReqDetailCols.setColumnVisible"
+@move="deptReqDetailCols.moveColumn"
+@reset="deptReqDetailCols.resetColumns()"
+@confirm="deptReqDetailCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div class="ulc-table-wrap">
@@ -1758,33 +1713,18 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
             @click="deptReqSmartCols.settingsOpen.value = !deptReqSmartCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="deptReqSmartCols.settingsOpen.value"
-            ref="deptReqSmartColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': deptReqSmartColSettingsPop.align.value === 'right', 'is-align-up': deptReqSmartColSettingsPop.vertical.value === 'up' }"
-            :style="deptReqSmartColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="deptReqSmartCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in deptReqSmartCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && deptReqSmartCols.visibleColumnCount.value <= 1"
-                  @change="deptReqSmartCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="deptReqSmartCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="deptReqSmartCols.settingsOpen.value"
+ref="deptReqSmartColSettingsPopRef"
+:class="{ 'is-align-right': deptReqSmartColSettingsPop.align.value === 'right', 'is-align-up': deptReqSmartColSettingsPop.vertical.value === 'up' }"
+:style="deptReqSmartColSettingsPop.popStyle.value"
+:columns="deptReqSmartCols.columns.value"
+:visible-column-count="deptReqSmartCols.visibleColumnCount.value"
+@toggle="deptReqSmartCols.setColumnVisible"
+@move="deptReqSmartCols.moveColumn"
+@reset="deptReqSmartCols.resetColumns()"
+@confirm="deptReqSmartCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

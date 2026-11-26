@@ -138,8 +138,13 @@ function getDisplayText(row: Row, column: DataTableColumn) {
 
 /**
  * 该列是否启用溢出提示。
- * 默认开启（长文本省略 + 悬浮显示完整文字），
- * 列定义可显式传 false 关闭。
+ *
+ * 【已废弃】用户最新要求「列表文字过长自动换行，不用省略号」，
+ * Element Plus 的 show-overflow-tooltip 会给 .cell 加上 nowrap + ellipsis，
+ * 与自动换行直接冲突，因此表格统一传入 :show-overflow-tooltip="false"，
+ * 完整文字通过原生 title 属性提示。
+ *
+ * 该 prop 保留仅为兼容既有调用方（列定义里可以继续传），不再产生效果。
  */
 function overflowTooltipEnabled(column: DataTableColumn) {
   return column.showOverflowTooltip !== false
@@ -200,7 +205,7 @@ function handleSelectAll(selection: Row[]) {
           :fixed="column.fixed"
           :align="column.align"
           :sortable="column.sortable"
-          :show-overflow-tooltip="overflowTooltipEnabled(column)"
+          :show-overflow-tooltip="false"
         >
           <template #default="{ row }">
             <slot
@@ -208,32 +213,18 @@ function handleSelectAll(selection: Row[]) {
               :row="row"
               :value="getValue(row as Row, column)"
             >
-              <!-- 纯文本列：省略号 + 悬浮提示完整文字。
-                   需求：「文字过长导致列宽无法容纳时……使用省略号，
-                   悬浮上去出现一个tip来显示完整文字就好」。
+              <!-- 纯文本列：文字过长自动换行，信息完整可读。
+                   用户最新澄清：「现在列表文字过长让它自动换行，
+                   不用省略号了，回到原本的版本」。
 
-                   三重保障，任何一层可用即可看到完整文字：
-                     1) el-tooltip —— Vue 原生方案，气泡跟随鼠标、可关闭；
-                     2) title     —— 浏览器原生 tooltip，零依赖、可访问；
-                     3) data-tip  —— 纯 CSS 气泡（见 spd-text-overflow.css）。
-
-                   省略号由 .spd-ellipsis-cell 自身负责（overflow:hidden +
-                   text-overflow:ellipsis），不依赖 .cell 的裁切，
-                   因此与 show-overflow-tooltip 的内置检测互不干扰。 -->
-              <el-tooltip
-                :content="getDisplayText(row as Row, column)"
-                placement="top"
-                :show-after="200"
-                :disabled="!overflowTooltipEnabled(column)"
+                   仍保留 title / data-tip 作为可选的悬浮提示，
+                   但**不再截断**内容 —— 换行优先于省略号。 -->
+              <span
+                class="spd-wrap-text-cell"
+                :title="getDisplayText(row as Row, column)"
               >
-                <span
-                  class="spd-ellipsis-cell"
-                  :title="getDisplayText(row as Row, column)"
-                  :data-tip="getDisplayText(row as Row, column)"
-                >
-                  {{ getDisplayText(row as Row, column) }}
-                </span>
-              </el-tooltip>
+                {{ getDisplayText(row as Row, column) }}
+              </span>
             </slot>
           </template>
         </el-table-column>
@@ -303,33 +294,39 @@ function handleSelectAll(selection: Row[]) {
   width: 100%;
 }
 
-/* 单元格文本：超长省略号 + 悬浮提示完整文字。
-   （.spd-ellipsis-cell 的全局定义见 styles/components/spd-text-overflow.css，
-     这里只补充表格布局需要的约束：让 .cell 自身也可省略，
-     避免长文本把列撑宽或横向溢出侵占相邻列。）
+/* 单元格文本：超长自动换行（回到原本版本，不省略号）。
+   用户最新澄清：「现在列表文字过长让它自动换行，
+   不用省略号了，回到原本的版本」。
 
    ⚠️ 这里用 width:100% + min-width:0 而不是 max-width:0：
      .cell 是 flex 容器，max-width:0 会把内容盒压成 0，
      导致状态条 / 按钮被挤成一条线。
 
-   ⚠️ overflow 必须保持 hidden（Element Plus 的默认行为）：
-     内置的 show-overflow-tooltip 正是靠比较
-     `.cell.scrollWidth > .cell.clientWidth` 来判断「是否溢出」，
-     一旦改成 visible，内置提示就永远不出现。
-     真正产生「…」的是 .spd-ellipsis-cell（自带 overflow:hidden），
-     .cell 的 hidden 只是兜底，防止裸文本横向侵占相邻列。
+   ⚠️ overflow 用 visible：换行后的内容不应再被裁切。
 
    ⚠️ position 保持 static（不要设 relative）：
-     data-tip 的纯 CSS 气泡是省略号元素的 ::after（绝对定位），
-     它的包含块是最近的已定位祖先。Element Plus 已给
-     `td.el-table__cell` 设了 `position: relative` 且 td 的 overflow 是 visible，
-     气泡因此能溢出 .cell 的裁切、完整显示出来。 */
+     title / data-tip 气泡的包含块是最近的已定位祖先。
+     Element Plus 已给 `td.el-table__cell` 设了 `position: relative`
+     且 td 的 overflow 是 visible，气泡因此能完整显示出来。 */
 .spd-data-table__el :deep(td.el-table__cell .cell) {
   width: 100%;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 纯文本列的内容元素：同样允许换行，信息完整可读 */
+.spd-data-table__el :deep(td.el-table__cell .cell .spd-wrap-text-cell) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .spd-data-table__el :deep(td.el-table__cell .cell > *) {

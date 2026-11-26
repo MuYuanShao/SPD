@@ -437,33 +437,18 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
               @click="hvChargeDetailCols.settingsOpen.value = !hvChargeDetailCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="hvChargeDetailCols.settingsOpen.value"
-              ref="hvChargeDetailColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': hvChargeDetailColSettingsPop.align.value === 'right', 'is-align-up': hvChargeDetailColSettingsPop.vertical.value === 'up' }"
-              :style="hvChargeDetailColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="hvChargeDetailCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in hvChargeDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && hvChargeDetailCols.visibleColumnCount.value <= 1"
-                    @change="hvChargeDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="hvChargeDetailCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="hvChargeDetailCols.settingsOpen.value"
+ref="hvChargeDetailColSettingsPopRef"
+:class="{ 'is-align-right': hvChargeDetailColSettingsPop.align.value === 'right', 'is-align-up': hvChargeDetailColSettingsPop.vertical.value === 'up' }"
+:style="hvChargeDetailColSettingsPop.popStyle.value"
+:columns="hvChargeDetailCols.columns.value"
+:visible-column-count="hvChargeDetailCols.visibleColumnCount.value"
+@toggle="hvChargeDetailCols.setColumnVisible"
+@move="hvChargeDetailCols.moveColumn"
+@reset="hvChargeDetailCols.resetColumns()"
+@confirm="hvChargeDetailCols.settingsOpen.value = false"
+          />
           </div>
           </template>
           <div ref="tableScrollRef" class="ulc-table-wrap">

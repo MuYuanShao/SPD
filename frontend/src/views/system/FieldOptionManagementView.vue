@@ -351,33 +351,18 @@ const fieldOptionColSettingsPop = useColSettingsPopover({
                 @click="fieldOptionCols.settingsOpen.value = !fieldOptionCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-              <div
-                v-if="fieldOptionCols.settingsOpen.value"
-                ref="fieldOptionColSettingsPopRef"
-                class="ulc-col-settings-pop"
-                :class="{ 'is-align-right': fieldOptionColSettingsPop.align.value === 'right', 'is-align-up': fieldOptionColSettingsPop.vertical.value === 'up' }"
-                :style="fieldOptionColSettingsPop.popStyle.value"
-              >
-                <header>
-                  <strong>列展示设置</strong>
-                  <SpdButton label="恢复默认" variant="text" tone="neutral" @click="fieldOptionCols.resetColumns()"></SpdButton>
-                </header>
-                <div class="ulc-col-settings-list">
-                  <label v-for="col in fieldOptionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                    <input
-                      type="checkbox"
-                      :checked="col.visible"
-                      :disabled="col.visible && fieldOptionCols.visibleColumnCount.value <= 1"
-                      @change="fieldOptionCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                    />
-                    <span>{{ col.label }}</span>
-                    <small>{{ col.width }}px</small>
-                  </label>
-                </div>
-                <footer>
-                  <SpdButton label="确定" tone="primary" @click="fieldOptionCols.settingsOpen.value = false"></SpdButton>
-                </footer>
-              </div>
+              <SpdColumnSettings
+v-if="fieldOptionCols.settingsOpen.value"
+ref="fieldOptionColSettingsPopRef"
+:class="{ 'is-align-right': fieldOptionColSettingsPop.align.value === 'right', 'is-align-up': fieldOptionColSettingsPop.vertical.value === 'up' }"
+:style="fieldOptionColSettingsPop.popStyle.value"
+:columns="fieldOptionCols.columns.value"
+:visible-column-count="fieldOptionCols.visibleColumnCount.value"
+@toggle="fieldOptionCols.setColumnVisible"
+@move="fieldOptionCols.moveColumn"
+@reset="fieldOptionCols.resetColumns()"
+@confirm="fieldOptionCols.settingsOpen.value = false"
+          />
             </div>
           </template>
           <template #meta-extra>

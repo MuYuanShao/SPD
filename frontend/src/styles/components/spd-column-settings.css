@@ -1,0 +1,111 @@
+/* =====================================================================
+ * SPD 列展示设置面板（Column Settings）· 全站唯一出处
+ * =====================================================================
+ * 产品诉求（硬约束）：
+ *   「列设置要加入一个调节列顺序的功能」
+ *
+ * ---------------------------------------------------------------------
+ * 【本文件提供什么】
+ *   组件：frontend/src/components/common/SpdColumnSettings.vue
+ *   面板外壳（.ulc-col-settings-pop）的视觉规则仍由
+ *   styles/list/unified-list.css 承担（那里是浮层几何的唯一出处）；
+ *   本文件只补充**列顺序调节按钮**（▲ / ▼）的样式，
+ *   以及面板内新增的布局类（.spd-column-settings__row / __label / __order /
+ *   __move），不重复定义浮层外观，避免两处规则互相覆盖。
+ *
+ * ---------------------------------------------------------------------
+ * 【列顺序按钮的交互约定】
+ *   - 每行右侧固定一对 ▲ / ▼，键盘可达（<button> + aria-label）；
+ *   - 首行的 ▲、末行的 ▼ 置灰禁用（由组件计算后传 disabled）；
+ *   - 按钮尺寸固定（22×22），不会因为列名长短而让面板宽度抖动；
+ *   - hover / focus-visible 反馈取自令牌，三套配色方案自动适配。
+ *
+ * ---------------------------------------------------------------------
+ * 【颜色规范】
+ *   全部取自 tokens/palette.css 已登记的令牌，
+ *   本文件不写任何 hex / rgb / 具名颜色。
+ * ===================================================================== */
+
+/* =====================================================================
+ * 1. 列项行：勾选项 + 标签 + 宽度 + 顺序按钮
+ * ===================================================================== */
+.spd-column-settings .spd-column-settings__row {
+  gap: 8px;
+}
+
+/* 标签：勾选框 + 列名 */
+.spd-column-settings .spd-column-settings__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+}
+
+/* 勾选框：与全站原生勾选框一致，不额外改尺寸 */
+.spd-column-settings .spd-column-settings__label input[type='checkbox'] {
+  flex: none;
+  margin: 0;
+  cursor: pointer;
+}
+
+.spd-column-settings .spd-column-settings__label input[type='checkbox']:disabled {
+  cursor: not-allowed;
+}
+
+/* 列名：过长时省略（与列项原有的 span 省略规则一致） */
+.spd-column-settings .spd-column-settings__label > span {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =====================================================================
+ * 2. 顺序按钮组
+ * ===================================================================== */
+.spd-column-settings .spd-column-settings__order {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.spd-column-settings .spd-column-settings__move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--spd-p-border);
+  border-radius: var(--spd-p-control-radius);
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text-secondary);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.spd-column-settings .spd-column-settings__move:hover:not(:disabled) {
+  border-color: var(--spd-p-primary);
+  background: var(--spd-p-primary-bg);
+  color: var(--spd-p-primary);
+}
+
+.spd-column-settings .spd-column-settings__move:focus-visible {
+  outline: 2px solid var(--spd-p-focus-ring, var(--spd-p-primary));
+  outline-offset: 1px;
+}
+
+.spd-column-settings .spd-column-settings__move:disabled {
+  border-color: transparent;
+  background: transparent;
+  color: var(--spd-p-text-muted);
+  opacity: 0.45;
+  cursor: not-allowed;
+}

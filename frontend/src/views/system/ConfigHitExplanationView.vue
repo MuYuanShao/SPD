@@ -416,33 +416,18 @@ onMounted(loadKeys)
               @click="configHitCols.settingsOpen.value = !configHitCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-            <div
-              v-if="configHitCols.settingsOpen.value"
-              ref="configHitColSettingsPopRef"
-              class="ulc-col-settings-pop"
-              :class="{ 'is-align-right': configHitColSettingsPop.align.value === 'right', 'is-align-up': configHitColSettingsPop.vertical.value === 'up' }"
-              :style="configHitColSettingsPop.popStyle.value"
-            >
-              <header>
-                <strong>列展示设置</strong>
-                <SpdButton label="恢复默认" variant="text" tone="neutral" @click="configHitCols.resetColumns()"></SpdButton>
-              </header>
-              <div class="ulc-col-settings-list">
-                <label v-for="col in configHitCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                  <input
-                    type="checkbox"
-                    :checked="col.visible"
-                    :disabled="col.visible && configHitCols.visibleColumnCount.value <= 1"
-                    @change="configHitCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                  />
-                  <span>{{ col.label }}</span>
-                  <small>{{ col.width }}px</small>
-                </label>
-              </div>
-              <footer>
-                <SpdButton label="确定" tone="primary" @click="configHitCols.settingsOpen.value = false"></SpdButton>
-              </footer>
-            </div>
+            <SpdColumnSettings
+v-if="configHitCols.settingsOpen.value"
+ref="configHitColSettingsPopRef"
+:class="{ 'is-align-right': configHitColSettingsPop.align.value === 'right', 'is-align-up': configHitColSettingsPop.vertical.value === 'up' }"
+:style="configHitColSettingsPop.popStyle.value"
+:columns="configHitCols.columns.value"
+:visible-column-count="configHitCols.visibleColumnCount.value"
+@toggle="configHitCols.setColumnVisible"
+@move="configHitCols.moveColumn"
+@reset="configHitCols.resetColumns()"
+@confirm="configHitCols.settingsOpen.value = false"
+          />
           </div>
         </template>
         <template #meta-extra>

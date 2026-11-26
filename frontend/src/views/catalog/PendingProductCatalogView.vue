@@ -35,7 +35,7 @@ import {
   type PendingProductTypeCount
 } from '../../api/pendingProductApplications'
 import type { PartnerOption } from '../../api/masterData'
-import { useNotify } from '../../composables/useNotify'
+import { useNotify, notifyError } from '../../composables/useNotify'
 import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
 
 const notify = useNotify()
@@ -175,7 +175,8 @@ async function searchSourceProducts() {
     const page = await fetchPendingProductSourceProducts(sourceKeyword.value)
     sourceRows.value = page.rows
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '医院目录商品搜索失败'
+    // 请求失败统一以 Element Plus message 抛出，不在页面上内联渲染
+    notifyError(err instanceof Error ? err.message : '医院目录商品搜索失败')
     sourceRows.value = []
   } finally {
     sourceLoading.value = false
@@ -191,7 +192,8 @@ async function selectSourceProduct(row: PendingProductSourceRow) {
     sourceKeyword.value = `${row.productCode} ${row.productName}`
     sourceRows.value = []
   } catch (err) {
-    message.value = err instanceof Error ? err.message : '医院目录商品详情加载失败'
+    // 请求失败统一以 Element Plus message 抛出，不在页面上内联渲染
+    notifyError(err instanceof Error ? err.message : '医院目录商品详情加载失败')
   }
 }
 
@@ -273,7 +275,6 @@ function handleOutsideClick(e: MouseEvent) {
 }
 
 async function handleCreateSubmit() {
-  notify.success('')
   if (!isNewApplication.value && !sourceSelected.value) {
     notify.warning('请先搜索并选择医院目录商品')
     return
@@ -285,7 +286,9 @@ async function handleCreateSubmit() {
     if (text.includes('商品目录已存在')) {
       duplicateAlertVisible.value = true
     } else {
-      message.value = text || '提交失败，请稍后重试'
+      // 失败信息由 submitCreateForm 通过 Element Plus message 抛出，
+      // 这里不再往页面上写 message（避免页面上再显示一条内联消息）。
+      if (text) notify.error(text)
     }
   }
 }
@@ -697,7 +700,11 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
       </aside>
 
       <main class="approval-list-card">
-        <StatusMessage :message="message" tone="info" />
+        <!-- 【说明】原先这里渲染 <StatusMessage :message="message" />，
+             把「新增成功 / 导入结果 / 批量审批结果」直接显示在页面上。
+             现在这些结果统一改为 Element Plus message 弹层提示
+             （见 composables/useNotify.ts 的 notifySuccess / notifyError），
+             不再占用页面布局、也不会把内容挤到列表上方。 -->
 
         <!-- 筛选区：统一使用 SpdFilterBar（与全站筛选标准规则一致） -->
         <SpdFilterBar @submit="currentPage = 1; loadApplications()" @reset="resetApprovalFilter">
@@ -771,33 +778,18 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-                <div
-                  v-if="approvalCols.settingsOpen.value"
-                  ref="approvalColSettingsPopRef"
-                  class="ulc-col-settings-pop"
-                  :class="{ 'is-align-right': approvalColSettingsPop.align.value === 'right', 'is-align-up': approvalColSettingsPop.vertical.value === 'up' }"
-                  :style="approvalColSettingsPop.popStyle.value"
-                >
-                  <header>
-                    <strong>列展示设置</strong>
-                    <SpdButton label="恢复默认" variant="text" tone="neutral" @click="approvalCols.resetColumns()"></SpdButton>
-                  </header>
-                  <div class="ulc-col-settings-list">
-                    <label v-for="col in approvalCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                      <input
-                        type="checkbox"
-                        :checked="col.visible"
-                        :disabled="col.visible && approvalCols.visibleColumnCount.value <= 1"
-                        @change="approvalCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                      />
-                      <span>{{ col.label }}</span>
-                      <small>{{ col.width }}px</small>
-                    </label>
-                  </div>
-                  <footer>
-                    <SpdButton label="确定" tone="primary" @click="approvalCols.settingsOpen.value = false"></SpdButton>
-                  </footer>
-                </div>
+                <SpdColumnSettings
+v-if="approvalCols.settingsOpen.value"
+ref="approvalColSettingsPopRef"
+:class="{ 'is-align-right': approvalColSettingsPop.align.value === 'right', 'is-align-up': approvalColSettingsPop.vertical.value === 'up' }"
+:style="approvalColSettingsPop.popStyle.value"
+:columns="approvalCols.columns.value"
+:visible-column-count="approvalCols.visibleColumnCount.value"
+@toggle="approvalCols.setColumnVisible"
+@move="approvalCols.moveColumn"
+@reset="approvalCols.resetColumns()"
+@confirm="approvalCols.settingsOpen.value = false"
+          />
               </div>
             </div>
           </template>

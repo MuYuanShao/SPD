@@ -705,6 +705,9 @@ export function useListColumns(options: UseListColumnsOptions) {
     column.visible = visible
     persist()
     syncLayout()
+    // 显隐会改变表格里实际存在的列集合（Vue 用 v-if 增删 <el-table-column>），
+    // 因此隐藏/显示之后必须重新落一次顺序，否则新插入的列会回到模板声明位置。
+    scheduleOrderSync()
   }
 
   function resetColumns() {
@@ -715,6 +718,7 @@ export function useListColumns(options: UseListColumnsOptions) {
     columns.value = options.defaults.map((item) => ({ ...item, manual: false }))
     persist()
     syncLayout()
+    scheduleOrderSync()
   }
 
   /**
@@ -737,6 +741,7 @@ export function useListColumns(options: UseListColumnsOptions) {
     columns.value = list
     persist()
     syncLayout()
+    scheduleOrderSync()
   }
 
   /**
@@ -753,6 +758,193 @@ export function useListColumns(options: UseListColumnsOptions) {
     columns.value = list
     persist()
     syncLayout()
+    scheduleOrderSync()
+  }
+
+  /* ==================================================================
+   * 渲染顺序同步 —— 让**表格真正渲染出来的列顺序**跟随存储顺序
+   * ==================================================================
+   * 【问题】
+   *   各列表页的模板里，<el-table-column> 是**逐个写死**的，
+   *   因此表格的列顺序 = 模板书写顺序。
+   *   列设置面板里调了顺序（存在 columns 数组的顺序里），
+   *   但**渲染出来的表头不会跟着动** —— 面板改了顺序却看不出效果。
+   *
+   * 【Element Plus 的列顺序是怎么决定的】
+   *   见 element-plus/es/components/table/src：
+   *   - 每个 <el-table-column> 在表格内部渲染一个占位 <div>，
+   *     这些占位元素是 `.hidden-columns` 容器的**直接子节点**；
+   *   - store.sortColumn() 用 `getColumnIndex()` =
+   *     `占位 div 在 .hidden-columns.children 里的下标` 作为列的 `no`，
+   *     然后按 `no` 升序排序；
+   *   - 表头 <th> 由 `store.states.originColumns` 渲染，
+   *     因此**列顺序 = 占位 div 的 DOM 顺序**。
+   *
+   * 【本实现的做法】
+   *   1) 按存储顺序算出「目标顺序」；
+   *   2) 把 .hidden-columns 里的占位 div 重排成目标顺序（DOM 手术）；
+   *   3) 提交 store 的 updateColumnOrder，让 Element Plus 重新按
+   *      新的 DOM 下标排序并重绘表头 / 表体。
+   *
+   * 【为什么不用「把模板改成 v-for」】
+   *   26 个列表页的 <el-table-column> 各带不同的插槽、表头、宽度绑定，
+   *   改成数据驱动的工作量与风险都很大；而本方案集中在一个 composable 里，
+   *   对所有页面一次性生效，且**不改变任何模板**：
+   *   列宽拖拽、显隐、columnBinding、固定列、操作列、
+   *   window.__ulcDebug 调试钩子全部原样保留。
+   *
+   * 【健壮性】
+   *   - 列显隐会增删 <el-table-column>（v-if），
+   *     新插入的占位 div 会回到模板位置 → 因此每次显隐后都要重新落一次顺序；
+   *   - 表格数据异步到达后才渲染 → 用 MutationObserver 兜底重排；
+   *   - 任何一步失败都静默降级为「保持模板顺序」，不影响页面可用性。
+   * ================================================================== */
+
+  /** 取表格组件实例（Element Plus 的 expose 代理） */
+  function resolveTableInstance(): any {
+    try {
+      return tableRef.value ?? null
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * 取表格内部 store。
+   *
+   * Element Plus 的 el-table 通过 expose() 暴露 store，
+   * 模板 ref 拿到的是 exposeProxy（proxy.store 可用）；
+   * 但不同版本 / 不同挂载时机下 proxy 上不一定有 store，
+   * 因此这里按「代理 → 内部实例 → DOM 反查内部实例」逐级兜底。
+   */
+  function resolveTableStore(table: any): any {
+    const candidates = [
+      () => table?.store,
+      () => table?.$el?.__vueParentComponent?.exposed?.store,
+      () => table?.$el?.__vueParentComponent?.store
+    ]
+    for (const pick of candidates) {
+      try {
+        const store = pick()
+        if (store && store.states) return store
+      } catch {
+        /* 继续尝试下一个 */
+      }
+    }
+    return null
+  }
+
+  /**
+   * 取 .hidden-columns 容器（每个 <el-table-column> 的占位 div 的父节点）。
+   * 该容器在表格模板里以 ref="hiddenColumns" 暴露，
+   * 但未包含在 expose() 列表里，因此统一从 DOM 反查。
+   */
+  function resolveHiddenColumns(table: any): HTMLElement | null {
+    const candidates = [
+      () => table?.refs?.hiddenColumns,
+      () => table?.$el?.__vueParentComponent?.refs?.hiddenColumns,
+      () => table?.$el?.querySelector?.('.hidden-columns')
+    ]
+    for (const pick of candidates) {
+      try {
+        const el = pick()
+        if (el && el.children) return el as HTMLElement
+      } catch {
+        /* 继续尝试下一个 */
+      }
+    }
+    return null
+  }
+
+  /**
+   * 把 .hidden-columns 里的占位 div 重排成存储顺序，并让表格重绘。
+   * @returns 是否真的发生了重排（false 表示无需重排或失败降级）
+   */
+  function applyRenderedOrder(): boolean {
+    const table = resolveTableInstance()
+    if (!table) return false
+
+    const store = resolveTableStore(table)
+    if (!store) return false
+
+    // 1) 取当前表格里真实存在的列配置（按模板顺序）
+    let storeColumns: Array<{ id: string; columnKey?: string; no?: number }> = []
+    try {
+      const list = store.states?._columns?.value
+      if (Array.isArray(list)) storeColumns = list
+    } catch {
+      return false
+    }
+    if (!storeColumns.length) return false
+
+    // 2) 取占位 div（与 storeColumns 一一对应，顺序相同）
+    const hidden = resolveHiddenColumns(table)
+    if (!hidden) return false
+    let placeholders: Element[] = []
+    try {
+      placeholders = Array.from(hidden.children)
+    } catch {
+      return false
+    }
+    if (placeholders.length !== storeColumns.length) return false
+
+    // 3) 算目标顺序：
+    //    存储顺序里的**可见列**在前，未登记的列保持原相对次序排在后面。
+    //    （隐藏列的占位 div 此刻并不在表里，v-if 为 false 时组件没挂载。）
+    const visibleKeys = visibleColumns.value.map((column) => column.key)
+    const keyOf = (column: { columnKey?: string }) => column.columnKey ?? ''
+    const rankOf = new Map<string, number>()
+    visibleKeys.forEach((key, index) => rankOf.set(key, index))
+
+    const decorated = storeColumns.map((column, index) => ({
+      column,
+      index,
+      rank: rankOf.has(keyOf(column)) ? rankOf.get(keyOf(column))! : Number.MAX_SAFE_INTEGER
+    }))
+    const sorted = decorated.slice().sort((a, b) => {
+      if (a.rank !== b.rank) return a.rank - b.rank
+      return a.index - b.index
+    })
+
+    // 已经就是目标顺序 → 无需动手
+    if (sorted.every((item, index) => item.index === index)) return false
+
+    // 4) DOM 手术：把占位 div 按目标顺序重排
+    try {
+      const parent = placeholders[0].parentElement
+      if (!parent) return false
+      sorted.forEach((item, targetIndex) => {
+        const el = placeholders[item.index]
+        const current = parent.children[targetIndex]
+        if (current !== el) parent.insertBefore(el, current ?? null)
+      })
+    } catch {
+      return false
+    }
+
+    // 5) 让 Element Plus 重新按新的 DOM 下标排序并重绘表头 / 表体
+    try {
+      const moved = sorted.find((item, index) => item.index !== index)
+      if (moved) store.commit('updateColumnOrder', moved.column)
+      store.updateColumns?.()
+    } catch {
+      /* 重绘失败不影响数据，忽略 */
+    }
+    return true
+  }
+
+  /** 顺序同步的调度器：合并同一帧内的多次请求 */
+  let orderSyncHandle: number | null = null
+  function scheduleOrderSync() {
+    if (orderSyncHandle !== null) return
+    const schedule =
+      typeof requestAnimationFrame === 'function'
+        ? requestAnimationFrame
+        : (cb: FrameRequestCallback) => window.setTimeout(() => cb(0), 16) as unknown as number
+    orderSyncHandle = schedule(() => {
+      orderSyncHandle = null
+      applyRenderedOrder()
+    })
   }
 
   function syncLayout() {
@@ -964,6 +1156,8 @@ export function useListColumns(options: UseListColumnsOptions) {
     nextTick(() => {
       measureContainer()
       syncLayout()
+      // 表格挂载后把存储顺序落到实际渲染顺序上
+      scheduleOrderSync()
     })
     // 存在「填充」列时，即使 fixed 模式也要观察容器宽度变化：
     // 填充列的宽度随容器宽度变化，需要重新计算才能持续铺满 100%。
@@ -991,6 +1185,9 @@ export function useListColumns(options: UseListColumnsOptions) {
           observe()
           measureContainer()
           syncLayout()
+          // 表格结构变化（列增删 / 首次渲染）后重新落一次列顺序，
+          // 保证「显隐一列」之后顺序依旧正确。
+          scheduleOrderSync()
         })
         mutationObserver.observe(document.body, { childList: true, subtree: true })
       }
@@ -1003,6 +1200,11 @@ export function useListColumns(options: UseListColumnsOptions) {
     resizeObserver = null
     mutationObserver?.disconnect()
     mutationObserver = null
+    if (orderSyncHandle !== null) {
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(orderSyncHandle)
+      else window.clearTimeout(orderSyncHandle)
+      orderSyncHandle = null
+    }
     window.removeEventListener('resize', handleWindowResize)
   })
 
@@ -1027,6 +1229,13 @@ export function useListColumns(options: UseListColumnsOptions) {
     syncLayout,
     measureContainer,
     startColumnDrag,
-    handleHeaderDragEnd
+    handleHeaderDragEnd,
+    /**
+     * 把存储顺序落到**实际渲染顺序**（重排表格占位节点 + 触发重绘）。
+     * 调序 / 显隐 / 恢复默认之后自动调用，也可由页面在表格重绘后手动调用。
+     */
+    applyRenderedOrder,
+    /** 合并同一帧内的多次顺序同步请求 */
+    scheduleOrderSync
   }
 }

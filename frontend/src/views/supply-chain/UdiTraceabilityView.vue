@@ -718,33 +718,18 @@ const udiTraceColSettingsPop = useColSettingsPopover({
             @click="udiTraceCols.settingsOpen.value = !udiTraceCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
-          <div
-            v-if="udiTraceCols.settingsOpen.value"
-            ref="udiTraceColSettingsPopRef"
-            class="ulc-col-settings-pop"
-            :class="{ 'is-align-right': udiTraceColSettingsPop.align.value === 'right', 'is-align-up': udiTraceColSettingsPop.vertical.value === 'up' }"
-            :style="udiTraceColSettingsPop.popStyle.value"
-          >
-            <header>
-              <strong>列展示设置</strong>
-              <SpdButton label="恢复默认" variant="text" tone="neutral" @click="udiTraceCols.resetColumns()"></SpdButton>
-            </header>
-            <div class="ulc-col-settings-list">
-              <label v-for="col in udiTraceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
-                <input
-                  type="checkbox"
-                  :checked="col.visible"
-                  :disabled="col.visible && udiTraceCols.visibleColumnCount.value <= 1"
-                  @change="udiTraceCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
-                />
-                <span>{{ col.label }}</span>
-                <small>{{ col.width }}px</small>
-              </label>
-            </div>
-            <footer>
-              <SpdButton label="确定" tone="primary" @click="udiTraceCols.settingsOpen.value = false"></SpdButton>
-            </footer>
-          </div>
+          <SpdColumnSettings
+v-if="udiTraceCols.settingsOpen.value"
+ref="udiTraceColSettingsPopRef"
+:class="{ 'is-align-right': udiTraceColSettingsPop.align.value === 'right', 'is-align-up': udiTraceColSettingsPop.vertical.value === 'up' }"
+:style="udiTraceColSettingsPop.popStyle.value"
+:columns="udiTraceCols.columns.value"
+:visible-column-count="udiTraceCols.visibleColumnCount.value"
+@toggle="udiTraceCols.setColumnVisible"
+@move="udiTraceCols.moveColumn"
+@reset="udiTraceCols.resetColumns()"
+@confirm="udiTraceCols.settingsOpen.value = false"
+          />
         </div>
         </template>
         <div class="ulc-table-wrap">

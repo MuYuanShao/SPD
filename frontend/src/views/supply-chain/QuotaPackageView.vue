@@ -26,7 +26,6 @@ import {
   Upload,
   X
 } from '@lucide/vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import TableStateRow from '../../components/common/TableStateRow.vue'
 import { useAuthStore } from '../../stores/auth'
 import { fetchMasterDataPage } from '../../api/masterData'
@@ -57,6 +56,16 @@ import {
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
 import QuotaProductSelectorDialog from '../../components/supply-chain/QuotaProductSelectorDialog.vue'
 import QuotaSafetyDialog from '../../components/supply-chain/QuotaSafetyDialog.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  ChevronDown
+} from '@lucide/vue'
 import QuotaTemplateSelectorDialog from '../../components/supply-chain/QuotaTemplateSelectorDialog.vue'
 
 const route = useRoute()
@@ -85,13 +94,6 @@ const labels = ref<PackageLabelRow[]>([])
 const events = ref<Record<string, unknown>[]>([])
 const warehouses = ref<Array<{ warehouseName: string; warehouseType: string }>>([])
 const candidates = ref<Array<Record<string, unknown>>>([])
-const snapshotColumns = ref([
-  { key: 'warehouseName', label: '库房', visible: true }, { key: 'productCode', label: '商品编码', visible: true },
-  { key: 'productName', label: '商品名称', visible: true }, { key: 'systemBatchNo', label: '系统批次', visible: true },
-  { key: 'productionBatchNo', label: '生产批号', visible: true }, { key: 'expireDate', label: '有效期', visible: true },
-  { key: 'batchUnitPrice', label: '批次单价', visible: true }, { key: 'availableQty', label: '可用数量', visible: true }
-])
-const visibleSnapshotColumns = computed(() => snapshotColumns.value.filter(column => column.visible))
 const selectedTaskNo = ref('')
 const taskReservations = ref<Record<string, unknown>[]>([])
 const taskLoading = ref(false)
@@ -450,10 +452,7 @@ function resetEventQuery() {
   loadData()
 }
 
-/* ===== 可打包散货快照：列配置 + 有效期预警 + 数值格式化 ===== */
-
-/** 显示列面板展开状态（用于收起后收起浮层） */
-const columnPanelOpen = ref(false)
+/* ===== 可打包散货快照：有效期预警 + 数值格式化 ===== */
 
 /** 查询散货快照：回到第一页再加载 */
 function onSnapshotQuery() {
@@ -475,11 +474,6 @@ function resetSnapshotQuery() {
   query.warehouseName = ''
   quotaPagination.candidates.page = 1
   loadData()
-}
-
-/** 关闭显示列面板时同步状态，避免浮层残留 */
-function onColumnPanelToggle(event: Event) {
-  columnPanelOpen.value = (event.target as HTMLDetailsElement).open
 }
 
 /** 固定列的对齐方式：金额与数量右对齐，其余左对齐 */
@@ -767,10 +761,387 @@ watch(
     safetyCatalogPagination.page = 1
   }
 )
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTASAFETY_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'deptName', label: '科室', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 210 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'templateCode', label: '模板编码', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 230 },
+  { key: 'templateName', label: '模板名称', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'safetyRange', label: '安全区间', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 230 },
+  { key: 'lowerLimit', label: '下限', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'upperLimit', label: '上限', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'updateTime', label: '更新时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const quotaSafetyCols = useListColumns({
+  storageKey: 'spd-quota-safety-cols-v1',
+  defaults: QUOTASAFETY_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaSafetyTableRef = quotaSafetyCols.tableRef
+const isQuotaSafetyColVisible = (key: string) => quotaSafetyCols.isColumnVisible(key)
+const quotaSafetyColBinding = (key: string) => quotaSafetyCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const quotaSafetyActionFix = useActionColumnFix()
+const quotaSafetyActionFixed = computed(() => quotaSafetyActionFix.actionFixedBinding.value)
+
+watch(
+  [quotaSafetyTableRef],
+  () => {
+    quotaSafetyActionFix.observe(quotaSafetyTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaSafetyColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaSafetyColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaSafetyColSettingsPop = useColSettingsPopover({
+  open: quotaSafetyCols.settingsOpen,
+  anchorRef: quotaSafetyColSettingsAnchorRef,
+  popRef: quotaSafetyColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTALABELEVENT_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'eventNo', label: '事件号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'labelNo', label: '标签号', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'eventType', label: '事件类型', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'statusChange', label: '状态变更', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'qtyChange', label: '数量变化', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'eventTime', label: '发生时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'remark', label: '备注', width: 220, visible: true, weight: 6, minWidth: 140, maxWidth: 380, fill: true }
+]
+
+const quotaLabelEventCols = useListColumns({
+  storageKey: 'spd-quota-label-event-cols-v1',
+  defaults: QUOTALABELEVENT_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaLabelEventTableRef = quotaLabelEventCols.tableRef
+const isQuotaLabelEventColVisible = (key: string) => quotaLabelEventCols.isColumnVisible(key)
+const quotaLabelEventColBinding = (key: string) => quotaLabelEventCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaLabelEventColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaLabelEventColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaLabelEventColSettingsPop = useColSettingsPopover({
+  open: quotaLabelEventCols.settingsOpen,
+  anchorRef: quotaLabelEventColSettingsAnchorRef,
+  popRef: quotaLabelEventColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTALABEL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'labelNo', label: '标签号', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'template', label: '模板', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'packageQty', label: '包数量', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'sourceBatch', label: '来源批次', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'printCount', label: '打印次数', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'generateTime', label: '生成时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const quotaLabelCols = useListColumns({
+  storageKey: 'spd-quota-label-cols-v1',
+  defaults: QUOTALABEL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaLabelTableRef = quotaLabelCols.tableRef
+const isQuotaLabelColVisible = (key: string) => quotaLabelCols.isColumnVisible(key)
+const quotaLabelColBinding = (key: string) => quotaLabelCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const quotaLabelActionFix = useActionColumnFix()
+const quotaLabelActionFixed = computed(() => quotaLabelActionFix.actionFixedBinding.value)
+
+watch(
+  [quotaLabelTableRef],
+  () => {
+    quotaLabelActionFix.observe(quotaLabelTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaLabelColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaLabelColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaLabelColSettingsPop = useColSettingsPopover({
+  open: quotaLabelCols.settingsOpen,
+  anchorRef: quotaLabelColSettingsAnchorRef,
+  popRef: quotaLabelColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTAPACKINGTASK_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'taskNo', label: '任务号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'template', label: '模板', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'packageCount', label: '包数', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'qtyPerPackage', label: '每包数量', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'planDeduct', label: '计划扣减散货', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'reservedQty', label: '预占散货', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 260 }
+]
+
+const quotaPackingTaskCols = useListColumns({
+  storageKey: 'spd-quota-packing-task-cols-v1',
+  defaults: QUOTAPACKINGTASK_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaPackingTaskTableRef = quotaPackingTaskCols.tableRef
+const isQuotaPackingTaskColVisible = (key: string) => quotaPackingTaskCols.isColumnVisible(key)
+const quotaPackingTaskColBinding = (key: string) => quotaPackingTaskCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const quotaPackingTaskActionFix = useActionColumnFix()
+const quotaPackingTaskActionFixed = computed(() => quotaPackingTaskActionFix.actionFixedBinding.value)
+
+watch(
+  [quotaPackingTaskTableRef],
+  () => {
+    quotaPackingTaskActionFix.observe(quotaPackingTaskTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaPackingTaskColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaPackingTaskColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaPackingTaskColSettingsPop = useColSettingsPopover({
+  open: quotaPackingTaskCols.settingsOpen,
+  anchorRef: quotaPackingTaskColSettingsAnchorRef,
+  popRef: quotaPackingTaskColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTARECEIVINGALLOC_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'acceptanceNo', label: '验收单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'systemBatch', label: '系统批号', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productionBatch', label: '生产批次', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'allocatedQty', label: '已分配', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'unitPrice', label: '单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150, fill: true }
+]
+
+const quotaReceivingAllocCols = useListColumns({
+  storageKey: 'spd-quota-receiving-alloc-cols-v1',
+  defaults: QUOTARECEIVINGALLOC_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaReceivingAllocTableRef = quotaReceivingAllocCols.tableRef
+const isQuotaReceivingAllocColVisible = (key: string) => quotaReceivingAllocCols.isColumnVisible(key)
+const quotaReceivingAllocColBinding = (key: string) => quotaReceivingAllocCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaReceivingAllocColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaReceivingAllocColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaReceivingAllocColSettingsPop = useColSettingsPopover({
+  open: quotaReceivingAllocCols.settingsOpen,
+  anchorRef: quotaReceivingAllocColSettingsAnchorRef,
+  popRef: quotaReceivingAllocColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTALOOSESTOCK_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'product', label: '商品', width: 200, visible: true, weight: 6, minWidth: 140, maxWidth: 340 },
+  { key: 'systemBatch', label: '系统批号', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productionBatch', label: '生产批次', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'availableQty', label: '可用散货', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'batchPrice', label: '批次单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'unit', label: '单位', width: 90, visible: true, weight: 1, minWidth: 70, maxWidth: 120, fill: true }
+]
+
+const quotaLooseStockCols = useListColumns({
+  storageKey: 'spd-quota-loose-stock-cols-v1',
+  defaults: QUOTALOOSESTOCK_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaLooseStockTableRef = quotaLooseStockCols.tableRef
+const isQuotaLooseStockColVisible = (key: string) => quotaLooseStockCols.isColumnVisible(key)
+const quotaLooseStockColBinding = (key: string) => quotaLooseStockCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaLooseStockColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaLooseStockColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaLooseStockColSettingsPop = useColSettingsPopover({
+  open: quotaLooseStockCols.settingsOpen,
+  anchorRef: quotaLooseStockColSettingsAnchorRef,
+  popRef: quotaLooseStockColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const QUOTATEMPLATE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '', width: 60, visible: true, weight: 1, minWidth: 48, maxWidth: 80 },
+  { key: 'templateCode', label: '模板编码', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 230 },
+  { key: 'templateName', label: '模板名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 210 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'spec', label: '规格', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'manufacturer', label: '厂家', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 280 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, weight: 4, minWidth: 120, maxWidth: 270 },
+  { key: 'version', label: '版本', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'packageQty', label: '包装数量', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'packageUnitPrice', label: '套包参考单价', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'status', label: '状态', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 180, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
+]
+
+const quotaTemplateCols = useListColumns({
+  storageKey: 'spd-quota-template-cols-v1',
+  defaults: QUOTATEMPLATE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaTemplateTableRef = quotaTemplateCols.tableRef
+const isQuotaTemplateColVisible = (key: string) => quotaTemplateCols.isColumnVisible(key)
+const quotaTemplateColBinding = (key: string) => quotaTemplateCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const quotaTemplateActionFix = useActionColumnFix()
+const quotaTemplateActionFixed = computed(() => quotaTemplateActionFix.actionFixedBinding.value)
+
+watch(
+  [quotaTemplateTableRef],
+  () => {
+    quotaTemplateActionFix.observe(quotaTemplateTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaTemplateColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaTemplateColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaTemplateColSettingsPop = useColSettingsPopover({
+  open: quotaTemplateCols.settingsOpen,
+  anchorRef: quotaTemplateColSettingsAnchorRef,
+  popRef: quotaTemplateColSettingsPopRef
+})
+
+/* ===== 统一列表：可打包散货快照（动态列） ===== */
+const QUOTASNAPSHOT_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productCode', label: '商品编码', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 210 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'systemBatchNo', label: '系统批次', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productionBatchNo', label: '生产批号', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'expireDate', label: '有效期', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'batchUnitPrice', label: '批次单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'availableQty', label: '可用数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160, fill: true }
+]
+
+const quotaSnapshotCols = useListColumns({
+  storageKey: 'spd-quota-snapshot-cols-v1',
+  defaults: QUOTASNAPSHOT_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const quotaSnapshotTableRef = quotaSnapshotCols.tableRef
+
+/** 快照列的列宽绑定（hybrid 铺满 + 拖拽持久化） */
+const quotaSnapshotColBinding = (key: string) => quotaSnapshotCols.columnBinding(key)
+
+/** 当前可见的快照列（列设置里勾选的列） */
+const quotaSnapshotVisibleColumns = computed(() =>
+  quotaSnapshotCols.columns.value.filter((column) => column.visible)
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const quotaSnapshotColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const quotaSnapshotColSettingsPopRef = ref<HTMLElement | null>(null)
+const quotaSnapshotColSettingsPop = useColSettingsPopover({
+  open: quotaSnapshotCols.settingsOpen,
+  anchorRef: quotaSnapshotColSettingsAnchorRef,
+  popRef: quotaSnapshotColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="md-partner-page quota-package-page">
+<template><section class="md-partner-page quota-package-page spd-unified-list">
     <!-- 全局横幅已移除：所有操作反馈统一走 ElMessage（失败/警告）
          或当前子菜单的就地提示条（成功），不会跨菜单残留。 -->
     <div v-if="loadError" class="pt-load-error">
@@ -880,141 +1251,311 @@ watch(
             </button>
             <input ref="importInput" class="tpl-file-input" type="file" accept=".csv" @change="handleTemplateImport" />
           </div>
-          <div class="tpl-toolbar-info">
-            <span class="tpl-chip">共 {{ quotaPagination.templates.total }} 条</span>
-            <span v-if="selectedTemplateCodes.length" class="tpl-chip is-primary">
-              已选 {{ selectedTemplateCodes.length }} 条
-            </span>
-          </div>
         </div>
 
-        <div class="tpl-scroll">
-          <table class="tpl-table">
-            <thead>
-              <tr>
-                <th class="tpl-col-select">
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="quotaTemplateColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="quotaTemplateCols.settingsOpen.value = !quotaTemplateCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: quotaTemplateCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="quotaTemplateCols.settingsOpen.value"
+              ref="quotaTemplateColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': quotaTemplateColSettingsPop.align.value === 'right', 'is-align-up': quotaTemplateColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': quotaTemplateColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaTemplateColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="quotaTemplateCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in quotaTemplateCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && quotaTemplateCols.visibleColumnCount.value <= 1"
+                    @change="quotaTemplateCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="quotaTemplateCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <template #meta-extra>
+            <span class="md-chip primary">共 {{ quotaPagination.templates.total }} 条</span>
+            <span v-if="selectedTemplateCodes.length" class="md-chip primary">
+              已选 {{ selectedTemplateCodes.length }} 条
+            </span>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="quotaTemplateTableRef"
+              :data="templates"
+              row-key="templateId"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无符合条件的定数包模板'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => quotaTemplateCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="selection"
+                v-if="isQuotaTemplateColVisible('selection')"
+                label=""
+                v-bind="quotaTemplateColBinding('selection')"
+              >
+                <template #header>
                   <input
                     type="checkbox"
                     :checked="allTemplatesSelected"
                     aria-label="选择当前页全部模板"
                     @change="toggleAllTemplates"
                   />
-                </th>
-                <th class="tpl-col-code">模板编码</th>
-                <th>模板名称</th>
-                <th class="tpl-col-code">商品编码</th>
-                <th>商品名称</th>
-                <th class="tpl-col-spec">规格</th>
-                <th>厂家</th>
-                <th>供应商</th>
-                <th class="tpl-col-version">版本</th>
-                <th class="tpl-col-qty">包装数量</th>
-                <th>套包参考单价</th>
-                <th class="tpl-col-status">状态</th>
-                <th>创建时间</th>
-                <th>修改时间</th>
-                <th class="tpl-col-actions">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableStateRow v-if="loading" :colspan="15" state="loading" message="正在加载定数包模板..." />
-              <TableStateRow v-else-if="templates.length === 0" :colspan="15" message="暂无符合条件的定数包模板" />
-              <tr
-                v-for="row in templates"
-                v-else
-                :key="row.templateId"
-                class="tpl-row"
-                :class="{ 'is-selected': selectedTemplateCodes.includes(row.templateCode) }"
-              >
-                <td class="tpl-col-select">
+                </template>
+                <template #default="{ row }">
                   <input v-model="selectedTemplateCodes" type="checkbox" :value="row.templateCode" :aria-label="`选择模板 ${row.templateCode}`" />
-                </td>
-                <td class="tpl-col-code">
-                  <span class="tpl-code">{{ row.templateCode }}</span>
-                </td>
-                <td :title="String(row.templateName)">
-                  <div class="tpl-main">{{ row.templateName }}</div>
-                </td>
-                <td class="tpl-col-code">
-                  <span class="tpl-code">{{ row.productCode }}</span>
-                </td>
-                <td>
-                  <div class="tpl-main">{{ row.productName }}</div>
-                </td>
-                <td class="tpl-col-spec">{{ row.specModel || '-' }}</td>
-                <td>{{ row.manufacturerName || '-' }}</td>
-                <td>{{ row.supplierName || '-' }}</td>
-                <td class="tpl-col-version">
-                  <span class="tpl-version">V{{ row.versionNo || 1 }}</span>
-                  <span v-if="row.currentVersion" class="tpl-version-current">当前</span>
-                </td>
-                <td class="tpl-col-qty">
-                  <span class="tpl-qty">{{ formatTemplateQty(row.quantity) }}</span>
-                  <span v-if="row.unit" class="tpl-qty-unit">{{ row.unit }}</span>
-                </td>
-                <td>{{ row.packageUnitPrice == null ? '-' : `¥ ${Number(row.packageUnitPrice).toFixed(4)}` }}</td>
-                <td class="tpl-col-status">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="templateCode"
+                v-if="isQuotaTemplateColVisible('templateCode')"
+                label="模板编码"
+                v-bind="quotaTemplateColBinding('templateCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text tpl-code">{{ row.templateCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="templateName"
+                v-if="isQuotaTemplateColVisible('templateName')"
+                label="模板名称"
+                v-bind="quotaTemplateColBinding('templateName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text tpl-main">{{ row.templateName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isQuotaTemplateColVisible('productCode')"
+                label="商品编码"
+                v-bind="quotaTemplateColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text tpl-code">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isQuotaTemplateColVisible('productName')"
+                label="商品名称"
+                v-bind="quotaTemplateColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text tpl-main">{{ row.productName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="spec"
+                v-if="isQuotaTemplateColVisible('spec')"
+                label="规格"
+                v-bind="quotaTemplateColBinding('spec')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">规格</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.specModel || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="manufacturer"
+                v-if="isQuotaTemplateColVisible('manufacturer')"
+                label="厂家"
+                v-bind="quotaTemplateColBinding('manufacturer')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">厂家</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="supplierName"
+                v-if="isQuotaTemplateColVisible('supplierName')"
+                label="供应商"
+                v-bind="quotaTemplateColBinding('supplierName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">供应商</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.supplierName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="version"
+                v-if="isQuotaTemplateColVisible('version')"
+                label="版本"
+                v-bind="quotaTemplateColBinding('version')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">版本</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-cell-stack">
+                    <span class="tpl-version">V{{ row.versionNo || 1 }}</span>
+                    <span v-if="row.currentVersion" class="tpl-version-current">当前</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageQty"
+                v-if="isQuotaTemplateColVisible('packageQty')"
+                label="包装数量"
+                v-bind="quotaTemplateColBinding('packageQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">包装数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined">
+                    <span class="tpl-qty">{{ formatTemplateQty(row.quantity) }}</span>
+                    <span v-if="row.unit" class="tpl-qty-unit">{{ row.unit }}</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageUnitPrice"
+                v-if="isQuotaTemplateColVisible('packageUnitPrice')"
+                label="套包参考单价"
+                v-bind="quotaTemplateColBinding('packageUnitPrice')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">套包参考单价</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.packageUnitPrice == null ? '-' : `¥ ${Number(row.packageUnitPrice).toFixed(4)}` }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isQuotaTemplateColVisible('status')"
+                label="状态"
+                v-bind="quotaTemplateColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
                   <span class="tpl-status" :class="row.status === '禁用' ? 'is-disabled' : 'is-enabled'">
                     <i class="tpl-status-dot" />
                     {{ formatStatusText(row.status) }}
                   </span>
-                </td>
-                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-                <td class="tpl-col-actions">
-                  <div class="tpl-actions">
-                    <button
-                      v-if="authStore.hasPermission('quota-template-maintenance:write')"
-                      class="tpl-act"
-                      type="button"
-                      @click="openEditTemplate(row)"
-                    >
-                      <Edit3 :size="14" />
-                      修改
-                    </button>
-                    <button
-                      v-if="authStore.hasPermission('quota-template-maintenance:write')"
-                      class="tpl-act tpl-act-danger"
-                      type="button"
-                      @click="disableSelectedTemplates(row)"
-                    >
-                      <Ban :size="14" />
-                      停用
-                    </button>
-                    <button
-                      v-if="row.status === '禁用' && authStore.hasPermission('quota-template-maintenance:write')"
-                      class="tpl-act"
-                      type="button"
-                      @click="enableSelectedTemplates(row)"
-                    >
-                      <CheckCircle2 :size="14" />
-                      启用
-                    </button>
-                    <button
-                      v-if="authStore.hasPermission('quota-packing-task:create') && authStore.canAccessMenu('packing-task-confirmation')"
-                      class="tpl-act tpl-act-primary"
-                      type="button"
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="createTime"
+                v-if="isQuotaTemplateColVisible('createTime')"
+                label="创建时间"
+                v-bind="quotaTemplateColBinding('createTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">创建时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="updateTime"
+                v-if="isQuotaTemplateColVisible('updateTime')"
+                label="修改时间"
+                v-bind="quotaTemplateColBinding('updateTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">修改时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="actions"
+                v-if="isQuotaTemplateColVisible('actions')"
+                label="操作"
+                v-bind="quotaTemplateColBinding('actions')"
+                :fixed="quotaTemplateActionFixed"
+                align="center"
+              >
+                <template #header>
+                  <span class="ulc-th-text">操作</span>
+                </template>
+                <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button v-if="authStore.hasPermission('quota-template-maintenance:write')"
+                      @click="openEditTemplate(row)" class="ulc-action tpl-act" type="button"><Edit3 :size="14" />
+                      修改</button>
+                  <button v-if="authStore.hasPermission('quota-template-maintenance:write')"
+                      @click="disableSelectedTemplates(row)" class="ulc-action tpl-act tpl-act-danger" type="button"><Ban :size="14" />
+                      停用</button>
+                  <button v-if="row.status === '禁用' && authStore.hasPermission('quota-template-maintenance:write')"
+                      @click="enableSelectedTemplates(row)" class="ulc-action tpl-act" type="button"><CheckCircle2 :size="14" />
+                      启用</button>
+                  <button v-if="authStore.hasPermission('quota-packing-task:create') && authStore.canAccessMenu('packing-task-confirmation')"
                       :disabled="row.status !== '启用' && row.status !== 'enabled'"
-                      @click="openPackingTaskForTemplate(row)"
-                    >
-                      <PackageCheck :size="14" />
-                      打包
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls
-          :page="quotaPagination.templates.page"
-          :size="quotaPagination.templates.size"
-          :total="quotaPagination.templates.total"
-          :loading="loading"
-          @change-page="changeQuotaPage('templates', $event)"
-          @change-size="changeQuotaPageSize('templates', $event)"
-        />
+                      @click="openPackingTaskForTemplate(row)" class="ulc-action tpl-act tpl-act-primary" type="button"><PackageCheck :size="14" />
+                      打包</button>
+                </div>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无符合条件的定数包模板" />
+              </template>
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="quotaPagination.templates.page"
+              :total-pages="Math.max(1, Math.ceil(quotaPagination.templates.total / Math.max(quotaPagination.templates.size, 1)))"
+              :total="quotaPagination.templates.total"
+              :size="quotaPagination.templates.size"
+              :loading="loading"
+              @update:page="changeQuotaPage('templates', $event)"
+              @update:size="changeQuotaPageSize('templates', $event)"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
 
       <!-- =========================================================
@@ -1107,33 +1648,144 @@ watch(
               </span>
               <span class="pt-chip">共 {{ looseStockRows.length }} 条</span>
             </div>
-            <div class="pt-table-scroll">
-              <table class="pt-table pt-table-compact">
-                <thead>
-                  <tr>
-                    <th>商品</th>
-                    <th>系统批号</th>
-                    <th>生产批次</th>
-                    <th>可用散货</th>
-                    <th>批次单价</th>
-                    <th>单位</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="(row, index) in looseStockRows"
-                    :key="index"
+                        <MdDataTableCard>
+              <template #toolbar>
+              <div class="ulc-col-settings">
+                <button
+                  ref="quotaLooseStockColSettingsAnchorRef"
+                  type="button"
+                  class="md-btn md-btn-primary"
+                  @click="quotaLooseStockCols.settingsOpen.value = !quotaLooseStockCols.settingsOpen.value"
+                >
+                  <Columns3 :size="16" />
+                  <span>列设置</span>
+                  <ChevronDown :size="14" :class="{ rotated: quotaLooseStockCols.settingsOpen.value }" />
+                </button>
+                <div
+                  v-if="quotaLooseStockCols.settingsOpen.value"
+                  ref="quotaLooseStockColSettingsPopRef"
+                  class="ulc-col-settings-pop"
+                  :class="{ 'is-align-right': quotaLooseStockColSettingsPop.align.value === 'right', 'is-align-up': quotaLooseStockColSettingsPop.vertical.value === 'up' }"
+                  :style="{ '--ulc-pop-offset-y': quotaLooseStockColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLooseStockColSettingsPop.maxHeight.value + 'px' }"
+                >
+                  <header>
+                    <strong>列展示设置</strong>
+                    <button type="button" class="ulc-link" @click="quotaLooseStockCols.resetColumns()">恢复默认</button>
+                  </header>
+                  <div class="ulc-col-settings-list">
+                    <label v-for="col in quotaLooseStockCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                      <input
+                        type="checkbox"
+                        :checked="col.visible"
+                        :disabled="col.visible && quotaLooseStockCols.visibleColumnCount.value <= 1"
+                        @change="quotaLooseStockCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ col.label }}</span>
+                      <small>{{ col.width }}px</small>
+                    </label>
+                  </div>
+                  <footer>
+                    <button type="button" class="ulc-action" @click="quotaLooseStockCols.settingsOpen.value = false">确定</button>
+                  </footer>
+                </div>
+              </div>
+              </template>
+              <div class="ulc-table-wrap">
+                <el-table
+                  ref="quotaLooseStockTableRef"
+                  :data="looseStockRows"
+                  border
+                  stripe
+                  class="ulc-table is-sticky"
+                  max-height="560"
+                  style="width: 100%"
+                  :empty-text="'暂无可分配散货'"
+                  @header-dragend="(width: number, oldWidth: number, column: any) => quotaLooseStockCols.handleHeaderDragEnd(width, oldWidth, column)"
+                >
+                  <el-table-column
+                    column-key="product"
+                    v-if="isQuotaLooseStockColVisible('product')"
+                    label="商品"
+                    v-bind="quotaLooseStockColBinding('product')"
                   >
-                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
-                    <td>{{ row.systemBatchNo }}</td>
-                    <td>{{ row.productionBatchNo || '-' }}</td>
-                    <td>{{ row.availableQty }}</td>
-                    <td>{{ row.unitPrice }}</td>
-                    <td>{{ row.unit }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    <template #header>
+                      <span class="ulc-th-text">商品</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.productName }}（{{ row.productCode }}）</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="systemBatch"
+                    v-if="isQuotaLooseStockColVisible('systemBatch')"
+                    label="系统批号"
+                    v-bind="quotaLooseStockColBinding('systemBatch')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">系统批号</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="productionBatch"
+                    v-if="isQuotaLooseStockColVisible('productionBatch')"
+                    label="生产批次"
+                    v-bind="quotaLooseStockColBinding('productionBatch')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">生产批次</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.productionBatchNo || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="availableQty"
+                    v-if="isQuotaLooseStockColVisible('availableQty')"
+                    label="可用散货"
+                    v-bind="quotaLooseStockColBinding('availableQty')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">可用散货</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.availableQty }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="batchPrice"
+                    v-if="isQuotaLooseStockColVisible('batchPrice')"
+                    label="批次单价"
+                    v-bind="quotaLooseStockColBinding('batchPrice')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">批次单价</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.unitPrice }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="unit"
+                    v-if="isQuotaLooseStockColVisible('unit')"
+                    label="单位"
+                    v-bind="quotaLooseStockColBinding('unit')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">单位</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.unit }}</span>
+                    </template>
+                  </el-table-column>
+                  <template #empty>
+                    <MdEmptyState text="暂无可分配散货" />
+                  </template>
+                </el-table>
+              </div>
+            </MdDataTableCard>
           </div>
 
           <!-- 已分配记录 -->
@@ -1145,35 +1797,157 @@ watch(
               </span>
               <span class="pt-chip">共 {{ receivingAllocations.length }} 条</span>
             </div>
-            <div class="pt-table-scroll">
-              <table class="pt-table pt-table-compact">
-                <thead>
-                  <tr>
-                    <th>验收单号</th>
-                    <th>系统批号</th>
-                    <th>生产批次</th>
-                    <th>商品</th>
-                    <th>已分配</th>
-                    <th>单价</th>
-                    <th>状态</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="row in receivingAllocations"
-                    :key="String(row.reservationId)"
+                        <MdDataTableCard>
+              <template #toolbar>
+              <div class="ulc-col-settings">
+                <button
+                  ref="quotaReceivingAllocColSettingsAnchorRef"
+                  type="button"
+                  class="md-btn md-btn-primary"
+                  @click="quotaReceivingAllocCols.settingsOpen.value = !quotaReceivingAllocCols.settingsOpen.value"
+                >
+                  <Columns3 :size="16" />
+                  <span>列设置</span>
+                  <ChevronDown :size="14" :class="{ rotated: quotaReceivingAllocCols.settingsOpen.value }" />
+                </button>
+                <div
+                  v-if="quotaReceivingAllocCols.settingsOpen.value"
+                  ref="quotaReceivingAllocColSettingsPopRef"
+                  class="ulc-col-settings-pop"
+                  :class="{ 'is-align-right': quotaReceivingAllocColSettingsPop.align.value === 'right', 'is-align-up': quotaReceivingAllocColSettingsPop.vertical.value === 'up' }"
+                  :style="{ '--ulc-pop-offset-y': quotaReceivingAllocColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaReceivingAllocColSettingsPop.maxHeight.value + 'px' }"
+                >
+                  <header>
+                    <strong>列展示设置</strong>
+                    <button type="button" class="ulc-link" @click="quotaReceivingAllocCols.resetColumns()">恢复默认</button>
+                  </header>
+                  <div class="ulc-col-settings-list">
+                    <label v-for="col in quotaReceivingAllocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                      <input
+                        type="checkbox"
+                        :checked="col.visible"
+                        :disabled="col.visible && quotaReceivingAllocCols.visibleColumnCount.value <= 1"
+                        @change="quotaReceivingAllocCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ col.label }}</span>
+                      <small>{{ col.width }}px</small>
+                    </label>
+                  </div>
+                  <footer>
+                    <button type="button" class="ulc-action" @click="quotaReceivingAllocCols.settingsOpen.value = false">确定</button>
+                  </footer>
+                </div>
+              </div>
+              </template>
+              <div class="ulc-table-wrap">
+                <el-table
+                  ref="quotaReceivingAllocTableRef"
+                  :data="receivingAllocations"
+                  border
+                  stripe
+                  class="ulc-table is-sticky"
+                  max-height="560"
+                  style="width: 100%"
+                  :empty-text="'暂无已分配记录'"
+                  @header-dragend="(width: number, oldWidth: number, column: any) => quotaReceivingAllocCols.handleHeaderDragEnd(width, oldWidth, column)"
+                >
+                  <el-table-column
+                    column-key="acceptanceNo"
+                    v-if="isQuotaReceivingAllocColVisible('acceptanceNo')"
+                    label="验收单号"
+                    v-bind="quotaReceivingAllocColBinding('acceptanceNo')"
                   >
-                    <td>{{ row.receivingNo }}</td>
-                    <td>{{ row.systemBatchNo }}</td>
-                    <td>{{ row.productionBatchNo || '-' }}</td>
-                    <td>{{ row.productName }}（{{ row.productCode }}）</td>
-                    <td>{{ row.reservedQty }}</td>
-                    <td>{{ row.unitPrice }}</td>
-                    <td>{{ row.status }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+                    <template #header>
+                      <span class="ulc-th-text">验收单号</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.receivingNo }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="systemBatch"
+                    v-if="isQuotaReceivingAllocColVisible('systemBatch')"
+                    label="系统批号"
+                    v-bind="quotaReceivingAllocColBinding('systemBatch')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">系统批号</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="productionBatch"
+                    v-if="isQuotaReceivingAllocColVisible('productionBatch')"
+                    label="生产批次"
+                    v-bind="quotaReceivingAllocColBinding('productionBatch')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">生产批次</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.productionBatchNo || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="product"
+                    v-if="isQuotaReceivingAllocColVisible('product')"
+                    label="商品"
+                    v-bind="quotaReceivingAllocColBinding('product')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">商品</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.productName }}（{{ row.productCode }}）</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="allocatedQty"
+                    v-if="isQuotaReceivingAllocColVisible('allocatedQty')"
+                    label="已分配"
+                    v-bind="quotaReceivingAllocColBinding('allocatedQty')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">已分配</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.reservedQty }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="unitPrice"
+                    v-if="isQuotaReceivingAllocColVisible('unitPrice')"
+                    label="单价"
+                    v-bind="quotaReceivingAllocColBinding('unitPrice')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">单价</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.unitPrice }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column
+                    column-key="status"
+                    v-if="isQuotaReceivingAllocColVisible('status')"
+                    label="状态"
+                    v-bind="quotaReceivingAllocColBinding('status')"
+                  >
+                    <template #header>
+                      <span class="ulc-th-text">状态</span>
+                    </template>
+                    <template #default="{ row }">
+                      <span class="ulc-wrap-text">{{ row.status }}</span>
+                    </template>
+                  </el-table-column>
+                  <template #empty>
+                    <MdEmptyState text="暂无已分配记录" />
+                  </template>
+                </el-table>
+              </div>
+            </MdDataTableCard>
           </div>
         </div>
 
@@ -1294,55 +2068,84 @@ watch(
           </div>
 
           <!-- 表格 -->
-          <div class="pt-table-scroll">
-            <table class="pt-table">
-              <colgroup>
-                <col style="width: 150px" />     <!-- 任务号 -->
-                <col style="width: 90px" />      <!-- 状态 -->
-                <col style="width: 150px" />     <!-- 模板 -->
-                <col style="width: 110px" />     <!-- 库房 -->
-                <col style="width: 150px" />     <!-- 商品 -->
-                <col style="width: 70px" />      <!-- 包数 -->
-                <col style="width: 80px" />      <!-- 每包数量 -->
-                <col style="width: 110px" />     <!-- 计划扣减散货 -->
-                <col style="width: 110px" />     <!-- 预占散货 -->
-                <col style="width: 150px" />     <!-- 创建时间 -->
-                <col style="width: 360px" />     <!-- 操作 -->
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>任务号</th>
-                  <th>状态</th>
-                  <th>模板</th>
-                  <th>库房</th>
-                  <th>商品</th>
-                  <th>包数</th>
-                  <th>每包数量</th>
-                  <th>计划扣减散货</th>
-                  <th>预占散货</th>
-                  <th>创建时间</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <TableStateRow
-                  v-if="loading"
-                  :colspan="11"
-                  state="loading"
-                  message="正在加载打包任务..."
-                />
-                <TableStateRow
-                  v-else-if="tasks.length === 0"
-                  :colspan="11"
-                  message="暂无符合条件的打包任务"
-                />
-                <tr
-                  v-for="row in tasks"
-                  v-else
-                  :key="row.taskNo"
+                    <MdDataTableCard>
+            <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="quotaPackingTaskColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="quotaPackingTaskCols.settingsOpen.value = !quotaPackingTaskCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: quotaPackingTaskCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="quotaPackingTaskCols.settingsOpen.value"
+                ref="quotaPackingTaskColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': quotaPackingTaskColSettingsPop.align.value === 'right', 'is-align-up': quotaPackingTaskColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': quotaPackingTaskColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaPackingTaskColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="quotaPackingTaskCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in quotaPackingTaskCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && quotaPackingTaskCols.visibleColumnCount.value <= 1"
+                      @change="quotaPackingTaskCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="quotaPackingTaskCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+            </template>
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="quotaPackingTaskTableRef"
+                :data="tasks"
+                row-key="taskNo"
+                border
+                stripe
+                class="ulc-table is-sticky"
+                max-height="560"
+                style="width: 100%"
+                :empty-text="'暂无打包任务'"
+                @header-dragend="(width: number, oldWidth: number, column: any) => quotaPackingTaskCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="taskNo"
+                  v-if="isQuotaPackingTaskColVisible('taskNo')"
+                  label="任务号"
+                  v-bind="quotaPackingTaskColBinding('taskNo')"
                 >
-                  <td>{{ row.taskNo }}</td>
-                  <td>
+                  <template #header>
+                    <span class="ulc-th-text">任务号</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.taskNo }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="status"
+                  v-if="isQuotaPackingTaskColVisible('status')"
+                  label="状态"
+                  v-bind="quotaPackingTaskColBinding('status')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">状态</span>
+                  </template>
+                  <template #default="{ row }">
                     <span
                       class="pt-badge"
                       :class="{
@@ -1354,79 +2157,159 @@ watch(
                     >
                       {{ taskStatusText[row.status] || formatStatusText(row.status) }}
                     </span>
-                  </td>
-                  <td>{{ row.templateName }}</td>
-                  <td>{{ row.warehouseName }}</td>
-                  <td>{{ row.productName }}</td>
-                  <td>{{ row.packageCount }}</td>
-                  <td>{{ row.packageQuantity }}</td>
-                  <td>{{ row.plannedLooseQty }}</td>
-                  <td>{{ row.reservedLooseQty }}</td>
-                  <td>{{ row.createTime }}</td>
-                  <td class="pt-cell-actions">
-                    <div class="pt-row-actions">
-                      <button
-                        v-if="row.status === 'pending_confirm' && authStore.hasPermission('quota-packing-task:confirm')"
-                        class="pt-btn-text"
-                        type="button"
-                        @click="approveTask(row)"
-                      >
-                        <CheckCircle2 :size="13" />
-                        确认
-                      </button>
-                      <button
-                        v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:recalculate')"
-                        class="pt-btn-text"
-                        type="button"
-                        @click="recalculateTask(row)"
-                      >
-                        <RefreshCw :size="13" />
-                        重算
-                      </button>
-                      <button
-                        v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:cancel')"
-                        class="pt-btn-text pt-btn-text-danger"
-                        type="button"
-                        @click="cancelTask(row)"
-                      >
-                        <X :size="13" />
-                        取消
-                      </button>
-                      <button
-                        v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate' || row.status === 'confirmed') && authStore.hasPermission('quota-packing-task:terminate')"
-                        class="pt-btn-text pt-btn-text-danger"
-                        type="button"
-                        @click="terminateTask(row)"
-                      >
-                        <Ban :size="13" />
-                        终止
-                      </button>
-                      <button
-                        class="pt-btn-text"
-                        type="button"
-                        @click="viewTaskReservations(row)"
-                      >
-                        <ClipboardList :size="13" />
-                        预占明细
-                      </button>
-                      <span
-                        v-if="row.status !== 'pending_confirm' && row.status !== 'need_recalculate'"
-                        class="pt-row-meta"
-                      >{{ row.confirmTime || row.cancelTime || '-' }}</span>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <PaginationControls
-            :page="quotaPagination.tasks.page"
-            :size="quotaPagination.tasks.size"
-            :total="quotaPagination.tasks.total"
-            :loading="loading"
-            @change-page="changeQuotaPage('tasks', $event)"
-            @change-size="changeQuotaPageSize('tasks', $event)"
-          />
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="template"
+                  v-if="isQuotaPackingTaskColVisible('template')"
+                  label="模板"
+                  v-bind="quotaPackingTaskColBinding('template')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">模板</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.templateName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="warehouseName"
+                  v-if="isQuotaPackingTaskColVisible('warehouseName')"
+                  label="库房"
+                  v-bind="quotaPackingTaskColBinding('warehouseName')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">库房</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="product"
+                  v-if="isQuotaPackingTaskColVisible('product')"
+                  label="商品"
+                  v-bind="quotaPackingTaskColBinding('product')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">商品</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.productName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="packageCount"
+                  v-if="isQuotaPackingTaskColVisible('packageCount')"
+                  label="包数"
+                  v-bind="quotaPackingTaskColBinding('packageCount')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">包数</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.packageCount }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="qtyPerPackage"
+                  v-if="isQuotaPackingTaskColVisible('qtyPerPackage')"
+                  label="每包数量"
+                  v-bind="quotaPackingTaskColBinding('qtyPerPackage')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">每包数量</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.packageQuantity }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="planDeduct"
+                  v-if="isQuotaPackingTaskColVisible('planDeduct')"
+                  label="计划扣减散货"
+                  v-bind="quotaPackingTaskColBinding('planDeduct')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">计划扣减散货</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.plannedLooseQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="reservedQty"
+                  v-if="isQuotaPackingTaskColVisible('reservedQty')"
+                  label="预占散货"
+                  v-bind="quotaPackingTaskColBinding('reservedQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">预占散货</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.reservedLooseQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="createTime"
+                  v-if="isQuotaPackingTaskColVisible('createTime')"
+                  label="创建时间"
+                  v-bind="quotaPackingTaskColBinding('createTime')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">创建时间</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.createTime }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="actions"
+                  v-if="isQuotaPackingTaskColVisible('actions')"
+                  label="操作"
+                  v-bind="quotaPackingTaskColBinding('actions')"
+                  :fixed="quotaPackingTaskActionFixed"
+                  align="center"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">操作</span>
+                  </template>
+                  <template #default="{ row }">
+                  <div class="ulc-actions">
+                    <button v-if="row.status === 'pending_confirm' && authStore.hasPermission('quota-packing-task:confirm')"
+                        @click="approveTask(row)" class="ulc-action pt-btn-text" type="button"><CheckCircle2 :size="13" />
+                        确认</button>
+                    <button v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:recalculate')"
+                        @click="recalculateTask(row)" class="ulc-action pt-btn-text" type="button"><RefreshCw :size="13" />
+                        重算</button>
+                    <button v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate') && authStore.hasPermission('quota-packing-task:cancel')"
+                        @click="cancelTask(row)" class="ulc-action pt-btn-text pt-btn-text-danger" type="button"><X :size="13" />
+                        取消</button>
+                    <button v-if="(row.status === 'pending_confirm' || row.status === 'need_recalculate' || row.status === 'confirmed') && authStore.hasPermission('quota-packing-task:terminate')"
+                        @click="terminateTask(row)" class="ulc-action pt-btn-text pt-btn-text-danger" type="button"><Ban :size="13" />
+                        终止</button>
+                    <button @click="viewTaskReservations(row)" class="ulc-action pt-btn-text" type="button"><ClipboardList :size="13" />
+                        预占明细</button>
+                  </div>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <MdEmptyState text="暂无打包任务" />
+                </template>
+              </el-table>
+            </div>
+            <template #pagination>
+              <MdPagination
+                :page="quotaPagination.tasks.page"
+                :total-pages="Math.max(1, Math.ceil(quotaPagination.tasks.total / Math.max(quotaPagination.tasks.size, 1)))"
+                :total="quotaPagination.tasks.total"
+                :size="quotaPagination.tasks.size"
+                :loading="loading"
+                @update:page="changeQuotaPage('tasks', $event)"
+                @update:size="changeQuotaPageSize('tasks', $event)"
+              />
+            </template>
+          </MdDataTableCard>
         </div>
 
         <!-- 预占明细弹窗 -->
@@ -1545,30 +2428,84 @@ watch(
         </div>
 
         <!-- 标签列表 -->
-        <div class="lbl-scroll">
-          <table class="lbl-table">
-            <thead>
-              <tr>
-                <th class="lbl-col-no">标签号</th>
-                <th class="lbl-col-status">状态</th>
-                <th>模板</th>
-                <th>库房</th>
-                <th>商品</th>
-                <th class="lbl-col-num">包数量</th>
-                <th class="lbl-col-source">来源批次</th>
-                <th class="lbl-col-print">打印次数</th>
-                <th class="lbl-col-time">生成时间</th>
-                <th>修改时间</th>
-                <th class="lbl-col-actions">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableStateRow v-if="loading" :colspan="11" state="loading" message="正在加载定数包标签..." />
-              <tr v-for="row in labels" :key="row.labelNo" class="lbl-row">
-                <td class="lbl-col-no">
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="quotaLabelColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="quotaLabelCols.settingsOpen.value = !quotaLabelCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: quotaLabelCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="quotaLabelCols.settingsOpen.value"
+              ref="quotaLabelColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': quotaLabelColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': quotaLabelColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLabelColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="quotaLabelCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in quotaLabelCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && quotaLabelCols.visibleColumnCount.value <= 1"
+                    @change="quotaLabelCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="quotaLabelCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="quotaLabelTableRef"
+              :data="labels"
+              row-key="labelNo"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无标签'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => quotaLabelCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="labelNo"
+                v-if="isQuotaLabelColVisible('labelNo')"
+                label="标签号"
+                v-bind="quotaLabelColBinding('labelNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">标签号</span>
+                </template>
+                <template #default="{ row }">
                   <span class="lbl-no">{{ row.labelNo }}</span>
-                </td>
-                <td class="lbl-col-status">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isQuotaLabelColVisible('status')"
+                label="状态"
+                v-bind="quotaLabelColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
                   <span
                     class="lbl-status"
                     :class="{
@@ -1580,71 +2517,158 @@ watch(
                     <i class="lbl-status-dot" />
                     {{ labelStatusText[row.status] || formatStatusText(row.status) }}
                   </span>
-                </td>
-                <td>
-                  <div class="lbl-main">{{ row.templateName || '-' }}</div>
-                  <div class="lbl-sub">{{ row.templateCode || '-' }}</div>
-                </td>
-                <td>{{ row.warehouseName || '-' }}</td>
-                <td>
-                  <div class="lbl-main">{{ row.productName || '-' }}</div>
-                  <div class="lbl-sub lbl-mono">{{ row.productCode || '-' }}</div>
-                </td>
-                <td class="lbl-col-num">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="template"
+                v-if="isQuotaLabelColVisible('template')"
+                label="模板"
+                v-bind="quotaLabelColBinding('template')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-cell-stack">
+                    <span class="lbl-main">{{ row.templateName || '-' }}</span>
+                    <span class="lbl-sub">{{ row.templateCode || '-' }}</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="warehouseName"
+                v-if="isQuotaLabelColVisible('warehouseName')"
+                label="库房"
+                v-bind="quotaLabelColBinding('warehouseName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="product"
+                v-if="isQuotaLabelColVisible('product')"
+                label="商品"
+                v-bind="quotaLabelColBinding('product')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-cell-stack">
+                    <span class="lbl-main">{{ row.productName || '-' }}</span>
+                    <span class="lbl-sub lbl-mono">{{ row.productCode || '-' }}</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="packageQty"
+                v-if="isQuotaLabelColVisible('packageQty')"
+                label="包数量"
+                v-bind="quotaLabelColBinding('packageQty')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">包数量</span>
+                </template>
+                <template #default="{ row }">
                   <span class="lbl-qty">{{ row.packageQuantity }}</span>
-                </td>
-                <td class="lbl-col-source">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="sourceBatch"
+                v-if="isQuotaLabelColVisible('sourceBatch')"
+                label="来源批次"
+                v-bind="quotaLabelColBinding('sourceBatch')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">来源批次</span>
+                </template>
+                <template #default="{ row }">
                   <span v-if="row.sourceBatches" class="lbl-source" :title="row.sourceBatches">{{ row.sourceBatches }}</span>
                   <span v-else class="lbl-sub">-</span>
-                </td>
-                <td class="lbl-col-print">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="printCount"
+                v-if="isQuotaLabelColVisible('printCount')"
+                label="打印次数"
+                v-bind="quotaLabelColBinding('printCount')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">打印次数</span>
+                </template>
+                <template #default="{ row }">
                   <span class="lbl-print" :class="{ 'is-zero': !row.printCount }">{{ row.printCount ?? 0 }}</span>
-                </td>
-                <td class="lbl-col-time lbl-mono">{{ row.createTime || '-' }}</td>
-                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-                <td class="lbl-col-actions">
-                  <div class="lbl-actions">
-                    <button
-                      v-if="(row.status === 'pending_print' || row.status === 'available') && authStore.hasPermission('quota-package-label:print')"
-                      class="lbl-act"
-                      type="button"
-                      @click="printLabel(row)"
-                    >
-                      <Printer :size="14" />
-                      {{ row.status === 'pending_print' ? '打印' : '重打' }}
-                    </button>
-                    <button
-                      v-if="row.status === 'available' && authStore.hasPermission('quota-label-unpack:write')"
-                      class="lbl-act lbl-act-danger"
-                      type="button"
-                      @click="unpackLabel(row)"
-                    >
-                      <ArchiveRestore :size="14" />
-                      解包
-                    </button>
-                    <span v-if="row.status === 'void'" class="lbl-act-none">已解包</span>
-                    <span
-                      v-if="!canPrintLabel(row) && row.status !== 'available' && row.status !== 'void'"
-                      class="lbl-act-none"
-                    >
-                      无操作
-                    </span>
-                  </div>
-                </td>
-              </tr>
-              <TableStateRow v-if="!loading && labels.length === 0" :colspan="11" message="暂无已生成的定数包标签" />
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls
-          :page="quotaPagination.labels.page"
-          :size="quotaPagination.labels.size"
-          :total="quotaPagination.labels.total"
-          :loading="loading"
-          @change-page="changeQuotaPage('labels', $event)"
-          @change-size="changeQuotaPageSize('labels', $event)"
-        />
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="generateTime"
+                v-if="isQuotaLabelColVisible('generateTime')"
+                label="生成时间"
+                v-bind="quotaLabelColBinding('generateTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">生成时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="updateTime"
+                v-if="isQuotaLabelColVisible('updateTime')"
+                label="修改时间"
+                v-bind="quotaLabelColBinding('updateTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">修改时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="actions"
+                v-if="isQuotaLabelColVisible('actions')"
+                label="操作"
+                v-bind="quotaLabelColBinding('actions')"
+                :fixed="quotaLabelActionFixed"
+                align="center"
+              >
+                <template #header>
+                  <span class="ulc-th-text">操作</span>
+                </template>
+                <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button v-if="(row.status === 'pending_print' || row.status === 'available') && authStore.hasPermission('quota-package-label:print')"
+                      @click="printLabel(row)" class="ulc-action lbl-act" type="button"><Printer :size="14" />
+                      {{ row.status === 'pending_print' ? '打印' : '重打' }}</button>
+                  <button v-if="row.status === 'available' && authStore.hasPermission('quota-label-unpack:write')"
+                      @click="unpackLabel(row)" class="ulc-action lbl-act lbl-act-danger" type="button"><ArchiveRestore :size="14" />
+                      解包</button>
+                </div>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无标签" />
+              </template>
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="quotaPagination.labels.page"
+              :total-pages="Math.max(1, Math.ceil(quotaPagination.labels.total / Math.max(quotaPagination.labels.size, 1)))"
+              :total="quotaPagination.labels.total"
+              :size="quotaPagination.labels.size"
+              :loading="loading"
+              @update:page="changeQuotaPage('labels', $event)"
+              @update:size="changeQuotaPageSize('labels', $event)"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
 
       <section v-if="packageSection === 'quota-package-events'" class="evt-panel">
@@ -1698,38 +2722,115 @@ watch(
           </div>
         </div>
 
-        <div class="evt-scroll">
-          <table class="evt-table">
-            <thead>
-              <tr>
-                <th class="evt-col-no">事件号</th>
-                <th class="evt-col-label">标签号</th>
-                <th class="evt-col-type">事件类型</th>
-                <th class="evt-col-flow">状态变更</th>
-                <th class="evt-col-qty">数量变化</th>
-                <th class="evt-col-time">发生时间</th>
-                <th>备注</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableStateRow v-if="loading" :colspan="7" state="loading" message="正在加载定数包事件..." />
-              <TableStateRow v-else-if="events.length === 0" :colspan="7" message="暂无符合条件的定数包事件" />
-              <tr v-for="row in events" :key="String(row.eventNo)" class="evt-row">
-                <td class="evt-col-no">
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="quotaLabelEventColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="quotaLabelEventCols.settingsOpen.value = !quotaLabelEventCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: quotaLabelEventCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="quotaLabelEventCols.settingsOpen.value"
+              ref="quotaLabelEventColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': quotaLabelEventColSettingsPop.align.value === 'right', 'is-align-up': quotaLabelEventColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': quotaLabelEventColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaLabelEventColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="quotaLabelEventCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in quotaLabelEventCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && quotaLabelEventCols.visibleColumnCount.value <= 1"
+                    @change="quotaLabelEventCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="quotaLabelEventCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="quotaLabelEventTableRef"
+              :data="events"
+              row-key="eventNo"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无标签事件'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => quotaLabelEventCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="eventNo"
+                v-if="isQuotaLabelEventColVisible('eventNo')"
+                label="事件号"
+                v-bind="quotaLabelEventColBinding('eventNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">事件号</span>
+                </template>
+                <template #default="{ row }">
                   <span class="evt-no">{{ row.eventNo }}</span>
-                </td>
-                <td class="evt-col-label">
-                  <span v-if="row.labelNo" class="evt-label-no">{{ row.labelNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="labelNo"
+                v-if="isQuotaLabelEventColVisible('labelNo')"
+                label="标签号"
+                v-bind="quotaLabelEventColBinding('labelNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">标签号</span>
+                </template>
+                <template #default="{ row }">
+                  <span v-if="row.labelNo" class="ulc-wrap-text evt-label-no">{{ row.labelNo }}</span>
                   <span v-else class="evt-sub">-</span>
-                </td>
-                <td class="evt-col-type">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="eventType"
+                v-if="isQuotaLabelEventColVisible('eventType')"
+                label="事件类型"
+                v-bind="quotaLabelEventColBinding('eventType')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">事件类型</span>
+                </template>
+                <template #default="{ row }">
                   <span class="evt-type" :class="eventTone(row.eventType)">
                     <i class="evt-type-dot" />
                     {{ formatBusinessText(row.eventType) }}
                   </span>
-                </td>
-                <td class="evt-col-flow">
-                  <div class="evt-flow">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="statusChange"
+                v-if="isQuotaLabelEventColVisible('statusChange')"
+                label="状态变更"
+                v-bind="quotaLabelEventColBinding('statusChange')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态变更</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined evt-flow">
                     <span class="evt-flow-node" :class="{ 'is-empty': !row.statusBefore }">
                       {{ formatStatusText(row.statusBefore) }}
                     </span>
@@ -1740,31 +2841,68 @@ watch(
                     >
                       {{ formatStatusText(row.statusAfter) }}
                     </span>
-                  </div>
-                </td>
-                <td class="evt-col-qty">
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="qtyChange"
+                v-if="isQuotaLabelEventColVisible('qtyChange')"
+                label="数量变化"
+                v-bind="quotaLabelEventColBinding('qtyChange')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">数量变化</span>
+                </template>
+                <template #default="{ row }">
                   <span v-if="hasQtyChange(row.qtyChange)" class="evt-qty" :class="qtyTone(row.qtyChange)">
                     {{ formatQtyChange(row.qtyChange) }}
                   </span>
                   <span v-else class="evt-sub">无变化</span>
-                </td>
-                <td class="evt-col-time evt-mono">{{ row.eventTime || '-' }}</td>
-                <td class="evt-remark" :title="String(row.remark ?? '')">
-                  {{ formatRemarkText(row.remark) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls
-          :page="quotaPagination.events.page"
-          :size="quotaPagination.events.size"
-          :total="quotaPagination.events.total"
-          :loading="loading"
-          @change-page="changeQuotaPage('events', $event)"
-          @change-size="changeQuotaPageSize('events', $event)"
-        />
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="eventTime"
+                v-if="isQuotaLabelEventColVisible('eventTime')"
+                label="发生时间"
+                v-bind="quotaLabelEventColBinding('eventTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">发生时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.eventTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="remark"
+                v-if="isQuotaLabelEventColVisible('remark')"
+                label="备注"
+                v-bind="quotaLabelEventColBinding('remark')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">备注</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ formatRemarkText(row.remark) }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无标签事件" />
+              </template>
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="quotaPagination.events.page"
+              :total-pages="Math.max(1, Math.ceil(quotaPagination.events.total / Math.max(quotaPagination.events.size, 1)))"
+              :total="quotaPagination.events.total"
+              :size="quotaPagination.events.size"
+              :loading="loading"
+              @update:page="changeQuotaPage('events', $event)"
+              @update:size="changeQuotaPageSize('events', $event)"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
 
       <section v-if="packageSection === 'packable-loose-snapshot'" class="snp-panel">
@@ -1814,70 +2952,89 @@ watch(
               <RefreshCw :size="15" />
               重置
             </button>
-            <details class="snp-columns" :open="columnPanelOpen" @toggle="onColumnPanelToggle">
-              <summary class="snp-btn">
-                <Columns3 :size="15" />
-                显示列
-                <span class="snp-columns-count">{{ visibleSnapshotColumns.length }}/{{ snapshotColumns.length }}</span>
-              </summary>
-              <div class="snp-columns-menu">
-                <label v-for="column in snapshotColumns" :key="column.key" class="snp-columns-item">
-                  <input
-                    v-model="column.visible"
-                    type="checkbox"
-                    :disabled="column.visible && visibleSnapshotColumns.length === 1"
-                  />
-                  <span>{{ column.label }}</span>
-                </label>
-              </div>
-            </details>
           </div>
         </div>
 
-        <div class="snp-scroll">
-          <table class="snp-table">
-            <thead>
-              <tr>
-                <th
-                  v-for="column in visibleSnapshotColumns"
-                  :key="column.key"
-                  :class="snpColumnClass(column.key)"
-                >
-                  {{ column.label }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableStateRow
-                v-if="loading"
-                :colspan="visibleSnapshotColumns.length"
-                state="loading"
-                message="正在加载可打包散货..."
-              />
-              <TableStateRow
-                v-else-if="candidates.length === 0"
-                :colspan="visibleSnapshotColumns.length"
-                message="当前没有可打包散货"
-              />
-              <tr v-for="row in candidates" :key="`${row.warehouseName}-${row.productCode}-${row.systemBatchNo}`" class="snp-row">
-                <td
-                  v-for="column in visibleSnapshotColumns"
-                  :key="column.key"
-                  :class="snpColumnClass(column.key)"
-                >
-                  <template v-if="column.key === 'productName'">
-                    <div class="snp-main">{{ row.productName || '-' }}</div>
-                    <div v-if="row.productCode" class="snp-sub snp-mono">{{ row.productCode }}</div>
+        <MdDataTableCard>
+          <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="quotaSnapshotColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="quotaSnapshotCols.settingsOpen.value = !quotaSnapshotCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: quotaSnapshotCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="quotaSnapshotCols.settingsOpen.value"
+                ref="quotaSnapshotColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': quotaSnapshotColSettingsPop.align.value === 'right', 'is-align-up': quotaSnapshotColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': quotaSnapshotColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaSnapshotColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="quotaSnapshotCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in quotaSnapshotCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && quotaSnapshotCols.visibleColumnCount.value <= 1"
+                      @change="quotaSnapshotCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="quotaSnapshotCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="quotaSnapshotTableRef"
+              :data="candidates"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'当前没有可打包散货'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => quotaSnapshotCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                v-for="snapColumn in quotaSnapshotVisibleColumns"
+                :key="snapColumn.key"
+                :column-key="snapColumn.key"
+                :label="snapColumn.label"
+                v-bind="quotaSnapshotColBinding(snapColumn.key)"
+              >
+                <template #header>
+                  <span class="ulc-th-text">{{ snapColumn.label }}</span>
+                </template>
+                <template #default="{ row }">
+                  <template v-if="snapColumn.key === 'productName'">
+                    <span class="ulc-cell-stack">
+                      <span class="snp-main">{{ row.productName || '-' }}</span>
+                      <span v-if="row.productCode" class="snp-sub snp-mono">{{ row.productCode }}</span>
+                    </span>
                   </template>
 
-                  <template v-else-if="column.key === 'systemBatchNo'">
-                    <span class="snp-batch">{{ row.systemBatchNo || '-' }}</span>
+                  <template v-else-if="snapColumn.key === 'systemBatchNo'">
+                    <span class="ulc-wrap-text snp-batch">{{ row.systemBatchNo || '-' }}</span>
                   </template>
 
-                  <template v-else-if="column.key === 'expireDate'">
+                  <template v-else-if="snapColumn.key === 'expireDate'">
                     <span
                       v-if="row.expireDate"
-                      class="snp-expire"
+                      class="ulc-wrap-text snp-expire"
                       :class="expiryTone(row.expireDate)"
                       :title="expiryTitle(row.expireDate)"
                     >
@@ -1886,35 +3043,40 @@ watch(
                     <span v-else class="snp-sub">-</span>
                   </template>
 
-                  <template v-else-if="column.key === 'batchUnitPrice'">
-                    <span class="snp-price">¥ {{ formatSnapshotPrice(row.batchUnitPrice) }}</span>
+                  <template v-else-if="snapColumn.key === 'batchUnitPrice'">
+                    <span class="ulc-wrap-text ulc-number snp-price">¥ {{ formatSnapshotPrice(row.batchUnitPrice) }}</span>
                   </template>
 
-                  <template v-else-if="column.key === 'availableQty'">
-                    <span class="snp-qty">{{ formatSnapshotQty(row.availableQty) }}</span>
+                  <template v-else-if="snapColumn.key === 'availableQty'">
+                    <span class="ulc-wrap-text ulc-number snp-qty">{{ formatSnapshotQty(row.availableQty) }}</span>
                   </template>
 
-                  <template v-else-if="column.key === 'productionBatchNo'">
-                    <span class="snp-mono">{{ row.productionBatchNo || '-' }}</span>
+                  <template v-else-if="snapColumn.key === 'productionBatchNo'">
+                    <span class="ulc-wrap-text snp-mono">{{ row.productionBatchNo || '-' }}</span>
                   </template>
 
                   <template v-else>
-                    {{ row[column.key] ?? '-' }}
+                    <span class="ulc-wrap-text">{{ row[snapColumn.key] ?? '-' }}</span>
                   </template>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls
-          :page="quotaPagination.candidates.page"
-          :size="quotaPagination.candidates.size"
-          :total="quotaPagination.candidates.total"
-          :loading="loading"
-          @change-page="changeQuotaPage('candidates', $event)"
-          @change-size="changeQuotaPageSize('candidates', $event)"
-        />
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="当前没有可打包散货" />
+              </template>
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="quotaPagination.candidates.page"
+              :total-pages="Math.max(1, Math.ceil(quotaPagination.candidates.total / Math.max(quotaPagination.candidates.size, 1)))"
+              :total="quotaPagination.candidates.total"
+              :size="quotaPagination.candidates.size"
+              :loading="loading"
+              @update:page="changeQuotaPage('candidates', $event)"
+              @update:size="changeQuotaPageSize('candidates', $event)"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
     </template>
 
@@ -2007,94 +3169,253 @@ watch(
           </div>
         </div>
 
-        <div class="saf-scroll">
-          <table class="saf-table">
-            <thead>
-              <tr>
-                <th class="saf-col-dept">科室</th>
-                <th class="saf-col-code">商品编码</th>
-                <th>商品名称</th>
-                <th class="saf-col-code">模板编码</th>
-                <th>模板名称</th>
-                <th class="saf-col-range">安全区间</th>
-                <th class="saf-col-num">下限</th>
-                <th class="saf-col-num">上限</th>
-                <th class="saf-col-status">状态</th>
-                <th>创建时间</th>
-                <th class="saf-col-time">更新时间</th>
-                <th class="saf-col-actions">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableStateRow v-if="loading" :colspan="12" state="loading" message="正在加载安全量配置..." />
-              <TableStateRow v-else-if="safetyRows.length === 0" :colspan="12" message="暂无符合条件的安全量配置" />
-              <tr v-for="row in safetyRows" :key="row.safetyId" class="saf-row">
-                <td class="saf-col-dept">
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="quotaSafetyColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="quotaSafetyCols.settingsOpen.value = !quotaSafetyCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: quotaSafetyCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="quotaSafetyCols.settingsOpen.value"
+              ref="quotaSafetyColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': quotaSafetyColSettingsPop.align.value === 'right', 'is-align-up': quotaSafetyColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': quotaSafetyColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': quotaSafetyColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="quotaSafetyCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in quotaSafetyCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && quotaSafetyCols.visibleColumnCount.value <= 1"
+                    @change="quotaSafetyCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="quotaSafetyCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="quotaSafetyTableRef"
+              :data="safetyRows"
+              row-key="templateCode"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无安全库存配置'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => quotaSafetyCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="deptName"
+                v-if="isQuotaSafetyColVisible('deptName')"
+                label="科室"
+                v-bind="quotaSafetyColBinding('deptName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">科室</span>
+                </template>
+                <template #default="{ row }">
                   <span class="saf-dept">{{ row.deptName || '-' }}</span>
-                </td>
-                <td class="saf-col-code">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isQuotaSafetyColVisible('productCode')"
+                label="商品编码"
+                v-bind="quotaSafetyColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
                   <span class="saf-code">{{ row.productCode }}</span>
-                </td>
-                <td>
-                  <div class="saf-main">{{ row.productName || '-' }}</div>
-                </td>
-                <td class="saf-col-code">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isQuotaSafetyColVisible('productName')"
+                label="商品名称"
+                v-bind="quotaSafetyColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text saf-main">{{ row.productName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="templateCode"
+                v-if="isQuotaSafetyColVisible('templateCode')"
+                label="模板编码"
+                v-bind="quotaSafetyColBinding('templateCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板编码</span>
+                </template>
+                <template #default="{ row }">
                   <span v-if="row.templateCode && row.templateCode !== '-'" class="saf-code">
                     {{ row.templateCode }}
                   </span>
                   <span v-else class="saf-sub">未指定</span>
-                </td>
-                <td>{{ row.templateName && row.templateName !== '-' ? row.templateName : '-' }}</td>
-                <td class="saf-col-range">
-                  <div class="saf-range" :title="`安全下限 ${row.minQty}，安全上限 ${row.maxQty}`">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="templateName"
+                v-if="isQuotaSafetyColVisible('templateName')"
+                label="模板名称"
+                v-bind="quotaSafetyColBinding('templateName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">模板名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.templateName && row.templateName !== '-' ? row.templateName : '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="safetyRange"
+                v-if="isQuotaSafetyColVisible('safetyRange')"
+                label="安全区间"
+                v-bind="quotaSafetyColBinding('safetyRange')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">安全区间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-joined saf-range" :title="`安全下限 ${row.minQty}，安全上限 ${row.maxQty}`">
                     <span class="saf-range-track">
                       <i class="saf-range-fill" :style="safetyRangeStyle(row)" />
                     </span>
                     <span class="saf-range-text">
                       {{ formatSafetyQty(row.minQty) }} – {{ formatSafetyQty(row.maxQty) }}
                     </span>
-                  </div>
-                </td>
-                <td class="saf-col-num">
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="lowerLimit"
+                v-if="isQuotaSafetyColVisible('lowerLimit')"
+                label="下限"
+                v-bind="quotaSafetyColBinding('lowerLimit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">下限</span>
+                </template>
+                <template #default="{ row }">
                   <span class="saf-qty">{{ formatSafetyQty(row.minQty) }}</span>
-                </td>
-                <td class="saf-col-num">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="upperLimit"
+                v-if="isQuotaSafetyColVisible('upperLimit')"
+                label="上限"
+                v-bind="quotaSafetyColBinding('upperLimit')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">上限</span>
+                </template>
+                <template #default="{ row }">
                   <span class="saf-qty is-max">{{ formatSafetyQty(row.maxQty) }}</span>
-                </td>
-                <td class="saf-col-status">
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isQuotaSafetyColVisible('status')"
+                label="状态"
+                v-bind="quotaSafetyColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
                   <span class="saf-status" :class="isSafetyEnabled(row.status) ? 'is-enabled' : 'is-disabled'">
                     <i class="saf-status-dot" />
                     {{ formatStatusText(row.status) }}
                   </span>
-                </td>
-                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-                <td class="saf-col-time saf-mono">{{ row.updateTime || '-' }}</td>
-                <td class="saf-col-actions">
-                  <div class="saf-actions">
-                    <button
-                      v-if="authStore.hasPermission('quota-safety-stock:write')"
-                      class="saf-act"
-                      type="button"
-                      @click="openSafetyDialog(row)"
-                    >
-                      <Edit3 :size="14" />
-                      编辑
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <PaginationControls
-          :page="quotaPagination.safety.page"
-          :size="quotaPagination.safety.size"
-          :total="quotaPagination.safety.total"
-          :loading="loading"
-          @change-page="changeQuotaPage('safety', $event)"
-          @change-size="changeQuotaPageSize('safety', $event)"
-        />
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="createTime"
+                v-if="isQuotaSafetyColVisible('createTime')"
+                label="创建时间"
+                v-bind="quotaSafetyColBinding('createTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">创建时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="updateTime"
+                v-if="isQuotaSafetyColVisible('updateTime')"
+                label="更新时间"
+                v-bind="quotaSafetyColBinding('updateTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">更新时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="actions"
+                v-if="isQuotaSafetyColVisible('actions')"
+                label="操作"
+                v-bind="quotaSafetyColBinding('actions')"
+                :fixed="quotaSafetyActionFixed"
+                align="center"
+              >
+                <template #header>
+                  <span class="ulc-th-text">操作</span>
+                </template>
+                <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button v-if="authStore.hasPermission('quota-safety-stock:write')"
+                      @click="openSafetyDialog(row)" class="ulc-action saf-act" type="button"><Edit3 :size="14" />
+                      编辑</button>
+                </div>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无安全库存配置" />
+              </template>
+            </el-table>
+          </div>
+          <template #pagination>
+            <MdPagination
+              :page="quotaPagination.safety.page"
+              :total-pages="Math.max(1, Math.ceil(quotaPagination.safety.total / Math.max(quotaPagination.safety.size, 1)))"
+              :total="quotaPagination.safety.total"
+              :size="quotaPagination.safety.size"
+              :loading="loading"
+              @update:page="changeQuotaPage('safety', $event)"
+              @update:size="changeQuotaPageSize('safety', $event)"
+            />
+          </template>
+        </MdDataTableCard>
       </section>
     </template>
 
@@ -2839,8 +4160,14 @@ watch(
   flex: 0 0 13px;
 }
 
-/* ===== Pagination separator (PaginationControls) ===== */
-.pt-card :deep(.pagination-controls) {
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
+/* ===== Pagination separator (MdPagination) ===== */
+.pt-card :deep(.md-pagination) {
   border-top: 1px solid var(--pt-border-subtle);
   background: var(--pt-bg-card);
   padding: 10px 18px;

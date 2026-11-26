@@ -76,6 +76,34 @@
   font-size: var(--spd-font-size-base, 14px);
 }
 
+/* ===== 表头固定（sticky header） =====
+   ---------------------------------------------------------------------
+   目标：表格数据行较多时，向下滚动时表头始终可见，
+   避免「滚动到第 N 页不知道当前在看哪一列」。
+
+   实现要点：
+   1. Element Plus 的 el-table 把表头（.el-table__header-wrapper）
+      与表体（.el-table__body-wrapper）分成两块：
+      **只有当表格设定了 height / max-height 时，表体才成为独立滚动区**，
+      此时表头天然固定在表体上方，无需任何自定义定位。
+   2. 因此这里不覆写 Element Plus 的内部结构，只补两处细节：
+      - 表头底色必须不透明（表体滚动时数据行会从表头下方经过）；
+      - 右侧固定列（fixed="right"）的层级要高于表体，否则会被数据行盖住。
+   3. 具体高度通过 el-table 的 max-height 属性传入（见各业务页），
+      也可用 --ulc-sticky-max-height 覆盖默认高度。
+   --------------------------------------------------------------------- */
+.spd-unified-list .ulc-table.is-sticky .el-table__header-wrapper {
+  background: var(--ulc-primary);
+}
+
+/* 固定列（fixed="right"）在表体滚动时需要高于表体的层级，否则会被数据行盖住 */
+.spd-unified-list .ulc-table.is-sticky .el-table__fixed-right-patch,
+.spd-unified-list .ulc-table.is-sticky .el-table__fixed-right,
+.spd-unified-list .ulc-table.is-sticky .el-table__fixed-left-patch,
+.spd-unified-list .ulc-table.is-sticky .el-table__fixed-left {
+  z-index: 3;
+}
+
 /* 表头：主题色实底 + 加粗白字 + 居中
    分隔线：底色与边框同为主色时，列分隔线会完全隐形、难以发现可拖拽。
    这里把表头单元格边框改为「主色 + 32% 白」的提亮色，
@@ -157,8 +185,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  /* 允许内容换行：Element Plus 默认给 .cell 的是 nowrap，
+     长文本会撑出单元格、侵占相邻列。 */
+  flex-wrap: wrap;
   gap: 6px;
   text-align: center;
+  /* 允许子元素收缩到内容宽度以下，否则 nowrap 的子元素会把容器撑破 */
+  min-width: 0;
   line-height: var(--spd-lh-tight, 1.35);
 }
 
@@ -176,10 +209,65 @@
   word-break: break-word;
 }
 
-/* 操作列：单元格内容强制单行，按钮不折行 */
+/* ===== 直接放在 .cell 里的裸文本节点 =====
+   .cell 是 flex 容器，裸文本会成为匿名 flex item。
+   默认 min-width:auto 会让它保持自身宽度不收缩，
+   于是长文本（日期、编码、名称）会撑破单元格、侵占相邻列。
+   这里给所有 flex 子元素放开收缩，并允许在断点处换行。 */
+.spd-unified-list .ulc-table td.el-table__cell .cell > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 裸文本（无元素包裹）通过 text node 呈现，
+   由 .cell 自身的 white-space/word-break 规则控制换行。 */
+.spd-unified-list .ulc-table td.el-table__cell .cell {
+  min-width: 0;
+}
+
+/* 操作列：单元格内容保持单行，按钮不折行
+   —— 若空间不足，按钮会横向溢出侵占相邻列，
+   这里让 .cell 允许换行作为兜底（按钮整体下移一行），避免侵占。 */
 .spd-unified-list .ulc-table td.el-table__cell:has(.ulc-actions) .cell {
   white-space: nowrap;
   overflow: visible;
+  flex-wrap: wrap;
+}
+
+/* ===== 安全网：任何单元格内容都不得侵占相邻列 =====
+   ---------------------------------------------------------------------
+   背景：各页面有各自的 scoped 样式（.sys-tag / .quota-tag / ... ），
+   其中不少写了 white-space: nowrap。只要列宽比内容窄一点，
+   内容就会横向溢出、盖到隔壁列上（表格线的错位、文字压字）。
+
+   这里用统一列表的最高优先级规则兜底：
+   单元格内容一律允许在断点处折行，并允许子元素收缩，
+   从根上杜绝「长内容侵占相邻列」。
+
+   注意：这里刻意不写 white-space，
+   因为各页面 scoped 样式里的 nowrap 优先级可能更高；
+   改用 white-space: normal !important 强制覆盖。 */
+.spd-unified-list .ulc-table td.el-table__cell .cell,
+.spd-unified-list .ulc-table td.el-table__cell .cell * {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+/* 单元格内的 flex 子元素允许收缩，避免撑破单元格 */
+.spd-unified-list .ulc-table td.el-table__cell .cell > *,
+.spd-unified-list .ulc-table td.el-table__cell .cell > * > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* 表头文字（.ulc-th-text）例外：表头保持单行 + 省略号，
+   过长时由 title 提示，不影响表格结构。 */
+.spd-unified-list .ulc-table th.el-table__cell .cell,
+.spd-unified-list .ulc-table th.el-table__cell .cell * {
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 
 /* 斑马纹 */
@@ -263,6 +351,26 @@
   font-weight: 500;
 }
 
+/* ===== 数值文本（金额 / 数量 / 单价 等） =====
+   ---------------------------------------------------------------------
+   标准页（科室库房目录）里所有单元格内容一律**居中**，
+   数值列也不例外：数字与文字一样居中在列内，
+   避免同一张表里一部分靠左、一部分靠右、看起来参差不齐。
+
+   数值仍使用等宽数字（tabular-nums）+ 等宽字体，
+   保证多行数字对齐、金额位数清晰可读。 */
+.spd-unified-list .ulc-number {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--spd-font-family-mono, ui-monospace, monospace);
+  /* 数值同样允许在列宽不足时换行，而不是横向溢出 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 /* ===== 拼接文本（单价 + 单位 等） =====
    ---------------------------------------------------------------------
    需求：「0.50 个」这类**拼接**的内容不要一上来就换行 ——
@@ -278,10 +386,14 @@
   word-break: break-word;
 }
 
-/* 拼接文本的内层片段：始终保持在一行内，不单独折行 */
+/* 拼接文本的内层片段：尽量保持在一行内，不单独折行。
+   但当整体内容超过列宽时，仍允许在片段内部断行 ——
+   否则长编码 / 长电话会横向溢出、侵占相邻列。 */
 .spd-unified-list .ulc-joined > span {
   display: inline;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* 拼接文本里的次级片段（如单位）：与主值之间留一个间隔
@@ -330,9 +442,10 @@
 .spd-unified-list .ulc-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   min-height: 28px;
-  padding: 0 11px;
+  padding: 2px 11px;
   border: var(--spd-c-chip-border-width, 1px) solid transparent;
   border-radius: var(--spd-c-chip-radius, 4px);
   background: var(--spd-c-chip-bg-neutral);
@@ -341,7 +454,14 @@
   font-size: var(--spd-font-size-base, 14px);
   font-weight: var(--spd-c-chip-font-weight, 600);
   line-height: var(--spd-lh-tight, 1.35);
-  white-space: nowrap;
+  /* 文字居中于色块内：状态条本身是 inline-flex，
+     需要 text-align 兜底（多行时也保持居中）。 */
+  text-align: center;
+  /* 允许状态条在列宽不足时换行，而不是横向溢出侵占相邻列 */
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .spd-unified-list .ulc-chip::before {
@@ -349,6 +469,8 @@
   height: 7px;
   border-radius: 50%;
   background: currentColor;
+  /* 圆点不参与收缩，始终保持完整圆形 */
+  flex-shrink: 0;
   content: "";
 }
 
@@ -394,8 +516,9 @@
 .spd-unified-list .ulc-tag {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 25px;
-  padding: 0 9px;
+  padding: 2px 9px;
   border: var(--spd-c-chip-border-width, 1px) solid var(--spd-c-border);
   border-radius: var(--spd-c-chip-radius, 4px);
   background: var(--spd-c-bg-subtle);
@@ -404,7 +527,12 @@
   font-size: var(--spd-font-size-base, 14px);
   font-weight: var(--spd-c-chip-font-weight, 600);
   line-height: var(--spd-lh-tight, 1.35);
-  white-space: nowrap;
+  /* 文字居中于底色内；宽度不足时换行而不是横向溢出 */
+  text-align: center;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* 强调标签（集采、重点监控等） */
@@ -421,10 +549,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 操作列不换行：宽度不足时横向压缩间距而非折行 */
-  flex-wrap: nowrap;
+  /* 操作按钮整体不折行：宽度不足时横向压缩间距而非折行。
+     若仍然放不下（按钮数多 + 列宽窄），允许整体换行到第二行，
+     保证按钮不会横向溢出侵占相邻列。 */
+  flex-wrap: wrap;
   gap: 6px;
   white-space: nowrap;
+  /* 不超过单元格可用宽度 */
+  max-width: 100%;
+  min-width: 0;
 }
 
 .spd-unified-list .ulc-actions .ulc-action,
@@ -442,8 +575,11 @@
   font-size: var(--spd-font-size-base, 14px);
   font-weight: 600;
   line-height: 1;
-  white-space: nowrap;
-  /* 操作按钮不被压缩，始终单行完整显示 */
+  /* 按钮文字整体保持一行；宽度实在不足时允许在断点处折行，
+     避免按钮横向溢出、侵占相邻列。 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  /* 操作按钮不被压缩，始终完整显示 */
   flex-shrink: 0;
   cursor: pointer;
   text-decoration: none;
@@ -538,6 +674,29 @@
   color: var(--spd-c-danger);
 }
 
+/* ===== 收口：压过各业务页自带的高特指度按钮样式 =====
+   ---------------------------------------------------------------
+   部分业务页（如定数包管理 quota-package.override.css）自带
+   `.md-partner-page .md-table-card .md-table-toolbar .md-btn-primary`
+   这样的 5 级特指度规则，硬编码实心主色 + 白字，
+   会盖掉上面的标准「浅底主色 + 深青玉字」样式。
+
+   这里用同样 5 级特指度（再加 `.spd-unified-list` 限定）
+   把统一列表页的工具条按钮拉回标准配色，
+   保证「科室库房目录」与其它列表页按钮长得一模一样。 */
+.spd-unified-list.md-partner-page .md-table-card .md-table-toolbar .md-btn-primary,
+.spd-unified-list .md-table-card .md-table-toolbar .md-btn-primary {
+  border-color: var(--spd-c-primary-strong);
+  background: var(--spd-c-chip-bg-primary);
+  color: var(--spd-c-primary-strong);
+}
+
+.spd-unified-list.md-partner-page .md-table-card .md-table-toolbar .md-btn-primary:hover:not(:disabled),
+.spd-unified-list .md-table-card .md-table-toolbar .md-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--spd-c-primary) 26%, #ffffff);
+  color: var(--spd-c-primary-strong);
+}
+
 .spd-unified-list .md-table-toolbar .md-btn-danger:hover:not(:disabled) {
   background: color-mix(in srgb, var(--spd-c-danger) 26%, #ffffff);
   color: var(--spd-c-danger);
@@ -607,20 +766,51 @@
 
 .spd-unified-list .ulc-col-settings-pop {
   position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
+  /* 纵向偏移由 useColSettingsPopover 实测视口后以内联样式写入
+     （--ulc-pop-offset-y）。这里只声明默认的向下展开位置，
+     JS 测量完成后会覆盖它。
+     之所以不用 `top: calc(100% + 8px)`：浮层的定位基准是
+     包裹按钮的 .ulc-col-settings（高约 34px），不是按钮本身，
+     百分比会相对错误的盒子计算，导致向上展开时顶出视口。 */
+  top: var(--ulc-pop-offset-y, calc(100% + 8px));
+  /* 弹层默认与按钮左边缘对齐。
+     之前用 `right: 0`，当「列设置」按钮位于工具条**左侧**时，
+     268px 宽的弹层会被推到屏幕左侧之外，导致内容被视口裁切。
+     改为左对齐后，按钮在左端 / 右端都不会出界；
+     若右侧空间不足，由下面的 max-width + 视口钳制兜底。 */
+  left: 0;
+  right: auto;
   z-index: 60;
   width: 268px;
+  max-width: calc(100vw - 24px);
   /* flex 列布局：header / footer 固定，中间列项列表独立滚动 */
   display: flex;
   flex-direction: column;
-  max-height: min(60vh, 420px);
+  /* 最大高度由 JS 实测上下可用空间后以内联样式写入（--ulc-pop-max-h），
+     这里的值只是首次渲染前的兜底。 */
+  max-height: var(--ulc-pop-max-h, min(60vh, 420px));
   padding: 12px 12px 10px;
   border: 1px solid var(--ulc-border);
   border-radius: 8px;
   background: #fff;
   box-shadow: 0 12px 32px rgba(9, 45, 43, 0.22);
   text-align: left;
+}
+
+/* 右侧空间不足时改为右对齐（向左展开），避免浮层溢出视口右缘 */
+.spd-unified-list .ulc-col-settings-pop.is-align-right {
+  left: auto;
+  right: 0;
+}
+
+/* 下方空间不足时改为向上展开（底边对齐按钮顶部），
+   避免列设置浮层被视口下边缘裁切。
+   纵向偏移与最大高度均由 JS 实测写入内联样式，
+   这里只需要把定位从 top 切换到 bottom。
+   向上展开时列表自身可滚动，不影响列项的可达性。 */
+.spd-unified-list .ulc-col-settings-pop.is-align-up {
+  top: auto;
+  bottom: var(--ulc-pop-offset-y, 8px);
 }
 
 /* 列项列表：可滚动区域，避免弹层整体超出视口 */
@@ -862,7 +1052,11 @@
   font-weight: 400;
   line-height: var(--spd-lh-tight, 1.35);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  /* 时间在列宽不足时允许折行，而不是横向溢出侵占相邻列 */
+  white-space: normal;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 1400px) {

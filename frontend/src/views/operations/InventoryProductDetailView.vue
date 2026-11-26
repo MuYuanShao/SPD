@@ -1,10 +1,14 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { RefreshCw, Search, X } from '@lucide/vue'
+import { ChevronDown, Columns3, RefreshCw, Search, X } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { fetchInventoryProductDetails, type InventoryProductDetail } from '../../api/reportCenter'
 
 const keyword = ref('')
@@ -17,6 +21,65 @@ const error = ref('')
 let appliedKeyword = ''
 let sequence = 0
 let request: AbortController | undefined
+
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode: 'hybrid'：按权重比例铺满内容区，表格右侧不留空白；
+     - reservedWidth: 0：不额外扣除固定宽度；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+
+   本表是只读报表、没有「操作」列，
+   因此把最后一列「库位」标记为 fill: true，
+   由 Element Plus 原生 fit 吃掉表格右侧剩余空白 —— 表格 100% 铺满内容区。
+   ===================================================================== */
+const INVENTORY_DETAIL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'index', label: '序号', width: 64, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'name', label: '产品名称', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 9, minWidth: 150, maxWidth: 380 },
+  { key: 'registrationNo', label: '注册证', width: 180, visible: true, flexible: true, idealWidth: 210, weight: 7, minWidth: 130, maxWidth: 300 },
+  { key: 'manufacturerName', label: '厂家', width: 160, visible: true, flexible: true, idealWidth: 190, weight: 7, minWidth: 120, maxWidth: 280 },
+  { key: 'distributorName', label: '配送商', width: 160, visible: true, flexible: true, idealWidth: 190, weight: 7, minWidth: 120, maxWidth: 280 },
+  { key: 'expiry', label: '有效期至', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 190 },
+  { key: 'specification', label: '规格型号', width: 140, visible: true, flexible: true, idealWidth: 170, weight: 6, minWidth: 110, maxWidth: 260 },
+  { key: 'quantity', label: '数量', width: 100, visible: true, weight: 3, minWidth: 88, maxWidth: 150 },
+  { key: 'location', label: '库位', width: 180, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 300, fill: true }
+]
+
+const inventoryDetailCols = useListColumns({
+  storageKey: 'spd-inventory-product-detail-cols-v1',
+  defaults: INVENTORY_DETAIL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const inventoryDetailTableRef = inventoryDetailCols.tableRef
+const isInventoryDetailColVisible = (key: string) => inventoryDetailCols.isColumnVisible(key)
+const inventoryDetailColBinding = (key: string) => inventoryDetailCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const inventoryDetailActionFix = useActionColumnFix()
+const inventoryDetailActionFixed = computed(() => inventoryDetailActionFix.actionFixedBinding.value)
+
+watch(
+  [inventoryDetailTableRef],
+  () => {
+    inventoryDetailActionFix.observe(inventoryDetailTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const inventoryDetailColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const inventoryDetailColSettingsPopRef = ref<HTMLElement | null>(null)
+const inventoryDetailColSettingsPop = useColSettingsPopover({
+  open: inventoryDetailCols.settingsOpen,
+  anchorRef: inventoryDetailColSettingsAnchorRef,
+  popRef: inventoryDetailColSettingsPopRef
+})
 
 async function load() {
   const current = ++sequence
@@ -67,7 +130,7 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
 </script>
 
 <template>
-  <main class="report-page inventory-product-page">
+  <main class="report-page inventory-product-page spd-unified-list">
     <MdPageHeader
       crumb="运营与决策 / 报表中心 / 进销存明细"
       title="进销存商品明细"
@@ -92,38 +155,199 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
 
     <StatusMessage :message="error" tone="error" role="alert" />
 
-    <section class="report-table-card" :aria-busy="loading">
-      <el-table
-        :data="rows"
-        stripe
-        row-key="id"
-        class="report-table inventory-product-table"
-        :empty-text="loading ? '正在加载进销存商品明细…' : error ? '加载失败，请刷新重试' : '暂无匹配商品'"
-      >
-        <el-table-column prop="name" label="产品名称" min-width="220" show-overflow-tooltip />
-        <el-table-column prop="registrationNo" label="注册证" min-width="200">
-          <template #default="{ row }">{{ row.registrationNo || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="manufacturerName" label="厂家" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.manufacturerName || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="distributorName" label="配送商" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.distributorName || '-' }}</template>
-        </el-table-column>
-        <el-table-column prop="expiry" label="有效期至" min-width="150" />
-        <el-table-column prop="specification" label="规格型号" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="quantity" label="数量" width="100" align="right" />
-        <el-table-column prop="location" label="库位" min-width="220" show-overflow-tooltip />
-      </el-table>
-      <PaginationControls
-        :page="page"
-        :size="size"
-        :total="total"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changeSize"
-      />
-    </section>
+    <MdDataTableCard :loading="loading">
+      <template #toolbar>
+        <!-- 查询 / 重置 / 刷新 保留在「查询条件」面板内，
+             表格工具条只承载列设置，避免同一动作出现两处。 -->
+        <div class="ulc-col-settings">
+          <button
+            ref="inventoryDetailColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="inventoryDetailCols.settingsOpen.value = !inventoryDetailCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: inventoryDetailCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="inventoryDetailCols.settingsOpen.value"
+            ref="inventoryDetailColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': inventoryDetailColSettingsPop.align.value === 'right', 'is-align-up': inventoryDetailColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': inventoryDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': inventoryDetailColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="inventoryDetailCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in inventoryDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && inventoryDetailCols.visibleColumnCount.value <= 1"
+                  @change="inventoryDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="inventoryDetailCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total.toLocaleString('zh-CN') }} 条</span>
+      </template>
+
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="inventoryDetailTableRef"
+          v-loading="loading"
+          :data="rows"
+          stripe
+          border
+          row-key="id"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在加载进销存商品明细…' : error ? '加载失败，请刷新重试' : '暂无匹配商品'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => inventoryDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="index"
+            v-if="isInventoryDetailColVisible('index')"
+            type="index"
+            align="center"
+            v-bind="inventoryDetailColBinding('index')"
+            :index="(i: number) => (page - 1) * size + i + 1"
+          >
+            <template #header>
+              <span class="ulc-th-text">序号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="name"
+            v-if="isInventoryDetailColVisible('name')"
+            prop="name"
+            v-bind="inventoryDetailColBinding('name')"
+          >
+            <template #header>
+              <span class="ulc-th-text">产品名称</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-strong ulc-wrap-text">{{ row.name }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="registrationNo"
+            v-if="isInventoryDetailColVisible('registrationNo')"
+            prop="registrationNo"
+            v-bind="inventoryDetailColBinding('registrationNo')"
+          >
+            <template #header>
+              <span class="ulc-th-text">注册证</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-mono ulc-wrap-text">{{ row.registrationNo || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="manufacturerName"
+            v-if="isInventoryDetailColVisible('manufacturerName')"
+            prop="manufacturerName"
+            v-bind="inventoryDetailColBinding('manufacturerName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">厂家</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="distributorName"
+            v-if="isInventoryDetailColVisible('distributorName')"
+            prop="distributorName"
+            v-bind="inventoryDetailColBinding('distributorName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配送商</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.distributorName || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="expiry"
+            v-if="isInventoryDetailColVisible('expiry')"
+            prop="expiry"
+            v-bind="inventoryDetailColBinding('expiry')"
+          >
+            <template #header>
+              <span class="ulc-th-text">有效期至</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-time">{{ row.expiry || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="specification"
+            v-if="isInventoryDetailColVisible('specification')"
+            prop="specification"
+            v-bind="inventoryDetailColBinding('specification')"
+          >
+            <template #header>
+              <span class="ulc-th-text">规格型号</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.specification || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="quantity"
+            v-if="isInventoryDetailColVisible('quantity')"
+            prop="quantity"
+            align="right"
+            v-bind="inventoryDetailColBinding('quantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">数量</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ Number(row.quantity || 0).toLocaleString('zh-CN') }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="location"
+            v-if="isInventoryDetailColVisible('location')"
+            prop="location"
+            v-bind="inventoryDetailColBinding('location')"
+          >
+            <template #header>
+              <span class="ulc-th-text">库位</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text">{{ row.location || '-' }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #pagination>
+        <MdPagination
+          :page="page"
+          :total-pages="Math.max(1, Math.ceil(total / size))"
+          :total="total"
+          :size="size"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changeSize"
+        />
+      </template>
+    </MdDataTableCard>
   </main>
 </template>
 
@@ -194,25 +418,9 @@ onBeforeUnmount(() => { ++sequence; request?.abort() })
   gap: 8px;
 }
 
-.report-table-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: #fff;
-  border: 1px solid var(--spd-line, #e6ecef);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.report-table {
-  width: 100%;
-  font-size: var(--spd-font-size-base);
-}
-.report-table :deep(th .cell) {
-  color: #294b52;
-  font-weight: 800;
-  font-size: var(--spd-font-size-table-head);
-}
+/* 表格的外观（表头 / 斑马纹 / 拖拽热区 / 换行）统一由
+   unified-list.css 的 .spd-unified-list .ulc-table 提供，
+   本页不再重复定义表格样式。 */
 
 @media (max-width: 1100px) {
   .report-toolbar { grid-template-columns: 1fr; }

@@ -54,6 +54,34 @@ export interface ListColumnConfig {
    * 连表头都放不下的程度；剩余空间再按 weight 比例分配。
    */
   minWidth?: number
+  /**
+   * 该列是否**填充表格剩余宽度**（占满 100%）。
+   *
+   * 典型场景：操作列是最后一列，内容较短（编辑 / 停用），
+   * 但业务希望它把表格右侧的空白吃掉，避免整张表右侧出现一大片空白。
+   *
+   * 实现方式：该列不设固定 width，只设 min-width，
+   * 由 Element Plus 原生 fit 布局把剩余空间全部分配给它。
+   */
+  fill?: boolean
+  /**
+   * 该列的宽度是否由用户**手动拖拽**确定。
+   *
+   * 为什么需要这个标记：
+   * 自适应模式（fit / hybrid）下，列宽是「按权重比例铺满内容区」的，
+   * 而拖拽结果只能作为**基准宽度**参与分配 —— 分配完又被改写，
+   * 于是「拖到 420px、刷新后变成 263px」。
+   *
+   * 标记为手动后：
+   * - 该列宽度**精确等于**用户设定值，不参与比例分配（既不占别人的空间，
+   *   也不被别人挤压）；
+   * - 该列不再参与 hybrid 的「理想宽度调剂」，避免被临时借走宽度；
+   * - 其余未拖拽的列继续共享剩余空间，表格依旧铺满内容区。
+   *
+   * 该标记随列宽一起持久化到 localStorage，刷新后依然生效。
+   * 旧数据没有这个字段时按「未手动」处理，保证平滑升级。
+   */
+  manual?: boolean
 }
 
 export interface UseListColumnsOptions {
@@ -67,7 +95,9 @@ export interface UseListColumnsOptions {
   maxWidth?: number
   /**
    * 自适应模式：
-   * - 'fixed'（默认）：列宽固定，用户拖拽后保持
+   * - 'fixed'（**默认**）：列宽恒等于用户设定值，各列**互相独立**。
+   *   拖拽某一列只改变该列自身的宽度，不会挤占或改写其它列，
+   *   也不会因为窗口宽度变化而重新分配 —— 因此拖拽结果始终稳定。
    * - 'fit'：列宽随容器宽度自动伸缩，所有列按权重比例同步增长
    * - 'hybrid'：在 fit 基础上，长文本列额外享有「理想宽度优先」调剂
    */
@@ -147,7 +177,13 @@ export function useListColumns(options: UseListColumnsOptions) {
         maxWidth: fallback.maxWidth,
         idealWidth: fallback.idealWidth,
         weight: fallback.weight,
-        minWidth: fallback.minWidth
+        minWidth: fallback.minWidth,
+        // fill 来自代码里的 defaults（不是用户可改的数据），
+        // 因此始终以 defaults 为准，不从持久化数据读取。
+        fill: fallback.fill === true,
+        // 旧版本持久化的数据没有 manual 字段，一律视为「未手动拖拽」，
+        // 这样老用户升级后行为不变，直到他自己拖一次列宽。
+        manual: previous?.manual === true
       }
     })
   }
@@ -209,8 +245,9 @@ export function useListColumns(options: UseListColumnsOptions) {
    *
    * 三个宽度来源，优先级从高到低：
    *
-   * 1) **用户设定值 width** —— 用户拖拽表头调整后的宽度，最高优先级。
-   *    拖拽结果会被持久化，且不会被按比例分配覆盖。
+   * 1) **用户手动拖拽过的宽度（manual 列）** —— 最高优先级，**原样生效**。
+   *    拖拽结果会被持久化，且不会被按比例分配覆盖：
+   *    手动列既不参与分配、也不被压缩，宽度完全由用户掌控。
    *
    * 2) **保底宽度 minWidth** —— 该列的可压缩下限，
    *    保证「状态」这类短列不会被压到连内容都放不下。
@@ -221,7 +258,7 @@ export function useListColumns(options: UseListColumnsOptions) {
    *      商品名称 9 > 生产厂家 7 > 规格型号 5 > 科室/库房 3
    *      > 更新时间 3 > 商品编码 2 > 维护来源 2 > 状态 2
    *
-   * 分配流程：
+   * 分配流程（只在**未拖拽**的列之间进行）：
    *   - 基准和 ≤ 可用宽度：富余按权重比例分给各列（受 maxWidth 上限约束）；
    *   - 基准和 > 可用宽度：按权重比例压缩各列（受 minWidth 下限约束）；
    *   - hybrid 模式下额外为未达「理想宽度」的长文本列做调剂，
@@ -238,7 +275,21 @@ export function useListColumns(options: UseListColumnsOptions) {
     if (!cols.length) return result
 
     const reserved = options.reservedWidth ?? 0
-    const available = containerWidth.value > 0 ? containerWidth.value - reserved : 0
+    const rawAvailable = containerWidth.value > 0 ? containerWidth.value - reserved : 0
+
+    // 「填充」列（fill: true，通常是最后一列「操作」）的宽度
+    // = 容器宽度 − 其它列宽度之和，即它吃掉剩余空白，表格 100% 铺满。
+    //
+    // 分配数据列时，先把填充列的 minWidth 预扣出来：
+    // 数据列最多只能用「容器 − 填充列下限」，剩下的全部归填充列。
+    // 若不预扣，数据列会把容器占满，填充列的 minWidth 顶出去，
+    // 表现为表格横向溢出（表头比容器宽）。
+    const fillCols = cols.filter((column) => column.fill === true)
+    const fillMinTotal = fillCols.reduce(
+      (sum, column) => sum + (column.minWidth ?? column.width),
+      0
+    )
+    const available = Math.max(0, rawAvailable - fillMinTotal)
 
     // 容器尚未测量出来时，先用基准宽度，避免首帧抖动
     if (available <= 0 || fitMode === 'fixed') {
@@ -248,6 +299,34 @@ export function useListColumns(options: UseListColumnsOptions) {
       ;(options.fixedColumns ?? []).forEach((column) => {
         result[column.key] = column.width
       })
+
+      // 「填充」列（通常是最后一列「操作」）：
+      //   用户要求「操作列占满 100%」—— 即整张表铺满内容区，
+      //   表格右侧的剩余空白全部由填充列吃掉。
+      //
+      //   计算步骤：
+      //   1) 其余列按各自基准宽度累加，得到 others；
+      //   2) 若 others ≤ 可用宽度：填充列吃掉差额，表格正好 100%；
+      //   3) 若 others > 可用宽度：其它列已把容器撑满，
+      //      填充列保留自身保底宽度，表格出现横向滚动条（可接受）。
+      const fillCols = cols.filter((column) => column.fill === true)
+      if (fillCols.length && rawAvailable > 0) {
+        let others = cols
+          .filter((column) => column.fill !== true)
+          .reduce((sum, column) => sum + column.width, 0)
+        ;(options.fixedColumns ?? []).forEach((column) => {
+          others += column.width
+        })
+        // 这里用 rawAvailable（未预扣填充列的容器宽度），
+        // 因为本分支自己就算出了填充列应占的宽度，不能再扣一次。
+        const remainder = rawAvailable - others
+        fillCols.forEach((column) => {
+          const floor = column.minWidth ?? column.width
+          const share =
+            fillCols.length === 1 ? remainder : remainder / fillCols.length
+          result[column.key] = Math.max(floor, Math.round(share))
+        })
+      }
       return result
     }
 
@@ -265,7 +344,9 @@ export function useListColumns(options: UseListColumnsOptions) {
       Math.max(0, Math.min(c.minWidth ?? c.width, fixedCap(c)))
     const fixedWeight = (c: (typeof fixedCols)[number]) => Math.max(0.01, c.weight ?? 1)
 
-    // —— 基准：用户设定值（拖拽结果优先）——
+    // —— 基准：用户设定值 ——
+    //    manual 列（用户手动拖拽过）按用户值**钉死**，
+    //    后续既不参与分配、也不被压缩。
     const widths: Record<string, number> = {}
     cols.forEach((column) => {
       widths[column.key] = column.width
@@ -273,16 +354,64 @@ export function useListColumns(options: UseListColumnsOptions) {
     fixedCols.forEach((column) => {
       widths[column.key] = column.width
     })
+
+    // —— 参与比例分配的列集合：仅「未拖拽」的数据列 + 全部固定列 ——
+    //    手动列被排除在外，因此不会被按比例放大或缩小；
+    //    剩余空间由这些列按权重共享，表格依旧铺满内容区。
+    //
+    //    「填充」列（fill: true，通常是最后一列「操作」）**不参与分配**：
+    //    它在 columnBinding() 里只给 minWidth、不给固定 width，
+    //    由 Element Plus 原生 fit 把剩余空间全给它。
+    //    若把它算进权重池，它会抢走数据列的宽度，
+    //    同时又因为没有固定 width 而拿不到那份宽度 —— 宽度被"凭空吞掉"，
+    //    表现为表格右侧留白。
+    const autoCols = cols.filter((column) => column.manual !== true && column.fill !== true)
+
+    // 固定列若与数据列同 key（如「操作」列同时出现在 defaults 和 fixedColumns），
+    // 基准宽度只能算一次，否则 baseTotal 被重复累加，
+    // 分配算法的"可用余量"算少，表格铺不满。
+    const fixedColsOnly = fixedCols.filter(
+      (column) => !cols.some((c) => c.key === column.key)
+    )
+
+    // 「填充」列至少要占住 minWidth，这部分已在 available 里预扣，
+    // 这里不再重复计算，避免两处口径不一致。
+    //
+    // 手动列（用户拖拽过的列）不参与按权重分配，但它们的实际宽度
+    // **必须计入基准**，否则：
+    //   用户把某列拖宽 → 该列被排除出分配池 → baseTotal 变小
+    //   → pending 变大 → 其它列被"顺带"拉宽
+    // 这就违反了「拖动一列不影响其它列」的要求。
+    // 把手动列的实际宽度加回 baseTotal，pending 就不会因拖拽而虚增，
+    // 其它列宽度保持不变（仅在确实还有富余/不足时才微调）。
+    const manualCols = cols.filter((column) => column.manual === true && column.fill !== true)
+
     const baseTotal =
-      cols.reduce((sum, column) => sum + column.width, 0) +
-      fixedCols.reduce((sum, column) => sum + column.width, 0)
+      autoCols.reduce((sum, column) => sum + column.width, 0) +
+      manualCols.reduce((sum, column) => sum + column.width, 0) +
+      fixedColsOnly.reduce((sum, column) => sum + column.width, 0)
 
     if (baseTotal < available) {
-      // —— 富余：按权重比例分配（受 maxWidth 上限约束）——
+      // 富余（available - baseTotal）：由填充列吸收，或按权重分配
       let pending = available - baseTotal
+      // 「用户拖拽过某列」时：**不再重新分配其它列的宽度**。
+      // 需求原文：「拖动列改变大小时不要影响其他列」。
+      // 若此处仍按权重把富余分给所有列，被拖拽的列变宽/变窄时，
+      // 其它列会跟着一起变，用户的调整就"被系统改回去了"。
+      //
+      // 正确做法：把富余全部留给「填充」列（通常是最后的「操作」列），
+      // 由它吃掉剩余空白 —— 表格依旧 100% 铺满，而其它列纹丝不动。
+      // 若没有填充列，则富余无处可去，表格右侧会出现一小段空白，
+      // 这正是「拖拽不影响其它列」的必然代价（可接受的取舍）。
+      const hasManual = manualCols.length > 0
+      if (hasManual) {
+        // 冻结：所有非拖拽列保持基准宽度，富余留给填充列
+        // （填充列在 columnBinding 里只给 minWidth，由 Element Plus 原生 fit 吸收）
+        pending = 0
+      }
       for (let round = 0; round < 8 && pending > 0.5; round++) {
-        const active = cols.filter((column) => capOf(column) - widths[column.key] > 0.5)
-        const activeFixed = fixedCols.filter(
+        const active = autoCols.filter((column) => capOf(column) - widths[column.key] > 0.5)
+        const activeFixed = fixedColsOnly.filter(
           (column) => fixedCap(column) - widths[column.key] > 0.5
         )
         if (!active.length && !activeFixed.length) break
@@ -312,13 +441,13 @@ export function useListColumns(options: UseListColumnsOptions) {
       //    这里解除上限约束再分一次，保证 100% 铺满内容区。
       if (pending > 0.5) {
         const wSum =
-          cols.reduce((sum, column) => sum + weightOf(column), 0) +
-          fixedCols.reduce((sum, column) => sum + fixedWeight(column), 0)
+          autoCols.reduce((sum, column) => sum + weightOf(column), 0) +
+          fixedColsOnly.reduce((sum, column) => sum + fixedWeight(column), 0)
         if (wSum > 0) {
-          for (const column of cols) {
+          for (const column of autoCols) {
             widths[column.key] += (pending * weightOf(column)) / wSum
           }
-          for (const column of fixedCols) {
+          for (const column of fixedColsOnly) {
             widths[column.key] += (pending * fixedWeight(column)) / wSum
           }
           pending = 0
@@ -326,10 +455,24 @@ export function useListColumns(options: UseListColumnsOptions) {
       }
     } else if (baseTotal > available) {
       // —— 不足：按权重比例压缩（受 minWidth 下限约束）——
+      //
+      // 同样地：用户拖拽过某列后，其余列不应被"连坐"压缩。
+      // 空间不够时优先压缩**未拖拽**的列；若都压到 minWidth 仍不够，
+      // 就让表格横向溢出（出现滚动条），
+      // 而不是把用户精心调整过的列压回去。
       let need = baseTotal - available
+
+      // 用户拖拽过列时：**不压缩任何列**。
+      // 需求是「拖动一列不影响其它列」，若这里压缩其它列，
+      // 视觉上就是拖一列、全表抖。
+      // 空间不够就让它横向溢出（出现滚动条），这才是符合预期的取舍。
+      if (manualCols.length > 0) {
+        need = 0
+      }
+
       for (let round = 0; round < 8 && need > 0.5; round++) {
-        const active = cols.filter((column) => widths[column.key] - floorOf(column) > 0.5)
-        const activeFixed = fixedCols.filter(
+        const active = autoCols.filter((column) => widths[column.key] - floorOf(column) > 0.5)
+        const activeFixed = fixedColsOnly.filter(
           (column) => widths[column.key] - fixedFloor(column) > 0.5
         )
         if (!active.length && !activeFixed.length) break
@@ -359,15 +502,21 @@ export function useListColumns(options: UseListColumnsOptions) {
     //    场景：规格型号内容确实很长（P90 188px），但权重排名不是最高，
     //    按比例分到的宽度可能仍放不下内容。
     //    从「还有余量」的列按权重比例借给它，借多少还多少，总量守恒。
-    if (fitMode === 'hybrid') {
-      for (const column of cols) {
+    //    注意：手动拖拽过的列不参与调剂 —— 它的宽度完全由用户决定。
+    //
+    //    用户拖拽过任意一列后，**整体跳过调剂**：
+    //    调剂会在多列之间搬运宽度，用户精心调好的版面会被重新打乱，
+    //    表现为「拖一列、旁边几列跟着变」。这与
+    //    「拖动列改变大小时不要影响其他列」的要求冲突。
+    if (fitMode === 'hybrid' && manualCols.length === 0) {
+      for (const column of autoCols) {
         if (!column.flexible || !column.idealWidth) continue
         const target = Math.min(column.idealWidth, capOf(column))
         let need = target - widths[column.key]
         if (need <= 0.5) continue
 
         // 出借方：还有余量（超过自己的理想宽度或保底）且未到上限
-        const lenders = cols.filter((c) => {
+        const lenders = autoCols.filter((c) => {
           if (c.key === column.key) return false
           const lenderIdeal =
             c.flexible && c.idealWidth ? Math.min(c.idealWidth, capOf(c)) : floorOf(c)
@@ -394,6 +543,26 @@ export function useListColumns(options: UseListColumnsOptions) {
       }
     }
 
+    // —— 填充列收尾：吃掉剩余空间 ——
+    //   数据列分配完毕后，容器还剩下的宽度全部交给填充列，
+    //   表格因此 100% 铺满内容区，且填充列是唯一「伸缩」的列。
+    //   剩余空间不足以满足填充列 minWidth 时，填充列取 minWidth，
+    //   表格出现横向滚动条（数据列已按比例压缩过，不会溢出容器）。
+    if (fillCols.length && rawAvailable > 0) {
+      let usedByOthers = cols
+        .filter((column) => column.fill !== true)
+        .reduce((sum, column) => sum + (widths[column.key] ?? 0), 0)
+      ;(options.fixedColumns ?? []).forEach((column) => {
+        if (!cols.some((c) => c.key === column.key)) usedByOthers += widths[column.key] ?? 0
+      })
+      const remainder = rawAvailable - usedByOthers
+      fillCols.forEach((column) => {
+        const floor = column.minWidth ?? column.width
+        const share = fillCols.length === 1 ? remainder : remainder / fillCols.length
+        widths[column.key] = Math.max(floor, Math.round(share))
+      })
+    }
+
     Object.assign(result, widths)
     return result
   })
@@ -401,12 +570,34 @@ export function useListColumns(options: UseListColumnsOptions) {
   /**
    * 列宽绑定。
    * ---------------------------------------------------------------------
-   * 统一返回固定 width —— 剩余空间已在 effectiveWidths 中
+   * 默认返回固定 width —— 剩余空间已在 effectiveWidths 中
    * 按「弹性列优先吸收 + 上限约束 + 其余按比例补给」分配完毕，
    * 再交给 Element Plus 原生 fit 会把空间重新吞回弹性列，
    * 导致短字段列再次被挤压，因此统一使用 width。
+   *
+   * 例外：标记了 fill 的列（通常是最后一列「操作」）
+   * 只吃掉表格右侧的剩余空白，因此**不设固定 width**，只给 min-width。
+   *
+   * 原理：Element Plus 的表格布局把「没有数值 width 的列」当作弹性列，
+   * 会把容器剩余宽度按 minWidth 比例全部分给它们。
+   * 只有「操作」列是弹性列时，剩余宽度就全部落在它身上，
+   * 表格因此 100% 铺满，而数据列宽度纹丝不动。
+   *
+   * ⚠️ 反面教材：若给「操作」列也下发数值 width，
+   *    EP 会认为「没有弹性列」，剩余宽度无处可去，
+   *    表格右侧就会出现一小段留白。
+   *
+   * 列宽拖拽行为完全遵循 Element Plus 默认语义：
+   * 用户拖动某一列只改变该列宽度，其它列宽度不变；
+   * 表格总宽是否仍等于容器宽度，由 Element Plus 的弹性列（fill 列）
+   * 按其自身规则决定 —— 这是 Element Plus 的原生表现，不额外干预。
    */
   function columnBinding(key: string): { width?: number; minWidth?: number } {
+    const column = columns.value.find((item) => item.key === key)
+    if (column?.fill) {
+      const min = column.minWidth ?? column.width
+      return { minWidth: min }
+    }
     return { width: columnWidth(key) }
   }
   function persist() {
@@ -443,7 +634,9 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   function resetColumns() {
-    columns.value = options.defaults.map((item) => ({ ...item }))
+    // 恢复默认时必须一并清掉「手动拖拽」标记，
+    // 否则该列会以手动宽度钉死，再也回不到自适应填充。
+    columns.value = options.defaults.map((item) => ({ ...item, manual: false }))
     persist()
     syncLayout()
   }
@@ -480,7 +673,10 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   function measureContainer() {
-    if (fitMode === 'fixed') return
+    // fixed 模式默认不测量容器（列宽恒定），
+    // 但存在「填充」列时必须测量：填充列要吃掉表格右侧的剩余空白，
+    // 需要知道容器可用宽度才能算出自己的宽度。
+    if (fitMode === 'fixed' && !options.defaults.some((column) => column.fill === true)) return
     const el = resolveContainerEl()
     if (el && el.clientWidth > 0) {
       containerWidth.value = el.clientWidth
@@ -549,6 +745,9 @@ export function useListColumns(options: UseListColumnsOptions) {
       if (!dragState) return
       const delta = moveEvent.clientX - dragState.startX
       column.width = Math.min(maxWidth, Math.max(minWidth, dragState.startWidth + delta))
+      // 一旦用户拖拽，该列宽度即由用户决定：打上 manual 标记，
+      // 自适应分配时把它排除在外，刷新后依然精确等于拖拽结果。
+      column.manual = true
       persist()
       syncLayout()
     }
@@ -587,7 +786,28 @@ export function useListColumns(options: UseListColumnsOptions) {
     if (!target) return
     const width = Math.round(Number(newWidth))
     if (!Number.isFinite(width) || width <= 0) return
+
+    // —— 冻结其它列的当前宽度 ——
+    // 需求：「拖动列改变大小时不要影响其他列」。
+    //
+    // 自适应模式下，其它列的**实际渲染宽度**是按权重算出来的，
+    // 并不等于配置里的基准宽度。若只把被拖的列标记为 manual，
+    // 重新计算时其它列会"弹回"基准宽度 —— 视觉上就是拖一列、全表抖一下。
+    //
+    // 这里在拖拽结束的瞬间，把所有其它列**当前的渲染宽度**写回配置，
+    // 于是重新计算时它们的基准就等于拖拽前的样子，纹丝不动。
+    const rendered = effectiveWidths.value
+    columns.value.forEach((item) => {
+      if (item.key === key) return
+      const current = rendered[item.key]
+      if (typeof current !== 'number' || !Number.isFinite(current) || current <= 0) return
+      item.width = Math.round(current)
+    })
+
     target.width = Math.min(maxWidth, Math.max(minWidth, width))
+    // 打上 manual 标记：该列宽度完全由用户决定，
+    // 自适应分配时不再按权重放大/缩小，刷新后仍是这个宽度。
+    target.manual = true
     persist()
     syncLayout()
   }
@@ -598,13 +818,43 @@ export function useListColumns(options: UseListColumnsOptions) {
   }
 
   onMounted(() => {
+    // 调试钩子：把计算出的列宽挂到 window，便于自动化脚本核对
+    // （按 storageKey 登记，避免多个列表互相覆盖）
+    const w = window as any
+    w.__ulcDebug = w.__ulcDebug || {}
+    w.__ulcDebug[options.storageKey] = {
+      get widths() {
+        return { ...effectiveWidths.value }
+      },
+      get cols() {
+        return columns.value.map((c) => ({
+          key: c.key,
+          width: c.width,
+          manual: c.manual === true,
+          fill: c.fill === true,
+          minWidth: c.minWidth,
+        }))
+      },
+      get containerWidth() {
+        return containerWidth.value
+      },
+      get reserved() {
+        return options.reservedWidth ?? 0
+      },
+      get fitMode() {
+        return fitMode
+      },
+    }
     // 表格可能尚未完成渲染，延后再测量一次，确保拿到真实容器宽度
     measureContainer()
     nextTick(() => {
       measureContainer()
       syncLayout()
     })
-    if (fitMode !== 'fixed' && typeof ResizeObserver !== 'undefined') {
+    // 存在「填充」列时，即使 fixed 模式也要观察容器宽度变化：
+    // 填充列的宽度随容器宽度变化，需要重新计算才能持续铺满 100%。
+    const hasFillColumn = options.defaults.some((column) => column.fill === true)
+    if ((fitMode !== 'fixed' || hasFillColumn) && typeof ResizeObserver !== 'undefined') {
       resizeObserver = new ResizeObserver(() => {
         measureContainer()
         syncLayout()

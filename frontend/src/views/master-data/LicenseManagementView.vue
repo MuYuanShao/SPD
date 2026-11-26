@@ -3,10 +3,13 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { Check, Columns3, ChevronDown, Eye, FileText, Plus, Search, Trash2, Upload, X, Pencil, Download } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import { useNotify } from '../../composables/useNotify'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { formatDateTime } from '../../utils/dateTime'
 import {
   createLicense,
@@ -43,7 +46,7 @@ const notify = useNotify()
 const rows = ref<LicenseRow[]>([])
 const total = ref(0)
 const page = ref(1)
-const size = 20
+const size = ref(20)
 const keyword = ref('')
 const loading = ref(false)
 const error = ref('')
@@ -157,7 +160,7 @@ async function loadList() {
   loading.value = true
   error.value = ''
   try {
-    const result = await fetchLicenses(activeTab.value, keyword.value, page.value, size)
+    const result = await fetchLicenses(activeTab.value, keyword.value, page.value, size.value)
     rows.value = result.rows
     total.value = result.total
   } catch (err) {
@@ -165,6 +168,19 @@ async function loadList() {
   } finally {
     loading.value = false
   }
+}
+
+/** 翻页（MdPagination） */
+function changePage(next: number) {
+  page.value = next
+  loadList()
+}
+
+/** 修改每页条数（MdPagination） */
+function changeSize(next: number) {
+  size.value = next
+  page.value = 1
+  loadList()
 }
 
 function switchTab(type: LicenseType) {
@@ -373,25 +389,38 @@ const isContract = computed(() => activeTab.value === 'contract')
 
 // ===== 统一列表：列宽拖拽 + 列设置 + 统一斑马纹表格 =====
 const LICENSE_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'licenseName', label: '证照名称', width: 220, visible: true },
-  { key: 'licenseNo', label: '证照编号', width: 180, visible: true },
-  { key: 'owner', label: '所属主体', width: 200, visible: true },
-  { key: 'issueDate', label: '签发日期', width: 150, visible: true },
-  { key: 'expireDate', label: '有效期至', width: 150, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'attachmentCount', label: '附件', width: 110, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
+  { key: 'licenseName', label: '证照名称', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'licenseNo', label: '证照编号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'owner', label: '所属主体', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'issueDate', label: '签发日期', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 180 },
+  { key: 'expireDate', label: '有效期至', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 180 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'attachmentCount', label: '附件', width: 80, visible: true, weight: 2, minWidth: 70, maxWidth: 120 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const licenseCols = useListColumns({
   storageKey: 'spd-license-cols-v1',
-  defaults: LICENSE_COL_DEFAULTS
+  defaults: LICENSE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
 })
 const licenseTableRef = licenseCols.tableRef
 
 const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
 const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
+const licenseColBinding = (key: string) => licenseCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const licenseColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const licenseColSettingsPopRef = ref<HTMLElement | null>(null)
+const licenseColSettingsPop = useColSettingsPopover({
+  open: licenseCols.settingsOpen,
+  anchorRef: licenseColSettingsAnchorRef,
+  popRef: licenseColSettingsPopRef
+})
 
 /**
  * 「操作」列统一固定规则（与其它基础数据管理页一致）：
@@ -486,12 +515,30 @@ onUnmounted(closePreview)
         <button class="md-btn md-btn-primary" type="button" @click="openCreateModal">
           <Plus :size="16" /> 新增{{ activeTabInfo.label }}
         </button>
+      </div>
+    </div>
+
+    <p v-if="error" class="license-error">{{ error }}</p>
+
+    <MdDataTableCard>
+      <template #toolbar>
         <div class="ulc-col-settings">
-          <button type="button" class="md-btn md-btn-primary" @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value">
+          <button
+            ref="licenseColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="licenseCols.settingsOpen.value = !licenseCols.settingsOpen.value"
+          >
             <Columns3 :size="16" /> 列设置
             <ChevronDown :size="14" :class="{ rotated: licenseCols.settingsOpen.value }" />
           </button>
-          <div v-if="licenseCols.settingsOpen.value" class="ulc-col-settings-pop">
+          <div
+            v-if="licenseCols.settingsOpen.value"
+            ref="licenseColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': licenseColSettingsPop.align.value === 'right', 'is-align-up': licenseColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': licenseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': licenseColSettingsPop.maxHeight.value + 'px' }"
+          >
             <header>
               <strong>列展示设置</strong>
               <button type="button" class="ulc-link" @click="licenseCols.resetColumns()">恢复默认</button>
@@ -513,38 +560,37 @@ onUnmounted(closePreview)
             </footer>
           </div>
         </div>
-      </div>
-    </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total }} 条</span>
+      </template>
 
-    <p v-if="error" class="license-error">{{ error }}</p>
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="licenseTableRef"
+          v-loading="loading"
+          class="ulc-table is-sticky"
+          :data="rows"
+          row-key="id"
+          border
+          stripe
+          max-height="560" style="width: 100%"
+          :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
 
-    <div class="ulc-table-wrap">
-      <el-table
-        ref="licenseTableRef"
-        v-loading="loading"
-        class="ulc-table"
-        :data="rows"
-        row-key="id"
-        border
-        stripe
-        style="width: 100%"
-        :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
-      
-        @header-dragend="(width: number, oldWidth: number, column: any) => licenseCols.handleHeaderDragEnd(width, oldWidth, column)">
+          @header-dragend="(width: number, oldWidth: number, column: any) => licenseCols.handleHeaderDragEnd(width, oldWidth, column)">
         <el-table-column
             column-key="licenseName"
           v-if="isLicenseColVisible('licenseName')"
           label="证照名称"
-          :min-width="licenseColWidth('licenseName')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('licenseName')"
         >
           <template #header>
             <span class="ulc-th-text">证照名称</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
-              <span class="ulc-strong">{{ row.licenseName }}</span>
-              <span v-if="row.sourceSystem === 'MCP-UI'" class="ulc-sub">MCP审批同步</span>
+              <span class="ulc-wrap-text ulc-strong">{{ row.licenseName }}</span>
+              <span v-if="row.sourceSystem === 'MCP-UI'" class="ulc-sub ulc-wrap-text is-sub">MCP审批同步</span>
             </div>
           </template>
         </el-table-column>
@@ -552,30 +598,28 @@ onUnmounted(closePreview)
             column-key="licenseNo"
           v-if="isLicenseColVisible('licenseNo')"
           :label="isContract ? '合同编号' : '证照编号'"
-          :min-width="licenseColWidth('licenseNo')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('licenseNo')"
         >
           <template #header>
             <span class="ulc-th-text">{{ isContract ? '合同编号' : '证照编号' }}</span>
           </template>
           <template #default="{ row }">
-            <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
+            <span class="ulc-wrap-text ulc-mono">{{ row.licenseNo || '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column
             column-key="owner"
           v-if="isLicenseColVisible('owner')"
           :label="isContract ? '合同双方' : activeTabInfo.ownerLabel"
-          :min-width="licenseColWidth('owner')"
-          show-overflow-tooltip
+          v-bind="licenseColBinding('owner')"
         >
           <template #header>
             <span class="ulc-th-text">{{ isContract ? '合同双方' : activeTabInfo.ownerLabel }}</span>
           </template>
           <template #default="{ row }">
             <div class="ulc-cell-stack">
-              <span class="ulc-strong">{{ licenseOwnerText(row) }}</span>
-              <span v-if="licenseOwnerSubText(row)" class="ulc-sub">{{ licenseOwnerSubText(row) }}</span>
+              <span class="ulc-strong ulc-wrap-text">{{ licenseOwnerText(row) }}</span>
+              <span v-if="licenseOwnerSubText(row)" class="ulc-sub ulc-wrap-text is-sub">{{ licenseOwnerSubText(row) }}</span>
             </div>
           </template>
         </el-table-column>
@@ -583,21 +627,21 @@ onUnmounted(closePreview)
             column-key="issueDate"
           v-if="isLicenseColVisible('issueDate')"
           :label="licenseIssueHeader()"
-          :min-width="licenseColWidth('issueDate')"
+          v-bind="licenseColBinding('issueDate')"
           align="center"
         >
           <template #header>
             <span class="ulc-th-text">{{ licenseIssueHeader() }}</span>
           </template>
           <template #default="{ row }">
-            <span class="ulc-strong">{{ licenseIssueValue(row) }}</span>
+            <span class="ulc-wrap-text ulc-strong">{{ licenseIssueValue(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column
             column-key="expireDate"
           v-if="isLicenseColVisible('expireDate')"
           label="有效期至"
-          :min-width="licenseColWidth('expireDate')"
+          v-bind="licenseColBinding('expireDate')"
           align="center"
         >
           <template #header>
@@ -607,7 +651,7 @@ onUnmounted(closePreview)
             <span class="ulc-time">{{ row.expireDate || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="isLicenseColVisible('createTime')" label="创建时间" :min-width="licenseColWidth('createTime')">
+        <el-table-column column-key="createTime"v-if="isLicenseColVisible('createTime')" label="创建时间" v-bind="licenseColBinding('createTime')">
           <template #header>
             <span class="ulc-th-text">创建时间</span>
           </template>
@@ -615,7 +659,7 @@ onUnmounted(closePreview)
             <span class="ulc-time">{{ row.createTime || '-' }}</span>
           </template>
         </el-table-column>
-        <el-table-column v-if="isLicenseColVisible('updateTime')" label="修改时间" :min-width="licenseColWidth('updateTime')">
+        <el-table-column column-key="updateTime"v-if="isLicenseColVisible('updateTime')" label="修改时间" v-bind="licenseColBinding('updateTime')">
           <template #header>
             <span class="ulc-th-text">修改时间</span>
           </template>
@@ -627,7 +671,7 @@ onUnmounted(closePreview)
             column-key="status"
           v-if="isLicenseColVisible('status')"
           label="状态"
-          :min-width="licenseColWidth('status')"
+          v-bind="licenseColBinding('status')"
           align="center"
         >
           <template #header>
@@ -643,7 +687,7 @@ onUnmounted(closePreview)
             column-key="attachmentCount"
           v-if="isLicenseColVisible('attachmentCount')"
           label="附件"
-          :min-width="licenseColWidth('attachmentCount')"
+          v-bind="licenseColBinding('attachmentCount')"
           align="center"
         >
           <template #header>
@@ -653,7 +697,18 @@ onUnmounted(closePreview)
             <span class="ulc-tag">{{ row.attachmentCount ?? 0 }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" :min-width="300" align="center" :fixed="licenseActionFixed">
+        <el-table-column column-key="actions"
+ v-if="isLicenseColVisible('actions')"
+ label="操作"
+ v-bind="licenseColBinding('actions')"
+ :fixed="licenseActionFixed">
+
+          <template #header>
+
+            <span class="ulc-th-text">操作</span>
+
+          </template>
+
           <template #default="{ row }">
             <div class="ulc-actions">
               <button
@@ -695,12 +750,19 @@ onUnmounted(closePreview)
           <MdEmptyState :text="`暂无${activeTabInfo.label}数据`" hint="点击右上角新增" />
         </template>
       </el-table>
-      <div v-if="total > size" class="license-pagination">
-        <button class="btn" type="button" :disabled="page <= 1" @click="page--; loadList()">上一页</button>
-        <span>第 {{ page }} 页 / 共 {{ Math.ceil(total / size) }} 页（{{ total }} 条）</span>
-        <button class="btn" type="button" :disabled="page >= Math.ceil(total / size)" @click="page++; loadList()">下一页</button>
       </div>
-    </div>
+      <template #pagination>
+        <MdPagination
+          :page="page"
+          :total-pages="Math.max(1, Math.ceil(total / size))"
+          :total="total"
+          :size="size"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changeSize"
+        />
+      </template>
+    </MdDataTableCard>
 
     <!-- 新增 / 编辑证照 -->
     <Teleport to="body">
@@ -1190,16 +1252,6 @@ onUnmounted(closePreview)
 
 .license-message { color: #047857; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
 .license-error { color: #b91c1c; font-size: var(--spd-font-size-sm); margin: 0 0 8px; }
-
-.license-pagination {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 12px;
-  padding: 12px;
-  font-size: var(--spd-font-size-sm);
-  color: #64748b;
-}
 
 /* ============================================================
    新增/编辑证照弹窗

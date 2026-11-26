@@ -7,7 +7,6 @@ import 'element-plus/theme-chalk/el-message.css'
 import 'element-plus/theme-chalk/el-message-box.css'
 import { useRoute } from 'vue-router'
 import {
-  Activity,
   AlertTriangle,
   Building2,
   CheckCircle2,
@@ -25,10 +24,10 @@ import {
   Truck,
   X
 } from '@lucide/vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import PageHeader from '../../components/common/PageHeader.vue'
 import HighValueOperationsPanel from '../../components/supply-chain/HighValueOperationsPanel.vue'
 import {
@@ -72,6 +71,16 @@ import { usePagedFilters } from '../../composables/usePagedFilters'
 import { formatDateTime } from '../../utils/dateTime'
 import type { PageResult } from '../../api/http'
 import { useAuthStore } from '../../stores/auth'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { confirmWarehouseReturn, fetchWarehouseReturnQueue, type ReturnRecord } from '../../api/stockReturns'
 
 const route = useRoute()
@@ -249,21 +258,6 @@ const titleMap: Record<string, string> = {
   'high-value': '高值使用计费基础'
 }
 const title = computed(() => pageCode.value === 'red-flush-management' ? '红冲管理' : titleMap[type.value])
-const stats = computed(() => [
-  { label: '缺货任务', value: summary.value.shortageTasks ?? 0 },
-  { label: '待签收配送', value: summary.value.pendingDeliveries ?? 0 },
-  { label: '消耗单据', value: summary.value.consumptions ?? 0 },
-  { label: '风险事件', value: summary.value.riskEvents ?? 0 }
-])
-const consumptionStats = computed(() => [
-  { label: '本页消耗记录', value: rows.value.length, icon: 'records' },
-  { label: '已确认', value: rows.value.filter(row => String(row.status) === 'confirmed').length, icon: 'confirmed' },
-  { label: '已红冲', value: rows.value.filter(row => ['reversed', 'red_flushed'].includes(String(row.status))).length, icon: 'reversed' },
-  { label: '本页消耗数量', value: rows.value.reduce((sum, row) => sum + Number(row.quantity || 0), 0), icon: 'quantity' }
-])
-const displayStats = computed(() => type.value === 'consumption'
-  ? consumptionStats.value
-  : stats.value.map(item => ({ ...item, icon: '' })))
 
 const replenishmentDayOptions = [5, 7, 15, 30]
 const selectedDepartment = computed(() => options.value.departments.find(item =>
@@ -1250,10 +1244,545 @@ watch(recallBusinessType, () => {
     void loadRecallInventory()
   }
 })
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCREPLENISHMENTANALYSIS_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'deptWarehouse', label: '科室 / 库房', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'out5', label: '5 天出库', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'out7', label: '7 天出库', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'out15', label: '15 天出库', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'out30', label: '30 天出库', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'currentStock', label: '当前库存', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'suggestedReplenishment', label: '建议补货', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const ocReplenishmentAnalysisCols = useListColumns({
+  storageKey: 'spd-oc-replenishment-analysis-cols-v1',
+  defaults: OCREPLENISHMENTANALYSIS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocReplenishmentAnalysisTableRef = ocReplenishmentAnalysisCols.tableRef
+const isOcReplenishmentAnalysisColVisible = (key: string) => ocReplenishmentAnalysisCols.isColumnVisible(key)
+const ocReplenishmentAnalysisColBinding = (key: string) => ocReplenishmentAnalysisCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ocReplenishmentAnalysisActionFix = useActionColumnFix()
+const ocReplenishmentAnalysisActionFixed = computed(() => ocReplenishmentAnalysisActionFix.actionFixedBinding.value)
+
+watch(
+  [ocReplenishmentAnalysisTableRef],
+  () => {
+    ocReplenishmentAnalysisActionFix.observe(ocReplenishmentAnalysisTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocReplenishmentAnalysisColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocReplenishmentAnalysisColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocReplenishmentAnalysisColSettingsPop = useColSettingsPopover({
+  open: ocReplenishmentAnalysisCols.settingsOpen,
+  anchorRef: ocReplenishmentAnalysisColSettingsAnchorRef,
+  popRef: ocReplenishmentAnalysisColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCRECALLHISTORY_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'bizNo', label: '单据号', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 230 },
+  { key: 'businessType', label: '类型', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'sourceDept', label: '来源科室', width: 160, visible: true, weight: 4, minWidth: 110, maxWidth: 260 },
+  { key: 'recordWarehouse', label: '记录库房', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 240 },
+  { key: 'quantity', label: '数量', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 2, minWidth: 80, maxWidth: 160 },
+  { key: 'createTime', label: '登记时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'receivedTime', label: '签收时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210, fill: true }
+]
+
+const ocRecallHistoryCols = useListColumns({
+  storageKey: 'spd-oc-recall-history-cols-v1',
+  defaults: OCRECALLHISTORY_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocRecallHistoryTableRef = ocRecallHistoryCols.tableRef
+const isOcRecallHistoryColVisible = (key: string) => ocRecallHistoryCols.isColumnVisible(key)
+const ocRecallHistoryColBinding = (key: string) => ocRecallHistoryCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocRecallHistoryColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocRecallHistoryColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocRecallHistoryColSettingsPop = useColSettingsPopover({
+  open: ocRecallHistoryCols.settingsOpen,
+  anchorRef: ocRecallHistoryColSettingsAnchorRef,
+  popRef: ocRecallHistoryColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCREDFLUSH_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'bizNo', label: '红冲单号', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 230 },
+  { key: 'sourceNo', label: '原消耗单号', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 230 },
+  { key: 'deptName', label: '科室', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 230 },
+  { key: 'flushType', label: '红冲类型', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 2, minWidth: 80, maxWidth: 160 },
+  { key: 'createTime', label: '红冲时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'remark', label: '备注', width: 220, visible: true, weight: 6, minWidth: 140, maxWidth: 380, fill: true }
+]
+
+const ocRedFlushCols = useListColumns({
+  storageKey: 'spd-oc-red-flush-cols-v1',
+  defaults: OCREDFLUSH_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocRedFlushTableRef = ocRedFlushCols.tableRef
+const isOcRedFlushColVisible = (key: string) => ocRedFlushCols.isColumnVisible(key)
+const ocRedFlushColBinding = (key: string) => ocRedFlushCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocRedFlushColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocRedFlushColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocRedFlushColSettingsPop = useColSettingsPopover({
+  open: ocRedFlushCols.settingsOpen,
+  anchorRef: ocRedFlushColSettingsAnchorRef,
+  popRef: ocRedFlushColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCSETTLEMENT_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'settlementNo', label: '结算单', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'settlementOwner', label: '结算归属', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'requisitionType', label: '申领类型', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'productInfo', label: '商品信息', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'specUnit', label: '规格 / 单位', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'manufacturer', label: '厂家 / 注册证', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'supplierName', label: '结算供应商', width: 170, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'goodsType', label: '货型', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'basePrice', label: '基本单价', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'baseQty', label: '基本数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'packageCount', label: '包数（去重）', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'looseQty', label: '散货数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'highValueQty', label: '高值数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'amount', label: '金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'medicalInsurance', label: '带量 / 医保', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'traceCode', label: '追溯码', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'patientDept', label: '患者 / 财务科室', width: 170, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'settlementInfo', label: '结算信息', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 2, minWidth: 80, maxWidth: 160, fill: true }
+]
+
+const ocSettlementCols = useListColumns({
+  storageKey: 'spd-oc-settlement-cols-v1',
+  defaults: OCSETTLEMENT_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocSettlementTableRef = ocSettlementCols.tableRef
+const isOcSettlementColVisible = (key: string) => ocSettlementCols.isColumnVisible(key)
+const ocSettlementColBinding = (key: string) => ocSettlementCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocSettlementColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocSettlementColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocSettlementColSettingsPop = useColSettingsPopover({
+  open: ocSettlementCols.settingsOpen,
+  anchorRef: ocSettlementColSettingsAnchorRef,
+  popRef: ocSettlementColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCRECALLQUEUE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'recallNo', label: '召回单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'sourceWarehouse', label: '来源二级库', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 250 },
+  { key: 'destinationWarehouse', label: '接收中心库', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 250 },
+  { key: 'quantity', label: '待收数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '登记时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const ocRecallQueueCols = useListColumns({
+  storageKey: 'spd-oc-recall-queue-cols-v1',
+  defaults: OCRECALLQUEUE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocRecallQueueTableRef = ocRecallQueueCols.tableRef
+const isOcRecallQueueColVisible = (key: string) => ocRecallQueueCols.isColumnVisible(key)
+const ocRecallQueueColBinding = (key: string) => ocRecallQueueCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ocRecallQueueActionFix = useActionColumnFix()
+const ocRecallQueueActionFixed = computed(() => ocRecallQueueActionFix.actionFixedBinding.value)
+
+watch(
+  [ocRecallQueueTableRef],
+  () => {
+    ocRecallQueueActionFix.observe(ocRecallQueueTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocRecallQueueColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocRecallQueueColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocRecallQueueColSettingsPop = useColSettingsPopover({
+  open: ocRecallQueueCols.settingsOpen,
+  anchorRef: ocRecallQueueColSettingsAnchorRef,
+  popRef: ocRecallQueueColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCRETURNQUEUE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'returnNo', label: '退库单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'sourceWarehouse', label: '二级库', width: 150, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'destinationWarehouse', label: '接收中心库', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 250 },
+  { key: 'quantity', label: '基本数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '登记时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const ocReturnQueueCols = useListColumns({
+  storageKey: 'spd-oc-return-queue-cols-v1',
+  defaults: OCRETURNQUEUE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocReturnQueueTableRef = ocReturnQueueCols.tableRef
+const isOcReturnQueueColVisible = (key: string) => ocReturnQueueCols.isColumnVisible(key)
+const ocReturnQueueColBinding = (key: string) => ocReturnQueueCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ocReturnQueueActionFix = useActionColumnFix()
+const ocReturnQueueActionFixed = computed(() => ocReturnQueueActionFix.actionFixedBinding.value)
+
+watch(
+  [ocReturnQueueTableRef],
+  () => {
+    ocReturnQueueActionFix.observe(ocReturnQueueTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocReturnQueueColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocReturnQueueColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocReturnQueueColSettingsPop = useColSettingsPopover({
+  open: ocReturnQueueCols.settingsOpen,
+  anchorRef: ocReturnQueueColSettingsAnchorRef,
+  popRef: ocReturnQueueColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCPICKINGLOOSE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'systemBatch', label: '系统批次', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'availableQty', label: '可用数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'pickedQty', label: '拣配数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160, fill: true }
+]
+
+const ocPickingLooseCols = useListColumns({
+  storageKey: 'spd-oc-picking-loose-cols-v1',
+  defaults: OCPICKINGLOOSE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocPickingLooseTableRef = ocPickingLooseCols.tableRef
+const isOcPickingLooseColVisible = (key: string) => ocPickingLooseCols.isColumnVisible(key)
+const ocPickingLooseColBinding = (key: string) => ocPickingLooseCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocPickingLooseColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocPickingLooseColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocPickingLooseColSettingsPop = useColSettingsPopover({
+  open: ocPickingLooseCols.settingsOpen,
+  anchorRef: ocPickingLooseColSettingsAnchorRef,
+  popRef: ocPickingLooseColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCPICKINGQUOTAPACKAGE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '', width: 60, visible: true, weight: 1, minWidth: 48, maxWidth: 80 },
+  { key: 'labelNo', label: '定数包码', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'packageQuantity', label: '包内数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '生成时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210, fill: true }
+]
+
+const ocPickingQuotaPackageCols = useListColumns({
+  storageKey: 'spd-oc-picking-quota-package-cols-v1',
+  defaults: OCPICKINGQUOTAPACKAGE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocPickingQuotaPackageTableRef = ocPickingQuotaPackageCols.tableRef
+const isOcPickingQuotaPackageColVisible = (key: string) => ocPickingQuotaPackageCols.isColumnVisible(key)
+const ocPickingQuotaPackageColBinding = (key: string) => ocPickingQuotaPackageCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocPickingQuotaPackageColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocPickingQuotaPackageColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocPickingQuotaPackageColSettingsPop = useColSettingsPopover({
+  open: ocPickingQuotaPackageCols.settingsOpen,
+  anchorRef: ocPickingQuotaPackageColSettingsAnchorRef,
+  popRef: ocPickingQuotaPackageColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCPICKINGUNIQUECODE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'selection', label: '', width: 60, visible: true, weight: 1, minWidth: 48, maxWidth: 80 },
+  { key: 'uniqueCode', label: '唯一码', width: 200, visible: true, weight: 6, minWidth: 140, maxWidth: 320 },
+  { key: 'udiCode', label: 'UDI', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 300 },
+  { key: 'batchNo', label: '系统批次', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'expireDate', label: '有效期', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200, fill: true }
+]
+
+const ocPickingUniqueCodeCols = useListColumns({
+  storageKey: 'spd-oc-picking-unique-code-cols-v1',
+  defaults: OCPICKINGUNIQUECODE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocPickingUniqueCodeTableRef = ocPickingUniqueCodeCols.tableRef
+const isOcPickingUniqueCodeColVisible = (key: string) => ocPickingUniqueCodeCols.isColumnVisible(key)
+const ocPickingUniqueCodeColBinding = (key: string) => ocPickingUniqueCodeCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocPickingUniqueCodeColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocPickingUniqueCodeColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocPickingUniqueCodeColSettingsPop = useColSettingsPopover({
+  open: ocPickingUniqueCodeCols.settingsOpen,
+  anchorRef: ocPickingUniqueCodeColSettingsAnchorRef,
+  popRef: ocPickingUniqueCodeColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCPICKINGREQUISITION_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'requisitionNo', label: '申领单号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'requisitionCreateTime', label: '申领单创建时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'requisitionType', label: '申领类型', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'partialPickingTime', label: '部分拣配完成时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'deptName', label: '科室', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'applyType', label: '申请类型', width: 150, visible: true, weight: 3, minWidth: 110, maxWidth: 240 },
+  { key: 'requisitionQty', label: '申领数量', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'pickedQty', label: '已拣配', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'pendingQty', label: '待拣配', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const ocPickingRequisitionCols = useListColumns({
+  storageKey: 'spd-oc-picking-requisition-cols-v1',
+  defaults: OCPICKINGREQUISITION_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocPickingRequisitionTableRef = ocPickingRequisitionCols.tableRef
+const isOcPickingRequisitionColVisible = (key: string) => ocPickingRequisitionCols.isColumnVisible(key)
+const ocPickingRequisitionColBinding = (key: string) => ocPickingRequisitionCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ocPickingRequisitionActionFix = useActionColumnFix()
+const ocPickingRequisitionActionFixed = computed(() => ocPickingRequisitionActionFix.actionFixedBinding.value)
+
+watch(
+  [ocPickingRequisitionTableRef],
+  () => {
+    ocPickingRequisitionActionFix.observe(ocPickingRequisitionTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocPickingRequisitionColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocPickingRequisitionColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocPickingRequisitionColSettingsPop = useColSettingsPopover({
+  open: ocPickingRequisitionCols.settingsOpen,
+  anchorRef: ocPickingRequisitionColSettingsAnchorRef,
+  popRef: ocPickingRequisitionColSettingsPopRef
+})
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重铺满内容区，表格 100% 铺满；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const OCRECALLINVENTORY_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'warehouseType', label: '库房级别', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productName', label: '商品', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'spec', label: '规格', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'manufacturer', label: '厂家', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 280 },
+  { key: 'unit', label: '单位', width: 90, visible: true, weight: 1, minWidth: 70, maxWidth: 120 },
+  { key: 'unitPrice', label: '单价', width: 110, visible: true, weight: 2, minWidth: 90, maxWidth: 150 },
+  { key: 'systemBatch', label: '系统批号', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'productionBatch', label: '生产批号', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'looseQty', label: '散货', width: 110, visible: true, weight: 2, minWidth: 80, maxWidth: 150 },
+  { key: 'packageQty', label: '定数包折散', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'totalQty', label: '合计', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160, fill: true }
+]
+
+const ocRecallInventoryCols = useListColumns({
+  storageKey: 'spd-oc-recall-inventory-cols-v1',
+  defaults: OCRECALLINVENTORY_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocRecallInventoryTableRef = ocRecallInventoryCols.tableRef
+const isOcRecallInventoryColVisible = (key: string) => ocRecallInventoryCols.isColumnVisible(key)
+const ocRecallInventoryColBinding = (key: string) => ocRecallInventoryCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocRecallInventoryColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocRecallInventoryColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocRecallInventoryColSettingsPop = useColSettingsPopover({
+  open: ocRecallInventoryCols.settingsOpen,
+  anchorRef: ocRecallInventoryColSettingsAnchorRef,
+  popRef: ocRecallInventoryColSettingsPopRef
+})
+
+/* ===== 统一列表：业务单据（消耗 / 申领 / 缺货通用表头） ===== */
+const OCCLOSUREDOC_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'bizNo', label: '单据号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 250 },
+  { key: 'requisitionType', label: '申领类型', width: 120, visible: true, weight: 2, minWidth: 90, maxWidth: 160 },
+  { key: 'deptWarehouse', label: '科室 / 库房', width: 180, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'productCode', label: '商品编码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'productName', label: '商品名称', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'quantity', label: '数量 / 金额', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 2, minWidth: 80, maxWidth: 160 },
+  { key: 'createTime', label: '时间', width: 170, visible: true, weight: 3, minWidth: 130, maxWidth: 210 },
+  { key: 'actions', label: '操作', width: 140, visible: true, fill: true, minWidth: 120, maxWidth: 220 }
+]
+
+const ocClosureDocCols = useListColumns({
+  storageKey: 'spd-oc-closure-doc-cols-v1',
+  defaults: OCCLOSUREDOC_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const ocClosureDocTableRef = ocClosureDocCols.tableRef
+const isOcClosureDocColVisible = (key: string) => ocClosureDocCols.isColumnVisible(key)
+const ocClosureDocColBinding = (key: string) => ocClosureDocCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const ocClosureDocActionFix = useActionColumnFix()
+const ocClosureDocActionFixed = computed(() => ocClosureDocActionFix.actionFixedBinding.value)
+
+watch(
+  [ocClosureDocTableRef],
+  () => {
+    ocClosureDocActionFix.observe(ocClosureDocTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const ocClosureDocColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const ocClosureDocColSettingsPopRef = ref<HTMLElement | null>(null)
+const ocClosureDocColSettingsPop = useColSettingsPopover({
+  open: ocClosureDocCols.settingsOpen,
+  anchorRef: ocClosureDocColSettingsAnchorRef,
+  popRef: ocClosureDocColSettingsPopRef
+})
+
 </script>
 
-<template>
-    <section class="purchase-page closure-page" :class="{ 'consumption-saas-page': type === 'consumption', 'delivery-acceptance-page': type === 'delivery', 'shortage-task-page': type === 'shortage', 'pda-offline-page': type === 'pda', 'recall-isolation-page': isRecallPage, 'finance-settlement-page': type === 'settlement' || type === 'red-flush', 'high-value-operation-page': type === 'high-value' }">
+<template><section class="purchase-page closure-page spd-unified-list" :class="{ 'consumption-saas-page': type === 'consumption', 'delivery-acceptance-page': type === 'delivery', 'shortage-task-page': type === 'shortage', 'pda-offline-page': type === 'pda', 'recall-isolation-page': isRecallPage, 'finance-settlement-page': type === 'settlement' || type === 'red-flush', 'high-value-operation-page': type === 'high-value' }">
     <!-- 补货任务 / 拣配配送：页头复用 MdPageHeader，与采购/库存等页面完全一致 -->
     <MdPageHeader
       v-if="type === 'shortage'"
@@ -1323,58 +1852,9 @@ watch(recallBusinessType, () => {
       @refresh="loadData"
     />
 
-    <section v-if="type === 'settlement'" class="settlement-kpi-card" aria-label="结算汇总" :aria-busy="loading">
-      <div class="settlement-kpi-item">
-        <i class="settlement-kpi-icon is-doc"><FileText :size="18" /></i>
-        <div>
-          <span class="settlement-kpi-label">结算单数</span>
-          <strong class="settlement-kpi-value">{{ settlementSummary.documentCount ?? '—' }} <small>/ {{ totalItems }}</small></strong>
-          <span class="settlement-kpi-hint">匹配结算单去重数 / 明细条数</span>
-        </div>
-      </div>
-      <div class="settlement-kpi-item">
-        <i class="settlement-kpi-icon is-supplier"><Building2 :size="18" /></i>
-        <div>
-          <span class="settlement-kpi-label">供应商数</span>
-          <strong class="settlement-kpi-value">{{ settlementSummary.supplierCount ?? '—' }}</strong>
-          <span class="settlement-kpi-hint">匹配供应商去重数</span>
-        </div>
-      </div>
-      <div class="settlement-kpi-item">
-        <i class="settlement-kpi-icon is-qty"><PackageCheck :size="18" /></i>
-        <div>
-          <span class="settlement-kpi-label">数量合计</span>
-          <strong class="settlement-kpi-value">{{ settlementSummary.totalQuantity ?? '—' }}</strong>
-          <span class="settlement-kpi-hint">匹配基本数量 · 去重包数 {{ settlementSummary.packageCount ?? '—' }} / 散货 {{ settlementSummary.looseQuantity ?? '—' }} / 高值 {{ settlementSummary.highValueQuantity ?? '—' }}</span>
-        </div>
-      </div>
-      <div class="settlement-kpi-item is-amount">
-        <i class="settlement-kpi-icon is-amount"><CheckCircle2 :size="18" /></i>
-        <div>
-          <span class="settlement-kpi-label">金额合计</span>
-          <strong class="settlement-kpi-value">{{ settlementSummary.totalAmount == null ? '—' : `¥ ${settlementSummary.totalAmount.toFixed(2)}` }}</strong>
-          <span class="settlement-kpi-hint">全部匹配明细金额</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- PDA / 召回隔离：顶部统计卡与重复操作按钮已移除，操作入口统一收敛到页头动作位。
-         结算对账 / 红冲管理属于结算与财务类页面，无关业务统计卡也已隐藏。
+    <!-- 顶部统计卡与重复操作按钮已移除，操作入口统一收敛到页头动作位；
+         结算对账 / 红冲管理属于结算与财务类页面，无关业务统计卡也不展示；
          高值耗材计费操作同样不展示通用运营 KPI。 -->
-    <div v-if="displayStats.length && type !== 'delivery' && type !== 'pda' && !isRecallPage && type !== 'settlement' && type !== 'red-flush' && type !== 'high-value'" class="foundation-stat-grid closure-stat-grid">
-      <article v-for="item in displayStats" :key="item.label">
-        <i v-if="type === 'consumption'" class="consumption-stat-icon" :class="`is-${item.icon}`">
-          <Activity v-if="item.icon === 'records'" :size="20" />
-          <CheckCircle2 v-else-if="item.icon === 'confirmed'" :size="20" />
-          <RotateCcw v-else-if="item.icon === 'reversed'" :size="20" />
-          <PackageCheck v-else :size="20" />
-        </i>
-        <div>
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </div>
-      </article>
-    </div>
 
     <el-dialog v-model="recallDialogOpen" title="登记召回 / 隔离" width="min(960px, 94vw)" append-to-body :close-on-click-modal="!recallSubmitting">
       <form @submit.prevent="submitRecallDialog">
@@ -1550,20 +2030,222 @@ watch(recallBusinessType, () => {
         </button>
       </div>
 
-      <div v-if="isRecallPage" class="table-scroll">
-        <table class="master-table purchase-detail-table">
-          <thead><tr><th>库房级别</th><th>库房</th><th>商品</th><th>规格</th><th>厂家</th><th>单位</th><th>单价</th><th>系统批号</th><th>生产批号</th><th>散货</th><th>定数包折散</th><th>合计</th></tr></thead>
-          <tbody>
-            <tr v-if="recallBatchesLoading"><td colspan="12" class="approval-empty">正在加载范围库存...</td></tr>
-            <tr v-else-if="!recallInventoryRows.length"><td colspan="12" class="approval-empty">当前范围暂无可召回库存</td></tr>
-            <tr v-for="row in recallInventoryRows" v-else :key="`${row.warehouseId}-${row.batchId}`">
-              <td>{{ row.warehouseType }}</td><td>{{ row.warehouseName }}</td><td>{{ row.productName }}</td><td>{{ row.specModel || '-' }}</td>
-              <td>{{ row.manufacturerName || '-' }}</td><td>{{ row.unit }}</td><td>¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</td>
-              <td>{{ row.systemBatchNo }}</td><td>{{ row.productionBatchNo || '-' }}</td><td>{{ row.looseQty }}</td><td>{{ row.packageQty }}</td><td><strong>{{ row.totalQty }}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+            <MdDataTableCard v-if="isRecallPage">
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="ocRecallInventoryColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="ocRecallInventoryCols.settingsOpen.value = !ocRecallInventoryCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: ocRecallInventoryCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="ocRecallInventoryCols.settingsOpen.value"
+            ref="ocRecallInventoryColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': ocRecallInventoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallInventoryColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': ocRecallInventoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallInventoryColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="ocRecallInventoryCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in ocRecallInventoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && ocRecallInventoryCols.visibleColumnCount.value <= 1"
+                  @change="ocRecallInventoryCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="ocRecallInventoryCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ocRecallInventoryTableRef"
+            :data="recallInventoryRows"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'当前范围暂无可召回库存'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallInventoryCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="warehouseType"
+              v-if="isOcRecallInventoryColVisible('warehouseType')"
+              label="库房级别"
+              v-bind="ocRecallInventoryColBinding('warehouseType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房级别</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseType }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isOcRecallInventoryColVisible('warehouseName')"
+              label="库房"
+              v-bind="ocRecallInventoryColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="productName"
+              v-if="isOcRecallInventoryColVisible('productName')"
+              label="商品"
+              v-bind="ocRecallInventoryColBinding('productName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.productName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="spec"
+              v-if="isOcRecallInventoryColVisible('spec')"
+              label="规格"
+              v-bind="ocRecallInventoryColBinding('spec')"
+            >
+              <template #header>
+                <span class="ulc-th-text">规格</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.specModel || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="manufacturer"
+              v-if="isOcRecallInventoryColVisible('manufacturer')"
+              label="厂家"
+              v-bind="ocRecallInventoryColBinding('manufacturer')"
+            >
+              <template #header>
+                <span class="ulc-th-text">厂家</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.manufacturerName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="unit"
+              v-if="isOcRecallInventoryColVisible('unit')"
+              label="单位"
+              v-bind="ocRecallInventoryColBinding('unit')"
+            >
+              <template #header>
+                <span class="ulc-th-text">单位</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.unit }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="unitPrice"
+              v-if="isOcRecallInventoryColVisible('unitPrice')"
+              label="单价"
+              v-bind="ocRecallInventoryColBinding('unitPrice')"
+            >
+              <template #header>
+                <span class="ulc-th-text">单价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.unitPrice || 0).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="systemBatch"
+              v-if="isOcRecallInventoryColVisible('systemBatch')"
+              label="系统批号"
+              v-bind="ocRecallInventoryColBinding('systemBatch')"
+            >
+              <template #header>
+                <span class="ulc-th-text">系统批号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="productionBatch"
+              v-if="isOcRecallInventoryColVisible('productionBatch')"
+              label="生产批号"
+              v-bind="ocRecallInventoryColBinding('productionBatch')"
+            >
+              <template #header>
+                <span class="ulc-th-text">生产批号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.productionBatchNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="looseQty"
+              v-if="isOcRecallInventoryColVisible('looseQty')"
+              label="散货"
+              v-bind="ocRecallInventoryColBinding('looseQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">散货</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.looseQty }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="packageQty"
+              v-if="isOcRecallInventoryColVisible('packageQty')"
+              label="定数包折散"
+              v-bind="ocRecallInventoryColBinding('packageQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">定数包折散</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.packageQty }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="totalQty"
+              v-if="isOcRecallInventoryColVisible('totalQty')"
+              label="合计"
+              v-bind="ocRecallInventoryColBinding('totalQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">合计</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number"><strong>{{ row.totalQty }}</strong></span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="当前范围暂无可召回库存" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
 
       <div v-if="type === 'delivery'" id="delivery-panel-picking" class="picking-workbench"
         role="tabpanel" aria-labelledby="delivery-tab-picking">
@@ -1576,77 +2258,244 @@ watch(recallBusinessType, () => {
               <button class="md-btn md-btn-primary" type="submit">查询</button>
             </div>
           </form>
-          <div class="table-scroll">
-            <table class="master-table purchase-detail-table">
-              <thead>
-                <tr>
-                  <th>申领单号</th>
-                  <th>申领单创建时间</th>
-                  <th>申领类型</th>
-                  <th>部分拣配完成时间</th>
-                  <th>科室</th>
-                  <th>商品</th>
-                  <th>申请类型</th>
-                  <th>申领数量</th>
-                  <th>已拣配</th>
-                  <th>待拣配</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!pickingRequisitionRows.length">
-                  <td colspan="11" class="approval-empty">暂无待拣配申领单</td>
-                </tr>
-                <tr
-                  v-for="row in paginatedPickingRequisitions"
-                  :key="`${row.requisitionNo}-${row.itemId}`"
-                  :class="{ selected: selectedPickingItemId === String(row.itemId) }"
+                    <MdDataTableCard>
+            <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="ocPickingRequisitionColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="ocPickingRequisitionCols.settingsOpen.value = !ocPickingRequisitionCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: ocPickingRequisitionCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="ocPickingRequisitionCols.settingsOpen.value"
+                ref="ocPickingRequisitionColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': ocPickingRequisitionColSettingsPop.align.value === 'right', 'is-align-up': ocPickingRequisitionColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': ocPickingRequisitionColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingRequisitionColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="ocPickingRequisitionCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in ocPickingRequisitionCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && ocPickingRequisitionCols.visibleColumnCount.value <= 1"
+                      @change="ocPickingRequisitionCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="ocPickingRequisitionCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+            </template>
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="ocPickingRequisitionTableRef"
+                :data="paginatedPickingRequisitions"
+                border
+                stripe
+                class="ulc-table is-sticky"
+                max-height="560"
+                style="width: 100%"
+                :empty-text="'暂无待拣配申领单'"
+                @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingRequisitionCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="requisitionNo"
+                  v-if="isOcPickingRequisitionColVisible('requisitionNo')"
+                  label="申领单号"
+                  v-bind="ocPickingRequisitionColBinding('requisitionNo')"
                 >
-                  <td>
-                    <strong>{{ row.requisitionNo }}</strong>
-                    <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
-                  </td>
-                  <td>{{ formatDateTime(row.requisitionCreatedAt) }}</td>
-                  <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
-                  <td>{{ formatDateTime(row.partialPickingCompletedAt) }}</td>
-                  <td>{{ row.deptName }}</td>
-                  <td>
-                    <strong>{{ row.productName }}</strong>
-                    <span class="muted-cell">{{ row.productCode }}</span>
-                  </td>
-                  <td>
-                    <span class="status-badge">{{ itemTypeLabel(row.itemType) }}</span>
-                    <span v-if="row.itemType === 'quota_package'" class="muted-cell">
-                      版本 {{ row.templateVersion ?? '历史快照缺失' }} ·
-                      {{ row.packageQuantity ?? '-' }} / {{ row.packageUnit ?? '-' }}
-                      · 待拣 {{ row.remainingPackageCount ?? '-' }} 包
+                  <template #header>
+                    <span class="ulc-th-text">申领单号</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.requisitionNo }}</strong>
+                      <span v-if="String(row.status || '') === 'partial_picked'" class="status-badge pending">{{ formatStatusText(row.status) }}</span>
                     </span>
-                  </td>
-                  <td>{{ row.requisitionQty }}</td>
-                  <td>{{ row.pickedQty }}</td>
-                  <td>{{ row.remainingQty }}</td>
-                  <td>
-                    <button class="btn-text" type="button"
-                      :aria-pressed="selectedPickingItemId === String(row.itemId)"
-                      @click="selectPickingRequisition(row)">
-                      {{ selectedPickingItemId === String(row.itemId) ? '已选择' : '选择' }}
-                    </button>
-                    <span v-if="selectedPickingItemId === String(row.itemId) && pickingLooseStatus"
-                      class="muted-cell" :role="pickingLooseError ? 'alert' : 'status'">{{ pickingLooseStatus }}</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <PaginationControls
-            :page="pickingPage"
-            :size="pickingSize"
-            :total="pickingTotal"
-            :loading="loading"
-            :hide-summary="true"
-            @change-page="changePickingPage"
-            @change-size="changePickingSize"
-          />
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="requisitionCreateTime"
+                  v-if="isOcPickingRequisitionColVisible('requisitionCreateTime')"
+                  label="申领单创建时间"
+                  v-bind="ocPickingRequisitionColBinding('requisitionCreateTime')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">申领单创建时间</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ formatDateTime(row.requisitionCreatedAt) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="requisitionType"
+                  v-if="isOcPickingRequisitionColVisible('requisitionType')"
+                  label="申领类型"
+                  v-bind="ocPickingRequisitionColBinding('requisitionType')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">申领类型</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="partialPickingTime"
+                  v-if="isOcPickingRequisitionColVisible('partialPickingTime')"
+                  label="部分拣配完成时间"
+                  v-bind="ocPickingRequisitionColBinding('partialPickingTime')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">部分拣配完成时间</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ formatDateTime(row.partialPickingCompletedAt) }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="deptName"
+                  v-if="isOcPickingRequisitionColVisible('deptName')"
+                  label="科室"
+                  v-bind="ocPickingRequisitionColBinding('deptName')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">科室</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.deptName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="product"
+                  v-if="isOcPickingRequisitionColVisible('product')"
+                  label="商品"
+                  v-bind="ocPickingRequisitionColBinding('product')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">商品</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.productName }}</strong>
+                      <span class="muted-cell">{{ row.productCode }}</span>
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="applyType"
+                  v-if="isOcPickingRequisitionColVisible('applyType')"
+                  label="申请类型"
+                  v-bind="ocPickingRequisitionColBinding('applyType')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">申请类型</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-cell-stack">
+                      <span class="status-badge">{{ itemTypeLabel(row.itemType) }}</span>
+                      <span v-if="row.itemType === 'quota_package'" class="muted-cell">
+                        版本 {{ row.templateVersion ?? '历史快照缺失' }} ·
+                        {{ row.packageQuantity ?? '-' }} / {{ row.packageUnit ?? '-' }}
+                        · 待拣 {{ row.remainingPackageCount ?? '-' }} 包
+                      </span>
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="requisitionQty"
+                  v-if="isOcPickingRequisitionColVisible('requisitionQty')"
+                  label="申领数量"
+                  v-bind="ocPickingRequisitionColBinding('requisitionQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">申领数量</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.requisitionQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="pickedQty"
+                  v-if="isOcPickingRequisitionColVisible('pickedQty')"
+                  label="已拣配"
+                  v-bind="ocPickingRequisitionColBinding('pickedQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">已拣配</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.pickedQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="pendingQty"
+                  v-if="isOcPickingRequisitionColVisible('pendingQty')"
+                  label="待拣配"
+                  v-bind="ocPickingRequisitionColBinding('pendingQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">待拣配</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.remainingQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="actions"
+                  v-if="isOcPickingRequisitionColVisible('actions')"
+                  label="操作"
+                  v-bind="ocPickingRequisitionColBinding('actions')"
+                  :fixed="ocPickingRequisitionActionFixed"
+                  align="center"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">操作</span>
+                  </template>
+                  <template #default="{ row }">
+                  <div class="ulc-actions">
+                    <button :aria-pressed="selectedPickingItemId === String(row.itemId)"
+                      @click="selectPickingRequisition(row)" class="ulc-action" type="button">{{ selectedPickingItemId === String(row.itemId) ? '已选择' : '选择' }}</button>
+                  </div>
+                  <!-- 已选中的散货明细行旁显示查询状态：
+                       加载中 / 查询失败 / 无可用散货，让用户知道为什么不能提交出库。 -->
+                  <span
+                    v-if="selectedPickingItemId === String(row.itemId) && pickingLooseStatus"
+                    class="muted-cell"
+                    :role="pickingLooseError ? 'alert' : 'status'">{{ pickingLooseStatus }}</span>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <MdEmptyState text="暂无待拣配申领单" />
+                </template>
+              </el-table>
+            </div>
+            <template #pagination>
+              <MdPagination
+                :page="pickingPage"
+                :total-pages="Math.max(1, Math.ceil(pickingTotal / pickingSize))"
+                :total="pickingTotal"
+                :size="pickingSize"
+                :loading="loading"
+                @update:page="changePickingPage"
+                @update:size="changePickingSize"
+              />
+            </template>
+          </MdDataTableCard>
         </section>
 
         <!-- 唯一码/UDI 类型：展示申请单绑定的唯一码 -->
@@ -1655,37 +2504,146 @@ watch(recallBusinessType, () => {
             <h3>可用唯一码 / UDI</h3>
             <span class="muted-hint">已选 {{ selectedPickingUniqueCodes.length }} / 待拣配 {{ selectedPendingQty }}</span>
           </div>
-          <div class="table-scroll">
-            <table class="master-table purchase-detail-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>唯一码</th>
-                  <th>UDI</th>
-                  <th>系统批次</th>
-                  <th>有效期</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!pickingUniqueCodeRows.length">
-                  <td colspan="5" class="approval-empty">该申请明细没有可拣配的唯一码/UDI</td>
-                </tr>
-                <tr v-for="row in pagePickingDetails(pickingUniqueCodeRows)" :key="String(row.uniqueCode)">
-                  <td>
+                    <MdDataTableCard>
+            <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="ocPickingUniqueCodeColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="ocPickingUniqueCodeCols.settingsOpen.value = !ocPickingUniqueCodeCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: ocPickingUniqueCodeCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="ocPickingUniqueCodeCols.settingsOpen.value"
+                ref="ocPickingUniqueCodeColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': ocPickingUniqueCodeColSettingsPop.align.value === 'right', 'is-align-up': ocPickingUniqueCodeColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': ocPickingUniqueCodeColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingUniqueCodeColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="ocPickingUniqueCodeCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in ocPickingUniqueCodeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                     <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && ocPickingUniqueCodeCols.visibleColumnCount.value <= 1"
+                      @change="ocPickingUniqueCodeCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="ocPickingUniqueCodeCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+            </template>
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="ocPickingUniqueCodeTableRef"
+                :data="pagePickingDetails(pickingUniqueCodeRows)"
+                border
+                stripe
+                class="ulc-table is-sticky"
+                max-height="560"
+                style="width: 100%"
+                :empty-text="'该申请明细没有可拣配的唯一码/UDI'"
+                @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingUniqueCodeCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="selection"
+                  v-if="isOcPickingUniqueCodeColVisible('selection')"
+                  label=""
+                  v-bind="ocPickingUniqueCodeColBinding('selection')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text"></span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text"><input
                       type="checkbox"
                       :checked="selectedPickingUniqueCodes.includes(String(row.uniqueCode))"
                       @change="togglePickingUniqueCode(String(row.uniqueCode), ($event.target as HTMLInputElement).checked)"
-                    />
-                  </td>
-                  <td><strong>{{ row.uniqueCode }}</strong></td>
-                  <td>{{ row.udiCode }}</td>
-                  <td>{{ row.batchNo || '-' }}</td>
-                  <td>{{ row.expireDate || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    /></span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="uniqueCode"
+                  v-if="isOcPickingUniqueCodeColVisible('uniqueCode')"
+                  label="唯一码"
+                  v-bind="ocPickingUniqueCodeColBinding('uniqueCode')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">唯一码</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text"><strong>{{ row.uniqueCode }}</strong></span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="udiCode"
+                  v-if="isOcPickingUniqueCodeColVisible('udiCode')"
+                  label="UDI"
+                  v-bind="ocPickingUniqueCodeColBinding('udiCode')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">UDI</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.udiCode }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="batchNo"
+                  v-if="isOcPickingUniqueCodeColVisible('batchNo')"
+                  label="系统批次"
+                  v-bind="ocPickingUniqueCodeColBinding('batchNo')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">系统批次</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.batchNo || '-' }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="expireDate"
+                  v-if="isOcPickingUniqueCodeColVisible('expireDate')"
+                  label="有效期"
+                  v-bind="ocPickingUniqueCodeColBinding('expireDate')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">有效期</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.expireDate || '-' }}</span>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <MdEmptyState text="该申请明细没有可拣配的唯一码/UDI" />
+                </template>
+              </el-table>
+            </div>
+            <template #pagination>
+              <MdPagination
+                :page="pickingDetailPage"
+                :total-pages="pickingDetailLastPage"
+                :total="pickingDetailTotal"
+                :size="pickingDetailSize"
+                :loading="loading || pickingLooseLoading"
+                @update:page="pickingDetailPage = $event"
+                @update:size="changePickingDetailSize"
+              />
+            </template>
+          </MdDataTableCard>
         </section>
 
         <template v-else>
@@ -1698,48 +2656,177 @@ watch(recallBusinessType, () => {
             <input v-model.trim="pickingPackageScanCode" placeholder="扫描或输入定数包码" @keyup.enter="scanPickingPackage" />
             <button class="btn" type="button" @click="scanPickingPackage"><Search :size="15" />扫码拣选</button>
           </div>
-          <div class="table-scroll">
-            <table class="master-table purchase-detail-table">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>定数包码</th>
-                  <th>库房</th>
-                  <th>商品</th>
-                  <th>包内数量</th>
-                  <th>生成时间</th>
-                  <th>修改时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!pickingPackageRows.length">
-                  <td colspan="7" class="approval-empty">请选择申领单和库房后查看可用定数包</td>
-                </tr>
-                <tr v-for="row in pagePickingDetails(pickingPackageRows)" :key="String(row.labelNo)">
-                  <td>
+                    <MdDataTableCard>
+            <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="ocPickingQuotaPackageColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="ocPickingQuotaPackageCols.settingsOpen.value = !ocPickingQuotaPackageCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: ocPickingQuotaPackageCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="ocPickingQuotaPackageCols.settingsOpen.value"
+                ref="ocPickingQuotaPackageColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': ocPickingQuotaPackageColSettingsPop.align.value === 'right', 'is-align-up': ocPickingQuotaPackageColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': ocPickingQuotaPackageColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingQuotaPackageColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="ocPickingQuotaPackageCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in ocPickingQuotaPackageCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                     <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && ocPickingQuotaPackageCols.visibleColumnCount.value <= 1"
+                      @change="ocPickingQuotaPackageCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="ocPickingQuotaPackageCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+            </template>
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="ocPickingQuotaPackageTableRef"
+                :data="pagePickingDetails(pickingPackageRows)"
+                border
+                stripe
+                class="ulc-table is-sticky"
+                max-height="560"
+                style="width: 100%"
+                :empty-text="'请选择申领单和库房后查看可用定数包'"
+                @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingQuotaPackageCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="selection"
+                  v-if="isOcPickingQuotaPackageColVisible('selection')"
+                  label=""
+                  v-bind="ocPickingQuotaPackageColBinding('selection')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text"></span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text"><input
                       type="checkbox"
                       :checked="selectedPickingLabels.includes(String(row.labelNo))"
                       @change="togglePickingLabel(String(row.labelNo), ($event.target as HTMLInputElement).checked)"
-                    />
-                  </td>
-                  <td>
-                    <button class="btn-link package-label-link" type="button" @click="openPackageDetail(row.labelNo)">
+                    /></span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="labelNo"
+                  v-if="isOcPickingQuotaPackageColVisible('labelNo')"
+                  label="定数包码"
+                  v-bind="ocPickingQuotaPackageColBinding('labelNo')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">定数包码</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text"><button class="btn-link package-label-link" type="button" @click="openPackageDetail(row.labelNo)">
                       {{ row.labelNo }}
-                    </button>
-                  </td>
-                  <td>{{ row.warehouseName }}</td>
-                  <td>
-                    <strong>{{ row.productName }}</strong>
-                    <span class="muted-cell">{{ row.productCode }}</span>
-                  </td>
-                  <td>{{ row.packageQuantity }}</td>
-                  <td>{{ row.createTime }}</td>
-                  <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    </button></span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="warehouseName"
+                  v-if="isOcPickingQuotaPackageColVisible('warehouseName')"
+                  label="库房"
+                  v-bind="ocPickingQuotaPackageColBinding('warehouseName')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">库房</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="product"
+                  v-if="isOcPickingQuotaPackageColVisible('product')"
+                  label="商品"
+                  v-bind="ocPickingQuotaPackageColBinding('product')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">商品</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.productName }}</strong>
+                      <span class="muted-cell">{{ row.productCode }}</span>
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="packageQuantity"
+                  v-if="isOcPickingQuotaPackageColVisible('packageQuantity')"
+                  label="包内数量"
+                  v-bind="ocPickingQuotaPackageColBinding('packageQuantity')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">包内数量</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.packageQuantity }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="createTime"
+                  v-if="isOcPickingQuotaPackageColVisible('createTime')"
+                  label="生成时间"
+                  v-bind="ocPickingQuotaPackageColBinding('createTime')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">生成时间</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.createTime }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="updateTime"
+                  v-if="isOcPickingQuotaPackageColVisible('updateTime')"
+                  label="修改时间"
+                  v-bind="ocPickingQuotaPackageColBinding('updateTime')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">修改时间</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <MdEmptyState text="请选择申领单和库房后查看可用定数包" />
+                </template>
+              </el-table>
+            </div>
+            <template #pagination>
+              <MdPagination
+                :page="pickingDetailPage"
+                :total-pages="pickingDetailLastPage"
+                :total="pickingDetailTotal"
+                :size="pickingDetailSize"
+                :loading="loading || pickingLooseLoading"
+                @update:page="pickingDetailPage = $event"
+                @update:size="changePickingDetailSize"
+              />
+            </template>
+          </MdDataTableCard>
         </section>
 
         <section v-if="selectedPickingItemType === 'loose'" class="picking-panel picking-panel--loose">
@@ -1747,97 +2834,465 @@ watch(recallBusinessType, () => {
             <h3>散货拣配</h3>
             <span class="muted-hint">已选合计 {{ selectedPickingTotal }} / 待拣配 {{ selectedPendingQty }}（基础单位）</span>
           </div>
-          <div class="table-scroll">
-            <table class="master-table purchase-detail-table">
-              <thead>
-                <tr>
-                  <th>商品名称</th>
-                  <th>系统批次</th>
-                  <th>可用数量</th>
-                  <th>拣配数量</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!pickingLooseRows.length">
-                  <td colspan="4" class="approval-empty">{{ pickingLooseStatus }}</td>
-                </tr>
-                <tr v-for="row in pagePickingDetails(pickingLooseRows)" :key="String(row.balanceId)">
-                  <td><strong>{{ row.productName }}</strong><span class="muted-cell">{{ row.productCode }}</span></td>
-                  <td>{{ row.systemBatchNo }}</td>
-                  <td>{{ row.availableQty }}</td>
-                  <td>
-                    <input v-integer-quantity
+                    <MdDataTableCard>
+            <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="ocPickingLooseColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="ocPickingLooseCols.settingsOpen.value = !ocPickingLooseCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: ocPickingLooseCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="ocPickingLooseCols.settingsOpen.value"
+                ref="ocPickingLooseColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': ocPickingLooseColSettingsPop.align.value === 'right', 'is-align-up': ocPickingLooseColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': ocPickingLooseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocPickingLooseColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="ocPickingLooseCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in ocPickingLooseCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && ocPickingLooseCols.visibleColumnCount.value <= 1"
+                      @change="ocPickingLooseCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
+                </div>
+                <footer>
+                  <button type="button" class="ulc-action" @click="ocPickingLooseCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+            </template>
+            <div class="ulc-table-wrap">
+              <el-table
+                ref="ocPickingLooseTableRef"
+                :data="pagePickingDetails(pickingLooseRows)"
+                border
+                stripe
+                class="ulc-table is-sticky"
+                max-height="560"
+                style="width: 100%"
+                :empty-text="'暂无可拣配散货'"
+                @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingLooseCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="productName"
+                  v-if="isOcPickingLooseColVisible('productName')"
+                  label="商品名称"
+                  v-bind="ocPickingLooseColBinding('productName')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">商品名称</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.productName }}</strong>
+                      <span class="muted-cell">{{ row.productCode }}</span>
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="systemBatch"
+                  v-if="isOcPickingLooseColVisible('systemBatch')"
+                  label="系统批次"
+                  v-bind="ocPickingLooseColBinding('systemBatch')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">系统批次</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.systemBatchNo }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="availableQty"
+                  v-if="isOcPickingLooseColVisible('availableQty')"
+                  label="可用数量"
+                  v-bind="ocPickingLooseColBinding('availableQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">可用数量</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text">{{ row.availableQty }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="pickedQty"
+                  v-if="isOcPickingLooseColVisible('pickedQty')"
+                  label="拣配数量"
+                  v-bind="ocPickingLooseColBinding('pickedQty')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">拣配数量</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-wrap-text"><input v-integer-quantity
                       v-model.number="row.pickQty"
                       class="stocktaking-qty-input"
                       type="number"
                       min="0"
                       :max="Number(row.availableQty)" step="1"
                       placeholder="0"
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+                    /></span>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <!-- 空态文案与散货查询状态保持一致：
+                       加载中 / 查询失败 / 无可用散货 三种情况都给出明确提示，
+                       而不是统一显示「暂无可拣配散货」。 -->
+                  <MdEmptyState :text="pickingLooseStatus || '暂无可拣配散货'" />
+                </template>
+              </el-table>
+            </div>
+            <template #pagination>
+              <MdPagination
+                :page="pickingDetailPage"
+                :total-pages="pickingDetailLastPage"
+                :total="pickingDetailTotal"
+                :size="pickingDetailSize"
+                :loading="loading || pickingLooseLoading"
+                @update:page="pickingDetailPage = $event"
+                @update:size="changePickingDetailSize"
+              />
+            </template>
+          </MdDataTableCard>
         </section>
         </template>
-        <PaginationControls
-          aria-label="拣配库存明细分页"
-          :page="pickingDetailPage" :size="pickingDetailSize" :total="pickingDetailTotal"
-          :max-page-size="maxPickingDetailSize" :loading="loading || pickingLooseLoading"
-          @change-page="pickingDetailPage = $event"
-          @change-size="changePickingDetailSize"
-        />
       </div>
       </template>
 
     <section v-else-if="deliveryTab === 'returns' && auth.canWrite('picking-delivery')"
       id="delivery-panel-returns" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-returns">
       <StatusMessage :message="returnQueue.error" tone="error" role="alert" />
-      <div class="table-scroll">
-        <table class="master-table">
-          <thead><tr><th>退库单号</th><th>二级库</th><th>接收中心库</th><th>基本数量</th><th>登记时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="row in returnQueue.result.rows" :key="row.returnNo">
-              <td>{{ row.returnNo }}</td><td>{{ row.sourceWarehouse }}</td><td>{{ row.destinationWarehouse }}</td>
-              <td>{{ row.quantity }}</td><td>{{ row.createTime }}</td>
-              <td><button type="button" class="md-btn md-btn-primary" :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
-                @click="confirmDepartmentReturn(row)">确认退库</button></td>
-            </tr>
-            <tr v-if="!returnQueue.result.rows.length && !returnQueue.error"><td colspan="6"><EmptyState :message="returnQueue.loading ? '正在加载待确认退库单…' : '暂无待确认科室退库'" /></td></tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="returnQueue.result.page" :size="returnQueue.result.size" :total="returnQueue.result.total"
-        :loading="returnQueue.loading" @change-page="returnQueue.load($event)" @change-size="returnQueue.load(1, $event)"
-      />
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="ocReturnQueueColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="ocReturnQueueCols.settingsOpen.value = !ocReturnQueueCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: ocReturnQueueCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="ocReturnQueueCols.settingsOpen.value"
+            ref="ocReturnQueueColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': ocReturnQueueColSettingsPop.align.value === 'right', 'is-align-up': ocReturnQueueColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': ocReturnQueueColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocReturnQueueColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="ocReturnQueueCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in ocReturnQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && ocReturnQueueCols.visibleColumnCount.value <= 1"
+                  @change="ocReturnQueueCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="ocReturnQueueCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ocReturnQueueTableRef"
+            :data="returnQueue.result.rows"
+            row-key="returnNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无待确认科室退库'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ocReturnQueueCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="returnNo"
+              v-if="isOcReturnQueueColVisible('returnNo')"
+              label="退库单号"
+              v-bind="ocReturnQueueColBinding('returnNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">退库单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.returnNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceWarehouse"
+              v-if="isOcReturnQueueColVisible('sourceWarehouse')"
+              label="二级库"
+              v-bind="ocReturnQueueColBinding('sourceWarehouse')"
+            >
+              <template #header>
+                <span class="ulc-th-text">二级库</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.sourceWarehouse }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="destinationWarehouse"
+              v-if="isOcReturnQueueColVisible('destinationWarehouse')"
+              label="接收中心库"
+              v-bind="ocReturnQueueColBinding('destinationWarehouse')"
+            >
+              <template #header>
+                <span class="ulc-th-text">接收中心库</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.destinationWarehouse }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="quantity"
+              v-if="isOcReturnQueueColVisible('quantity')"
+              label="基本数量"
+              v-bind="ocReturnQueueColBinding('quantity')"
+            >
+              <template #header>
+                <span class="ulc-th-text">基本数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.quantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isOcReturnQueueColVisible('createTime')"
+              label="登记时间"
+              v-bind="ocReturnQueueColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">登记时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isOcReturnQueueColVisible('actions')"
+              label="操作"
+              v-bind="ocReturnQueueColBinding('actions')"
+              :fixed="ocReturnQueueActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button :disabled="returnQueue.loading || Boolean(confirmingWarehouseReturn)"
+                @click="confirmDepartmentReturn(row)" class="ulc-action md-btn md-btn-primary" type="button">确认退库</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无待确认科室退库" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="returnQueue.result.page"
+            :total-pages="Math.max(1, Math.ceil(returnQueue.result.total / Math.max(returnQueue.result.size, 1)))"
+            :total="returnQueue.result.total"
+            :size="returnQueue.result.size"
+            :loading="returnQueue.loading"
+            @update:page="returnQueue.load($event)"
+            @update:size="returnQueue.load(1, $event)"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <section v-else-if="deliveryTab === 'recalls' && auth.canWrite('picking-delivery')"
       id="delivery-panel-recalls" class="delivery-confirmation-panel" role="tabpanel" aria-labelledby="delivery-tab-recalls">
       <StatusMessage :message="recallQueue.error" tone="error" role="alert" />
-      <div class="table-scroll">
-        <table class="master-table">
-          <thead><tr><th>召回单号</th><th>来源二级库</th><th>接收中心库</th><th>待收数量</th><th>登记时间</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-for="row in recallQueue.result.rows" :key="row.recallNo">
-              <td>{{ row.recallNo }}</td><td>{{ row.sourceWarehouses || '—' }}</td>
-              <td>{{ row.destinationWarehouse }}</td><td>{{ row.quantity }}</td>
-              <td>{{ formatDateTime(row.createTime) }}</td>
-              <td><button type="button" class="md-btn md-btn-primary" :disabled="recallQueue.loading || Boolean(receivingRecallNo)"
-                @click="confirmRecallReceipt(row)">确认签收</button></td>
-            </tr>
-            <tr v-if="!recallQueue.result.rows.length && !recallQueue.error">
-              <td colspan="6"><EmptyState :message="recallQueue.loading ? '正在加载召回待签收单…' : '暂无待签收召回单'" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="recallQueue.result.page" :size="recallQueue.result.size" :total="recallQueue.result.total"
-        :loading="recallQueue.loading" @change-page="recallQueue.load($event)" @change-size="recallQueue.load(1, $event)"
-      />
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="ocRecallQueueColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="ocRecallQueueCols.settingsOpen.value = !ocRecallQueueCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: ocRecallQueueCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="ocRecallQueueCols.settingsOpen.value"
+            ref="ocRecallQueueColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': ocRecallQueueColSettingsPop.align.value === 'right', 'is-align-up': ocRecallQueueColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': ocRecallQueueColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallQueueColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="ocRecallQueueCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in ocRecallQueueCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && ocRecallQueueCols.visibleColumnCount.value <= 1"
+                  @change="ocRecallQueueCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="ocRecallQueueCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ocRecallQueueTableRef"
+            :data="recallQueue.result.rows"
+            row-key="recallNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无待签收召回单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallQueueCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="recallNo"
+              v-if="isOcRecallQueueColVisible('recallNo')"
+              label="召回单号"
+              v-bind="ocRecallQueueColBinding('recallNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">召回单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.recallNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceWarehouse"
+              v-if="isOcRecallQueueColVisible('sourceWarehouse')"
+              label="来源二级库"
+              v-bind="ocRecallQueueColBinding('sourceWarehouse')"
+            >
+              <template #header>
+                <span class="ulc-th-text">来源二级库</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.sourceWarehouses || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="destinationWarehouse"
+              v-if="isOcRecallQueueColVisible('destinationWarehouse')"
+              label="接收中心库"
+              v-bind="ocRecallQueueColBinding('destinationWarehouse')"
+            >
+              <template #header>
+                <span class="ulc-th-text">接收中心库</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.destinationWarehouse }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="quantity"
+              v-if="isOcRecallQueueColVisible('quantity')"
+              label="待收数量"
+              v-bind="ocRecallQueueColBinding('quantity')"
+            >
+              <template #header>
+                <span class="ulc-th-text">待收数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.quantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isOcRecallQueueColVisible('createTime')"
+              label="登记时间"
+              v-bind="ocRecallQueueColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">登记时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isOcRecallQueueColVisible('actions')"
+              label="操作"
+              v-bind="ocRecallQueueColBinding('actions')"
+              :fixed="ocRecallQueueActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button :disabled="recallQueue.loading || Boolean(receivingRecallNo)"
+                @click="confirmRecallReceipt(row)" class="ulc-action md-btn md-btn-primary" type="button">确认签收</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无待签收召回单" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="recallQueue.result.page"
+            :total-pages="Math.max(1, Math.ceil(recallQueue.result.total / Math.max(recallQueue.result.size, 1)))"
+            :total="recallQueue.result.total"
+            :size="recallQueue.result.size"
+            :loading="recallQueue.loading"
+            @update:page="recallQueue.load($event)"
+            @update:size="recallQueue.load(1, $event)"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     </section>
@@ -1890,126 +3345,357 @@ watch(recallBusinessType, () => {
         <StatusMessage :message="settlementFilterError || settlementLoadError" tone="error" role="alert" />
         <p class="settlement-query-hint">申领日期仅匹配可关联申领单的明细。同一定数包仅在首条结算明细计 1 包。</p>
       </div>
-      <div v-if="type === 'settlement'" class="table-scroll settlement-detail-scroll">
-        <table class="master-table settlement-detail-table">
-          <thead>
-            <tr>
-              <th class="settlement-col-document">结算单</th>
-              <th class="settlement-col-location">结算归属</th>
-              <th>申领类型</th>
-              <th class="settlement-col-product">商品信息</th>
-              <th class="settlement-col-spec">规格 / 单位</th>
-              <th class="settlement-col-manufacturer">厂家 / 注册证</th>
-              <th class="settlement-col-supplier">结算供应商</th>
-              <th>货型</th>
-              <th class="numeric-cell">基本单价</th>
-              <th class="numeric-cell">基本数量</th>
-              <th class="numeric-cell settlement-col-package">包数（去重）</th>
-              <th class="numeric-cell">散货数量</th>
-              <th class="numeric-cell">高值数量</th>
-              <th class="numeric-cell">金额</th>
-              <th class="settlement-col-policy">带量 / 医保</th>
-              <th class="settlement-col-trace">追溯码</th>
-              <th class="settlement-col-finance">患者 / 财务科室</th>
-              <th class="settlement-col-time">结算信息</th>
-              <th class="settlement-col-status">状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="19" class="approval-empty"><EmptyState message="正在加载结算明细..." /></td>
-            </tr>
-            <tr v-else-if="!rows.length">
-              <td colspan="19" class="approval-empty">
-                <EmptyState :message="settlementLoadError ? '结算明细加载失败' : '暂无符合查询条件的结算明细'" />
-              </td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="String(row.settlementItemId)">
-              <td class="settlement-col-document">
-                <div class="settlement-cell-stack" :title="String(row.settlementNo || '-')">
+            <MdDataTableCard v-if="type === 'settlement'">
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="ocSettlementColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="ocSettlementCols.settingsOpen.value = !ocSettlementCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: ocSettlementCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="ocSettlementCols.settingsOpen.value"
+            ref="ocSettlementColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': ocSettlementColSettingsPop.align.value === 'right', 'is-align-up': ocSettlementColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': ocSettlementColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocSettlementColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="ocSettlementCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in ocSettlementCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && ocSettlementCols.visibleColumnCount.value <= 1"
+                  @change="ocSettlementCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="ocSettlementCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ocSettlementTableRef"
+            :data="rows"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无结算明细'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ocSettlementCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="settlementNo"
+              v-if="isOcSettlementColVisible('settlementNo')"
+              label="结算单"
+              v-bind="ocSettlementColBinding('settlementNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">结算单</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack" :title="String(row.settlementNo || '-')">
                   <strong>{{ row.settlementNo || '-' }}</strong>
                   <span class="settlement-cell-meta">ID：{{ row.settlementId || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-location">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="settlementOwner"
+              v-if="isOcSettlementColVisible('settlementOwner')"
+              label="结算归属"
+              v-bind="ocSettlementColBinding('settlementOwner')"
+            >
+              <template #header>
+                <span class="ulc-th-text">结算归属</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <strong :title="String(row.settlementDept || '-')">{{ row.settlementDept || '-' }}</strong>
                   <span class="settlement-cell-meta" :title="String(row.settlementWarehouse || '-')">库房：{{ row.settlementWarehouse || '-' }}</span>
                 </div>
-              </td>
-              <td>{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
-              <td class="settlement-col-product">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="requisitionType"
+              v-if="isOcSettlementColVisible('requisitionType')"
+              label="申领类型"
+              v-bind="ocSettlementColBinding('requisitionType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">申领类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="productInfo"
+              v-if="isOcSettlementColVisible('productInfo')"
+              label="商品信息"
+              v-bind="ocSettlementColBinding('productInfo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品信息</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <strong :title="String(row.productName || '-')">{{ row.productName || '-' }}</strong>
                   <span class="settlement-cell-meta" :title="String(row.productCode || '-')">编码：{{ row.productCode || '-' }}</span>
                   <span class="settlement-cell-meta" :title="String(row.genericName || '-')">通用名：{{ row.genericName || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-spec">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="specUnit"
+              v-if="isOcSettlementColVisible('specUnit')"
+              label="规格 / 单位"
+              v-bind="ocSettlementColBinding('specUnit')"
+            >
+              <template #header>
+                <span class="ulc-th-text">规格 / 单位</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <span :title="String(row.specModel || '-')">{{ row.specModel || '-' }}</span>
                   <span class="settlement-cell-meta">单位：{{ row.unit || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-manufacturer">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="manufacturer"
+              v-if="isOcSettlementColVisible('manufacturer')"
+              label="厂家 / 注册证"
+              v-bind="ocSettlementColBinding('manufacturer')"
+            >
+              <template #header>
+                <span class="ulc-th-text">厂家 / 注册证</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <strong :title="String(row.manufacturerName || '-')">{{ row.manufacturerName || '-' }}</strong>
                   <span class="settlement-cell-meta" :title="String(row.registrationNo || '-')">注册证：{{ row.registrationNo || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-supplier" :title="String(row.settlementSupplier || '-')">{{ row.settlementSupplier || '-' }}</td>
-              <td>{{ settlementGoodsLabel(row.goodsType) }}</td>
-              <td class="numeric-cell">{{ row.unitPrice ?? '-' }}</td>
-              <td class="numeric-cell">{{ row.settlementQuantity ?? '-' }}</td>
-              <td class="numeric-cell settlement-col-package">
-                <div v-if="row.goodsType === 'quota_package'" class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplierName"
+              v-if="isOcSettlementColVisible('supplierName')"
+              label="结算供应商"
+              v-bind="ocSettlementColBinding('supplierName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">结算供应商</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.settlementSupplier || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="goodsType"
+              v-if="isOcSettlementColVisible('goodsType')"
+              label="货型"
+              v-bind="ocSettlementColBinding('goodsType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">货型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ settlementGoodsLabel(row.goodsType) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="basePrice"
+              v-if="isOcSettlementColVisible('basePrice')"
+              label="基本单价"
+              v-bind="ocSettlementColBinding('basePrice')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">基本单价</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.unitPrice ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="baseQty"
+              v-if="isOcSettlementColVisible('baseQty')"
+              label="基本数量"
+              v-bind="ocSettlementColBinding('baseQty')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">基本数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.settlementQuantity ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="packageCount"
+              v-if="isOcSettlementColVisible('packageCount')"
+              label="包数（去重）"
+              v-bind="ocSettlementColBinding('packageCount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">包数（去重）</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number"><div v-if="row.goodsType === 'quota_package'" class="ulc-cell-stack settlement-cell-stack">
                   <strong>{{ row.packageCount ?? 0 }} 包</strong>
                   <span class="settlement-cell-meta" :title="`本行包内基本数量 ${row.packageBaseQuantity}，每包 ${row.packageQuantity} ${row.unit}`">{{ row.packageBaseQuantity }} / {{ row.packageQuantity }} {{ row.unit }}</span>
                 </div>
-                <span v-else>0</span>
-              </td>
-              <td class="numeric-cell">{{ row.looseQuantity ?? 0 }}</td>
-              <td class="numeric-cell">{{ row.highValueQuantity ?? 0 }}</td>
-              <td class="numeric-cell amount-cell">
-                <div class="settlement-cell-stack">
+                <span v-else>0</span></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="looseQty"
+              v-if="isOcSettlementColVisible('looseQty')"
+              label="散货数量"
+              v-bind="ocSettlementColBinding('looseQty')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">散货数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.looseQuantity ?? 0 }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="highValueQty"
+              v-if="isOcSettlementColVisible('highValueQty')"
+              label="高值数量"
+              v-bind="ocSettlementColBinding('highValueQty')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">高值数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">{{ row.highValueQuantity ?? 0 }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isOcSettlementColVisible('amount')"
+              label="金额"
+              v-bind="ocSettlementColBinding('amount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number"><div class="ulc-cell-stack settlement-cell-stack">
                   <strong :title="String(row.settlementAmount ?? '-')">{{ row.settlementAmount ?? '-' }}</strong>
                   <span v-if="row.goodsType === 'quota_package'" class="settlement-cell-meta" :title="`整包金额：${row.packageAmount ?? '-'}`">整包金额：{{ row.packageAmount ?? '-' }}</span>
-                </div>
-              </td>
-              <td class="settlement-col-policy">
-                <div class="settlement-cell-stack settlement-policy-list">
+                </div></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="medicalInsurance"
+              v-if="isOcSettlementColVisible('medicalInsurance')"
+              label="带量 / 医保"
+              v-bind="ocSettlementColBinding('medicalInsurance')"
+            >
+              <template #header>
+                <span class="ulc-th-text">带量 / 医保</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack settlement-policy-list">
                   <span><b>带量</b>{{ row.volumeBased || '-' }}<small>{{ row.volumeBasedType || '-' }}</small></span>
                   <span><b>医保</b>{{ row.medicalInsurancePayment || '-' }}<small>{{ row.medicalInsurancePaymentType || '-' }}</small></span>
                 </div>
-              </td>
-              <td class="settlement-col-trace">
-                <div class="settlement-cell-stack settlement-code-list">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="traceCode"
+              v-if="isOcSettlementColVisible('traceCode')"
+              label="追溯码"
+              v-bind="ocSettlementColBinding('traceCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">追溯码</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack settlement-code-list">
                   <span :title="String(row.uid || '-')"><b>UID</b>{{ row.uid || '-' }}</span>
                   <span :title="String(row.uniqueCode || '-')"><b>唯一码</b>{{ row.uniqueCode || '-' }}</span>
                   <span :title="String(row.quotaPackageCode || '-')"><b>定数包</b>{{ row.quotaPackageCode || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-finance">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="patientDept"
+              v-if="isOcSettlementColVisible('patientDept')"
+              label="患者 / 财务科室"
+              v-bind="ocSettlementColBinding('patientDept')"
+            >
+              <template #header>
+                <span class="ulc-th-text">患者 / 财务科室</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <strong :title="String(row.patientName || '-')">患者：{{ row.patientName || '-' }}</strong>
                   <span class="settlement-cell-meta" :title="String(row.financeDepartment || '-')">财务科室：{{ row.financeDepartment || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-time">
-                <div class="settlement-cell-stack">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="settlementInfo"
+              v-if="isOcSettlementColVisible('settlementInfo')"
+              label="结算信息"
+              v-bind="ocSettlementColBinding('settlementInfo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">结算信息</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack settlement-cell-stack">
                   <strong>{{ row.settlementOperator || '-' }}</strong>
                   <span class="settlement-cell-meta">申领：{{ formatDateTime(row.requisitionTime) }}</span>
                   <span class="settlement-cell-meta">结算：{{ row.settlementTime || '-' }}</span>
                   <span class="settlement-cell-meta">创建：{{ row.createTime || '-' }}</span>
                 </div>
-              </td>
-              <td class="settlement-col-status">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isOcSettlementColVisible('status')"
+              label="状态"
+              v-bind="ocSettlementColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
                 <span class="status-badge" :class="row.status === 'pending_confirm' ? 'pending' : 'enabled'">{{ formatStatusText(row.status) }}</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无结算明细" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
       <div v-else-if="type === 'red-flush'" class="table-scroll">
         <div class="settlement-query">
           <form class="settlement-filters" aria-label="红冲记录查询" @submit.prevent="applyRedFlushFilters">
@@ -2032,25 +3718,171 @@ watch(recallBusinessType, () => {
           </form>
           <StatusMessage :message="redFlushError" tone="error" role="alert" />
         </div>
-        <table class="master-table purchase-table">
-          <thead>
-            <tr><th>红冲单号</th><th>原消耗单号</th><th>科室</th><th>库房</th><th>红冲类型</th><th>状态</th><th>红冲时间</th><th>备注</th></tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td colspan="8"><EmptyState message="正在加载红冲记录..." /></td></tr>
-            <tr v-else-if="!rows.length"><td colspan="8"><EmptyState :message="redFlushError ? '红冲记录加载失败' : '暂无红冲记录'" /></td></tr>
-            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
-              <td>{{ row.bizNo }}</td>
-              <td>{{ row.sourceNo || '-' }}</td>
-              <td>{{ row.deptName || '-' }}</td>
-              <td>{{ row.warehouseName || '-' }}</td>
-              <td>{{ row.flushType === 'reverse_consumption' ? '反消耗' : formatBusinessText(row.flushType) }}</td>
-              <td>{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</td>
-              <td>{{ formatDateTime(row.createTime) }}</td>
-              <td>{{ row.remark === 'reverse consumption red flush' ? '反消耗红冲' : row.remark || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
+              <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="ocRedFlushColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="ocRedFlushCols.settingsOpen.value = !ocRedFlushCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: ocRedFlushCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="ocRedFlushCols.settingsOpen.value"
+            ref="ocRedFlushColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': ocRedFlushColSettingsPop.align.value === 'right', 'is-align-up': ocRedFlushColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': ocRedFlushColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRedFlushColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="ocRedFlushCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in ocRedFlushCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && ocRedFlushCols.visibleColumnCount.value <= 1"
+                  @change="ocRedFlushCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="ocRedFlushCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="ocRedFlushTableRef"
+            :data="rows"
+            row-key="bizNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无红冲记录'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => ocRedFlushCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="bizNo"
+              v-if="isOcRedFlushColVisible('bizNo')"
+              label="红冲单号"
+              v-bind="ocRedFlushColBinding('bizNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">红冲单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.bizNo }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="sourceNo"
+              v-if="isOcRedFlushColVisible('sourceNo')"
+              label="原消耗单号"
+              v-bind="ocRedFlushColBinding('sourceNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">原消耗单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.sourceNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="deptName"
+              v-if="isOcRedFlushColVisible('deptName')"
+              label="科室"
+              v-bind="ocRedFlushColBinding('deptName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">科室</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.deptName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isOcRedFlushColVisible('warehouseName')"
+              label="库房"
+              v-bind="ocRedFlushColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="flushType"
+              v-if="isOcRedFlushColVisible('flushType')"
+              label="红冲类型"
+              v-bind="ocRedFlushColBinding('flushType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">红冲类型</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.flushType === 'reverse_consumption' ? '反消耗' : formatBusinessText(row.flushType) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isOcRedFlushColVisible('status')"
+              label="状态"
+              v-bind="ocRedFlushColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.flushType === 'reverse_consumption' && row.status === 'approved' ? '已冲销' : formatStatusText(row.status) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isOcRedFlushColVisible('createTime')"
+              label="红冲时间"
+              v-bind="ocRedFlushColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">红冲时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ formatDateTime(row.createTime) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="remark"
+              v-if="isOcRedFlushColVisible('remark')"
+              label="备注"
+              v-bind="ocRedFlushColBinding('remark')"
+            >
+              <template #header>
+                <span class="ulc-th-text">备注</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.remark === 'reverse consumption red flush' ? '反消耗红冲' : row.remark || '-' }}</span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无红冲记录" />
+            </template>
+          </el-table>
+        </div>
+      </MdDataTableCard>
       </div>
       <template v-else-if="isRecallPage">
         <div class="settlement-query">
@@ -2067,116 +3899,427 @@ watch(recallBusinessType, () => {
           </form>
           <StatusMessage :message="recallHistoryError" tone="error" role="alert" />
         </div>
-        <div class="table-scroll">
-          <table class="master-table purchase-table">
-            <thead>
-              <tr><th>单据号</th><th>类型</th><th>商品编码</th><th>商品名称</th><th>来源科室</th><th>记录库房</th><th>数量</th><th>状态</th><th>登记时间</th><th>签收时间</th></tr>
-            </thead>
-            <tbody>
-              <tr v-if="loading"><td colspan="10"><EmptyState message="正在加载召回与隔离记录..." /></td></tr>
-              <tr v-else-if="!rows.length"><td colspan="10"><EmptyState message="暂无召回与隔离记录" /></td></tr>
-              <tr v-else v-for="row in rows" :key="String(row.bizNo)">
-                <td>{{ row.bizNo }}</td>
-                <td>{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</td>
-                <td>{{ row.productCode }}</td>
-                <td>{{ row.productName }}</td>
-                <td>{{ row.sourceDepartments || '-' }}</td>
-                <td>{{ row.warehouseName || '-' }}</td>
-                <td>{{ row.quantity }}</td>
-                <td>{{ formatStatusText(row.status) }}</td>
-                <td>{{ formatDateTime(row.createTime) }}</td>
-                <td>{{ formatDateTime(row.receivedTime) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="ocRecallHistoryColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="ocRecallHistoryCols.settingsOpen.value = !ocRecallHistoryCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: ocRecallHistoryCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="ocRecallHistoryCols.settingsOpen.value"
+              ref="ocRecallHistoryColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': ocRecallHistoryColSettingsPop.align.value === 'right', 'is-align-up': ocRecallHistoryColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': ocRecallHistoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocRecallHistoryColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="ocRecallHistoryCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in ocRecallHistoryCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                  <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && ocRecallHistoryCols.visibleColumnCount.value <= 1"
+                    @change="ocRecallHistoryCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="ocRecallHistoryCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="ocRecallHistoryTableRef"
+              :data="rows"
+              row-key="bizNo"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无召回与隔离记录'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallHistoryCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="bizNo"
+                v-if="isOcRecallHistoryColVisible('bizNo')"
+                label="单据号"
+                v-bind="ocRecallHistoryColBinding('bizNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">单据号</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.bizNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="businessType"
+                v-if="isOcRecallHistoryColVisible('businessType')"
+                label="类型"
+                v-bind="ocRecallHistoryColBinding('businessType')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">类型</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.businessType === 'isolate' ? '库存隔离' : '产品召回' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isOcRecallHistoryColVisible('productCode')"
+                label="商品编码"
+                v-bind="ocRecallHistoryColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isOcRecallHistoryColVisible('productName')"
+                label="商品名称"
+                v-bind="ocRecallHistoryColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productName }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="sourceDept"
+                v-if="isOcRecallHistoryColVisible('sourceDept')"
+                label="来源科室"
+                v-bind="ocRecallHistoryColBinding('sourceDept')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">来源科室</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.sourceDepartments || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="recordWarehouse"
+                v-if="isOcRecallHistoryColVisible('recordWarehouse')"
+                label="记录库房"
+                v-bind="ocRecallHistoryColBinding('recordWarehouse')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">记录库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.warehouseName || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="quantity"
+                v-if="isOcRecallHistoryColVisible('quantity')"
+                label="数量"
+                v-bind="ocRecallHistoryColBinding('quantity')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">数量</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.quantity }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isOcRecallHistoryColVisible('status')"
+                label="状态"
+                v-bind="ocRecallHistoryColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ formatStatusText(row.status) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="createTime"
+                v-if="isOcRecallHistoryColVisible('createTime')"
+                label="登记时间"
+                v-bind="ocRecallHistoryColBinding('createTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">登记时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ formatDateTime(row.createTime) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="receivedTime"
+                v-if="isOcRecallHistoryColVisible('receivedTime')"
+                label="签收时间"
+                v-bind="ocRecallHistoryColBinding('receivedTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">签收时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ formatDateTime(row.receivedTime) }}</span>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无召回与隔离记录" />
+              </template>
+            </el-table>
+          </div>
+        </MdDataTableCard>
       </template>
-      <div v-else class="table-scroll">
-        <table class="master-table purchase-table" :class="{ 'consumption-history-table': type === 'consumption' }">
-          <thead>
-            <tr>
-              <th>{{ type === 'consumption' ? '消耗单号' : '单据号' }}</th>
-              <th v-if="type === 'consumption'">申领类型</th>
-              <th>{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</th>
-              <th>商品编码</th>
-              <th>商品名称</th>
-              <th>{{ type === 'consumption' ? '数量 / 成本金额' : '数量/金额' }}</th>
-              <th>状态</th>
-              <th>时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">正在加载闭环数据...</td>
-            </tr>
-            <tr v-else-if="!rows.length">
-              <td :colspan="type === 'consumption' ? 9 : 8" class="approval-empty">
-                <EmptyState message="暂无业务单据" />
-              </td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="String(row.bizNo)">
-              <td>{{ row.bizNo }}</td>
-              <td v-if="type === 'consumption'">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</td>
-              <td>
-                <template v-if="type === 'consumption'">
-                  <strong>{{ row.deptName || '-' }}</strong>
-                  <span class="muted-cell"><Building2 :size="13" />{{ row.warehouseName || '-' }}</span>
-                </template>
-                <template v-else>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</template>
-              </td>
-              <td>{{ row.productCode || '-' }}</td>
-              <td>
-                <template v-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
-                <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
-              </td>
-              <td>
-                <template v-if="type === 'shortage'">
-                  <strong>{{ row.quantity || '-' }}</strong>
-                  <span class="muted-cell">周期 {{ row.periodDays || '-' }} 天 / 建议 {{ row.formulaReplenishQty ?? '-' }}</span>
-                  <span v-if="Number(row.manualAdjusted || 0) === 1" class="muted-cell">人工调整</span>
-                </template>
-                <template v-else-if="type === 'consumption'">
-                  <strong>{{ row.quantity ?? '-' }}</strong>
-                  <span class="muted-cell">成本金额：{{ row.amount ?? '-' }}</span>
-                </template>
-                <template v-else>{{ row.quantity || row.amount || '-' }}</template>
-              </td>
-              <td>
-                <span
-                  class="status-badge"
-                  :class="type === 'consumption' ? (row.status === 'confirmed' ? 'enabled' : ['reversed', 'red_flushed'].includes(String(row.status)) ? 'disabled' : 'pending') : 'pending'"
-                >{{ formatStatusText(row.status) }}</span>
-              </td>
-              <td>{{ row.createTime || '-' }}</td>
-              <td>
-                <div class="row-actions">
-                  <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
-                    type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
-                    <RotateCcw :size="15" />
-                    反消耗
-                  </button>
-                  <button v-if="type === 'requisition' && row.status === 'pending_approval'" type="button" @click="runAction('approveRequisition', row)">
-                    <CheckCircle2 :size="15" />审批
-                  </button>
-                  <button v-if="type === 'requisition' && row.status === 'pending_approval'" type="button" @click="runAction('rejectRequisition', row)">
-                    驳回
-                  </button>
-                  <span v-if="type !== 'consumption'">已联动</span>
+      <div v-else>
+        <MdDataTableCard>
+          <template #toolbar>
+            <div class="ulc-col-settings">
+              <button
+                ref="ocClosureDocColSettingsAnchorRef"
+                type="button"
+                class="md-btn md-btn-primary"
+                @click="ocClosureDocCols.settingsOpen.value = !ocClosureDocCols.settingsOpen.value"
+              >
+                <Columns3 :size="16" />
+                <span>列设置</span>
+                <ChevronDown :size="14" :class="{ rotated: ocClosureDocCols.settingsOpen.value }" />
+              </button>
+              <div
+                v-if="ocClosureDocCols.settingsOpen.value"
+                ref="ocClosureDocColSettingsPopRef"
+                class="ulc-col-settings-pop"
+                :class="{ 'is-align-right': ocClosureDocColSettingsPop.align.value === 'right', 'is-align-up': ocClosureDocColSettingsPop.vertical.value === 'up' }"
+                :style="{ '--ulc-pop-offset-y': ocClosureDocColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocClosureDocColSettingsPop.maxHeight.value + 'px' }"
+              >
+                <header>
+                  <strong>列展示设置</strong>
+                  <button type="button" class="ulc-link" @click="ocClosureDocCols.resetColumns()">恢复默认</button>
+                </header>
+                <div class="ulc-col-settings-list">
+                  <label v-for="col in ocClosureDocCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                    <input
+                      type="checkbox"
+                      :checked="col.visible"
+                      :disabled="col.visible && ocClosureDocCols.visibleColumnCount.value <= 1"
+                      @change="ocClosureDocCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                    />
+                    <span>{{ col.label }}</span>
+                    <small>{{ col.width }}px</small>
+                  </label>
                 </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+                <footer>
+                  <button type="button" class="ulc-action" @click="ocClosureDocCols.settingsOpen.value = false">确定</button>
+                </footer>
+              </div>
+            </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="ocClosureDocTableRef"
+              :data="rows"
+              row-key="bizNo"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无业务单据'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => ocClosureDocCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="bizNo"
+                v-if="isOcClosureDocColVisible('bizNo')"
+                :label="type === 'consumption' ? '消耗单号' : '单据号'"
+                v-bind="ocClosureDocColBinding('bizNo')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">{{ type === 'consumption' ? '消耗单号' : '单据号' }}</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.bizNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="requisitionType"
+                v-if="type === 'consumption' && isOcClosureDocColVisible('requisitionType')"
+                label="申领类型"
+                v-bind="ocClosureDocColBinding('requisitionType')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">申领类型</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.requisitionTypeLabel || row.requisitionType || '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="deptWarehouse"
+                v-if="isOcClosureDocColVisible('deptWarehouse')"
+                :label="type === 'consumption' ? '科室 / 库房' : '来源/科室'"
+                v-bind="ocClosureDocColBinding('deptWarehouse')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">{{ type === 'consumption' ? '科室 / 库房' : '来源/科室' }}</span>
+                </template>
+                <template #default="{ row }">
+                  <template v-if="type === 'consumption'">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.deptName || '-' }}</strong>
+                      <span class="muted-cell"><Building2 :size="13" />{{ row.warehouseName || '-' }}</span>
+                    </span>
+                  </template>
+                  <template v-else>{{ row.deptName || row.sourceNo || row.supplierName || row.deviceNo || formatBusinessText(row.eventType) }}</template>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productCode"
+                v-if="isOcClosureDocColVisible('productCode')"
+                label="商品编码"
+                v-bind="ocClosureDocColBinding('productCode')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品编码</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.productCode || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="productName"
+                v-if="isOcClosureDocColVisible('productName')"
+                label="商品名称"
+                v-bind="ocClosureDocColBinding('productName')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品名称</span>
+                </template>
+                <template #default="{ row }">
+                  <template v-if="type === 'consumption'"><strong>{{ row.productName || '-' }}</strong></template>
+                  <template v-else>{{ row.productName || row.period || formatBusinessText(row.operationType) }}</template>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="quantity"
+                v-if="isOcClosureDocColVisible('quantity')"
+                :label="type === 'consumption' ? '数量 / 成本金额' : '数量/金额'"
+                v-bind="ocClosureDocColBinding('quantity')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">{{ type === 'consumption' ? '数量 / 成本金额' : '数量/金额' }}</span>
+                </template>
+                <template #default="{ row }">
+                  <template v-if="type === 'shortage'">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.quantity || '-' }}</strong>
+                      <span class="muted-cell">周期 {{ row.periodDays || '-' }} 天 / 建议 {{ row.formulaReplenishQty ?? '-' }}</span>
+                      <span v-if="Number(row.manualAdjusted || 0) === 1" class="muted-cell">人工调整</span>
+                    </span>
+                  </template>
+                  <template v-else-if="type === 'consumption'">
+                    <span class="ulc-cell-stack">
+                      <strong>{{ row.quantity ?? '-' }}</strong>
+                      <span class="muted-cell">成本金额：{{ row.amount ?? '-' }}</span>
+                    </span>
+                  </template>
+                  <template v-else>{{ row.quantity || row.amount || '-' }}</template>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="status"
+                v-if="isOcClosureDocColVisible('status')"
+                label="状态"
+                v-bind="ocClosureDocColBinding('status')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">状态</span>
+                </template>
+                <template #default="{ row }">
+                  <span
+                    class="status-badge"
+                    :class="type === 'consumption' ? (row.status === 'confirmed' ? 'enabled' : ['reversed', 'red_flushed'].includes(String(row.status)) ? 'disabled' : 'pending') : 'pending'"
+                  >{{ formatStatusText(row.status) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="createTime"
+                v-if="isOcClosureDocColVisible('createTime')"
+                label="时间"
+                v-bind="ocClosureDocColBinding('createTime')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">时间</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="actions"
+                v-if="isOcClosureDocColVisible('actions')"
+                label="操作"
+                v-bind="ocClosureDocColBinding('actions')"
+                :fixed="ocClosureDocActionFixed"
+                align="center"
+              >
+                <template #header>
+                  <span class="ulc-th-text">操作</span>
+                </template>
+                <template #default="{ row }">
+                  <div class="ulc-actions">
+                    <button v-if="type === 'consumption' && row.status === 'confirmed' && auth.hasPermission('reverse-consumption:write')"
+                      class="ulc-action" type="button" :disabled="reversingConsumption" @click="confirmConsumptionReversal(row)">
+                      <RotateCcw :size="15" />
+                      反消耗
+                    </button>
+                    <button v-if="type === 'requisition' && row.status === 'pending_approval'" class="ulc-action" type="button" @click="runAction('approveRequisition', row)">
+                      <CheckCircle2 :size="15" />审批
+                    </button>
+                    <button v-if="type === 'requisition' && row.status === 'pending_approval'" class="ulc-action" type="button" @click="runAction('rejectRequisition', row)">
+                      驳回
+                    </button>
+                    <span v-if="type !== 'consumption'">已联动</span>
+                  </div>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无业务单据" />
+              </template>
+            </el-table>
+          </div>
+        </MdDataTableCard>
       </div>
-      <PaginationControls
-        :page="currentPage"
-        :size="pageSize"
-        :total="totalItems"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changePageSize"
-      />
+      <div class="oc-closure-pagination">
+        <MdPagination
+          :page="currentPage"
+          :total-pages="Math.max(1, Math.ceil(totalItems / Math.max(pageSize, 1)))"
+          :total="totalItems"
+          :size="pageSize"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changePageSize"
+        />
+      </div>
     </section>
 
     <HighValueOperationsPanel v-if="type === 'high-value'" />
@@ -2200,66 +4343,201 @@ watch(recallBusinessType, () => {
         </div>
         <StatusMessage :message="analysisError" tone="error" />
 
-        <div class="table-scroll">
-          <table class="master-table replenishment-analysis-table">
-            <thead>
-              <tr>
-                <th>商品</th>
-                <th>科室 / 库房</th>
-                <th>5 天出库</th>
-                <th>7 天出库</th>
-                <th>15 天出库</th>
-                <th>30 天出库</th>
-                <th>当前库存</th>
-                <th>建议补货</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="analysisLoading">
-                <td colspan="9" class="approval-empty"><EmptyState message="正在分析周期出库数据..." /></td>
-              </tr>
-              <tr v-else-if="analysisRows.length === 0">
-                <td colspan="9" class="approval-empty"><EmptyState message="暂无可补货建议" /></td>
-              </tr>
-              <tr
-                v-for="row in analysisRows"
-                v-else
-                :key="`${row.deptName}-${row.warehouseName}-${row.productCode}`"
-              >
-                <td>
-                  <strong>{{ row.productName || '-' }}</strong>
-                  <span class="muted-cell">{{ row.productCode || '-' }}</span>
-                </td>
-                <td>
-                  <strong>{{ row.deptName || '-' }}</strong>
-                  <span class="muted-cell">{{ row.warehouseName || '-' }}</span>
-                </td>
-                <td>{{ row.issue5 ?? 0 }}</td>
-                <td>{{ row.issue7 ?? 0 }}</td>
-                <td>{{ row.issue15 ?? 0 }}</td>
-                <td>{{ row.issue30 ?? 0 }}</td>
-                <td>{{ row.currentQty ?? 0 }}</td>
-                <td>
+                <MdDataTableCard>
+          <template #toolbar>
+          <div class="ulc-col-settings">
+            <button
+              ref="ocReplenishmentAnalysisColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="ocReplenishmentAnalysisCols.settingsOpen.value = !ocReplenishmentAnalysisCols.settingsOpen.value"
+            >
+              <Columns3 :size="16" />
+              <span>列设置</span>
+              <ChevronDown :size="14" :class="{ rotated: ocReplenishmentAnalysisCols.settingsOpen.value }" />
+            </button>
+            <div
+              v-if="ocReplenishmentAnalysisCols.settingsOpen.value"
+              ref="ocReplenishmentAnalysisColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': ocReplenishmentAnalysisColSettingsPop.align.value === 'right', 'is-align-up': ocReplenishmentAnalysisColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': ocReplenishmentAnalysisColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': ocReplenishmentAnalysisColSettingsPop.maxHeight.value + 'px' }"
+            >
+              <header>
+                <strong>列展示设置</strong>
+                <button type="button" class="ulc-link" @click="ocReplenishmentAnalysisCols.resetColumns()">恢复默认</button>
+              </header>
+              <div class="ulc-col-settings-list">
+                <label v-for="col in ocReplenishmentAnalysisCols.columns.value" :key="col.key" class="ulc-col-settings-item">
                   <input
+                    type="checkbox"
+                    :checked="col.visible"
+                    :disabled="col.visible && ocReplenishmentAnalysisCols.visibleColumnCount.value <= 1"
+                    @change="ocReplenishmentAnalysisCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                  />
+                  <span>{{ col.label }}</span>
+                  <small>{{ col.width }}px</small>
+                </label>
+              </div>
+              <footer>
+                <button type="button" class="ulc-action" @click="ocReplenishmentAnalysisCols.settingsOpen.value = false">确定</button>
+              </footer>
+            </div>
+          </div>
+          </template>
+          <div class="ulc-table-wrap">
+            <el-table
+              ref="ocReplenishmentAnalysisTableRef"
+              :data="analysisRows"
+              border
+              stripe
+              class="ulc-table is-sticky"
+              max-height="560"
+              style="width: 100%"
+              :empty-text="'暂无补货分析数据'"
+              @header-dragend="(width: number, oldWidth: number, column: any) => ocReplenishmentAnalysisCols.handleHeaderDragEnd(width, oldWidth, column)"
+            >
+              <el-table-column
+                column-key="product"
+                v-if="isOcReplenishmentAnalysisColVisible('product')"
+                label="商品"
+                v-bind="ocReplenishmentAnalysisColBinding('product')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">商品</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-cell-stack">
+                    <strong>{{ row.productName || '-' }}</strong>
+                    <span class="muted-cell">{{ row.productCode || '-' }}</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="deptWarehouse"
+                v-if="isOcReplenishmentAnalysisColVisible('deptWarehouse')"
+                label="科室 / 库房"
+                v-bind="ocReplenishmentAnalysisColBinding('deptWarehouse')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">科室 / 库房</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-cell-stack">
+                    <strong>{{ row.deptName || '-' }}</strong>
+                    <span class="muted-cell">{{ row.warehouseName || '-' }}</span>
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="out5"
+                v-if="isOcReplenishmentAnalysisColVisible('out5')"
+                label="5 天出库"
+                v-bind="ocReplenishmentAnalysisColBinding('out5')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">5 天出库</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.issue5 ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="out7"
+                v-if="isOcReplenishmentAnalysisColVisible('out7')"
+                label="7 天出库"
+                v-bind="ocReplenishmentAnalysisColBinding('out7')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">7 天出库</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.issue7 ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="out15"
+                v-if="isOcReplenishmentAnalysisColVisible('out15')"
+                label="15 天出库"
+                v-bind="ocReplenishmentAnalysisColBinding('out15')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">15 天出库</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.issue15 ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="out30"
+                v-if="isOcReplenishmentAnalysisColVisible('out30')"
+                label="30 天出库"
+                v-bind="ocReplenishmentAnalysisColBinding('out30')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">30 天出库</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.issue30 ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="currentStock"
+                v-if="isOcReplenishmentAnalysisColVisible('currentStock')"
+                label="当前库存"
+                v-bind="ocReplenishmentAnalysisColBinding('currentStock')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">当前库存</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text">{{ row.currentQty ?? 0 }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="suggestedReplenishment"
+                v-if="isOcReplenishmentAnalysisColVisible('suggestedReplenishment')"
+                label="建议补货"
+                v-bind="ocReplenishmentAnalysisColBinding('suggestedReplenishment')"
+              >
+                <template #header>
+                  <span class="ulc-th-text">建议补货</span>
+                </template>
+                <template #default="{ row }">
+                  <span class="ulc-wrap-text"><input
                     class="analysis-qty-input"
                     type="number"
                     min="0"
                     :value="row.recommendedQty ?? 0"
                     @input="updateAnalysisQty(row, $event)"
                   />
-                  <span class="muted-cell">{{ row.formulaText }}</span>
-                </td>
-                <td>
-                  <button class="btn btn-primary" type="button" @click="createTaskFromAnalysis(row)">
-                    <Save :size="15" />
-                    生成任务
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+                  <span class="muted-cell">{{ row.formulaText }}</span></span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                column-key="actions"
+                v-if="isOcReplenishmentAnalysisColVisible('actions')"
+                label="操作"
+                v-bind="ocReplenishmentAnalysisColBinding('actions')"
+                :fixed="ocReplenishmentAnalysisActionFixed"
+                align="center"
+              >
+                <template #header>
+                  <span class="ulc-th-text">操作</span>
+                </template>
+                <template #default="{ row }">
+                <div class="ulc-actions">
+                  <button @click="createTaskFromAnalysis(row)" class="ulc-action btn-primary" type="button"><Save :size="15" />
+                    生成任务</button>
+                </div>
+                </template>
+              </el-table-column>
+              <template #empty>
+                <MdEmptyState text="暂无补货分析数据" />
+              </template>
+            </el-table>
+          </div>
+        </MdDataTableCard>
       </section>
     </div>
 
@@ -3284,7 +5562,14 @@ watch(recallBusinessType, () => {
   background: #f1f8f8;
 }
 
-/* 单元格内堆叠：间距收敛 */
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
+/* 单元格内堆叠：间距收敛
+   长文本超宽自动换行，不做省略号截断（列表页统一标准 1.4）。 */
 .finance-settlement-page .settlement-cell-stack {
   gap: 2px !important;
   line-height: var(--spd-lh-tight) !important;
@@ -3296,9 +5581,9 @@ watch(recallBusinessType, () => {
   /* L-04 结算明细主字段：--spd-font-size-base（14/16/18px） */
   font-size: var(--spd-font-size-base) !important;
   line-height: var(--spd-lh-tight) !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .finance-settlement-page .settlement-cell-meta {
@@ -3306,9 +5591,9 @@ watch(recallBusinessType, () => {
   /* L-05 结算明细元信息：--spd-font-size-xs（11/13/15px） */
   font-size: var(--spd-font-size-xs) !important;
   font-weight: 400;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .finance-settlement-page .settlement-policy-list > span,

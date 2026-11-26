@@ -1,4 +1,4 @@
-﻿<script setup lang="ts">
+<script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
   Ban,
@@ -64,6 +64,7 @@ import '../../styles/master-data/department-management.css'
 import '../../styles/master-data/department-warehouse-catalog.css'
 import { useAuthStore } from '../../stores/auth'
 import { formatBusinessText, formatStatusText } from '../../utils/chineseDisplay'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import PaginationControls from '../../components/common/PaginationControls.vue'
 
 const authStore = useAuthStore()
@@ -389,23 +390,29 @@ function closeHospitalDetail() {
 // ===== 医院目录单表：列宽拖拽 + 列设置（localStorage 持久化） =====
 // 与科室库房目录等其他统一列表页共用 useListColumns，保证交互与持久化行为一致。
 const HOSPITAL_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'product', label: '商品 / 编码', width: 300, visible: true },
-  { key: 'spec', label: '规格型号', width: 170, visible: true },
-  { key: 'vendor', label: '厂家 / 供应商', width: 250, visible: true },
-  { key: 'price', label: '单价', width: 140, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true }
+  { key: 'product', label: '商品 / 编码', width: 240, visible: true, weight: 8, minWidth: 160, maxWidth: 420 },
+  { key: 'spec', label: '规格型号', width: 160, visible: true, weight: 5, minWidth: 110, maxWidth: 280 },
+  { key: 'vendor', label: '厂家 / 供应商', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'price', label: '单价', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 const hospitalCols = useListColumns({
   storageKey: 'spd-hospital-catalog-cols-v1',
-  defaults: HOSPITAL_COL_DEFAULTS
+  defaults: HOSPITAL_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  // 预留勾选列宽度：<el-table-column type="selection" width="48" />
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
+const hospitalColBinding = (key: string) => hospitalCols.columnBinding(key)
 const hospitalTableRef = hospitalCols.tableRef
 const hospitalColSettingsOpen = hospitalCols.settingsOpen
 const visibleHospitalCols = hospitalCols.visibleColumns
 const isHospitalColVisible = (key: string) => hospitalCols.isColumnVisible(key)
-const colWidth = (key: string) => hospitalCols.columnWidth(key)
 function onHospitalSelectionChange(selection: Array<Record<string, unknown>>) {
   selectedCodes.value = selection.map((row) => String((row as Record<string, unknown>).code))
 }
@@ -425,17 +432,18 @@ function formatListDateTime(value: unknown) {
 }
 
 const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '科室编码', width: 150, visible: true },
-  { key: 'name', label: '科室名称', width: 200, visible: true },
-  { key: 'org', label: '组织归属', width: 220, visible: true },
-  { key: 'finance', label: '财务科室映射', width: 200, visible: true },
-  { key: 'manager', label: '负责人', width: 180, visible: true },
-  { key: 'address', label: '科室地址', width: 220, visible: true },
-  { key: 'warehouse', label: '关联库房', width: 180, visible: true },
-  { key: 'source', label: '原数据标识', width: 160, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '科室编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '科室名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'org', label: '组织归属', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'finance', label: '财务科室映射', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'manager', label: '负责人', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'address', label: '科室地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'warehouse', label: '关联库房', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'source', label: '原数据标识', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 /**
@@ -475,33 +483,36 @@ const CATALOG_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'source', label: '维护来源', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 105 },
   { key: 'status', label: '状态', width: 71, visible: true, weight: 2, minWidth: 56, maxWidth: 92 },
   { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
-  { key: 'updateTime', label: '更新时间', width: 126, visible: true, weight: 3, minWidth: 104, maxWidth: 175 }
+  { key: 'updateTime', label: '更新时间', width: 126, visible: true, weight: 3, minWidth: 104, maxWidth: 175 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 260 }
 ]
 
 const WAREHOUSE_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '库房编码', width: 150, visible: true },
-  { key: 'name', label: '库房名称', width: 190, visible: true },
-  { key: 'type', label: '库房类型', width: 140, visible: true },
-  { key: 'campus', label: '所属院区', width: 170, visible: true },
-  { key: 'dept', label: '关联科室', width: 190, visible: true },
-  { key: 'participateStats', label: '统计', width: 120, visible: true },
-  { key: 'receivingEnabled', label: '允许收货', width: 130, visible: true },
-  { key: 'statsCategories', label: '统计分类', width: 170, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'locationCount', label: '货位数量', width: 120, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '库房编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '库房名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'type', label: '库房类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'campus', label: '所属院区', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'dept', label: '关联科室', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'participateStats', label: '统计', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'receivingEnabled', label: '允许收货', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'statsCategories', label: '统计分类', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'locationCount', label: '货位数量', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const CAMPUS_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '院区编码', width: 150, visible: true },
-  { key: 'name', label: '院区名称', width: 190, visible: true },
-  { key: 'address', label: '院区地址', width: 240, visible: true },
-  { key: 'manager', label: '负责人', width: 170, visible: true },
-  { key: 'sortOrder', label: '排序', width: 110, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  { key: 'updateTime', label: '修改时间', width: 190, visible: true },
-  { key: 'createTime', label: '创建时间', width: 190, visible: true }
+  { key: 'code', label: '院区编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '院区名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'address', label: '院区地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'manager', label: '负责人', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 200 },
+  { key: 'sortOrder', label: '排序', width: 80, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const PARTNER_TIME_COLUMNS = [
@@ -510,67 +521,79 @@ const PARTNER_TIME_COLUMNS = [
 ]
 
 const SUPPLIER_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '供应商编码', width: 150, visible: true },
-  { key: 'name', label: '供应商名称', width: 200, visible: true },
-  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true },
-  { key: 'businessLicenseNo', label: '经营许可证号', width: 170, visible: true },
-  { key: 'type', label: '类型', width: 130, visible: true },
-  { key: 'grade', label: '等级', width: 110, visible: true },
-  { key: 'contact', label: '联系人', width: 170, visible: true },
-  { key: 'email', label: '邮箱', width: 190, visible: true },
-  { key: 'address', label: '地址', width: 220, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  ...PARTNER_TIME_COLUMNS
+  { key: 'code', label: '供应商编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '供应商名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true, weight: 5, minWidth: 150, maxWidth: 260 },
+  { key: 'businessLicenseNo', label: '经营许可证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'type', label: '类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
+  { key: 'grade', label: '等级', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'contact', label: '联系人', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'email', label: '邮箱', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'address', label: '地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const MANUFACTURER_COL_DEFAULTS: ListColumnConfig[] = [
-  { key: 'code', label: '厂家编码', width: 150, visible: true },
-  { key: 'name', label: '厂家名称', width: 200, visible: true },
-  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true },
-  { key: 'licenseNo', label: '生产许可证号', width: 180, visible: true },
-  { key: 'contact', label: '联系人', width: 170, visible: true },
-  { key: 'address', label: '地址', width: 240, visible: true },
-  { key: 'status', label: '状态', width: 120, visible: true },
-  ...PARTNER_TIME_COLUMNS
+  { key: 'code', label: '厂家编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'name', label: '厂家名称', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 260 },
+  { key: 'creditCode', label: '统一社会信用代码', width: 190, visible: true, weight: 5, minWidth: 150, maxWidth: 260 },
+  { key: 'licenseNo', label: '生产许可证号', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
+  { key: 'contact', label: '联系人', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 220 },
+  { key: 'address', label: '地址', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
 ]
 
 const departmentCols = useListColumns({
   storageKey: 'spd-department-cols-v1',
-  defaults: DEPARTMENT_COL_DEFAULTS
+  defaults: DEPARTMENT_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
+const departmentColBinding = (key: string) => departmentCols.columnBinding(key)
 const catalogCols = useListColumns({
   storageKey: 'spd-department-warehouse-catalog-cols-v4',
   defaults: CATALOG_COL_DEFAULTS,
   // 方案 C：混合策略 —— 字多的列（商品名称 / 规格型号 / 生产厂家）优先吸收富余且受各自上限约束，富余用完后剩余量才补给字少的列，字少的列不会被撑得过大。
   fitMode: 'hybrid',
-  // 只扣除选择列 48px；「操作」列参与比例分配，宽度由权重决定
-  reservedWidth: 48,
-  // 「操作」列与数据列在同一个权重池里竞争剩余宽度，
-  // 这样表格才能真正做到「铺满内容区 + 剩余宽度按比例分配给所有列」。
-  // 权重 3 —— 操作区只有 3 个按钮（编辑 / 启用 / 删除），
-  // 实际所需约 150px，因此权重应低于「商品名称 / 生产厂家」，
-  // 避免把字多的列的空间抢走。
-  fixedColumns: [
-    { key: 'actions', label: '操作', width: 170, weight: 3, minWidth: 150, maxWidth: 210 }
-  ]
+  // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
+  // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
+  // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
+  reservedWidth: 48
 })
 const warehouseCols = useListColumns({
   storageKey: 'spd-warehouse-location-cols-v1',
-  defaults: WAREHOUSE_COL_DEFAULTS
+  defaults: WAREHOUSE_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const warehouseColBinding = (key: string) => warehouseCols.columnBinding(key)
 const campusCols = useListColumns({
   storageKey: 'spd-campus-cols-v1',
-  defaults: CAMPUS_COL_DEFAULTS
+  defaults: CAMPUS_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const campusColBinding = (key: string) => campusCols.columnBinding(key)
 const supplierCols = useListColumns({
   storageKey: 'spd-supplier-cols-v1',
-  defaults: SUPPLIER_COL_DEFAULTS
+  defaults: SUPPLIER_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
+const supplierColBinding = (key: string) => supplierCols.columnBinding(key)
 const manufacturerCols = useListColumns({
   storageKey: 'spd-manufacturer-cols-v1',
-  defaults: MANUFACTURER_COL_DEFAULTS
+  defaults: MANUFACTURER_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 48
 })
 
+const manufacturerColBinding = (key: string) => manufacturerCols.columnBinding(key)
 const departmentTableRef = departmentCols.tableRef
 const catalogTableRef = catalogCols.tableRef
 const warehouseTableRef = warehouseCols.tableRef
@@ -783,11 +806,62 @@ function warehouseFlagChipClass(enabled: unknown) {
   return enabled ? 'is-success' : 'is-neutral'
 }
 
+/* ===== 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） ===== */
+const hospitalColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const hospitalColSettingsPopRef = ref<HTMLElement | null>(null)
+const hospitalColSettingsPop = useColSettingsPopover({
+  open: hospitalCols.settingsOpen,
+  anchorRef: hospitalColSettingsAnchorRef,
+  popRef: hospitalColSettingsPopRef
+})
+const supplierColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const supplierColSettingsPopRef = ref<HTMLElement | null>(null)
+const supplierColSettingsPop = useColSettingsPopover({
+  open: supplierCols.settingsOpen,
+  anchorRef: supplierColSettingsAnchorRef,
+  popRef: supplierColSettingsPopRef
+})
+const manufacturerColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const manufacturerColSettingsPopRef = ref<HTMLElement | null>(null)
+const manufacturerColSettingsPop = useColSettingsPopover({
+  open: manufacturerCols.settingsOpen,
+  anchorRef: manufacturerColSettingsAnchorRef,
+  popRef: manufacturerColSettingsPopRef
+})
+const campusColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const campusColSettingsPopRef = ref<HTMLElement | null>(null)
+const campusColSettingsPop = useColSettingsPopover({
+  open: campusCols.settingsOpen,
+  anchorRef: campusColSettingsAnchorRef,
+  popRef: campusColSettingsPopRef
+})
+const departmentColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const departmentColSettingsPopRef = ref<HTMLElement | null>(null)
+const departmentColSettingsPop = useColSettingsPopover({
+  open: departmentCols.settingsOpen,
+  anchorRef: departmentColSettingsAnchorRef,
+  popRef: departmentColSettingsPopRef
+})
+const catalogColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const catalogColSettingsPopRef = ref<HTMLElement | null>(null)
+const catalogColSettingsPop = useColSettingsPopover({
+  open: catalogCols.settingsOpen,
+  anchorRef: catalogColSettingsAnchorRef,
+  popRef: catalogColSettingsPopRef
+})
+const warehouseColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const warehouseColSettingsPopRef = ref<HTMLElement | null>(null)
+const warehouseColSettingsPop = useColSettingsPopover({
+  open: warehouseCols.settingsOpen,
+  anchorRef: warehouseColSettingsAnchorRef,
+  popRef: warehouseColSettingsPopRef
+})
+
 </script>
 
 <template>
   <section
-    class="master-page"
+    class="master-page spd-unified-list"
     :class="{
       'master-page--aligned': isHospitalCatalog || isSupplierManagement || isManufacturerManagement || isCampusManagement || isDepartmentManagement || isDepartmentWarehouseCatalog || isWarehouseManagement
     }"
@@ -1000,12 +1074,23 @@ function warehouseFlagChipClass(enabled: unknown) {
             <span>导出</span>
           </button>
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
+            <button
+              ref="hospitalColSettingsAnchorRef"
+              type="button"
+              class="md-btn md-btn-primary"
+              @click="hospitalColSettingsOpen = !hospitalColSettingsOpen"
+            >
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: hospitalColSettingsOpen }" />
             </button>
-            <div v-if="hospitalColSettingsOpen" class="ulc-col-settings-pop">
+            <div
+              v-if="hospitalColSettingsOpen"
+              ref="hospitalColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': hospitalColSettingsPop.align.value === 'right', 'is-align-up': hospitalColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': hospitalColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': hospitalColSettingsPop.maxHeight.value + 'px' }"
+            >
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="hospitalCols.resetColumns()">恢复默认</button>
@@ -1035,12 +1120,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="hospitalTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page?.rows ?? []"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
 
@@ -1050,7 +1135,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="product"
               v-if="isHospitalColVisible('product')"
               label="商品 / 编码"
-              :min-width="colWidth('product')"
+              v-bind="hospitalColBinding('product')"
             >
               <template #header>
                 <span class="ulc-th-text">商品 / 编码</span>
@@ -1071,9 +1156,11 @@ function warehouseFlagChipClass(enabled: unknown) {
               v-if="isHospitalColVisible('spec')"
               label="规格型号"
               prop="spec"
-              :min-width="colWidth('spec')"
-              show-overflow-tooltip
+              v-bind="hospitalColBinding('spec')"
             >
+              <template #default="{ row }">
+                <span class="ulc-strong ulc-wrap-text">{{ (row as Record<string, unknown>).spec ?? '-' }}</span>
+              </template>
               <template #header>
                 <span class="ulc-th-text">规格型号</span>
               </template>
@@ -1082,8 +1169,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="vendor"
               v-if="isHospitalColVisible('vendor')"
               label="厂家 / 供应商"
-              :min-width="colWidth('vendor')"
-              show-overflow-tooltip
+              v-bind="hospitalColBinding('vendor')"
             >
               <template #header>
                 <span class="ulc-th-text">厂家 / 供应商</span>
@@ -1100,7 +1186,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="price"
               v-if="isHospitalColVisible('price')"
               label="单价"
-              :min-width="colWidth('price')"
+              v-bind="hospitalColBinding('price')"
               align="center"
             >
               <template #header>
@@ -1120,7 +1206,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="status"
               v-if="isHospitalColVisible('status')"
               label="状态"
-              :min-width="colWidth('status')"
+              v-bind="hospitalColBinding('status')"
               align="center"
             >
               <template #header>
@@ -1136,7 +1222,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               column-key="createTime"
               v-if="isHospitalColVisible('createTime')"
               label="创建时间"
-              :min-width="colWidth('createTime')"
+              v-bind="hospitalColBinding('createTime')"
               align="center"
             >
               <template #header>
@@ -1151,7 +1237,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               column-key="updateTime"
               v-if="isHospitalColVisible('updateTime')"
               label="修改时间"
-              :min-width="colWidth('updateTime')"
+              v-bind="hospitalColBinding('updateTime')"
               align="center"
             >
               <template #header>
@@ -1163,11 +1249,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isHospitalColVisible('actions')"
+
               label="操作"
-              :min-width="300"
-              align="center"
+
+              v-bind="hospitalColBinding('actions')"
+
               :fixed="hospitalActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action is-outline" @click="openHospitalDetail(String((row as Record<string, unknown>).code))">详情</button>
@@ -1697,12 +1795,15 @@ function warehouseFlagChipClass(enabled: unknown) {
           </button>
           <input ref="importInput" class="hidden-file-input" type="file" accept=".csv" @change="handleSupplierImport" />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value">
+            <button type="button" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: supplierCols.settingsOpen.value }" />
             </button>
-            <div v-if="supplierCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="supplierCols.settingsOpen.value" ref="supplierColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': supplierColSettingsPop.align.value === 'right', 'is-align-up': supplierColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': supplierColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': supplierColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="supplierCols.resetColumns()">恢复默认</button>
@@ -1732,12 +1833,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="supplierTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的供应商"
             @selection-change="onSupplierSelectionChange"
 
@@ -1747,62 +1848,59 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="code"
               v-if="isSupplierColVisible('code')"
               label="供应商编码"
-              :min-width="supplierColWidth('code')"
+              v-bind="supplierColBinding('code')"
             >
               <template #header>
                 <span class="ulc-th-text">供应商编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="name"
               v-if="isSupplierColVisible('name')"
               label="供应商名称"
-              :min-width="supplierColWidth('name')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('name')"
             >
               <template #header>
                 <span class="ulc-th-text">供应商名称</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.name || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="creditCode"
               v-if="isSupplierColVisible('creditCode')"
               label="统一社会信用代码"
-              :min-width="supplierColWidth('creditCode')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('creditCode')"
             >
               <template #header>
                 <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="businessLicenseNo"
               v-if="isSupplierColVisible('businessLicenseNo')"
               label="经营许可证号"
-              :min-width="supplierColWidth('businessLicenseNo')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('businessLicenseNo')"
             >
               <template #header>
                 <span class="ulc-th-text">经营许可证号</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.businessLicenseNo || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.businessLicenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="type"
               v-if="isSupplierColVisible('type')"
               label="类型"
-              :min-width="supplierColWidth('type')"
+              v-bind="supplierColBinding('type')"
               align="center"
             >
               <template #header>
@@ -1816,7 +1914,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="grade"
               v-if="isSupplierColVisible('grade')"
               label="等级"
-              :min-width="supplierColWidth('grade')"
+              v-bind="supplierColBinding('grade')"
               align="center"
             >
               <template #header>
@@ -1832,7 +1930,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="contact"
               v-if="isSupplierColVisible('contact')"
               label="联系人"
-              :min-width="supplierColWidth('contact')"
+              v-bind="supplierColBinding('contact')"
             >
               <template #header>
                 <span class="ulc-th-text">联系人</span>
@@ -1851,32 +1949,30 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="email"
               v-if="isSupplierColVisible('email')"
               label="邮箱"
-              :min-width="supplierColWidth('email')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('email')"
             >
               <template #header>
                 <span class="ulc-th-text">邮箱</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.email || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.email || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="address"
               v-if="isSupplierColVisible('address')"
               label="地址"
-              :min-width="supplierColWidth('address')"
-              show-overflow-tooltip
+              v-bind="supplierColBinding('address')"
             >
               <template #header>
                 <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
-              <el-table-column v-if="isSupplierColVisible(column.key)" :label="column.label" :min-width="supplierColWidth(column.key)">
+              <el-table-column :column-key="column.key" v-if="isSupplierColVisible(column.key)" :label="column.label" v-bind="supplierColBinding(column.key)">
                 <template #header>
                   <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
@@ -1889,7 +1985,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="status"
               v-if="isSupplierColVisible('status')"
               label="状态"
-              :min-width="supplierColWidth('status')"
+              v-bind="supplierColBinding('status')"
               align="center"
             >
               <template #header>
@@ -1902,11 +1998,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isSupplierColVisible('actions')"
+
               label="操作"
-              :min-width="220"
-              align="center"
+
+              v-bind="supplierColBinding('actions')"
+
               :fixed="supplierActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2008,12 +2116,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleManufacturerImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value">
+            <button type="button" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: manufacturerCols.settingsOpen.value }" />
             </button>
-            <div v-if="manufacturerCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="manufacturerCols.settingsOpen.value" ref="manufacturerColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': manufacturerColSettingsPop.align.value === 'right', 'is-align-up': manufacturerColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': manufacturerColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': manufacturerColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="manufacturerCols.resetColumns()">恢复默认</button>
@@ -2043,12 +2154,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="manufacturerTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的厂家"
             @selection-change="onManufacturerSelectionChange"
 
@@ -2058,62 +2169,59 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="code"
               v-if="isManufacturerColVisible('code')"
               label="厂家编码"
-              :min-width="manufacturerColWidth('code')"
+              v-bind="manufacturerColBinding('code')"
             >
               <template #header>
                 <span class="ulc-th-text">厂家编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="name"
               v-if="isManufacturerColVisible('name')"
               label="厂家名称"
-              :min-width="manufacturerColWidth('name')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('name')"
             >
               <template #header>
                 <span class="ulc-th-text">厂家名称</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.name || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.name || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="creditCode"
               v-if="isManufacturerColVisible('creditCode')"
               label="统一社会信用代码"
-              :min-width="manufacturerColWidth('creditCode')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('creditCode')"
             >
               <template #header>
                 <span class="ulc-th-text">统一社会信用代码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.creditCode || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.creditCode || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="licenseNo"
               v-if="isManufacturerColVisible('licenseNo')"
               label="生产许可证号"
-              :min-width="manufacturerColWidth('licenseNo')"
-              show-overflow-tooltip
+              v-bind="manufacturerColBinding('licenseNo')"
             >
               <template #header>
                 <span class="ulc-th-text">生产许可证号</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.licenseNo || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.licenseNo || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="contact"
               v-if="isManufacturerColVisible('contact')"
               label="联系人"
-              :min-width="manufacturerColWidth('contact')"
+              v-bind="manufacturerColBinding('contact')"
             >
               <template #header>
                 <span class="ulc-th-text">联系人</span>
@@ -2132,18 +2240,17 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="address"
               v-if="isManufacturerColVisible('address')"
               label="地址"
-              :min-width="manufacturerColWidth('address')"
-              show-overflow-to-toololtip
+              v-bind="manufacturerColBinding('address')"
             >
               <template #header>
                 <span class="ulc-th-text">地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <template v-for="column in PARTNER_TIME_COLUMNS" :key="column.key">
-              <el-table-column v-if="isManufacturerColVisible(column.key)" :label="column.label" :min-width="manufacturerColWidth(column.key)">
+              <el-table-column :column-key="column.key" v-if="isManufacturerColVisible(column.key)" :label="column.label" v-bind="manufacturerColBinding(column.key)">
                 <template #header>
                   <span class="ulc-th-text">{{ column.label }}</span>
                 </template>
@@ -2156,7 +2263,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="status"
               v-if="isManufacturerColVisible('status')"
               label="状态"
-              :min-width="manufacturerColWidth('status')"
+              v-bind="manufacturerColBinding('status')"
               align="center"
             >
               <template #header>
@@ -2169,11 +2276,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isManufacturerColVisible('actions')"
+
               label="操作"
-              :min-width="220"
-              align="center"
+
+              v-bind="manufacturerColBinding('actions')"
+
               :fixed="manufacturerActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2249,12 +2368,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             <span>删除</span>
           </button>
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value">
+            <button type="button" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: campusCols.settingsOpen.value }" />
             </button>
-            <div v-if="campusCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="campusCols.settingsOpen.value" ref="campusColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': campusColSettingsPop.align.value === 'right', 'is-align-up': campusColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': campusColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': campusColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="campusCols.resetColumns()">恢复默认</button>
@@ -2284,12 +2406,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="campusTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的院区"
             @selection-change="onCampusSelectionChange"
 
@@ -2299,21 +2421,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="code"
               v-if="isCampusColVisible('code')"
               label="院区编码"
-              :min-width="campusColWidth('code')"
+              v-bind="campusColBinding('code')"
             >
               <template #header>
                 <span class="ulc-th-text">院区编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="name"
               v-if="isCampusColVisible('name')"
               label="院区名称"
-              :min-width="campusColWidth('name')"
-              show-overflow-tooltip
+              v-bind="campusColBinding('name')"
             >
               <template #header>
                 <span class="ulc-th-text">院区名称</span>
@@ -2329,21 +2450,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="address"
               v-if="isCampusColVisible('address')"
               label="院区地址"
-              :min-width="campusColWidth('address')"
-              show-overflow-tooltip
+              v-bind="campusColBinding('address')"
             >
               <template #header>
                 <span class="ulc-th-text">院区地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="manager"
               v-if="isCampusColVisible('manager')"
               label="负责人"
-              :min-width="campusColWidth('manager')"
+              v-bind="campusColBinding('manager')"
             >
               <template #header>
                 <span class="ulc-th-text">负责人</span>
@@ -2362,7 +2482,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="sortOrder"
               v-if="isCampusColVisible('sortOrder')"
               label="排序"
-              :min-width="campusColWidth('sortOrder')"
+              v-bind="campusColBinding('sortOrder')"
               align="center"
             >
               <template #header>
@@ -2376,7 +2496,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="status"
               v-if="isCampusColVisible('status')"
               label="状态"
-              :min-width="campusColWidth('status')"
+              v-bind="campusColBinding('status')"
               align="center"
             >
               <template #header>
@@ -2388,7 +2508,7 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isCampusColVisible('createTime')" label="创建时间" :min-width="campusColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isCampusColVisible('createTime')" label="创建时间" v-bind="campusColBinding('createTime')">
               <template #header>
                 <span class="ulc-th-text">创建时间</span>
               </template>
@@ -2400,7 +2520,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="updateTime"
               v-if="isCampusColVisible('updateTime')"
               label="修改时间"
-              :min-width="campusColWidth('updateTime')"
+              v-bind="campusColBinding('updateTime')"
               align="center"
             >
               <template #header>
@@ -2411,11 +2531,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isCampusColVisible('actions')"
+
               label="操作"
-              :min-width="220"
-              align="center"
+
+              v-bind="campusColBinding('actions')"
+
               :fixed="campusActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -2529,12 +2661,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleDepartmentImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value">
+            <button type="button" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: departmentCols.settingsOpen.value }" />
             </button>
-            <div v-if="departmentCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="departmentCols.settingsOpen.value" ref="departmentColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': departmentColSettingsPop.align.value === 'right', 'is-align-up': departmentColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': departmentColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': departmentColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="departmentCols.resetColumns()">恢复默认</button>
@@ -2564,12 +2699,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="departmentTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的科室"
             @selection-change="onDepartmentSelectionChange"
 
@@ -2579,21 +2714,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="code"
               v-if="isDepartmentColVisible('code')"
               label="科室编码"
-              :min-width="departmentColWidth('code')"
+              v-bind="departmentColBinding('code')"
             >
               <template #header>
                 <span class="ulc-th-text">科室编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="name"
               v-if="isDepartmentColVisible('name')"
               label="科室名称"
-              :min-width="departmentColWidth('name')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('name')"
             >
               <template #header>
                 <span class="ulc-th-text">科室名称</span>
@@ -2609,7 +2743,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="org"
               v-if="isDepartmentColVisible('org')"
               label="组织归属"
-              :min-width="departmentColWidth('org')"
+              v-bind="departmentColBinding('org')"
             >
               <template #header>
                 <span class="ulc-th-text">组织归属</span>
@@ -2628,7 +2762,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="finance"
               v-if="isDepartmentColVisible('finance')"
               label="财务科室映射"
-              :min-width="departmentColWidth('finance')"
+              v-bind="departmentColBinding('finance')"
             >
               <template #header>
                 <span class="ulc-th-text">财务科室映射</span>
@@ -2647,7 +2781,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="manager"
               v-if="isDepartmentColVisible('manager')"
               label="负责人"
-              :min-width="departmentColWidth('manager')"
+              v-bind="departmentColBinding('manager')"
             >
               <template #header>
                 <span class="ulc-th-text">负责人</span>
@@ -2666,49 +2800,46 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="address"
               v-if="isDepartmentColVisible('address')"
               label="科室地址"
-              :min-width="departmentColWidth('address')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('address')"
             >
               <template #header>
                 <span class="ulc-th-text">科室地址</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.address || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.address || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="warehouse"
               v-if="isDepartmentColVisible('warehouse')"
               label="关联库房"
-              :min-width="departmentColWidth('warehouse')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('warehouse')"
             >
               <template #header>
                 <span class="ulc-th-text">关联库房</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.relatedWarehouse || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.relatedWarehouse || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="source"
               v-if="isDepartmentColVisible('source')"
               label="原数据标识"
-              :min-width="departmentColWidth('source')"
-              show-overflow-tooltip
+              v-bind="departmentColBinding('source')"
             >
               <template #header>
                 <span class="ulc-th-text">原数据标识</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.sourceFlag || '-' }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.sourceFlag || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="status"
               v-if="isDepartmentColVisible('status')"
               label="状态"
-              :min-width="departmentColWidth('status')"
+              v-bind="departmentColBinding('status')"
               align="center"
             >
               <template #header>
@@ -2720,7 +2851,7 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isDepartmentColVisible('createTime')" label="创建时间" :min-width="departmentColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isDepartmentColVisible('createTime')" label="创建时间" v-bind="departmentColBinding('createTime')">
               <template #header>
                 <span class="ulc-th-text">创建时间</span>
               </template>
@@ -2732,7 +2863,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="updateTime"
               v-if="isDepartmentColVisible('updateTime')"
               label="修改时间"
-              :min-width="departmentColWidth('updateTime')"
+              v-bind="departmentColBinding('updateTime')"
               align="center"
             >
               <template #header>
@@ -2743,11 +2874,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isDepartmentColVisible('actions')"
+
               label="操作"
-              :min-width="260"
-              align="center"
+
+              v-bind="departmentColBinding('actions')"
+
               :fixed="departmentActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button type="button" class="ulc-action" @click="openEditDepartment(row, false)">编辑</button>
@@ -2846,12 +2989,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             <span>删除</span>
           </button>
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value">
+            <button type="button" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: catalogCols.settingsOpen.value }" />
             </button>
-            <div v-if="catalogCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="catalogCols.settingsOpen.value" ref="catalogColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': catalogColSettingsPop.align.value === 'right', 'is-align-up': catalogColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': catalogColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': catalogColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="catalogCols.resetColumns()">恢复默认</button>
@@ -2878,7 +3024,7 @@ function warehouseFlagChipClass(enabled: unknown) {
         <el-table
           ref="catalogTableRef"
           v-loading="loading"
-          class="ulc-table"
+          class="ulc-table is-sticky"
           :data="page.rows"
           row-key="code"
           border
@@ -2993,7 +3139,7 @@ function warehouseFlagChipClass(enabled: unknown) {
               </span>
             </template>
           </el-table-column>
-          <el-table-column v-if="isCatalogColVisible('createTime')" label="创建时间" :min-width="catalogColWidth('createTime')">
+          <el-table-column column-key="createTime"v-if="isCatalogColVisible('createTime')" label="创建时间" v-bind="catalogColBinding('createTime')">
             <template #header>
               <span class="ulc-th-text">创建时间</span>
             </template>
@@ -3016,11 +3162,24 @@ function warehouseFlagChipClass(enabled: unknown) {
             </template>
           </el-table-column>
           <el-table-column
+            column-key="actions"
+
+            v-if="isCatalogColVisible('actions')"
+
             label="操作"
-            align="center"
+
+            
+
             :fixed="catalogActionFixed"
-            v-bind="catalogCols.columnBinding('actions')"
+            v-bind="catalogColBinding('actions')"
           >
+
+            <template #header>
+
+              <span class="ulc-th-text">操作</span>
+
+            </template>
+
             <template #default="{ row }">
               <div class="ulc-actions">
                 <button type="button" class="ulc-action" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
@@ -3129,12 +3288,15 @@ function warehouseFlagChipClass(enabled: unknown) {
             @change="handleWarehouseImport"
           />
           <div class="ulc-col-settings">
-            <button type="button" class="md-btn md-btn-primary" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value">
+            <button type="button" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value" class="md-btn md-btn-primary">
               <Columns3 :size="16" />
               <span>列设置</span>
               <ChevronDown :size="14" :class="{ rotated: warehouseCols.settingsOpen.value }" />
             </button>
-            <div v-if="warehouseCols.settingsOpen.value" class="ulc-col-settings-pop">
+            <div v-if="warehouseCols.settingsOpen.value" ref="warehouseColSettingsPopRef"
+              class="ulc-col-settings-pop"
+              :class="{ 'is-align-right': warehouseColSettingsPop.align.value === 'right', 'is-align-up': warehouseColSettingsPop.vertical.value === 'up' }"
+              :style="{ '--ulc-pop-offset-y': warehouseColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': warehouseColSettingsPop.maxHeight.value + 'px' }">
               <header>
                 <strong>列展示设置</strong>
                 <button type="button" class="ulc-link" @click="warehouseCols.resetColumns()">恢复默认</button>
@@ -3161,12 +3323,12 @@ function warehouseFlagChipClass(enabled: unknown) {
           <el-table
             ref="warehouseTableRef"
             v-loading="loading"
-            class="ulc-table"
+            class="ulc-table is-sticky"
             :data="page.rows"
             row-key="code"
             border
             stripe
-            style="width: 100%"
+            max-height="560" style="width: 100%"
             empty-text="暂无符合条件的库房"
             @selection-change="onWarehouseSelectionChange"
 
@@ -3176,21 +3338,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="code"
               v-if="isWarehouseColVisible('code')"
               label="库房编码"
-              :min-width="warehouseColWidth('code')"
+              v-bind="warehouseColBinding('code')"
             >
               <template #header>
                 <span class="ulc-th-text">库房编码</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-mono">{{ row.code }}</span>
+                <span class="ulc-mono ulc-wrap-text">{{ row.code }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="name"
               v-if="isWarehouseColVisible('name')"
               label="库房名称"
-              :min-width="warehouseColWidth('name')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('name')"
             >
               <template #header>
                 <span class="ulc-th-text">库房名称</span>
@@ -3206,7 +3367,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="type"
               v-if="isWarehouseColVisible('type')"
               label="库房类型"
-              :min-width="warehouseColWidth('type')"
+              v-bind="warehouseColBinding('type')"
             >
               <template #header>
                 <span class="ulc-th-text">库房类型</span>
@@ -3219,21 +3380,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="campus"
               v-if="isWarehouseColVisible('campus')"
               label="所属院区"
-              :min-width="warehouseColWidth('campus')"
+              v-bind="warehouseColBinding('campus')"
             >
               <template #header>
                 <span class="ulc-th-text">所属院区</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.campus || '未归属院区' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.campus || '未归属院区' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="dept"
               v-if="isWarehouseColVisible('dept')"
               label="关联科室"
-              :min-width="warehouseColWidth('dept')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('dept')"
             >
               <template #header>
                 <span class="ulc-th-text">关联科室</span>
@@ -3252,7 +3412,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="participateStats"
               v-if="isWarehouseColVisible('participateStats')"
               label="统计"
-              :min-width="warehouseColWidth('participateStats')"
+              v-bind="warehouseColBinding('participateStats')"
               align="center"
             >
               <template #header>
@@ -3268,7 +3428,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="receivingEnabled"
               v-if="isWarehouseColVisible('receivingEnabled')"
               label="允许收货"
-              :min-width="warehouseColWidth('receivingEnabled')"
+              v-bind="warehouseColBinding('receivingEnabled')"
               align="center"
             >
               <template #header>
@@ -3284,21 +3444,20 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="statsCategories"
               v-if="isWarehouseColVisible('statsCategories')"
               label="统计分类"
-              :min-width="warehouseColWidth('statsCategories')"
-              show-overflow-tooltip
+              v-bind="warehouseColBinding('statsCategories')"
             >
               <template #header>
                 <span class="ulc-th-text">统计分类</span>
               </template>
               <template #default="{ row }">
-                <span class="ulc-strong">{{ row.statsCategories || '-' }}</span>
+                <span class="ulc-strong ulc-wrap-text">{{ row.statsCategories || '-' }}</span>
               </template>
             </el-table-column>
             <el-table-column
             column-key="status"
               v-if="isWarehouseColVisible('status')"
               label="状态"
-              :min-width="warehouseColWidth('status')"
+              v-bind="warehouseColBinding('status')"
               align="center"
             >
               <template #header>
@@ -3310,7 +3469,7 @@ function warehouseFlagChipClass(enabled: unknown) {
                 </span>
               </template>
             </el-table-column>
-            <el-table-column v-if="isWarehouseColVisible('createTime')" label="创建时间" :min-width="warehouseColWidth('createTime')">
+            <el-table-column column-key="createTime"v-if="isWarehouseColVisible('createTime')" label="创建时间" v-bind="warehouseColBinding('createTime')">
               <template #header>
                 <span class="ulc-th-text">创建时间</span>
               </template>
@@ -3322,7 +3481,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="updateTime"
               v-if="isWarehouseColVisible('updateTime')"
               label="修改时间"
-              :min-width="warehouseColWidth('updateTime')"
+              v-bind="warehouseColBinding('updateTime')"
               align="center"
             >
               <template #header>
@@ -3336,7 +3495,7 @@ function warehouseFlagChipClass(enabled: unknown) {
             column-key="locationCount"
               v-if="isWarehouseColVisible('locationCount')"
               label="货位数量"
-              :min-width="warehouseColWidth('locationCount')"
+              v-bind="warehouseColBinding('locationCount')"
               align="center"
             >
               <template #header>
@@ -3347,11 +3506,23 @@ function warehouseFlagChipClass(enabled: unknown) {
               </template>
             </el-table-column>
             <el-table-column
+              column-key="actions"
+
+              v-if="isWarehouseColVisible('actions')"
+
               label="操作"
-              :min-width="260"
-              align="center"
+
+              v-bind="warehouseColBinding('actions')"
+
               :fixed="warehouseActionFixed"
             >
+
+              <template #header>
+
+                <span class="ulc-th-text">操作</span>
+
+              </template>
+
               <template #default="{ row }">
                 <div class="ulc-actions">
                   <button
@@ -3400,108 +3571,6 @@ function warehouseFlagChipClass(enabled: unknown) {
         </template>
       </MdDataTableCard>
 
-      <!-- Other pages: native table -->
-      <table v-else-if="page" class="master-table">
-        <thead>
-          <tr>
-            <th v-if="selectableRows" class="selection-cell">
-              <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllRows" />
-            </th>
-            <th v-for="column in page?.columns" :key="column">{{ column }}</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, rowIndex) in page?.rows" :key="rowIndex">
-            <td v-if="selectableRows" class="selection-cell">
-              <input v-model="selectedCodes" type="checkbox" :value="String(row.code)" />
-            </td>
-            <td v-for="key in rowKeys" :key="key">{{ row[key] }}</td>
-            <td>
-              <RouterLink
-                v-if="code === 'hospital-product-catalog'"
-                class="btn-text"
-                :to="{ name: 'hospital-product-detail', params: { productCode: String(row.code) } }"
-              >
-                查看
-              </RouterLink>
-              <button
-                v-if="code === 'hospital-product-catalog'"
-                type="button"
-                class="btn-text"
-                @click="openEditProduct(String(row.code), false)"
-              >
-                修改
-              </button>
-              <button
-                v-if="code === 'hospital-product-catalog'"
-                type="button"
-                class="btn-text btn-text-danger"
-                @click="disableProducts([String(row.code)])"
-              >
-                停用
-              </button>
-              <template v-else-if="code === 'supplier-management'">
-                <button type="button" class="btn-text" @click="openEditSupplier(row, false)">修改</button>
-                <button type="button" class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }" @click="openPartnerStatusConfirm('supplier', [String(row.code)], row.status === '停用' ? 1 : 0)">
-                  {{ row.status === '停用' ? '启用' : '停用' }}
-                </button>
-              </template>
-              <template v-else-if="code === 'manufacturer-management'">
-                <button type="button" class="btn-text" @click="openEditManufacturer(row, false)">修改</button>
-                <button
-                  type="button"
-                  class="btn-text" :class="{ 'btn-text-danger': row.status !== '停用' }"
-                  @click="openPartnerStatusConfirm('manufacturer', [String(row.code)], row.status === '停用' ? 1 : 0)"
-                >
-                  {{ row.status === '停用' ? '启用' : '停用' }}
-                </button>
-              </template>
-              <template v-else-if="code === 'campus-management'">
-                <button type="button" class="btn-text" @click="openEditCampus(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedCampuses([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <template v-else-if="code === 'department-management'">
-                <button type="button" class="btn-text" @click="openEditDepartment(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedDepartments([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <template v-else-if="code === 'department-warehouse-catalog'">
-                <button type="button" class="btn-text" @click="openEditDepartmentWarehouseCatalog(row, false)">编辑</button>
-                <button
-                  type="button"
-                  class="btn-text"
-                  @click="updateSelectedDepartmentWarehouseCatalogStatus(String(row.status) === '停用' ? 1 : 0, [String(row.code)])"
-                >
-                  {{ String(row.status) === '停用' ? '启用' : '停用' }}
-                </button>
-                <button
-                  type="button"
-                  class="btn-text btn-text-danger"
-                  @click="deleteSelectedDepartmentWarehouseCatalogs([String(row.code)])"
-                >
-                  删除
-                </button>
-              </template>
-              <button v-else type="button" class="btn-text">查看</button>
-            </td>
-          </tr>
-          <tr v-if="!page?.rows.length">
-            <td class="approval-empty" :colspan="(page?.columns.length || 0) + (selectableRows ? 2 : 1)">暂无数据</td>
-          </tr>
-        </tbody>
-      </table>
     </section>
 
     <div v-if="isHospitalCatalog && submittedApplicationNo" class="standard-status-message is-info">

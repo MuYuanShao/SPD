@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, Teleport } from 'vue'
+import { computed, onMounted, reactive, ref, Teleport, watch } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import {
   CheckCircle2,
@@ -22,7 +22,6 @@ import {
   type ReceivingOrderRow,
   type SupplierOption
 } from '../../api/receivingOrders'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
@@ -33,6 +32,17 @@ import { useReceivingOrderDetail } from '../../composables/useReceivingOrderDeta
 import { useReceivingOrderForm } from '../../composables/useReceivingOrderForm'
 import { useReceivingOrderPagination } from '../../composables/useReceivingOrderPagination'
 import { formatStatusText } from '../../utils/chineseDisplay'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -407,10 +417,67 @@ async function runAction(row: ReceivingOrderRow, action: string) {
 onMounted(() => {
   loadData()
 })
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 'hybrid'：按权重把容器宽度分配给所有列，表格 100% 铺满内容区；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const RECEIVINGLIST_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'receiptNo', label: '收货单号', width: 180, visible: true, weight: 4, minWidth: 140, maxWidth: 280 },
+  { key: 'purchaseOrder', label: '采购订单', width: 170, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, weight: 5, minWidth: 120, maxWidth: 300 },
+  { key: 'warehouseName', label: '入库库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 240 },
+  { key: 'detailCount', label: '明细数', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'receiptQty', label: '收货数量', width: 100, visible: true, weight: 2, minWidth: 80, maxWidth: 140 },
+  { key: 'amount', label: '入库金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'status', label: '状态', width: 90, visible: true, weight: 2, minWidth: 70, maxWidth: 130 },
+  { key: 'receiptTime', label: '收货时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
+  { key: 'actions', label: '操作', width: 170, visible: true, fill: true, minWidth: 140, maxWidth: 300 }
+]
+
+const receivingListCols = useListColumns({
+  storageKey: 'spd-receiving-list-cols-v1',
+  defaults: RECEIVINGLIST_COL_DEFAULTS,
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const receivingListTableRef = receivingListCols.tableRef
+const isReceivingListColVisible = (key: string) => receivingListCols.isColumnVisible(key)
+const receivingListColBinding = (key: string) => receivingListCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const receivingListActionFix = useActionColumnFix()
+const receivingListActionFixed = computed(() => receivingListActionFix.actionFixedBinding.value)
+
+watch(
+  [receivingListTableRef],
+  () => {
+    receivingListActionFix.observe(receivingListTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const receivingListColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const receivingListColSettingsPopRef = ref<HTMLElement | null>(null)
+const receivingListColSettingsPop = useColSettingsPopover({
+  open: receivingListCols.settingsOpen,
+  anchorRef: receivingListColSettingsAnchorRef,
+  popRef: receivingListColSettingsPopRef
+})
+
 </script>
 
-<template>
-  <section class="md-page receiving-page">
+<template><section class="md-page receiving-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务"
       title="收货验收"
@@ -469,89 +536,252 @@ onMounted(() => {
         </button>
       </div>
 
-      <div
-        :id="`receiving-panel-${activeTab}`"
-        class="table-scroll receiving-list-scroll"
-        role="tabpanel"
-        :aria-labelledby="`receiving-tab-${activeTab}`"
-      >
-        <table class="master-table purchase-table receiving-table">
-          <thead>
-            <tr>
-              <th>收货单号</th>
-              <th>采购订单</th>
-              <th>供应商</th>
-              <th>入库库房</th>
-              <th>明细数</th>
-              <th>收货数量</th>
-              <th>入库金额</th>
-              <th>状态</th>
-              <th>收货时间</th>
-              <th>创建时间</th>
-              <th>修改时间</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="12" class="receiving-loading-cell"><StatusMessage message="正在加载收货验收单..." tone="info" /></td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="row.receivingNo">
-              <td class="document-no-cell">{{ row.receivingNo }}<small v-if="row.sourceSystem === 'MCP-UI'" style="display:block">MCP供货：{{ row.externalSupplyNo }}</small></td>
-              <td class="document-no-cell">{{ row.purchaseOrderNo || '-' }}</td>
-              <td>{{ row.supplierName }}</td>
-              <td>{{ row.warehouseName }}</td>
-              <td class="receiving-num-cell">{{ row.itemCount }}</td>
-              <td class="receiving-num-cell">{{ row.receiveQuantity }}</td>
-              <td class="receiving-amount-cell">¥ {{ Number(row.receiveAmount).toFixed(2) }}</td>
-              <td><span :class="['status-badge', statusTone(row.receivingStatus)]">{{ statusLabel(row.receivingStatus) }}</span></td>
-              <td class="receiving-time-cell">{{ row.receiveTime || '-' }}</td>
-              <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-              <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-              <td>
-                <div class="row-actions">
-                  <button type="button" class="btn-text" @click="openDetail(row)"><Eye :size="15" /> 查看</button>
-                  <button v-if="canUpdate && row.receivingStatus === 'draft'" type="button" class="btn-text" @click="openEditModal(row)">
-                    <Pencil :size="15" />
-                    修改
-                  </button>
-                  <button
-                    v-if="canApprove && row.receivingStatus === 'draft'"
-                    type="button"
-                    class="btn-text"
+            <MdDataTableCard
+              :id="`receiving-panel-${activeTab}`"
+              role="tabpanel"
+              :aria-labelledby="`receiving-tab-${activeTab}`"
+            >
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="receivingListColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="receivingListCols.settingsOpen.value = !receivingListCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: receivingListCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="receivingListCols.settingsOpen.value"
+            ref="receivingListColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': receivingListColSettingsPop.align.value === 'right', 'is-align-up': receivingListColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': receivingListColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': receivingListColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="receivingListCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in receivingListCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && receivingListCols.visibleColumnCount.value <= 1"
+                  @change="receivingListCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="receivingListCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="receivingListTableRef"
+            :data="rows"
+            row-key="receivingNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无收货单'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => receivingListCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="receiptNo"
+              v-if="isReceivingListColVisible('receiptNo')"
+              label="收货单号"
+              v-bind="receivingListColBinding('receiptNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">收货单号</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.receivingNo }}<small v-if="row.sourceSystem === 'MCP-UI'" style="display:block">MCP供货：{{ row.externalSupplyNo }}</small></span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="purchaseOrder"
+              v-if="isReceivingListColVisible('purchaseOrder')"
+              label="采购订单"
+              v-bind="receivingListColBinding('purchaseOrder')"
+            >
+              <template #header>
+                <span class="ulc-th-text">采购订单</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.purchaseOrderNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplierName"
+              v-if="isReceivingListColVisible('supplierName')"
+              label="供应商"
+              v-bind="receivingListColBinding('supplierName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">供应商</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.supplierName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isReceivingListColVisible('warehouseName')"
+              label="入库库房"
+              v-bind="receivingListColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">入库库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.warehouseName }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="detailCount"
+              v-if="isReceivingListColVisible('detailCount')"
+              label="明细数"
+              v-bind="receivingListColBinding('detailCount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">明细数</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.itemCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="receiptQty"
+              v-if="isReceivingListColVisible('receiptQty')"
+              label="收货数量"
+              v-bind="receivingListColBinding('receiptQty')"
+            >
+              <template #header>
+                <span class="ulc-th-text">收货数量</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.receiveQuantity }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="amount"
+              v-if="isReceivingListColVisible('amount')"
+              label="入库金额"
+              v-bind="receivingListColBinding('amount')"
+            >
+              <template #header>
+                <span class="ulc-th-text">入库金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text ulc-number">¥ {{ Number(row.receiveAmount).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isReceivingListColVisible('status')"
+              label="状态"
+              v-bind="receivingListColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span :class="['status-badge', statusTone(row.receivingStatus)]">{{ statusLabel(row.receivingStatus) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="receiptTime"
+              v-if="isReceivingListColVisible('receiptTime')"
+              label="收货时间"
+              v-bind="receivingListColBinding('receiptTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">收货时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.receiveTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isReceivingListColVisible('createTime')"
+              label="创建时间"
+              v-bind="receivingListColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isReceivingListColVisible('updateTime')"
+              label="修改时间"
+              v-bind="receivingListColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isReceivingListColVisible('actions')"
+              label="操作"
+              v-bind="receivingListColBinding('actions')"
+              :fixed="receivingListActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click="openDetail(row)" class="ulc-action" type="button"><Eye :size="15" /> 查看</button>
+                <button v-if="canUpdate && row.receivingStatus === 'draft'" @click="openEditModal(row)" class="ulc-action" type="button"><Pencil :size="15" />
+                    修改</button>
+                <button v-if="canApprove && row.receivingStatus === 'draft'"
                     :disabled="Boolean(actionLoadingNo)"
-                    @click="runAction(row, 'approve')">
-                    <CheckCircle2 :size="15" />
-                    {{ actionLoadingNo === `${row.receivingNo}:approve` ? '处理中' : '审核入库' }}
-                  </button>
-                  <button
-                    v-if="canReject && row.receivingStatus === 'draft'"
-                    type="button"
-                    class="btn-text btn-text-danger"
+                    @click="runAction(row, 'approve')" class="ulc-action" type="button"><CheckCircle2 :size="15" />
+                    {{ actionLoadingNo === `${row.receivingNo}:approve` ? '处理中' : '审核入库' }}</button>
+                <button v-if="canReject && row.receivingStatus === 'draft'"
                     :disabled="Boolean(actionLoadingNo)"
-                    @click="runAction(row, 'reject')">
-                    <XCircle :size="15" />
-                    {{ actionLoadingNo === `${row.receivingNo}:reject` ? '处理中' : '拒收' }}
-                  </button>
-                </div>
-              </td>
-            </tr>
-            <tr v-if="!loading && !rows.length">
-              <td colspan="12" class="receiving-empty-cell">
-                <EmptyState :message="activeTab === 'pending' ? '暂无待收货单据' : '暂无已验收单据'" />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="currentPage"
-        :size="pageSize"
-        :total="totalItems"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changePageSize"
-      />
+                    @click="runAction(row, 'reject')" class="ulc-action" type="button"><XCircle :size="15" />
+                    {{ actionLoadingNo === `${row.receivingNo}:reject` ? '处理中' : '拒收' }}</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无收货单" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="currentPage"
+            :total-pages="Math.max(1, Math.ceil(totalItems / Math.max(pageSize, 1)))"
+            :total="totalItems"
+            :size="pageSize"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changePageSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <Teleport to="body">
@@ -877,16 +1107,25 @@ onMounted(() => {
           </table>
         </div>
 
-        <PaginationControls
+        <MdPagination
           :page="detail.page"
-          :size="detailSize"
+          :total-pages="Math.max(1, Math.ceil(detail.total / Math.max(detailSize, 1)))"
           :total="detail.total"
+          :size="detailSize"
           :loading="detailLoading"
-          @change-page="changeDetailPage"
-          @change-size="changeDetailPageSize"
+          @update:page="changeDetailPage"
+          @update:size="changeDetailPageSize"
         />
       </section>
     </div>
     </Teleport>
   </section>
 </template>
+
+<style scoped>
+/* ---------- 数字列：居中 + 等宽数字 ----------
+   与统一列表标准一致：金额 / 数量类单元格与普通列一样**居中**，
+   数字使用等宽字体便于纵向比对。
+   具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
+   这里不再重复定义，避免各页面出现不同的对齐口径。 */
+</style>

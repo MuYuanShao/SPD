@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertTriangle,
   ArrowRight,
@@ -27,8 +27,8 @@ import {
   Warehouse
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import {
   consumeQuotaPackageByCode,
   fetchUdiTraceDetail,
@@ -42,6 +42,16 @@ import {
   type UdiTraceSummary
 } from '../../api/udiTraceability'
 import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -350,10 +360,67 @@ function eventTone(event: UdiTraceEvent) {
   if (status === 'warning') return 'amber'
   return 'blue'
 }
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const UDITRACE_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'traceCode', label: '唯一码 / UDI', width: 180, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'objectType', label: '对象类型', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'product', label: '商品', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 300 },
+  { key: 'batchNo', label: '批次', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'currentLocation', label: '当前位置', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'lastNode', label: '最近节点', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 230 },
+  { key: 'createTime', label: '创建时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'updateTime', label: '修改时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220 },
+  { key: 'actions', label: '操作', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200, fill: true }
+]
+
+const udiTraceCols = useListColumns({
+  storageKey: 'spd-udi-trace-cols-v1',
+  defaults: UDITRACE_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const udiTraceTableRef = udiTraceCols.tableRef
+const isUdiTraceColVisible = (key: string) => udiTraceCols.isColumnVisible(key)
+const udiTraceColBinding = (key: string) => udiTraceCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const udiTraceActionFix = useActionColumnFix()
+const udiTraceActionFixed = computed(() => udiTraceActionFix.actionFixedBinding.value)
+
+watch(
+  [udiTraceTableRef],
+  () => {
+    udiTraceActionFix.observe(udiTraceTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const udiTraceColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const udiTraceColSettingsPopRef = ref<HTMLElement | null>(null)
+const udiTraceColSettingsPop = useColSettingsPopover({
+  open: udiTraceCols.settingsOpen,
+  anchorRef: udiTraceColSettingsAnchorRef,
+  popRef: udiTraceColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <main class="udi-page">
+  <main class="udi-page spd-unified-list">
     <MdPageHeader
       crumb="专项与合规"
       title="UDI / 唯一码追溯"
@@ -652,77 +719,229 @@ function eventTone(event: UdiTraceEvent) {
           </button>
         </div>
       </header>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>唯一码 / UDI</th>
-              <th>对象类型</th>
-              <th>商品</th>
-              <th>批次</th>
-              <th>状态</th>
-              <th>当前位置</th>
-              <th>最近节点</th>
-              <th>创建时间</th>
-              <th>修改时间</th>
-              <th class="th-action">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="10"><EmptyState message="正在加载追溯记录..." /></td>
-            </tr>
-            <tr v-else-if="!records.length">
-              <td colspan="10"><EmptyState message="暂无符合条件的追溯记录" /></td>
-            </tr>
-            <template v-else>
-              <tr
-                v-for="row in records"
-                :key="row.uniqueCode"
-                :class="{ selected: row.uniqueCode === activeRecord?.uniqueCode }"
-                @click="loadDetail(row.uniqueCode)"
-              >
-                <td>
-                  <strong class="cell-mono">{{ row.uniqueCode }}</strong>
-                  <small class="cell-mono">{{ row.udiCode }}</small>
-                </td>
-                <td>
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="udiTraceColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="udiTraceCols.settingsOpen.value = !udiTraceCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: udiTraceCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="udiTraceCols.settingsOpen.value"
+            ref="udiTraceColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': udiTraceColSettingsPop.align.value === 'right', 'is-align-up': udiTraceColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': udiTraceColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': udiTraceColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="udiTraceCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in udiTraceCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && udiTraceCols.visibleColumnCount.value <= 1"
+                  @change="udiTraceCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="udiTraceCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="udiTraceTableRef"
+            :data="records"
+            row-key="uniqueCode"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无追溯记录'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => udiTraceCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="traceCode"
+              v-if="isUdiTraceColVisible('traceCode')"
+              label="唯一码 / UDI"
+              v-bind="udiTraceColBinding('traceCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">唯一码 / UDI</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <span class="ulc-mono ulc-wrap-text">{{ row.uniqueCode }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ row.udiCode }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="objectType"
+              v-if="isUdiTraceColVisible('objectType')"
+              label="对象类型"
+              v-bind="udiTraceColBinding('objectType')"
+            >
+              <template #header>
+                <span class="ulc-th-text">对象类型</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
                   <span class="scope-pill" :class="row.traceScope === 'high_value' ? 'is-hv' : 'is-quota'">
                     {{ scopeText[row.traceScope] || '-' }}
                   </span>
-                  <small v-if="row.packageLabelNo">{{ row.packageLabelNo }}</small>
-                </td>
-                <td>
-                  <strong>{{ row.productName }}</strong>
-                  <small>{{ row.productCode }} · {{ row.specModel || '-' }}</small>
-                  <small v-if="row.templateName">{{ row.templateName }} · {{ row.packageQuantity || '-' }}{{ row.packageUnit || '' }}</small>
-                </td>
-                <td>{{ row.batchNo || '-' }}</td>
-                <td>
-                  <span class="status-pill" :class="`tone-${statusTone[row.currentStatus] || 'gray'}`">
+                  <span class="ulc-mono ulc-wrap-text" v-if="row.packageLabelNo">{{ row.packageLabelNo }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isUdiTraceColVisible('product')"
+              label="商品"
+              v-bind="udiTraceColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong ulc-wrap-text">{{ row.productName }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ row.productCode }} · {{ row.specModel || '-' }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub" v-if="row.templateName">{{ row.templateName }} · {{ row.packageQuantity || '-' }}{{ row.packageUnit || '' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="batchNo"
+              v-if="isUdiTraceColVisible('batchNo')"
+              label="批次"
+              v-bind="udiTraceColBinding('batchNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">批次</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.batchNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isUdiTraceColVisible('status')"
+              label="状态"
+              v-bind="udiTraceColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
+                <span class="status-pill" :class="`tone-${statusTone[row.currentStatus] || 'gray'}`">
                     <component :is="statusIcon[row.currentStatus] || ShieldCheck" :size="12" />
                     {{ labelStatus(row.currentStatus) }}
                   </span>
-                </td>
-                <td>{{ row.currentLocation || '-' }}</td>
-                <td>
-                  <span class="last-event">{{ row.lastEventName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="currentLocation"
+              v-if="isUdiTraceColVisible('currentLocation')"
+              label="当前位置"
+              v-bind="udiTraceColBinding('currentLocation')"
+            >
+              <template #header>
+                <span class="ulc-th-text">当前位置</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.currentLocation || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="lastNode"
+              v-if="isUdiTraceColVisible('lastNode')"
+              label="最近节点"
+              v-bind="udiTraceColBinding('lastNode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">最近节点</span>
+              </template>
+              <template #default="{ row }">
+                <span class="last-event">{{ row.lastEventName || '-' }}</span>
                   <small>{{ row.lastEventTime || '-' }}</small>
-                </td>
-                <td class="md-audit-time">{{ row.createTime || '-' }}</td>
-                <td class="md-audit-time">{{ row.updateTime || '-' }}</td>
-                <td class="td-action">
-                  <button class="row-action-btn" type="button" @click.stop="loadDetail(row.uniqueCode)">
-                    <ArrowRight :size="13" />
-                    追溯
-                  </button>
-                </td>
-              </tr>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="createTime"
+              v-if="isUdiTraceColVisible('createTime')"
+              label="创建时间"
+              v-bind="udiTraceColBinding('createTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">创建时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="updateTime"
+              v-if="isUdiTraceColVisible('updateTime')"
+              label="修改时间"
+              v-bind="udiTraceColBinding('updateTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">修改时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.updateTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isUdiTraceColVisible('actions')"
+              label="操作"
+              v-bind="udiTraceColBinding('actions')"
+              :fixed="udiTraceActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button @click.stop="loadDetail(row.uniqueCode)" class="ulc-action row-action-btn" type="button"><ArrowRight :size="13" />
+                    追溯</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无追溯记录" />
             </template>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls :page="page" :size="size" :total="total" :loading="loading" @change-page="changePage" @change-size="changeSize" />
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="page"
+            :total-pages="Math.max(1, Math.ceil(total / size))"
+            :total="total"
+            :size="size"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changeSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
   </main>
 </template>

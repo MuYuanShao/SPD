@@ -607,12 +607,14 @@
   font-weight: 600;
 }
 
-/* ===== 表格容器 ===== */
+/* ===== 表格容器 =====
+   横向/纵向滚动都由 Element Plus 内部的 .el-scrollbar__wrap 负责，
+   外壳若再自己滚动一次，就会出现「两条横向滚动条」。
+   这里只保留相对定位（供列设置浮层定位使用），不再自己滚动。 */
 .approval-wide-table-shell {
   position: relative;
   max-height: 480px;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);
 }
@@ -966,15 +968,19 @@
   accent-color: var(--primary);
 }
 
-/* ===== 横向滚动条（自定义） =====
-   与统一列表其他页面一致：表格容器与分页之间不留多余空隙 */
+/* ===== 横向滚动条 =====
+   ---------------------------------------------------------------------
+   表格横向/纵向滚动**只由** Element Plus 内部的 .el-scrollbar__wrap 负责
+   （其原生滚动条被 --hidden-default 隐藏，由 .el-scrollbar__bar 绘制）。
+   外壳若再自己滚动一次，就会出现「两条横向滚动条」；
+   页面若再画一根自定义滚动条轨道，同样会在悬浮时冒出第二根。
+   因此这里只保留相对定位（供列设置浮层定位使用），不再自己滚动。 */
 .approval-wide-table-shell {
   position: relative;
   /* 层级低于工具栏（z-index: 30），避免「列设置」浮层被表格容器裁切/遮挡 */
   z-index: 1;
   max-height: 480px;
-  overflow-x: auto;
-  overflow-y: auto;
+  overflow: visible;
   scrollbar-width: none;
   background: var(--spd-bg-container);
   margin-bottom: 0 !important;
@@ -995,34 +1001,6 @@
 .approval-list-card .md-pagination {
   border-radius: 0 0 12px 12px;
   overflow: hidden;
-}
-
-.approval-wide-scroll-rail {
-  position: relative;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--spd-bg-page, #f0f2f5);
-  margin: 0 18px !important;
-  cursor: pointer;
-}
-
-.approval-wide-scroll-thumb {
-  position: absolute;
-  inset-block: 1px;
-  left: 0;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.2);
-  cursor: grab;
-  transition: background 0.15s ease;
-}
-
-.approval-wide-scroll-thumb:hover,
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  background: var(--primary);
-}
-
-.approval-wide-scroll-rail.dragging .approval-wide-scroll-thumb {
-  cursor: grabbing;
 }
 
 /* ===== 批量操作条 ===== */

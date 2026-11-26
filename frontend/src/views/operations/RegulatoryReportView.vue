@@ -2,10 +2,14 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElOption, ElSelect } from 'element-plus'
-import { Download, FileSpreadsheet, RefreshCw, Search } from '@lucide/vue'
+import { ChevronDown, Columns3, Download, FileSpreadsheet, RefreshCw, Search } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import {
   exportCentralizedProcurementProgressExcel,
   exportInventoryMovementSummaryExcel,
@@ -68,6 +72,138 @@ const supplierOptions = ref<SupplierLedgerOption[]>([])
 const departmentOptions = ref<SupplierLedgerOption[]>([])
 const supplierOptionsLoading = ref(false)
 const supplierOptionsError = ref('')
+
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   监管报表页按报表类型渲染三张表（供货台账 / 集采执行 / 进销存汇总），
+   各自维护一套列定义与持久化 key，避免切换报表时列设置互相污染。
+
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 使用默认的 'fixed'：每列宽度互相独立，
+       拖拽某一列不会因为容器宽度变化而影响其它列；
+     - 列宽与列显隐持久化到 localStorage。
+   ===================================================================== */
+const SUPPLIER_LEDGER_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'index', label: '序号', width: 64, visible: true, weight: 1, minWidth: 56, maxWidth: 90 },
+  { key: 'supplyDate', label: '供货日期', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 160 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'manufacturerName', label: '生产厂家', width: 160, visible: true, flexible: true, idealWidth: 200, weight: 6, minWidth: 120, maxWidth: 300 },
+  { key: 'productCode', label: '物资编码', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'medicalInsuranceCode', label: '医保编码', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'productName', label: '物资名称', width: 190, visible: true, flexible: true, idealWidth: 230, weight: 8, minWidth: 140, maxWidth: 360 },
+  { key: 'specModel', label: '规格', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 180 },
+  { key: 'registrationNo', label: '注册证号', width: 160, visible: true, weight: 5, minWidth: 130, maxWidth: 240 },
+  { key: 'unitPrice', label: '采购单价', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'supplyQuantity', label: '供货数量', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'supplyAmount', label: '供货金额', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'orderNo', label: '订单号', width: 170, visible: true, weight: 6, minWidth: 140, maxWidth: 260 },
+  { key: 'contractNo', label: '合同号', width: 150, visible: true, weight: 5, minWidth: 120, maxWidth: 230 },
+  { key: 'acceptanceDepartment', label: '验收科室', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'acceptanceUser', label: '验收人', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 170 },
+  { key: 'acceptanceTime', label: '验收时间', width: 160, visible: true, weight: 5, minWidth: 130, maxWidth: 240, fill: true }
+]
+
+const CENTRALIZED_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'batch', label: '集采批次', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 7, minWidth: 150, maxWidth: 340 },
+  { key: 'productName', label: '物资名称', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 9, minWidth: 150, maxWidth: 380 },
+  { key: 'specModel', label: '规格', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'selectedManufacturer', label: '中选厂家', width: 170, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'selectedPrice', label: '中选价格', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'annualTargetQuantity', label: '年度任务量', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'periodPurchaseQuantity', label: '本期采购量', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'cumulativePurchaseQuantity', label: '累计采购量', width: 120, visible: true, weight: 4, minWidth: 100, maxWidth: 180 },
+  { key: 'completionRate', label: '完成率', width: 200, visible: true, weight: 5, minWidth: 160, maxWidth: 280 },
+  { key: 'selectedFlag', label: '中选标识', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 170 },
+  { key: 'departmentConsumptionQuantity', label: '科室消耗量', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 190 },
+  { key: 'incompleteReason', label: '未完成原因', width: 170, visible: true, flexible: true, idealWidth: 210, weight: 6, minWidth: 130, maxWidth: 320, fill: true }
+]
+
+const INVENTORY_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'productCode', label: '物资编码', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200 },
+  { key: 'productName', label: '物资名称', width: 190, visible: true, flexible: true, idealWidth: 230, weight: 9, minWidth: 140, maxWidth: 360 },
+  { key: 'specModel', label: '规格', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 180 },
+  { key: 'manufacturerName', label: '生产厂家', width: 160, visible: true, flexible: true, idealWidth: 200, weight: 6, minWidth: 120, maxWidth: 300 },
+  { key: 'distributorName', label: '配送商', width: 160, visible: true, flexible: true, idealWidth: 200, weight: 6, minWidth: 120, maxWidth: 300 },
+  { key: 'openingQuantity', label: '期初库存', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'inboundQuantity', label: '本期入库', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'returnQuantity', label: '本期退库', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'requisitionQuantity', label: '本期领用', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'consumptionQuantity', label: '本期消耗', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'scrapQuantity', label: '本期报废', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'closingQuantity', label: '期末库存', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'unitPrice', label: '库存单价', width: 110, visible: true, weight: 3, minWidth: 96, maxWidth: 170 },
+  { key: 'inventoryAmount', label: '库存金额', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 190 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 5, minWidth: 120, maxWidth: 240 },
+  { key: 'materialAttribute', label: '物资属性', width: 130, visible: true, weight: 4, minWidth: 100, maxWidth: 200, fill: true }
+]
+
+const supplierLedgerCols = useListColumns({
+  storageKey: 'spd-regulatory-supplier-ledger-cols-v1',
+  defaults: SUPPLIER_LEDGER_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+const supplierLedgerColBinding = (key: string) => supplierLedgerCols.columnBinding(key)
+
+const centralizedCols = useListColumns({
+  storageKey: 'spd-regulatory-centralized-cols-v1',
+  defaults: CENTRALIZED_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「物资名称 / 中选厂家 / 未完成原因」等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+const centralizedColBinding = (key: string) => centralizedCols.columnBinding(key)
+
+const inventoryCols = useListColumns({
+  storageKey: 'spd-regulatory-inventory-cols-v1',
+  defaults: INVENTORY_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「物资名称 / 生产厂家 / 配送商」等长文本列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+const inventoryColBinding = (key: string) => inventoryCols.columnBinding(key)
+
+/** 当前报表类型对应的列配置（三种报表各自独立） */
+const activeCols = computed(() => {
+  if (reportType.value === 'supplier') return supplierLedgerCols
+  if (reportType.value === 'centralized') return centralizedCols
+  return inventoryCols
+})
+
+const isReportColVisible = (key: string) => activeCols.value.isColumnVisible(key)
+const reportColBinding = (key: string) => activeCols.value.columnBinding(key)
+
+const regulatoryTableRef = ref<any>(null)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const regulatoryActionFix = useActionColumnFix()
+const regulatoryActionFixed = computed(() => regulatoryActionFix.actionFixedBinding.value)
+
+watch(
+  [regulatoryTableRef],
+  () => {
+    regulatoryActionFix.observe(regulatoryTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const regulatoryColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const regulatoryColSettingsPopRef = ref<HTMLElement | null>(null)
+const regulatoryColSettingsPop = useColSettingsPopover({
+  open: computed({
+    get: () => activeCols.value.settingsOpen.value,
+    set: (value) => { activeCols.value.settingsOpen.value = value }
+  }),
+  anchorRef: regulatoryColSettingsAnchorRef,
+  popRef: regulatoryColSettingsPopRef
+})
 
 function inputDate(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`
@@ -189,7 +325,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="report-page regulatory-page">
+  <main class="report-page regulatory-page spd-unified-list">
     <MdPageHeader
       :crumb="config.crumb"
       :title="config.title"
@@ -263,105 +399,600 @@ onMounted(() => {
       </template>
     </section>
 
-    <section class="report-table-card" :aria-busy="loading">
-      <el-table
-        v-if="reportType === 'supplier'"
-        :data="supplierRows"
-        stripe
-        row-key="orderNo"
-        class="report-table supplier-ledger-table"
-        :empty-text="loading ? '正在加载供货明细…' : '当前筛选条件下暂无供货数据'"
-      >
-        <el-table-column type="index" label="序号" width="64" align="center" :index="(i: number) => (query.page - 1) * query.size + i + 1" />
-        <el-table-column prop="supplyDate" label="供货日期" width="110" />
-        <el-table-column prop="supplierName" label="供应商" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="manufacturerName" label="生产厂家" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="productCode" label="物资编码" min-width="120" />
-        <el-table-column prop="medicalInsuranceCode" label="医保编码" min-width="120" />
-        <el-table-column prop="productName" label="物资名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="specModel" label="规格" min-width="100" />
-        <el-table-column prop="registrationNo" label="注册证号" min-width="160" />
-        <el-table-column prop="unitPrice" label="采购单价" width="110" align="right"><template #default="{ row }">¥{{ amount(row.unitPrice) }}</template></el-table-column>
-        <el-table-column prop="supplyQuantity" label="供货数量" width="110" align="right"><template #default="{ row }">{{ quantity(row.supplyQuantity) }}</template></el-table-column>
-        <el-table-column prop="supplyAmount" label="供货金额" width="120" align="right"><template #default="{ row }">¥{{ amount(row.supplyAmount) }}</template></el-table-column>
-        <el-table-column prop="orderNo" label="订单号" min-width="160" />
-        <el-table-column prop="contractNo" label="合同号" min-width="140" />
-        <el-table-column prop="acceptanceDepartment" label="验收科室" min-width="120" />
-        <el-table-column prop="acceptanceUser" label="验收人" min-width="100" />
-        <el-table-column prop="acceptanceTime" label="验收时间" min-width="160" />
-      </el-table>
-
-      <el-table
-        v-else-if="reportType === 'centralized'"
-        :data="centralizedRows"
-        stripe
-        row-key="productCode"
-        class="report-table centralized-table"
-        :empty-text="loading ? '正在计算集采执行进度…' : '暂无集采任务或中选物资'"
-      >
-        <el-table-column label="集采批次" min-width="200">
-          <template #default="{ row }"><strong>{{ row.batchName }}</strong><small class="cell-sub">{{ row.batchCode }}</small></template>
-        </el-table-column>
-        <el-table-column prop="productName" label="物资名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="specModel" label="规格" min-width="120" />
-        <el-table-column prop="selectedManufacturer" label="中选厂家" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="selectedPrice" label="中选价格" width="120" align="right"><template #default="{ row }">¥{{ amount(row.selectedPrice) }}</template></el-table-column>
-        <el-table-column prop="annualTargetQuantity" label="年度任务量" width="120" align="right"><template #default="{ row }">{{ quantity(row.annualTargetQuantity) }}</template></el-table-column>
-        <el-table-column prop="periodPurchaseQuantity" label="本期采购量" width="120" align="right"><template #default="{ row }">{{ quantity(row.periodPurchaseQuantity) }}</template></el-table-column>
-        <el-table-column prop="cumulativePurchaseQuantity" label="累计采购量" width="120" align="right"><template #default="{ row }">{{ quantity(row.cumulativePurchaseQuantity) }}</template></el-table-column>
-        <el-table-column label="完成率" width="200">
-          <template #default="{ row }">
-            <div class="progress-cell">
-              <span><i :style="{ width: `${Math.min(100, number(row.completionRate))}%` }"></i></span>
-              <strong>{{ quantity(row.completionRate) }}%</strong>
+    <MdDataTableCard :loading="loading">
+      <template #toolbar>
+        <!-- 查询 / 重置 / 导出 按钮保留在页面上方工具区，
+             表格工具条只承载列设置，避免同一动作出现两处。 -->
+        <div class="ulc-col-settings">
+          <button
+            ref="regulatoryColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="activeCols.settingsOpen.value = !activeCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: activeCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="activeCols.settingsOpen.value"
+            ref="regulatoryColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': regulatoryColSettingsPop.align.value === 'right', 'is-align-up': regulatoryColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': regulatoryColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': regulatoryColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="activeCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in activeCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && activeCols.visibleColumnCount.value <= 1"
+                  @change="activeCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
             </div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="selectedFlag" label="中选标识" width="100">
-          <template #default="{ row }"><em class="status-pill">{{ row.selectedFlag }}</em></template>
-        </el-table-column>
-        <el-table-column prop="departmentConsumptionQuantity" label="科室消耗量" width="120" align="right"><template #default="{ row }">{{ quantity(row.departmentConsumptionQuantity) }}</template></el-table-column>
-        <el-table-column prop="incompleteReason" label="未完成原因" min-width="160">
-          <template #default="{ row }"><span :class="{ 'warning-text': row.incompleteReason !== '-' }">{{ row.incompleteReason }}</span></template>
-        </el-table-column>
-      </el-table>
+            <footer>
+              <button type="button" class="ulc-action" @click="activeCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total.toLocaleString('zh-CN') }} 条</span>
+      </template>
 
-      <el-table
-        v-else
-        :data="inventoryRows"
-        stripe
-        row-key="productCode"
-        class="report-table inventory-summary-table"
-        :empty-text="loading ? '正在读取每日进销存快照…' : '当前筛选条件下暂无每日进销存快照'"
-      >
-        <el-table-column prop="productCode" label="物资编码" min-width="120" />
-        <el-table-column prop="productName" label="物资名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="specModel" label="规格" min-width="100" />
-        <el-table-column prop="manufacturerName" label="生产厂家" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="distributorName" label="配送商" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="openingQuantity" label="期初库存" width="110" align="right"><template #default="{ row }">{{ quantity(row.openingQuantity) }}</template></el-table-column>
-        <el-table-column prop="inboundQuantity" label="本期入库" width="110" align="right"><template #default="{ row }"><span class="positive-text">{{ quantity(row.inboundQuantity) }}</span></template></el-table-column>
-        <el-table-column prop="returnQuantity" label="本期退库" width="110" align="right"><template #default="{ row }">{{ quantity(row.returnQuantity) }}</template></el-table-column>
-        <el-table-column prop="requisitionQuantity" label="本期领用" width="110" align="right"><template #default="{ row }">{{ quantity(row.requisitionQuantity) }}</template></el-table-column>
-        <el-table-column prop="consumptionQuantity" label="本期消耗" width="110" align="right"><template #default="{ row }">{{ quantity(row.consumptionQuantity) }}</template></el-table-column>
-        <el-table-column prop="scrapQuantity" label="本期报废" width="110" align="right"><template #default="{ row }"><span class="danger-text">{{ quantity(row.scrapQuantity) }}</span></template></el-table-column>
-        <el-table-column prop="closingQuantity" label="期末库存" width="110" align="right"><template #default="{ row }"><strong class="strong-number">{{ quantity(row.closingQuantity) }}</strong></template></el-table-column>
-        <el-table-column prop="unitPrice" label="库存单价" width="110" align="right"><template #default="{ row }">¥{{ amount(row.unitPrice) }}</template></el-table-column>
-        <el-table-column prop="inventoryAmount" label="库存金额" width="120" align="right"><template #default="{ row }"><strong class="strong-number">¥{{ amount(row.inventoryAmount) }}</strong></template></el-table-column>
-        <el-table-column prop="warehouseName" label="库房" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="materialAttribute" label="物资属性" min-width="120">
-          <template #default="{ row }"><em class="status-pill neutral">{{ row.materialAttribute }}</em></template>
-        </el-table-column>
-      </el-table>
-      <PaginationControls
-        :page="query.page"
-        :size="query.size"
-        :total="total"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changeSize"
-      />
-    </section>
+      <div class="ulc-table-wrap">
+        <el-table
+          v-if="reportType === 'supplier'"
+          ref="regulatoryTableRef"
+          v-loading="loading"
+          :data="supplierRows"
+          stripe
+          border
+          row-key="orderNo"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在加载供货明细…' : '当前筛选条件下暂无供货数据'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => supplierLedgerCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="index"
+            v-if="isReportColVisible('index')"
+            type="index"
+            align="center"
+            v-bind="reportColBinding('index')"
+            :index="(i: number) => (query.page - 1) * query.size + i + 1"
+          >
+            <template #header>
+              <span class="ulc-th-text">序号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="supplyDate"
+            v-if="isReportColVisible('supplyDate')"
+            prop="supplyDate"
+            v-bind="reportColBinding('supplyDate')"
+          >
+            <template #header>
+              <span class="ulc-th-text">供货日期</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="supplierName"
+            v-if="isReportColVisible('supplierName')"
+            prop="supplierName"
+            v-bind="reportColBinding('supplierName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">供应商</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="manufacturerName"
+            v-if="isReportColVisible('manufacturerName')"
+            prop="manufacturerName"
+            v-bind="reportColBinding('manufacturerName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">生产厂家</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productCode"
+            v-if="isReportColVisible('productCode')"
+            prop="productCode"
+            v-bind="reportColBinding('productCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="medicalInsuranceCode"
+            v-if="isReportColVisible('medicalInsuranceCode')"
+            prop="medicalInsuranceCode"
+            v-bind="reportColBinding('medicalInsuranceCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">医保编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productName"
+            v-if="isReportColVisible('productName')"
+            prop="productName"
+            v-bind="reportColBinding('productName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资名称</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="specModel"
+            v-if="isReportColVisible('specModel')"
+            prop="specModel"
+            v-bind="reportColBinding('specModel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">规格</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="registrationNo"
+            v-if="isReportColVisible('registrationNo')"
+            prop="registrationNo"
+            v-bind="reportColBinding('registrationNo')"
+          >
+            <template #header>
+              <span class="ulc-th-text">注册证号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="unitPrice"
+            v-if="isReportColVisible('unitPrice')"
+            prop="unitPrice"
+            v-bind="reportColBinding('unitPrice')"
+          >
+            <template #header>
+              <span class="ulc-th-text">采购单价</span>
+            </template>
+            <template #default="{ row }">¥{{ amount(row.unitPrice) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="supplyQuantity"
+            v-if="isReportColVisible('supplyQuantity')"
+            prop="supplyQuantity"
+            v-bind="reportColBinding('supplyQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">供货数量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.supplyQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="supplyAmount"
+            v-if="isReportColVisible('supplyAmount')"
+            prop="supplyAmount"
+            v-bind="reportColBinding('supplyAmount')"
+          >
+            <template #header>
+              <span class="ulc-th-text">供货金额</span>
+            </template>
+            <template #default="{ row }">¥{{ amount(row.supplyAmount) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="orderNo"
+            v-if="isReportColVisible('orderNo')"
+            prop="orderNo"
+            v-bind="reportColBinding('orderNo')"
+          >
+            <template #header>
+              <span class="ulc-th-text">订单号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="contractNo"
+            v-if="isReportColVisible('contractNo')"
+            prop="contractNo"
+            v-bind="reportColBinding('contractNo')"
+          >
+            <template #header>
+              <span class="ulc-th-text">合同号</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="acceptanceDepartment"
+            v-if="isReportColVisible('acceptanceDepartment')"
+            prop="acceptanceDepartment"
+            v-bind="reportColBinding('acceptanceDepartment')"
+          >
+            <template #header>
+              <span class="ulc-th-text">验收科室</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="acceptanceUser"
+            v-if="isReportColVisible('acceptanceUser')"
+            prop="acceptanceUser"
+            v-bind="reportColBinding('acceptanceUser')"
+          >
+            <template #header>
+              <span class="ulc-th-text">验收人</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="acceptanceTime"
+            v-if="isReportColVisible('acceptanceTime')"
+            prop="acceptanceTime"
+            :fixed="regulatoryActionFixed"
+            v-bind="reportColBinding('acceptanceTime')"
+          >
+            <template #header>
+              <span class="ulc-th-text">验收时间</span>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-table
+          v-else-if="reportType === 'centralized'"
+          ref="regulatoryTableRef"
+          v-loading="loading"
+          :data="centralizedRows"
+          stripe
+          border
+          row-key="productCode"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在计算集采执行进度…' : '暂无集采任务或中选物资'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => centralizedCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="batch"
+            v-if="isReportColVisible('batch')"
+            v-bind="reportColBinding('batch')"
+          >
+            <template #header>
+              <span class="ulc-th-text">集采批次</span>
+            </template>
+            <template #default="{ row }">
+              <div class="ulc-cell-stack">
+                <span class="ulc-strong ulc-wrap-text">{{ row.batchName }}</span>
+                <span class="ulc-sub ulc-wrap-text is-sub">{{ row.batchCode }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productName"
+            v-if="isReportColVisible('productName')"
+            prop="productName"
+            v-bind="reportColBinding('productName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资名称</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="specModel"
+            v-if="isReportColVisible('specModel')"
+            prop="specModel"
+            v-bind="reportColBinding('specModel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">规格</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="selectedManufacturer"
+            v-if="isReportColVisible('selectedManufacturer')"
+            prop="selectedManufacturer"
+            v-bind="reportColBinding('selectedManufacturer')"
+          >
+            <template #header>
+              <span class="ulc-th-text">中选厂家</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="selectedPrice"
+            v-if="isReportColVisible('selectedPrice')"
+            prop="selectedPrice"
+            v-bind="reportColBinding('selectedPrice')"
+          >
+            <template #header>
+              <span class="ulc-th-text">中选价格</span>
+            </template>
+            <template #default="{ row }">¥{{ amount(row.selectedPrice) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="annualTargetQuantity"
+            v-if="isReportColVisible('annualTargetQuantity')"
+            prop="annualTargetQuantity"
+            v-bind="reportColBinding('annualTargetQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">年度任务量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.annualTargetQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="periodPurchaseQuantity"
+            v-if="isReportColVisible('periodPurchaseQuantity')"
+            prop="periodPurchaseQuantity"
+            v-bind="reportColBinding('periodPurchaseQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期采购量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.periodPurchaseQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="cumulativePurchaseQuantity"
+            v-if="isReportColVisible('cumulativePurchaseQuantity')"
+            prop="cumulativePurchaseQuantity"
+            v-bind="reportColBinding('cumulativePurchaseQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">累计采购量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.cumulativePurchaseQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="completionRate"
+            v-if="isReportColVisible('completionRate')"
+            v-bind="reportColBinding('completionRate')"
+          >
+            <template #header>
+              <span class="ulc-th-text">完成率</span>
+            </template>
+            <template #default="{ row }">
+              <div class="progress-cell">
+                <span><i :style="{ width: `${Math.min(100, number(row.completionRate))}%` }"></i></span>
+                <strong>{{ quantity(row.completionRate) }}%</strong>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="selectedFlag"
+            v-if="isReportColVisible('selectedFlag')"
+            prop="selectedFlag"
+            v-bind="reportColBinding('selectedFlag')"
+          >
+            <template #header>
+              <span class="ulc-th-text">中选标识</span>
+            </template>
+            <template #default="{ row }"><em class="status-pill">{{ row.selectedFlag }}</em></template>
+          </el-table-column>
+          <el-table-column
+            column-key="departmentConsumptionQuantity"
+            v-if="isReportColVisible('departmentConsumptionQuantity')"
+            prop="departmentConsumptionQuantity"
+            v-bind="reportColBinding('departmentConsumptionQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">科室消耗量</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.departmentConsumptionQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="incompleteReason"
+            v-if="isReportColVisible('incompleteReason')"
+            prop="incompleteReason"
+            :fixed="regulatoryActionFixed"
+            v-bind="reportColBinding('incompleteReason')"
+          >
+            <template #header>
+              <span class="ulc-th-text">未完成原因</span>
+            </template>
+            <template #default="{ row }"><span :class="{ 'warning-text': row.incompleteReason !== '-' }">{{ row.incompleteReason }}</span></template>
+          </el-table-column>
+        </el-table>
+
+        <el-table
+          v-else
+          ref="regulatoryTableRef"
+          v-loading="loading"
+          :data="inventoryRows"
+          stripe
+          border
+          row-key="productCode"
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="loading ? '正在读取每日进销存快照…' : '当前筛选条件下暂无每日进销存快照'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => inventoryCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="productCode"
+            v-if="isReportColVisible('productCode')"
+            prop="productCode"
+            v-bind="reportColBinding('productCode')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资编码</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="productName"
+            v-if="isReportColVisible('productName')"
+            prop="productName"
+            v-bind="reportColBinding('productName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资名称</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="specModel"
+            v-if="isReportColVisible('specModel')"
+            prop="specModel"
+            v-bind="reportColBinding('specModel')"
+          >
+            <template #header>
+              <span class="ulc-th-text">规格</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="manufacturerName"
+            v-if="isReportColVisible('manufacturerName')"
+            prop="manufacturerName"
+            v-bind="reportColBinding('manufacturerName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">生产厂家</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="distributorName"
+            v-if="isReportColVisible('distributorName')"
+            prop="distributorName"
+            v-bind="reportColBinding('distributorName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">配送商</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="openingQuantity"
+            v-if="isReportColVisible('openingQuantity')"
+            prop="openingQuantity"
+            v-bind="reportColBinding('openingQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">期初库存</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.openingQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="inboundQuantity"
+            v-if="isReportColVisible('inboundQuantity')"
+            prop="inboundQuantity"
+            v-bind="reportColBinding('inboundQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期入库</span>
+            </template>
+            <template #default="{ row }"><span class="positive-text">{{ quantity(row.inboundQuantity) }}</span></template>
+          </el-table-column>
+          <el-table-column
+            column-key="returnQuantity"
+            v-if="isReportColVisible('returnQuantity')"
+            prop="returnQuantity"
+            v-bind="reportColBinding('returnQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期退库</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.returnQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="requisitionQuantity"
+            v-if="isReportColVisible('requisitionQuantity')"
+            prop="requisitionQuantity"
+            v-bind="reportColBinding('requisitionQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期领用</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.requisitionQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="consumptionQuantity"
+            v-if="isReportColVisible('consumptionQuantity')"
+            prop="consumptionQuantity"
+            v-bind="reportColBinding('consumptionQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期消耗</span>
+            </template>
+            <template #default="{ row }">{{ quantity(row.consumptionQuantity) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="scrapQuantity"
+            v-if="isReportColVisible('scrapQuantity')"
+            prop="scrapQuantity"
+            v-bind="reportColBinding('scrapQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">本期报废</span>
+            </template>
+            <template #default="{ row }"><span class="danger-text">{{ quantity(row.scrapQuantity) }}</span></template>
+          </el-table-column>
+          <el-table-column
+            column-key="closingQuantity"
+            v-if="isReportColVisible('closingQuantity')"
+            prop="closingQuantity"
+            v-bind="reportColBinding('closingQuantity')"
+          >
+            <template #header>
+              <span class="ulc-th-text">期末库存</span>
+            </template>
+            <template #default="{ row }"><strong class="strong-number">{{ quantity(row.closingQuantity) }}</strong></template>
+          </el-table-column>
+          <el-table-column
+            column-key="unitPrice"
+            v-if="isReportColVisible('unitPrice')"
+            prop="unitPrice"
+            v-bind="reportColBinding('unitPrice')"
+          >
+            <template #header>
+              <span class="ulc-th-text">库存单价</span>
+            </template>
+            <template #default="{ row }">¥{{ amount(row.unitPrice) }}</template>
+          </el-table-column>
+          <el-table-column
+            column-key="inventoryAmount"
+            v-if="isReportColVisible('inventoryAmount')"
+            prop="inventoryAmount"
+            v-bind="reportColBinding('inventoryAmount')"
+          >
+            <template #header>
+              <span class="ulc-th-text">库存金额</span>
+            </template>
+            <template #default="{ row }"><strong class="strong-number">¥{{ amount(row.inventoryAmount) }}</strong></template>
+          </el-table-column>
+          <el-table-column
+            column-key="warehouseName"
+            v-if="isReportColVisible('warehouseName')"
+            prop="warehouseName"
+            v-bind="reportColBinding('warehouseName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">库房</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="materialAttribute"
+            v-if="isReportColVisible('materialAttribute')"
+            prop="materialAttribute"
+            :fixed="regulatoryActionFixed"
+            v-bind="reportColBinding('materialAttribute')"
+          >
+            <template #header>
+              <span class="ulc-th-text">物资属性</span>
+            </template>
+            <template #default="{ row }"><em class="status-pill neutral">{{ row.materialAttribute }}</em></template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <template #pagination>
+        <MdPagination
+          :page="query.page"
+          :total-pages="Math.max(1, Math.ceil(total / query.size))"
+          :total="total"
+          :size="query.size"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changeSize"
+        />
+      </template>
+    </MdDataTableCard>
   </main>
 </template>
 
@@ -464,55 +1095,34 @@ onMounted(() => {
 .report-summary .danger-text { color: #b42318; }
 .report-summary .warning-text { color: #a15c08; font-weight: 800; }
 
-.report-table-card {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  background: #fff;
-  border: 1px solid var(--spd-line, #e6ecef);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
-}
-.report-table {
-  width: 100%;
-  font-size: var(--spd-font-size-base);
-}
-.report-table :deep(th .cell) {
-  color: #294b52;
-  font-weight: 700;
-  font-size: var(--spd-font-size-table-head);
-}
-.report-table :deep(.cell-sub) {
-  display: block;
-  margin-top: 2px;
-  color: #72848f;
-  font-size: var(--spd-font-size-xs);
-}
-.report-table :deep(.progress-cell) {
+/* ---------- 表格 ----------
+   表头 / 斑马纹 / 拖拽热区等通用外观由 unified-list.css 的
+   .spd-unified-list .ulc-table 提供，这里只保留本页特有的
+   完成率进度条、状态徽标与数值强调样式。 */
+.ulc-table :deep(.progress-cell) {
   display: grid;
   grid-template-columns: minmax(80px, 1fr) 56px;
   align-items: center;
   gap: 8px;
 }
-.report-table :deep(.progress-cell > span) {
+.ulc-table :deep(.progress-cell > span) {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
   background: #dbe8ea;
 }
-.report-table :deep(.progress-cell > span i) {
+.ulc-table :deep(.progress-cell > span i) {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: #16867d;
 }
-.report-table :deep(.progress-cell strong) {
+.ulc-table :deep(.progress-cell strong) {
   color: #23565a;
   font-size: var(--spd-font-size-base);
   text-align: right;
 }
-.report-table :deep(.status-pill) {
+.ulc-table :deep(.status-pill) {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -525,14 +1135,14 @@ onMounted(() => {
   font-weight: 400;
   font-size: var(--spd-font-size-base);
 }
-.report-table :deep(.status-pill.neutral) {
+.ulc-table :deep(.status-pill.neutral) {
   background: #eef3f5;
   color: #49616d;
 }
-.report-table :deep(.positive-text) { color: #087268; }
-.report-table :deep(.danger-text) { color: #b42318; }
-.report-table :deep(.strong-number) { color: #102033; font-weight: 800; }
-.report-table :deep(.warning-text) { color: #a15c08; font-weight: 800; }
+.ulc-table :deep(.positive-text) { color: #087268; }
+.ulc-table :deep(.danger-text) { color: #b42318; }
+.ulc-table :deep(.strong-number) { color: #102033; font-weight: 800; }
+.ulc-table :deep(.warning-text) { color: #a15c08; font-weight: 800; }
 
 @media (max-width: 1480px) {
   .report-toolbar { grid-template-columns: 1fr; }
@@ -552,6 +1162,6 @@ onMounted(() => {
   .app-shell { display: block !important; height: auto !important; }
   .main-area { overflow: visible !important; padding: 0 !important; background: #fff !important; }
   .report-page { padding: 0 !important; }
-  .report-summary, .report-table-card { box-shadow: none; border-color: #ccc; }
+  .report-summary, .md-table-card { box-shadow: none; border-color: #ccc; }
 }
 </style>

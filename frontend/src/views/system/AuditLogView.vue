@@ -8,6 +8,8 @@ import {
   Calendar,
   ClipboardList,
   Clock,
+  Columns3,
+  ChevronDown,
   Database,
   Download,
   Eye,
@@ -23,8 +25,13 @@ import {
   User,
   X
 } from '@lucide/vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { formatBusinessText } from '../../utils/chineseDisplay'
 import {
   fetchAuditLogBizTypes,
@@ -35,6 +42,62 @@ import {
   type AuditLogBizTypeFacet,
   type AuditLogRow
 } from '../../api/auditLogs'
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const AUDIT_LOG_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'operatorName', label: '操作人', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'operationType', label: '操作类型', width: 140, visible: true, weight: 4, minWidth: 110, maxWidth: 200 },
+  { key: 'bizType', label: '业务类型', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'bizNo', label: '业务单据', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 280 },
+  { key: 'bizId', label: '业务 ID', width: 140, visible: true, weight: 3, minWidth: 100, maxWidth: 220 },
+  { key: 'ipAddress', label: 'IP', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'operationTime', label: '操作时间', width: 170, visible: true, weight: 4, minWidth: 140, maxWidth: 220 },
+  { key: 'remark', label: '备注', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 6, minWidth: 130, maxWidth: 340 },
+  { key: 'actions', label: '操作', width: 110, visible: true, weight: 3, minWidth: 100, maxWidth: 180, fill: true }
+]
+
+const auditLogCols = useListColumns({
+  storageKey: 'spd-audit-log-cols-v1',
+  defaults: AUDIT_LOG_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「备注」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const auditLogTableRef = auditLogCols.tableRef
+const isAuditLogColVisible = (key: string) => auditLogCols.isColumnVisible(key)
+const auditLogColBinding = (key: string) => auditLogCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const auditLogActionFix = useActionColumnFix()
+const auditLogActionFixed = computed(() => auditLogActionFix.actionFixedBinding.value)
+
+watch(
+  [auditLogTableRef],
+  () => {
+    auditLogActionFix.observe(auditLogTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const auditLogColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const auditLogColSettingsPopRef = ref<HTMLElement | null>(null)
+const auditLogColSettingsPop = useColSettingsPopover({
+  open: auditLogCols.settingsOpen,
+  anchorRef: auditLogColSettingsAnchorRef,
+  popRef: auditLogColSettingsPopRef
+})
 
 const rows = ref<AuditLogRow[]>([])
 const total = ref(0)
@@ -222,7 +285,7 @@ watch(() => query.value.bizType, (v) => {
 </script>
 
 <template>
-  <div class="sys-page">
+  <div class="sys-page spd-unified-list">
 
     <MdPageHeader
       crumb="专项与合规"
@@ -270,69 +333,214 @@ watch(() => query.value.bizType, (v) => {
     <div v-if="error" class="sys-error" role="alert">{{ error }}</div>
 
     <!-- 审计日志表 -->
-    <div class="sys-table-card">
-      <div class="sys-table-card-header">
-        <h4>系统操作记录列表</h4>
-        <span class="sys-table-card-meta">共 <strong>{{ total }}</strong> 条记录</span>
-      </div>
-      <div class="sys-table-scroll">
-        <table class="sys-table">
-          <thead>
-            <tr>
-              <th>操作人</th>
-              <th>操作类型</th>
-              <th>业务类型</th>
-              <th>业务单据</th>
-              <th>业务 ID</th>
-              <th>IP</th>
-              <th>操作时间</th>
-              <th>备注</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading"><td colspan="9" class="text-center muted">正在加载系统操作记录...</td></tr>
-            <tr v-else-if="!rows.length"><td colspan="9" class="text-center muted">未找到匹配的系统操作记录</td></tr>
-            <tr v-else v-for="row in rows" :key="row.auditId">
-              <td>
-                <i class="sys-cell-icon"><User :size="13" /></i>
-                <span>{{ row.operatorName || '系统' }}</span>
-              </td>
-              <td>
-                <span :class="['sys-chip', `is-op-${operationChipType(row.operationType)}`]" :title="row.operationType">
-                  {{ formatBusinessText(row.operationType) }}
-                </span>
-              </td>
-              <td :title="row.bizType">{{ formatBusinessText(row.bizType) }}</td>
-              <td>{{ row.bizNo || '-' }}</td>
-              <td><span class="sys-tag is-code">{{ row.bizId ?? '-' }}</span></td>
-              <td><span class="sys-tag is-code">{{ row.ipAddress || '-' }}</span></td>
-              <td>
-                <i class="sys-cell-icon is-muted"><Clock :size="13" /></i>
-                <span>{{ row.operationTime || '-' }}</span>
-              </td>
-              <td class="audit-remark-cell" :title="row.remark || ''">{{ row.remark || '-' }}</td>
-              <td>
-                <button class="btn-text" type="button" @click="openDetail(row)">
+    <MdDataTableCard class="master-table-card" :loading="loading">
+      <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="auditLogColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="auditLogCols.settingsOpen.value = !auditLogCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: auditLogCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="auditLogCols.settingsOpen.value"
+            ref="auditLogColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': auditLogColSettingsPop.align.value === 'right', 'is-align-up': auditLogColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': auditLogColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': auditLogColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="auditLogCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in auditLogCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && auditLogCols.visibleColumnCount.value <= 1"
+                  @change="auditLogCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="auditLogCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+      </template>
+      <template #meta-extra>
+        <span class="md-chip primary">共 {{ total }} 条记录</span>
+      </template>
+
+      <div class="ulc-table-wrap">
+        <el-table
+          ref="auditLogTableRef"
+          v-loading="loading"
+          :data="rows"
+          row-key="auditId"
+          border
+          stripe
+          class="ulc-table is-sticky"
+          max-height="560"
+          style="width: 100%"
+          :empty-text="'暂无系统操作记录'"
+          @header-dragend="(width: number, oldWidth: number, column: any) => auditLogCols.handleHeaderDragEnd(width, oldWidth, column)"
+        >
+          <el-table-column
+            column-key="operatorName"
+            v-if="isAuditLogColVisible('operatorName')"
+            label="操作人"
+            v-bind="auditLogColBinding('operatorName')"
+          >
+            <template #header>
+              <span class="ulc-th-text">操作人</span>
+            </template>
+            <template #default="{ row }">
+              <i class="sys-cell-icon"><User :size="13" /></i>
+              <span class="ulc-strong ulc-wrap-text">{{ row.operatorName || '系统' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="operationType"
+            v-if="isAuditLogColVisible('operationType')"
+            label="操作类型"
+            v-bind="auditLogColBinding('operationType')"
+          >
+            <template #header>
+              <span class="ulc-th-text">操作类型</span>
+            </template>
+            <template #default="{ row }">
+              <span :class="['sys-chip', `is-op-${operationChipType(row.operationType)}`]" :title="row.operationType">
+                {{ formatBusinessText(row.operationType) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="bizType"
+            v-if="isAuditLogColVisible('bizType')"
+            label="业务类型"
+            v-bind="auditLogColBinding('bizType')"
+          >
+            <template #header>
+              <span class="ulc-th-text">业务类型</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text" :title="row.bizType">{{ formatBusinessText(row.bizType) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="bizNo"
+            v-if="isAuditLogColVisible('bizNo')"
+            label="业务单据"
+            v-bind="auditLogColBinding('bizNo')"
+          >
+            <template #header>
+              <span class="ulc-th-text">业务单据</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-strong ulc-wrap-text">{{ row.bizNo || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="bizId"
+            v-if="isAuditLogColVisible('bizId')"
+            label="业务 ID"
+            v-bind="auditLogColBinding('bizId')"
+          >
+            <template #header>
+              <span class="ulc-th-text">业务 ID</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-mono ulc-wrap-text">{{ row.bizId ?? '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="ipAddress"
+            v-if="isAuditLogColVisible('ipAddress')"
+            label="IP"
+            v-bind="auditLogColBinding('ipAddress')"
+          >
+            <template #header>
+              <span class="ulc-th-text">IP</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-mono ulc-wrap-text">{{ row.ipAddress || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="operationTime"
+            v-if="isAuditLogColVisible('operationTime')"
+            label="操作时间"
+            v-bind="auditLogColBinding('operationTime')"
+          >
+            <template #header>
+              <span class="ulc-th-text">操作时间</span>
+            </template>
+            <template #default="{ row }">
+              <i class="sys-cell-icon is-muted"><Clock :size="13" /></i>
+              <span class="ulc-time">{{ row.operationTime || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="remark"
+            v-if="isAuditLogColVisible('remark')"
+            label="备注"
+            v-bind="auditLogColBinding('remark')"
+          >
+            <template #header>
+              <span class="ulc-th-text">备注</span>
+            </template>
+            <template #default="{ row }">
+              <span class="ulc-wrap-text" :title="row.remark || ''">{{ row.remark || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            column-key="actions"
+
+            v-if="isAuditLogColVisible('actions')"
+
+            label="操作"
+
+            v-bind="auditLogColBinding('actions')"
+            
+            align="center"
+            :fixed="auditLogActionFixed"
+          >
+            <template #header>
+              <span class="ulc-th-text">操作</span>
+            </template>
+            <template #default="{ row }">
+              <div class="ulc-actions">
+                <button class="ulc-action is-outline" type="button" @click="openDetail(row)">
                   <Eye :size="14" /> 详情
                 </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </template>
+          </el-table-column>
+          <template #empty>
+            <MdEmptyState text="暂无系统操作记录" hint="调整筛选条件或稍后重试" />
+          </template>
+        </el-table>
       </div>
-      <div v-if="total > 0" class="sys-pagination">
-        <span>共 <strong>{{ total }}</strong> 条 · 第 <strong>{{ page }}</strong> / {{ Math.max(1, Math.ceil(total / size)) }} 页</span>
-        <PaginationControls
+      <template #pagination>
+        <MdPagination
           :page="page"
-          :size="size"
+          :total-pages="Math.max(1, Math.ceil(total / size))"
           :total="total"
+          :size="size"
           :loading="loading"
-          @change-page="changePage"
-          @change-size="changePageSize"
+          @update:page="changePage"
+          @update:size="changePageSize"
         />
-      </div>
-    </div>
+      </template>
+    </MdDataTableCard>
 
     <!-- 详情弹窗 -->
     <Teleport to="body">

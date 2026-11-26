@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   CheckCircle2,
   FileText,
@@ -8,7 +8,7 @@ import {
   Stamp,
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import {
   createInvoice,
@@ -18,6 +18,16 @@ import {
   type InvoiceRow,
 } from '../../api/invoices'
 import { formatStatusText } from '../../utils/chineseDisplay'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -157,10 +167,67 @@ function statusTone(status: string) {
 }
 
 onMounted(load)
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const INVOICEDETAIL_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'invoiceNo', label: 'SPD 发票编号', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'supplierName', label: '供应商', width: 170, visible: true, weight: 5, minWidth: 130, maxWidth: 260 },
+  { key: 'invoiceCode', label: '发票代码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'invoiceNumber', label: '发票号码', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 210 },
+  { key: 'invoiceDate', label: '开票日期', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
+  { key: 'taxIncludedAmount', label: '含税金额', width: 130, visible: true, weight: 3, minWidth: 100, maxWidth: 190 },
+  { key: 'taxAmount', label: '税额', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'settlementNo', label: '结算单', width: 160, visible: true, weight: 4, minWidth: 120, maxWidth: 240 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'actions', label: '操作', width: 140, visible: true, weight: 3, minWidth: 110, maxWidth: 200, fill: true }
+]
+
+const invoiceDetailCols = useListColumns({
+  storageKey: 'spd-invoice-detail-cols-v1',
+  defaults: INVOICEDETAIL_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const invoiceDetailTableRef = invoiceDetailCols.tableRef
+const isInvoiceDetailColVisible = (key: string) => invoiceDetailCols.isColumnVisible(key)
+const invoiceDetailColBinding = (key: string) => invoiceDetailCols.columnBinding(key)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const invoiceDetailActionFix = useActionColumnFix()
+const invoiceDetailActionFixed = computed(() => invoiceDetailActionFix.actionFixedBinding.value)
+
+watch(
+  [invoiceDetailTableRef],
+  () => {
+    invoiceDetailActionFix.observe(invoiceDetailTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const invoiceDetailColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const invoiceDetailColSettingsPopRef = ref<HTMLElement | null>(null)
+const invoiceDetailColSettingsPop = useColSettingsPopover({
+  open: invoiceDetailCols.settingsOpen,
+  anchorRef: invoiceDetailColSettingsAnchorRef,
+  popRef: invoiceDetailColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <section class="invoice-page">
+  <section class="invoice-page spd-unified-list">
     <MdPageHeader
       crumb="结算与财务"
       title="发票管理"
@@ -169,42 +236,6 @@ onMounted(load)
     />
 
     <!-- 消息：操作反馈统一走顶部 ElMessage 弹层 -->
-
-    <!-- 顶部 4 项 KPI 摘要 -->
-    <section class="invoice-kpi-card" aria-label="发票汇总">
-      <div class="invoice-kpi-item is-total">
-        <i class="invoice-kpi-icon is-total"><Receipt :size="18" /></i>
-        <div>
-          <span class="invoice-kpi-label">发票总数</span>
-          <strong class="invoice-kpi-value">{{ invoiceTotalCount }} <small>/ {{ total }}</small></strong>
-          <span class="invoice-kpi-hint">当前查询条件下发票总数</span>
-        </div>
-      </div>
-      <div class="invoice-kpi-item is-pending">
-        <i class="invoice-kpi-icon is-pending"><FileText :size="18" /></i>
-        <div>
-          <span class="invoice-kpi-label">待核验</span>
-          <strong class="invoice-kpi-value">{{ invoicePendingCount }}</strong>
-          <span class="invoice-kpi-hint">本屏待核验发票数</span>
-        </div>
-      </div>
-      <div class="invoice-kpi-item is-verified">
-        <i class="invoice-kpi-icon is-verified"><CheckCircle2 :size="18" /></i>
-        <div>
-          <span class="invoice-kpi-label">已核验</span>
-          <strong class="invoice-kpi-value">{{ invoiceVerifiedCount }}</strong>
-          <span class="invoice-kpi-hint">本屏已核验发票数</span>
-        </div>
-      </div>
-      <div class="invoice-kpi-item is-amount">
-        <i class="invoice-kpi-icon is-amount"><Stamp :size="18" /></i>
-        <div>
-          <span class="invoice-kpi-label">含税金额</span>
-          <strong class="invoice-kpi-value">¥ {{ invoiceTotalAmount.toFixed(2) }}</strong>
-          <span class="invoice-kpi-hint">本屏含税金额累加 / 已核验 ¥ {{ invoiceVerifiedAmount.toFixed(2) }}</span>
-        </div>
-      </div>
-    </section>
 
     <!-- 登记发票 -->
     <section class="invoice-panel invoice-form-panel">
@@ -252,56 +283,224 @@ onMounted(load)
           <button class="btn btn-primary" type="button" @click="page = 1; load()">查询</button>
         </div>
       </div>
-      <div class="table-scroll invoice-detail-scroll">
-        <table class="master-table invoice-detail-table">
-          <thead>
-            <tr>
-              <th class="col-invoice-no">SPD 发票编号</th>
-              <th class="col-supplier">供应商</th>
-              <th class="col-code">发票代码</th>
-              <th class="col-number">发票号码</th>
-              <th class="col-date">开票日期</th>
-              <th class="numeric-cell">含税金额</th>
-              <th class="numeric-cell">税额</th>
-              <th class="col-settlement">结算单</th>
-              <th class="col-status">状态</th>
-              <th class="col-action">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading">
-              <td colspan="10" class="empty-cell">正在加载发票数据...</td>
-            </tr>
-            <tr v-else-if="!rows.length" class="invoice-empty-row">
-              <td colspan="10" class="empty-cell">暂无发票数据</td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="row.invoiceId">
-              <td class="col-invoice-no">
-                <div class="invoice-cell-stack">
-                  <strong>{{ row.invoiceNo }}</strong>
-                  <span class="invoice-cell-meta">登记：{{ row.createTime || '-' }}</span>
-                  <span class="invoice-cell-meta">修改：{{ row.updateTime || '-' }}</span>
+            <MdDataTableCard>
+        <template #meta-extra>
+          <span class="md-chip primary">共 {{ total }} 张发票</span>
+          <span class="md-chip">待核验 {{ invoicePendingCount }}</span>
+          <span class="md-chip">已核验 {{ invoiceVerifiedCount }}</span>
+          <span class="md-chip">含税 ¥ {{ invoiceTotalAmount.toFixed(2) }}</span>
+        </template>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="invoiceDetailColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="invoiceDetailCols.settingsOpen.value = !invoiceDetailCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: invoiceDetailCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="invoiceDetailCols.settingsOpen.value"
+            ref="invoiceDetailColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': invoiceDetailColSettingsPop.align.value === 'right', 'is-align-up': invoiceDetailColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': invoiceDetailColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': invoiceDetailColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="invoiceDetailCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in invoiceDetailCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && invoiceDetailCols.visibleColumnCount.value <= 1"
+                  @change="invoiceDetailCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="invoiceDetailCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="invoiceDetailTableRef"
+            :data="rows"
+            row-key="invoiceNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无发票记录'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => invoiceDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="invoiceNo"
+              v-if="isInvoiceDetailColVisible('invoiceNo')"
+              label="SPD 发票编号"
+              v-bind="invoiceDetailColBinding('invoiceNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">SPD 发票编号</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong ulc-wrap-text">{{ row.invoiceNo }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub">登记：{{ row.createTime || '-' }}</span>
+                  <span class="ulc-sub ulc-wrap-text is-sub">修改：{{ row.updateTime || '-' }}</span>
                 </div>
-              </td>
-              <td class="col-supplier" :title="row.supplierName || '-'">{{ row.supplierName || '-' }}</td>
-              <td class="col-code invoice-mono" :title="row.invoiceCode || '-'">{{ row.invoiceCode || '-' }}</td>
-              <td class="col-number invoice-mono" :title="row.invoiceNumber || '-'">{{ row.invoiceNumber || '-' }}</td>
-              <td class="col-date">{{ row.invoiceDate || '-' }}</td>
-              <td class="numeric-cell amount-cell">{{ row.amount ?? '-' }}</td>
-              <td class="numeric-cell">{{ row.taxAmount ?? '-' }}</td>
-              <td class="col-settlement" :title="row.settlementNo || '-'">{{ row.settlementNo || '-' }}</td>
-              <td class="col-status">
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="supplierName"
+              v-if="isInvoiceDetailColVisible('supplierName')"
+              label="供应商"
+              v-bind="invoiceDetailColBinding('supplierName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">供应商</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.supplierName || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="invoiceCode"
+              v-if="isInvoiceDetailColVisible('invoiceCode')"
+              label="发票代码"
+              v-bind="invoiceDetailColBinding('invoiceCode')"
+            >
+              <template #header>
+                <span class="ulc-th-text">发票代码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.invoiceCode || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="invoiceNumber"
+              v-if="isInvoiceDetailColVisible('invoiceNumber')"
+              label="发票号码"
+              v-bind="invoiceDetailColBinding('invoiceNumber')"
+            >
+              <template #header>
+                <span class="ulc-th-text">发票号码</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.invoiceNumber || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="invoiceDate"
+              v-if="isInvoiceDetailColVisible('invoiceDate')"
+              label="开票日期"
+              v-bind="invoiceDetailColBinding('invoiceDate')"
+            >
+              <template #header>
+                <span class="ulc-th-text">开票日期</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.invoiceDate || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="taxIncludedAmount"
+              v-if="isInvoiceDetailColVisible('taxIncludedAmount')"
+              label="含税金额"
+              v-bind="invoiceDetailColBinding('taxIncludedAmount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">含税金额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number ulc-wrap-text">{{ row.amount ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="taxAmount"
+              v-if="isInvoiceDetailColVisible('taxAmount')"
+              label="税额"
+              v-bind="invoiceDetailColBinding('taxAmount')"
+              align="right"
+            >
+              <template #header>
+                <span class="ulc-th-text">税额</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-number ulc-wrap-text">{{ row.taxAmount ?? '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="settlementNo"
+              v-if="isInvoiceDetailColVisible('settlementNo')"
+              label="结算单"
+              v-bind="invoiceDetailColBinding('settlementNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">结算单</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text">{{ row.settlementNo || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isInvoiceDetailColVisible('status')"
+              label="状态"
+              v-bind="invoiceDetailColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
                 <span class="status-badge" :class="statusTone(row.status)">{{ formatStatusText(row.status) }}</span>
-              </td>
-              <td class="col-action">
-                <button v-if="row.status === 'pending_verification'" class="btn btn-sm btn-primary" type="button" @click="verify(row)">核验</button>
-                <span v-else class="invoice-cell-meta">已核验</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls :page="page" :size="size" :total="total" :loading="loading" @change-page="changePage" @change-size="changeSize" />
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="actions"
+              v-if="isInvoiceDetailColVisible('actions')"
+              label="操作"
+              v-bind="invoiceDetailColBinding('actions')"
+              :fixed="invoiceDetailActionFixed"
+              align="center"
+            >
+              <template #header>
+                <span class="ulc-th-text">操作</span>
+              </template>
+              <template #default="{ row }">
+              <div class="ulc-actions">
+                <button v-if="row.status === 'pending_verification'" @click="verify(row)" class="ulc-action btn-sm btn-primary" type="button">核验</button>
+              </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无发票记录" />
+            </template>
+            </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="page"
+            :total-pages="Math.max(1, Math.ceil(total / size))"
+            :total="total"
+            :size="size"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changeSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
   </section>
 </template>

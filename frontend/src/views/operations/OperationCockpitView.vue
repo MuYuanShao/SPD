@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import {
-  Activity, AlertTriangle, BellRing, Building2, Database, RefreshCw, TrendingUp
+  Activity, AlertTriangle, BellRing, Building2, ChevronDown, Columns3, Database, RefreshCw, TrendingUp
 } from '@lucide/vue'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { fetchOperationCockpit, type OperationCockpitData } from '../../api/operationCockpit'
 
 const now = new Date()
@@ -11,6 +15,88 @@ const clock = ref('')
 const loading = ref(false)
 const error = ref('')
 const data = ref<OperationCockpitData>(emptyData(selectedMonth.value))
+
+/* ===== 列表列配置 =====
+   ---------------------------------------------------------------------
+   驾驶舱里的两块明细数据（科室消耗排名 / 耗材分类对比）改成统一列表：
+     - fitMode 使用默认的 'fixed'：每列宽度互相独立，
+       拖拽某一列不会因为容器宽度变化而影响其它列；
+     - 列宽与列显隐持久化到 localStorage。
+   ===================================================================== */
+const DEPARTMENT_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'rank', label: '排名', width: 70, visible: true, weight: 2, minWidth: 60, maxWidth: 100 },
+  { key: 'name', label: '科室', width: 200, visible: true, flexible: true, idealWidth: 240, weight: 9, minWidth: 150, maxWidth: 360 },
+  { key: 'currentAmount', label: '本月金额（万元）', width: 140, visible: true, weight: 4, minWidth: 120, maxWidth: 210 },
+  { key: 'previousAmount', label: '上月金额（万元）', width: 140, visible: true, weight: 4, minWidth: 120, maxWidth: 210 },
+  { key: 'monthOnMonth', label: '环比', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 170, fill: true }
+]
+
+const CATEGORY_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'category', label: '分类', width: 180, visible: true, flexible: true, idealWidth: 220, weight: 8, minWidth: 130, maxWidth: 340 },
+  { key: 'currentAmount', label: '本月（万元）', width: 140, visible: true, weight: 4, minWidth: 120, maxWidth: 210 },
+  { key: 'previousAmount', label: '上月（万元）', width: 140, visible: true, weight: 4, minWidth: 120, maxWidth: 210 },
+  { key: 'monthOnMonth', label: '环比', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 170, fill: true }
+]
+
+const departmentCols = useListColumns({
+  storageKey: 'spd-operation-cockpit-department-cols-v1',
+  defaults: DEPARTMENT_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「科室」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+const departmentColBinding = (key: string) => departmentCols.columnBinding(key)
+
+const categoryCols = useListColumns({
+  storageKey: 'spd-operation-cockpit-category-cols-v1',
+  defaults: CATEGORY_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「分类」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+const categoryColBinding = (key: string) => categoryCols.columnBinding(key)
+
+/** 当前驾驶舱表格面板（决定列设置面板展示哪一套列） */
+const cockpitTablePanel = ref<'department' | 'category'>('department')
+
+/** 当前展示的列配置（科室排名 / 分类对比 两个面板切换） */
+const activeCockpitCols = computed(() => (cockpitTablePanel.value === 'department' ? departmentCols : categoryCols))
+
+const isCockpitColVisible = (key: string) => activeCockpitCols.value.isColumnVisible(key)
+const cockpitColBinding = (key: string) => activeCockpitCols.value.columnBinding(key)
+
+/** 科室排名表 / 分类对比表各自的表格实例（用于操作列固定与拖拽回调） */
+const departmentTableRef = ref<any>(null)
+const categoryTableRef = ref<any>(null)
+
+/**
+ * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
+ * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
+ */
+const cockpitActionFix = useActionColumnFix()
+const cockpitActionFixed = computed(() => cockpitActionFix.actionFixedBinding.value)
+
+watch(
+  [departmentTableRef, categoryTableRef],
+  () => {
+    cockpitActionFix.observe(departmentTableRef.value ?? categoryTableRef.value)
+  },
+  { flush: 'post' }
+)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const cockpitColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const cockpitColSettingsPopRef = ref<HTMLElement | null>(null)
+const cockpitColSettingsPop = useColSettingsPopover({
+  open: computed({
+    get: () => activeCockpitCols.value.settingsOpen.value,
+    set: (value) => { activeCockpitCols.value.settingsOpen.value = value }
+  }),
+  anchorRef: cockpitColSettingsAnchorRef,
+  popRef: cockpitColSettingsPopRef
+})
 
 let clockTimer = 0
 
@@ -88,7 +174,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 </script>
 
 <template>
-  <main class="operation-cockpit-page">
+  <main class="operation-cockpit-page spd-unified-list">
     <header class="cockpit-header">
       <div class="cockpit-brand">
         <span class="cockpit-brand-mark"><Activity :size="25" /></span>
@@ -104,43 +190,29 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 
     <p v-if="error" class="cockpit-error">{{ error }}</p>
 
-    <section class="cockpit-kpis" :aria-busy="loading">
-      <article class="kpi-card cyan">
-        <span class="kpi-symbol cyan"><Database :size="28" /></span>
-        <div class="kpi-body">
-          <p>本月耗材金额</p>
-          <strong>{{ formatWan(data.summary.currentAmount) }}<em>万元</em></strong>
-          <small>上月 {{ formatWan(data.summary.previousAmount) }} 万元</small>
-        </div>
-        <span class="kpi-scan" style="color: var(--neon-cyan);"></span>
-      </article>
-      <article class="kpi-card coral">
-        <span class="kpi-symbol coral"><TrendingUp :size="28" /></span>
-        <div class="kpi-body">
-          <p>环比增长</p>
-          <strong :class="trendTone(data.summary.monthOnMonth)">{{ formatPercent(data.summary.monthOnMonth) }}</strong>
-          <small>按科室消耗事实金额统计</small>
-        </div>
-        <span class="kpi-scan" style="color: var(--neon-pink);"></span>
-      </article>
-      <article class="kpi-card blue">
-        <span class="kpi-symbol blue"><Building2 :size="28" /></span>
-        <div class="kpi-body">
-          <p>消耗科室</p>
-          <strong>{{ data.summary.departmentCount }}<em>个</em></strong>
-          <small>统计月份内产生消耗的科室</small>
-        </div>
-        <span class="kpi-scan" style="color: var(--neon-blue);"></span>
-      </article>
-      <article class="kpi-card amber">
-        <span class="kpi-symbol amber"><BellRing :size="28" /></span>
-        <div class="kpi-body">
-          <p>预警事项</p>
-          <strong>{{ data.summary.warningCount }}<em>条</em></strong>
-          <small>重点监控耗材库存预警</small>
-        </div>
-        <span class="kpi-scan" style="color: var(--neon-amber);"></span>
-      </article>
+    <!-- 顶部 KPI 卡已按产品方向移除；核心指标压缩为一行紧凑摘要，
+         避免大屏顶部被大块卡片占满，同时保留关键数值。 -->
+    <section class="cockpit-summary-strip" :aria-busy="loading" aria-label="驾驶舱核心指标">
+      <span class="cockpit-summary-item">
+        <Database :size="15" />
+        <em>本月耗材金额</em>
+        <strong>{{ formatWan(data.summary.currentAmount) }}<small>万元</small></strong>
+      </span>
+      <span class="cockpit-summary-item">
+        <TrendingUp :size="15" />
+        <em>环比增长</em>
+        <strong :class="trendTone(data.summary.monthOnMonth)">{{ formatPercent(data.summary.monthOnMonth) }}</strong>
+      </span>
+      <span class="cockpit-summary-item">
+        <Building2 :size="15" />
+        <em>消耗科室</em>
+        <strong>{{ data.summary.departmentCount }}<small>个</small></strong>
+      </span>
+      <span class="cockpit-summary-item">
+        <BellRing :size="15" />
+        <em>预警事项</em>
+        <strong>{{ data.summary.warningCount }}<small>条</small></strong>
+      </span>
     </section>
 
     <section class="cockpit-grid">
@@ -205,14 +277,213 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 
       <article class="cockpit-panel compare-panel">
         <header><h2>耗材分类对比</h2><span>单位：万元</span></header>
-        <div class="compare-scroll">
-          <table>
-            <thead><tr><th>分类</th><th>本月</th><th>上月</th><th>环比</th></tr></thead>
-            <tbody>
-              <tr v-for="item in data.categories" :key="item.category"><td>{{ item.category }}</td><td>{{ formatWan(item.currentAmount) }}</td><td>{{ formatWan(item.previousAmount) }}</td><td :class="trendTone(item.monthOnMonth)">{{ formatPercent(item.monthOnMonth) }}</td></tr>
-            </tbody>
-            <tfoot><tr><td>合计</td><td>{{ formatWan(data.summary.currentAmount) }}</td><td>{{ formatWan(data.summary.previousAmount) }}</td><td :class="trendTone(data.summary.monthOnMonth)">{{ formatPercent(data.summary.monthOnMonth) }}</td></tr></tfoot>
-          </table>
+        <!-- 明细表改为标准统一列表：MdDataTableCard + el-table.ulc-table，
+             支持列宽拖拽 / 列显隐设置 / 主题跟随。 -->
+        <div class="cockpit-compare-card">
+          <MdDataTableCard :loading="loading">
+            <template #toolbar>
+              <div class="cockpit-panel-switch">
+                <button
+                  type="button"
+                  :class="{ 'is-active': cockpitTablePanel === 'department' }"
+                  @click="cockpitTablePanel = 'department'"
+                >科室排名</button>
+                <button
+                  type="button"
+                  :class="{ 'is-active': cockpitTablePanel === 'category' }"
+                  @click="cockpitTablePanel = 'category'"
+                >分类对比</button>
+              </div>
+              <div class="ulc-col-settings">
+                <button
+                  ref="cockpitColSettingsAnchorRef"
+                  type="button"
+                  class="md-btn md-btn-primary"
+                  @click="activeCockpitCols.settingsOpen.value = !activeCockpitCols.settingsOpen.value"
+                >
+                  <Columns3 :size="16" />
+                  <span>列设置</span>
+                  <ChevronDown :size="14" :class="{ rotated: activeCockpitCols.settingsOpen.value }" />
+                </button>
+                <div
+                  v-if="activeCockpitCols.settingsOpen.value"
+                  ref="cockpitColSettingsPopRef"
+                  class="ulc-col-settings-pop"
+                  :class="{ 'is-align-right': cockpitColSettingsPop.align.value === 'right', 'is-align-up': cockpitColSettingsPop.vertical.value === 'up' }"
+                  :style="{ '--ulc-pop-offset-y': cockpitColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': cockpitColSettingsPop.maxHeight.value + 'px' }"
+                >
+                  <header>
+                    <strong>列展示设置</strong>
+                    <button type="button" class="ulc-link" @click="activeCockpitCols.resetColumns()">恢复默认</button>
+                  </header>
+                  <div class="ulc-col-settings-list">
+                    <label v-for="col in activeCockpitCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                      <input
+                        type="checkbox"
+                        :checked="col.visible"
+                        :disabled="col.visible && activeCockpitCols.visibleColumnCount.value <= 1"
+                        @change="activeCockpitCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                      />
+                      <span>{{ col.label }}</span>
+                      <small>{{ col.width }}px</small>
+                    </label>
+                  </div>
+                  <footer>
+                    <button type="button" class="ulc-action" @click="activeCockpitCols.settingsOpen.value = false">确定</button>
+                  </footer>
+                </div>
+              </div>
+            </template>
+            <template #meta-extra>
+              <span class="md-chip primary">共 {{ activeCockpitCols.visibleColumnCount.value }} 列</span>
+            </template>
+
+            <div class="ulc-table-wrap cockpit-table-wrap">
+              <!-- 科室消耗排名 -->
+              <el-table
+                v-if="cockpitTablePanel === 'department'"
+                ref="departmentTableRef"
+                v-loading="loading"
+                :data="data.departments"
+                border
+                stripe
+                row-key="code"
+                class="ulc-table is-sticky"
+                max-height="220"
+                style="width: 100%"
+                empty-text="暂无科室消耗数据"
+                @header-dragend="(width: number, oldWidth: number, column: any) => departmentCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="rank"
+                  v-if="isCockpitColVisible('rank')"
+                  label="排名"
+                  align="center"
+                  v-bind="cockpitColBinding('rank')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">排名</span>
+                  </template>
+                  <template #default="{ $index }">{{ $index + 1 }}</template>
+                </el-table-column>
+                <el-table-column
+                  column-key="name"
+                  v-if="isCockpitColVisible('name')"
+                  prop="name"
+                  v-bind="cockpitColBinding('name')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">科室</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.name }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="currentAmount"
+                  v-if="isCockpitColVisible('currentAmount')"
+                  prop="currentAmount"
+                  v-bind="cockpitColBinding('currentAmount')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">本月金额（万元）</span>
+                  </template>
+                  <template #default="{ row }">{{ formatWan(row.currentAmount) }}</template>
+                </el-table-column>
+                <el-table-column
+                  column-key="previousAmount"
+                  v-if="isCockpitColVisible('previousAmount')"
+                  prop="previousAmount"
+                  v-bind="cockpitColBinding('previousAmount')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">上月金额（万元）</span>
+                  </template>
+                  <template #default="{ row }">{{ formatWan(row.previousAmount) }}</template>
+                </el-table-column>
+                <el-table-column
+                  column-key="monthOnMonth"
+                  v-if="isCockpitColVisible('monthOnMonth')"
+                  :fixed="cockpitActionFixed"
+                  v-bind="cockpitColBinding('monthOnMonth')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">环比</span>
+                  </template>
+                  <template #default="{ row }">
+                    <em :class="trendTone(comparisonRate(row.currentAmount, row.previousAmount))">
+                      {{ formatPercent(comparisonRate(row.currentAmount, row.previousAmount)) }}
+                    </em>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <!-- 耗材分类对比 -->
+              <el-table
+                v-else
+                ref="categoryTableRef"
+                v-loading="loading"
+                :data="data.categories"
+                border
+                stripe
+                row-key="category"
+                class="ulc-table is-sticky"
+                max-height="220"
+                style="width: 100%"
+                empty-text="暂无目录分类消耗数据"
+                @header-dragend="(width: number, oldWidth: number, column: any) => categoryCols.handleHeaderDragEnd(width, oldWidth, column)"
+              >
+                <el-table-column
+                  column-key="category"
+                  v-if="isCockpitColVisible('category')"
+                  prop="category"
+                  v-bind="cockpitColBinding('category')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">分类</span>
+                  </template>
+                  <template #default="{ row }">
+                    <span class="ulc-strong ulc-wrap-text">{{ row.category }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  column-key="currentAmount"
+                  v-if="isCockpitColVisible('currentAmount')"
+                  prop="currentAmount"
+                  v-bind="cockpitColBinding('currentAmount')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">本月（万元）</span>
+                  </template>
+                  <template #default="{ row }">{{ formatWan(row.currentAmount) }}</template>
+                </el-table-column>
+                <el-table-column
+                  column-key="previousAmount"
+                  v-if="isCockpitColVisible('previousAmount')"
+                  prop="previousAmount"
+                  v-bind="cockpitColBinding('previousAmount')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">上月（万元）</span>
+                  </template>
+                  <template #default="{ row }">{{ formatWan(row.previousAmount) }}</template>
+                </el-table-column>
+                <el-table-column
+                  column-key="monthOnMonth"
+                  v-if="isCockpitColVisible('monthOnMonth')"
+                  :fixed="cockpitActionFixed"
+                  v-bind="cockpitColBinding('monthOnMonth')"
+                >
+                  <template #header>
+                    <span class="ulc-th-text">环比</span>
+                  </template>
+                  <template #default="{ row }">
+                    <em :class="trendTone(row.monthOnMonth)">{{ formatPercent(row.monthOnMonth) }}</em>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
+          </MdDataTableCard>
           <p class="caliber-note">口径：高值耗材；定数管理且收费；定数管理且不收费。</p>
         </div>
       </article>
@@ -476,100 +747,48 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
   box-shadow: 0 0 12px var(--neon-red);
 }
 
-/* ---------- KPI 卡（带六边形辉光 + 角标） ---------- */
-.cockpit-kpis {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 14px 0;
-}
-.kpi-card {
-  position: relative;
+/* ---------- 顶部核心指标摘要条 ----------
+   顶部 KPI 大卡已按产品方向移除；核心指标压缩为一行紧凑摘要条，
+   既保留关键数值，又不占用大屏顶部空间。 */
+.cockpit-summary-strip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 18px;
-  min-height: 116px;
-  border: 1px solid var(--panel-stroke);
+  gap: 10px 26px;
+  margin: 10px 0;
+  padding: 8px 16px;
+  border: 1px solid var(--panel-stroke-soft);
   border-radius: 6px;
-  background-color: #050a1a !important;
-  background-image: linear-gradient(135deg, rgba(0, 240, 255, .08), rgba(58, 139, 255, .04) 50%, rgba(2, 6, 15, .9)) !important;
-  padding: 18px 22px;
-  overflow: hidden;
-  transition: transform .3s cubic-bezier(.4, 0, .2, 1), border-color .3s, box-shadow .3s;
+  background: linear-gradient(90deg, rgba(0, 240, 255, .08), rgba(2, 6, 15, .55) 60%, transparent);
 }
-/* 角标：左上 + 右下 */
-.kpi-card::before,
-.kpi-card::after {
-  content: "";
-  position: absolute;
-  width: 14px; height: 14px;
-  border: 2px solid var(--neon-cyan);
-  pointer-events: none;
-  transition: width .25s, height .25s;
+.cockpit-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--neon-cyan);
+  white-space: nowrap;
 }
-.kpi-card::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
-.kpi-card::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
-.kpi-card:hover { transform: translateY(-3px); border-color: var(--neon-cyan); box-shadow: 0 0 0 1px var(--neon-cyan), 0 12px 38px rgba(0, 240, 255, .28); }
-.kpi-card:hover::before,
-.kpi-card:hover::after { width: 18px; height: 18px; }
-.kpi-card.cyan::before, .kpi-card.cyan::after { border-color: var(--neon-cyan); }
-.kpi-card.coral::before, .kpi-card.coral::after { border-color: var(--neon-pink); }
-.kpi-card.blue::before, .kpi-card.blue::after { border-color: var(--neon-blue); }
-.kpi-card.amber::before, .kpi-card.amber::after { border-color: var(--neon-amber); }
-
-.kpi-card.cyan:hover { box-shadow: 0 0 0 1px var(--neon-cyan), 0 12px 38px rgba(0, 240, 255, .35); border-color: var(--neon-cyan); }
-.kpi-card.coral:hover { box-shadow: 0 0 0 1px var(--neon-pink), 0 12px 38px rgba(255, 77, 141, .35); border-color: var(--neon-pink); }
-.kpi-card.blue:hover { box-shadow: 0 0 0 1px var(--neon-blue), 0 12px 38px rgba(58, 139, 255, .35); border-color: var(--neon-blue); }
-.kpi-card.amber:hover { box-shadow: 0 0 0 1px var(--neon-amber), 0 12px 38px rgba(255, 184, 77, .35); border-color: var(--neon-amber); }
-
-/* 卡片内的扫描光带 */
-.kpi-card .kpi-scan {
-  position: absolute;
-  left: 0; right: 0;
-  top: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, currentColor, transparent);
-  opacity: .5;
-  animation: cockpit-card-scan 3.5s linear infinite;
+.cockpit-summary-item em {
+  color: var(--text-dim);
+  font-size: var(--spd-font-size-sm);
+  font-style: normal;
+  letter-spacing: .12em;
 }
-@keyframes cockpit-card-scan {
-  0% { transform: translateY(0); opacity: 0; }
-  10% { opacity: .7; }
-  90% { opacity: .7; }
-  100% { transform: translateY(116px); opacity: 0; }
-}
-
-.kpi-symbol {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, currentColor 0%, transparent 70%);
-  background-color: rgba(0, 240, 255, .08);
-  box-shadow: 0 0 22px currentColor, inset 0 0 0 1px currentColor;
-  flex: 0 0 auto;
-}
-.kpi-symbol.cyan { color: var(--neon-cyan); }
-.kpi-symbol.coral { color: var(--neon-pink); }
-.kpi-symbol.blue { color: var(--neon-blue); }
-.kpi-symbol.amber { color: var(--neon-amber); }
-
-.kpi-body { display: grid; gap: 5px; min-width: 0; }
-.kpi-body p { margin: 0; color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .14em; }
-.kpi-body strong {
-  display: block;
+.cockpit-summary-item strong {
   color: white;
-  font-size: var(--spd-font-size-5xl);
+  font-size: var(--spd-font-size-lg);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: .04em;
-  line-height: var(--spd-lh-tight);
-  text-shadow: 0 0 16px currentColor;
+  text-shadow: 0 0 12px currentColor;
 }
-.kpi-body strong em { margin-left: 6px; font-size: var(--spd-font-size-sm); font-style: normal; font-weight: 500; color: var(--text-dim); }
-.kpi-body small { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .04em; }
+.cockpit-summary-item strong small {
+  margin-left: 4px;
+  color: var(--text-dim);
+  font-size: var(--spd-font-size-sm);
+  font-weight: 500;
+  letter-spacing: .04em;
+}
 
 .operation-cockpit-page .up { color: var(--neon-red) !important; }
 .operation-cockpit-page .down { color: var(--neon-green) !important; }
@@ -860,28 +1079,122 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
 }
 .focus-item > strong { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
 
-/* 耗材分类对比 */
+/* 耗材分类对比 —— 改为标准统一列表后，通用表格外观由 unified-list.css 提供；
+   这里只做驾驶舱深色主题下的暗色化覆盖 + 面板切换按钮样式。 */
 .compare-panel { grid-column: 2 / 4; }
-.compare-scroll { display: flex; flex-direction: column; min-height: 0; flex: 1; }
-.compare-panel table { width: calc(100% - 28px); margin: 12px 14px 0; border-collapse: collapse; font-size: var(--spd-font-size-sm); }
-.compare-panel th, .compare-panel td {
-  border: 1px solid var(--panel-stroke-soft);
-  padding: 10px 12px;
-  text-align: right;
+.cockpit-compare-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 10px 14px 0;
+}
+.cockpit-compare-card :deep(.md-table-card) {
   background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.cockpit-compare-card :deep(.md-table-toolbar) {
+  background: transparent;
+  border-bottom: 1px solid var(--panel-stroke-soft);
+  padding: 0 0 8px;
+}
+.cockpit-compare-card :deep(.md-table-toolbar-main) {
+  gap: 8px;
+}
+.cockpit-compare-card :deep(.ulc-table-wrap) {
+  background: transparent;
+  border-color: var(--panel-stroke-soft);
+  box-shadow: none;
+}
+/* 深色主题下的表格底色：让单元格与玻璃拟态面板融为一体 */
+.cockpit-compare-card :deep(.el-table),
+.cockpit-compare-card :deep(.el-table__inner-wrapper),
+.cockpit-compare-card :deep(.el-table__body-wrapper) {
+  background: transparent;
+}
+.cockpit-compare-card :deep(.el-table tr),
+.cockpit-compare-card :deep(.el-table td.el-table__cell) {
+  background: transparent;
+}
+.cockpit-compare-card :deep(.el-table__row--striped td.el-table__cell) {
+  background: rgba(0, 240, 255, .035) !important;
+}
+.cockpit-compare-card :deep(.el-table__row:hover > td.el-table__cell) {
+  background: rgba(0, 240, 255, .07) !important;
+}
+.cockpit-compare-card :deep(.el-table td.el-table__cell) {
+  color: var(--text-main);
+  border-color: var(--panel-stroke-soft) !important;
+}
+.cockpit-compare-card :deep(.ulc-strong) {
   color: var(--text-main);
 }
-.compare-panel th:first-child, .compare-panel td:first-child { text-align: left; }
-.compare-panel th {
-  color: var(--neon-cyan);
-  background: linear-gradient(180deg, rgba(0, 240, 255, .14), rgba(0, 240, 255, .04)) !important;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-shadow: 0 0 6px rgba(0, 240, 255, .35);
+.cockpit-compare-card :deep(.el-table__empty-text) {
+  color: var(--text-dim);
 }
-.compare-panel tbody tr:hover td { background: rgba(0, 240, 255, .05) !important; }
-.compare-panel tbody td:nth-child(2) { color: var(--neon-cyan); font-weight: 700; text-shadow: 0 0 8px rgba(0, 240, 255, .45); }
-.compare-panel tfoot td { color: var(--neon-amber) !important; font-weight: 800; background: linear-gradient(180deg, rgba(255, 184, 77, .12), rgba(255, 184, 77, .02)) !important; text-shadow: 0 0 8px rgba(255, 184, 77, .35); }
+/* 列设置浮层在深色大屏上需要暗色底 */
+.cockpit-compare-card :deep(.ulc-col-settings-pop) {
+  background: rgba(2, 6, 15, .96);
+  border-color: var(--panel-stroke);
+  color: var(--text-main);
+}
+.cockpit-compare-card :deep(.ulc-col-settings-pop header strong),
+.cockpit-compare-card :deep(.ulc-col-settings-item span) {
+  color: var(--text-main);
+}
+.cockpit-compare-card :deep(.ulc-col-settings-pop .ulc-link) {
+  color: var(--neon-cyan);
+}
+/* 工具栏按钮在深色大屏上的适配
+   ------------------------------------------------------------------
+   驾驶舱是整屏深色科技风，但工具栏按钮仍需与其它列表页「同款」，
+   否则用户会误以为是另一类控件。
+   这里不用霓虹青，而是沿用标准的主色令牌（--spd-c-*），
+   仅把底色压暗一档以适配深色背景，保持浅底 + 深字（或亮底 + 深字）的
+   标准按钮语义不变。 */
+.cockpit-compare-card :deep(.md-btn) {
+  border-color: var(--spd-c-primary-strong);
+  background: color-mix(in srgb, var(--spd-c-primary) 18%, transparent);
+  color: var(--spd-c-primary-strong);
+  letter-spacing: .08em;
+}
+.cockpit-compare-card :deep(.md-btn:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--spd-c-primary) 32%, transparent);
+  border-color: var(--spd-c-primary-strong);
+  color: var(--spd-c-primary-strong);
+}
+
+/* 面板切换按钮（科室排名 / 分类对比） */
+.cockpit-panel-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--panel-stroke-soft);
+  border-radius: 4px;
+  background: rgba(0, 240, 255, .05);
+}
+.cockpit-panel-switch button {
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  padding: 5px 12px;
+  font: inherit;
+  font-size: var(--spd-font-size-sm);
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: background .2s, color .2s, box-shadow .2s;
+}
+.cockpit-panel-switch button:hover { color: var(--neon-cyan); }
+.cockpit-panel-switch button.is-active {
+  color: #02060f;
+  background: var(--neon-cyan);
+  box-shadow: 0 0 12px rgba(0, 240, 255, .45);
+  font-weight: 700;
+}
+
 /* M-19 口径说明：承载统计口径定义，按 G-9 提升到 --spd-font-size-sm（13px） */
 .caliber-note { margin: 10px 16px 12px; color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .08em; }
 

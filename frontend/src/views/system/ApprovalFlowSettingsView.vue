@@ -118,25 +118,6 @@ const dialogForm = reactive<ApprovalFlowPayload>({
 })
 
 // ── 计算 ─────────────────────────────────────────────────────────────────────
-const kpiStats = computed(() => [
-  {
-    icon: 'flow', theme: 'blue',
-    label: '审批流总数',  value: rows.value.length, hint: '当前筛选条件'
-  },
-  {
-    icon: 'check', theme: 'green',
-    label: '已启用',      value: rows.value.filter(r => r.status === 1).length, hint: '正常流转中'
-  },
-  {
-    icon: 'step', theme: 'orange',
-    label: '审批步骤',    value: rows.value.reduce((sum, r) => sum + (r.steps?.length ?? 0), 0), hint: '所有流程步骤合计'
-  },
-  {
-    icon: 'module', theme: 'purple',
-    label: '覆盖模块',    value: featureGroups.value.length, hint: '已配置审批的模块数'
-  }
-])
-
 const featureGroups = computed(() => {
   const map = new Map<string, { featureCode: string; featureName: string; count: number }>()
   for (const node of options.value.nodes) {
@@ -453,7 +434,7 @@ onMounted(loadAll)
 </script>
 
 <template>
-  <div class="sys-page">
+  <div class="sys-page spd-unified-list">
 
     <MdPageHeader
       title="审批流设置"
@@ -461,24 +442,6 @@ onMounted(loadAll)
       :show-refresh="false"
       @refresh="loadAll"
     />
-
-    <!-- 顶部 4 项 KPI 摘要 -->
-    <section class="sys-kpi-card" aria-label="审批流统计">
-      <div v-for="item in kpiStats" :key="item.label" class="sys-kpi-item" :class="`is-${item.theme}`">
-        <i class="sys-kpi-icon" :class="`is-${item.icon}`">
-          <GitBranch v-if="item.icon === 'flow'" :size="18" />
-          <CheckCircle2 v-else-if="item.icon === 'check'" :size="18" />
-          <ListTree v-else-if="item.icon === 'step'" :size="18" />
-          <LayoutDashboard v-else-if="item.icon === 'module'" :size="18" />
-          <AlertCircle v-else :size="18" />
-        </i>
-        <div>
-          <span class="sys-kpi-label">{{ item.label }}</span>
-          <strong class="sys-kpi-value">{{ item.value }}</strong>
-          <span class="sys-kpi-hint">{{ item.hint }}</span>
-        </div>
-      </div>
-    </section>
 
     <!-- Tab（菜单分组） -->
     <div class="sys-tabs">

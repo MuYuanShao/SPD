@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   AlertOctagon,
   AlertTriangle,
@@ -14,7 +14,7 @@ import {
   XCircle
 } from '@lucide/vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
-import PaginationControls from '../../components/common/PaginationControls.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
 import {
@@ -23,6 +23,16 @@ import {
   fetchClosureOptions,
   type ClosureOptions
 } from '../../api/operationalClosure'
+import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
+import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
+
+import {
+  Columns3,
+  ChevronDown
+} from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
 
 const notify = useNotify()
@@ -226,10 +236,50 @@ onMounted(async () => {
   await loadOptions()
   await loadData()
 })
+
+/* ===== 统一列表：列宽拖拽 + 列设置 + localStorage 持久化 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页共用同一套列宽机制（useListColumns）：
+     - fitMode 默认 'fixed'：每列宽度互相独立，拖拽某一列不影响其它列；
+     - 列宽与列显隐持久化到 localStorage；
+     - max-height 让表体成为独立滚动区，表头天然固定。
+   ===================================================================== */
+const COLDCHAIN_COL_DEFAULTS: ListColumnConfig[] = [
+  { key: 'exceptionNo', label: '异常编号', width: 190, visible: true, weight: 5, minWidth: 140, maxWidth: 280 },
+  { key: 'warehouseName', label: '库房', width: 150, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
+  { key: 'product', label: '商品信息', width: 200, visible: true, flexible: true, idealWidth: 250, weight: 6, minWidth: 140, maxWidth: 340 },
+  { key: 'temperature', label: '温度', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'severity', label: '严重程度', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'status', label: '状态', width: 120, visible: true, weight: 3, minWidth: 100, maxWidth: 180 },
+  { key: 'recordTime', label: '登记时间', width: 170, visible: true, weight: 3, minWidth: 140, maxWidth: 220, fill: true }
+]
+
+const coldChainCols = useListColumns({
+  storageKey: 'spd-cold-chain-cols-v1',
+  defaults: COLDCHAIN_COL_DEFAULTS,
+  // 混合策略：按权重把内容区宽度铺满给所有列，
+  // 「商品信息」列额外享有「理想宽度优先」调剂。
+  fitMode: 'hybrid',
+  reservedWidth: 0
+})
+
+const coldChainTableRef = coldChainCols.tableRef
+const isColdChainColVisible = (key: string) => coldChainCols.isColumnVisible(key)
+const coldChainColBinding = (key: string) => coldChainCols.columnBinding(key)
+
+/** 「列设置」浮层的视口定位（右侧空间不足时自动改为右对齐） */
+const coldChainColSettingsAnchorRef = ref<HTMLElement | null>(null)
+const coldChainColSettingsPopRef = ref<HTMLElement | null>(null)
+const coldChainColSettingsPop = useColSettingsPopover({
+  open: coldChainCols.settingsOpen,
+  anchorRef: coldChainColSettingsAnchorRef,
+  popRef: coldChainColSettingsPopRef
+})
+
 </script>
 
 <template>
-  <main class="cold-chain-page">
+  <main class="cold-chain-page spd-unified-list">
     <MdPageHeader
       crumb="供应链业务"
       title="冷链监控"
@@ -313,83 +363,185 @@ onMounted(async () => {
         </div>
       </form>
 
-      <div class="table-scroll cold-chain-scroll">
-        <table class="cold-chain-table">
-          <thead>
-            <tr>
-              <th>异常编号</th>
-              <th>库房</th>
-              <th>商品信息</th>
-              <th>温度</th>
-              <th>严重程度</th>
-              <th>状态</th>
-              <th>登记时间</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="loading" class="cold-state-row">
-              <td colspan="7">
-                <div class="cold-state-cell is-loading">
-                  <Thermometer :size="20" class="spin" />
-                  <span>正在加载冷链异常记录...</span>
-                </div>
-              </td>
-            </tr>
-            <tr v-else-if="!rows.length" class="cold-state-row">
-              <td colspan="7">
-                <div class="cold-state-cell is-empty">
-                  <EmptyState message="暂无冷链异常记录" />
-                </div>
-              </td>
-            </tr>
-            <tr v-for="row in rows" v-else :key="String(row.bizNo)" :class="`is-row-${severityTone(row.severity)}`">
-              <td>
-                <strong class="cold-biz-no">{{ row.bizNo || '-' }}</strong>
-              </td>
-              <td>
-                <span class="cold-cell-warehouse">
+            <MdDataTableCard>
+        <template #toolbar>
+        <div class="ulc-col-settings">
+          <button
+            ref="coldChainColSettingsAnchorRef"
+            type="button"
+            class="md-btn md-btn-primary"
+            @click="coldChainCols.settingsOpen.value = !coldChainCols.settingsOpen.value"
+          >
+            <Columns3 :size="16" />
+            <span>列设置</span>
+            <ChevronDown :size="14" :class="{ rotated: coldChainCols.settingsOpen.value }" />
+          </button>
+          <div
+            v-if="coldChainCols.settingsOpen.value"
+            ref="coldChainColSettingsPopRef"
+            class="ulc-col-settings-pop"
+            :class="{ 'is-align-right': coldChainColSettingsPop.align.value === 'right', 'is-align-up': coldChainColSettingsPop.vertical.value === 'up' }"
+            :style="{ '--ulc-pop-offset-y': coldChainColSettingsPop.offsetY.value + 'px', '--ulc-pop-max-h': coldChainColSettingsPop.maxHeight.value + 'px' }"
+          >
+            <header>
+              <strong>列展示设置</strong>
+              <button type="button" class="ulc-link" @click="coldChainCols.resetColumns()">恢复默认</button>
+            </header>
+            <div class="ulc-col-settings-list">
+              <label v-for="col in coldChainCols.columns.value" :key="col.key" class="ulc-col-settings-item">
+                <input
+                  type="checkbox"
+                  :checked="col.visible"
+                  :disabled="col.visible && coldChainCols.visibleColumnCount.value <= 1"
+                  @change="coldChainCols.setColumnVisible(col.key, ($event.target as HTMLInputElement).checked)"
+                />
+                <span>{{ col.label }}</span>
+                <small>{{ col.width }}px</small>
+              </label>
+            </div>
+            <footer>
+              <button type="button" class="ulc-action" @click="coldChainCols.settingsOpen.value = false">确定</button>
+            </footer>
+          </div>
+        </div>
+        </template>
+        <div class="ulc-table-wrap">
+          <el-table
+            ref="coldChainTableRef"
+            :data="rows"
+            row-key="exceptionNo"
+            border
+            stripe
+            class="ulc-table is-sticky"
+            max-height="560"
+            style="width: 100%"
+            :empty-text="'暂无冷链异常记录'"
+            @header-dragend="(width: number, oldWidth: number, column: any) => coldChainCols.handleHeaderDragEnd(width, oldWidth, column)"
+          >
+            <el-table-column
+              column-key="exceptionNo"
+              v-if="isColdChainColVisible('exceptionNo')"
+              label="异常编号"
+              v-bind="coldChainColBinding('exceptionNo')"
+            >
+              <template #header>
+                <span class="ulc-th-text">异常编号</span>
+              </template>
+              <template #default="{ row }">
+                <strong class="cold-biz-no ulc-wrap-text">{{ row.bizNo || '-' }}</strong>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="warehouseName"
+              v-if="isColdChainColVisible('warehouseName')"
+              label="库房"
+              v-bind="coldChainColBinding('warehouseName')"
+            >
+              <template #header>
+                <span class="ulc-th-text">库房</span>
+              </template>
+              <template #default="{ row }">
+                <span class="cold-cell-warehouse ulc-wrap-text">
                   <Warehouse :size="12" />
                   {{ row.warehouseName || '-' }}
                 </span>
-              </td>
-              <td>
-                <strong>{{ row.productName || '-' }}</strong>
-                <small>{{ row.productCode || '-' }}</small>
-              </td>
-              <td>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="product"
+              v-if="isColdChainColVisible('product')"
+              label="商品信息"
+              v-bind="coldChainColBinding('product')"
+            >
+              <template #header>
+                <span class="ulc-th-text">商品信息</span>
+              </template>
+              <template #default="{ row }">
+                <div class="ulc-cell-stack">
+                  <span class="ulc-strong ulc-wrap-text">{{ row.productName || '-' }}</span>
+                  <span class="ulc-mono ulc-wrap-text">{{ row.productCode || '-' }}</span>
+                </div>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="temperature"
+              v-if="isColdChainColVisible('temperature')"
+              label="温度"
+              v-bind="coldChainColBinding('temperature')"
+            >
+              <template #header>
+                <span class="ulc-th-text">温度</span>
+              </template>
+              <template #default="{ row }">
                 <span class="cold-temp" :class="`is-${severityTone(row.severity)}`">
                   <component :is="severityIcon(row.severity)" :size="14" />
                   <strong>{{ row.temperature || '-' }}</strong>
                   <em>℃</em>
                 </span>
-              </td>
-              <td>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="severity"
+              v-if="isColdChainColVisible('severity')"
+              label="严重程度"
+              v-bind="coldChainColBinding('severity')"
+            >
+              <template #header>
+                <span class="ulc-th-text">严重程度</span>
+              </template>
+              <template #default="{ row }">
                 <span class="severity-pill" :class="`is-${severityTone(row.severity)}`">
                   <component :is="severityIcon(row.severity)" :size="12" />
                   {{ severityText(row.severity) }}
                 </span>
-              </td>
-              <td>
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="status"
+              v-if="isColdChainColVisible('status')"
+              label="状态"
+              v-bind="coldChainColBinding('status')"
+            >
+              <template #header>
+                <span class="ulc-th-text">状态</span>
+              </template>
+              <template #default="{ row }">
                 <span class="status-pill" :class="`is-${statusTone(row.status)}`">
                   {{ statusText(row.status) }}
                 </span>
-              </td>
-              <td class="cold-chain-time">
-                <Calendar :size="12" />
-                {{ row.createTime || '-' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <PaginationControls
-        :page="currentPage"
-        :size="pageSize"
-        :total="totalItems"
-        :loading="loading"
-        @change-page="changePage"
-        @change-size="changePageSize"
-      />
+              </template>
+            </el-table-column>
+            <el-table-column
+              column-key="recordTime"
+              v-if="isColdChainColVisible('recordTime')"
+              label="登记时间"
+              v-bind="coldChainColBinding('recordTime')"
+            >
+              <template #header>
+                <span class="ulc-th-text">登记时间</span>
+              </template>
+              <template #default="{ row }">
+                <span class="ulc-wrap-text"><Calendar :size="12" />
+                {{ row.createTime || '-' }}</span>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <MdEmptyState text="暂无冷链异常记录" />
+            </template>
+          </el-table>
+        </div>
+        <template #pagination>
+          <MdPagination
+            :page="currentPage"
+            :total-pages="Math.max(1, Math.ceil(totalItems / pageSize))"
+            :total="totalItems"
+            :size="pageSize"
+            :loading="loading"
+            @update:page="changePage"
+            @update:size="changePageSize"
+          />
+        </template>
+      </MdDataTableCard>
     </section>
 
     <el-dialog v-model="exceptionOpen" title="登记冷链异常" width="min(860px, 94vw)" append-to-body class="cold-chain-dialog">

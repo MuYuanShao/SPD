@@ -51,6 +51,8 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
   const hasHorizontalScroll = ref(false)
   /** 已挂载的观察器与监听 */
   let resizeObserver: ResizeObserver | null = null
+  /** 观察内部表格主体宽度（列宽变化时滚动容器自身宽度可能不变） */
+  let bodyResizeObserver: ResizeObserver | null = null
   let scrollElement: HTMLElement | null = null
   let mutationObserver: MutationObserver | null = null
   /** 表格根节点：用于在表格重绘后重新定位滚动容器 */
@@ -76,21 +78,28 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
 
   /**
    * 绑定滚动事件到新的容器（容器被替换时重新绑定）。
+   *
+   * 注意：即使容器没有变化，也必须重新测量一次。
+   * 列宽拖拽 / 列显隐切换 / 窗口缩放时，滚动容器**自身**的宽度可能不变，
+   * 变的是内部表格的宽度 —— 此时 ResizeObserver 不会触发，
+   * 若这里提前 return，溢出状态就会停留在旧值。
    */
   function bindContainer(container: HTMLElement | null) {
-    if (container === scrollElement) return
-    if (scrollElement) {
-      scrollElement.removeEventListener('scroll', onScroll)
+    if (container !== scrollElement) {
+      if (scrollElement) {
+        scrollElement.removeEventListener('scroll', onScroll)
+      }
+      scrollElement = container
+      if (container) {
+        container.addEventListener('scroll', onScroll, { passive: true })
+        if (typeof ResizeObserver !== 'undefined') {
+          resizeObserver?.disconnect()
+          resizeObserver = new ResizeObserver(() => measure(scrollElement))
+          resizeObserver.observe(container)
+        }
+      }
     }
-    scrollElement = container
-    if (!container) return
-    measure(container)
-    container.addEventListener('scroll', onScroll, { passive: true })
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver?.disconnect()
-      resizeObserver = new ResizeObserver(() => measure(scrollElement))
-      resizeObserver.observe(container)
-    }
+    measure(scrollElement)
   }
 
   /**
@@ -109,9 +118,33 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
         // 表格重绘后滚动容器可能被替换，重新定位
         bindContainer(resolveScrollContainer(tableRoot))
         measure(scrollElement)
+        // 表格主体节点也可能被替换，重新挂载宽度观察
+        observeTableBodyWidth()
       })
       mutationObserver.observe(root, { childList: true, subtree: true, characterData: true })
     }
+    // 内部表格宽度变化时，滚动容器自身的宽度可能不变（只变内容宽度），
+    // 因此额外观察表格主体，宽度一变就重新判定是否溢出。
+    observeTableBodyWidth()
+  }
+
+  /**
+   * 观察内部表格主体的宽度变化。
+   *
+   * 拖拽列宽 / 列显隐切换后，横向溢出状态会改变，
+   * 但滚动容器（.el-scrollbar__wrap）的 clientWidth 往往保持不变，
+   * 只观察容器会漏掉这类变化 —— 所以要额外观察表格主体。
+   */
+  function observeTableBodyWidth() {
+    if (!tableRoot || typeof ResizeObserver === 'undefined') return
+    bodyResizeObserver?.disconnect()
+    bodyResizeObserver = new ResizeObserver(() => {
+      measure(scrollElement)
+    })
+    const body = tableRoot.querySelector(
+      '.el-table__body-wrapper .el-scrollbar__wrap > .el-table'
+    ) as HTMLElement | null
+    if (body) bodyResizeObserver.observe(body)
   }
 
   function onScroll() {
@@ -121,6 +154,8 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
   function detach() {
     resizeObserver?.disconnect()
     resizeObserver = null
+    bodyResizeObserver?.disconnect()
+    bodyResizeObserver = null
     mutationObserver?.disconnect()
     mutationObserver = null
     if (scrollElement) {
@@ -134,6 +169,7 @@ export function useActionColumnFix(options: ActionColumnFixOptions = {}) {
   function refresh() {
     if (tableRoot) {
       bindContainer(resolveScrollContainer(tableRoot))
+      observeTableBodyWidth()
     }
     measure(scrollElement)
   }

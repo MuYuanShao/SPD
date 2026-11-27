@@ -188,11 +188,17 @@
   background: var(--spd-p-btn-warning-active-bg);
 }
 
-/* ---- info（查看 / 详情） ---- */
+/* ---- info（导出 / 查看 / 详情） ----
+   注意：palette.css 里 --spd-p-btn-info-text 绑定的是 --spd-p-info-text（中性石板色），
+   因为 info 语义色历史上被当作「表头 / 次级说明文字」档位使用。
+   但**按钮**的 info 态必须呈现「信息语义蓝」，否则「导出」按钮会跟 neutral 长得一样，
+   四类操作（新增 / 导入 / 导出 / 列设置）就分不出来。
+   因此这里直接用 --spd-p-info（palette.css 明确写明：需要真正的信息态文字时用它），
+   三套配色方案各自重定义了 --spd-c-info，因此自动适配。 */
 .spd-btn--tone-info {
   border-color: var(--spd-p-btn-info-border);
   background: var(--spd-p-btn-info-bg);
-  color: var(--spd-p-btn-info-text);
+  color: var(--spd-p-info);
 }
 
 .spd-btn--tone-info:hover:not(:disabled):not(.is-loading) {
@@ -262,7 +268,7 @@
 .spd-btn--variant-ghost.spd-btn--tone-info {
   border-color: var(--spd-p-btn-info-ghost-border);
   background: var(--spd-p-btn-info-ghost-bg);
-  color: var(--spd-p-btn-info-ghost-text);
+  color: var(--spd-p-info);
 }
 
 .spd-btn--variant-ghost.spd-btn--tone-neutral {
@@ -306,7 +312,7 @@
 .spd-btn--variant-text.spd-btn--tone-success { color: var(--spd-p-btn-success-text-variant-text); }
 .spd-btn--variant-text.spd-btn--tone-danger { color: var(--spd-p-btn-danger-text-variant-text); }
 .spd-btn--variant-text.spd-btn--tone-warning { color: var(--spd-p-btn-warning-text-variant-text); }
-.spd-btn--variant-text.spd-btn--tone-info { color: var(--spd-p-btn-info-text-variant-text); }
+.spd-btn--variant-text.spd-btn--tone-info { color: var(--spd-p-info); }
 .spd-btn--variant-text.spd-btn--tone-neutral { color: var(--spd-p-btn-neutral-text-variant-text); }
 
 .spd-btn--variant-text:hover:not(:disabled):not(.is-loading) {
@@ -328,7 +334,7 @@
 .spd-btn--variant-link.spd-btn--tone-success { color: var(--spd-p-btn-success-link-text); }
 .spd-btn--variant-link.spd-btn--tone-danger { color: var(--spd-p-btn-danger-link-text); }
 .spd-btn--variant-link.spd-btn--tone-warning { color: var(--spd-p-btn-warning-link-text); }
-.spd-btn--variant-link.spd-btn--tone-info { color: var(--spd-p-btn-info-link-text); }
+.spd-btn--variant-link.spd-btn--tone-info { color: var(--spd-p-info); }
 .spd-btn--variant-link.spd-btn--tone-neutral { color: var(--spd-p-btn-neutral-link-text); }
 
 .spd-btn--variant-link:hover:not(:disabled):not(.is-loading) {

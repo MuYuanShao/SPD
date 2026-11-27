@@ -16,6 +16,7 @@ import {
   Columns3,
   ChevronDown
 } from '@lucide/vue'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 import {
   cancelWarehouseReturn, fetchStockReturnCandidates, fetchStockReturnOptions, fetchStockReturns, submitStockReturn,
   type ReturnCandidate, type ReturnRecord, type ReturnSelection
@@ -229,6 +230,7 @@ const stockReturnCandidatesCols = useListColumns({
 })
 
 const stockReturnCandidatesTableRef = stockReturnCandidatesCols.tableRef
+const fillHeightStockReturnCandidates = useFillHeightTable({ tableRef: stockReturnCandidatesTableRef })
 const isStockReturnCandidatesColVisible = (key: string) => stockReturnCandidatesCols.isColumnVisible(key)
 const stockReturnCandidatesColBinding = (key: string) => stockReturnCandidatesCols.columnBinding(key)
 
@@ -267,6 +269,7 @@ const stockReturnListCols = useListColumns({
 })
 
 const stockReturnListTableRef = stockReturnListCols.tableRef
+const fillHeightStockReturnList = useFillHeightTable({ tableRef: stockReturnListTableRef })
 const isStockReturnListColVisible = (key: string) => stockReturnListCols.isColumnVisible(key)
 const stockReturnListColBinding = (key: string) => stockReturnListCols.columnBinding(key)
 
@@ -319,6 +322,7 @@ const stockReturnItemsCols = useListColumns({
 })
 
 const stockReturnItemsTableRef = stockReturnItemsCols.tableRef
+const fillHeightStockReturnItems = useFillHeightTable({ tableRef: stockReturnItemsTableRef })
 const isStockReturnItemsColVisible = (key: string) => stockReturnItemsCols.isColumnVisible(key)
 const stockReturnItemsColBinding = (key: string) => stockReturnItemsCols.columnBinding(key)
 
@@ -389,7 +393,7 @@ ref="stockReturnCandidatesColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightStockReturnCandidates.maxHeight"
             style="width: 100%"
             :empty-text="'暂无可退库存'"
             @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnCandidatesCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -528,7 +532,7 @@ ref="stockReturnListColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightStockReturnList.maxHeight"
             style="width: 100%"
             :empty-text="'暂无退货单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnListCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -682,7 +686,7 @@ ref="stockReturnItemsColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightStockReturnItems.maxHeight"
             style="width: 100%"
             :empty-text="'暂无退货明细'"
             @header-dragend="(width: number, oldWidth: number, column: any) => stockReturnItemsCols.handleHeaderDragEnd(width, oldWidth, column)"

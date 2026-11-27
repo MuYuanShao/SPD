@@ -74,10 +74,9 @@ public class PendingProductImportExportService {
                 total++;
                 String code = string(row, column(columns, 1, "商品编码"), "");
                 String name = string(row, column(columns, 2, "商品名称"), "");
-                String spec = string(row, column(columns, 3, "规格型号"), "");
-                if (isBlank(code) || isBlank(name) || isBlank(spec)) { skipped++; continue; }
+                if (isBlank(code) || isBlank(name)) { skipped++; continue; }
                 try {
-                    productApprovalService.createApplication(request(row, columns, code, name, spec));
+                    productApprovalService.createApplication(request(row, columns, code, name));
                     imported++;
                 } catch (Exception exception) {
                     skipped++;
@@ -89,8 +88,8 @@ public class PendingProductImportExportService {
         String error = null;
         if (total > 0 && imported == 0) {
             error = duplicates > 0
-                    ? "导入失败：存在已在目录中的商品，请检查商品名称、规格型号、单价、注册证号、厂家、供应商是否重复"
-                    : "导入失败：请确认文件内容和列顺序与导入模板一致，且商品编码、商品名称、规格型号为必填项";
+                    ? "导入失败：存在已在目录中的商品，请检查商品名称、单价、注册证号、厂家、供应商是否重复"
+                    : "导入失败：请确认文件内容和列顺序与导入模板一致，且商品编码、商品名称为必填项";
         }
         String message = total == 0 ? "Excel 文件中未找到有效数据行，请确认文件内容" : "已导入 " + imported + " 条待审批单";
         if (skipped > 0 && total > 0) message += "，" + skipped + " 行因数据格式问题被跳过";
@@ -99,9 +98,9 @@ public class PendingProductImportExportService {
     }
 
     private static PendingProductApplicationRequest request(Row row, Map<String, Integer> c,
-                                                            String code, String name, String spec) {
+                                                            String code, String name) {
         return new PendingProductApplicationRequest(
-                string(row,column(c,0,"申请类型"),"新品准入"), code, name, spec,
+                string(row,column(c,0,"申请类型"),"新品准入"), code, name,
                 string(row,column(c,4,"品牌"),""), string(row,column(c,5,"生产厂家","厂家"),""),
                 string(row,column(c,6,"供应商"),""), string(row,column(c,7,"单位"),"支"),
                 decimal(row,column(c,8,"采购价"),BigDecimal.ZERO), decimal(row,column(c,9,"零售价"),null),

@@ -60,7 +60,8 @@ public record PendingProductApplicationRow(
             String productCode,
             String changeSummary
     ) {
-        this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode, changeSummary,
+        this(no, type, product, supplier, applicant, time, status, statusTone, warning, productCode,
+                changeSummary,
                 null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

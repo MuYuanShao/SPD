@@ -17,7 +17,7 @@ public class CatalogApplicationSnapshotService {
     static final String STATUS_CHANGE_REASON = "医院目录启停提交审批";
     private static final Map<String, String> FIELDS = new LinkedHashMap<>();
     static {
-        FIELDS.put("product_name", "商品名称"); FIELDS.put("spec_model", "规格型号");
+        FIELDS.put("product_name", "商品名称");
         FIELDS.put("brand", "品牌"); FIELDS.put("manufacturer_id", "生产厂家");
         FIELDS.put("supplier_id", "供应商"); FIELDS.put("category_id", "商品分类");
         FIELDS.put("unit", "单位"); FIELDS.put("purchase_price", "采购价");

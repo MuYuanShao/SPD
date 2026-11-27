@@ -184,12 +184,32 @@
 }
 
 /* ===== 侧边栏 ===== */
-.approval-sidebar-card,
-.approval-list-card {
+/* 侧边栏（审批队列）是一个真正独立的面板，保留卡片外观。 */
+.approval-sidebar-card {
   background: var(--ulc-bg-container, var(--spd-bg-container)) !important;
   border: 1px solid var(--ulc-border, var(--spd-border-subtle)) !important;
   border-radius: var(--spd-radius-md, 8px) !important;
   box-shadow: var(--spd-shadow-1) !important;
+  color: var(--spd-text-primary) !important;
+}
+
+/* ===== 主列表卡片 =====
+   【大框下线】用户诉求：
+     「筛选框和表格最外面的大框不需要，框太多影响审美」
+   因此 .approval-list-card 不再是卡片外壳，只是一个**布局容器**：
+     - 去掉边框 / 阴影 / 圆角 / 白底；
+     - 里面的「筛选栏」与「表格卡片」各自保留自己的边框，
+       两者之间留出 16px 呼吸间距，不再是「框里套框」。
+   表格卡片（.md-table-card）保留自身边框 —— 它是功能性面板，
+   去掉后表格会直接贴到页面底色上，边界会丢失。 */
+.approval-list-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  min-width: 0;
+  overflow: visible;
   color: var(--spd-text-primary) !important;
 }
 
@@ -371,11 +391,27 @@
 
 /* ===== 主列表卡片 =====
    overflow: visible —— 让「列设置」浮层可以溢出卡片不被裁切；
-   表格自身的圆角由 .approval-wide-table-shell 处理。 */
+   表格自身的圆角由 .approval-wide-table-shell 处理。
+   卡片外观（边框 / 阴影 / 白底）已在文件上方统一下线，
+   这里只保留布局属性。 */
 .approval-list-card {
   padding: 0 !important;
   min-width: 0;
   overflow: visible;
+}
+
+/* ===== 筛选区与表格卡片之间的呼吸间距 =====
+   用户诉求：「将筛选部分和表格这个大部分可以加一点 margin」。
+   筛选栏与表格卡片各留 16px 间距（与页面其它区块间距一致），
+   两者不再「边框贴边框」。 */
+.approval-list-card > .spd-filter-bar {
+  margin-bottom: 16px;
+}
+
+/* 表格卡片自身不再重复画外框（.md-table-card 已有边框），
+   这里只保证它与筛选栏之间有稳定间距。 */
+.approval-list-card > .md-table-card {
+  margin-top: 0;
 }
 
 /* ===== 上下文标题区 ===== */
@@ -614,10 +650,11 @@
   vertical-align: middle;
 }
 
-/* 表头保持单行（列名不长，超长反而难读） */
+/* 表头标签过长时换行显示（不截断成省略号） */
 .approval-wide-table th {
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* ===== 单元格文字超长换行 =====
@@ -641,7 +678,10 @@
   border-right-color: color-mix(in srgb, var(--spd-p-bg) 22%, transparent) !important;
   border-bottom: 0 !important;
   box-shadow: var(--spd-p-shadow-1);
-  white-space: nowrap;
+  /* 表头标签过长时换行显示（不截断成省略号） */
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .approval-wide-table td {
@@ -1804,6 +1844,483 @@ body .column-settings-dialog.column-settings-dialog {
   color: var(--spd-p-danger);
 }
 
+/* =====================================================================
+ * 新增待审批目录弹窗 · 视觉优化（2026-11）
+ * ---------------------------------------------------------------------
+ * 目标：密集、专业的作业型弹窗 —— 头部稳重、字段紧凑可扫读、
+ *       底部操作区明确分隔且不被裁剪、浮层不被遮罩吞掉。
+ * 约束：只使用既有 --spd-p-* / --spd-* 令牌，不新增调色板。
+ * ===================================================================== */
+
+/* --- 1. 遮罩层：轻微压暗 + 居中，避免弹窗贴顶 --- */
+body .attachment-preview-mask.attachment-preview-mask {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 24px !important;
+  background: color-mix(in srgb, var(--spd-p-bg-page) 62%, transparent) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* --- 2. 弹窗主体：加宽 + 明确的圆角/描边/投影 --- */
+body .approval-create-dialog.approval-create-dialog,
+.approval-create-dialog.approval-create-dialog {
+  width: min(1080px, 100%) !important;
+  max-height: calc(100vh - 96px) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--spd-p-shadow-dialog);
+  /* 头部/底部圆角与主体一致 */
+  overflow: hidden !important;
+}
+
+/* --- 3. 头部：标题 + 副标题 + 关闭按钮 --- */
+.approval-create-head {
+  position: relative;
+  gap: 20px !important;
+  padding: 14px 22px !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+}
+
+/* 头部左侧主色竖条，强化「弹窗标题」层级 */
+.approval-create-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--spd-p-accent-bar-gradient);
+}
+
+.approval-create-head > div {
+  gap: 3px;
+  min-width: 0;
+}
+
+.approval-create-head p {
+  color: var(--spd-p-text-secondary) !important;
+  font-size: var(--spd-font-size-xs) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.4px;
+}
+
+.approval-create-head h3 {
+  color: var(--spd-text-heading) !important;
+  font-size: var(--spd-font-size-xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.2px;
+}
+
+/* 关闭按钮：常态低调，hover 才显出危险色 */
+.approval-create-head .btn-icon {
+  width: 30px !important;
+  height: 30px !important;
+  min-height: 30px !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px !important;
+  color: var(--spd-text-tertiary) !important;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease,
+    transform 0.16s ease;
+}
+
+.approval-create-head .btn-icon:hover {
+  background: var(--spd-p-danger-bg) !important;
+  border-color: var(--spd-p-danger-border, var(--spd-p-danger)) !important;
+  color: var(--spd-p-danger) !important;
+  transform: rotate(90deg);
+}
+
+/* --- 4. 内容区：分区标题 + 紧凑字段 --- */
+.approval-create-form .approval-create-scroll {
+  padding: 4px 24px 16px;
+  background: var(--spd-bg-container);
+}
+
+.approval-create-section {
+  padding: 0;
+  border: 0;
+}
+
+/* 分区之间用留白 + 分隔线区分，不画框（保持密集） */
+.approval-create-section + .approval-create-section {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--spd-border-subtle);
+}
+
+/* 分区标题：主色竖条 + 标题文字，取消虚线底线 */
+.approval-create-section h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 0 0 10px;
+  border-bottom: none;
+  color: var(--spd-text-heading) !important;
+  font-size: var(--spd-font-size-lg) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.2px;
+}
+
+.approval-create-section h4::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--spd-p-accent-bar-gradient);
+  flex-shrink: 0;
+}
+
+/* 字段网格：紧凑但留出呼吸 */
+.approval-create-section .supplier-form-grid.compact {
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)) !important;
+  gap: 12px 16px !important;
+  padding: 12px 0 2px;
+}
+
+/* 字段标签：小字 + 次级色 + 必填星标 */
+.approval-create-section .supplier-form-grid label {
+  gap: 5px;
+  min-width: 0;
+}
+
+.approval-create-section .supplier-form-grid label > span {
+  color: var(--spd-text-secondary) !important;
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 600 !important;
+  line-height: 1.3;
+}
+
+/* 输入控件：统一高度 + 清晰的 hover/focus 态 */
+.approval-create-section .supplier-form-grid input,
+.approval-create-section .supplier-form-grid select,
+.approval-create-section .supplier-form-grid textarea {
+  min-height: 34px !important;
+  height: 34px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-base) !important;
+  padding: 0 10px !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.approval-create-section .supplier-form-grid input:hover:not([readonly]),
+.approval-create-section .supplier-form-grid textarea:hover:not([readonly]) {
+  border-color: var(--spd-border-strong) !important;
+}
+
+.approval-create-section .supplier-form-grid input:focus,
+.approval-create-section .supplier-form-grid select:focus,
+.approval-create-section .supplier-form-grid textarea:focus {
+  border-color: var(--primary) !important;
+  outline: 0 !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+/* 只读 / 禁用态：明显区分可编辑字段 */
+.approval-create-section .supplier-form-grid input[readonly],
+.approval-create-section .supplier-form-grid input:disabled,
+.approval-create-section .supplier-form-grid select:disabled {
+  background: var(--spd-bg-page) !important;
+  color: var(--spd-text-tertiary) !important;
+  border-style: dashed !important;
+  cursor: not-allowed;
+}
+
+/* 文本域 */
+.approval-create-section .supplier-form-grid textarea {
+  min-height: 72px !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  line-height: var(--spd-lh-base);
+  resize: vertical;
+}
+
+/* --- 5. 附件区：虚线框 + 计数 --- */
+.approval-attachment-summary {
+  margin-top: 12px;
+  border: 1px dashed var(--spd-border-strong);
+  border-radius: 8px;
+  background: var(--spd-bg-page);
+  padding: 12px 14px;
+  gap: 6px;
+}
+
+.approval-attachment-summary strong {
+  color: var(--spd-text-heading);
+  font-size: var(--spd-font-size-base);
+  font-weight: 700;
+}
+
+.approval-attachment-summary span {
+  color: var(--spd-text-secondary);
+  font-size: var(--spd-font-size-sm);
+}
+
+.approval-upload-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* 已选附件做成可删除的 chip */
+.approval-upload-list button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px !important;
+  height: 26px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 999px !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  padding: 0 12px !important;
+  font-size: var(--spd-font-size-sm) !important;
+  transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+}
+
+.approval-upload-list button:hover {
+  border-color: var(--spd-p-danger) !important;
+  color: var(--spd-p-danger) !important;
+  background: var(--spd-p-danger-bg) !important;
+}
+
+/* =====================================================================
+   新增弹窗 · 已选附件网格（2026-11）
+   ---------------------------------------------------------------------
+   需求：上传多张图片后，附件要「自然排布」，不能是一条条文字 chip。
+   实现：
+     - 图片用 grid 自动换行铺开，每格固定缩略图尺寸，整齐不拉伸；
+     - 网格整体允许横向滚动（附件很多时不把弹窗撑得过高）；
+     - 每格右上角提供删除按钮；
+     - PDF 等非图片走统一的占位图标 + 文件名。
+   ===================================================================== */
+.approval-upload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(116px, 1fr));
+  gap: 10px;
+  margin-top: 6px;
+  /* 附件很多时横向滚动，不把弹窗内容区撑得过高 */
+  max-height: 260px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 2px;
+  scrollbar-gutter: stable;
+}
+
+.approval-upload-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: 8px;
+  background: var(--spd-bg-container);
+  min-width: 0;
+}
+
+.approval-upload-thumb {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 84px;
+  border-radius: 6px;
+  background: var(--spd-bg-page);
+  overflow: hidden;
+}
+
+.approval-upload-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.approval-upload-thumb-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: var(--spd-p-text-tertiary);
+  font-size: 26px;
+}
+
+.approval-upload-card figcaption {
+  overflow: hidden;
+  color: var(--spd-text-secondary);
+  font-size: var(--spd-font-size-xs);
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-upload-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--spd-border-default);
+  border-radius: 50%;
+  background: var(--spd-bg-container);
+  color: var(--spd-p-text-secondary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+}
+
+.approval-upload-remove:hover {
+  border-color: var(--spd-p-danger) !important;
+  color: var(--spd-p-danger) !important;
+  background: var(--spd-p-danger-bg) !important;
+}
+
+/* --- 6. 业务属性开关 --- */
+.approval-create-section .dialog-toggle-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 2px;
+  border: 0;
+  background: transparent;
+}
+
+.dialog-toggle-row label {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 999px !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-sm) !important;
+  transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+}
+
+.dialog-toggle-row label:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+/* --- 7. 底部操作区：明确分隔 + 右对齐 + 固定不裁剪 --- */
+.approval-create-actions {
+  flex: none !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  gap: 10px;
+  padding: 12px 24px !important;
+  border-top: 1px solid var(--spd-border-default) !important;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  /* 底部操作区始终留在弹窗内，不随内容滚动 */
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+}
+
+.approval-create-actions .btn {
+  min-height: 34px !important;
+  height: 34px !important;
+  min-width: 88px;
+  padding: 0 18px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  box-shadow: none !important;
+  box-sizing: border-box;
+  transition: border-color 0.16s ease, color 0.16s ease, background-color 0.16s ease;
+}
+
+.approval-create-actions .btn:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-create-actions .btn:focus-visible {
+  outline: 2px solid var(--spd-p-focus);
+  outline-offset: 2px;
+}
+
+.approval-create-actions .btn.btn-primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: var(--spd-p-text-on-primary) !important;
+  box-shadow: var(--spd-p-shadow-btn-primary);
+}
+
+.approval-create-actions .btn.btn-primary:hover {
+  background: var(--primary-strong) !important;
+  border-color: var(--primary-strong) !important;
+  color: var(--spd-p-text-on-primary) !important;
+}
+
+/* --- 8. 来源目录选择区 --- */
+.approval-source-picker {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px dashed var(--spd-border-default);
+  border-radius: 8px;
+  background: var(--spd-bg-page);
+}
+
+.approval-source-results {
+  margin-top: 10px;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.approval-source-results button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-container);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.approval-source-results button:hover:not(:disabled) {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  background: var(--spd-primary-bg) !important;
+}
+
+.approval-source-selected {
+  margin: 8px 0 0 !important;
+  padding: 6px 10px !important;
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-primary-bg) !important;
+  color: var(--spd-p-primary-text) !important;
+  font-size: var(--spd-font-size-sm) !important;
+}
+
 /* 新增字段：商品编码 / 提交时间 —— 主题单色系、等宽对齐 */
 .approval-mono {
   font-family: var(--spd-font-family-mono) !important;
@@ -1818,6 +2335,665 @@ body .column-settings-dialog.column-settings-dialog {
   color: var(--spd-text-secondary) !important;
   font-size: var(--spd-font-size-sm) !important;
   white-space: nowrap !important;
+}
+
+/* =====================================================================
+ * 资质阅览 / 查看 / 审批 三条流程 · 视觉统一（2026-11）
+ * ---------------------------------------------------------------------
+ * 用户诉求：
+ *   「里面的icon使用element提供的icon，然后整体要协调，各个部分割裂感太强了」
+ *
+ * 统一约定（全部沿用「新增待审批目录」弹窗已建立的规范，不新增调色板）：
+ *   1. 弹窗头部：主色竖条 + Element Plus 图标 + 主副标题两行；
+ *   2. 弹窗底部：分隔线 + 右对齐 + 34px 按钮；
+ *   3. 分区标题：主色竖条 + 标题（与 .approval-create-section h4 同构）；
+ *   4. 字段控件：与弹窗内其它输入框等高（34px）、同圆角、同边框色；
+ *   5. 间距节奏：分区之间 14px 留白 + 1px 分隔线（不画框）。
+ * ===================================================================== */
+
+/* --- 1. 资质阅览弹窗头部（el-dialog 自定义 header） ---
+   头部直接复用「新增待审批目录」弹窗的 .approval-create-head 结构与样式，
+   三个弹窗因此读起来是同一套系统（主色竖条 + 副标题 + 主标题 + 关闭按钮）。 */
+
+/* 弹窗容器：与「新增待审批目录」弹窗同样的圆角 / 描边 / 投影 / 最大高度 */
+body .qualification-review-dialog.qualification-review-dialog {
+  /* 放宽到 1280px：图片按「两两一行」排布，每张能显示得足够大 */
+  width: min(1280px, 94vw) !important;
+  max-height: calc(100vh - 96px) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--spd-p-shadow-dialog);
+  overflow: hidden !important;
+  display: flex;
+  flex-direction: column;
+}
+
+.qualification-review-dialog .el-dialog__header {
+  padding: 0 !important;
+  margin: 0;
+  border-bottom: 0;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
+}
+
+/* el-dialog 自带的关闭按钮已隐藏（:show-close="false"），改用统一的 SpdButton 关闭按钮 */
+.qualification-review-dialog .el-dialog__headerbtn {
+  display: none !important;
+}
+
+/* 头部内容：图标徽标 + 主副标题 */
+.qual-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 40px;
+}
+
+.qual-dialog-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: var(--spd-primary-bg);
+  color: var(--primary);
+  font-size: 17px;
+}
+
+.qual-dialog-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.qual-dialog-text em {
+  color: var(--spd-p-text-secondary);
+  font-size: var(--spd-font-size-xs);
+  font-style: normal;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  line-height: 1.2;
+}
+
+.qual-dialog-text strong {
+  color: var(--spd-text-heading);
+  font-size: var(--spd-font-size-xl);
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* 弹窗主体与底部：与新增弹窗的呼吸节奏对齐 */
+.qualification-review-dialog .el-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 22px 18px;
+  background: var(--spd-bg-container);
+}
+
+.qualification-review-dialog .el-dialog__footer {
+  flex: none;
+  padding: 12px 22px;
+  border-top: 1px solid var(--spd-border-default);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
+}
+
+.qualification-review-dialog .el-dialog__footer .btn {
+  min-height: 34px !important;
+  height: 34px !important;
+  min-width: 88px;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600;
+}
+
+/* --- 2. 附件预览弹窗（资质附件阅览）沿用同一头部语言 --- */
+.qual-preview-dialog .el-dialog__header {
+  padding: 14px 22px !important;
+  margin: 0;
+  border-bottom: 1px solid var(--spd-border-default);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
+}
+
+.qual-preview-dialog .el-dialog__title {
+  color: var(--spd-text-heading);
+  font-size: var(--spd-font-size-lg);
+  font-weight: 700;
+}
+
+/* --- 3. 日期选择器：与弹窗内其它输入框完全一致 ---
+   【结构说明】el-date-picker 的 DOM 是两层：
+     外层 .el-input.el-date-editor（容器，不该画边框）
+     内层 .el-input__wrapper（真正显示输入框与边框环的那一层）
+   之前给外层也画了 1px 边框，于是形成「框里还有框」的双边框。
+   现在：外层透明无框，全部边框 / 底色 / 高度交给内层 wrapper，
+   视觉上与同区域原生 input 完全一致。 */
+.approval-create-section .supplier-form-grid .approval-date-picker,
+.approval-create-section .supplier-form-grid .el-date-editor.el-input {
+  width: 100%;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.approval-create-section .supplier-form-grid .approval-date-picker .el-input__wrapper,
+.approval-create-section .supplier-form-grid .el-date-editor.el-input__wrapper {
+  width: 100%;
+  min-height: 34px !important;
+  height: 34px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-base) !important;
+  padding: 0 10px !important;
+  box-shadow: none !important;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+/* 焦点环：与同区域原生 input 完全一致 */
+.approval-create-section .supplier-form-grid .approval-date-picker .el-input__wrapper.is-focus,
+.approval-create-section .supplier-form-grid .el-date-editor.el-input__wrapper.is-focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent) !important;
+}
+
+/* 内层 input 必须透明化，否则会变成「框里还有框」 */
+.approval-create-section .supplier-form-grid .approval-date-picker .el-input__inner,
+.approval-create-section .supplier-form-grid .approval-date-picker .el-range-input {
+  height: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
+}
+
+/* 占位文字用次级色 */
+.approval-create-section .supplier-form-grid .approval-date-picker .el-input__inner::placeholder {
+  color: var(--spd-p-field-placeholder);
+}
+
+/* 禁用态：与只读 input 一致的虚线 + 页底色 */
+.approval-create-section .supplier-form-grid .approval-date-picker.is-disabled .el-input__wrapper,
+.approval-create-section .supplier-form-grid .el-date-editor.is-disabled .el-input__wrapper,
+.approval-create-section .supplier-form-grid .el-date-editor.is-disabled {
+  background: var(--spd-bg-page) !important;
+  border-style: dashed !important;
+  cursor: not-allowed;
+}
+
+.approval-create-section .supplier-form-grid .approval-date-picker.is-disabled .el-input__inner {
+  color: var(--spd-text-tertiary) !important;
+  -webkit-text-fill-color: var(--spd-text-tertiary) !important;
+}
+
+/* 后缀图标（日历）跟随文字色 */
+.approval-create-section .supplier-form-grid .approval-date-picker .el-input__suffix {
+  color: var(--spd-p-text-tertiary);
+}
+
+/* --- 4. 详情页（查看 / 审批）的日期选择器 ---
+   详情页内联编辑用的是 .edit-input（4px 8px 内边距的紧凑输入），
+   日期框沿用同一规格：等高、同圆角、同边框色、同字号。
+
+   注意：Element Plus 的 el-date-picker 有两层 DOM——
+   外层 .el-input.el-date-editor 与内层 .el-input__wrapper。
+   如果两层都给边框，就会出现「框里还有框」的双重描边。
+   因此外层必须清零边框/背景/内边距，边框只由内层 wrapper 承担。 */
+.qual-item .approval-date-picker,
+.qual-item .el-date-editor.el-input {
+  width: 100%;
+  max-width: 200px;
+  min-height: 0 !important;
+  height: 34px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.qual-item .approval-date-picker .el-input__wrapper,
+.qual-item .el-date-editor .el-input__wrapper {
+  width: 100%;
+  min-height: 34px !important;
+  height: 34px !important;
+  border: 1px solid var(--spd-p-border-strong) !important;
+  border-radius: 6px !important;
+  background: var(--spd-p-bg) !important;
+  font-size: var(--spd-font-size-base) !important;
+  padding: 0 8px !important;
+  box-shadow: none !important;
+}
+
+.qual-item .approval-date-picker .el-input__inner {
+  height: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: var(--spd-p-text) !important;
+  font-size: var(--spd-font-size-base) !important;
+}
+
+/* --- 5. 详情页分区标题：与弹窗分区标题同构 ---
+   详情页的 .info-card-header 原本是「彩色圆角块 + 图标 + 标题」，
+   现在改为与新增弹窗一致的主色竖条 + 标题，
+   让「查看」页与「新增」「资质阅览」读起来是同一套系统。 */
+.approval-detail-page .info-card-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 10px 10px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+}
+
+/* 主色竖条：与 .approval-create-section h4 / .approval-create-head 同构 */
+.approval-detail-page .info-card-header::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--spd-p-accent-bar-gradient);
+}
+
+.approval-detail-page .info-card-header .icn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.approval-detail-page .info-card-header h4 {
+  margin: 0;
+  color: var(--spd-text-heading);
+  font-size: var(--spd-font-size-lg);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* 详情页各区块之间的呼吸间距 */
+.approval-detail-page .approval-info-grid,
+.approval-detail-page .qualification-card,
+.approval-detail-page .change-diff-section,
+.approval-detail-page .approval-opinion-card {
+  margin-top: 14px;
+}
+
+/* =====================================================================
+ * 7. 详情页（查看 / 审批）· 区块底色统一标准化（2026-11）
+ * ---------------------------------------------------------------------
+ * 用户诉求：
+ *   「点击查看和审批之后的界面以及整体样式做优化，
+ *     每个小部分的背景色割裂感太强了，你做统一标准化」
+ *
+ * 【问题根因】
+ *   详情页同时存在 4 套不同的容器语言：
+ *     1) .approval-info-card   —— 白底 + 1px 描边 + 投影
+ *     2) .qualification-card   —— 浅青底 + 1.5px 青色描边（整体换色）
+ *     3) .change-diff-section  —— 浅青底 + 青色描边
+ *     4) .approval-opinion-card—— 白底 + 描边 + 投影
+ *   内层又套着 .qual-item（浅青描边小卡）、.tag-pill（各色胶囊），
+ *   一屏之内出现 5~6 种底色 → 视觉上「一块一块」，割裂感极强。
+ *
+ * 【标准化方案】
+ *   · 页面底色：统一 --spd-bg-page；
+ *   · 所有一级区块容器：统一白底 --spd-bg-container + 1px --spd-border-subtle
+ *     描边 + 统一圆角 + 统一内边距 + 统一投影；
+ *   · 一级区块之间只用留白 + 1px 分隔线区分，不靠底色区分；
+ *   · 分区标题统一「主色竖条 + 图标 + 标题」，不再用彩色圆角块；
+ *   · 内层元素（资质项、变更表、字段）一律透明底，只保留 1px 分隔线。
+ * ===================================================================== */
+
+/* --- 7.1 页面底色与容器宽度 --- */
+.approval-detail-page {
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
+  max-width: 1240px;
+  gap: 14px;
+}
+
+/* --- 7.2 一级区块容器：全部统一为「白底 + 细描边 + 统一圆角/内边距」 --- */
+.approval-detail-page .approval-detail-header,
+.approval-detail-page .approval-info-card,
+.approval-detail-page .qualification-card,
+.approval-detail-page .change-diff-section,
+.approval-detail-page .approval-opinion-card {
+  border: 1px solid var(--spd-border-subtle) !important;
+  border-radius: var(--spd-radius-md, 8px) !important;
+  background: var(--spd-bg-container) !important;
+  box-shadow: var(--spd-p-shadow-1) !important;
+  padding: 16px 18px !important;
+}
+
+/* 详情页头部：与其它区块同规格，但标题更大、底部有审批流分隔线 */
+.approval-detail-page .approval-detail-header {
+  padding: 18px 20px 14px !important;
+}
+
+.approval-detail-page .approval-detail-header h2 {
+  color: var(--spd-text-heading) !important;
+}
+
+.approval-detail-page .approval-header-divider {
+  background: var(--spd-border-subtle) !important;
+}
+
+.approval-detail-page .approval-header-meta {
+  color: var(--spd-text-secondary) !important;
+}
+
+/* 资质卡与变更对比卡原本是「浅青底 + 青色粗描边」，这里彻底降级为普通区块，
+   避免同一屏里出现第二种底色语言。 */
+.approval-detail-page .qualification-card,
+.approval-detail-page .change-diff-section {
+  border-width: 1px !important;
+  background: var(--spd-bg-container) !important;
+}
+
+/* --- 7.3 内层元素统一透明底，只留分隔线 --- */
+.approval-detail-page .qual-item {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 8px 0 !important;
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+}
+
+.approval-detail-page .qual-grid {
+  gap: 0 24px !important;
+}
+
+/* --- 7.4 变更对比表：表头与单元格统一浅灰底，不再用青色块 --- */
+.approval-detail-page .change-diff-table th {
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  color: var(--spd-text-secondary) !important;
+  border-bottom: 1px solid var(--spd-border-default) !important;
+}
+
+.approval-detail-page .change-diff-table th,
+.approval-detail-page .change-diff-table td {
+  border-bottom: 1px solid var(--spd-border-subtle) !important;
+}
+
+.approval-detail-page .change-diff-table td:nth-child(3) {
+  color: var(--spd-text-heading) !important;
+}
+
+/* --- 7.5 字段区：标签与值之间只用留白，不加底色 --- */
+.approval-detail-page .approval-info-fields {
+  gap: 10px 24px !important;
+}
+
+.approval-detail-page .approval-info-fields .field .flabel {
+  color: var(--spd-text-secondary) !important;
+  font-weight: 600 !important;
+}
+
+.approval-detail-page .approval-info-fields .field .fvalue {
+  color: var(--spd-text-heading) !important;
+  font-weight: 700 !important;
+}
+
+.approval-detail-page .approval-info-fields .field.highlight .fvalue {
+  color: var(--primary) !important;
+}
+
+/* --- 7.6 业务属性胶囊：统一中性底 + 语义色描边，不再大面积彩色填充 --- */
+.approval-detail-page .tag-pill {
+  min-height: 26px;
+  border-radius: var(--spd-radius, 6px);
+  padding: 0 10px;
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  color: var(--spd-text-secondary) !important;
+  border: 1px solid var(--spd-border-default);
+  font-size: var(--spd-font-size-sm) !important;
+  font-weight: 600 !important;
+}
+
+.approval-detail-page .tag-pill.yes {
+  background: var(--spd-p-success-bg) !important;
+  color: var(--spd-p-success-strong) !important;
+  border-color: var(--spd-p-success-border);
+}
+
+.approval-detail-page .tag-pill.no {
+  background: var(--spd-bg-page, var(--spd-p-bg-muted)) !important;
+  color: var(--spd-text-tertiary) !important;
+}
+
+/* --- 7.7 分区标题：统一「主色竖条 + 图标 + 标题」，去掉彩色圆角块 --- */
+.approval-detail-page .info-card-header .icn {
+  background: transparent !important;
+  color: var(--primary) !important;
+  width: 20px;
+  height: 20px;
+}
+
+.approval-detail-page .qualification-card .info-card-header h4 {
+  color: var(--spd-text-heading) !important;
+}
+
+/* 审批意见标题：与其它分区标题同构（主色竖条 + 图标 + 标题） */
+.approval-detail-page .approval-section-title {
+  position: relative;
+  padding-left: 10px;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--spd-border-subtle);
+}
+
+.approval-detail-page .approval-section-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1px;
+  bottom: 11px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--spd-p-accent-bar-gradient);
+}
+
+.approval-detail-page .approval-section-title .swrap {
+  background: transparent !important;
+  color: var(--primary) !important;
+}
+
+/* --- 7.8 目录分类路径：去掉额外描边 --- */
+.approval-detail-page .approval-category-path {
+  border-top: 1px solid var(--spd-border-subtle) !important;
+  padding-top: 10px !important;
+}
+
+/* --- 7.9 审批意见输入框：与其它输入框同规格 --- */
+.approval-detail-page .approval-opinion-card textarea {
+  background: var(--spd-bg-container) !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+}
+
+/* --- 7.10 只读查看标记 --- */
+.approval-detail-page .approval-view-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--spd-border-default);
+  border-radius: var(--spd-radius, 6px);
+  background: var(--spd-bg-page, var(--spd-p-bg-muted));
+  color: var(--spd-text-secondary);
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.approval-detail-page .approval-view-flag .el-icon {
+  font-size: 14px;
+  color: var(--spd-text-tertiary);
+}
+
+/* --- 7.11 详情页内的附件区（资质证照）也走统一区块语言 --- */
+.approval-detail-page .qualification-attachments {
+  padding-top: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--spd-border-subtle) !important;
+}
+
+/* 详情页审批动作区：与弹窗底部操作区同节奏 */
+.approval-detail-page .approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.approval-detail-page .approval-actions .btn {
+  min-height: 34px !important;
+  height: 34px !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 600;
+}
+
+/* 详情页返回按钮：图标与文字对齐 */
+.approval-detail-page .back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- 8. 返回按钮：统一品牌青色 + 几何规格与列表操作列「查看」按钮一致 ---
+   用户诉求：
+     「返回待审批目录按钮的高度太小了，要和外面的查看按钮的样式一样，需要统一」
+     「统一为青色」
+
+   因此这里把「查看 / 审批」按钮（.ulc-action）的规格拆成两部分复用：
+     · 几何（高度 / 内边距 / 圆角 / 字号 / 字重 / 行高）→ 照抄 .ulc-action；
+     · 配色（底色 / 边框色 / 文字色）→ 统一使用品牌青色 primary 令牌，
+       不再随申请类型变化，保证全站「返回」类按钮颜色一致。
+
+   几何来源：styles/list/unified-list.css 的
+     `.spd-unified-list .ulc-actions .ulc-action`
+     + styles/components/button-typography.css 的 `--spd-button-font-size`。 */
+.approval-detail-page .back-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  /* 高度与 .ulc-action 一致：min-height 30px（不是状态条的 24px） */
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--spd-p-chip-primary-border);
+  border-radius: var(--spd-c-control-radius, 4px);
+  background: var(--spd-p-chip-primary-bg);
+  color: var(--spd-p-chip-primary-text);
+  font-size: var(--spd-button-font-size, var(--spd-font-size-base));
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.approval-detail-page .back-button:hover:not(:disabled) {
+  filter: brightness(0.97);
+  box-shadow: var(--spd-p-shadow-1);
+}
+
+.approval-detail-page .back-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.approval-detail-page .back-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.approval-detail-page .back-button .el-icon {
+  font-size: 15px;
+}
+
+/* --- 6. 资质证照信息里的图标（Element Plus） --- */
+.approval-detail-page .qual-item .q-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--spd-bg-page);
+  color: var(--spd-p-text-secondary);
+  font-size: 14px;
+}
+
+/* --- 7. 行内操作按钮：图标与文字对齐 --- */
+.ulc-actions .ulc-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ulc-actions .ulc-action .el-icon {
+  font-size: 13px;
+}
+
+/* --- 8. 批量审批弹窗：与新增弹窗同一套头部 / 底部语言 --- */
+.approval-batch-dialog {
+  width: min(880px, 100%) !important;
+}
+
+.approval-batch-dialog .approval-create-scroll {
+  padding: 4px 24px 16px;
+  background: var(--spd-bg-container);
+}
+
+.approval-batch-dialog .approval-create-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.approval-batch-dialog .approval-create-section label > span {
+  color: var(--spd-text-secondary);
+  font-size: var(--spd-font-size-sm);
+  font-weight: 600;
+}
+
+.approval-batch-dialog .approval-create-section textarea {
+  min-height: 84px !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  border: 1px solid var(--spd-border-default) !important;
+  border-radius: var(--spd-radius, 6px) !important;
+  background: var(--spd-bg-container) !important;
+  color: var(--spd-text-primary) !important;
+  font-size: var(--spd-font-size-base) !important;
+  line-height: var(--spd-lh-base);
+  resize: vertical;
 }
 
 /* =====================================================================
@@ -1843,7 +3019,10 @@ body .column-settings-dialog.column-settings-dialog {
   border-right-color: color-mix(in srgb, var(--spd-p-bg) 22%, transparent) !important;
   border-bottom: 0 !important;
   box-shadow: var(--spd-p-shadow-1);
-  white-space: nowrap;
+  /* 表头标签过长时换行显示（不截断成省略号） */
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* 表头内容：文字与列宽拖拽热区
@@ -1857,8 +3036,12 @@ body .column-settings-dialog.column-settings-dialog {
   display: inline-block;
   vertical-align: middle;
   max-width: calc(100% - 14px);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* 表头文字过长时换行，不截断成省略号 */
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .approval-wide-table th > .ulc-col-resizer {
@@ -1932,46 +3115,24 @@ thead .approval-sticky-product {
    栅格列数 / 换行规则 / 控件高度 / 操作区位置全部由
    components/spd-filter-bar.css 的「标准规则」统一控制，此处不再另写一套。 */
 
-/* 搜索框：与统一筛选栏控件同高（--spd-p-field-height），不再单独写死 38px */
-.spd-filter-bar .approval-search {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  box-sizing: border-box;
-  height: var(--spd-p-field-height);
-  min-height: var(--spd-p-field-height);
-  max-height: var(--spd-p-field-height);
+/* 关键字搜索框：「审批单号 / 商品名称」是一个合并关键字，
+   直接用统一筛选栏标准的原生输入框（.md-input），
+   与旁边的 el-select 等高、同圆角、同边框色，不会出现「框里还有框」。
+   （旧的 .approval-search 包装层已下线：内层 input 会被筛选栏标准规则
+     再画一层边框，视觉上变成两个叠在一起的框。） */
+.spd-filter-bar .approval-keyword-input {
+  /* 统一筛选栏标准已保证高度 / 圆角 / 边框 / 焦点环，
+     这里只补齐与 el-select 一致的左右留白与文字颜色。 */
   padding: 0 var(--spd-p-field-padding-x);
-  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border) !important;
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border);
   border-radius: var(--spd-p-field-radius);
-  background: var(--spd-p-field-bg) !important;
-  color: var(--spd-p-field-text) !important;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-.spd-filter-bar .approval-search:focus-within {
-  border-color: var(--spd-p-field-focus-border) !important;
-  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring) !important;
-}
-
-.spd-filter-bar .approval-search svg {
-  color: var(--spd-p-field-placeholder) !important;
-  flex-shrink: 0;
-}
-
-.spd-filter-bar .approval-search input {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  border: 0;
-  outline: 0;
-  font: inherit;
-  font-size: var(--spd-font-size-base);
-  background: transparent;
+  background: var(--spd-p-field-bg);
   color: var(--spd-p-field-text);
+  font-size: var(--spd-font-size-base);
+  line-height: var(--spd-lh-base);
 }
 
-.spd-filter-bar .approval-search input::placeholder {
+.spd-filter-bar .approval-keyword-input::placeholder {
   color: var(--spd-p-field-placeholder);
 }
 
@@ -2016,6 +3177,58 @@ thead .approval-sticky-product {
   align-items: center;
   justify-content: center;
   gap: 6px;
+  flex-wrap: nowrap;
+}
+
+/* 待审批目录「操作」列：三个动作按钮（资质阅览 / 查看 / 审批）必须完整显示、
+   绝不被表格右缘裁掉。
+   ---------------------------------------------------------------------
+   之前的问题：
+     - 列宽上限被限制在 340px，用户想再拉宽也拉不动；
+     - `.ulc-actions` 上的 `max-width: 100%` 让按钮组被压回列宽内，
+       列宽不够时最后一个按钮直接被表格右缘裁掉。
+   现在的处理：
+     - 列宽上限已在 APPROVAL_COL_DEFAULTS 中移除（可无限拉宽）；
+     - 去掉 `max-width: 100%`，让按钮组按内容宽度自然铺开；
+     - 单元格 overflow 保持 visible，必要时允许按钮溢出到留白区显示。 */
+.approval-page .ulc-table .ulc-actions {
+  flex-wrap: nowrap !important;
+  gap: 8px;
+  justify-content: flex-start;
+  white-space: nowrap;
+  /* 不再限制为列宽：按钮组按内容宽度铺开，绝不被压缩/裁切 */
+  max-width: none;
+}
+
+.approval-page .ulc-table .ulc-actions .ulc-action,
+.approval-page .ulc-table button.ulc-action {
+  flex: 0 0 auto;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+/* 覆盖 unified-list.css 里「单元格直接子元素 max-width:100%」的通用规则。
+   ---------------------------------------------------------------------
+   unified-list.css 的选择器
+     `.spd-unified-list .ulc-table td.el-table__cell .cell > *`
+   特异度高于本页 `.approval-page .ulc-table .ulc-actions`，
+   会把按钮组压回列宽（max-width:100%）→ 最后一个按钮被表格右缘裁掉。
+   这里用同等但更精确的选择器（多一层子元素限定）把它改回 none。 */
+.approval-page .ulc-table td.el-table__cell .cell > .ulc-actions {
+  max-width: none;
+}
+
+.approval-page .ulc-table td.el-table__cell .cell > .ulc-actions > * {
+  max-width: none;
+}
+
+/* 操作列表头与其他表头对齐：居中显示动作组 */
+.approval-page .ulc-table td.el-table__cell:has(.ulc-actions) .cell {
+  width: 100%;
+  min-width: 0;
+  white-space: nowrap !important;
+  overflow: visible;
+  text-overflow: clip;
   flex-wrap: nowrap;
 }
 

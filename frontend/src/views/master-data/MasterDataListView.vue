@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   Ban,
   Building2,
@@ -23,14 +23,14 @@ import {
   ShieldCheck,
   Trash2,
   Truck,
-  Upload,
-  X
+  Upload
 } from '@lucide/vue'
 import { useHospitalProductManagement } from '../../composables/useHospitalProductManagement'
 import { useMasterDataExchange } from '../../composables/useMasterDataExchange'
 import { useMasterDataWorkbench } from '../../composables/useMasterDataWorkbench'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 import { formatDateTime } from '../../utils/dateTime'
 import { useOrganizationMasterData } from '../../composables/useOrganizationMasterData'
 import { useSpdConfirm } from '../../composables/useSpdConfirm'
@@ -42,6 +42,7 @@ import DepartmentDialog from '../../components/master-data/DepartmentDialog.vue'
 import DepartmentWarehouseCatalogDialog from '../../components/master-data/DepartmentWarehouseCatalogDialog.vue'
 import DepartmentWarehouseCatalogBatchDialog from '../../components/master-data/DepartmentWarehouseCatalogBatchDialog.vue'
 import DepartmentWarehouseDialog from '../../components/master-data/DepartmentWarehouseDialog.vue'
+import HospitalProductDetailDialog from '../../components/master-data/HospitalProductDetailDialog.vue'
 import ManufacturerDialog from '../../components/master-data/ManufacturerDialog.vue'
 import ProductDialog from '../../components/master-data/ProductDialog.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
@@ -373,10 +374,10 @@ watch(actionError, (text) => {
   notify.error(text)
 })
 
-// ===== 医院商品目录精简版状态（对齐定数包模板维护新版：去冗余 + 抽屉展示次要字段） =====
+// ===== 医院商品目录精简版状态（对齐定数包模板维护新版：去冗余 + 居中弹窗展示次要字段） =====
 const hospitalShowMore = ref(false)
 const hospitalDetailCode = ref('')
-const hospitalDrawerOpen = computed(() => hospitalDetailCode.value !== '')
+const hospitalDetailOpen = computed(() => hospitalDetailCode.value !== '')
 const hospitalDetailRow = computed(() => {
   const rows = (page.value?.rows ?? []) as Array<Record<string, unknown>>
   return rows.find((row) => String(row.code) === hospitalDetailCode.value) ?? null
@@ -410,6 +411,7 @@ const hospitalCols = useListColumns({
 })
 const hospitalColBinding = (key: string) => hospitalCols.columnBinding(key)
 const hospitalTableRef = hospitalCols.tableRef
+const fillHeightHospital = useFillHeightTable({ tableRef: hospitalTableRef })
 const hospitalColSettingsOpen = hospitalCols.settingsOpen
 const visibleHospitalCols = hospitalCols.visibleColumns
 const isHospitalColVisible = (key: string) => hospitalCols.isColumnVisible(key)
@@ -424,6 +426,36 @@ function hospitalAttrTags(row: Record<string, unknown>) {
   if (String(row.keyMonitored) === '是') tags.push({ text: '重点监控', hot: true })
   if (String(row.volumeBased) === '是') tags.push({ text: '带量', hot: false })
   return tags.slice(0, 3)
+}
+
+/**
+ * 医院目录单价文案（含货币单位）。
+ *
+ * 单价是「金额」，必须带上货币单位「元」，
+ * 否则「15 个」会被误读成数量而不是单价（用户反馈：看起来是错的）。
+ *
+ * - 后端返回 DECIMAL，JSON 里是形如 `15.0000` 的字符串/数字，统一裁成最多 2 位小数；
+ * - 0 元保留为 `0`（不是 `-`），因为 0 是一个真实的价格，不是缺失值；
+ * - 缺失 / 非数值才回退成 `-`。
+ */
+function formatHospitalPrice(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === '') return '-'
+  const amount = Number(value)
+  if (!Number.isFinite(amount)) return String(value)
+  return amount.toFixed(2).replace(/\.?0+$/, '')
+}
+
+/**
+ * 医院目录单价单元格文案：`15 元/个`。
+ *
+ * 单价是「每单位多少钱」，所以货币单位「元」与计量单位之间用「/」连接，
+ * 避免拼成「0 元个」这种读不通的文案。
+ */
+function formatHospitalUnitPrice(value: unknown, unit: unknown) {
+  const price = formatHospitalPrice(value)
+  if (price === '-') return '-'
+  const unitText = String(unit ?? '').trim()
+  return unitText ? `${price} 元/${unitText}` : `${price} 元`
 }
 
 // ===== 统一列表：科室管理 / 科室库房目录（列宽拖拽 + 列设置 + 统一斑马纹表格） =====
@@ -595,11 +627,16 @@ const manufacturerCols = useListColumns({
 
 const manufacturerColBinding = (key: string) => manufacturerCols.columnBinding(key)
 const departmentTableRef = departmentCols.tableRef
+const fillHeightDepartment = useFillHeightTable({ tableRef: departmentTableRef })
 const catalogTableRef = catalogCols.tableRef
 const warehouseTableRef = warehouseCols.tableRef
+const fillHeightWarehouse = useFillHeightTable({ tableRef: warehouseTableRef })
 const campusTableRef = campusCols.tableRef
+const fillHeightCampus = useFillHeightTable({ tableRef: campusTableRef })
 const supplierTableRef = supplierCols.tableRef
+const fillHeightSupplier = useFillHeightTable({ tableRef: supplierTableRef })
 const manufacturerTableRef = manufacturerCols.tableRef
+const fillHeightManufacturer = useFillHeightTable({ tableRef: manufacturerTableRef })
 
 const isDepartmentColVisible = (key: string) => departmentCols.isColumnVisible(key)
 const departmentColWidth = (key: string) => departmentCols.columnWidth(key)
@@ -610,7 +647,7 @@ const catalogColWidth = (key: string) => catalogCols.columnWidth(key)
 const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
 
 /* ------------------------------------------------------------------
- * 科室库房目录表格：表头固定
+ * 科室库房目录表格：表头固定 + 高度铺满内容区
  * ------------------------------------------------------------------
  * 需求：页面/内容区整体滚动时表头不固定（随内容滚走）；
  *      表格内部出现滚动条时，表头固定在表格容器顶部，方便确认当前列。
@@ -618,72 +655,15 @@ const catalogColBinding = (key: string) => catalogCols.columnBinding(key)
  * 实现：给 el-table 设置 max-height，Element Plus 会把超出的行收进
  *      表格自身的滚动容器（.el-table__body-wrapper），表头留在容器顶部不动。
  *      高度按「内容区可视高度 - 表格上方占用高度 - 分页区预留」动态计算，
- *      用 ResizeObserver 跟随视口宽度、字号档位、内容区高度变化重算，
+ *      测量规则收敛在共享 composable useFillHeightTable 中，
  *      避免硬编码像素在不同分辨率下出现大片留白或表格被压扁。
  * ------------------------------------------------------------------ */
 
-/** 表格最大高度（px），由 measureCatalogTableMaxHeight 更新 */
-const catalogTableMaxHeight = ref(0)
-
-/** 分页区预留高度（px）：分页条 + 间距 */
-const CATALOG_PAGINATION_RESERVE = 76
-/** 最小可用高度（px）：低于此值时不再压缩，避免表格只剩一两行 */
-const CATALOG_MIN_TABLE_HEIGHT = 260
-
-let catalogTableResizeObserver: ResizeObserver | undefined
-
-/**
- * 计算表格可用的最大高度。
- * 以内容区（main.spd-content）为基准，减去表格上方元素（标题、筛选区、工具栏）
- * 实际占用的高度与分页区预留高度。
- */
-function measureCatalogTableMaxHeight() {
-  const tableEl = catalogTableRef.value?.$el as HTMLElement | undefined
-  if (!tableEl) return
-  const contentEl = tableEl.closest('.spd-content') as HTMLElement | null
-  const container = contentEl ?? (document.querySelector('.spd-content') as HTMLElement | null)
-  if (!container) return
-
-  // 内容区可视高度
-  const containerClientH = container.clientHeight
-  if (!containerClientH) return
-
-  // 表格顶部相对内容区顶部的偏移（标题 + 筛选区 + 工具栏）
-  const containerRect = container.getBoundingClientRect()
-  const tableRect = tableEl.getBoundingClientRect()
-  const offsetTop = Math.max(0, Math.round(tableRect.top - containerRect.top + container.scrollTop))
-
-  const available = containerClientH - offsetTop - CATALOG_PAGINATION_RESERVE
-  catalogTableMaxHeight.value = Math.max(CATALOG_MIN_TABLE_HEIGHT, available)
-}
-
-/** 字号档位变化会改变行高，进而改变表格高度，需要重算可用高度 */
-function setupCatalogTableResizeObserver() {
-  if (typeof ResizeObserver === 'undefined') return
-  const contentEl = document.querySelector('.spd-content') as HTMLElement | null
-  if (!contentEl) return
-  catalogTableResizeObserver = new ResizeObserver(() => {
-    measureCatalogTableMaxHeight()
-  })
-  catalogTableResizeObserver.observe(contentEl)
-}
-
-onMounted(() => {
-  measureCatalogTableMaxHeight()
-  setupCatalogTableResizeObserver()
-  // 数据加载完成后行数变化，需要重算
-  watch(
-    () => page.value?.rows?.length,
-    () => {
-      // 等 DOM 更新后再测量
-      requestAnimationFrame(measureCatalogTableMaxHeight)
-    }
-  )
-})
-
-onBeforeUnmount(() => {
-  catalogTableResizeObserver?.disconnect()
-  catalogTableResizeObserver = undefined
+/** 表格最大高度（px），由共享 composable 维护 */
+const { maxHeight: catalogTableMaxHeight } = useFillHeightTable({
+  tableRef: catalogTableRef,
+  minHeight: 260,
+  paginationReserve: 76
 })
 
 const isWarehouseColVisible = (key: string) => warehouseCols.isColumnVisible(key)
@@ -955,7 +935,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
           </label>
           <label>
             <span>状态</span>
-            <el-select v-model="hospitalQuery.status" placeholder="全部状态" clearable aria-label="筛选商品状态">
+            <el-select v-model="hospitalQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选商品状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -994,7 +974,7 @@ const warehouseColSettingsPop = useColSettingsPopover({
             </label>
             <label>
               <span>是否集采</span>
-              <el-select v-model="hospitalQuery.isCentralized" placeholder="全部" clearable aria-label="筛选是否集采">
+              <el-select v-model="hospitalQuery.isCentralized" placeholder="全部" clearable popper-class="md-select-popper" aria-label="筛选是否集采">
                 <el-option label="全部" value="" />
                 <el-option label="是" value="是" />
                 <el-option label="否" value="否" />
@@ -1047,11 +1027,11 @@ const warehouseColSettingsPop = useColSettingsPopover({
             @click="disableProducts()">
           <template #icon><Ban :size="16" /></template>
         </SpdButton>
-          <SpdButton label="导出" tone="neutral" @click="exportHospitalCatalog">
+          <SpdButton label="导出" tone="info" @click="exportHospitalCatalog">
           <template #icon><Download :size="16" /></template>
         </SpdButton>
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="hospitalColSettingsAnchorRef"
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="hospitalColSettingsAnchorRef"
              
              
               @click="hospitalColSettingsOpen = !hospitalColSettingsOpen">
@@ -1083,7 +1063,7 @@ ref="hospitalColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightHospital.maxHeight" style="width: 100%"
             empty-text="暂无医院目录数据"
             @selection-change="onHospitalSelectionChange"
 
@@ -1154,8 +1134,7 @@ ref="hospitalColSettingsPopRef"
                 <div class="ulc-cell-stack">
                   <!-- 单价与单位是一个整体：整体放得下就保持一行，整体超出列宽才折行 -->
                   <span class="ulc-joined">
-                    <span class="ulc-strong">{{ (row as Record<string, unknown>).price ?? '-' }}</span>
-                    <span class="ulc-sub">{{ String((row as Record<string, unknown>).unit ?? '') }}</span>
+                    <span class="ulc-strong">{{ formatHospitalUnitPrice((row as Record<string, unknown>).price, (row as Record<string, unknown>).unit) }}</span>
                   </span>
                 </div>
               </template>
@@ -1255,57 +1234,11 @@ ref="hospitalColSettingsPopRef"
         </template>
       </MdDataTableCard>
 
-      <div v-if="hospitalDrawerOpen" class="catalog-mask" @click="closeHospitalDetail"></div>
-      <aside v-if="hospitalDrawerOpen && hospitalDetailRow" class="catalog-drawer" role="dialog" aria-label="商品详情">
-        <header class="drawer-head">
-          <div>
-            <h3>{{ String(hospitalDetailRow.name ?? '-') }}</h3>
-            <p>{{ String(hospitalDetailRow.code ?? '-') }} · {{ String(hospitalDetailRow.spec ?? '-') }}</p>
-          </div>
-          <SpdButton icon-only variant="ghost" tone="neutral" aria-label="关闭" @click="closeHospitalDetail">
-            <template #icon><X :size="16" /></template>
-          </SpdButton>
-        </header>
-        <div class="drawer-body">
-          <section class="d-section">
-            <h5>基本信息</h5>
-            <div class="d-grid">
-              <div class="d-item"><span>商品编码</span><strong class="mono">{{ String(hospitalDetailRow.code ?? '-') }}</strong></div>
-              <div class="d-item"><span>商品名称</span><strong>{{ String(hospitalDetailRow.name ?? '-') }}</strong></div>
-              <div class="d-item"><span>规格型号</span><strong>{{ String(hospitalDetailRow.spec ?? '-') }}</strong></div>
-              <div class="d-item"><span>单位 / 单价</span><strong>{{ String(hospitalDetailRow.unit ?? '-') }} · ¥ {{ String(hospitalDetailRow.price ?? '-') }}</strong></div>
-              <div class="d-item"><span>厂家</span><strong>{{ String(hospitalDetailRow.manufacturer ?? '-') }}</strong></div>
-              <div class="d-item"><span>供应商</span><strong>{{ String(hospitalDetailRow.supplier ?? '-') }}</strong></div>
-              <div class="d-item"><span>状态</span><strong>{{ String(hospitalDetailRow.status ?? '-') }}</strong></div>
-              <div class="d-item"><span>创建时间</span><strong>{{ formatListDateTime(hospitalDetailRow.createTime) }}</strong></div>
-              <div class="d-item"><span>修改时间</span><strong>{{ formatListDateTime(hospitalDetailRow.updateTime) }}</strong></div>
-              <div class="d-item"><span>品牌</span><strong>{{ String(hospitalDetailRow.brand ?? '-') }}</strong></div>
-            </div>
-          </section>
-          <section class="d-section">
-            <h5>分类与证照</h5>
-            <div class="d-grid">
-              <div class="d-item"><span>一级分类</span><strong>{{ String(hospitalDetailRow.firstCategory ?? '-') }}</strong></div>
-              <div class="d-item"><span>二级分类</span><strong>{{ String(hospitalDetailRow.secondCategory ?? '-') }}</strong></div>
-              <div class="d-item full"><span>三级分类</span><strong>{{ String(hospitalDetailRow.thirdCategory ?? '-') }}</strong></div>
-              <div class="d-item"><span>注册证号</span><strong class="mono">{{ String(hospitalDetailRow.registrationNo ?? '-') }}</strong></div>
-              <div class="d-item"><span>招采子编码</span><strong class="mono">{{ String(hospitalDetailRow.tenderSubCode ?? '-') }}</strong></div>
-              <div class="d-item full"><span>合同编码</span><strong class="mono">{{ String(hospitalDetailRow.contractCode ?? '-') }}</strong></div>
-            </div>
-          </section>
-          <section class="d-section">
-            <h5>属性标签</h5>
-            <div class="d-tags">
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.centralized) === '是' }">集采 {{ String(hospitalDetailRow.centralized ?? '-') }}</span>
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.domestic) === '是' }">国产 {{ String(hospitalDetailRow.domestic ?? '-') }}</span>
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.chargeable) === '是' }">收费 {{ String(hospitalDetailRow.chargeable ?? '-') }}</span>
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.keyMonitored) === '是' }">重点监控 {{ String(hospitalDetailRow.keyMonitored ?? '-') }}</span>
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.volumeBased) === '是' }">带量 {{ String(hospitalDetailRow.volumeBased ?? '-') }}</span>
-              <span class="tag" :class="{ hl: String(hospitalDetailRow.quotaManaged) === '是' }">定数 {{ String(hospitalDetailRow.quotaManaged ?? '-') }}</span>
-            </div>
-          </section>
-        </div>
-      </aside>
+      <HospitalProductDetailDialog
+        :open="hospitalDetailOpen"
+        :row="hospitalDetailRow"
+        @close="closeHospitalDetail"
+      />
     </section>
 
     <section v-else-if="isSupplierManagement" class="md-partner-page spd-unified-list">
@@ -1339,7 +1272,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>启停状态</span>
-            <el-select v-model="supplierQuery.status" placeholder="全部状态" clearable aria-label="筛选供应商启停状态">
+            <el-select v-model="supplierQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选供应商启停状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -1379,7 +1312,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>启停状态</span>
-            <el-select v-model="manufacturerQuery.status" placeholder="全部状态" clearable aria-label="筛选厂家启停状态">
+            <el-select v-model="manufacturerQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选厂家启停状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -1418,7 +1351,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>启停状态</span>
-            <el-select v-model="campusQuery.status" placeholder="全部状态" clearable aria-label="筛选院区启停状态">
+            <el-select v-model="campusQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选院区启停状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -1457,7 +1390,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>科室状态</span>
-            <el-select v-model="departmentQuery.status" placeholder="全部状态" clearable aria-label="筛选科室状态">
+            <el-select v-model="departmentQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选科室状态">
               <el-option label="全部状态" value="" />
               <el-option label="正常" value="正常" />
               <el-option label="停用" value="停用" />
@@ -1528,7 +1461,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>目录状态</span>
-            <el-select v-model="departmentWarehouseCatalogQuery.status" placeholder="全部状态" clearable aria-label="筛选目录状态">
+            <el-select v-model="departmentWarehouseCatalogQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选目录状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -1586,7 +1519,7 @@ ref="hospitalColSettingsPopRef"
           </label>
           <label>
             <span>库房状态</span>
-            <el-select v-model="warehouseQuery.status" placeholder="全部状态" clearable aria-label="筛选库房状态">
+            <el-select v-model="warehouseQuery.status" placeholder="全部状态" clearable popper-class="md-select-popper" aria-label="筛选库房状态">
               <el-option label="全部状态" value="" />
               <el-option label="启用" value="启用" />
               <el-option label="停用" value="停用" />
@@ -1654,15 +1587,15 @@ ref="hospitalColSettingsPopRef"
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <SpdButton label="下载导入模板" tone="neutral" @click="downloadSupplierTemplate">
+              <SpdButton label="下载导入模板" tone="info" @click="downloadSupplierTemplate">
                 <template #icon><FileDown :size="16" /></template>
               </SpdButton>
-              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerSupplierImport">
+              <SpdButton label="上传 CSV 文件" tone="success" @click="triggerSupplierImport">
                 <template #icon><FileUp :size="16" /></template>
               </SpdButton>
             </div>
           </details>
-          <SpdButton label="导出" tone="neutral" @click="exportSupplierRows">
+          <SpdButton label="导出" tone="info" @click="exportSupplierRows">
           <template #icon><Download :size="16" /></template>
         </SpdButton>
           <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
@@ -1674,7 +1607,7 @@ ref="hospitalColSettingsPopRef"
         </SpdButton>
           <input ref="importInput" class="hidden-file-input" type="file" accept=".csv" @change="handleSupplierImport" />
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="supplierColSettingsAnchorRef" @click="supplierCols.settingsOpen.value = !supplierCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -1703,7 +1636,7 @@ ref="supplierColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightSupplier.maxHeight" style="width: 100%"
             empty-text="暂无符合条件的供应商"
             @selection-change="onSupplierSelectionChange"
 
@@ -1942,15 +1875,15 @@ ref="supplierColSettingsPopRef"
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <SpdButton label="下载导入模板" tone="neutral" @click="downloadManufacturerTemplate">
+              <SpdButton label="下载导入模板" tone="info" @click="downloadManufacturerTemplate">
                 <template #icon><FileDown :size="16" /></template>
               </SpdButton>
-              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerManufacturerImport">
+              <SpdButton label="上传 CSV 文件" tone="success" @click="triggerManufacturerImport">
                 <template #icon><FileUp :size="16" /></template>
               </SpdButton>
             </div>
           </details>
-          <SpdButton label="导出" tone="neutral" @click="exportManufacturerRows">
+          <SpdButton label="导出" tone="info" @click="exportManufacturerRows">
           <template #icon><Download :size="16" /></template>
         </SpdButton>
           <SpdButton label="停用" tone="danger" v-if="authStore.canWrite(code)"
@@ -1968,7 +1901,7 @@ ref="supplierColSettingsPopRef"
             @change="handleManufacturerImport"
           />
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="manufacturerColSettingsAnchorRef" @click="manufacturerCols.settingsOpen.value = !manufacturerCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -1997,7 +1930,7 @@ ref="manufacturerColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightManufacturer.maxHeight" style="width: 100%"
             empty-text="暂无符合条件的厂家"
             @selection-change="onManufacturerSelectionChange"
 
@@ -2195,7 +2128,7 @@ ref="manufacturerColSettingsPopRef"
           <template #icon><Trash2 :size="16" /></template>
         </SpdButton>
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="campusColSettingsAnchorRef" @click="campusCols.settingsOpen.value = !campusCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -2224,7 +2157,7 @@ ref="campusColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightCampus.maxHeight" style="width: 100%"
             empty-text="暂无符合条件的院区"
             @selection-change="onCampusSelectionChange"
 
@@ -2431,15 +2364,15 @@ ref="campusColSettingsPopRef"
               <span>导入</span>
             </summary>
             <div class="supplier-import-menu">
-              <SpdButton label="下载导入模板" tone="neutral" @click="downloadDepartmentTemplate">
+              <SpdButton label="下载导入模板" tone="info" @click="downloadDepartmentTemplate">
                 <template #icon><FileDown :size="16" /></template>
               </SpdButton>
-              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerDepartmentImport">
+              <SpdButton label="上传 CSV 文件" tone="success" @click="triggerDepartmentImport">
                 <template #icon><FileUp :size="16" /></template>
               </SpdButton>
             </div>
           </details>
-          <SpdButton label="导出" tone="neutral" @click="exportDepartmentRows">
+          <SpdButton label="导出" tone="info" @click="exportDepartmentRows">
           <template #icon><Download :size="16" /></template>
         </SpdButton>
           <SpdButton label="删除" tone="danger" v-if="authStore.canWrite(code)"
@@ -2457,7 +2390,7 @@ ref="campusColSettingsPopRef"
             @change="handleDepartmentImport"
           />
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="departmentColSettingsAnchorRef" @click="departmentCols.settingsOpen.value = !departmentCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -2486,7 +2419,7 @@ ref="departmentColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightDepartment.maxHeight" style="width: 100%"
             empty-text="暂无符合条件的科室"
             @selection-change="onDepartmentSelectionChange"
 
@@ -2751,7 +2684,7 @@ ref="departmentColSettingsPopRef"
           <template #icon><Trash2 :size="16" /></template>
         </SpdButton>
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="catalogColSettingsAnchorRef" @click="catalogCols.settingsOpen.value = !catalogCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -2780,7 +2713,7 @@ ref="catalogColSettingsPopRef"
           style="width: 100%"
           empty-text="暂无符合条件的科室库房目录"
           @selection-change="onCatalogSelectionChange"
-          :max-height="catalogTableMaxHeight || undefined"
+          :max-height="catalogTableMaxHeight"
           @header-dragend="(width: number, oldWidth: number, column: any) => catalogCols.handleHeaderDragEnd(width, oldWidth, column)">
           <el-table-column type="selection" width="48" align="center" :reserve-selection="false" />
           <el-table-column
@@ -2997,7 +2930,7 @@ ref="catalogColSettingsPopRef"
               <SpdButton label="导入模板下载" tone="neutral" @click="downloadWarehouseTemplate">
                 <template #icon><FileDown :size="16" /></template>
               </SpdButton>
-              <SpdButton label="上传 CSV 文件" tone="neutral" @click="triggerWarehouseImport">
+              <SpdButton label="上传 CSV 文件" tone="success" @click="triggerWarehouseImport">
                 <template #icon><FileUp :size="16" /></template>
               </SpdButton>
             </div>
@@ -3020,7 +2953,7 @@ ref="catalogColSettingsPopRef"
             @change="handleWarehouseImport"
           />
           <div class="ulc-col-settings">
-            <SpdButton label="列设置" tone="neutral" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value">
+            <SpdButton label="列设置" tone="warning" variant="ghost" ref="warehouseColSettingsAnchorRef" @click="warehouseCols.settingsOpen.value = !warehouseCols.settingsOpen.value">
           <template #icon><Columns3 :size="16" /></template>
         </SpdButton>
             <SpdColumnSettings
@@ -3046,7 +2979,7 @@ ref="warehouseColSettingsPopRef"
             row-key="code"
             border
             stripe
-            max-height="560" style="width: 100%"
+            :max-height="fillHeightWarehouse.maxHeight" style="width: 100%"
             empty-text="暂无符合条件的库房"
             @selection-change="onWarehouseSelectionChange"
 
@@ -3298,7 +3231,6 @@ ref="warehouseColSettingsPopRef"
     <ProductDialog
       :open="productDialogOpen"
       :saving="productSaving"
-      :error="actionError"
       :mode="productDialogMode"
       :form="productForm"
       :manufacturer-options="manufacturerOptions"
@@ -3310,7 +3242,6 @@ ref="warehouseColSettingsPopRef"
     <BatchProductDialog
       :open="batchProductDialogOpen"
       :saving="batchProductSaving"
-      :error="actionError"
       :form="batchProductForm"
       @close="closeBatchProductDialog"
       @save="saveBatchProductEdit"
@@ -3934,170 +3865,6 @@ ref="warehouseColSettingsPopRef"
 .md-table-card .campus-table tbody tr:hover .campus-action-cell,
 .md-table-card .department-table tbody tr:hover .department-action-cell {
   background: var(--md-primary-soft);
-}
-
-.catalog-mask {
-  position: fixed;
-  inset: 0;
-  background: color-mix(in srgb, var(--spd-p-primary-strong) 45%, transparent);
-  z-index: 90;
-}
-
-/* 医院商品目录详情抽屉（保留原有 cat-* 主题变量，跟随系统主题色） */
-.catalog-drawer {
-  --cat-primary: var(--primary, var(--md-primary, var(--spd-p-primary)));
-  --cat-deep: var(--primary-strong, var(--md-primary-strong, var(--spd-p-primary-strong)));
-  --cat-dark: color-mix(in srgb, var(--primary-strong, var(--spd-p-primary-strong)) 88%, var(--spd-p-success-bg));
-  --cat-soft: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 9%, var(--spd-p-bg));
-  --cat-line: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 32%, var(--spd-p-bg));
-  --cat-text: var(--spd-p-success-bg);
-  --cat-text2: var(--spd-p-primary);
-  --cat-border: color-mix(in srgb, var(--primary, var(--spd-p-primary)) 18%, var(--spd-p-border));
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 470px;
-  max-width: 94vw;
-  background: var(--spd-p-bg);
-  z-index: 91;
-  display: flex;
-  flex-direction: column;
-  box-shadow: var(--spd-p-shadow-3);
-  animation: catalog-slide-in 0.22s ease;
-}
-
-@keyframes catalog-slide-in {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.catalog-drawer .drawer-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 16px 20px;
-  background: linear-gradient(115deg, var(--cat-dark) 0%, var(--cat-primary) 100%);
-  color: var(--spd-p-bg);
-}
-
-.catalog-drawer .drawer-head h3 {
-  margin: 0;
-  font-size: var(--spd-font-size-lg);
-  font-weight: 700;
-  color: var(--spd-p-bg);
-}
-
-.catalog-drawer .drawer-head p {
-  margin: 4px 0 0;
-  font-size: var(--spd-font-size-sm);
-  color: color-mix(in srgb, var(--spd-p-bg) 85%, transparent);
-  font-family: var(--spd-font-family-mono);
-}
-
-.catalog-drawer .drawer-close {
-  margin-left: auto;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent);
-  color: var(--spd-p-bg);
-  border: 0;
-  cursor: pointer;
-}
-
-.catalog-drawer .drawer-close:hover {
-  background: color-mix(in srgb, var(--spd-p-bg) 34%, transparent);
-}
-
-.catalog-drawer .drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px 20px 20px;
-}
-
-.catalog-drawer .d-section {
-  margin-bottom: 18px;
-}
-
-.catalog-drawer .d-section > h5 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 10px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 700;
-  color: var(--cat-dark);
-}
-
-.catalog-drawer .d-section > h5::before {
-  content: "";
-  width: 4px;
-  height: 15px;
-  border-radius: 2px;
-  background: var(--cat-primary);
-}
-
-.catalog-drawer .d-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px 16px;
-  padding: 13px 15px;
-  border-radius: 8px;
-  background: var(--cat-soft);
-  box-shadow: inset 0 0 0 1px var(--cat-line);
-}
-
-.catalog-drawer .d-item > span {
-  display: block;
-  color: var(--cat-deep);
-  font-size: var(--spd-font-size-sm);
-  margin-bottom: 3px;
-  font-weight: 600;
-}
-
-.catalog-drawer .d-item > strong {
-  display: block;
-  font-size: var(--spd-font-size-base);
-  font-weight: 700;
-  color: var(--cat-text);
-  word-break: break-all;
-}
-
-.catalog-drawer .d-item > strong.mono {
-  font-family: var(--spd-font-family-mono);
-}
-
-.catalog-drawer .d-item.full {
-  grid-column: 1 / -1;
-}
-
-.catalog-drawer .d-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.catalog-drawer .tag {
-  padding: 4px 13px;
-  border-radius: 999px;
-  font-size: var(--spd-font-size-sm);
-  font-weight: 600;
-  background: var(--spd-p-bg);
-  color: var(--cat-text2);
-  box-shadow: inset 0 0 0 1px var(--cat-border);
-}
-
-.catalog-drawer .tag.hl {
-  background: var(--cat-primary);
-  color: var(--spd-p-bg);
-  box-shadow: none;
 }
 
 </style>

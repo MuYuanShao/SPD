@@ -69,19 +69,38 @@
   box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
 }
 
-/* Element Plus 内层 input 必须「无边框」——
-   外层 wrapper 已经画了 1px 边框环，内层若再有一层实体边框，
-   就会变成「输入框外面还有一个框」（用户报的分页器输入框问题）。
-   这里把内层 input 的边框/背景/圆角/阴影全部清空，
-   让外层 wrapper 成为唯一的边框来源。 */
+/* Element Plus 内层 input 必须「完全透明化」——
+   外层 wrapper 已经画了 1px 边框环（box-shadow inset），
+   内层若再有边框 / 背景 / 圆角 / 内边距 / 固定高度，
+   就会变成「框里还有一个框」（用户报的选择框与分页跳页框问题）。
+
+   【为什么要用 !important】
+     页面级规则（例如 styles/components/spd-filter-bar.css 的
+     `.spd-filter-bar input:not([type='checkbox'])…`）特指度高达 (0,4,1)，
+     会盖过本文件 (0,1,0) 的重置规则，把内层 input 重新画成
+     「白底 + 4px 圆角 + 10px 左右内边距 + 34px 高」的实心小框，
+     在 wrapper 里面形成明显的第二层框线。
+     因此这里对「边框 / 背景 / 圆角 / 内边距 / 高度」统一加 !important，
+     保证任何页面级 input 规则都无法给 EP 内层元素再画一层框。
+
+   【高度为什么交给 wrapper】
+     EP 内层 input 的高度应随外层 wrapper 的内容盒走（height: 100%），
+     不能写死 34px —— wrapper 的内容盒 = 34px − 上下内边距，
+     写死会让输入区域比框还高，把 wrapper 的边框顶出缺口。
+     （.el-select__input 在 EP 里默认是 24px 的单行输入，
+       由 .el-select__wrapper 的 flex 居中，放开高度更稳妥。） */
 .el-input__inner,
 .el-select__input,
 .el-range-input {
   border: 0 !important;
-  border-radius: 0;
-  background: transparent;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
   outline: none;
+  padding: 0 !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
 }
 
 .el-input__wrapper:hover,
@@ -197,10 +216,17 @@ select:disabled,
  * 3. 与 responsive-medical.css 的冲突收口（36px → 34px）
  * ---------------------------------------------------------------------
  * responsive-medical.css 的规则带 !important，且特指度为 (0,2,1)：
- *   .main-area :is(input…, select, .el-input__wrapper, .el-select__wrapper)
+   *   .main-area :is(input…, select, .el-input__wrapper, .el-select__wrapper)
  * 这里用 (0,3,1) / (0,4,1) 的更高特指度 + 同款 !important 稳压。
+ *
+ * ⚠️ 必须排除 Element Plus 的**内层** input（.el-input__inner /
+ *    .el-select__input / .el-range-input）：
+ *    它们的高度由外层 .el-input__wrapper 决定，
+ *    内层再被拉成 34px 会**撑破 wrapper 的内容盒**，
+ *    表现为「框里的输入区域比框还高」，选择框尤其明显。
+ *    与第 2 节的通用 input 规则保持同一套排除清单。
  * ===================================================================== */
-.main-area input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']),
+.main-area input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='range']):not([type='color']):not([type='file']):not(.el-input__inner):not(.el-select__input):not(.el-range-input),
 .main-area select,
 .main-area .md-input,
 .main-area .md-select,
@@ -231,4 +257,153 @@ select:disabled,
 .main-area .el-input-number--small,
 .main-area .el-input--small {
   --el-component-size-small: var(--spd-p-field-height);
+}
+
+/* =====================================================================
+ * 5. 下拉框（el-select）全站统一规格
+ * ---------------------------------------------------------------------
+ * 【产品诉求】
+ *   「所有下拉框都要统一」—— 原生 <select> 渲染成浏览器自带的
+ *   灰色下拉，与 Element Plus 的输入框并排时明显不是一套东西。
+ *   本节把 <el-select> 的**外框**与**下拉浮层**都锁死成
+ *   与输入框同一套规格（34px / 4px 圆角 / 1px 描边 / 同底色）。
+ *
+ * 【为什么必须写在这里】
+ *   下拉浮层被 teleport 到 body，既不在 .main-area 里，
+ *   也不在页面的根容器（.master-page 等）里，
+ *   因此页面级 scoped 样式根本命中不到它。
+ *   浮层样式只能放在**全局**样式表里，本文件是全站输入控件
+ *   规格的唯一出处，所以浮层规格也放这里。
+ *
+ * 【与既有规则的冲突收口】
+ *   1) styles/spd-override.css:908
+ *      `.el-select__wrapper { border-radius: var(--spd-radius) !important }`
+ *      → 6px 圆角，与 4px 的输入框不一致；本节用同款 !important 拉回。
+ *   2) styles/spd-override.css:910 / 916 / 921
+ *      外框的描边 / hover / focus 描边写死成主色，与输入框的
+ *      「中性描边 + hover 变深」不一致；本节统一拉回令牌色。
+ *   3) styles/spd-theme.css:729-733
+ *      `.el-select-dropdown` 用了 12px 圆角 + --spd-shadow-lg；
+ *      本节用 !important 统一成 --spd-p-field-radius + --spd-p-shadow-3。
+ *   4) styles/theme/calm-paper.css:471 与 night-black.css:472
+ *      `:root[data-spd-theme='…'] .el-select-dropdown` 带 !important，
+ *      特指度 (0,3,0)；本节用 :root[data-spd-theme] 前缀
+ *      提到 (0,3,0) 以上并保持 !important，才能在三套方案下统一。
+ *   5) styles/components/button-typography.css:147
+ *      `.el-select-dropdown__item { font-size: …!important }`
+ *      把选项字号压成 L2（按钮紧凑字号）；下拉选项是**数据**不是按钮，
+ *      这里用 !important 拉回 --spd-font-size-base。
+ * ===================================================================== */
+
+/* --- 5.1 外框：与 el-input__wrapper 同一套规格 --- */
+.el-select__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height) !important;
+  min-height: var(--spd-p-field-height) !important;
+  max-height: var(--spd-p-field-height) !important;
+  /* 圆角：压过 spd-override.css:908 的 6px !important */
+  border-radius: var(--spd-p-field-radius) !important;
+  /* 底色与描边：压过 spd-override.css:910 与三套方案的主题规则 */
+  background: var(--spd-p-field-bg) !important;
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset !important;
+  /* 内边距：左 10px，右侧 26px 给箭头留位（与主数据页参考标准一致） */
+  padding: 0 26px 0 var(--spd-p-field-padding-x) !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 400 !important;
+  line-height: var(--spd-lh-base) !important;
+}
+
+/* hover：描边加深（与 el-input__wrapper 完全一致） */
+.el-select__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset !important;
+}
+
+/* 聚焦：主色描边 + 焦点光晕（与 el-input__wrapper 完全一致） */
+.el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-focus-border) inset,
+    0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring) !important;
+}
+
+/* 禁用态 */
+.el-select__wrapper.is-disabled {
+  background: var(--spd-p-field-disabled-bg) !important;
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-disabled-border) inset !important;
+}
+
+.el-select__wrapper.is-disabled .el-select__placeholder,
+.el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--spd-p-field-disabled-text) !important;
+}
+
+/* 占位 / 选中文字：字号与输入框内的文字一致 */
+.el-select__placeholder,
+.el-select__selected-item {
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 400 !important;
+  line-height: var(--spd-lh-base) !important;
+}
+
+/* 箭头颜色走次级文字色（不用写死颜色） */
+.el-select__caret {
+  color: var(--spd-p-text-muted) !important;
+}
+
+.el-select__wrapper.is-disabled .el-select__caret {
+  color: var(--spd-p-field-disabled-text) !important;
+}
+
+/* --- 5.2 下拉浮层（teleport 到 body，必须全局命中） --- */
+/* 浮层容器：实底 + 4px 圆角 + 1px 描边 + 统一投影。
+   两条规则并列：
+     - `.el-select-dropdown`（0,1,0）兜底所有 el-select，
+       包括本人未改动的页面（分页器的每页条数下拉等）；
+     - `:root[data-spd-theme] .el-select-dropdown`（0,3,0）
+       压过三套方案主题文件里 (0,3,0) + !important 的同款规则，
+       但源顺序在 spd-input.css 之后（main.ts 里最后引入），
+       同特指度时后写的胜出。 */
+.el-select-dropdown,
+:root[data-spd-theme] .el-select-dropdown {
+  padding: 4px !important;
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border) !important;
+  border-radius: var(--spd-p-field-radius) !important;
+  background: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-3) !important;
+}
+
+/* 浮层内的滚动条：与页面滚动条一致 */
+.el-select-dropdown__list {
+  padding: 0 !important;
+}
+
+/* --- 5.3 浮层选项：字号 / 颜色 / 悬停 / 选中 --- */
+/* 字号：压过 button-typography.css:147 的 L2 紧凑字号 !important，
+   下拉选项是「数据」不是「按钮」，应与列表正文同档。 */
+.el-select-dropdown__item,
+:root[data-spd-theme] .el-select-dropdown__item {
+  height: var(--spd-p-field-height) !important;
+  font-size: var(--spd-font-size-base) !important;
+  font-weight: 400 !important;
+  line-height: var(--spd-lh-base) !important;
+  color: var(--spd-p-text) !important;
+}
+
+/* 悬停：主色浅底 */
+.el-select-dropdown__item.is-hovering,
+:root[data-spd-theme] .el-select-dropdown__item.is-hovering {
+  background: var(--spd-p-primary-bg) !important;
+  color: var(--spd-p-text) !important;
+}
+
+/* 选中：主色 + 600 字重 */
+.el-select-dropdown__item.is-selected,
+:root[data-spd-theme] .el-select-dropdown__item.is-selected {
+  color: var(--spd-p-primary) !important;
+  font-weight: 600 !important;
+}
+
+/* 禁用项 */
+.el-select-dropdown__item.is-disabled,
+:root[data-spd-theme] .el-select-dropdown__item.is-disabled {
+  color: var(--spd-p-text-muted) !important;
+  opacity: 0.6;
 }

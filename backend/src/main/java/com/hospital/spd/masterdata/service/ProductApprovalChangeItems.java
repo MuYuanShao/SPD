@@ -52,7 +52,7 @@ final class ProductApprovalChangeItems {
         }
 
         List<Map<String, Object>> products = jdbcTemplate.queryForList("""
-                SELECT p.product_name, p.spec_model, p.brand,
+                SELECT p.product_name, p.brand,
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
                        COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
@@ -73,7 +73,6 @@ final class ProductApprovalChangeItems {
         Map<String, Object> current = products.isEmpty() ? Map.of() : products.get(0);
         List<PendingProductChangeItem> changes = new ArrayList<>();
         addChange(changes, "商品名称", current.get("product_name"), application.getString("product_name"));
-        addChange(changes, "规格型号", current.get("spec_model"), application.getString("spec_model"));
         addChange(changes, "品牌", current.get("brand"), application.getString("brand"));
         addChange(changes, "生产厂家", current.get("manufacturer_name"), application.getString("manufacturer_name"));
         addChange(changes, "供应商", current.get("supplier_name"), application.getString("supplier_name"));

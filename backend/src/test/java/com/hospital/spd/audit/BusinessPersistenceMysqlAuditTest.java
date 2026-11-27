@@ -129,7 +129,7 @@ class BusinessPersistenceMysqlAuditTest {
         var numbers=new DocumentNumberService(jdbc);var operator=(com.hospital.spd.common.OperatorContextProvider)OperatorContext::system;
         var service=new ProductApprovalService(jdbc,operator,new ApprovalFlowGuard(jdbc,operator),new ProductCodeService(jdbc),numbers,new CatalogApprovalRouteService(jdbc,operator),new AuditLogService(jdbc),null,new CatalogApplicationSnapshotService(jdbc,mapper));
         String code=product(jdbc);
-        var req=mapper.convertValue(Map.of("applicationType","价格调整","productCode",code,"productName","核查商品"+code,"specModel","6.0","unit","个","purchasePrice",2,"quotaManaged",true),PendingProductApplicationRequest.class);
+        var req=mapper.convertValue(Map.of("applicationType","价格调整","productCode",code,"productName","核查商品"+code,"unit","个","purchasePrice",2,"quotaManaged",true),PendingProductApplicationRequest.class);
         String application=(String)service.createApplication(req).get("applicationNo");
         assertThat(jdbc.queryForObject("SELECT purchase_price FROM product WHERE product_code=?",BigDecimal.class,code)).isEqualByComparingTo("1");
         service.processAction(application,new PendingProductApprovalActionRequest("approve","回滚核查"));
@@ -139,7 +139,7 @@ class BusinessPersistenceMysqlAuditTest {
     @Test void pendingCatalog() throws Exception { check("待审批目录新增", jdbc -> {
         var numbers=new DocumentNumberService(jdbc);var operator=(com.hospital.spd.common.OperatorContextProvider)OperatorContext::system;
         var service=new ProductApprovalService(jdbc,operator,new ApprovalFlowGuard(jdbc,operator),new ProductCodeService(jdbc),numbers,new CatalogApprovalRouteService(jdbc,operator),new AuditLogService(jdbc),null,new CatalogApplicationSnapshotService(jdbc,mapper));
-        String code=code();var req=mapper.convertValue(Map.of("applicationType","新品准入","productCode",code,"productName",code,"specModel","6.0","unit","个","purchasePrice",1),PendingProductApplicationRequest.class);
+        String code=code();var req=mapper.convertValue(Map.of("applicationType","新品准入","productCode",code,"productName",code,"unit","个","purchasePrice",1),PendingProductApplicationRequest.class);
         var result=service.createApplication(req);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM pending_product_application WHERE application_no=?",Integer.class,result.get("applicationNo"))).isEqualTo(1);
     }); }

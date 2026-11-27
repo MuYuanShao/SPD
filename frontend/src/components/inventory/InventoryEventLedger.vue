@@ -21,6 +21,7 @@ import {
   type InventoryTransactionTypeOption
 } from '../../api/inventory'
 import { useAuthStore } from '../../stores/auth'
+import { notifyError } from '../../composables/useNotify'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
@@ -116,6 +117,38 @@ const query = reactive({
 const hasAdvancedFilter = computed(() => Boolean(query.deptName || query.productCode || query.batchNo ||
   query.productionBatchNo || query.manufacturerName || query.supplierName || query.sourceBizNo))
 
+/* ---------------------------------------------------------------------
+ * 日期区间约束：开始日期不能晚于结束日期
+ * ---------------------------------------------------------------------
+ * 两层保障：
+ *   1) disabled-date —— 在日历面板里把非法日期**置灰**，
+ *      开始日期禁掉「晚于结束日期」的那些天，结束日期禁掉「早于开始日期」的那些天；
+ *   2) search() 里的显式校验 —— 即便通过键盘输入等方式绕过了置灰，
+ *      也要拦下来并提示，绝不带着非法区间发请求。
+ * 绑定值是 value-format="YYYY-MM-DD" 的纯字符串，可直接按字典序比较。
+ * ------------------------------------------------------------------- */
+function toDayStart(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** 开始日期：禁用晚于结束日期的日期 */
+function disableAfterEnd(date: Date) {
+  const end = toDayStart(query.endTime)
+  if (!end) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() > end.getTime()
+}
+
+/** 结束日期：禁用早于开始日期的日期 */
+function disableBeforeStart(date: Date) {
+  const start = toDayStart(query.startTime)
+  if (!start) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() < start.getTime()
+}
+
 function requestQuery(): InventoryEventQuery {
   return { page: page.value, size: size.value, ...query }
 }
@@ -136,6 +169,11 @@ async function load() {
 }
 
 function search() {
+  // 开始日期不能晚于结束日期：非法区间直接提示并终止，不发请求
+  if (query.startTime && query.endTime && query.startTime > query.endTime) {
+    notifyError('开始日期不能晚于结束日期')
+    return
+  }
   page.value = 1
   void load()
 }
@@ -228,8 +266,30 @@ onMounted(async () => {
 
     <section class="hospital-catalog-panel ledger-panel">
       <form class="ledger-filter" role="search" @submit.prevent="search">
-        <label><span>开始日期</span><input v-model="query.startTime" class="md-input" type="date" /></label>
-        <label><span>结束日期</span><input v-model="query.endTime" class="md-input" type="date" /></label>
+        <label><span>开始日期</span>
+          <el-date-picker
+            v-model="query.startTime"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="开始日期"
+            clearable
+            class="ledger-date-picker"
+            :disabled-date="disableAfterEnd"
+          />
+        </label>
+        <label><span>结束日期</span>
+          <el-date-picker
+            v-model="query.endTime"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="结束日期"
+            clearable
+            class="ledger-date-picker"
+            :disabled-date="disableBeforeStart"
+          />
+        </label>
         <label><span>交易类型</span><select v-model="query.transactionTypeCode" class="md-select"><option value="">全部类型</option><option v-for="type in types" :key="type.code" :value="type.code">{{ type.label }}</option></select></label>
         <label><span>库房</span><input v-model.trim="query.warehouseName" class="md-input" placeholder="库房名称" /></label>
         <label><span>商品</span><input v-model.trim="query.productName" class="md-input" placeholder="商品名称" /></label>
@@ -568,6 +628,22 @@ ref="ledgerColSettingsPopRef"
 .advanced-filters .md-input {
   min-height: 30px;
   font-size: var(--spd-font-size-base);
+}
+
+/* ---------- 日期选择器（Element Plus 中文日期选择器） ----------
+   el-date-picker 的外壳是 .el-input__wrapper，共享样式表
+   styles/components/spd-input.css 已经把它的高度 / 圆角 / 边框 / 字号
+   统一到字段令牌（34px / --spd-p-field-radius / 1px 内阴影环 / 基础字号），
+   这里只做两件事：
+     1) 让选择器撑满栅格列宽（否则它是 inline-block，宽度不跟着 label 走）；
+     2) 去掉 EP 默认的「内层 input 再画一层框」的可能，宽度 100% 由外层 wrapper 承担。
+   三套配色方案（标准白 / 静墨宣纸 / 暗夜黑）都走同一批令牌，无需额外适配。 */
+.ledger-filter .ledger-date-picker {
+  width: 100%;
+}
+
+.ledger-filter .ledger-date-picker .el-input__wrapper {
+  width: 100%;
 }
 
 .ledger-filter-actions {

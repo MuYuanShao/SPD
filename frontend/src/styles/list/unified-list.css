@@ -325,13 +325,32 @@
   flex-wrap: wrap;
 }
 
-/* 表头文字（.ulc-th-text）例外：表头保持单行 + 省略号，
-   过长时由 title 提示，不影响表格结构。 */
-.spd-unified-list .ulc-table th.el-table__cell .cell,
+/* 表头文字（.ulc-th-text）规则：
+   表头标签过长时**换行显示**，而不是截断成省略号。
+   用户诉求：「列表的表头如果字太多使用换行而不是省略号」。
+
+   具体做法：
+     - .cell（表头容器）允许换行并垂直居中；
+     - .ulc-th-text 取消 nowrap / ellipsis，改为 normal + break-word；
+     - 表头行高由内容自然撑开（EP 表头没有固定高度），
+       两行文字时行高会跟着长高，不会压住文字。
+
+   ⚠️ 只作用于**表头**（th.el-table__cell）；
+      数据单元格（td.el-table__cell）的换行/截断行为保持原样不动。 */
+.spd-unified-list .ulc-table th.el-table__cell .cell {
+  align-items: center;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: var(--spd-lh-tight, 1.35);
+}
+
 .spd-unified-list .ulc-table th.el-table__cell .cell * {
-  white-space: nowrap !important;
-  overflow-wrap: normal;
-  word-break: normal;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* 斑马纹 */
@@ -355,13 +374,20 @@
   line-height: var(--spd-lh-base, 1.5);
 }
 
-/* ===== 加粗文本（比正文大一档，随字号档位缩放） ===== */
+/* ===== 表头文字（.ulc-th-text）=====
+   表头标签过长时换行显示（不截断成省略号）——
+   用户诉求：「列表的表头如果字太多使用换行而不是省略号」。
+   文字保持水平居中，两行时行高自然撑开。 */
 .spd-unified-list .ulc-th-text {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: var(--spd-lh-tight, 1.35);
   text-align: center;
 }
 

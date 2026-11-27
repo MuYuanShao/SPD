@@ -43,6 +43,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { formatBusinessText, formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const {
   activeTab,
@@ -306,6 +307,7 @@ const purchaseOrderCols = useListColumns({
 })
 
 const purchaseOrderTableRef = purchaseOrderCols.tableRef
+const fillHeightPurchaseOrder = useFillHeightTable({ tableRef: purchaseOrderTableRef })
 const isPurchaseOrderColVisible = (key: string) => purchaseOrderCols.isColumnVisible(key)
 const purchaseOrderColBinding = (key: string) => purchaseOrderCols.columnBinding(key)
 
@@ -360,6 +362,7 @@ const purchasePlanCols = useListColumns({
 })
 
 const purchasePlanTableRef = purchasePlanCols.tableRef
+const fillHeightPurchasePlan = useFillHeightTable({ tableRef: purchasePlanTableRef })
 const isPurchasePlanColVisible = (key: string) => purchasePlanCols.isColumnVisible(key)
 const purchasePlanColBinding = (key: string) => purchasePlanCols.columnBinding(key)
 
@@ -417,6 +420,7 @@ const purchaseDemandCols = useListColumns({
 })
 
 const purchaseDemandTableRef = purchaseDemandCols.tableRef
+const fillHeightPurchaseDemand = useFillHeightTable({ tableRef: purchaseDemandTableRef })
 const isPurchaseDemandColVisible = (key: string) => purchaseDemandCols.isColumnVisible(key)
 const purchaseDemandColBinding = (key: string) => purchaseDemandCols.columnBinding(key)
 
@@ -588,7 +592,7 @@ ref="purchaseDemandColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightPurchaseDemand.maxHeight"
             style="width: 100%"
             :empty-text="'暂无需求单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => purchaseDemandCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -811,7 +815,7 @@ ref="purchasePlanColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightPurchasePlan.maxHeight"
             style="width: 100%"
             :empty-text="'暂无采购计划'"
             @header-dragend="(width: number, oldWidth: number, column: any) => purchasePlanCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -989,7 +993,7 @@ ref="purchaseOrderColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightPurchaseOrder.maxHeight"
             style="width: 100%"
             :empty-text="'暂无采购订单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => purchaseOrderCols.handleHeaderDragEnd(width, oldWidth, column)"

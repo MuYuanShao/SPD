@@ -54,6 +54,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -395,6 +396,7 @@ const udiTraceCols = useListColumns({
 })
 
 const udiTraceTableRef = udiTraceCols.tableRef
+const fillHeightUdiTrace = useFillHeightTable({ tableRef: udiTraceTableRef })
 const isUdiTraceColVisible = (key: string) => udiTraceCols.isColumnVisible(key)
 const udiTraceColBinding = (key: string) => udiTraceCols.columnBinding(key)
 
@@ -474,17 +476,17 @@ const udiTraceColSettingsPop = useColSettingsPopover({
         <div class="filter-card-grid">
           <label>
             <span>对象类型</span>
-            <select v-model="query.traceScope" @change="submitSearch">
-              <option value="">全部对象</option>
-              <option v-for="item in traceScopeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
+            <el-select v-model="query.traceScope" popper-class="spd-select-popper" placeholder="全部对象" @change="submitSearch">
+              <el-option label="全部对象" value="" />
+              <el-option v-for="item in traceScopeOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
           </label>
           <label>
             <span>当前状态</span>
-            <select v-model="query.status" @change="submitSearch">
-              <option value="">全部状态</option>
-              <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
+            <el-select v-model="query.status" popper-class="spd-select-popper" placeholder="全部状态" @change="submitSearch">
+              <el-option label="全部状态" value="" />
+              <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+            </el-select>
           </label>
         </div>
       </div>
@@ -740,7 +742,7 @@ ref="udiTraceColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightUdiTrace.maxHeight"
             style="width: 100%"
             :empty-text="'暂无追溯记录'"
             @header-dragend="(width: number, oldWidth: number, column: any) => udiTraceCols.handleHeaderDragEnd(width, oldWidth, column)"

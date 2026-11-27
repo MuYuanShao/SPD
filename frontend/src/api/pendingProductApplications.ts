@@ -42,7 +42,6 @@ export interface PendingProductApplicationRow {
   statusTone: string
   warning: boolean
   productCode?: string
-  specModel?: string
   changeSummary?: string
   manufacturerName?: string
   registrationNo?: string
@@ -92,7 +91,6 @@ export interface PendingProductApplicationDetail {
   statusLabel: string
   productName: string
   productCode: string
-  specModel: string
   brand: string
   manufacturerName: string
   supplierName: string
@@ -141,7 +139,6 @@ export interface PendingProductApplicationPayload {
   applicationType: string
   productCode: string
   productName: string
-  specModel: string
   brand?: string
   manufacturerName?: string
   supplierName?: string
@@ -242,8 +239,107 @@ export async function fetchPendingProductAttachmentBlob(attachmentId: number) {
   return response.data
 }
 
+/**
+ * 待审批目录申请单里允许用户自由输入（可能含空格/换行）的文本字段。
+ * 后端 WriteFieldWhitespace 会拒绝含空白的写入请求，
+ * 因此这些字段在 http 拦截器里会被「就地清洗」（去掉空白）后再提交。
+ *
+ * productCode 也在列表内：它是用户可填的商品编码（如「SP 2024-001」），
+ * 会被后端 trim 后落库，不会因为清洗而改变主键语义。
+ */
+export const PENDING_PRODUCT_FREE_TEXT_FIELDS = [
+  'productName',
+  'productCode',
+  'brand',
+  'manufacturerName',
+  'supplierName',
+  'unit',
+  'purchaseUnit',
+  'storageCondition',
+  'changeReason',
+  'contractCode',
+  'registrationNo',
+  'udiCode',
+  'firstCategory',
+  'secondCategory',
+  'thirdCategory',
+  'tenderSubCode',
+  'productionLicenseNo',
+  'businessLicenseNo',
+  'registrationExpireDate',
+  'applicationType'
+] as const
+
+/**
+ * 待审批目录申请单的**提交字段白名单**。
+ *
+ * 背景：选择医院目录商品时，后端 `/source-products/{productCode}` 会返回
+ * `specModel`、`status` 等只读快照字段。前端此前用 `Object.assign(createForm, detail)`
+ * 把整份快照灌进表单，导致这些后端并不接收的字段（如含空格的 `specModel`）
+ * 混进提交载荷，最终被后端 WriteFieldWhitespace 以
+ * 「不支持空格及换行符存在！」拒绝。
+ *
+ * 这里显式声明允许提交的字段，提交前先做白名单投影：
+ * 既杜绝未知字段泄漏，也保证载荷只包含后端 `PendingProductApplicationRequest`
+ * 真实定义的字段。
+ */
+export const PENDING_PRODUCT_PAYLOAD_FIELDS = [
+  'applicationType',
+  'productCode',
+  'productName',
+  'brand',
+  'manufacturerName',
+  'supplierName',
+  'unit',
+  'purchasePrice',
+  'retailPrice',
+  'minPurchaseQty',
+  'purchaseUnit',
+  'conversionRate',
+  'purchasePackageQty',
+  'udiCode',
+  'registrationNo',
+  'registrationExpireDate',
+  'productionLicenseNo',
+  'businessLicenseNo',
+  'volumeBased',
+  'centralizedProcurement',
+  'domestic',
+  'contractCode',
+  'firstCategory',
+  'secondCategory',
+  'thirdCategory',
+  'chargeable',
+  'tenderSubCode',
+  'qualificationAttachmentCount',
+  'highValue',
+  'coldChain',
+  'quotaManaged',
+  'keyMonitored',
+  'storageCondition',
+  'changeReason'
+] as const
+
+/**
+ * 按白名单裁剪申请单载荷，丢弃后端未接收的只读快照字段。
+ */
+export function toPendingProductPayload(
+  source: Partial<PendingProductApplicationPayload>
+): PendingProductApplicationPayload {
+  const payload: Record<string, unknown> = {}
+  for (const field of PENDING_PRODUCT_PAYLOAD_FIELDS) {
+    const value = (source as Record<string, unknown>)[field]
+    if (value !== undefined) payload[field] = value
+  }
+  return payload as unknown as PendingProductApplicationPayload
+}
+
 export async function createPendingProductApplication(payload: PendingProductApplicationPayload) {
-  return postData<{ applicationNo: string; productCode?: string }>('/pending-product-applications', payload)
+  return postData<{ applicationNo: string; productCode?: string }>(
+    '/pending-product-applications',
+    toPendingProductPayload(payload),
+    { freeTextFields: PENDING_PRODUCT_FREE_TEXT_FIELDS }
+  )
 }
 
 export async function uploadPendingProductAttachment(applicationNo: string, file: File) {
@@ -251,7 +347,9 @@ export async function uploadPendingProductAttachment(applicationNo: string, file
   form.append('file', file)
   return postData<{ attachmentId: number }>(
     `/pending-product-applications/${applicationNo}/attachments`,
-    form
+    form,
+    // multipart：文件名允许含空格，同时放宽超时（大附件 10s 会中断）
+    { multipart: true, uploadTimeout: 60000 }
   )
 }
 
@@ -294,7 +392,8 @@ export async function batchApprovePendingProductApplications(applicationNos: str
 export async function updatePendingProductApplication(applicationNo: string, payload: PendingProductApplicationPayload) {
   return putData<{ applicationNo: string }>(
     `/pending-product-applications/${applicationNo}/update`,
-    payload
+    toPendingProductPayload(payload),
+    { freeTextFields: PENDING_PRODUCT_FREE_TEXT_FIELDS }
   )
 }
 
@@ -304,7 +403,8 @@ export async function resubmitPendingProductApplication(
 ) {
   return putData<{ applicationNo: string; status: string }>(
     `/pending-product-applications/${applicationNo}/resubmit`,
-    payload
+    toPendingProductPayload(payload),
+    { freeTextFields: PENDING_PRODUCT_FREE_TEXT_FIELDS }
   )
 }
 
@@ -326,6 +426,8 @@ export async function importPendingProductApplications(file: File) {
   formData.append('file', file)
   return postData<{ importedRows: number; skippedRows?: number; duplicateRows?: number; message?: string }>(
     '/pending-product-applications/import',
-    formData
+    formData,
+    // multipart：导入文件名允许含空格，同时放宽超时
+    { multipart: true, uploadTimeout: 60000 }
   )
 }

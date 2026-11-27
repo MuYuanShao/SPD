@@ -20,6 +20,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useAuthStore } from '../../stores/auth'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 const auth = useAuthStore()
@@ -182,6 +183,7 @@ const pickingRecordsCols = useListColumns({
 })
 
 const pickingRecordsTableRef = pickingRecordsCols.tableRef
+const fillHeightPickingRecords = useFillHeightTable({ tableRef: pickingRecordsTableRef })
 const isPickingRecordsColVisible = (key: string) => pickingRecordsCols.isColumnVisible(key)
 const pickingRecordsColBinding = (key: string) => pickingRecordsCols.columnBinding(key)
 
@@ -286,7 +288,7 @@ ref="pickingRecordsColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightPickingRecords.maxHeight"
             style="width: 100%"
             :empty-text="'暂无拣配记录'"
             @header-dragend="(width: number, oldWidth: number, column: any) => pickingRecordsCols.handleHeaderDragEnd(width, oldWidth, column)"

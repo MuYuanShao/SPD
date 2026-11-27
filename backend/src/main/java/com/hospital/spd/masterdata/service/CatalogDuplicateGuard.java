@@ -10,10 +10,31 @@ import static com.hospital.spd.common.SqlHelper.isBlank;
 final class CatalogDuplicateGuard {
     private final JdbcTemplate jdbcTemplate;
     CatalogDuplicateGuard(JdbcTemplate jdbcTemplate) { this.jdbcTemplate = jdbcTemplate; }
-    record Identity(String productName, String specModel, String manufacturerName, String supplierName, String registrationNo) {}
+
+    /**
+     * Catalog identity used by the 待审批目录 flow, which no longer collects a 规格型号.
+     */
+    record Identity(String productName, String manufacturerName, String supplierName, String registrationNo) {}
+
+    /**
+     * Catalog identity that still carries a 规格型号. Only the 医院目录 entry point uses
+     * this shape, because the hospital product catalog keeps a real specification value.
+     */
+    record SpecIdentity(String productName, String specModel, String manufacturerName,
+                        String supplierName, String registrationNo) {}
 
     void requireCatalogAvailable(Identity request) {
-        if (hospitalCatalogMatches(duplicateRuleFields(), request)) throw new IllegalArgumentException("该商品目录已存在！");
+        if (hospitalCatalogMatches(duplicateRuleFields(), request.productName(), null,
+                request.manufacturerName(), request.supplierName(), request.registrationNo())) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
+    }
+
+    void requireCatalogAvailable(SpecIdentity request) {
+        if (hospitalCatalogMatches(duplicateRuleFields(), request.productName(), request.specModel(),
+                request.manufacturerName(), request.supplierName(), request.registrationNo())) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
     }
 
     void requireAvailable(Identity request, String excludedApplicationNo) {
@@ -21,10 +42,27 @@ final class CatalogDuplicateGuard {
         if (fields.isEmpty()) {
             return;
         }
-        if (hospitalCatalogMatches(fields, request)) {
+        if (hospitalCatalogMatches(fields, request.productName(), null,
+                request.manufacturerName(), request.supplierName(), request.registrationNo())) {
             throw new IllegalArgumentException("该商品目录已存在！");
         }
-        if (pendingCatalogMatches(fields, request, excludedApplicationNo)) {
+        if (pendingCatalogMatches(fields, request.productName(), request.manufacturerName(),
+                request.supplierName(), request.registrationNo(), excludedApplicationNo)) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
+    }
+
+    void requireAvailable(SpecIdentity request, String excludedApplicationNo) {
+        List<String> fields = duplicateRuleFields();
+        if (fields.isEmpty()) {
+            return;
+        }
+        if (hospitalCatalogMatches(fields, request.productName(), request.specModel(),
+                request.manufacturerName(), request.supplierName(), request.registrationNo())) {
+            throw new IllegalArgumentException("该商品目录已存在！");
+        }
+        if (pendingCatalogMatches(fields, request.productName(), request.manufacturerName(),
+                request.supplierName(), request.registrationNo(), excludedApplicationNo)) {
             throw new IllegalArgumentException("该商品目录已存在！");
         }
     }
@@ -32,6 +70,9 @@ final class CatalogDuplicateGuard {
     /**
      * Loads the duplicate-check field combination stored in sys_validation_rule.
      * Falls back to the documented rule when the rule table or row is unavailable.
+     * The 规格型号 (spec_model) field is never part of the identity: the 待审批目录
+     * flow no longer collects a specification, so a stale admin-configured rule that
+     * still lists it must not reintroduce a comparison on an always-empty value.
      */
     private List<String> duplicateRuleFields() {
         try {
@@ -53,15 +94,16 @@ final class CatalogDuplicateGuard {
         } catch (RuntimeException ignored) {
             // Rule storage unavailable; use the documented default below.
         }
-        return List.of("product_name", "spec_model", "manufacturer_name", "supplier_name", "registration_no");
+        return List.of("product_name", "manufacturer_name", "supplier_name", "registration_no");
     }
 
-    private boolean hospitalCatalogMatches(List<String> fields, Identity request) {
+    private boolean hospitalCatalogMatches(List<String> fields, String productName, String specModel,
+                                           String manufacturerName, String supplierName, String registrationNo) {
         StringBuilder where = new StringBuilder(" WHERE p.deleted = 0");
         List<Object> args = new ArrayList<>();
         for (String field : fields) {
             where.append(" AND ").append(productFieldExpression(field)).append(" = ?");
-            args.add(requestFieldValue(request, field));
+            args.add(requestFieldValue(field, productName, specModel, manufacturerName, supplierName, registrationNo));
         }
         Integer count = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
@@ -72,8 +114,9 @@ final class CatalogDuplicateGuard {
         return count != null && count > 0;
     }
 
-    private boolean pendingCatalogMatches(List<String> fields, Identity request,
-                                          String excludedApplicationNo) {
+    private boolean pendingCatalogMatches(List<String> fields, String productName,
+                                          String manufacturerName, String supplierName,
+                                          String registrationNo, String excludedApplicationNo) {
         StringBuilder where = new StringBuilder("""
                  WHERE (a.approval_status LIKE 'pending_step_%' OR a.approval_status IN ('pending_initial', 'pending_final', 'routing', 'returned'))
                 """);
@@ -82,7 +125,7 @@ final class CatalogDuplicateGuard {
             where.append(" AND COALESCE(NULLIF(")
                     .append(pendingFieldExpression(field))
                     .append(", ''), '') = ?");
-            args.add(requestFieldValue(request, field));
+            args.add(requestFieldValue(field, productName, null, manufacturerName, supplierName, registrationNo));
         }
         if (!isBlank(excludedApplicationNo)) {
             where.append(" AND a.application_no <> ?");
@@ -99,7 +142,6 @@ final class CatalogDuplicateGuard {
     private static String productFieldExpression(String field) {
         return switch (field) {
             case "product_name" -> "COALESCE(TRIM(p.product_name), '')";
-            case "spec_model" -> "COALESCE(TRIM(p.spec_model), '')";
             case "manufacturer_name" -> "COALESCE(TRIM(m.manufacturer_name), '')";
             case "supplier_name" -> "COALESCE(TRIM(s.supplier_name), '')";
             case "registration_no" -> "COALESCE(TRIM(p.registration_no), '')";
@@ -110,7 +152,6 @@ final class CatalogDuplicateGuard {
     private static String pendingFieldExpression(String field) {
         return switch (field) {
             case "product_name" -> "TRIM(a.product_name)";
-            case "spec_model" -> "TRIM(a.spec_model)";
             case "manufacturer_name" -> "TRIM(a.manufacturer_name)";
             case "supplier_name" -> "COALESCE(TRIM(s.supplier_name), TRIM(a.supplier_name))";
             case "registration_no" -> "TRIM(a.registration_no)";
@@ -118,13 +159,14 @@ final class CatalogDuplicateGuard {
         };
     }
 
-    private static String requestFieldValue(Identity request, String field) {
+    private static String requestFieldValue(String field, String productName, String specModel,
+                                            String manufacturerName, String supplierName,
+                                            String registrationNo) {
         String value = switch (field) {
-            case "product_name" -> request.productName();
-            case "spec_model" -> request.specModel();
-            case "manufacturer_name" -> request.manufacturerName();
-            case "supplier_name" -> request.supplierName();
-            case "registration_no" -> request.registrationNo();
+            case "product_name" -> productName;
+            case "manufacturer_name" -> manufacturerName;
+            case "supplier_name" -> supplierName;
+            case "registration_no" -> registrationNo;
             default -> null;
         };
         return value == null ? "" : value.trim();

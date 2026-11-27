@@ -245,31 +245,29 @@ onMounted(() => {
           </label>
           <label>
             <span>生产厂家</span>
-            <select v-model="form.manufacturerName" @change="handleManufacturerChange">
-              <option value="">请选择生产厂家</option>
-              <option
+            <el-select v-model="form.manufacturerName" popper-class="spd-select-popper" placeholder="请选择生产厂家" @change="handleManufacturerChange">
+              <el-option label="" value="" />
+              <el-option
                 v-for="item in withRetainedOption(manufacturerOptions, form.manufacturerName)"
                 :key="item.code + item.name"
+                :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                 :value="item.name"
                 :disabled="item.status !== 1"
-              >
-                {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-              </option>
-            </select>
+              />
+            </el-select>
           </label>
           <label>
             <span>供应商</span>
-            <select v-model="form.supplierName" @change="handleSupplierChange">
-              <option value="">请选择供应商</option>
-              <option
+            <el-select v-model="form.supplierName" popper-class="spd-select-popper" placeholder="请选择供应商" @change="handleSupplierChange">
+              <el-option label="" value="" />
+              <el-option
                 v-for="item in withRetainedOption(supplierOptions, form.supplierName)"
                 :key="item.code + item.name"
+                :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                 :value="item.name"
                 :disabled="item.status !== 1"
-              >
-                {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-              </option>
-            </select>
+              />
+            </el-select>
           </label>
           <label>
             <span>基本单位</span>

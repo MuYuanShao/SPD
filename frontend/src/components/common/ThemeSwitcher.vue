@@ -22,6 +22,9 @@ const activeFontSize = computed(
   () => FONT_SIZES.find((f) => f.id === themeStore.fontSize) ?? FONT_SIZES[0]
 )
 
+/** 暂未开放的配色方案（灰显展示，不可点击） */
+const pendingSchemes = computed(() => SCHEMES.filter((s) => s.disabled))
+
 function pickScheme(id: SchemeId) {
   if (themeStore.scheme !== id) {
     themeStore.setScheme(id)
@@ -98,7 +101,7 @@ onBeforeUnmount(() => {
         tabindex="-1"
         @click.stop
       >
-        <!-- 配色方案：静墨宣纸 / 暗夜黑 / 标准白（全站生效） -->
+        <!-- 配色方案：目前仅「标准白」开放，其余方案暂未开放（灰显不可点） -->
         <div class="spd-theme-panel-header">
           <span class="spd-theme-panel-title">配色方案</span>
           <span class="spd-theme-panel-sub">全站生效 · 自动保存</span>
@@ -111,7 +114,12 @@ onBeforeUnmount(() => {
             type="button"
             role="radio"
             :aria-checked="s.id === themeStore.scheme"
-            :class="['spd-scheme-card', { 'is-active': s.id === themeStore.scheme }]"
+            :aria-disabled="s.disabled ? 'true' : undefined"
+            :disabled="s.disabled"
+            :class="[
+              'spd-scheme-card',
+              { 'is-active': s.id === themeStore.scheme, 'is-disabled': s.disabled }
+            ]"
             @click="pickScheme(s.id)"
           >
             <span class="spd-scheme-card-preview" :style="{ background: s.swatch }">
@@ -121,11 +129,15 @@ onBeforeUnmount(() => {
               <span class="spd-scheme-card-name">{{ s.name }}</span>
               <span class="spd-scheme-card-hint">{{ s.hint }}</span>
             </span>
+            <span v-if="s.disabled" class="spd-scheme-card-badge">暂未开放</span>
           </button>
         </div>
 
         <div class="spd-theme-panel-sub spd-palette-current">
           当前配色方案：<strong>{{ activeScheme.name }}</strong>
+          <span v-if="pendingSchemes.length" class="spd-scheme-pending-note">
+            （其余方案暂未开放）
+          </span>
         </div>
 
         <!-- 字号档位：小 / 中 / 大 -->
@@ -339,6 +351,42 @@ onBeforeUnmount(() => {
   border-color: var(--fli-brand, var(--spd-p-primary));
   background: color-mix(in srgb, var(--fli-brand, var(--spd-p-primary)) 6%, transparent);
   box-shadow: var(--spd-p-shadow-1);
+}
+
+/* 暂未开放的方案：灰显、不可点击（disabled 属性已阻止点击） */
+.spd-scheme-card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  filter: grayscale(0.7);
+  border-style: dashed;
+}
+
+.spd-scheme-card.is-disabled:hover {
+  border-color: var(--fli-line, var(--spd-p-border));
+  background: var(--fli-surface, var(--spd-p-bg));
+  transform: none;
+}
+
+.spd-scheme-card.is-disabled .spd-scheme-card-preview {
+  box-shadow: none;
+}
+
+/* 「暂未开放」角标 */
+.spd-scheme-card-badge {
+  flex-shrink: 0;
+  align-self: flex-start;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--fli-line, var(--spd-p-border));
+  background: var(--spd-p-bg-muted, var(--fli-surface, var(--spd-p-bg)));
+  color: var(--fli-muted, var(--spd-p-text-muted));
+  font-size: var(--spd-font-size-xs);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.spd-scheme-pending-note {
+  color: var(--fli-muted, var(--spd-p-text-muted));
 }
 
 .spd-scheme-card-preview {

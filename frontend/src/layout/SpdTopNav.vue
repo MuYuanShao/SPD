@@ -49,7 +49,16 @@ const notify = useNotify()
 const changePasswordOpen = ref(false)
 
 const refreshing = ref(false)
+/**
+ * 当前「被选中」的模块 —— 只有用户真正点击（选中）后才变化，
+ * 并一直保持到用户选中另一个模块为止。
+ * 悬浮只影响 openModule / hoverSubmenu（谁的下拉是展开的），
+ * 绝不影响 activeModule（谁是高亮的）。
+ */
 const activeModule = ref('dashboard')
+/** 当前展开下拉面板的模块（由悬浮驱动） */
+const openModule = ref('')
+/** 下拉面板是否展开 */
 const hoverSubmenu = ref(false)
 /** 移出后延迟收起的定时器句柄 */
 let closeTimer: number | null = null
@@ -112,13 +121,16 @@ const activeModuleName = computed(() => {
   return visibleMenu.value.find((g) => g.key === activeModule.value)?.name || ''
 })
 
-/** 打开指定模块的下拉菜单（悬浮进入时调用，只开不关） */
+/**
+ * 悬浮进入时调用：只展开下拉面板，**不改变 activeModule**。
+ * 高亮必须只跟随用户真正的点击选择，否则鼠标扫过菜单就会「误激活」。
+ */
 function openSubmenu(key: string) {
   if (key === 'dashboard') {
     hoverSubmenu.value = false
     return
   }
-  activeModule.value = key
+  openModule.value = key
   hoverSubmenu.value = true
   if (closeTimer) {
     clearTimeout(closeTimer)
@@ -126,16 +138,23 @@ function openSubmenu(key: string) {
   }
 }
 
-/** 点击时切换下拉菜单开合 */
+/**
+ * 点击菜单项：切换下拉开合，并把该模块标记为「当前选中」。
+ * activeModule 只在这里（以及路由变化时）被赋值。
+ */
 function toggleSubmenu(key: string) {
   if (key === 'dashboard') {
     hoverSubmenu.value = false
+    openModule.value = ''
     return
   }
-  if (activeModule.value === key && hoverSubmenu.value) {
+  const willClose = activeModule.value === key && hoverSubmenu.value
+  if (willClose) {
     hoverSubmenu.value = false
+    openModule.value = ''
   } else {
     activeModule.value = key
+    openModule.value = key
     hoverSubmenu.value = true
   }
   if (closeTimer) {
@@ -153,6 +172,7 @@ function scheduleCloseSubmenu() {
   if (closeTimer) clearTimeout(closeTimer)
   closeTimer = window.setTimeout(() => {
     hoverSubmenu.value = false
+    openModule.value = ''
     closeTimer = null
   }, 160)
 }
@@ -162,6 +182,7 @@ function handleDocumentClick(e: MouseEvent) {
   const target = e.target as HTMLElement | null
   if (target && target.closest('.spd-topnav-menu')) return
   hoverSubmenu.value = false
+  openModule.value = ''
 }
 
 onMounted(() => {
@@ -187,6 +208,7 @@ function isActive(path: string): boolean {
 
 function handleSubmenuClick() {
   hoverSubmenu.value = false
+  openModule.value = ''
 }
 
 function handleRefresh() {
@@ -282,6 +304,7 @@ watch(
       }
     }
     hoverSubmenu.value = false
+    openModule.value = ''
   },
   { immediate: true }
 )
@@ -317,12 +340,14 @@ watch(
           </RouterLink>
         </div>
 
-        <!-- 业务模块：悬浮即展开下拉，移出后自动收起 -->
+        <!-- 业务模块：悬浮即展开下拉，移出后自动收起
+             active = 用户真正选中的模块（持久高亮）
+             is-open = 当前悬浮展开的下拉（只是展开，不代表选中） -->
         <div
           v-for="group in visibleMenu"
           :key="group.key"
           class="spd-menu-item spd-menu-item--hover"
-          :class="{ active: activeModule === group.key }"
+          :class="{ active: activeModule === group.key, 'is-open': openModule === group.key && hoverSubmenu }"
           @click.stop="toggleSubmenu(group.key)"
           @mouseenter="openSubmenu(group.key)"
           @mouseleave="scheduleCloseSubmenu"
@@ -335,7 +360,7 @@ watch(
           <!-- 下拉子菜单 -->
           <Transition name="menu-dropdown">
             <div
-              v-if="activeModule === group.key && hoverSubmenu"
+              v-if="openModule === group.key && hoverSubmenu"
               class="spd-menu-dropdown"
               @click.stop
               @mouseenter="openSubmenu(group.key)"

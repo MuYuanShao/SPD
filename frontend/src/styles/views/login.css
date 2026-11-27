@@ -476,82 +476,129 @@
   text-decoration: underline;
 }
 
-/* 输入框：单边框，内部图标绝对定位，无重叠 */
+/* =====================================================================
+ * 输入框：外壳画框 + 图标内嵌
+ * ---------------------------------------------------------------------
+ * 结构（见 views/LoginView.vue）：
+ *   .login-field  = 输入框外壳（负责高度 / 圆角 / 描边 / 底色 / 焦点环）
+ *     ├─ .lead    = 框内前置图标（绝对定位，left 12px）
+ *     ├─ input    = 无框文本区（透明底，覆盖外壳描边）
+ *     └─ .trail   = 框内尾部按钮（显示 / 隐藏密码）
+ *
+ * 【为什么内层 input 要清成无框】
+ *   styles/components/spd-input.css（在 main.ts 里排在 main.css 之后引入）
+ *   对原生 input 有一条特指度 (0,9,1) 的通用规则：
+ *     input:not([type=checkbox]):not([type=radio])… {
+ *       height: 34px; padding: 0 10px;
+ *       border: 1px solid …; border-radius: 4px; background: …;
+ *     }
+ *   它远高于本文件的 (0,1,1)，若不清掉就会在「外壳里又画一个实心小框」，
+ *   同时把图标留位用的 padding 改成 10px → 文字压住左侧图标。
+ *   因此内层 input 的边框 / 底色 / 圆角 / 高度 / 内边距一律用 !important 清零，
+ *   由外壳统一承担视觉。
+ * ===================================================================== */
 .login-field {
   position: relative;
+  display: flex;
+  align-items: center;
   width: 100%;
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  /* 1px 描边用 inset 阴影画，与全站 Element Plus 输入框同款做法 */
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
+  transition: box-shadow 0.18s ease, background 0.18s ease;
 }
 
+.login-field:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
+}
+
+/* 聚焦：主色描边 + 焦点光晕 */
+.login-field:focus-within {
+  box-shadow:
+    0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-focus-border) inset,
+    0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+/* 内层文本区：无框、透明、垂直撑满 */
 .login-field input {
-  display: block;
-  width: 100%;
-  height: 44px;
-  border: 1px solid var(--spd-p-border);
-  border-radius: 8px;
-  background: var(--spd-p-bg);
-  padding: 0 44px;
-  font-size: 14px;
-  color: var(--spd-p-text);
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   outline: none;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   -webkit-appearance: none;
   appearance: none;
+  /* 左右让开框内图标 */
+  padding: 0 36px 0 38px !important;
+  font-size: var(--spd-font-size-base);
+  color: var(--spd-p-field-text);
+  caret-color: var(--el-color-primary, var(--spd-p-info));
 }
 
 .login-field input::placeholder {
-  color: var(--spd-p-text-secondary);
+  color: var(--spd-p-field-placeholder);
 }
 
-.login-field input:hover {
-  border-color: var(--spd-p-border-strong);
-}
-
-.login-field input:focus {
-  border-color: var(--el-color-primary, var(--spd-p-info));
-  background: var(--spd-p-bg);
-  box-shadow: var(--spd-p-shadow-1);
-}
-
-.login-field input:focus + .lead,
-.login-field:focus-within .lead {
-  color: var(--el-color-primary, var(--spd-p-info));
-}
-
-.login-field .lead,
-.login-field .trail {
+/* 框内前置图标 */
+.login-field .lead {
   position: absolute;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
-  color: var(--spd-p-text-muted);
+  width: 16px;
+  height: 16px;
   pointer-events: none;
   z-index: 2;
+  color: var(--spd-p-text-muted);
+  transition: color 0.18s ease;
 }
 
-.login-field .lead {
-  left: 12px;
+/* 聚焦时图标变主色 */
+.login-field:focus-within .lead {
+  color: var(--el-color-primary, var(--spd-p-info));
 }
 
+/* 框内尾部按钮（显示 / 隐藏密码） */
 .login-field .trail {
-  right: 4px;
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  z-index: 2;
   pointer-events: auto;
 }
 
 .login-field .trail button {
-  border: 0;
-  background: transparent;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: inherit;
   display: grid;
   place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--spd-p-text-muted);
+  cursor: pointer;
+  transition: color 0.18s ease, background 0.18s ease;
 }
 
 .login-field .trail button:hover {
   color: var(--el-color-primary, var(--spd-p-info));
-  background: color-mix(in srgb, var(--spd-p-info) 8%, transparent);
+  background: color-mix(in srgb, var(--spd-p-info) 10%, transparent);
 }
 
 .login-panel-row {

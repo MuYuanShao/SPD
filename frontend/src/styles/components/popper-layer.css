@@ -1,0 +1,82 @@
+/* =====================================================================
+ * 浮层层级（Popper Z-Index）
+ * ---------------------------------------------------------------------
+ * 背景：
+ *   自绘弹窗遮罩（.modal-mask / .attachment-preview-mask）使用 z-index: 99999，
+ *   而 Element Plus 的下拉浮层（el-select / el-date-picker / el-popover /
+ *   el-tooltip）默认 z-index 只有 2000 左右，且这些浮层被 teleport 到 <body>，
+ *   不在弹窗的 DOM 子树里 —— 弹窗内的 scoped :deep() 规则无法命中它们。
+ *
+ *   结果：弹窗里的 el-select 下拉面板被遮罩层整个盖住，看得见但点不到。
+ *
+ * 方案：
+ *   定义全局规则，把所有 Element Plus 浮层的 z-index 抬到遮罩层之上
+ *   （--spd-popper-z 令牌，默认 100000，比 .modal-mask 的 99999 高一层）。
+ *   同时补上 .spd-select-popper 的定义 —— 该类此前在全站各处被引用
+ *   （el-select popper-class="spd-select-popper"），但样式表里从未定义过。
+ *
+ * 注意：
+ *   ⚠️ 不要在这里给 .el-overlay 写规则。.el-overlay 同时被 el-dialog 与
+ *      各种下拉浮层复用，写错会污染所有 Element Plus 浮层。
+ * ===================================================================== */
+
+:root {
+  /* 浮层层级令牌：必须大于 .modal-mask / .attachment-preview-mask 的 99999 */
+  --spd-popper-z: 100000;
+  /* Element Plus 消息层级令牌（useNotify 使用 999999，见 composables/useNotify.ts） */
+  --spd-toast-z: 999999;
+}
+
+/* --- 1. 所有 Element Plus 浮层容器 ---------------------------------
+ * .el-popper 是 el-select / el-popover / el-tooltip / el-date-picker
+ * 浮层的公共根类（teleport 到 body），统一抬高层级即可覆盖所有场景。
+ */
+.el-popper,
+.el-select-dropdown,
+.el-select-dropdown__popper,
+.el-popover,
+.el-popover__popper,
+.el-date-picker,
+.el-date-picker__popper,
+.el-autocomplete__popper,
+.el-dropdown__popper {
+  z-index: var(--spd-popper-z) !important;
+}
+
+/* Element Plus 依赖 inline style 的 z-index（自动递增），
+   这里用更高特指度 + !important 覆盖 inline style 之外的场景；
+   inline style 的优先级最高，因此对 teleported popper 再做一次兜底。 */
+body > .el-popper,
+body > .el-select-dropdown,
+body > .el-popover,
+body > .el-date-editor .el-picker-panel,
+body > .el-popper.el-tooltip__popper {
+  z-index: var(--spd-popper-z);
+}
+
+/* --- 2. 业务统一的下拉浮层类 ---------------------------------------
+ * .spd-select-popper 是全站 el-select 的统一 popper-class，
+ * 此前仅被引用、从未定义。这里补上几何与层级，
+ * 保证它在任何弹窗（含自绘遮罩）里都浮在最上层。
+ */
+.spd-select-popper {
+  z-index: var(--spd-popper-z) !important;
+}
+
+.spd-select-popper.el-select__popper {
+  z-index: var(--spd-popper-z) !important;
+}
+
+/* --- 3. el-dialog 内部的下拉不被自身 overlay 裁剪 -------------------
+ * el-dialog 的 overlay（.el-overlay）自带一个较高的 z-index，
+ * 但 dialog 面板内部如果出现 overflow: hidden 容器，下拉会被裁掉。
+ * 这里保证 dialog 面板本身不裁剪 teleported 浮层
+ * （浮层在 body 下，本就不受 dialog overflow 影响，这里只做保险）。
+ */
+.el-dialog {
+  overflow: visible;
+}
+
+.el-dialog__body {
+  overflow: visible;
+}

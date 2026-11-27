@@ -11,6 +11,7 @@ import {
   type ProductDetail
 } from '../../api/masterData'
 import { useAuthStore } from '../../stores/auth'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 
 interface DetailField {
   label: string
@@ -81,6 +82,21 @@ function money(value: ProductDetail['purchasePrice'] | null) {
 function yesNo(value: boolean) {
   return value ? '是' : '否'
 }
+
+/**
+ * 状态语义：与医院目录列表「状态」列的状态条完全一致
+ * （列表用的是 SpdStatusChip：启用 → success / 停用 → danger）。
+ */
+const isActiveStatus = computed(() => {
+  const label = detail.value?.statusLabel ?? ''
+  return label.includes('启用') || label.includes('正常')
+})
+
+const statusTone = computed<SpdStatusChipTone>(() => {
+  const label = detail.value?.statusLabel ?? ''
+  if (label.includes('停') || label.includes('禁用')) return 'danger'
+  return isActiveStatus.value ? 'success' : 'neutral'
+})
 
 const detailSections = computed<DetailSection[]>(() => {
   const item = detail.value
@@ -196,13 +212,8 @@ watch(productCode, () => { if (active) void loadDetail() })
     </div>
 
     <template v-else-if="detail">
-      <div class="product-detail-toolbar">
-        <span
-          class="product-detail-status"
-          :class="{ active: detail.statusLabel.includes('启用') || detail.statusLabel.includes('正常') }"
-        >
-          {{ detail.statusLabel }}
-        </span>
+      <div class="product-detail-toolbar" :class="{ 'is-active': isActiveStatus }">
+        <SpdStatusChip :tone="statusTone" :label="detail.statusLabel" />
         <div class="product-detail-toolbar-actions">
           <SpdButton label="返回列表" @click="returnToCatalog">
           <template #icon><ArrowLeft :size="15" aria-hidden="true" /></template>

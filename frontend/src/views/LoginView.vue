@@ -174,8 +174,8 @@ async function submitLogin() {
         <form @submit.prevent="submitLogin" novalidate>
           <label>
             <div class="lbl">
-              <span>
-                <User :size="12" style="vertical-align: -1px; margin-right: 4px" />
+              <span class="lbl-text">
+                <span class="lbl-ico"><User :size="13" /></span>
                 <span>用户名</span>
                 <span class="required">*</span>
               </span>
@@ -194,8 +194,8 @@ async function submitLogin() {
 
           <label>
             <div class="lbl">
-              <span>
-                <Lock :size="12" style="vertical-align: -1px; margin-right: 4px" />
+              <span class="lbl-text">
+                <span class="lbl-ico"><Lock :size="13" /></span>
                 <span>密码</span>
                 <span class="required">*</span>
               </span>
@@ -258,5 +258,56 @@ async function submitLogin() {
 </template>
 
 <style scoped>
-/* layout is defined in styles/views/login.css */
+/* =====================================================================
+ * 登录页输入框样式
+ * ---------------------------------------------------------------------
+ * 输入框外壳（.login-field）与框内图标的完整规格写在
+ * styles/views/login.css 里（与登录页其余样式同源，便于统一维护）。
+ *
+ * 【本文件为什么必须保留这些覆盖】
+ *   styles/components/spd-input.css（在 main.ts 里排在 main.css 之后引入）
+ *   对原生 input 有一条特指度 (0,9,1) 的通用规则：
+ *     input:not([type=checkbox]):not([type=radio])… {
+ *       height: 34px; padding: 0 10px;
+ *       border: 1px solid …; border-radius: 4px; background: …;
+ *     }
+ *   它的特指度远高于 .login-field input，
+ *   会把「外壳画框 + 内层透明文本区」的结构打回「框里又画一个实心小框」，
+ *   同时把图标留位用的 padding 改成 10px → 文字压住左侧图标。
+ *   因此这里用 scoped（特指度更高）+ !important 把内层 input 清成无框。
+ * ===================================================================== */
+
+/* 内层文本区：无框、透明、撑满外壳 */
+.login-field input {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  /* 左侧让开前置图标，右侧让开尾部「显示密码」按钮 */
+  padding: 0 36px 0 38px !important;
+  font-size: var(--spd-font-size-base);
+  color: var(--spd-p-field-text);
+  caret-color: var(--el-color-primary, var(--spd-p-info));
+}
+
+.login-field input::placeholder {
+  color: var(--spd-p-field-placeholder);
+}
+
+/* ---------- 标签行：图标 + 文案 + 必填星号 ---------- */
+.login-panel label > .lbl .lbl-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.login-panel label > .lbl .lbl-ico {
+  display: inline-grid;
+  place-items: center;
+  color: var(--spd-p-text-muted);
+}
 </style>

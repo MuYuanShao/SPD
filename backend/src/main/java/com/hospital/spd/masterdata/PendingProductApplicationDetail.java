@@ -10,7 +10,6 @@ public record PendingProductApplicationDetail(
         String statusLabel,
         String productName,
         String productCode,
-        String specModel,
         String brand,
         String manufacturerName,
         String supplierName,
@@ -58,7 +57,7 @@ public record PendingProductApplicationDetail(
 ) {
     public PendingProductApplicationDetail(
             String applicationNo, String applicationType, String approvalStatus, String statusLabel,
-            String productName, String productCode, String specModel, String brand,
+            String productName, String productCode, String brand,
             String manufacturerName, String supplierName, String unit, BigDecimal purchasePrice,
             BigDecimal retailPrice, BigDecimal minPurchaseQty, String purchaseUnit,
             BigDecimal conversionRate, BigDecimal purchasePackageQty, String udiCode,
@@ -73,7 +72,7 @@ public record PendingProductApplicationDetail(
             List<ApprovalTimelineNode> timeline, boolean canApprove
     ) {
         this(applicationNo, applicationType, approvalStatus, statusLabel, productName, productCode,
-                specModel, brand, manufacturerName, supplierName, unit, purchasePrice, retailPrice,
+                brand, manufacturerName, supplierName, unit, purchasePrice, retailPrice,
                 minPurchaseQty, purchaseUnit, conversionRate, purchasePackageQty, udiCode,
                 registrationNo, registrationExpireDate, productionLicenseNo, businessLicenseNo,
                 volumeBased, centralizedProcurement, domestic, contractCode, firstCategory,

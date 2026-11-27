@@ -508,13 +508,19 @@ onMounted(loadAll)
             <span class="sys-tag is-menu">{{ row.featureName || featureLabel(row) }}</span>
             <i class="sys-flow-card-arrow"><GitMerge :size="13" /></i>
             <span class="sys-tag is-node">{{ row.nodeName || nodeLabel(row) }}</span>
-            <span :class="['sys-badge', row.status === 1 ? 'is-active' : 'is-stopped']">
-              {{ row.status === 1 ? '启用' : '停用' }}
-            </span>
+            <SpdStatusChip
+              :tone="row.status === 1 ? 'success' : 'danger'"
+              :label="row.status === 1 ? '启用' : '停用'"
+              size="sm"
+            />
             <span class="sys-tag is-scope">{{ scopeName(row.scopeType) }} · {{ row.scopeId }}</span>
           </div>
           <div class="sys-flow-card-actions">
-            <SpdButton :label="row.status === 1 ? '停用' : '启用'" variant="text" :tone="row.status === 1 ? 'danger' : 'success'" @click="toggleStatus(row)"></SpdButton>
+            <!-- 停用 / 启用：走全站按钮注册表（停用=danger 实心描边，启用=success 实心描边），
+                 不再使用 text 形态，避免渲染成没有边框的裸文字。
+                 两个分支各写静态 label，色调由注册表唯一决定（全站同文本按钮一致）。 -->
+            <SpdButton v-if="row.status === 1" label="停用" @click="toggleStatus(row)"></SpdButton>
+            <SpdButton v-else label="启用" @click="toggleStatus(row)"></SpdButton>
             <SpdButton label="编辑" @click="openEditDialog(row)">
               <template #icon><Edit3 :size="13" /></template>
             </SpdButton>
@@ -539,9 +545,11 @@ onMounted(loadAll)
             <span class="sys-flow-step-stat">
               最少 {{ step.minApprovals }} 通过 · {{ dataScopeName(step.dataScope) }}
             </span>
-            <span :class="['sys-badge', step.status === 1 ? 'is-active' : 'is-stopped']">
-              {{ step.status === 1 ? '启用' : '停用' }}
-            </span>
+            <SpdStatusChip
+              :tone="step.status === 1 ? 'success' : 'danger'"
+              :label="step.status === 1 ? '启用' : '停用'"
+              size="sm"
+            />
           </li>
         </ol>
       </article>
@@ -662,14 +670,16 @@ onMounted(loadAll)
                       </select>
                     </td>
                     <td>
-                      <span :class="['sys-badge', step.status === 1 ? 'is-active' : 'is-stopped']">
-                        {{ step.status === 1 ? '启用' : '停用' }}
-                      </span>
+                      <SpdStatusChip
+                        :tone="step.status === 1 ? 'success' : 'danger'"
+                        :label="step.status === 1 ? '启用' : '停用'"
+                        size="sm"
+                      />
                     </td>
                     <td>
-                      <SpdButton variant="text" tone="primary" @click="step.status = step.status === 1 ? 0 : 1">
-                        {{ step.status === 1 ? '停用' : '启用' }}
-                      </SpdButton>
+                      <!-- 与行卡「停用 / 启用」保持同一套注册表样式（全站同文本按钮一致） -->
+                      <SpdButton v-if="step.status === 1" label="停用" @click="step.status = 0"></SpdButton>
+                      <SpdButton v-else label="启用" @click="step.status = 1"></SpdButton>
                       <SpdButton label="删除" @click="removeStep(index)" />
                     </td>
                   </tr>
@@ -964,14 +974,8 @@ onMounted(loadAll)
 .sys-tag.is-node  { color: var(--spd-p-primary); background: var(--spd-p-info-bg); border-color: var(--spd-p-info-border); }
 .sys-tag.is-scope { color: var(--spd-p-warning-text); background: var(--spd-p-warning-bg); border-color: var(--spd-p-warning-border); }
 
-.sys-badge {
-  display: inline-flex; align-items: center;
-  border-radius: 999px; padding: 2px 10px;
-  font-size: var(--spd-font-size-base); font-weight: 600;
-  border: 1px solid;
-}
-.sys-badge.is-active  { color: var(--spd-p-primary-strong); background: var(--spd-p-success-bg); border-color: var(--spd-p-success); }
-.sys-badge.is-stopped { color: var(--spd-p-danger-strong); background: var(--spd-p-danger-bg); border-color: var(--spd-p-danger-border); }
+/* 状态条统一走全站通用组件 <SpdStatusChip>（浅色底 + 深色字），
+   本页不再保留自绘 badge，避免与按钮混淆。 */
 
 /* ---------- 弹窗 ---------- */
 .sys-dialog-mask {

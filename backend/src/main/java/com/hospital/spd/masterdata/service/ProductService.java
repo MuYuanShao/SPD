@@ -181,7 +181,7 @@ public class ProductService {
 
         String productCode = productCodeService.resolveNewProductCode(request.productCode(), request.tenderSubCode());
         productCodeService.requireAvailable(productCode, null);
-        new CatalogDuplicateGuard(jdbcTemplate).requireAvailable(new CatalogDuplicateGuard.Identity(request.productName(), request.specModel(),
+        new CatalogDuplicateGuard(jdbcTemplate).requireAvailable(new CatalogDuplicateGuard.SpecIdentity(request.productName(), request.specModel(),
                 request.manufacturerName(), request.supplierName(), request.registrationNo()), null);
         String applicationNo = createPendingApplication("新品准入", request, productCode, "医院目录新增提交审批");
         return Map.of("productCode", productCode, "applicationNo", applicationNo);

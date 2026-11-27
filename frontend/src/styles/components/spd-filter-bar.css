@@ -301,12 +301,8 @@
   font-size: var(--spd-font-size-base) !important;
 }
 
-/* 主题适配：三套方案下筛选栏外壳与标签同样取自令牌 */
-:root[data-spd-theme='night-black'] .spd-filter-bar,
-:root[data-spd-theme='calm-paper'] .spd-filter-bar {
-  background: var(--spd-bg-container) !important;
-  border: 1px solid var(--spd-border-default) !important;
-}
+/* 主题适配：筛选栏外壳与标签全部取自令牌，
+   标准白为当前唯一开放的配色方案，无需按方案另写一套。 */
 
 /* =====================================================================
  * 6. 窄屏（标准规则 1 / 2 的断点补充）

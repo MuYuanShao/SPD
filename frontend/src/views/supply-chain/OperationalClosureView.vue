@@ -83,6 +83,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { confirmWarehouseReturn, fetchWarehouseReturnQueue, type ReturnRecord } from '../../api/stockReturns'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const route = useRoute()
 const loading = ref(false)
@@ -332,6 +333,22 @@ const {
   }
 })
 
+/**
+ * 结算明细筛选的「查询」。
+ *
+ * 日期区间规则（产品硬约束）：**开始时间不得晚于结束时间**。
+ * usePagedFilters 内部也会拦截，但只写页面内联错误条；这里在请求发出前
+ * 统一用 notifyError 给出明确提示，并且不触发任何网络请求。
+ */
+function applySettlementFiltersWithGuard() {
+  const { dateFrom, dateTo } = settlementFilters
+  if (dateFrom && dateTo && dateFrom > dateTo) {
+    notifyWarning('开始日期不能晚于结束日期')
+    return
+  }
+  applySettlementFilters()
+}
+
 function settlementGoodsLabel(value: unknown) {
   return ({ high_value: '高值耗材', quota_package: '定数包', loose: '散货', unknown: '待核对货型' } as Record<string, string>)[String(value)] || '-'
 }
@@ -548,10 +565,65 @@ async function confirmDepartmentReturn(row: ReturnRecord) {
   }
 }
 
+/**
+ * 统一筛选栏（SpdFilterBar 默认操作区）的「查询」处理。
+ *
+ * 根因修复（补货任务点击「查询」无任何网络请求）：
+ *   SpdFilterBar 的默认操作区会渲染 `type="submit"` 的「查询」按钮，
+ *   并在点击时 emit('submit')。本页面原先只写了筛选栏组件而没有监听
+ *   @submit / @reset，页面上也不存在 form 元素，因此按钮点击后既不提交表单
+ *   也不触发任何处理函数 —— 表现为「点查询没反应、不发请求」。
+ *   现在显式监听这两个事件，按当前页面类型分发到对应的查询逻辑。
+ */
+function applyFilterBarFilters() {
+  if (type.value === 'delivery') {
+    // 拣配配送的日期筛选在独立的 picking 筛选表单里
+    void applyPickingFilters()
+    return
+  }
+  if (isRecallPage.value) {
+    applyRecallHistoryFilters()
+    return
+  }
+  // 补货任务 / 科室申领 / 科室消耗 / 冷链 / PDA 等页面：列表范围由服务端按
+  // 当前登录人权限限定，查询动作即重新拉取当前列表与选项数据。
+  currentPage.value = 1
+  void loadData()
+}
+
+/** 统一筛选栏的「重置」处理：清空本页筛选条件后重新查询。 */
+function resetFilterBarFilters() {
+  if (type.value === 'delivery') {
+    resetPickingFilters()
+    return
+  }
+  if (isRecallPage.value) {
+    resetRecallHistoryFilters()
+    return
+  }
+  form.deptName = ''
+  form.warehouseName = ''
+  form.productCode = ''
+  form.quantity = 1
+  // 复位到与 form 初始声明一致的默认值：
+  // replenishmentDays 是 number | 'custom'，temperature 是 number，
+  // 二者都不能赋空串（否则筛选永远带着非法值去查询）。
+  form.replenishmentDays = 7
+  form.deviceNo = ''
+  form.temperature = 9
+  // recallBatchNo 是独立的 ref，不在 form 里
+  recallBatchNo.value = ''
+  form.reason = ''
+  form.uniqueCodes = ''
+  form.deptCode = ''
+  currentPage.value = 1
+  void loadData()
+}
+
 function applyRecallHistoryFilters() {
   const { dateFrom, dateTo } = recallHistoryFilters
   if (dateFrom && dateTo && dateFrom > dateTo) {
-    recallHistoryError.value = '开始日期不能晚于结束日期'
+    notifyWarning('开始日期不能晚于结束日期')
     return
   }
   appliedRecallHistoryFilters.value = { ...recallHistoryFilters }
@@ -625,7 +697,7 @@ async function loadPickingRequisitions(isCurrent = () => type.value === 'deliver
 
 async function applyPickingFilters() {
   if (pickingFilters.dateFrom && pickingFilters.dateTo && pickingFilters.dateFrom > pickingFilters.dateTo) {
-    notifyError('开始日期不能晚于结束日期', 'warning')
+    notifyWarning('开始日期不能晚于结束日期')
     return
   }
   appliedPickingFilters.value = { ...pickingFilters }
@@ -1306,6 +1378,7 @@ const ocReplenishmentAnalysisCols = useListColumns({
 })
 
 const ocReplenishmentAnalysisTableRef = ocReplenishmentAnalysisCols.tableRef
+const fillHeightOcReplenishmentAnalysis = useFillHeightTable({ tableRef: ocReplenishmentAnalysisTableRef })
 const isOcReplenishmentAnalysisColVisible = (key: string) => ocReplenishmentAnalysisCols.isColumnVisible(key)
 const ocReplenishmentAnalysisColBinding = (key: string) => ocReplenishmentAnalysisCols.columnBinding(key)
 
@@ -1361,6 +1434,7 @@ const ocRecallHistoryCols = useListColumns({
 })
 
 const ocRecallHistoryTableRef = ocRecallHistoryCols.tableRef
+const fillHeightOcRecallHistory = useFillHeightTable({ tableRef: ocRecallHistoryTableRef })
 const isOcRecallHistoryColVisible = (key: string) => ocRecallHistoryCols.isColumnVisible(key)
 const ocRecallHistoryColBinding = (key: string) => ocRecallHistoryCols.columnBinding(key)
 
@@ -1399,6 +1473,7 @@ const ocRedFlushCols = useListColumns({
 })
 
 const ocRedFlushTableRef = ocRedFlushCols.tableRef
+const fillHeightOcRedFlush = useFillHeightTable({ tableRef: ocRedFlushTableRef })
 const isOcRedFlushColVisible = (key: string) => ocRedFlushCols.isColumnVisible(key)
 const ocRedFlushColBinding = (key: string) => ocRedFlushCols.columnBinding(key)
 
@@ -1448,6 +1523,7 @@ const ocSettlementCols = useListColumns({
 })
 
 const ocSettlementTableRef = ocSettlementCols.tableRef
+const fillHeightOcSettlement = useFillHeightTable({ tableRef: ocSettlementTableRef })
 const isOcSettlementColVisible = (key: string) => ocSettlementCols.isColumnVisible(key)
 const ocSettlementColBinding = (key: string) => ocSettlementCols.columnBinding(key)
 
@@ -1484,6 +1560,7 @@ const ocRecallQueueCols = useListColumns({
 })
 
 const ocRecallQueueTableRef = ocRecallQueueCols.tableRef
+const fillHeightOcRecallQueue = useFillHeightTable({ tableRef: ocRecallQueueTableRef })
 const isOcRecallQueueColVisible = (key: string) => ocRecallQueueCols.isColumnVisible(key)
 const ocRecallQueueColBinding = (key: string) => ocRecallQueueCols.columnBinding(key)
 
@@ -1535,6 +1612,7 @@ const ocReturnQueueCols = useListColumns({
 })
 
 const ocReturnQueueTableRef = ocReturnQueueCols.tableRef
+const fillHeightOcReturnQueue = useFillHeightTable({ tableRef: ocReturnQueueTableRef })
 const isOcReturnQueueColVisible = (key: string) => ocReturnQueueCols.isColumnVisible(key)
 const ocReturnQueueColBinding = (key: string) => ocReturnQueueCols.columnBinding(key)
 
@@ -1584,6 +1662,7 @@ const ocPickingLooseCols = useListColumns({
 })
 
 const ocPickingLooseTableRef = ocPickingLooseCols.tableRef
+const fillHeightOcPickingLoose = useFillHeightTable({ tableRef: ocPickingLooseTableRef })
 const isOcPickingLooseColVisible = (key: string) => ocPickingLooseCols.isColumnVisible(key)
 const ocPickingLooseColBinding = (key: string) => ocPickingLooseCols.columnBinding(key)
 
@@ -1621,6 +1700,7 @@ const ocPickingQuotaPackageCols = useListColumns({
 })
 
 const ocPickingQuotaPackageTableRef = ocPickingQuotaPackageCols.tableRef
+const fillHeightOcPickingQuotaPackage = useFillHeightTable({ tableRef: ocPickingQuotaPackageTableRef })
 const isOcPickingQuotaPackageColVisible = (key: string) => ocPickingQuotaPackageCols.isColumnVisible(key)
 const ocPickingQuotaPackageColBinding = (key: string) => ocPickingQuotaPackageCols.columnBinding(key)
 
@@ -1656,6 +1736,7 @@ const ocPickingUniqueCodeCols = useListColumns({
 })
 
 const ocPickingUniqueCodeTableRef = ocPickingUniqueCodeCols.tableRef
+const fillHeightOcPickingUniqueCode = useFillHeightTable({ tableRef: ocPickingUniqueCodeTableRef })
 const isOcPickingUniqueCodeColVisible = (key: string) => ocPickingUniqueCodeCols.isColumnVisible(key)
 const ocPickingUniqueCodeColBinding = (key: string) => ocPickingUniqueCodeCols.columnBinding(key)
 
@@ -1697,6 +1778,7 @@ const ocPickingRequisitionCols = useListColumns({
 })
 
 const ocPickingRequisitionTableRef = ocPickingRequisitionCols.tableRef
+const fillHeightOcPickingRequisition = useFillHeightTable({ tableRef: ocPickingRequisitionTableRef })
 const isOcPickingRequisitionColVisible = (key: string) => ocPickingRequisitionCols.isColumnVisible(key)
 const ocPickingRequisitionColBinding = (key: string) => ocPickingRequisitionCols.columnBinding(key)
 
@@ -1754,6 +1836,7 @@ const ocRecallInventoryCols = useListColumns({
 })
 
 const ocRecallInventoryTableRef = ocRecallInventoryCols.tableRef
+const fillHeightOcRecallInventory = useFillHeightTable({ tableRef: ocRecallInventoryTableRef })
 const isOcRecallInventoryColVisible = (key: string) => ocRecallInventoryCols.isColumnVisible(key)
 const ocRecallInventoryColBinding = (key: string) => ocRecallInventoryCols.columnBinding(key)
 
@@ -1787,6 +1870,7 @@ const ocClosureDocCols = useListColumns({
 })
 
 const ocClosureDocTableRef = ocClosureDocCols.tableRef
+const fillHeightOcClosureDoc = useFillHeightTable({ tableRef: ocClosureDocTableRef })
 const isOcClosureDocColVisible = (key: string) => ocClosureDocCols.isColumnVisible(key)
 const ocClosureDocColBinding = (key: string) => ocClosureDocCols.columnBinding(key)
 
@@ -1968,7 +2052,7 @@ const ocClosureDocColSettingsPop = useColSettingsPopover({
           </SpdButton>
         </div>
       </div>
-      <SpdFilterBar :class="{ 'consumption-form-grid': type === 'consumption' }">
+      <SpdFilterBar :class="{ 'consumption-form-grid': type === 'consumption' }" @submit="applyFilterBarFilters" @reset="resetFilterBarFilters">
         <label v-if="isRecallPage">
           <span>召回范围</span>
           <select v-model="recallScope" @change="applyRecallScope">
@@ -2100,7 +2184,7 @@ ref="ocRecallInventoryColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightOcRecallInventory.maxHeight"
             style="width: 100%"
             :empty-text="'当前范围暂无可召回库存'"
             @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallInventoryCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2272,11 +2356,15 @@ ref="ocRecallInventoryColSettingsPopRef"
         role="tabpanel" aria-labelledby="delivery-tab-picking">
         <section class="picking-panel picking-panel--requisition">
           <form class="settlement-filters" aria-label="待拣配申领日期查询" @submit.prevent="applyPickingFilters">
-            <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" /></label>
-            <label><span>审批结束日期</span><input v-model="pickingFilters.dateTo" class="md-input" type="date" /></label>
+            <label><span>审批开始日期</span><input v-model="pickingFilters.dateFrom" class="md-input" type="date" :max="pickingFilters.dateTo || undefined" /></label>
+            <label><span>审批结束日期</span><input v-model="pickingFilters.dateTo" class="md-input" type="date" :min="pickingFilters.dateFrom || undefined" /></label>
             <div class="settlement-query-actions">
-              <SpdButton label="重置" tone="neutral" @click="resetPickingFilters"></SpdButton>
-              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="重置" tone="neutral" @click="resetPickingFilters">
+                <template #icon><RefreshCw :size="16" /></template>
+              </SpdButton>
             </div>
           </form>
                     <MdDataTableCard>
@@ -2309,7 +2397,7 @@ ref="ocPickingRequisitionColSettingsPopRef"
                 border
                 stripe
                 class="ulc-table is-sticky"
-                max-height="560"
+                :max-height="fillHeightOcPickingRequisition.maxHeight"
                 style="width: 100%"
                 :empty-text="'暂无待拣配申领单'"
                 @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingRequisitionCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2540,7 +2628,7 @@ ref="ocPickingUniqueCodeColSettingsPopRef"
                 border
                 stripe
                 class="ulc-table is-sticky"
-                max-height="560"
+                :max-height="fillHeightOcPickingUniqueCode.maxHeight"
                 style="width: 100%"
                 :empty-text="'该申请明细没有可拣配的唯一码/UDI'"
                 @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingUniqueCodeCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2675,7 +2763,7 @@ ref="ocPickingQuotaPackageColSettingsPopRef"
                 border
                 stripe
                 class="ulc-table is-sticky"
-                max-height="560"
+                :max-height="fillHeightOcPickingQuotaPackage.maxHeight"
                 style="width: 100%"
                 :empty-text="'请选择申领单和库房后查看可用定数包'"
                 @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingQuotaPackageCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2834,7 +2922,7 @@ ref="ocPickingLooseColSettingsPopRef"
                 border
                 stripe
                 class="ulc-table is-sticky"
-                max-height="560"
+                :max-height="fillHeightOcPickingLoose.maxHeight"
                 style="width: 100%"
                 :empty-text="'暂无可拣配散货'"
                 @header-dragend="(width: number, oldWidth: number, column: any) => ocPickingLooseCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2960,7 +3048,7 @@ ref="ocReturnQueueColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightOcReturnQueue.maxHeight"
             style="width: 100%"
             :empty-text="'暂无待确认科室退库'"
             @header-dragend="(width: number, oldWidth: number, column: any) => ocReturnQueueCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3101,7 +3189,7 @@ ref="ocRecallQueueColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightOcRecallQueue.maxHeight"
             style="width: 100%"
             :empty-text="'暂无待签收召回单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallQueueCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3225,15 +3313,15 @@ ref="ocRecallQueueColSettingsPopRef"
         </template>
       </div>
       <div v-if="type === 'settlement'" class="settlement-query">
-        <form class="settlement-filters" aria-label="结算明细查询" @submit.prevent="applySettlementFilters">
-          <label><span>申领开始日期</span><input v-model="settlementFilters.dateFrom" class="md-input" type="date" /></label>
-          <label><span>申领结束日期</span><input v-model="settlementFilters.dateTo" class="md-input" type="date" /></label>
+        <form class="settlement-filters" aria-label="结算明细查询" @submit.prevent="applySettlementFiltersWithGuard">
+          <label><span>申领开始日期</span><input v-model="settlementFilters.dateFrom" class="md-input" type="date" :max="settlementFilters.dateTo || undefined" /></label>
+          <label><span>申领结束日期</span><input v-model="settlementFilters.dateTo" class="md-input" type="date" :min="settlementFilters.dateFrom || undefined" /></label>
           <label><span>追溯码</span><input v-model.trim="settlementFilters.traceCode" class="md-input" type="search" placeholder="UDI、唯一码或定数包码" /></label>
           <label><span>科室</span><input v-model.trim="settlementFilters.deptName" class="md-input" type="search" placeholder="输入结算科室名称" /></label>
           <label><span>商品信息</span><input v-model.trim="settlementFilters.productKeyword" class="md-input" type="search" placeholder="编码、名称、规格、厂家或注册证" /></label>
           <label>
             <span>结算货型</span>
-            <select v-model="settlementFilters.goodsType" class="md-select" @change="applySettlementFilters">
+            <select v-model="settlementFilters.goodsType" class="md-select" @change="applySettlementFiltersWithGuard">
               <option value="">全部货型</option>
               <option value="high_value">高值耗材</option>
               <option value="quota_package">定数包</option>
@@ -3243,7 +3331,7 @@ ref="ocRecallQueueColSettingsPopRef"
           </label>
           <label>
             <span>排序</span>
-            <select v-model="settlementFilters.sort" class="md-select" @change="applySettlementFilters">
+            <select v-model="settlementFilters.sort" class="md-select" @change="applySettlementFiltersWithGuard">
               <option value="timeDesc">申领时间从新到旧</option>
               <option value="timeAsc">申领时间从旧到新</option>
               <option value="departmentAsc">科室名称升序</option>
@@ -3251,12 +3339,12 @@ ref="ocRecallQueueColSettingsPopRef"
             </select>
           </label>
           <div class="settlement-query-actions">
-            <SpdButton label="重置" tone="neutral" @click="resetSettlementFilters">
-          <template #icon><RotateCcw :size="16" /></template>
-        </SpdButton>
             <SpdButton label="查询" tone="primary" type="submit">
-          <template #icon><Search :size="16" /></template>
-        </SpdButton>
+              <template #icon><Search :size="16" /></template>
+            </SpdButton>
+            <SpdButton label="重置" tone="neutral" @click="resetSettlementFilters">
+              <template #icon><RefreshCw :size="16" /></template>
+            </SpdButton>
           </div>
         </form>
         <StatusMessage :message="settlementFilterError" tone="error" role="alert" />
@@ -3292,7 +3380,7 @@ ref="ocSettlementColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightOcSettlement.maxHeight"
             style="width: 100%"
             :empty-text="'暂无结算明细'"
             @header-dragend="(width: number, oldWidth: number, column: any) => ocSettlementCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3613,8 +3701,12 @@ ref="ocSettlementColSettingsPopRef"
               </select>
             </label>
             <div class="settlement-query-actions">
-              <SpdButton label="重置" tone="neutral" @click="resetRedFlushFilters"></SpdButton>
-              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="重置" tone="neutral" @click="resetRedFlushFilters">
+                <template #icon><RefreshCw :size="16" /></template>
+              </SpdButton>
             </div>
           </form>
           <StatusMessage :message="redFlushError" tone="error" role="alert" />
@@ -3650,7 +3742,7 @@ ref="ocRedFlushColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightOcRedFlush.maxHeight"
             style="width: 100%"
             :empty-text="'暂无红冲记录'"
             @header-dragend="(width: number, oldWidth: number, column: any) => ocRedFlushCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3769,14 +3861,18 @@ ref="ocRedFlushColSettingsPopRef"
       <template v-else-if="isRecallPage">
         <div class="settlement-query">
           <form class="settlement-filters" aria-label="召回与隔离记录查询" @submit.prevent="applyRecallHistoryFilters">
-            <label><span>开始日期</span><input v-model="recallHistoryFilters.dateFrom" type="date" class="md-input" /></label>
-            <label><span>结束日期</span><input v-model="recallHistoryFilters.dateTo" type="date" class="md-input" /></label>
+            <label><span>开始日期</span><input v-model="recallHistoryFilters.dateFrom" type="date" class="md-input" :max="recallHistoryFilters.dateTo || undefined" /></label>
+            <label><span>结束日期</span><input v-model="recallHistoryFilters.dateTo" type="date" class="md-input" :min="recallHistoryFilters.dateFrom || undefined" /></label>
             <label><span>商品名称</span><input v-model.trim="recallHistoryFilters.productName" type="search" class="md-input" /></label>
             <label><span>商品编码</span><input v-model.trim="recallHistoryFilters.productCode" type="search" class="md-input" /></label>
             <label><span>来源科室</span><input v-model.trim="recallHistoryFilters.deptName" type="search" class="md-input" /></label>
             <div class="settlement-query-actions">
-              <SpdButton label="重置" tone="neutral" @click="resetRecallHistoryFilters"></SpdButton>
-              <SpdButton label="查询" tone="primary" type="submit"></SpdButton>
+              <SpdButton label="查询" tone="primary" type="submit">
+                <template #icon><Search :size="16" /></template>
+              </SpdButton>
+              <SpdButton label="重置" tone="neutral" @click="resetRecallHistoryFilters">
+                <template #icon><RefreshCw :size="16" /></template>
+              </SpdButton>
             </div>
           </form>
           <StatusMessage :message="recallHistoryError" tone="error" role="alert" />
@@ -3812,7 +3908,7 @@ ref="ocRecallHistoryColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightOcRecallHistory.maxHeight"
               style="width: 100%"
               :empty-text="'暂无召回与隔离记录'"
               @header-dragend="(width: number, oldWidth: number, column: any) => ocRecallHistoryCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3986,7 +4082,7 @@ ref="ocClosureDocColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightOcClosureDoc.maxHeight"
               style="width: 100%"
               :empty-text="'暂无业务单据'"
               @header-dragend="(width: number, oldWidth: number, column: any) => ocClosureDocCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -4221,7 +4317,7 @@ ref="ocReplenishmentAnalysisColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightOcReplenishmentAnalysis.maxHeight"
               style="width: 100%"
               :empty-text="'暂无补货分析数据'"
               @header-dragend="(width: number, oldWidth: number, column: any) => ocReplenishmentAnalysisCols.handleHeaderDragEnd(width, oldWidth, column)"

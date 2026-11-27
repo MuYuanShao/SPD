@@ -1674,23 +1674,6 @@
   cursor: pointer;
 }
 
-.product-detail-status {
-  display: inline-block;
-  padding: 4px 12px;
-  border-radius: 999px;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  background: var(--spd-bg-page) !important;
-  color: var(--spd-text-tertiary) !important;
-  border: 1px solid var(--spd-border-default) !important;
-}
-
-.product-detail-status.active {
-  background: var(--spd-success-bg) !important;
-  color: var(--spd-success-text) !important;
-  border-color: var(--spd-success-border) !important;
-}
-
 .product-detail-sections {
   display: grid;
   gap: 16px;
@@ -2367,6 +2350,12 @@
   color: var(--spd-p-danger-text);
 }
 
+/* 顶部条内的状态条：白底 + 语义色文字/边框，与浅色顶部条底拉开层次 */
+.approval-detail-page.product-detail-page .product-detail-toolbar .spd-status-chip {
+  background: var(--spd-p-bg) !important;
+  box-shadow: var(--spd-p-shadow-1);
+}
+
 /* 编辑按钮 36px 圆角彩色 */
 .approval-detail-page.product-detail-page .btn-primary {
   min-height: 36px !important;
@@ -2732,63 +2721,45 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   font-size: var(--spd-font-size-base);
 }
 
-/* 详情页操作条（彩色渐变 hero bar） */
+/* ============================================================
+   详情页操作条（顶部条）
+   ------------------------------------------------------------
+   产品诉求（硬约束）：
+     「查看完整详情里顶部条的位置不要使用那么深的颜色，
+       使用列表中状态这一列启用状态条的背景色来」
+   因此顶部条**不再使用深色渐变 hero bar**，
+   改为直接采用医院目录列表「状态」列 SpdStatusChip 的浅色底：
+     启用 → --spd-p-chip-success-bg / --spd-p-chip-success-border
+     停用 → --spd-p-chip-danger-bg  / --spd-p-chip-danger-border
+   浅底 + 深字，三套配色方案自动适配。
+   ============================================================ */
 .product-detail-toolbar {
   display: flex !important;
   align-items: center !important;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 20px !important;
-  border: 1px solid color-mix(in srgb, var(--primary, var(--spd-p-primary)) 35%, transparent) !important;
-  background: var(--md-bg-header, var(--spd-p-header-gradient)) !important;
+  padding: 12px 18px !important;
+  border: 1px solid var(--spd-p-chip-success-border) !important;
+  background: var(--spd-p-chip-success-bg) !important;
   border-radius: 12px !important;
-  box-shadow: var(--spd-p-shadow-2);
+  box-shadow: var(--spd-p-shadow-1);
   min-height: 56px;
   box-sizing: border-box;
-  color: var(--spd-p-bg);
+  color: var(--spd-p-text-strong);
   position: relative;
   overflow: hidden;
 }
 
-.product-detail-toolbar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--spd-p-bg) 18%, transparent) 0%, transparent 36%),
-    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--spd-p-text-strong) 18%, transparent) 0%, transparent 32%);
-  pointer-events: none;
+/* 停用状态：跟随列表「状态」列 danger 状态条的浅色底 */
+.product-detail-toolbar:not(.is-active) {
+  border-color: var(--spd-p-chip-danger-border) !important;
+  background: var(--spd-p-chip-danger-bg) !important;
 }
 
-.product-detail-toolbar > * { position: relative; z-index: 1; }
-
-.product-detail-toolbar .product-detail-status {
-  display: inline-flex;
-  align-items: center;
-  min-height: 30px;
-  height: 30px;
-  padding: 0 14px;
-  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 40%, transparent) !important;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--spd-p-bg) 20%, transparent) !important;
-  color: var(--spd-p-bg) !important;
-  font-size: var(--spd-font-size-base);
-  font-weight: 600;
-  white-space: nowrap;
-  backdrop-filter: blur(2px);
-}
-
-.product-detail-toolbar .product-detail-status.active {
-  border-color: color-mix(in srgb, var(--spd-p-bg) 60%, transparent) !important;
-  background: color-mix(in srgb, var(--spd-p-bg) 32%, transparent) !important;
-  color: var(--spd-p-bg) !important;
+/* 顶部条里的状态条：白底 + 语义色文字，与顶部条底色拉开层次 */
+.product-detail-toolbar .spd-status-chip {
+  background: var(--spd-p-bg);
   box-shadow: var(--spd-p-shadow-1);
-}
-
-.product-detail-toolbar .product-detail-status:not(.active) {
-  border-color: color-mix(in srgb, var(--spd-p-danger-border) 60%, transparent);
-  background: color-mix(in srgb, var(--spd-p-danger) 25%, transparent);
-  color: var(--spd-p-bg);
 }
 
 .product-detail-toolbar-actions {
@@ -2797,45 +2768,14 @@ body .approval-detail-page.product-detail-page .standard-page-header.standard-pa
   gap: 10px;
 }
 
-.product-detail-toolbar-actions .btn {
-  min-height: 36px !important;
-  height: 36px !important;
-  padding: 0 16px !important;
-  border: 1px solid color-mix(in srgb, var(--spd-p-bg) 40%, transparent) !important;
-  border-radius: 10px !important;
-  background: color-mix(in srgb, var(--spd-p-bg) 18%, transparent) !important;
-  color: var(--spd-p-bg) !important;
-  font-size: var(--spd-font-size-base) !important;
-  font-weight: 600 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 6px;
-  cursor: pointer;
-  box-shadow: none !important;
-  box-sizing: border-box;
-  backdrop-filter: blur(2px);
+/* 顶部条底色已改为浅色状态条底，因此按钮回到全站通用的浅底 + 深字规格 */
+.product-detail-toolbar-actions .spd-btn {
+  box-shadow: var(--spd-p-shadow-1);
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s !important;
 }
 
-.product-detail-toolbar-actions .btn:hover {
-  background: color-mix(in srgb, var(--spd-p-bg) 32%, transparent) !important;
-  border-color: color-mix(in srgb, var(--spd-p-bg) 60%, transparent) !important;
-  color: var(--spd-p-bg) !important;
+.product-detail-toolbar-actions .spd-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--spd-p-shadow-2);
-}
-
-.product-detail-toolbar-actions .btn.btn-primary {
-  background: var(--spd-p-header-gradient) !important;
-  border-color: transparent !important;
-  color: var(--spd-p-bg) !important;
-  box-shadow: var(--spd-p-shadow-2);
-}
-
-.product-detail-toolbar-actions .btn.btn-primary:hover {
-  background: var(--spd-p-primary-hover-solid) !important;
-  border-color: transparent !important;
-  color: var(--spd-p-bg) !important;
-  box-shadow: var(--spd-p-shadow-3);
 }
 

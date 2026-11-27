@@ -6,7 +6,6 @@ public record PendingProductApplicationRequest(
         String applicationType,
         String productCode,
         String productName,
-        String specModel,
         String brand,
         String manufacturerName,
         String supplierName,
@@ -40,7 +39,7 @@ public record PendingProductApplicationRequest(
         String changeReason
 ) {
     public PendingProductApplicationRequest(
-            String applicationType, String productCode, String productName, String specModel,
+            String applicationType, String productCode, String productName,
             String brand, String manufacturerName, String supplierName, String unit,
             @jakarta.validation.constraints.DecimalMin(value = "0", message = "采购价不能为负数") BigDecimal purchasePrice, BigDecimal retailPrice, @com.hospital.spd.common.WholeQuantity BigDecimal minPurchaseQty,
             String purchaseUnit, @com.hospital.spd.common.WholeQuantity BigDecimal conversionRate, @com.hospital.spd.common.WholeQuantity BigDecimal purchasePackageQty,
@@ -51,7 +50,7 @@ public record PendingProductApplicationRequest(
             String tenderSubCode, Integer qualificationAttachmentCount, Boolean highValue,
             Boolean coldChain, Boolean quotaManaged, String storageCondition, String changeReason
     ) {
-        this(applicationType, productCode, productName, specModel, brand, manufacturerName,
+        this(applicationType, productCode, productName, brand, manufacturerName,
                 supplierName, unit, purchasePrice, retailPrice, minPurchaseQty, purchaseUnit,
                 conversionRate, purchasePackageQty, udiCode, registrationNo,
                 registrationExpireDate, productionLicenseNo, businessLicenseNo, volumeBased,

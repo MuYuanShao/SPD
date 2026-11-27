@@ -1,6 +1,6 @@
 import { ref, type Ref } from 'vue'
 import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
-import { notifyError, notifySuccess } from './useNotify'
+import { notifyError, notifySuccess, notifyWarning } from './useNotify'
 
 export type PendingProductBatchAction = 'approve' | 'return' | 'reject'
 
@@ -36,8 +36,11 @@ export function usePendingProductBatchApproval(options: {
       (batchApproveAction.value === 'return' || batchApproveAction.value === 'reject') &&
       !batchApproveOpinion.value.trim()
     ) {
-      options.error.value =
+      const text =
         batchApproveAction.value === 'return' ? '退回修改必须填写退回原因' : '驳回必须填写审批意见'
+      options.error.value = text
+      // 校验失败统一以 Element Plus message 播报，不在页面上内联渲染。
+      notifyWarning(text)
       return
     }
 

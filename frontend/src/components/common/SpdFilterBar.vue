@@ -15,7 +15,7 @@
  *
  * 两种用法：
  *
- *   A) 默认操作区（**推荐**）—— 组件自己渲染「重置」「查询」，
+ *   A) 默认操作区（**推荐**）—— 组件自己渲染「查询」「重置」，
  *      按钮顺序与位置全站一致，页面无需重复写按钮：
  *
  *      <SpdFilterBar @submit="load" @reset="reset">
@@ -24,7 +24,7 @@
  *      </SpdFilterBar>
  *
  *   B) 自定义操作区 —— 需要额外按钮（如「更多 / 收起」）时使用
- *      `actions` 插槽，此时**不再**渲染默认的「重置 / 查询」：
+ *      `actions` 插槽，此时**不再**渲染默认的「查询 / 重置」：
  *
  *      <SpdFilterBar collapsible :expanded="expanded" @toggle="expanded = !expanded">
  *        ...
@@ -32,6 +32,10 @@
  *          <SpdButton label="更多" tone="neutral" @click="..." />
  *        </template>
  *      </SpdFilterBar>
+ *
+ * 按钮顺序（产品规则）：**「查询」在前，「重置」在后**，
+ * 两者都带图标（查询 = Search，重置 = RefreshCw）；
+ * 折叠按钮（更多 / 收起）排在最左。
  *
  * 按钮统一使用 SpdButton（全站唯一按钮组件），本组件**不引入第二套按钮样式**。
  *
@@ -152,6 +156,15 @@ function handleToggle() {
     <!-- 操作区：宽屏固定在字段栅格右侧（独立区域，不挤占栅格列） -->
     <div class="spd-filter-bar__actions">
       <slot name="actions">
+        <!--
+          按钮顺序（产品规则）：**「查询」在前，「重置」在后**。
+          折叠按钮（更多 / 收起）排在最左，它只是显隐切换，不参与主次。
+          两个动作按钮都带图标：查询 = Search，重置 = RefreshCw。
+          注意：这里的顺序与 styles/components/spd-filter-bar.css 里
+          「标准规则 2」的旧描述（重置 → 查询）相反 —— 旧描述已过时，
+          以本组件的 DOM 顺序为准；该样式表的布局规则（flex + gap +
+          justify-content: flex-end）与按钮先后无关，无需同步改动。
+        -->
         <SpdButton
           v-if="collapsible"
           :label="expanded ? lessLabel : moreLabel"
@@ -163,14 +176,6 @@ function handleToggle() {
           </template>
         </SpdButton>
         <SpdButton
-          :label="resetLabel"
-          tone="neutral"
-          :disabled="resetDisabled"
-          @click="emit('reset')"
-        >
-          <template #icon><RefreshCw :size="16" /></template>
-        </SpdButton>
-        <SpdButton
           :label="submitLabel"
           tone="primary"
           type="submit"
@@ -178,6 +183,14 @@ function handleToggle() {
           @click="emit('submit')"
         >
           <template #icon><Search :size="16" /></template>
+        </SpdButton>
+        <SpdButton
+          :label="resetLabel"
+          tone="neutral"
+          :disabled="resetDisabled"
+          @click="emit('reset')"
+        >
+          <template #icon><RefreshCw :size="16" /></template>
         </SpdButton>
       </slot>
     </div>

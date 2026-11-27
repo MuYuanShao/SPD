@@ -2,14 +2,22 @@
 import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Teleport } from 'vue'
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
-import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Columns3, Download, FileDown, FileUp, Plus, Search, Send, Upload, UserRound, X, XCircle } from '@lucide/vue'
+import { AlertTriangle, ArrowRight, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Columns3, Download, FileDown, FileUp, Plus, Search, Send, Upload, UserRound, XCircle } from '@lucide/vue'
+import { ElIcon } from 'element-plus'
+import {
+  Check,
+  Close,
+  FolderOpened,
+  Postcard,
+  Select as SelectIcon,
+  View
+} from '@element-plus/icons-vue'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdEmptyState from '../../components/master-data/MdEmptyState.vue'
 import EmptyState from '../../components/common/EmptyState.vue'
-import StatusMessage from '../../components/common/StatusMessage.vue'
 import SpdStatusChip, { type SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import { usePendingProductBatchApproval } from '../../composables/usePendingProductBatchApproval'
 import { usePendingProductCreateForm } from '../../composables/usePendingProductCreateForm'
@@ -30,6 +38,7 @@ import {
   fetchPendingProductSourceDetail,
   fetchPendingProductSourceProducts,
   batchApprovePendingProductApplications,
+  toPendingProductPayload,
   type PendingProductApplicationRow,
   type PendingProductSourceRow,
   type PendingProductTypeCount
@@ -37,6 +46,7 @@ import {
 import type { PartnerOption } from '../../api/masterData'
 import { useNotify, notifyError } from '../../composables/useNotify'
 import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -145,6 +155,7 @@ const selectedNos = ref<string[]>([])
 const {
   createForm,
   createAttachments,
+  createAttachmentPreviews,
   attachmentInput,
   resetCreateForm,
   handleCreateAttachments,
@@ -156,7 +167,6 @@ const {
   reload: loadApplications
 })
 
-const duplicateAlertVisible = ref(false)
 const manufacturerOptions = ref<PartnerOption[]>([])
 const supplierOptions = ref<PartnerOption[]>([])
 const sourceKeyword = ref('')
@@ -187,7 +197,14 @@ async function selectSourceProduct(row: PendingProductSourceRow) {
   try {
     const type = createForm.applicationType
     const detail = await fetchPendingProductSourceDetail(row.productCode)
-    Object.assign(createForm, detail, { applicationType: type, qualificationAttachmentCount: 0 })
+    // 只回填申请单真正采集的字段。
+    // 医院目录快照还带有 specModel / status 等只读字段，直接整份 Object.assign
+    // 会把它们混进表单，进而混进提交载荷（含空格的 specModel 会被后端
+    // WriteFieldWhitespace 以「不支持空格及换行符存在！」拒绝）。
+    Object.assign(createForm, toPendingProductPayload(detail), {
+      applicationType: type,
+      qualificationAttachmentCount: 0
+    })
     sourceSelected.value = true
     sourceKeyword.value = `${row.productCode} ${row.productName}`
     sourceRows.value = []
@@ -284,10 +301,14 @@ async function handleCreateSubmit() {
   } catch (err) {
     const text = err instanceof Error ? err.message : ''
     if (text.includes('商品目录已存在')) {
-      duplicateAlertVisible.value = true
+      // 重复目录：只弹一条 Element Plus message，
+      // 弹窗保持打开，用户可以直接改字段再提交。
+      notify.warning('该商品目录已存在，请核对后修改或直接使用现有目录')
+    } else if (text.includes('附件上传失败')) {
+      // 附件上传失败：submitCreateForm 内部已用 notifyWarning 抛出具体原因，
+      // 这里不再重复弹一次错误，避免同一错误弹两条。
     } else {
-      // 失败信息由 submitCreateForm 通过 Element Plus message 抛出，
-      // 这里不再往页面上写 message（避免页面上再显示一条内联消息）。
+      // 其余失败统一以 Element Plus message 抛出，不在页面上内联渲染。
       if (text) notify.error(text)
     }
   }
@@ -417,14 +438,13 @@ const {
 // 固定列（不允许隐藏）：审批单号、商品名称 / 规格、操作
 const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'no', label: '审批单号', width: 150, visible: true, weight: 3, minWidth: 120, maxWidth: 220 },
-  { key: 'product', label: '商品名称 / 规格', width: 190, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
+  { key: 'product', label: '商品名称', width: 200, visible: true, weight: 6, minWidth: 130, maxWidth: 320 },
   { key: 'type', label: '申请类型', width: 110, visible: true, weight: 3, minWidth: 90, maxWidth: 160 },
   { key: 'applicant', label: '申请人', width: 100, visible: true, weight: 3, minWidth: 85, maxWidth: 160 },
   { key: 'time', label: '提交时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
   { key: 'createTime', label: '创建时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
   { key: 'updateTime', label: '修改时间', width: 150, visible: true, weight: 3, minWidth: 130, maxWidth: 200 },
   { key: 'productCode', label: '商品编码', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 200 },
-  { key: 'specModel', label: '规格型号', width: 130, visible: true, weight: 4, minWidth: 110, maxWidth: 220 },
   { key: 'supplier', label: '供应商', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
   { key: 'manufacturer', label: '厂家', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 260 },
   { key: 'registrationNo', label: '注册证号', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
@@ -442,7 +462,15 @@ const APPROVAL_COL_DEFAULTS: ListColumnConfig[] = [
   { key: 'risk', label: '风险标签', width: 160, visible: true, weight: 4, minWidth: 130, maxWidth: 240 },
   { key: 'wait', label: '节点 / 等待', width: 130, visible: true, weight: 3, minWidth: 110, maxWidth: 190 },
   { key: 'changeSummary', label: '变更记录', width: 190, visible: true, weight: 5, minWidth: 130, maxWidth: 300 },
-  { key: 'actions', label: '操作', width: 200, visible: true, fill: true, minWidth: 150, maxWidth: 280 }
+  /* 操作列：三个动作按钮（资质阅览 / 查看 / 审批）必须完整显示、不被截断。
+     之前 minWidth 只有 250px，在「大」字号档位（18px）下按钮总宽度（约 295px，
+     含单元格左右内边距）会超过列宽，最后一个按钮被表格右缘裁掉。
+     现在：
+       - 放宽下限到 340px，保证任何字号档位都放得下；
+       - **去掉 maxWidth 上限**，允许用户继续拉宽该列（用户明确要求不限制最大宽度）；
+       - 保留 fill: true —— 空间富余时该列吃掉右侧空白，表格始终 100% 铺满，
+         且列宽永不低于 minWidth（Element Plus 的 flex 列按 minWidth 兜底）。 */
+  { key: 'actions', label: '操作', width: 340, visible: true, fill: true, minWidth: 340 }
 ]
 
 const approvalCols = useListColumns({
@@ -452,7 +480,10 @@ const approvalCols = useListColumns({
   // 预留勾选列宽度（<el-table-column type="selection" width="48" />）：
   // 该列不在列配置里，但会占用表格宽度，必须先扣掉，
   // 否则数据列按完整容器宽度分配，把表格顶出横向滚动条。
-  reservedWidth: 48
+  reservedWidth: 48,
+  // 单列宽度上限：默认 560px 对「操作」列偏紧（用户要能继续拉宽），
+  // 这里放宽到 900px。
+  maxWidth: 900
 })
 
 const isColVisible = (key: string) => approvalCols.isColumnVisible(key)
@@ -462,6 +493,7 @@ const approvalColBinding = (key: string) => approvalCols.columnBinding(key)
 const approvalActionFix = useActionColumnFix()
 const approvalActionFixed = computed(() => approvalActionFix.actionFixedBinding.value)
 const approvalTableRef = approvalCols.tableRef
+const fillHeightApproval = useFillHeightTable({ tableRef: approvalTableRef })
 watch(approvalTableRef, (el) => {
   if (el) approvalActionFix.observe(el)
 }, { immediate: true })
@@ -575,7 +607,11 @@ async function loadApplications() {
     rows.value = []
     typeCounts.value = []
     totalItems.value = 0
-    error.value = err instanceof Error ? err.message : '待审批目录加载失败'
+    const text = err instanceof Error ? err.message : '待审批目录加载失败'
+    error.value = text
+    // 加载失败统一以 Element Plus message 播报；
+    // 表格空态只保留占位说明，不再内联渲染错误提示条。
+    notify.error(text)
   } finally {
     if (request === requestVersion) loading.value = false
   }
@@ -587,11 +623,27 @@ function rowPrimaryActionLabel() {
   return '审批'
 }
 
+/**
+ * 页面模式：
+ * - 'view'  ：纯查看。信息只读展示，不允许任何修改，也不出现审批动作按钮。
+ * - 'approve'：审批。可以按权限内联编辑字段，也可以执行通过 / 退回 / 驳回。
+ *
+ * 用户诉求：「查看是不允许修改的，是把信息展示出来看」。
+ * 因此「查看」按钮必须带 mode=view，「审批」按钮带 mode=approve，
+ * 否则审批员点「查看」时页面会直接进入可编辑态。
+ */
+const pageMode = computed<'view' | 'approve'>(() =>
+  route.query.mode === 'view' ? 'view' : 'approve'
+)
+
+/** 是否为纯查看模式 */
+const isViewOnly = computed(() => pageMode.value === 'view')
+
 function rowDetailRoute(row: PendingProductApplicationRow) {
   return {
     name: 'pending-product-approval-detail',
     params: { applicationNo: row.no },
-    query: { ...catalogQuery.value }
+    query: { ...catalogQuery.value, mode: 'view' }
   }
 }
 
@@ -599,7 +651,7 @@ function rowEditRoute(row: PendingProductApplicationRow) {
   return {
     name: 'pending-product-approval-detail',
     params: { applicationNo: row.no },
-    query: { ...catalogQuery.value, ...(isReturnedMineDirectory.value ? { edit: '1' } : {}) }
+    query: { ...catalogQuery.value, mode: 'approve', ...(isReturnedMineDirectory.value ? { edit: '1' } : {}) }
   }
 }
 
@@ -706,14 +758,21 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
              （见 composables/useNotify.ts 的 notifySuccess / notifyError），
              不再占用页面布局、也不会把内容挤到列表上方。 -->
 
-        <!-- 筛选区：统一使用 SpdFilterBar（与全站筛选标准规则一致） -->
+        <!-- 筛选区：统一使用 SpdFilterBar（与全站筛选标准规则一致）
+             「审批单号 / 商品名称」在服务端就是**一个** keyword 参数，
+             因此这里只渲染一个输入框（而不是两个叠在一起的框），
+             外观与旁边的 el-select 完全一致（等高、同圆角、同边框色）。 -->
         <SpdFilterBar @submit="currentPage = 1; loadApplications()" @reset="resetApprovalFilter">
           <label>
             <span>审批单号 / 商品名称</span>
-            <div class="approval-search">
-              <Search :size="16" />
-              <input v-model="keyword" type="search" placeholder="输入审批单号、商品名称" autocomplete="off" />
-            </div>
+            <input
+              v-model.trim="keyword"
+              class="md-input approval-keyword-input"
+              type="text"
+              placeholder="输入审批单号或商品名称"
+              aria-label="审批单号或商品名称"
+              autocomplete="off"
+            />
           </label>
           <label>
             <span>申请类型</span>
@@ -721,11 +780,10 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               v-model="approvalTypeFilter"
               placeholder="全部类型"
               clearable
-             
+              popper-class="spd-select-popper"
               aria-label="申请类型"
               @change="onApprovalTypeFilterChange"
             >
-              <el-option label="全部类型" value="" />
               <el-option
                 v-for="item in approvalTypes"
                 :key="item.key"
@@ -736,8 +794,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           </label>
           <label>
             <span>审批状态</span>
-            <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable aria-label="审批状态">
-              <el-option label="全部状态" value="" />
+            <el-select v-model="approvalStatusFilter" placeholder="全部状态" clearable popper-class="spd-select-popper" aria-label="审批状态">
               <el-option label="初审中" value="初审中" />
               <el-option label="复审中" value="复审中" />
             </el-select>
@@ -758,21 +815,21 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                     <ChevronDown :size="14" />
                   </summary>
                   <div>
-                    <SpdButton label="模板导出" variant="text" tone="neutral" @click="downloadTemplate">
+                    <SpdButton label="模板导出" variant="text" tone="info" @click="downloadTemplate">
                       <template #icon><FileDown :size="15" /></template>
                     </SpdButton>
-                    <SpdButton label="按模板导入" variant="text" tone="neutral" @click="importInput?.click()">
+                    <SpdButton label="按模板导入" variant="text" tone="success" @click="importInput?.click()">
                       <template #icon><FileUp :size="15" /></template>
                     </SpdButton>
                   </div>
                 </details>
                 <input ref="importInput" type="file" accept=".xlsx" hidden @change="handleImportFile" />
               </template>
-              <SpdButton label="导出" tone="neutral" @click="exportRows">
+              <SpdButton label="导出" tone="info" @click="exportRows">
           <template #icon><Download :size="16" /></template>
         </SpdButton>
               <div class="ulc-col-settings">
-                <SpdButton label="列设置" tone="neutral" ref="approvalColSettingsAnchorRef"
+                <SpdButton label="列设置" tone="warning" variant="ghost" ref="approvalColSettingsAnchorRef"
                  
                  
                   @click="approvalCols.settingsOpen.value = !approvalCols.settingsOpen.value">
@@ -806,7 +863,7 @@ ref="approvalColSettingsPopRef"
                 row-key="no"
                 border
                 stripe
-                max-height="560"
+                :max-height="fillHeightApproval.maxHeight"
                 style="width: 100%"
                 empty-text="当前分类暂无待审批任务"
                 @selection-change="onApprovalSelectionChange"
@@ -842,17 +899,14 @@ ref="approvalColSettingsPopRef"
             <el-table-column
               column-key="product"
               v-if="isColVisible('product')"
-              label="商品名称 / 规格"
+              label="商品名称"
               v-bind="approvalColBinding('product')"
             >
               <template #header>
-                <span class="ulc-th-text">商品名称 / 规格</span>
+                <span class="ulc-th-text">商品名称</span>
               </template>
               <template #default="{ row }">
-                <div class="ulc-cell-stack">
-                  <span class="ulc-strong ulc-wrap-text" :title="row.product">{{ row.product }}</span>
-                  <span class="ulc-sub ulc-wrap-text is-sub" :title="row.specModel || row.supplier">{{ row.specModel || '-' }} · {{ row.supplier }}</span>
-                </div>
+                <span class="ulc-strong ulc-wrap-text" :title="row.product">{{ row.product }}</span>
               </template>
             </el-table-column>
             <el-table-column
@@ -931,19 +985,6 @@ ref="approvalColSettingsPopRef"
               </template>
               <template #default="{ row }">
                 <span class="ulc-mono ulc-wrap-text">{{ approvalWideField(row, 'productCode') }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column
-              column-key="specModel"
-              v-if="isColVisible('specModel')"
-              label="规格型号"
-              v-bind="approvalColBinding('specModel')"
-            >
-              <template #header>
-                <span class="ulc-th-text">规格型号</span>
-              </template>
-              <template #default="{ row }">
-                <span class="ulc-strong ulc-wrap-text">{{ approvalWideField(row, 'specModel') }}</span>
               </template>
             </el-table-column>
             <el-table-column
@@ -1192,34 +1233,38 @@ ref="approvalColSettingsPopRef"
               </template>
               <template #default="{ row }">
                 <div class="ulc-actions">
-                  <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">资质阅览</button>
+                  <!-- 资质阅览 / 查看 / 审批：图标统一走 Element Plus，
+                       与弹窗、详情页的图标语言保持一致。 -->
+                  <button class="ulc-action" type="button" @click="qualificationApplicationNo = row.no; qualificationModalOpen = true">
+                    <ElIcon><FolderOpened /></ElIcon>资质阅览
+                  </button>
                   <RouterLink
                     v-if="activeScope !== 'todo' && !isReturnedMineDirectory"
                     class="ulc-action"
                     :to="rowDetailRoute(row)"
                   >
-                    查看
+                    <ElIcon><View /></ElIcon>查看
                   </RouterLink>
                   <template v-else>
                     <RouterLink
                       class="ulc-action"
                       :to="rowDetailRoute(row)"
                     >
-                      查看
+                      <ElIcon><View /></ElIcon>查看
                     </RouterLink>
                     <RouterLink
                       class="ulc-action"
                       :to="rowEditRoute(row)"
                     >
-                      {{ rowPrimaryActionLabel() }}
+                      <ElIcon><SelectIcon /></ElIcon>{{ rowPrimaryActionLabel() }}
                     </RouterLink>
                   </template>
                 </div>
               </template>
             </el-table-column>
                 <template #empty>
-                  <StatusMessage v-if="error" :message="error" tone="error" />
-                  <MdEmptyState v-else text="当前分类暂无待审批任务" hint="调整左侧审批队列或筛选条件" />
+                  <MdEmptyState v-if="!error" text="当前分类暂无待审批任务" hint="调整左侧审批队列或筛选条件" />
+                  <MdEmptyState v-else text="待审批目录加载失败" hint="请检查网络后点击右上角「刷新数据」重试" />
                 </template>
               </el-table>
             </div>
@@ -1254,23 +1299,51 @@ ref="approvalColSettingsPopRef"
       </main>
     </div>
 
-    <el-dialog v-model="qualificationModalOpen" :title="`资质证照附件 · ${qualificationApplicationNo}`" width="min(980px, 94vw)" append-to-body destroy-on-close>
-      <PendingProductQualificationAttachments v-if="qualificationModalOpen" :application-no="qualificationApplicationNo" />
+    <!-- 资质阅览弹窗：头部与「新增待审批目录」「修改后重新提交」弹窗完全同构
+         （主色竖条 + 单号副标题 + 主标题 + 同款关闭按钮），
+         底部操作区同样是「分隔线 + 右对齐 + 34px 按钮」，
+         避免三个弹窗各自一套语言造成的割裂感。 -->
+    <el-dialog
+      v-model="qualificationModalOpen"
+      width="min(1280px, 94vw)"
+      append-to-body
+      destroy-on-close
+      class="qualification-review-dialog"
+      :show-close="false"
+    >
+      <template #header>
+        <header class="approval-create-head">
+          <div>
+            <p>资质证照附件</p>
+            <h3>审批单 {{ qualificationApplicationNo }}</h3>
+          </div>
+          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="qualificationModalOpen = false">
+            <template #icon><ElIcon><Close /></ElIcon></template>
+          </SpdButton>
+        </header>
+      </template>
+      <!-- 只保留「图片预览」网格（两两一行），
+           下方冗余的附件清单整段去掉，查看大图 / 下载由网格点击进入大图查看器承担。 -->
+      <PendingProductQualificationAttachments v-if="qualificationModalOpen" :application-no="qualificationApplicationNo" two-column />
+      <template #footer>
+        <SpdButton label="关闭" tone="neutral" @click="qualificationModalOpen = false"></SpdButton>
+      </template>
     </el-dialog>
 
     <Teleport to="body">
     <div v-if="showBatchApproveModal" class="attachment-preview-mask" @click.self="!batchApproveLoading && (showBatchApproveModal = false)">
-      <section class="supplier-dialog product-dialog large" role="dialog" aria-modal="true">
-        <header>
+      <section class="supplier-dialog product-dialog large approval-batch-dialog" role="dialog" aria-modal="true">
+        <header class="approval-create-head">
           <div>
             <p>批量审批</p>
             <h3>{{ { approve: '批量通过', return: '批量退回修改', reject: '批量驳回' }[batchApproveAction] }}</h3>
           </div>
           <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="batchApproveLoading" @click="showBatchApproveModal = false">
-          <template #icon><X :size="18" /></template>
+          <template #icon><ElIcon><Close /></ElIcon></template>
         </SpdButton>
         </header>
-        <form @submit.prevent="confirmBatchApprove">
+        <form class="approval-create-form" @submit.prevent="confirmBatchApprove">
+          <div class="approval-create-scroll">
           <div class="approval-create-section">
             <p style="margin:0 0 12px;color:var(--spd-p-text-secondary);">已选择 <strong>{{ selectedNos.length }}</strong> 条审批单</p>
             <label>
@@ -1284,10 +1357,11 @@ ref="approvalColSettingsPopRef"
               />
             </label>
           </div>
-          <div class="dialog-actions">
+          </div>
+          <div class="dialog-actions approval-create-actions">
             <SpdButton label="取消" tone="neutral" :disabled="batchApproveLoading" @click="showBatchApproveModal = false"></SpdButton>
             <SpdButton tone="primary" type="submit" :disabled="batchApproveLoading">
-          <template #icon><Send :size="18" /></template>
+          <template #icon><ElIcon><Check /></ElIcon></template>
           {{ batchApproveLoading ? '提交中...' : '确认' }}
         </SpdButton>
           </div>
@@ -1305,7 +1379,7 @@ ref="approvalColSettingsPopRef"
             <h3 id="approval-create-title">新增待审批目录</h3>
           </div>
           <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="showCreateModal = false">
-          <template #icon><X :size="18" /></template>
+          <template #icon><ElIcon><Close /></ElIcon></template>
         </SpdButton>
         </header>
         <form class="approval-create-form" @submit.prevent="handleCreateSubmit">
@@ -1315,13 +1389,13 @@ ref="approvalColSettingsPopRef"
             <div class="supplier-form-grid compact">
               <label>
                 <span>申请类型</span>
-                <select v-model="createForm.applicationType" @change="handleApplicationTypeChange">
-                  <option>新品准入</option>
-                  <option>信息变更</option>
-                  <option>资质更新</option>
-                  <option>价格调整</option>
-                  <option>停用申请</option>
-                </select>
+                <el-select v-model="createForm.applicationType" popper-class="spd-select-popper" @change="handleApplicationTypeChange">
+                  <el-option label="新品准入" value="新品准入" />
+                  <el-option label="信息变更" value="信息变更" />
+                  <el-option label="资质更新" value="资质更新" />
+                  <el-option label="价格调整" value="价格调整" />
+                  <el-option label="停用申请" value="停用申请" />
+                </el-select>
               </label>
               <label class="wide"><span>申请原因</span><textarea v-model="createForm.changeReason" /></label>
             </div>
@@ -1352,35 +1426,42 @@ ref="approvalColSettingsPopRef"
             <div class="supplier-form-grid compact">
               <label><span>商品编码</span><input v-model="createForm.productCode" :readonly="!isNewApplication" placeholder="选填，留空取招采子编码" /></label>
               <label><span>商品名称 <i class="req-mark">*</i></span><input v-model="createForm.productName" :readonly="!canEditInformation" required /></label>
-              <label><span>规格型号 <i class="req-mark">*</i></span><input v-model="createForm.specModel" :readonly="!canEditInformation" required /></label>
               <label><span>品牌</span><input v-model="createForm.brand" :readonly="!canEditInformation" /></label>
               <label>
                 <span>生产厂家</span>
-                <select v-model="createForm.manufacturerName" :disabled="!canEditInformation" @change="handleManufacturerChange">
-                  <option value="">请选择生产厂家</option>
-                  <option
+                <el-select
+                  v-model="createForm.manufacturerName"
+                  :disabled="!canEditInformation"
+                  popper-class="spd-select-popper"
+                  placeholder="请选择生产厂家"
+                  @change="handleManufacturerChange"
+                >
+                  <el-option
                     v-for="item in withRetainedOption(manufacturerOptions, createForm.manufacturerName)"
                     :key="item.code + item.name"
+                    :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                     :value="item.name"
                     :disabled="item.status !== 1"
-                  >
-                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                  </option>
-                </select>
+                  />
+                </el-select>
               </label>
               <label>
                 <span>供应商</span>
-                <select v-model="createForm.supplierName" :disabled="!canEditInformation" @change="handleSupplierChange">
-                  <option value="">请选择供应商</option>
-                  <option
+                <el-select
+                  v-model="createForm.supplierName"
+                  :disabled="!canEditInformation"
+                  popper-class="spd-select-popper"
+                  placeholder="请选择供应商"
+                  @change="handleSupplierChange"
+                >
+                  <el-option
                     v-for="item in withRetainedOption(supplierOptions, createForm.supplierName)"
                     :key="item.code + item.name"
+                    :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                     :value="item.name"
                     :disabled="item.status !== 1"
-                  >
-                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                  </option>
-                </select>
+                  />
+                </el-select>
               </label>
               <label><span>单位 <i class="req-mark">*</i></span><input v-model="createForm.unit" :readonly="!canEditInformation" required /></label>
               <label><span>储存条件</span><input v-model="createForm.storageCondition" :readonly="!canEditInformation" /></label>
@@ -1409,7 +1490,20 @@ ref="approvalColSettingsPopRef"
             <div class="supplier-form-grid compact">
               <label><span>UDI编码</span><input v-model="createForm.udiCode" /></label>
               <label><span>注册证号</span><input v-model="createForm.registrationNo" :readonly="!canEditQualification" /></label>
-              <label><span>注册证有效期</span><input v-model="createForm.registrationExpireDate" :readonly="!canEditQualification" type="date" /></label>
+              <label>
+                <span>注册证有效期</span>
+                <el-date-picker
+                  v-model="createForm.registrationExpireDate"
+                  type="date"
+                  value-format="YYYY-MM-DD"
+                  format="YYYY-MM-DD"
+                  placeholder="请选择日期"
+                  :disabled="!canEditQualification"
+                  :clearable="true"
+                  popper-class="spd-select-popper"
+                  class="approval-date-picker"
+                />
+              </label>
               <label><span>生产许可证号</span><input v-model="createForm.productionLicenseNo" :readonly="!canEditQualification" /></label>
               <label><span>经营许可证号</span><input v-model="createForm.businessLicenseNo" :readonly="!canEditQualification" /></label>
               <label>
@@ -1434,16 +1528,34 @@ ref="approvalColSettingsPopRef"
             </div>
             <div class="approval-attachment-summary">
               <strong>附件数量：{{ createAttachments.length }}</strong>
-              <span>根据上传图片或 PDF 自动统计，无需人工填写。</span>
-              <div v-if="createAttachments.length" class="approval-upload-list">
-                <button
-                  v-for="(file, index) in createAttachments"
-                  :key="`${file.name}-${index}`"
-                  type="button"
-                  @click="removeCreateAttachment(index)"
+              <span>根据上传图片或 PDF 自动统计，无需人工填写。可多次点击「选择文件」继续追加。</span>
+              <!-- 已选附件：图片自然排布成网格（可横向滚动），PDF 走文件条 -->
+              <div v-if="createAttachments.length" class="approval-upload-grid">
+                <figure
+                  v-for="(item, index) in createAttachmentPreviews"
+                  :key="`${item.file.name}-${index}`"
+                  class="approval-upload-card"
                 >
-                  {{ file.name }} ×
-                </button>
+                  <span class="approval-upload-thumb">
+                    <img
+                      v-if="item.isImage && item.url"
+                      :src="item.url"
+                      :alt="item.file.name"
+                    />
+                    <span v-else class="approval-upload-thumb-fallback">
+                      <ElIcon><Postcard /></ElIcon>
+                    </span>
+                  </span>
+                  <figcaption :title="item.file.name">{{ item.file.name }}</figcaption>
+                  <button
+                    type="button"
+                    class="approval-upload-remove"
+                    :aria-label="`移除 ${item.file.name}`"
+                    @click="removeCreateAttachment(index)"
+                  >
+                    <ElIcon><Close /></ElIcon>
+                  </button>
+                </figure>
               </div>
             </div>
           </section>
@@ -1466,33 +1578,10 @@ ref="approvalColSettingsPopRef"
           <div class="dialog-actions approval-create-actions">
             <SpdButton label="取消" tone="neutral" @click="showCreateModal = false"></SpdButton>
             <SpdButton label="提交审批" tone="primary" type="submit">
-          <template #icon><Send :size="16" /></template>
+          <template #icon><ElIcon><SelectIcon /></ElIcon></template>
         </SpdButton>
           </div>
         </form>
-      </section>
-    </div>
-    </Teleport>
-
-    <Teleport to="body">
-    <div v-if="duplicateAlertVisible" class="attachment-preview-mask" @click.self="duplicateAlertVisible = false">
-      <section class="duplicate-alert-dialog" role="alertdialog" aria-modal="true" aria-labelledby="duplicate-alert-title">
-        <header>
-          <div>
-            <p>重复校验</p>
-            <h3 id="duplicate-alert-title">该商品目录已存在！</h3>
-          </div>
-          <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" @click="duplicateAlertVisible = false">
-          <template #icon><X :size="18" /></template>
-        </SpdButton>
-        </header>
-        <div class="duplicate-alert-body">
-          <AlertTriangle :size="40" aria-hidden="true" />
-          <p>商品名称、规格型号、生产厂家、供应商、注册证号完全一致的目录已存在，请核对后修改或直接使用现有目录。</p>
-        </div>
-        <div class="dialog-actions">
-          <SpdButton label="知道了" tone="primary" @click="duplicateAlertVisible = false"></SpdButton>
-        </div>
       </section>
     </div>
     </Teleport>

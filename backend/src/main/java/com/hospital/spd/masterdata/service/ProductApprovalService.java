@@ -134,7 +134,7 @@ public class ProductApprovalService {
     public PendingProductApplicationDetail getDetail(String applicationNo) {
         return jdbcTemplate.queryForObject("""
                         SELECT a.application_id, a.approval_round, a.application_no, a.application_type, a.approval_status,
-                               a.product_name, a.product_code, a.spec_model, a.brand, a.manufacturer_name,
+                               a.product_name, a.product_code, a.brand, a.manufacturer_name,
                                COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
                                a.unit, a.purchase_price, a.retail_price, a.min_purchase_qty, a.purchase_unit,
                                a.conversion_rate, a.purchase_package_qty, a.udi_code, a.registration_no, a.registration_expire_date,
@@ -475,7 +475,7 @@ public class ProductApprovalService {
                 supplierId,
                 request.productName().trim(),
                 productCode,
-                request.specModel().trim(),
+                "",
                 nullIfBlank(request.supplierName()),
                 nullIfBlank(request.brand()),
                 manufacturerId,
@@ -659,7 +659,7 @@ public class ProductApprovalService {
                         """, nextStatus, operator.userId(), opinion, operator.userId(), opinion, applicationNo);
                 if ("新品准入".equals(detail.applicationType())) {
                     productCodeService.requireAvailable(detail.productCode(), applicationNo);
-                    new CatalogDuplicateGuard(jdbcTemplate).requireCatalogAvailable(new CatalogDuplicateGuard.Identity(detail.productName(), detail.specModel(),
+                    new CatalogDuplicateGuard(jdbcTemplate).requireCatalogAvailable(new CatalogDuplicateGuard.Identity(detail.productName(),
                             detail.manufacturerName(), detail.supplierName(), detail.registrationNo()));
                 }
                 Map<String, Object> oldCatalogPrice = quotaPricing.lockCatalogProduct(detail.productCode());
@@ -757,7 +757,7 @@ public class ProductApprovalService {
                 nullIfBlank(request.supplierName()),
                 request.productName().trim(),
                 productCode,
-                request.specModel().trim(),
+                "",
                 nullIfBlank(request.brand()),
                 manufacturerId,
                 nullIfBlank(request.manufacturerName()),
@@ -893,7 +893,7 @@ public class ProductApprovalService {
                 nullIfBlank(request.supplierName()),
                 request.productName().trim(),
                 productCode,
-                request.specModel().trim(),
+                "",
                 nullIfBlank(request.brand()),
                 manufacturerId,
                 nullIfBlank(request.manufacturerName()),
@@ -1079,7 +1079,7 @@ public class ProductApprovalService {
                 SELECT a.application_no, a.product_code,
                        a.registration_no, a.registration_expire_date,
                        a.production_license_no, a.business_license_no,
-                       a.product_name, a.spec_model, a.brand,
+                       a.product_name, a.brand,
                        a.manufacturer_name,
                        COALESCE(s.supplier_name, a.supplier_name, '') AS supplier_name,
                        a.unit, a.purchase_price,
@@ -1110,7 +1110,7 @@ public class ProductApprovalService {
                     SELECT p.product_code,
                            p.registration_no, p.registration_expire_date,
                            p.production_license_no, p.business_license_no,
-                           p.product_name, p.spec_model, p.brand,
+                           p.product_name, p.brand,
                            COALESCE(m.manufacturer_name, '') AS manufacturer_name,
                            COALESCE(s.supplier_name, '') AS supplier_name,
                            p.unit, p.purchase_price, p.is_volume_based,
@@ -1229,7 +1229,7 @@ public class ProductApprovalService {
             return;
         }
         List<Map<String, Object>> products = jdbcTemplate.queryForList("""
-                SELECT p.product_name, p.spec_model, p.brand,
+                SELECT p.product_name, p.brand,
                        COALESCE(m.manufacturer_name, '') AS manufacturer_name,
                        COALESCE(s.supplier_name, '') AS supplier_name,
                        p.unit, p.purchase_price, p.retail_price, p.min_purchase_qty,
@@ -1253,7 +1253,6 @@ public class ProductApprovalService {
         Map<String, Object> current = products.get(0);
         List<PendingProductChangeItem> changes = new ArrayList<>();
         addChange(changes, "商品名称", current.get("product_name"), request.productName());
-        addChange(changes, "规格型号", current.get("spec_model"), request.specModel());
         addChange(changes, "品牌", current.get("brand"), request.brand());
         addChange(changes, "生产厂家", current.get("manufacturer_name"), request.manufacturerName());
         addChange(changes, "供应商", current.get("supplier_name"), request.supplierName());
@@ -1324,7 +1323,7 @@ public class ProductApprovalService {
     }
 
     private void validateNoExistingCatalogMatch(PendingProductApplicationRequest request, String excludedApplicationNo) {
-        new CatalogDuplicateGuard(jdbcTemplate).requireAvailable(new CatalogDuplicateGuard.Identity(request.productName(), request.specModel(),
+        new CatalogDuplicateGuard(jdbcTemplate).requireAvailable(new CatalogDuplicateGuard.Identity(request.productName(),
                 request.manufacturerName(), request.supplierName(), request.registrationNo()), excludedApplicationNo);
     }
 
@@ -1355,7 +1354,7 @@ public class ProductApprovalService {
                   FROM pending_product_application
                  WHERE application_no = ?
                 ON DUPLICATE KEY UPDATE product_name = VALUES(product_name),
-                  spec_model = VALUES(spec_model), brand = VALUES(brand),
+                  spec_model = IF(VALUES(spec_model) = '', spec_model, VALUES(spec_model)), brand = VALUES(brand),
                   manufacturer_id = VALUES(manufacturer_id), supplier_id = VALUES(supplier_id),
                   category_id = VALUES(category_id),
                   unit = VALUES(unit), purchase_price = VALUES(purchase_price),
@@ -1552,8 +1551,8 @@ public class ProductApprovalService {
     private static void validateRequest(PendingProductApplicationRequest request) {
         if (request.purchasePrice() != null && request.purchasePrice().signum() < 0
                 || request.retailPrice() != null && request.retailPrice().signum() < 0) throw new IllegalArgumentException("目录价格不能为负数");
-        if (isBlank(request.productName()) || isBlank(request.specModel()) || isBlank(request.unit())) {
-            throw new IllegalArgumentException("商品名称、规格型号、单位为必填项");
+        if (isBlank(request.productName()) || isBlank(request.unit())) {
+            throw new IllegalArgumentException("商品名称、单位为必填项");
         }
     }
 

@@ -67,6 +67,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import QuotaTemplateSelectorDialog from '../../components/supply-chain/QuotaTemplateSelectorDialog.vue'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const route = useRoute()
 const router = useRouter()
@@ -806,6 +807,7 @@ const quotaSafetyCols = useListColumns({
 })
 
 const quotaSafetyTableRef = quotaSafetyCols.tableRef
+const fillHeightQuotaSafety = useFillHeightTable({ tableRef: quotaSafetyTableRef })
 const isQuotaSafetyColVisible = (key: string) => quotaSafetyCols.isColumnVisible(key)
 const quotaSafetyColBinding = (key: string) => quotaSafetyCols.columnBinding(key)
 
@@ -858,6 +860,7 @@ const quotaLabelEventCols = useListColumns({
 })
 
 const quotaLabelEventTableRef = quotaLabelEventCols.tableRef
+const fillHeightQuotaLabelEvent = useFillHeightTable({ tableRef: quotaLabelEventTableRef })
 const isQuotaLabelEventColVisible = (key: string) => quotaLabelEventCols.isColumnVisible(key)
 const quotaLabelEventColBinding = (key: string) => quotaLabelEventCols.columnBinding(key)
 
@@ -899,6 +902,7 @@ const quotaLabelCols = useListColumns({
 })
 
 const quotaLabelTableRef = quotaLabelCols.tableRef
+const fillHeightQuotaLabel = useFillHeightTable({ tableRef: quotaLabelTableRef })
 const isQuotaLabelColVisible = (key: string) => quotaLabelCols.isColumnVisible(key)
 const quotaLabelColBinding = (key: string) => quotaLabelCols.columnBinding(key)
 
@@ -955,6 +959,7 @@ const quotaPackingTaskCols = useListColumns({
 })
 
 const quotaPackingTaskTableRef = quotaPackingTaskCols.tableRef
+const fillHeightQuotaPackingTask = useFillHeightTable({ tableRef: quotaPackingTaskTableRef })
 const isQuotaPackingTaskColVisible = (key: string) => quotaPackingTaskCols.isColumnVisible(key)
 const quotaPackingTaskColBinding = (key: string) => quotaPackingTaskCols.columnBinding(key)
 
@@ -1007,6 +1012,7 @@ const quotaReceivingAllocCols = useListColumns({
 })
 
 const quotaReceivingAllocTableRef = quotaReceivingAllocCols.tableRef
+const fillHeightQuotaReceivingAlloc = useFillHeightTable({ tableRef: quotaReceivingAllocTableRef })
 const isQuotaReceivingAllocColVisible = (key: string) => quotaReceivingAllocCols.isColumnVisible(key)
 const quotaReceivingAllocColBinding = (key: string) => quotaReceivingAllocCols.columnBinding(key)
 
@@ -1043,6 +1049,7 @@ const quotaLooseStockCols = useListColumns({
 })
 
 const quotaLooseStockTableRef = quotaLooseStockCols.tableRef
+const fillHeightQuotaLooseStock = useFillHeightTable({ tableRef: quotaLooseStockTableRef })
 const isQuotaLooseStockColVisible = (key: string) => quotaLooseStockCols.isColumnVisible(key)
 const quotaLooseStockColBinding = (key: string) => quotaLooseStockCols.columnBinding(key)
 
@@ -1088,6 +1095,7 @@ const quotaTemplateCols = useListColumns({
 })
 
 const quotaTemplateTableRef = quotaTemplateCols.tableRef
+const fillHeightQuotaTemplate = useFillHeightTable({ tableRef: quotaTemplateTableRef })
 const isQuotaTemplateColVisible = (key: string) => quotaTemplateCols.isColumnVisible(key)
 const quotaTemplateColBinding = (key: string) => quotaTemplateCols.columnBinding(key)
 
@@ -1135,6 +1143,7 @@ const quotaSnapshotCols = useListColumns({
 })
 
 const quotaSnapshotTableRef = quotaSnapshotCols.tableRef
+const fillHeightQuotaSnapshot = useFillHeightTable({ tableRef: quotaSnapshotTableRef })
 
 /** 快照列的列宽绑定（hybrid 铺满 + 拖拽持久化） */
 const quotaSnapshotColBinding = (key: string) => quotaSnapshotCols.columnBinding(key)
@@ -1283,7 +1292,7 @@ ref="quotaTemplateColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightQuotaTemplate.maxHeight"
               style="width: 100%"
               :empty-text="'暂无符合条件的定数包模板'"
               @header-dragend="(width: number, oldWidth: number, column: any) => quotaTemplateCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1555,16 +1564,14 @@ ref="quotaTemplateColSettingsPopRef"
           <div v-if="authStore.hasPermission('quota-packing-task:create')" class="pt-form-grid pt-form-grid-3">
             <label class="pt-form-field">
               <span class="pt-form-label">打包任务</span>
-              <select v-model="allocateTaskNo" class="pt-select">
-                <option value="">请选择待确认打包任务</option>
-                <option
+              <el-select v-model="allocateTaskNo" popper-class="spd-select-popper" placeholder="请选择待确认打包任务">
+                <el-option
                   v-for="task in tasks"
                   :key="task.taskNo"
+                  :label="`${task.taskNo}（${task.productName}，已预占 ${task.reservedLooseQty}）`"
                   :value="task.taskNo"
-                >
-                  {{ task.taskNo }}（{{ task.productName }}，已预占 {{ task.reservedLooseQty }}）
-                </option>
-              </select>
+                />
+              </el-select>
             </label>
             <label class="pt-form-field">
               <span class="pt-form-label">验收单号</span>
@@ -1635,7 +1642,7 @@ ref="quotaLooseStockColSettingsPopRef"
                   border
                   stripe
                   class="ulc-table is-sticky"
-                  max-height="560"
+                  :max-height="fillHeightQuotaLooseStock.maxHeight"
                   style="width: 100%"
                   :empty-text="'暂无可分配散货'"
                   @header-dragend="(width: number, oldWidth: number, column: any) => quotaLooseStockCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1765,7 +1772,7 @@ ref="quotaReceivingAllocColSettingsPopRef"
                   border
                   stripe
                   class="ulc-table is-sticky"
-                  max-height="560"
+                  :max-height="fillHeightQuotaReceivingAlloc.maxHeight"
                   style="width: 100%"
                   :empty-text="'暂无已分配记录'"
                   @header-dragend="(width: number, oldWidth: number, column: any) => quotaReceivingAllocCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2016,7 +2023,7 @@ ref="quotaPackingTaskColSettingsPopRef"
                 border
                 stripe
                 class="ulc-table is-sticky"
-                max-height="560"
+                :max-height="fillHeightQuotaPackingTask.maxHeight"
                 style="width: 100%"
                 :empty-text="'暂无打包任务'"
                 @header-dragend="(width: number, oldWidth: number, column: any) => quotaPackingTaskCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2355,7 +2362,7 @@ ref="quotaLabelColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightQuotaLabel.maxHeight"
               style="width: 100%"
               :empty-text="'暂无标签'"
               @header-dragend="(width: number, oldWidth: number, column: any) => quotaLabelCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2580,12 +2587,10 @@ ref="quotaLabelColSettingsPopRef"
           </label>
           <label class="evt-field evt-field-wide">
             <span>事件类型</span>
-            <select v-model="query.eventType">
-              <option value="">全部类型</option>
-              <option v-for="option in eventTypeOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
+            <el-select v-model="query.eventType" popper-class="spd-select-popper" placeholder="全部类型">
+              <el-option label="全部类型" value="" />
+              <el-option v-for="option in eventTypeOptions" :key="option.value" :label="option.label" :value="option.value" />
+            </el-select>
           </label>
           <div class="evt-filter-actions">
             <SpdButton label="查询" tone="primary" :disabled="loading" @click="onEventQuerySubmit">
@@ -2628,7 +2633,7 @@ ref="quotaLabelEventColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightQuotaLabelEvent.maxHeight"
               style="width: 100%"
               :empty-text="'暂无标签事件'"
               @header-dragend="(width: number, oldWidth: number, column: any) => quotaLabelEventCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2839,7 +2844,7 @@ ref="quotaSnapshotColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightQuotaSnapshot.maxHeight"
               style="width: 100%"
               :empty-text="'当前没有可打包散货'"
               @header-dragend="(width: number, oldWidth: number, column: any) => quotaSnapshotCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3026,7 +3031,7 @@ ref="quotaSafetyColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightQuotaSafety.maxHeight"
               style="width: 100%"
               :empty-text="'暂无安全库存配置'"
               @header-dragend="(width: number, oldWidth: number, column: any) => quotaSafetyCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -3578,10 +3583,36 @@ ref="quotaSafetyColSettingsPopRef"
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%235a6b78' d='M0 0l5 6 5-6z'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
+  /* 箭头改用 ::after 伪元素 + mask 绘制，颜色走令牌（--pt-text-secondary），
+     避免在 data URI 里写死十六进制色值。
+     伪元素承载箭头，控件本体底色仍由 .pt-select 的 background 决定。 */
+  position: relative;
   padding-right: 26px;
+}
+
+.pt-select::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 6px;
+  margin-top: -3px;
+  pointer-events: none;
+  background-color: var(--pt-text-secondary);
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z'/></svg>");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+/* 禁用态箭头同步变灰 */
+.pt-select:disabled::after {
+  background-color: var(--spd-p-field-disabled-text);
 }
 
 .pt-input:focus,

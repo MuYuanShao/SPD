@@ -29,6 +29,7 @@ import {
 } from '../../api/systemConfig'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
+import MdPagination from '../../components/master-data/MdPagination.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
@@ -55,6 +56,15 @@ const status = ref('')
 const dialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const editingId = ref<number | null>(null)
+
+/* ===== 分页 =====
+   ---------------------------------------------------------------------
+   与其它统一列表页一致：页码 / 每页条数由页面持有，
+   切换页码或每页条数都会重新发起一次列表请求。
+   ===================================================================== */
+const total = ref(0)
+const page = ref(1)
+const size = ref(20)
 
 const form = ref<SystemConfigPayload>({
   configType: 'base',
@@ -137,32 +147,79 @@ function labelFor(code: string) {
   return configTypes.find(t => t.code === code)?.label ?? code
 }
 
+/**
+ * 载入系统配置列表（分页）。
+ *
+ * 请求始终带上 page / size；响应统一规整为标准分页结构
+ * `rows` / `total` / `page` / `size`：
+ *   - 后端已按页返回分页结构 → 直接取 rows / total（服务端分页）；
+ *   - 后端仍返回整份数组（当前 /system-config 尚未分页）→ 在本页按页切片，
+ *     total 取整份长度，保证分页器与真实总数一致。
+ */
 async function loadConfigs() {
   loading.value = true
   error.value = ''
   actionError.value = ''
 
   try {
-    rows.value = await fetchSystemConfigs({
+    const query = {
       configType: activeType.value,
       keyword: keyword.value,
-      status: status.value
-    })
+      status: status.value,
+      page: page.value,
+      size: size.value
+    }
+    const data = await fetchSystemConfigs(query)
+    if (Array.isArray(data)) {
+      const all = data as SystemConfigRow[]
+      total.value = all.length
+      const start = (page.value - 1) * size.value
+      rows.value = all.slice(start, start + size.value)
+    } else {
+      const paged = data as unknown as { rows?: SystemConfigRow[]; total?: number; page?: number; size?: number }
+      const list = paged.rows ?? []
+      rows.value = list
+      total.value = Number(paged.total ?? list.length)
+      if (paged.page && paged.page !== page.value) page.value = paged.page
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : '系统配置加载失败'
+    rows.value = []
+    total.value = 0
   } finally {
     loading.value = false
   }
 }
 
+/** 关键字查询：回到第一页再请求。 */
+function onSearch() {
+  page.value = 1
+  loadConfigs()
+}
+
+/** 切换页码：回到第一页的筛选条件不变，重新发起请求。 */
+function changePage(next: number) {
+  page.value = next
+  loadConfigs()
+}
+
+/** 切换每页条数：回到第一页重新请求。 */
+function changePageSize(next: number) {
+  size.value = Math.min(200, Math.max(1, Math.floor(next)))
+  page.value = 1
+  loadConfigs()
+}
+
 function resetQuery() {
   keyword.value = ''
   status.value = ''
+  page.value = 1
   loadConfigs()
 }
 
 function selectType(type: string) {
   activeType.value = type
+  page.value = 1
   loadConfigs()
 }
 
@@ -281,8 +338,8 @@ onMounted(loadConfigs)
     <div class="sys-toolbar-panel md-table-toolbar">
       <div class="sys-toolbar-search">
         <i class="sys-toolbar-search-icon"><Search :size="15" /></i>
-        <input v-model.trim="keyword" placeholder="配置键 / 配置名" @keyup.enter="loadConfigs" />
-        <select v-model="status" class="sys-toolbar-select">
+        <input v-model.trim="keyword" placeholder="配置键 / 配置名" @keyup.enter="onSearch" />
+        <select v-model="status" class="sys-toolbar-select" @change="onSearch">
           <option value="">全部</option>
           <option value="启用">启用</option>
           <option value="停用">停用</option>
@@ -328,7 +385,7 @@ ref="systemConfigColSettingsPopRef"
         </div>
       </template>
       <template #meta-extra>
-        <span class="md-chip primary">共 {{ rows.length }} 条</span>
+        <span class="md-chip primary">共 {{ total }} 条</span>
       </template>
 
       <div class="ulc-table-wrap">
@@ -511,6 +568,17 @@ ref="systemConfigColSettingsPopRef"
           </el-table-column>
         </el-table>
       </div>
+      <template #pagination>
+        <MdPagination
+          :page="page"
+          :total-pages="Math.max(1, Math.ceil(total / size))"
+          :total="total"
+          :size="size"
+          :loading="loading"
+          @update:page="changePage"
+          @update:size="changePageSize"
+        />
+      </template>
     </MdDataTableCard>
 
     <!-- 弹窗 -->

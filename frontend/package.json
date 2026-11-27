@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0 --port 1820"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
     "@lucide/vue": "^1.25.0",
     "@vitejs/plugin-vue": "^5.2.4",
     "axios": "^1.18.1",

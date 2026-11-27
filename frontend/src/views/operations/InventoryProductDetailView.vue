@@ -10,6 +10,7 @@ import { useListColumns, type ListColumnConfig } from '../../composables/useList
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { fetchInventoryProductDetails, type InventoryProductDetail } from '../../api/reportCenter'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const keyword = ref('')
 const rows = ref<InventoryProductDetail[]>([])
@@ -54,6 +55,7 @@ const inventoryDetailCols = useListColumns({
 })
 
 const inventoryDetailTableRef = inventoryDetailCols.tableRef
+const fillHeightInventoryDetail = useFillHeightTable({ tableRef: inventoryDetailTableRef })
 const isInventoryDetailColVisible = (key: string) => inventoryDetailCols.isColumnVisible(key)
 const inventoryDetailColBinding = (key: string) => inventoryDetailCols.columnBinding(key)
 
@@ -199,7 +201,7 @@ ref="inventoryDetailColSettingsPopRef"
           border
           row-key="id"
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightInventoryDetail.maxHeight"
           style="width: 100%"
           :empty-text="loading ? '正在加载进销存商品明细…' : error ? '加载失败，请刷新重试' : '暂无匹配商品'"
           @header-dragend="(width: number, oldWidth: number, column: any) => inventoryDetailCols.handleHeaderDragEnd(width, oldWidth, column)"

@@ -853,11 +853,12 @@
 }
 
 /* ===== Dialog（supplier-dialog 等弹窗） ===== */
+/* 注：原先这里的 .duplicate-alert-dialog（「商品目录已存在」手写弹窗）已删除，
+   重复提示改为 Element Plus message（notify.warning），不再需要专属弹窗样式。 */
 .supplier-dialog,
 .product-selector-dialog,
 .stocktaking-detail-dialog,
-.stocktaking-sheet-dialog,
-.duplicate-alert-dialog {
+.stocktaking-sheet-dialog {
   border-radius: var(--spd-radius-md, 8px) !important;
   background: var(--spd-bg-container) !important;
   box-shadow: var(--spd-shadow-3) !important;

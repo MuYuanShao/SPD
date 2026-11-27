@@ -692,6 +692,7 @@
   cursor: not-allowed;
 }
 
+/* 原生 <select class="md-select">：全站基础样式（保持原样） */
 .md-select {
   appearance: none;
   -webkit-appearance: none;
@@ -702,6 +703,317 @@
   background-repeat: no-repeat;
   background-position: right 10px center;
   padding-right: 28px;
+}
+
+/* ===================================================================
+   === Master Data 下拉选择框统一规格 ===
+   ---------------------------------------------------------------------
+   【为什么要有这一段】
+   打包任务确认（supply-chain/QuotaPackageView.vue 的 .pt-select）是
+   全站下拉框的**参考标准**：
+     高 34px · 1px 主色淡描边 · 圆角 4px · 左内边距 10px ·
+     聚焦时主色描边 + 3px 主色光晕。
+
+   基础数据管理（master-data 页面）原本用的是 Element Plus 的
+   <el-select>，它被 styles/spd-override.css 的
+   `border-radius: var(--spd-radius) !important`（6px）压过，
+   且内边距是 4px 12px，与参考标准不一致；
+   下拉浮层（.el-select-dropdown）在「标准白」方案下背景还是透明的，
+   选项浮层看上去像「没有底板」。
+
+   本段把 master-data 页面的所有下拉框拉回参考标准：
+     - 高      = --spd-p-field-height（34px）
+     - 圆角    = --spd-p-field-radius（4px）
+     - 描边    = 主色淡描边（与参考标准同源）
+     - 内边距  = 0 var(--spd-p-field-padding-x)（右侧留出箭头位）
+     - 聚焦    = 主色描边 + 3px 主色光晕
+     - 浮层    = 实底 + 4px 圆角 + 主色淡描边 + 主色投影
+
+   所有颜色 / 尺寸全部取自设计令牌，三套配色方案自动适配。
+   =================================================================== */
+
+/* --- 令牌：master-data 的下拉框专用变量 ---
+   挂在所有主数据页面根容器上：
+   .master-page（基础数据管理列表页）、.md-partner-page（各子表区块）、
+   .license-page（证照管理）、.product-form-page（目录新增 / 批量维护）、
+   .approval-detail-page（目录详情）。
+   同一组变量也会被 teleported 的下拉浮层用到，所以浮层样式里
+   直接复用同一批 --md-* 变量（浮层在 body 下，靠 .md-select-popper 定位）。
+
+   ⚠️ 主色取值与参考标准 .pt-select 完全一致：
+   var(--primary, var(--fli-brand, var(--spd-p-primary)))
+   这样三套配色方案下「基础数据管理」与「打包任务确认」的下拉框描边同色。 */
+.master-page,
+.md-partner-page,
+.license-page,
+.product-form-page,
+.approval-detail-page {
+  /* 下拉框主色：与参考标准 --pt-primary 同源 */
+  --md-field-primary: var(--primary, var(--fli-brand, var(--spd-p-primary)));
+  /* 下拉框描边：主色 14% 混入主色浅底，得到淡青灰描边 */
+  --md-field-border: color-mix(in srgb, var(--md-field-primary) 14%, var(--spd-p-primary-bg));
+  /* 下拉框聚焦光晕：主色 15% 混入透明 */
+  --md-field-glow: color-mix(in srgb, var(--md-field-primary) 15%, transparent);
+  /* 下拉箭头颜色：次级文字色（与参考标准 .pt-select 的箭头一致） */
+  --md-field-caret: var(--spd-p-text-muted);
+}
+
+/* --- Element Plus <el-select>：控件外框 ---
+   选择器写成 :root[data-spd-theme] .xxx .el-select__wrapper（特指度 0,3,1），
+   目的是压过 styles/theme/*.css 里的
+   `:root[data-spd-theme='…'] .el-select__wrapper`（特指度 0,2,1，且带 !important），
+   否则「静墨宣纸 / 暗夜黑」两套方案下主数据下拉框会退回全局控件底色与描边。
+
+   【与全站统一规格的分工（避免两套规则并存）】
+     styles/components/spd-input.css 第 5 节已把**全站** el-select
+     的外框规格收口（高度 / 圆角 / 底色 / 描边 / hover / focus / 禁用），
+     这里只保留主数据特有的一条差异：**聚焦态用主色描边 + 主色光晕**
+     （与「打包任务确认」参考标准 .pt-select 同源），
+     其余一律继承全站统一规格，不再重复声明。 */
+:root[data-spd-theme] .master-page .el-select__wrapper,
+:root[data-spd-theme] .md-partner-page .el-select__wrapper,
+:root[data-spd-theme] .license-page .el-select__wrapper,
+:root[data-spd-theme] .product-form-page .el-select__wrapper,
+:root[data-spd-theme] .approval-detail-page .el-select__wrapper,
+.master-page .el-select__wrapper,
+.md-partner-page .el-select__wrapper,
+.license-page .el-select__wrapper,
+.product-form-page .el-select__wrapper,
+.approval-detail-page .el-select__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  /* 圆角压回 4px：spd-override.css 用 !important 写了 6px，
+     这里必须同样加 !important 才能胜出 */
+  border-radius: var(--spd-p-field-radius) !important;
+  /* 描边与参考标准一致：1px 主色淡描边（不用 EP 默认灰描边） */
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--md-field-border) inset !important;
+  background: var(--spd-p-bg) !important;
+  /* 内边距与参考标准一致：左 10px，右侧留给箭头 */
+  padding: 0 26px 0 var(--spd-p-field-padding-x) !important;
+  font-size: var(--spd-font-size-base);
+}
+
+/* hover：描边加深为主色 */
+:root[data-spd-theme] .master-page .el-select__wrapper:hover,
+:root[data-spd-theme] .md-partner-page .el-select__wrapper:hover,
+:root[data-spd-theme] .license-page .el-select__wrapper:hover,
+:root[data-spd-theme] .product-form-page .el-select__wrapper:hover,
+:root[data-spd-theme] .approval-detail-page .el-select__wrapper:hover,
+.master-page .el-select__wrapper:hover,
+.md-partner-page .el-select__wrapper:hover,
+.license-page .el-select__wrapper:hover,
+.product-form-page .el-select__wrapper:hover,
+.approval-detail-page .el-select__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) color-mix(in srgb, var(--md-field-primary) 30%, var(--spd-p-primary-bg)) inset !important;
+}
+
+/* 聚焦：主色描边 + 3px 主色光晕（与参考标准一致） */
+:root[data-spd-theme] .master-page .el-select__wrapper.is-focused,
+:root[data-spd-theme] .md-partner-page .el-select__wrapper.is-focused,
+:root[data-spd-theme] .license-page .el-select__wrapper.is-focused,
+:root[data-spd-theme] .product-form-page .el-select__wrapper.is-focused,
+:root[data-spd-theme] .approval-detail-page .el-select__wrapper.is-focused,
+.master-page .el-select__wrapper.is-focused,
+.md-partner-page .el-select__wrapper.is-focused,
+.license-page .el-select__wrapper.is-focused,
+.product-form-page .el-select__wrapper.is-focused,
+.approval-detail-page .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--md-field-primary) inset,
+    0 0 0 3px var(--md-field-glow) !important;
+}
+
+/* 禁用态 */
+:root[data-spd-theme] .master-page .el-select__wrapper.is-disabled,
+:root[data-spd-theme] .md-partner-page .el-select__wrapper.is-disabled,
+:root[data-spd-theme] .license-page .el-select__wrapper.is-disabled,
+:root[data-spd-theme] .product-form-page .el-select__wrapper.is-disabled,
+:root[data-spd-theme] .approval-detail-page .el-select__wrapper.is-disabled,
+.master-page .el-select__wrapper.is-disabled,
+.md-partner-page .el-select__wrapper.is-disabled,
+.license-page .el-select__wrapper.is-disabled,
+.product-form-page .el-select__wrapper.is-disabled,
+.approval-detail-page .el-select__wrapper.is-disabled {
+  background: var(--spd-p-field-disabled-bg) !important;
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-disabled-border) inset !important;
+}
+
+.master-page .el-select__wrapper.is-disabled .el-select__placeholder,
+.master-page .el-select__wrapper.is-disabled .el-select__selected-item,
+.md-partner-page .el-select__wrapper.is-disabled .el-select__placeholder,
+.md-partner-page .el-select__wrapper.is-disabled .el-select__selected-item,
+.license-page .el-select__wrapper.is-disabled .el-select__placeholder,
+.license-page .el-select__wrapper.is-disabled .el-select__selected-item,
+.product-form-page .el-select__wrapper.is-disabled .el-select__placeholder,
+.product-form-page .el-select__wrapper.is-disabled .el-select__selected-item,
+.approval-detail-page .el-select__wrapper.is-disabled .el-select__placeholder,
+.approval-detail-page .el-select__wrapper.is-disabled .el-select__selected-item {
+  color: var(--spd-p-field-disabled-text);
+}
+
+/* 占位文字 / 选中文字：字号与颜色对齐参考标准 */
+.master-page .el-select__placeholder,
+.master-page .el-select__selected-item,
+.md-partner-page .el-select__placeholder,
+.md-partner-page .el-select__selected-item,
+.license-page .el-select__placeholder,
+.license-page .el-select__selected-item,
+.product-form-page .el-select__placeholder,
+.product-form-page .el-select__selected-item,
+.approval-detail-page .el-select__placeholder,
+.approval-detail-page .el-select__selected-item {
+  font-size: var(--spd-font-size-base);
+  font-weight: 400;
+  line-height: var(--spd-lh-base);
+}
+
+.master-page .el-select__placeholder span,
+.master-page .el-select__placeholder,
+.md-partner-page .el-select__placeholder span,
+.md-partner-page .el-select__placeholder,
+.license-page .el-select__placeholder span,
+.license-page .el-select__placeholder,
+.product-form-page .el-select__placeholder span,
+.product-form-page .el-select__placeholder,
+.approval-detail-page .el-select__placeholder span,
+.approval-detail-page .el-select__placeholder {
+  color: var(--md-text-muted);
+}
+
+.master-page .el-select__selected-item,
+.md-partner-page .el-select__selected-item,
+.license-page .el-select__selected-item,
+.product-form-page .el-select__selected-item,
+.approval-detail-page .el-select__selected-item {
+  color: var(--md-text);
+}
+
+/* --- Element Plus <el-select>：下拉箭头 ---
+   Element Plus 的箭头是 <el-icon> 内嵌的 SVG（fill=currentColor），
+   因此直接给 .el-select__caret 设置 color 即可用令牌驱动箭头颜色，
+   不需要覆盖 mask / background-image（那会把 EP 自带图标形状破坏掉）。 */
+.master-page .el-select__caret,
+.md-partner-page .el-select__caret,
+.license-page .el-select__caret,
+.product-form-page .el-select__caret,
+.approval-detail-page .el-select__caret {
+  color: var(--md-field-caret);
+}
+
+.master-page .el-select__wrapper.is-disabled .el-select__caret,
+.md-partner-page .el-select__wrapper.is-disabled .el-select__caret,
+.license-page .el-select__wrapper.is-disabled .el-select__caret,
+.product-form-page .el-select__wrapper.is-disabled .el-select__caret,
+.approval-detail-page .el-select__wrapper.is-disabled .el-select__caret {
+  color: var(--spd-p-field-disabled-text);
+}
+
+/* --- 原生 <select class="md-select">：与参考标准对齐 ---
+   注意：.md-select 是全站共用类（采购管理 / 退货 / 拣货记录等页面也在用），
+   因此这里只调整**主数据页面内**的原生下拉框，
+   避免影响其它归属页面。全局 .md-select 的基础样式保持原样。 */
+.master-page .md-select,
+.md-partner-page .md-select,
+.license-page .md-select,
+.product-form-page .md-select,
+.approval-detail-page .md-select {
+  appearance: none;
+  -webkit-appearance: none;
+  /* flex 子元素内不自动撑满宽度，保持内容自适应 */
+  width: auto;
+  flex-shrink: 0;
+  /* 描边与参考标准一致 */
+  border: var(--spd-p-field-border-width) solid var(--md-field-border);
+  border-radius: var(--spd-p-field-radius);
+  /* 内边距与参考标准一致 */
+  padding: 0 26px 0 var(--spd-p-field-padding-x);
+  /* 箭头改用 ::after 伪元素 + mask 绘制，颜色走令牌，
+     避免在 data URI 里写死十六进制色值；
+     伪元素承载箭头，控件本体底色仍由 background 决定。 */
+  position: relative;
+}
+
+.master-page .md-select::after,
+.md-partner-page .md-select::after,
+.license-page .md-select::after,
+.product-form-page .md-select::after,
+.approval-detail-page .md-select::after {
+  content: "";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  width: 10px;
+  height: 6px;
+  margin-top: -3px;
+  pointer-events: none;
+  background-color: var(--md-field-caret);
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path d='M0 0l5 6 5-6z'/></svg>");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+/* 原生 select 的 hover / focus 也要与参考标准一致 */
+.master-page .md-select:hover,
+.md-partner-page .md-select:hover,
+.license-page .md-select:hover,
+.product-form-page .md-select:hover,
+.approval-detail-page .md-select:hover {
+  border-color: color-mix(in srgb, var(--md-primary) 30%, var(--spd-p-primary-bg));
+}
+
+.master-page .md-select:focus,
+.md-partner-page .md-select:focus,
+.license-page .md-select:focus,
+.product-form-page .md-select:focus,
+.approval-detail-page .md-select:focus {
+  border-color: var(--md-primary);
+  box-shadow: 0 0 0 3px var(--md-field-glow);
+}
+
+/* --- Element Plus 下拉浮层：主色淡描边 ---
+   浮层被 teleport 到 body，不在页面根容器内，
+   因此用「页面级 popper-class」方案定位：
+   主数据页面的 <el-select> 会带上 .md-select-popper 标记。
+
+   【与全站统一规格的分工（避免两套规则并存）】
+     styles/components/spd-input.css 第 5 节已经把**全站**
+     el-select 的外框与浮层规格收口了：
+       浮层底色 = --spd-p-bg
+       浮层圆角 = --spd-p-field-radius
+       浮层投影 = --spd-p-shadow-3
+       选项字号 = --spd-font-size-base
+       悬停底色 = --spd-p-primary-bg
+       选中文字 = --spd-p-primary / 600
+     这里**只保留主数据特有的一条差异**：浮层描边用主色淡描边
+     （与「打包任务确认」参考标准 .pt-select 同源），
+     其余一律继承全站统一规格，不再重复声明。 */
+:root[data-spd-theme] .md-select-popper.el-select-dropdown,
+.md-select-popper.el-select-dropdown {
+  --md-popper-border: color-mix(in srgb, var(--primary, var(--fli-brand, var(--spd-p-primary))) 14%, var(--spd-p-primary-bg));
+  border: var(--spd-p-field-border-width) solid var(--md-popper-border) !important;
+}
+
+/* 浮层选项：字号 / 颜色与参考标准一致 */
+.md-select-popper .el-select-dropdown__item {
+  height: var(--spd-p-field-height);
+  font-size: var(--spd-font-size-base) !important;
+  color: var(--spd-p-text) !important;
+  line-height: var(--spd-lh-base);
+}
+
+.md-select-popper .el-select-dropdown__item.is-hovering {
+  background: var(--spd-p-primary-bg) !important;
+}
+
+.md-select-popper .el-select-dropdown__item.is-selected {
+  color: var(--spd-p-primary) !important;
+  font-weight: 600;
 }
 
 .md-query-actions {

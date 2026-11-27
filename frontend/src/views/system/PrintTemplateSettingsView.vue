@@ -30,6 +30,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const rows = ref<PrintTemplateRow[]>([])
 const loading = ref(false)
@@ -93,8 +94,12 @@ function openEditor(row: PrintTemplateRow) {
   showEditor.value = true
 }
 
-function applyPaperPreset(event: Event) {
-  const preset = paperPresets.find(item => item.label === (event.target as HTMLSelectElement).value)
+/**
+ * 应用纸张预设：把预设的宽高写回尺寸输入框。
+ * 参数是 el-select 的 @change 回调值（预设标签文本）。
+ */
+function applyPaperPreset(value: string | number | boolean | undefined) {
+  const preset = paperPresets.find(item => item.label === String(value ?? ''))
   if (!preset) return
   paperWidthMm.value = preset.width
   paperHeightMm.value = preset.height
@@ -202,6 +207,7 @@ const printTemplateCols = useListColumns({
 })
 
 const printTemplateTableRef = printTemplateCols.tableRef
+const fillHeightPrintTemplate = useFillHeightTable({ tableRef: printTemplateTableRef })
 const isPrintTemplateColVisible = (key: string) => printTemplateCols.isColumnVisible(key)
 const printTemplateColBinding = (key: string) => printTemplateCols.columnBinding(key)
 
@@ -269,7 +275,7 @@ ref="printTemplateColSettingsPopRef"
           border
           stripe
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightPrintTemplate.maxHeight"
           style="width: 100%"
           :empty-text="'暂无打印模板'"
           @header-dragend="(width: number, oldWidth: number, column: any) => printTemplateCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -438,12 +444,10 @@ ref="printTemplateColSettingsPopRef"
             </label>
             <label>
               <span>纸张预设</span>
-              <select class="md-select" @change="applyPaperPreset">
-                <option value="">自定义纸张</option>
-                <option v-for="preset in paperPresets" :key="preset.label" :value="preset.label">
-                  {{ preset.label }}
-                </option>
-              </select>
+              <el-select popper-class="spd-select-popper" placeholder="自定义纸张" @change="applyPaperPreset">
+                <el-option label="自定义纸张" value="" />
+                <el-option v-for="preset in paperPresets" :key="preset.label" :label="preset.label" :value="preset.label" />
+              </el-select>
             </label>
             <label>
               <span>纸张宽度（mm）</span>
@@ -455,10 +459,10 @@ ref="printTemplateColSettingsPopRef"
             </label>
             <label>
               <span>状态</span>
-              <select v-model.number="status" class="md-select">
-                <option :value="1">启用</option>
-                <option :value="0">停用</option>
-              </select>
+              <el-select v-model="status" popper-class="spd-select-popper">
+                <el-option label="启用" :value="1" />
+                <el-option label="停用" :value="0" />
+              </el-select>
             </label>
             <label class="wide">
               <span>备注</span>

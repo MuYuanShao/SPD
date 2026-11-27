@@ -868,7 +868,9 @@ export function useListColumns(options: UseListColumnsOptions) {
     if (!store) return false
 
     // 1) 取当前表格里真实存在的列配置（按模板顺序）
-    let storeColumns: Array<{ id: string; columnKey?: string; no?: number }> = []
+    //    type 字段用于识别 Element Plus 的**结构列**（selection / index），
+    //    它们不属于列配置里的数据列，需要单独钉在最前面。
+    let storeColumns: Array<{ id: string; columnKey?: string; no?: number; type?: string }> = []
     try {
       const list = store.states?._columns?.value
       if (Array.isArray(list)) storeColumns = list
@@ -889,17 +891,35 @@ export function useListColumns(options: UseListColumnsOptions) {
     if (placeholders.length !== storeColumns.length) return false
 
     // 3) 算目标顺序：
-    //    存储顺序里的**可见列**在前，未登记的列保持原相对次序排在后面。
-    //    （隐藏列的占位 div 此刻并不在表里，v-if 为 false 时组件没挂载。）
+    //    a) Element Plus 的**结构列**（type = selection / index）
+    //       钉在最前面（rank = -1）；
+    //    b) 存储顺序里的**可见数据列**按用户配置顺序排在其后；
+    //    c) 未登记的列保持原相对次序排在最后
+    //       （例如右侧固定的「操作」列必须保持最后）。
+    //
+    //    【为什么结构列必须钉在最前】
+    //      选择列（type="selection"）是**结构性**的，它不在列配置里，
+    //      因此 rankOf 里查不到它的 key，只能落到 Number.MAX_SAFE_INTEGER
+    //      → 排到最后，表现为「复选框出现在倒数第二列」。
+    //      这里改为按 column.type 判定，与是否设置 column-key 无关
+    //      （部分表格的 selection 列没有 column-key）。
     const visibleKeys = visibleColumns.value.map((column) => column.key)
     const keyOf = (column: { columnKey?: string }) => column.columnKey ?? ''
     const rankOf = new Map<string, number>()
     visibleKeys.forEach((key, index) => rankOf.set(key, index))
 
+    /** Element Plus 的结构列：选择列 / 序号列，恒定钉在第一列 */
+    const isStructuralColumn = (column: { type?: string }) =>
+      column.type === 'selection' || column.type === 'index'
+
     const decorated = storeColumns.map((column, index) => ({
       column,
       index,
-      rank: rankOf.has(keyOf(column)) ? rankOf.get(keyOf(column))! : Number.MAX_SAFE_INTEGER
+      rank: isStructuralColumn(column)
+        ? -1
+        : rankOf.has(keyOf(column))
+          ? rankOf.get(keyOf(column))!
+          : Number.MAX_SAFE_INTEGER
     }))
     const sorted = decorated.slice().sort((a, b) => {
       if (a.rank !== b.rank) return a.rank - b.rank
@@ -923,8 +943,25 @@ export function useListColumns(options: UseListColumnsOptions) {
     }
 
     // 5) 让 Element Plus 重新按新的 DOM 下标排序并重绘表头 / 表体
+    //
+    //    Element Plus 的 updateColumnOrder 变更体：
+    //      if (column.getColumnIndex?.() === column.no) return;   ← 早退条件
+    //      sortColumn(states._columns.value);                      ← 按 DOM 下标重算 no 并重排
+    //      if (instance.$ready) instance.store.updateColumns();
+    //
+    //    它要求提交的那一列「DOM 下标与记录的 no 不一致」才会真正重排。
+    //    DOM 手术之后，被移动的列的 no 仍是旧值，
+    //    因此这里挑「DOM 下标与 no 不一致」的那一列提交，
+    //    保证 sortColumn 一定会执行（结构列被移到首位时尤其关键）。
     try {
-      const moved = sorted.find((item, index) => item.index !== index)
+      const moved =
+        sorted.find((item) => {
+          const el = placeholders[item.index]
+          const currentIndex = el && el.parentElement
+            ? Array.prototype.indexOf.call(el.parentElement.children, el)
+            : -1
+          return currentIndex >= 0 && currentIndex !== item.column.no
+        }) ?? sorted.find((item, index) => item.index !== index)
       if (moved) store.commit('updateColumnOrder', moved.column)
       store.updateColumns?.()
     } catch {

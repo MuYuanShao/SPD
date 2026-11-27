@@ -39,6 +39,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify, notifyError, resolveErrorMessage } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -127,6 +128,49 @@ const {
   }
 })
 const historyStatuses = ['draft', 'pending_approval', 'approved', 'rejected', 'partial_picked', 'picked', 'signed', 'completed', 'cancelled']
+
+/* ---------------------------------------------------------------------
+ * 历史申领单日期区间约束：开始日期不能晚于结束日期
+ * ---------------------------------------------------------------------
+ * 两层保障：
+ *   1) disabled-date —— 日历面板里把非法日期置灰；
+ *   2) 提交前的显式校验 —— 即便绕过置灰，也要拦下来并提示，绝不发请求。
+ * 绑定值是 value-format="YYYY-MM-DD" 的纯字符串，可直接按字典序比较。
+ * ------------------------------------------------------------------- */
+function historyToDayStart(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** 开始日期：禁用晚于结束日期的日期 */
+function historyDisableAfterEnd(date: Date) {
+  const end = historyToDayStart(historyFilters.dateTo)
+  if (!end) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() > end.getTime()
+}
+
+/** 结束日期：禁用早于开始日期的日期 */
+function historyDisableBeforeStart(date: Date) {
+  const start = historyToDayStart(historyFilters.dateFrom)
+  if (!start) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() < start.getTime()
+}
+
+/**
+ * 提交历史申领单筛选。
+ * 开始日期晚于结束日期时，用通用消息接口（ElMessage）提示并终止，
+ * 不触发任何请求。
+ */
+function submitHistoryFilters() {
+  if (historyFilters.dateFrom && historyFilters.dateTo && historyFilters.dateFrom > historyFilters.dateTo) {
+    notifyError('开始日期不能晚于结束日期')
+    return
+  }
+  applyHistoryFilters()
+}
 const options = ref<ClosureOptions>({ departments: [], warehouses: [], products: [], balances: [] })
 const linkedWarehouses = ref<RequisitionWarehouseOption[]>([])
 const smartOpen = ref(false)
@@ -626,6 +670,7 @@ const deptReqOrdersCols = useListColumns({
 })
 
 const deptReqOrdersTableRef = deptReqOrdersCols.tableRef
+const fillHeightDeptReqOrders = useFillHeightTable({ tableRef: deptReqOrdersTableRef })
 const isDeptReqOrdersColVisible = (key: string) => deptReqOrdersCols.isColumnVisible(key)
 const deptReqOrdersColBinding = (key: string) => deptReqOrdersCols.columnBinding(key)
 
@@ -696,6 +741,7 @@ const deptReqProductsCols = useListColumns({
 })
 
 const deptReqProductsTableRef = deptReqProductsCols.tableRef
+const fillHeightDeptReqProducts = useFillHeightTable({ tableRef: deptReqProductsTableRef })
 const isDeptReqProductsColVisible = (key: string) => deptReqProductsCols.isColumnVisible(key)
 const deptReqProductsColBinding = (key: string) => deptReqProductsCols.columnBinding(key)
 
@@ -739,6 +785,7 @@ const deptReqDetailCols = useListColumns({
 })
 
 const deptReqDetailTableRef = deptReqDetailCols.tableRef
+const fillHeightDeptReqDetail = useFillHeightTable({ tableRef: deptReqDetailTableRef })
 const isDeptReqDetailColVisible = (key: string) => deptReqDetailCols.isColumnVisible(key)
 const deptReqDetailColBinding = (key: string) => deptReqDetailCols.columnBinding(key)
 
@@ -777,6 +824,7 @@ const deptReqSmartCols = useListColumns({
 })
 
 const deptReqSmartTableRef = deptReqSmartCols.tableRef
+const fillHeightDeptReqSmart = useFillHeightTable({ tableRef: deptReqSmartTableRef })
 const isDeptReqSmartColVisible = (key: string) => deptReqSmartCols.isColumnVisible(key)
 const deptReqSmartColBinding = (key: string) => deptReqSmartCols.columnBinding(key)
 
@@ -810,9 +858,31 @@ const deptReqSmartColSettingsPop = useColSettingsPopover({
           <template #icon><UserPlus :size="16" /></template>
         </SpdButton>
         </div>
-        <SpdFilterBar aria-label="历史申领单查询" @submit="applyHistoryFilters" @reset="resetHistoryFilters">
-          <label><span>开始日期</span><input v-model="historyFilters.dateFrom" type="date" /></label>
-          <label><span>结束日期</span><input v-model="historyFilters.dateTo" type="date" /></label>
+        <SpdFilterBar aria-label="历史申领单查询" @submit="submitHistoryFilters" @reset="resetHistoryFilters">
+          <label><span>开始日期</span>
+            <el-date-picker
+              v-model="historyFilters.dateFrom"
+              type="date"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              placeholder="开始日期"
+              clearable
+              class="dept-req-date-picker"
+              :disabled-date="historyDisableAfterEnd"
+            />
+          </label>
+          <label><span>结束日期</span>
+            <el-date-picker
+              v-model="historyFilters.dateTo"
+              type="date"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              placeholder="结束日期"
+              clearable
+              class="dept-req-date-picker"
+              :disabled-date="historyDisableBeforeStart"
+            />
+          </label>
           <label>
             <span>状态</span>
             <select v-model="historyFilters.status">
@@ -864,7 +934,7 @@ ref="deptReqOrdersColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightDeptReqOrders.maxHeight"
             style="width: 100%"
             :empty-text="'暂无申领单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => deptReqOrdersCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1190,7 +1260,7 @@ ref="deptReqProductsColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightDeptReqProducts.maxHeight"
               style="width: 100%"
               :empty-text="'暂无可申领商品'"
               @header-dragend="(width: number, oldWidth: number, column: any) => deptReqProductsCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1492,7 +1562,7 @@ ref="deptReqDetailColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightDeptReqDetail.maxHeight"
               style="width: 100%"
               :empty-text="'暂无申领明细'"
               @header-dragend="(width: number, oldWidth: number, column: any) => deptReqDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1734,7 +1804,7 @@ ref="deptReqSmartColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightDeptReqSmart.maxHeight"
             style="width: 100%"
             :empty-text="'暂无智能补货建议'"
             @header-dragend="(width: number, oldWidth: number, column: any) => deptReqSmartCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1900,6 +1970,23 @@ ref="deptReqSmartColSettingsPopRef"
 .dept-req-actions {
   display: flex;
   gap: 8px;
+}
+
+/* ---------- 历史申领单查询区：Element Plus 中文日期选择器 ----------
+   el-date-picker 外壳是 .el-input__wrapper，共享样式表
+   styles/components/spd-input.css 已把高度 / 圆角 / 边框 / 字号
+   统一到字段令牌（34px / --spd-p-field-radius / 1px 内阴影环 / 基础字号）。
+   这里只补两件事：
+     1) 选择器撑满栅格列宽（EP 默认是 inline-block，不会跟着 label 走）；
+     2) 兜住共享样式表里「原生 input 统一规格」那条通用规则，
+        避免内层 input 被画成第二层小框（框中框）。
+   三套配色方案都走同一批令牌，无需额外适配。 */
+.dept-req-date-picker {
+  width: 100%;
+}
+
+.dept-req-date-picker .el-input__wrapper {
+  width: 100%;
 }
 
 .dept-req-actions .btn {

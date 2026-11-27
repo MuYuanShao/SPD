@@ -31,6 +31,7 @@ import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import HighValueOperationsPanel from '../../components/supply-chain/HighValueOperationsPanel.vue'
 import { useChargeDetailQuery } from '../../composables/useChargeDetailQuery'
+import { notifyError } from '../../composables/useNotify'
 import { useAuthStore } from '../../stores/auth'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
@@ -43,6 +44,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import type { HighValueChargeDetail } from '../../api/highValueCharges'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const auth = useAuthStore()
 const route = useRoute()
@@ -63,6 +65,49 @@ const errorMessage = ref('')
 
 const { filters, rows, loading, currentPage, pageSize, totalItems,
   loadData, search, reset, changePage, changePageSize, notify, confirm } = useChargeDetailQuery()
+
+/* ---------------------------------------------------------------------
+ * 收费明细日期区间约束：开始日期不能晚于结束日期
+ * ---------------------------------------------------------------------
+ * 两层保障：
+ *   1) disabled-date —— 日历面板里把非法日期置灰；
+ *   2) 提交前的显式校验 —— 即便绕过置灰，也要拦下来并提示，绝不发请求。
+ * 绑定值是 value-format="YYYY-MM-DD" 的纯字符串，可直接按字典序比较。
+ * ------------------------------------------------------------------- */
+function chargeToDayStart(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** 开始日期：禁用晚于结束日期的日期 */
+function chargeDisableAfterEnd(date: Date) {
+  const end = chargeToDayStart(filters.dateTo)
+  if (!end) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() > end.getTime()
+}
+
+/** 结束日期：禁用早于开始日期的日期 */
+function chargeDisableBeforeStart(date: Date) {
+  const start = chargeToDayStart(filters.dateFrom)
+  if (!start) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() < start.getTime()
+}
+
+/**
+ * 提交收费明细查询。
+ * 开始日期晚于结束日期时，用通用消息接口（ElMessage）提示并终止，
+ * 不触发任何请求。
+ */
+function submitChargeSearch() {
+  if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) {
+    notifyError('开始日期不能晚于结束日期')
+    return
+  }
+  void search()
+}
 
 /** 统一列表的表格容器（用于横向滚动按钮定位到 el-table 内部滚动区） */
 const tableScrollRef = ref<HTMLElement | null>(null)
@@ -261,6 +306,7 @@ const hvChargeDetailCols = useListColumns({
 })
 
 const hvChargeDetailTableRef = hvChargeDetailCols.tableRef
+const fillHeightHvChargeDetail = useFillHeightTable({ tableRef: hvChargeDetailTableRef })
 const isHvChargeDetailColVisible = (key: string) => hvChargeDetailCols.isColumnVisible(key)
 const hvChargeDetailColBinding = (key: string) => hvChargeDetailCols.columnBinding(key)
 
@@ -310,7 +356,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
 
     <template v-else>
       <!-- ============ 工作台：常用条件 + 更多条件 + 操作 ============ -->
-      <form class="charge-panel charge-filters" :class="{ 'is-expanded': showAllFilters }" @submit.prevent="search">
+      <form class="charge-panel charge-filters" :class="{ 'is-expanded': showAllFilters }" @submit.prevent="submitChargeSearch">
         <div class="charge-filter-head">
           <span class="charge-filter-icon"><Filter :size="16" /></span>
           <div>
@@ -321,7 +367,7 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
         <SpdFilterBar
           class="charge-query-grid"
           :submit-label="'查询'"
-          @submit="search"
+          @submit="submitChargeSearch"
           @reset="reset"
         >
           <label class="charge-filter-primary">
@@ -342,11 +388,29 @@ const hvChargeDetailColSettingsPop = useColSettingsPopover({
           </label>
           <label class="charge-filter-primary">
             <span><Calendar :size="12" /> 开始日期</span>
-            <input v-model="filters.dateFrom" type="date" />
+            <el-date-picker
+              v-model="filters.dateFrom"
+              type="date"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              placeholder="开始日期"
+              clearable
+              class="charge-date-picker"
+              :disabled-date="chargeDisableAfterEnd"
+            />
           </label>
           <label class="charge-filter-primary">
             <span><Calendar :size="12" /> 结束日期</span>
-            <input v-model="filters.dateTo" type="date" />
+            <el-date-picker
+              v-model="filters.dateTo"
+              type="date"
+              format="YYYY-MM-DD"
+              value-format="YYYY-MM-DD"
+              placeholder="结束日期"
+              clearable
+              class="charge-date-picker"
+              :disabled-date="chargeDisableBeforeStart"
+            />
           </label>
           <label class="charge-filter-primary">
             <span><Tag :size="12" /> 唯一码</span>
@@ -459,7 +523,7 @@ ref="hvChargeDetailColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightHvChargeDetail.maxHeight"
               style="width: 100%"
               :empty-text="'暂无计费明细'"
               @header-dragend="(width: number, oldWidth: number, column: any) => hvChargeDetailCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -822,6 +886,23 @@ ref="hvChargeDetailColSettingsPopRef"
 
 .charge-query-grid label > span :deep(svg) {
   color: var(--spd-p-text-muted);
+}
+
+/* ---------- Element Plus 中文日期选择器 ----------
+   el-date-picker 外壳是 .el-input__wrapper，共享样式表
+   styles/components/spd-input.css 已把高度 / 圆角 / 边框 / 字号
+   统一到字段令牌（34px / --spd-p-field-radius / 1px 内阴影环 / 基础字号）。
+   这里只补两件事：
+     1) 选择器撑满栅格列宽（EP 默认是 inline-block，不会跟着 label 走）；
+     2) 兜住共享样式表里「原生 input 统一规格」那条通用规则，
+        避免内层 input 被画成第二层小框（框中框）。
+   三套配色方案都走同一批令牌，无需额外适配。 */
+.charge-date-picker {
+  width: 100%;
+}
+
+.charge-date-picker .el-input__wrapper {
+  width: 100%;
 }
 
 .charge-filters .charge-filter-extra {

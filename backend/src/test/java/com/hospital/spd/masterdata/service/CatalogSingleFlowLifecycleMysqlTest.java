@@ -70,7 +70,7 @@ class CatalogSingleFlowLifecycleMysqlTest {
     }
     private long id(JdbcTemplate jdbc,String no) { return jdbc.queryForObject("SELECT application_id FROM pending_product_application WHERE application_no=?",Long.class,no); }
     private PendingProductApplicationRequest request(String code) {
-        return mapper.convertValue(Map.of("applicationType","新品准入","productCode",code,"productName",code,"specModel","6.0","unit","个","purchasePrice",1,"registrationExpireDate","2099-12-31"),PendingProductApplicationRequest.class);
+        return mapper.convertValue(Map.of("applicationType","新品准入","productCode",code,"productName",code,"unit","个","purchasePrice",1,"registrationExpireDate","2099-12-31"),PendingProductApplicationRequest.class);
     }
     private ApprovalFlowStepRequest step(int order,String name) { return new ApprovalFlowStepRequest(null,order,name,"user",null,1L,null,1,false,1,1); }
     private ApprovalFlowRequest flow(Long dept,List<ApprovalFlowStepRequest> steps) {

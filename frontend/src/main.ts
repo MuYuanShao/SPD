@@ -31,6 +31,18 @@ import { ElDialog } from 'element-plus/es/components/dialog/index.mjs'
 import { ElCheckboxGroup } from 'element-plus/es/components/checkbox/index.mjs'
 import { ElEmpty } from 'element-plus/es/components/empty/index.mjs'
 import { ElSelect, ElOption } from 'element-plus/es/components/select/index.mjs'
+import { ElDatePicker } from 'element-plus/es/components/date-picker/index.mjs'
+/* dayjs 的中文语言包（zh-cn）
+   ---------------------------------------------------------------------
+   Element Plus 的日期面板内部用 dayjs 渲染「星期表头 / 月份名 / 每周起始日」，
+   具体做法是 dayjs(...).locale(useLocale().lang)，
+   而 useLocale().lang 来自 <el-config-provider :locale="zhCn">（见 App.vue）。
+   dayjs 的语言包必须**先注册**才能被 .locale('zh-cn') 命中：
+   dayjs/locale/zh-cn 内部调用 dayjs.locale(preset, null, true)，
+   只注册不改变全局默认语言，因此不会影响其它页面现有的日期显示。
+   不注册的话 .locale('zh-cn') 会静默回落到 en，
+   面板会显示英文星期名且每周从周日开始。 */
+import 'dayjs/locale/zh-cn'
 import 'element-plus/theme-chalk/el-container.css'
 import 'element-plus/theme-chalk/el-header.css'
 import 'element-plus/theme-chalk/el-main.css'
@@ -58,6 +70,11 @@ import 'element-plus/theme-chalk/el-checkbox-group.css'
 import 'element-plus/theme-chalk/el-empty.css'
 import 'element-plus/theme-chalk/el-select.css'
 import 'element-plus/theme-chalk/el-option.css'
+/* 日期选择器：el-date-picker.css 本身为空文件（Element Plus 把日期面板样式
+   拆到了 el-date-picker-panel.css），两个都引一遍，
+   保证面板与选择器外壳的样式齐全，缺一不可。 */
+import 'element-plus/theme-chalk/el-date-picker.css'
+import 'element-plus/theme-chalk/el-date-picker-panel.css'
 import 'element-plus/theme-chalk/el-input-number.css'
 import 'element-plus/theme-chalk/el-scrollbar.css'
 import 'element-plus/theme-chalk/base.css'
@@ -117,7 +134,7 @@ app.component('SpdColumnSettings', SpdColumnSettings)
    详见 components/common/SpdOrderedColumns.vue 的说明。 */
 app.component('SpdOrderedColumns', SpdOrderedColumns)
 
-for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElIcon, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty, ElSelect, ElOption]) {
+for (const component of [ElContainer, ElHeader, ElMain, ElMenu, ElMenuItem, ElSubMenu, ElIcon, ElDropdown, ElDropdownMenu, ElDropdownItem, ElBreadcrumb, ElBreadcrumbItem, ElCard, ElRow, ElCol, ElTag, ElButton, ElInput, ElProgress, ElTimeline, ElTimelineItem, ElPagination, ElDialog, ElCheckboxGroup, ElEmpty, ElSelect, ElOption, ElDatePicker]) {
   app.use(component)
 }
 setSessionAdapter({

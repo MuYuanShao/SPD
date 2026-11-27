@@ -25,6 +25,7 @@ import {
   User,
   X
 } from '@lucide/vue'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 import MdPageHeader from '../../components/master-data/MdPageHeader.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
@@ -73,6 +74,7 @@ const auditLogCols = useListColumns({
 })
 
 const auditLogTableRef = auditLogCols.tableRef
+const fillHeightAuditLog = useFillHeightTable({ tableRef: auditLogTableRef })
 const isAuditLogColVisible = (key: string) => auditLogCols.isColumnVisible(key)
 const auditLogColBinding = (key: string) => auditLogCols.columnBinding(key)
 
@@ -306,16 +308,16 @@ watch(() => query.value.bizType, (v) => {
       <div class="sys-form-grid">
         <label><span>操作人</span><input v-model.trim="query.operatorName" class="sys-input" placeholder="模糊查询操作人姓名" @keyup.enter="onSearch" /></label>
         <label><span>操作类型</span>
-          <select v-model="query.operationType" class="sys-select">
-            <option value="">全部</option>
-            <option v-for="f in operationTypeFacets" :key="f.operationType" :value="f.operationType">{{ formatBusinessText(f.operationType) }} ({{ f.total }})</option>
-          </select>
+          <el-select v-model="query.operationType" popper-class="spd-select-popper" placeholder="全部">
+            <el-option label="全部" value="" />
+            <el-option v-for="f in operationTypeFacets" :key="f.operationType" :label="`${formatBusinessText(f.operationType)} (${f.total})`" :value="f.operationType" />
+          </el-select>
         </label>
         <label><span>业务类型</span>
-          <select v-model="query.bizType" class="sys-select">
-            <option value="">全部</option>
-            <option v-for="f in bizTypeFacets" :key="f.bizType" :value="f.bizType">{{ formatBusinessText(f.bizType) }} ({{ f.total }})</option>
-          </select>
+          <el-select v-model="query.bizType" popper-class="spd-select-popper" placeholder="全部">
+            <el-option label="全部" value="" />
+            <el-option v-for="f in bizTypeFacets" :key="f.bizType" :label="`${formatBusinessText(f.bizType)} (${f.total})`" :value="f.bizType" />
+          </el-select>
         </label>
         <label><span>业务单据号</span><input v-model.trim="query.bizNo" class="sys-input" placeholder="模糊查询业务单据号" @keyup.enter="onSearch" /></label>
         <label><span>关键字</span><input v-model.trim="query.keyword" class="sys-input" placeholder="备注 / IP" @keyup.enter="onSearch" /></label>
@@ -378,7 +380,7 @@ watch(() => query.value.bizType, (v) => {
           border
           stripe
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightAuditLog.maxHeight"
           style="width: 100%"
           :empty-text="'暂无系统操作记录'"
           @header-dragend="(width: number, oldWidth: number, column: any) => auditLogCols.handleHeaderDragEnd(width, oldWidth, column)"

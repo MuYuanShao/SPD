@@ -32,7 +32,14 @@ import java.util.UUID;
 @Service
 public class PendingProductAttachmentService {
     private static final long MAX_FILE_SIZE = 20L * 1024 * 1024;
-    private static final int MAX_FILES = 10;
+    /**
+     * 单个申请允许上传的附件数量上限。
+     * ---------------------------------------------------------------------
+     * 需求：「新增」弹窗要支持一次上传多张图片，资质审阅要能自然排布多张图。
+     * 原来的 10 个上限偏紧（多张资质照 + 多张 PDF 很容易撞顶），
+     * 这里放宽到 20 个，仍然保留上限以避免单据附件无限膨胀。
+     */
+    private static final int MAX_FILES = 20;
 
     private final JdbcTemplate jdbcTemplate;
     private final OperatorContextProvider operatorContextProvider;
@@ -138,7 +145,7 @@ public class PendingProductAttachmentService {
                 SELECT COUNT(*) FROM sys_attachment
                  WHERE biz_type = 'pending_product_application' AND biz_id = ? AND deleted = 0
                 """, Integer.class, applicationId);
-        if (count != null && count >= MAX_FILES) throw new IllegalArgumentException("每个申请最多上传 10 个附件");
+        if (count != null && count >= MAX_FILES) throw new IllegalArgumentException("每个申请最多上传 " + MAX_FILES + " 个附件");
 
         byte[] bytes;
         try {
@@ -147,9 +154,8 @@ public class PendingProductAttachmentService {
             throw new IllegalArgumentException("附件读取失败", ex);
         }
         FileKind kind = detect(bytes);
-        String originalName = file.getOriginalFilename() == null ? "attachment" + kind.extension()
-                : Path.of(file.getOriginalFilename()).getFileName().toString();
-        if (!originalName.toLowerCase().endsWith(kind.extension())) {
+        String originalName = sanitizeOriginalName(file.getOriginalFilename(), kind);
+        if (!kind.accepts(originalName)) {
             throw new IllegalArgumentException("文件扩展名与文件签名不一致");
         }
         String storedName = UUID.randomUUID() + kind.extension();
@@ -261,6 +267,31 @@ public class PendingProductAttachmentService {
                 """, applicationId);
     }
 
+    /**
+     * Derives the stored/display name of an uploaded file.
+     * The original name is opaque user data and may legitimately contain spaces,
+     * so only path separators and control characters are stripped here.
+     */
+    private static String sanitizeOriginalName(String originalFileName, FileKind kind) {
+        if (originalFileName == null || originalFileName.isBlank()) {
+            return "attachment" + kind.extension();
+        }
+        String sanitized = originalFileName.replace('\\', '/');
+        int separator = sanitized.lastIndexOf('/');
+        if (separator >= 0) sanitized = sanitized.substring(separator + 1);
+        StringBuilder builder = new StringBuilder(sanitized.length());
+        for (int index = 0; index < sanitized.length(); index++) {
+            char character = sanitized.charAt(index);
+            if (character < 0x20 || character == 0x7F) continue;
+            builder.append(character);
+        }
+        String cleaned = builder.toString().trim();
+        if (cleaned.isEmpty() || ".".equals(cleaned) || "..".equals(cleaned)) {
+            return "attachment" + kind.extension();
+        }
+        return cleaned;
+    }
+
     private static FileKind detect(byte[] bytes) {
         if (startsWith(bytes, "%PDF-".getBytes(StandardCharsets.US_ASCII))) return FileKind.PDF;
         if (startsWith(bytes, new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a})) return FileKind.PNG;
@@ -288,12 +319,25 @@ public class PendingProductAttachmentService {
     private static Long nullableNumber(Object value) { return value instanceof Number number ? number.longValue() : null; }
 
     private enum FileKind {
-        PDF(".pdf", "application/pdf"), PNG(".png", "image/png"),
-        JPEG(".jpg", "image/jpeg"), WEBP(".webp", "image/webp");
+        PDF(".pdf", List.of(".pdf"), "application/pdf"),
+        PNG(".png", List.of(".png"), "image/png"),
+        JPEG(".jpg", List.of(".jpg", ".jpeg"), "image/jpeg"),
+        WEBP(".webp", List.of(".webp"), "image/webp");
         private final String extension;
+        private final List<String> acceptedExtensions;
         private final String mediaType;
-        FileKind(String extension, String mediaType) { this.extension = extension; this.mediaType = mediaType; }
+        FileKind(String extension, List<String> acceptedExtensions, String mediaType) {
+            this.extension = extension;
+            this.acceptedExtensions = acceptedExtensions;
+            this.mediaType = mediaType;
+        }
         String extension() { return extension; }
         String mediaType() { return mediaType; }
+        /** Accepts any equivalent alias of the detected kind, ignoring case. */
+        boolean accepts(String fileName) {
+            if (fileName == null) return false;
+            String lowerCased = fileName.toLowerCase(java.util.Locale.ROOT);
+            return acceptedExtensions.stream().anyMatch(lowerCased::endsWith);
+        }
     }
 }

@@ -5,7 +5,6 @@ import type { PartnerOption } from '../../api/masterData'
 const props = defineProps<{
   open: boolean
   saving?: boolean
-  error?: string
   mode: 'create' | 'edit'
   form: Record<string, unknown>
   manufacturerOptions: PartnerOption[]
@@ -52,7 +51,6 @@ function handleSupplierChange() {
           <template #icon><X :size="18" /></template>
         </SpdButton>
       </header>
-      <p v-if="error" class="standard-status-message is-error" role="alert">{{ error }}</p>
       <form class="product-dialog-form" @submit.prevent="$emit('save')">
         <div class="product-dialog-scroll">
           <section class="product-dialog-section">
@@ -73,31 +71,29 @@ function handleSupplierChange() {
               <label><span>品牌</span><input :disabled="saving" v-model.trim="form.brand" /></label>
               <label>
                 <span>生产厂家</span>
-                <select :disabled="saving" v-model="form.manufacturerName" @change="handleManufacturerChange">
-                  <option value="">请选择生产厂家</option>
-                  <option
+                <el-select :disabled="saving" v-model="form.manufacturerName" popper-class="spd-select-popper" placeholder="请选择生产厂家" @change="handleManufacturerChange">
+                  <el-option label="" value="" />
+                  <el-option
                     v-for="item in manufacturerOptions"
                     :key="item.code"
+                    :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                     :value="item.name"
                     :disabled="item.status !== 1"
-                  >
-                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                  </option>
-                </select>
+                  />
+                </el-select>
               </label>
               <label>
                 <span>供应商</span>
-                <select :disabled="saving" v-model="form.supplierName" @change="handleSupplierChange">
-                  <option value="">请选择供应商</option>
-                  <option
+                <el-select :disabled="saving" v-model="form.supplierName" popper-class="spd-select-popper" placeholder="请选择供应商" @change="handleSupplierChange">
+                  <el-option label="" value="" />
+                  <el-option
                     v-for="item in supplierOptions"
                     :key="item.code"
+                    :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                     :value="item.name"
                     :disabled="item.status !== 1"
-                  >
-                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                  </option>
-                </select>
+                  />
+                </el-select>
               </label>
               <label>
                 <span>单位</span>

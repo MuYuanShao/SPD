@@ -54,6 +54,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const route = useRoute()
 const router = useRouter()
@@ -324,6 +325,7 @@ const userListCols = useListColumns({
 })
 
 const userListTableRef = userListCols.tableRef
+const fillHeightUserList = useFillHeightTable({ tableRef: userListTableRef })
 const isUserListColVisible = (key: string) => userListCols.isColumnVisible(key)
 const userListColBinding = (key: string) => userListCols.columnBinding(key)
 
@@ -381,6 +383,7 @@ const roleListCols = useListColumns({
 })
 
 const roleListTableRef = roleListCols.tableRef
+const fillHeightRoleList = useFillHeightTable({ tableRef: roleListTableRef })
 const isRoleListColVisible = (key: string) => roleListCols.isColumnVisible(key)
 const roleListColBinding = (key: string) => roleListCols.columnBinding(key)
 
@@ -518,7 +521,7 @@ ref="userListColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightUserList.maxHeight"
             style="width: 100%"
             :empty-text="'暂无用户数据'"
             @header-dragend="(width: number, oldWidth: number, column: any) => userListCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -727,7 +730,7 @@ ref="roleListColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightRoleList.maxHeight"
             style="width: 100%"
             :empty-text="'暂无角色数据'"
             @header-dragend="(width: number, oldWidth: number, column: any) => roleListCols.handleHeaderDragEnd(width, oldWidth, column)"

@@ -3,7 +3,24 @@ import { computed, nextTick, onActivated, onDeactivated, onMounted, onUnmounted,
 import { Teleport } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
-import { ArrowLeft, CheckCircle2, FileText, PackageCheck, Save, ShieldCheck, X } from '@lucide/vue'
+import { ElIcon } from 'element-plus'
+import {
+  ArrowLeft as EpArrowLeft,
+  Calendar,
+  Check,
+  CircleCheck,
+  Close,
+  Document,
+  Edit,
+  Files,
+  FolderOpened,
+  Postcard,
+  Refresh,
+  Select as SelectIcon,
+  Stamp,
+  Tickets,
+  View
+} from '@element-plus/icons-vue'
 import {
   approvePendingProductApplication,
   fetchPendingProductApplicationDetail,
@@ -13,6 +30,7 @@ import {
   type PendingProductApplicationDetail
 } from '../../api/pendingProductApplications'
 import { useCatalogApprovalRefreshStore } from '../../stores/catalogApprovalRefresh'
+import { useNotify } from '../../composables/useNotify'
 import PendingProductQualificationAttachments from '../../components/catalog/PendingProductQualificationAttachments.vue'
 import type { PartnerOption } from '../../api/masterData'
 import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
@@ -20,6 +38,7 @@ import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vu
 const route = useRoute()
 const router = useRouter()
 const refreshStore = useCatalogApprovalRefreshStore()
+const notify = useNotify()
 const active = ref(true)
 const submitting = ref(false)
 let detailRequestVersion = 0
@@ -27,15 +46,12 @@ const detail = ref<PendingProductApplicationDetail | null>(null)
 const loading = ref(false)
 const error = ref('')
 const opinion = ref('')
-const actionMessage = ref('')
-const actionError = ref('')
 const resubmitModalOpen = ref(false)
 const resubmitCleanSnapshot = ref('')
 const resubmitForm = reactive({
   applicationType: '',
   productCode: '',
   productName: '',
-  specModel: '',
   brand: '',
   manufacturerName: '',
   supplierName: '',
@@ -69,9 +85,23 @@ const resubmitForm = reactive({
   changeReason: ''
 })
 
-/* ── Edit mode state ── */
+/* ── Edit mode state ──
+   用户诉求：「查看是不允许修改的，是把信息展示出来看」。
+   页面模式由路由参数 mode 决定：
+     mode=view   → 纯查看：字段只读、不出现审批动作按钮、不显示保存按钮；
+     mode=approve→ 审批：按 canApprove 权限内联编辑并执行审批动作。 */
+const pageMode = computed<'view' | 'approve'>(() =>
+  route.query.mode === 'view' ? 'view' : 'approve'
+)
+
+/** 是否为纯查看模式（不允许修改，也不显示审批动作） */
+const isViewOnly = computed(() => pageMode.value === 'view')
+
 const isEditing = computed(() =>
-  isPendingApprovalStatus(detail.value?.approvalStatus) && detail.value?.canApprove === true && !detail.value.enableOnly
+  !isViewOnly.value
+  && isPendingApprovalStatus(detail.value?.approvalStatus)
+  && detail.value?.canApprove === true
+  && !detail.value.enableOnly
 )
 
 const currentApprovalNode = computed(() =>
@@ -98,7 +128,6 @@ const editForm = reactive({
   applicationType: '',
   productCode: '',
   productName: '',
-  specModel: '',
   brand: '',
   manufacturerName: '',
   supplierName: '',
@@ -137,8 +166,6 @@ const isDirty = computed(() => {
   return JSON.stringify(extractFormValues()) !== cleanSnapshot.value
 })
 const saving = ref(false)
-const saveMessage = ref('')
-const saveError = ref('')
 
 function extractFormValues() {
   const { ...rest } = editForm
@@ -155,7 +182,6 @@ function initEditForm() {
   editForm.applicationType = d.applicationType
   editForm.productCode = d.productCode
   editForm.productName = d.productName
-  editForm.specModel = d.specModel
   editForm.brand = d.brand || ''
   editForm.manufacturerName = d.manufacturerName || ''
   editForm.supplierName = d.supplierName || ''
@@ -195,17 +221,17 @@ function buildPayload() {
 
 async function saveChanges() {
   if (!detail.value || !isDirty.value || saving.value || submitting.value) return
-  saveError.value = ''
-  saveMessage.value = ''
   saving.value = true
   try {
     await updatePendingProductApplication(detail.value.applicationNo, buildPayload())
     refreshStore.changed()
-    saveMessage.value = '修改已保存'
+    // 保存成功统一以 Element Plus message 播报，不在页面上内联渲染提示条。
+    notify.success('修改已保存')
     captureCleanSnapshot()
     await loadDetail()
   } catch (err) {
-    saveError.value = err instanceof Error ? err.message : '保存失败'
+    // 保存失败同样以 message 播报。
+    notify.error(err instanceof Error ? err.message : '保存失败')
   } finally {
     saving.value = false
   }
@@ -234,12 +260,11 @@ const approvalInfoGroups = computed(() => {
   return [
     {
       title: '商品基础信息',
-      icon: PackageCheck,
+      icon: Files,
       iconClass: 'blue',
       fields: [
         { label: '商品名称', value: item.productName, key: 'productName', highlight: true, full: false },
         { label: '商品编码', value: item.productCode, key: 'productCode', highlight: false, full: false },
-        { label: '规格型号', value: item.specModel, key: 'specModel', highlight: false, full: false },
         { label: '品牌', value: item.brand || '-', key: 'brand', highlight: false, full: false },
         { label: '单位', value: item.unit, key: 'unit', highlight: false, full: false },
         { label: '生产厂家', value: item.manufacturerName || '-', key: 'manufacturerName', highlight: false, full: false },
@@ -248,7 +273,7 @@ const approvalInfoGroups = computed(() => {
     },
     {
       title: '价格与采购',
-      icon: ShieldCheck,
+      icon: Stamp,
       iconClass: 'orange',
       fields: [
         { label: '采购价', value: `¥ ${item.purchasePrice}`, key: 'purchasePrice', highlight: true, full: false, inputType: 'number' },
@@ -263,7 +288,7 @@ const approvalInfoGroups = computed(() => {
     },
     {
       title: '业务属性',
-      icon: FileText,
+      icon: Tickets,
       iconClass: 'green',
       type: 'tags',
       booleans: [
@@ -287,11 +312,11 @@ const qualificationInfo = computed(() => {
   const item = detail.value
   if (!item) return null
   return [
-    { icon: '📜', label: '注册证号', value: item.registrationNo || '-', key: 'registrationNo', extra: '' },
-    { icon: '📅', label: '注册证有效期', value: item.registrationExpireDate === '-' ? '-' : (item.registrationExpireDate || '-'), key: 'registrationExpireDate', extra: '' },
-    { icon: '🏭', label: '生产许可证号', value: item.productionLicenseNo || '-', key: 'productionLicenseNo', extra: '' },
-    { icon: '📋', label: '经营许可证号', value: item.businessLicenseNo || '-', key: 'businessLicenseNo', extra: '' },
-    { icon: '🔖', label: 'UDI 编码', value: item.udiCode || '-', key: 'udiCode', extra: '' },
+    { icon: Postcard, label: '注册证号', value: item.registrationNo || '-', key: 'registrationNo', extra: '' },
+    { icon: Calendar, label: '注册证有效期', value: item.registrationExpireDate === '-' ? '-' : (item.registrationExpireDate || '-'), key: 'registrationExpireDate', extra: '' },
+    { icon: Stamp, label: '生产许可证号', value: item.productionLicenseNo || '-', key: 'productionLicenseNo', extra: '' },
+    { icon: Tickets, label: '经营许可证号', value: item.businessLicenseNo || '-', key: 'businessLicenseNo', extra: '' },
+    { icon: Document, label: 'UDI 编码', value: item.udiCode || '-', key: 'udiCode', extra: '' },
   ]
 })
 
@@ -342,15 +367,11 @@ async function loadDetail() {
   const expectedNo = applicationNo.value
   if (detail.value?.applicationNo !== expectedNo) {
     opinion.value = ''
-    actionMessage.value = ''
-    actionError.value = ''
     resubmitModalOpen.value = false
   }
   loading.value = true
   detail.value = null
   error.value = ''
-  saveError.value = ''
-  saveMessage.value = ''
 
   try {
     const response = await fetchPendingProductApplicationDetail(expectedNo)
@@ -363,7 +384,13 @@ async function loadDetail() {
     captureCleanSnapshot()
     openReturnedEditFromRoute()
   } catch (err) {
-    if (request === detailRequestVersion && active.value) error.value = err instanceof Error ? err.message : '审批明细加载失败'
+    if (request === detailRequestVersion && active.value) {
+      const text = err instanceof Error ? err.message : '审批明细加载失败'
+      error.value = text
+      // 明细加载失败以 Element Plus message 播报；
+      // 页面上的空态只保留一个占位说明，不再内联渲染错误提示条。
+      notify.error(text)
+    }
   } finally {
     if (request === detailRequestVersion) loading.value = false
   }
@@ -382,14 +409,13 @@ function openReturnedEditFromRoute() {
 
 async function submitAction(action: 'approve' | 'return' | 'reject') {
   if (!detail.value || submitting.value || saving.value || loading.value) return
-  actionError.value = ''
-  actionMessage.value = ''
   if (!detail.value.canApprove) {
-    actionError.value = '当前账号无此节点审批权限'
+    // 校验失败统一以 Element Plus message 播报，不在页面上内联渲染提示条。
+    notify.warning('当前账号无此节点审批权限')
     return
   }
   if ((action === 'return' || action === 'reject') && !opinion.value.trim()) {
-    actionError.value = action === 'return' ? '退回修改必须填写退回原因' : '驳回必须填写审批意见'
+    notify.warning(action === 'return' ? '退回修改必须填写退回原因' : '驳回必须填写审批意见')
     return
   }
   submitting.value = true
@@ -402,7 +428,8 @@ async function submitAction(action: 'approve' | 'return' | 'reject') {
     }
     const result = await approvePendingProductApplication(detail.value.applicationNo, action, opinion.value)
     refreshStore.changed({ catalogChanged: result.status === 'approved' })
-    actionMessage.value =
+    // 审批结果统一以 Element Plus message 播报，不在页面上内联渲染提示条。
+    notify.success(
       action === 'approve'
         ? result.status === 'approved'
           ? '审批通过，已同步到医院目录'
@@ -410,10 +437,11 @@ async function submitAction(action: 'approve' | 'return' | 'reject') {
         : action === 'return'
           ? '已退回修改，申请人可在"我发起的"中修改后重新提交'
           : '已驳回'
+    )
     opinion.value = ''
     await loadDetail()
   } catch (err) {
-    actionError.value = err instanceof Error ? err.message : '审批操作失败'
+    notify.error(err instanceof Error ? err.message : '审批操作失败')
   } finally {
     submitting.value = false
   }
@@ -430,7 +458,6 @@ function openResubmitModal() {
     applicationType: detail.value.applicationType,
     productCode: detail.value.productCode,
     productName: detail.value.productName,
-    specModel: detail.value.specModel,
     brand: detail.value.brand || '',
     manufacturerName: detail.value.manufacturerName || '',
     supplierName: detail.value.supplierName || '',
@@ -488,9 +515,8 @@ function closeResubmitModal() {
 
 async function submitResubmitForm() {
   if (!detail.value?.canResubmit || submitting.value || saving.value) return
-  actionError.value = ''
   if (!detail.value.enableOnly && resubmitForm.quotaManaged && (resubmitForm.highValue || resubmitForm.coldChain)) {
-    actionError.value = '高值耗材或冷链耗材不能设置为定数管理'
+    notify.warning('高值耗材或冷链耗材不能设置为定数管理')
     return
   }
   submitting.value = true
@@ -498,12 +524,13 @@ async function submitResubmitForm() {
     await resubmitPendingProductApplication(detail.value.applicationNo,
       detail.value.enableOnly ? { changeReason: resubmitForm.changeReason } : resubmitForm)
     refreshStore.changed()
-    actionMessage.value = '已重新提交，按最新审批流从第一步开始审批'
+    // 重新提交结果统一以 Element Plus message 播报。
+    notify.success('已重新提交，按最新审批流从第一步开始审批')
     resubmitModalOpen.value = false
     captureResubmitSnapshot()
     await loadDetail()
   } catch (err) {
-    actionError.value = err instanceof Error ? err.message : '重新提交失败'
+    notify.error(err instanceof Error ? err.message : '重新提交失败')
   } finally {
     submitting.value = false
   }
@@ -511,7 +538,7 @@ async function submitResubmitForm() {
 
 function canLeaveDetail() {
   if (submitting.value || saving.value) {
-    actionError.value = '正在提交操作，请稍候再离开'
+    notify.warning('正在提交操作，请稍候再离开')
     return false
   }
   if ((isDirty.value || isResubmitDirty.value) && !window.confirm('有未保存的修改，确定要离开吗？')) return false
@@ -524,8 +551,6 @@ onBeforeRouteUpdate((to, from) => {
 watch(applicationNo, no => {
   if (active.value && route.name === 'pending-product-approval-detail' && no && no !== detail.value?.applicationNo) {
     opinion.value = ''
-    actionMessage.value = ''
-    actionError.value = ''
     resubmitModalOpen.value = false
     void loadDetail()
   }
@@ -559,8 +584,14 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
 
 <template>
   <section class="approval-detail-page">
-    <button class="back-button" type="button" :disabled="submitting || saving" @click="returnToCatalog">
-      <ArrowLeft :size="17" />
+    <!-- 返回按钮：统一使用品牌青色（primary），不再按申请类型变化配色 -->
+    <button
+      class="back-button"
+      type="button"
+      :disabled="submitting || saving"
+      @click="returnToCatalog"
+    >
+      <ElIcon><EpArrowLeft /></ElIcon>
       返回待审批目录
     </button>
 
@@ -575,36 +606,40 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
             <span class="approval-type-badge">{{ detail.applicationType }}</span>
             <h2>{{ detail.productName }}</h2>
           </div>
-          <div class="approval-actions">
+          <!-- 查看模式标记：明确告诉用户「当前为只读查看，不可修改」 -->
+          <div class="approval-view-flag" v-if="isViewOnly">
+            <ElIcon><View /></ElIcon>
+            <span>只读查看</span>
+          </div>
+          <!-- 审批动作区：图标统一走 Element Plus，与弹窗操作区语言一致。
+               查看模式下完全不渲染任何动作按钮（只展示信息，不可修改）。 -->
+          <div v-if="!isViewOnly" class="approval-actions">
             <SpdButton tone="primary" v-if="detail.canResubmit" @click="openResubmitModal">
-          {{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}
-        </SpdButton>
+              <template #icon><ElIcon><Edit /></ElIcon></template>
+              {{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}
+            </SpdButton>
             <SpdButton label="驳回" tone="danger" v-if="isPendingApprovalStatus(detail.approvalStatus)"
-             
-             
               @click="submitAction('reject')"
-              :disabled="submitting || saving || !detail.canApprove"></SpdButton>
+              :disabled="submitting || saving || !detail.canApprove">
+              <template #icon><ElIcon><Close /></ElIcon></template>
+            </SpdButton>
             <SpdButton label="退回修改" tone="primary" v-if="isPendingApprovalStatus(detail.approvalStatus)"
-             
-             
               @click="submitAction('return')"
-              :disabled="submitting || saving || !detail.canApprove"></SpdButton>
+              :disabled="submitting || saving || !detail.canApprove">
+              <template #icon><ElIcon><Refresh /></ElIcon></template>
+            </SpdButton>
             <SpdButton tone="primary" class="save-btn" v-if="isEditing && isDirty"
-             
-             
               @click="saveChanges"
               :disabled="saving || submitting">
-          <template #icon><Save :size="17" /></template>
-          {{ saving ? '保存中...' : '保存修改' }}
-        </SpdButton>
+              <template #icon><ElIcon><Check /></ElIcon></template>
+              {{ saving ? '保存中...' : '保存修改' }}
+            </SpdButton>
             <SpdButton tone="primary" v-if="isPendingApprovalStatus(detail.approvalStatus)"
-             
-             
               @click="submitAction('approve')"
               :disabled="submitting || saving || !detail.canApprove">
-          <template #icon><CheckCircle2 :size="17" /></template>
-          {{ approveButtonText }}
-        </SpdButton>
+              <template #icon><ElIcon><CircleCheck /></ElIcon></template>
+              {{ approveButtonText }}
+            </SpdButton>
           </div>
         </div>
         <div class="approval-header-meta">
@@ -638,19 +673,34 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
         </div>
       </header>
 
-      <p v-if="saveMessage" class="inline-message" style="background:var(--spd-p-primary-bg);border-color:var(--spd-p-success-border);color:var(--spd-p-success-strong);">{{ saveMessage }}</p>
-      <p v-if="saveError" class="inline-message error">{{ saveError }}</p>
-      <p v-if="actionMessage" class="inline-message">{{ actionMessage }}</p>
-      <p v-if="actionError" class="inline-message error">{{ actionError }}</p>
-      <p v-if="detail.returnReason" class="inline-message" style="background:var(--spd-p-warning-bg);border-color:var(--spd-p-warning-border);color:var(--spd-p-warning-strong);">退回原因：{{ detail.returnReason }}</p>
-      <p v-if="detail.rejectReason" class="inline-message error">驳回原因：{{ detail.rejectReason }}</p>
+      <!-- 【说明】原先这里用 <p class="inline-message"> / <p class="inline-message error">
+           内联渲染「保存成功 / 保存失败 / 审批结果 / 审批报错」。
+           这些都是**瞬时反馈**，现已统一改为 Element Plus message 弹层播报
+           （见 composables/useNotify.ts 的 notify.success / notify.error / notify.warning），
+           不再以 <p> 留在页面上占位、也不再挤压下方信息卡片。
+           下面只保留「退回原因 / 驳回原因」——它们是审批流留存的**业务记录**，
+           需要长期可见，因此以结构化卡片呈现，而不是一次性提示。 -->
+      <section v-if="detail.returnReason || detail.rejectReason" class="approval-reason-card">
+        <div class="approval-section-title">
+          <span class="swrap blue"><ElIcon><Document /></ElIcon></span>
+          <h3>审批意见记录</h3>
+        </div>
+        <div v-if="detail.returnReason" class="approval-reason-item is-warning">
+          <span class="reason-label">退回原因</span>
+          <span class="reason-text">{{ detail.returnReason }}</span>
+        </div>
+        <div v-if="detail.rejectReason" class="approval-reason-item is-danger">
+          <span class="reason-label">驳回原因</span>
+          <span class="reason-text">{{ detail.rejectReason }}</span>
+        </div>
+      </section>
 
       <!-- ═══ 3-Column Info Grid ═══ -->
       <div class="approval-info-grid">
         <div v-for="group in approvalInfoGroups" :key="group.title" class="approval-info-card">
           <div class="info-card-header">
             <span class="icn" :class="group.iconClass">
-              <component :is="group.icon" :size="14" />
+              <ElIcon><component :is="group.icon" /></ElIcon>
             </span>
             <h4>{{ group.title }}</h4>
           </div>
@@ -666,25 +716,24 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               >
                 <span class="flabel">{{ f.label }}</span>
                 <span v-if="!isEditing || !f.key" class="fvalue">{{ f.value }}</span>
-                <select
+                <el-select
                   v-else-if="f.key === 'manufacturerName' || f.key === 'supplierName'"
                   :disabled="submitting || saving" v-model="(editForm as any)[f.key]"
-                  class="edit-input"
+                  popper-class="spd-select-popper"
+                  :placeholder="`请选择${f.label}`"
                   @change="handlePartnerSelectChange('edit', f.key)"
                 >
-                  <option value="">请选择{{ f.label }}</option>
-                  <option
+                  <el-option
                     v-for="item in withRetainedOption(
                       f.key === 'manufacturerName' ? manufacturerOptions : supplierOptions,
                       String((editForm as any)[f.key] || '')
                     )"
                     :key="item.code + item.name"
+                    :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                     :value="item.name"
                     :disabled="item.status !== 1"
-                  >
-                    {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                  </option>
-                </select>
+                  />
+                </el-select>
                 <input
                   v-else
                   v-integer-quantity="['minPurchaseQty', 'conversionRate', 'purchasePackageQty'].includes(f.key)"
@@ -739,20 +788,33 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
       <!-- ═══ Qualification / Certificate Hero Card ═══ -->
       <div v-if="qualificationInfo" class="qualification-card">
         <div class="info-card-header">
-          <span class="icn green">🛡️</span>
+          <span class="icn green"><ElIcon><FolderOpened /></ElIcon></span>
           <h4>资质证照信息</h4>
         </div>
         <div class="qual-grid">
           <div v-for="q in qualificationInfo" :key="q.label" class="qual-item">
-            <span class="q-icon">{{ q.icon }}</span>
+            <span class="q-icon"><ElIcon><component :is="q.icon" /></ElIcon></span>
             <div class="q-body">
               <span class="qlabel">{{ q.label }}</span>
               <span v-if="!isEditing || !q.key" class="qvalue">{{ q.value }}</span>
+              <!-- 注册证有效期：编辑态用 Element Plus 日历选择器（值仍是 YYYY-MM-DD 字符串） -->
+              <el-date-picker
+                v-else-if="q.key === 'registrationExpireDate'"
+                :disabled="submitting || saving"
+                v-model="(editForm as any)[q.key]"
+                type="date"
+                value-format="YYYY-MM-DD"
+                format="YYYY-MM-DD"
+                placeholder="请选择日期"
+                :clearable="true"
+                popper-class="spd-select-popper"
+                class="approval-date-picker"
+              />
               <input
                 v-else
                 :disabled="submitting || saving" v-model="(editForm as any)[q.key]"
                 class="edit-input"
-                :type="q.key === 'registrationExpireDate' ? 'date' : 'text'"
+                type="text"
               />
               <span v-if="q.extra && !isEditing" class="qextra">{{ q.extra }}</span>
             </div>
@@ -764,7 +826,7 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
       <!-- ═══ Change Diff (信息变更 only) ═══ -->
       <section v-if="showChangeDiff" class="change-diff-section">
         <div class="approval-info-title">
-          <FileText :size="18" />
+          <ElIcon><Document /></ElIcon>
           <h4>字段变更对比</h4>
         </div>
         <div v-if="changeItems.length" class="change-diff-table-wrap">
@@ -788,10 +850,10 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
         <p v-else class="muted" style="margin:8px 0 0;color:var(--spd-p-text-muted);">未检测到与医院目录当前数据的差异。</p>
       </section>
 
-      <!-- ═══ Approval Opinion ═══ -->
-      <section class="approval-opinion-card">
+      <!-- ═══ Approval Opinion（查看模式下不显示填写入口） ═══ -->
+      <section v-if="!isViewOnly" class="approval-opinion-card">
         <div class="approval-section-title">
-          <span class="swrap blue"><FileText :size="16" /></span>
+          <span class="swrap blue"><ElIcon><Document /></ElIcon></span>
           <h3>审批意见</h3>
         </div>
         <textarea
@@ -799,9 +861,11 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
           :disabled="submitting || saving || !detail.canApprove"
           placeholder="退回修改/驳回必须填写原因。审批通过可填写意见（选填）。"
         ></textarea>
-        <p v-if="isPendingApprovalStatus(detail.approvalStatus) && !detail.canApprove" class="inline-message">
+        <!-- 无权限提示：这是常驻说明（不是一次性报错），用普通 div + 次级文字样式呈现，
+             不再使用 <p class="inline-message"> 内联提示条。 -->
+        <div v-if="isPendingApprovalStatus(detail.approvalStatus) && !detail.canApprove" class="opinion-tip">
           当前账号无此节点审批权限，仅可查看审批明细。
-        </p>
+        </div>
         <!--
           驳回 / 退回修改 / 审批通过 三个按钮仅在 header 顶部出现一次。
           意见卡片只承载 textarea，避免重复操作。
@@ -814,56 +878,78 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
       <!-- ═══ Resubmit Modal ═══ -->
       <Teleport to="body">
       <div v-if="resubmitModalOpen" class="attachment-preview-mask">
-        <section class="supplier-dialog product-dialog" role="dialog" aria-modal="true">
-          <header>
+        <section class="supplier-dialog product-dialog approval-create-dialog" role="dialog" aria-modal="true">
+          <header class="approval-create-head">
             <div>
-              <p>{{ detail.applicationNo }}</p>
-              <h3>{{ detail.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}</h3>
+              <p>{{ detail?.applicationNo }}</p>
+              <h3>{{ detail?.enableOnly ? '重新提交启用申请' : '修改后重新提交' }}</h3>
             </div>
             <SpdButton icon-only variant="ghost" tone="neutral" type="button" aria-label="关闭" :disabled="submitting || saving" @click="closeResubmitModal">
-          <template #icon><X :size="18" /></template>
+          <template #icon><ElIcon><Close /></ElIcon></template>
         </SpdButton>
           </header>
-          <form class="supplier-form-grid" @submit.prevent="submitResubmitForm">
-            <template v-if="!detail.enableOnly">
+          <form class="approval-create-form" @submit.prevent="submitResubmitForm">
+            <div class="approval-create-scroll">
+            <section class="approval-create-section">
+            <h4>商品信息</h4>
+            <div class="supplier-form-grid compact">
+            <template v-if="!detail?.enableOnly">
             <label><span>申请类型</span><input :disabled="submitting || saving" v-model="resubmitForm.applicationType" readonly /></label>
             <label><span>商品编码</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productCode" required /></label>
             <label><span>商品名称</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.productName" required /></label>
-            <label><span>规格型号</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.specModel" required /></label>
             <label>
               <span>生产厂家</span>
-              <select :disabled="submitting || saving" v-model="resubmitForm.manufacturerName" @change="handlePartnerSelectChange('resubmit', 'manufacturerName')">
-                <option value="">请选择生产厂家</option>
-                <option
+              <el-select
+                :disabled="submitting || saving" v-model="resubmitForm.manufacturerName"
+                popper-class="spd-select-popper"
+                placeholder="请选择生产厂家"
+                @change="handlePartnerSelectChange('resubmit', 'manufacturerName')"
+              >
+                <el-option
                   v-for="item in withRetainedOption(manufacturerOptions, resubmitForm.manufacturerName)"
                   :key="item.code + item.name"
+                  :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                   :value="item.name"
                   :disabled="item.status !== 1"
-                >
-                  {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                </option>
-              </select>
+                />
+              </el-select>
             </label>
             <label>
               <span>供应商</span>
-              <select :disabled="submitting || saving" v-model="resubmitForm.supplierName" @change="handlePartnerSelectChange('resubmit', 'supplierName')">
-                <option value="">请选择供应商</option>
-                <option
+              <el-select
+                :disabled="submitting || saving" v-model="resubmitForm.supplierName"
+                popper-class="spd-select-popper"
+                placeholder="请选择供应商"
+                @change="handlePartnerSelectChange('resubmit', 'supplierName')"
+              >
+                <el-option
                   v-for="item in withRetainedOption(supplierOptions, resubmitForm.supplierName)"
                   :key="item.code + item.name"
+                  :label="`${item.name}（${item.code}）${item.status === 1 ? '' : ' · 已停用'}`"
                   :value="item.name"
                   :disabled="item.status !== 1"
-                >
-                  {{ item.name }}（{{ item.code }}）{{ item.status === 1 ? '' : ' · 已停用' }}
-                </option>
-              </select>
+                />
+              </el-select>
             </label>
             <label><span>单位</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.unit" required /></label>
             <label><span>采购价</span><input :disabled="submitting || saving" v-model.number="resubmitForm.purchasePrice" type="number" min="0" step="0.0001" /></label>
             <label><span>中包装数量</span><input v-integer-quantity :disabled="submitting || saving" v-model.number="resubmitForm.conversionRate" type="number" min="0" step="1" /></label>
             <label><span>采购包装数量</span><input v-integer-quantity :disabled="submitting || saving" v-model.number="resubmitForm.purchasePackageQty" type="number" min="0" step="1" /></label>
             <label><span>注册证号</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.registrationNo" /></label>
-            <label><span>注册证有效期</span><input :disabled="submitting || saving" v-model="resubmitForm.registrationExpireDate" type="date" /></label>
+            <label>
+              <span>注册证有效期</span>
+              <el-date-picker
+                :disabled="submitting || saving"
+                v-model="resubmitForm.registrationExpireDate"
+                type="date"
+                value-format="YYYY-MM-DD"
+                format="YYYY-MM-DD"
+                placeholder="请选择日期"
+                :clearable="true"
+                popper-class="spd-select-popper"
+                class="approval-date-picker"
+              />
+            </label>
             <label><span>一级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.firstCategory" /></label>
             <label><span>二级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.secondCategory" /></label>
             <label><span>三级分类</span><input :disabled="submitting || saving" v-model.trim="resubmitForm.thirdCategory" /></label>
@@ -878,10 +964,21 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
               <label><input :disabled="submitting || saving" v-model="resubmitForm.keyMonitored" type="checkbox" /> 重点监控</label>
             </div>
             </template>
-            <label class="wide"><span>{{ detail.enableOnly ? '重新提交说明' : '修改说明' }}</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填" /></label>
-            <div class="dialog-actions">
+            </div>
+            </section>
+
+            <section class="approval-create-section">
+            <h4>说明</h4>
+            <div class="supplier-form-grid compact">
+            <label class="wide"><span>{{ detail?.enableOnly ? '重新提交说明' : '修改说明' }}</span><textarea :disabled="submitting || saving" v-model="resubmitForm.changeReason" placeholder="选填" /></label>
+            </div>
+            </section>
+            </div>
+            <div class="dialog-actions approval-create-actions">
               <SpdButton label="取消" tone="neutral" :disabled="submitting || saving" @click="closeResubmitModal"></SpdButton>
-              <SpdButton label="重新提交" tone="primary" type="submit" :disabled="submitting || saving"></SpdButton>
+              <SpdButton label="重新提交" tone="primary" type="submit" :disabled="submitting || saving">
+                <template #icon><ElIcon><SelectIcon /></ElIcon></template>
+              </SpdButton>
             </div>
           </form>
         </section>
@@ -969,5 +1066,64 @@ function handleBeforeUnload(e: BeforeUnloadEvent) {
   color: var(--spd-p-text-secondary);
   font-size: var(--spd-font-size-sm);
   line-height: 1.5;
+}
+
+/* 审批意见记录（退回原因 / 驳回原因）
+   ---------------------------------------------------------------------
+   这两条是审批流留存的业务记录，需要长期可见，
+   因此用结构化卡片承载，而不是一次性的 .inline-message 提示条。 */
+.approval-reason-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--spd-p-shadow-1);
+  padding: 18px;
+}
+
+.approval-reason-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 10px;
+  border: 1px solid var(--spd-p-bg-muted);
+  border-radius: 8px;
+  background: var(--spd-p-bg);
+  padding: 10px 12px;
+}
+
+.approval-reason-item .reason-label {
+  flex-shrink: 0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: var(--spd-font-size-sm);
+  font-weight: 700;
+}
+
+.approval-reason-item .reason-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--spd-p-text);
+  font-size: var(--spd-font-size-base);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.approval-reason-item.is-warning {
+  border-color: var(--spd-p-warning-border);
+  background: var(--spd-p-warning-bg);
+}
+.approval-reason-item.is-warning .reason-label {
+  background: var(--spd-p-warning-bg);
+  color: var(--spd-p-warning-strong);
+}
+
+.approval-reason-item.is-danger {
+  border-color: var(--spd-p-danger-border);
+  background: var(--spd-p-danger-bg);
+}
+.approval-reason-item.is-danger .reason-label {
+  background: var(--spd-p-danger-bg);
+  color: var(--spd-p-danger-strong);
 }
 </style>

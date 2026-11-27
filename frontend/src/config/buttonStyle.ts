@@ -53,18 +53,26 @@ export const DEFAULT_BUTTON_TONE: SpdButtonTone = DEFAULT_BUTTON_STYLE.tone
  * 规范样式表：label → { tone, variant, size }
  *
  * 归类原则：
- *   - primary  ：主操作 —— 新增 / 保存 / 提交 / 确定 / 查询 / 导入 / 编辑 / 修改
- *   - success  ：正向结果 —— 启用 / 通过 / 恢复 / 上架 / 生效
+ *   - primary  ：主操作 —— 新增 / 保存 / 提交 / 确定 / 查询 / 编辑 / 修改
+ *   - success  ：正向结果 —— 启用 / 通过 / 恢复 / 上架 / 生效 / 导入（写入落库）
  *   - danger   ：破坏性 —— 删除 / 停用 / 驳回 / 作废 / 撤回 / 清空
- *   - warning  ：需要注意 —— 提醒 / 预警 / 待处理 / 退回
- *   - info     ：信息性 —— 查看 / 详情 / 追踪 / 核对
- *   - neutral  ：中性/次要 —— 取消 / 关闭 / 返回 / 重置 / 导出 / 下载 / 打印 / 刷新
+ *   - warning  ：需要注意 —— 提醒 / 预警 / 待处理 / 退回 / 列设置（辅助配置）
+ *   - info     ：信息性 —— 查看 / 详情 / 追踪 / 核对 / 导出（读取出数）
+ *   - neutral  ：中性/次要 —— 取消 / 关闭 / 返回 / 重置 / 下载 / 打印 / 刷新
  *
  * 形态原则：
  *   - solid ：页面级 / 弹窗级 / 工具栏级的主要动作
  *   - ghost ：次一级动作，与主动作并列但不抢焦点
  *   - text  ：表格外 / 页面内嵌的轻量动作
  *   - link  ：纯导航 / 查看型动作（不产生业务写入）
+ *
+ * 【四类数据操作必须彼此可区分】新增 / 导入 / 导出 / 列设置是
+ * **四种不同的功能**，不能共用同一个色调，否则用户无法一眼分辨：
+ *   - 新增     → primary 实心   （页面主操作，最高优先级）
+ *   - 导入     → success 实心   （写入落库，正向结果）
+ *   - 导出     → info 实心      （读取出数，信息性）
+ *   - 列设置   → warning 描边   （辅助配置类工具，不与数据操作混淆；
+ *                                且用 ghost 形态与三个实心按钮区分）
  */
 export const BUTTON_STYLE_BY_LABEL: Readonly<Record<string, SpdButtonStyle>> = {
   /* ---------- 主操作 ---------- */
@@ -90,7 +98,7 @@ export const BUTTON_STYLE_BY_LABEL: Readonly<Record<string, SpdButtonStyle>> = {
   搜索: { tone: 'primary', variant: 'solid', size: 'default' },
   筛选: { tone: 'primary', variant: 'solid', size: 'default' },
   过滤: { tone: 'primary', variant: 'solid', size: 'default' },
-  导入: { tone: 'primary', variant: 'solid', size: 'default' },
+  导入: { tone: 'success', variant: 'solid', size: 'default' },
   编辑: { tone: 'primary', variant: 'solid', size: 'default' },
   修改: { tone: 'primary', variant: 'solid', size: 'default' },
   变更: { tone: 'primary', variant: 'solid', size: 'default' },
@@ -171,18 +179,20 @@ export const BUTTON_STYLE_BY_LABEL: Readonly<Record<string, SpdButtonStyle>> = {
   下一页: { tone: 'neutral', variant: 'solid', size: 'default' },
   下一条: { tone: 'neutral', variant: 'solid', size: 'default' },
   重置: { tone: 'neutral', variant: 'solid', size: 'default' },
-  导出: { tone: 'neutral', variant: 'solid', size: 'default' },
-  导入模板: { tone: 'neutral', variant: 'solid', size: 'default' },
+  导出: { tone: 'info', variant: 'solid', size: 'default' },
+  导入模板: { tone: 'info', variant: 'solid', size: 'default' },
   下载: { tone: 'neutral', variant: 'solid', size: 'default' },
-  下载导入模板: { tone: 'neutral', variant: 'solid', size: 'default' },
-  下载模板: { tone: 'neutral', variant: 'solid', size: 'default' },
+  下载导入模板: { tone: 'info', variant: 'solid', size: 'default' },
+  下载模板: { tone: 'info', variant: 'solid', size: 'default' },
+  模板导出: { tone: 'info', variant: 'solid', size: 'default' },
+  按模板导入: { tone: 'success', variant: 'solid', size: 'default' },
   打印: { tone: 'neutral', variant: 'solid', size: 'default' },
   刷新: { tone: 'neutral', variant: 'solid', size: 'default' },
   更多: { tone: 'neutral', variant: 'solid', size: 'default' },
   收起: { tone: 'neutral', variant: 'solid', size: 'default' },
   展开: { tone: 'neutral', variant: 'solid', size: 'default' },
   全部: { tone: 'neutral', variant: 'solid', size: 'default' },
-  列设置: { tone: 'neutral', variant: 'solid', size: 'default' },
+  列设置: { tone: 'warning', variant: 'ghost', size: 'default' },
   高级筛选: { tone: 'neutral', variant: 'solid', size: 'default' },
   收起筛选: { tone: 'neutral', variant: 'solid', size: 'default' },
   上传: { tone: 'neutral', variant: 'solid', size: 'default' },
@@ -196,7 +206,7 @@ export const BUTTON_STYLE_BY_LABEL: Readonly<Record<string, SpdButtonStyle>> = {
   取消当前结果: { tone: 'neutral', variant: 'solid', size: 'default' },
   确认选择: { tone: 'neutral', variant: 'solid', size: 'default' },
   选择: { tone: 'neutral', variant: 'solid', size: 'default' },
-  批量导入: { tone: 'primary', variant: 'solid', size: 'default' },
+  批量导入: { tone: 'success', variant: 'solid', size: 'default' },
   批量编辑: { tone: 'primary', variant: 'solid', size: 'default' },
   批量维护: { tone: 'primary', variant: 'solid', size: 'default' },
   批量停用商品: { tone: 'danger', variant: 'solid', size: 'default' },

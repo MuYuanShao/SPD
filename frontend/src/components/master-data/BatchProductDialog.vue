@@ -4,7 +4,6 @@ import { Edit3, Save, X } from '@lucide/vue'
 defineProps<{
   open: boolean
   saving?: boolean
-  error?: string
   form: Record<string, unknown>
 }>()
 
@@ -40,8 +39,6 @@ defineEmits<{
       </header>
 
       <form class="batch-product-form" @submit.prevent="$emit('save')">
-        <p v-if="error" class="standard-status-message is-error" role="alert">{{ error }}</p>
-
         <section class="batch-product-section" aria-labelledby="batch-product-fields-heading">
           <div class="batch-product-section-heading">
             <Edit3 :size="19" aria-hidden="true" />

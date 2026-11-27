@@ -33,6 +33,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -267,6 +268,7 @@ const coldChainCols = useListColumns({
 })
 
 const coldChainTableRef = coldChainCols.tableRef
+const fillHeightColdChain = useFillHeightTable({ tableRef: coldChainTableRef })
 const isColdChainColVisible = (key: string) => coldChainCols.isColumnVisible(key)
 const coldChainColBinding = (key: string) => coldChainCols.columnBinding(key)
 
@@ -387,7 +389,7 @@ ref="coldChainColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightColdChain.maxHeight"
             style="width: 100%"
             :empty-text="'暂无冷链异常记录'"
             @header-dragend="(width: number, oldWidth: number, column: any) => coldChainCols.handleHeaderDragEnd(width, oldWidth, column)"

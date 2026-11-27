@@ -30,6 +30,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -198,6 +199,7 @@ const invoiceDetailCols = useListColumns({
 })
 
 const invoiceDetailTableRef = invoiceDetailCols.tableRef
+const fillHeightInvoiceDetail = useFillHeightTable({ tableRef: invoiceDetailTableRef })
 const isInvoiceDetailColVisible = (key: string) => invoiceDetailCols.isColumnVisible(key)
 const invoiceDetailColBinding = (key: string) => invoiceDetailCols.columnBinding(key)
 
@@ -323,7 +325,7 @@ ref="invoiceDetailColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightInvoiceDetail.maxHeight"
             style="width: 100%"
             :empty-text="'暂无发票记录'"
             @header-dragend="(width: number, oldWidth: number, column: any) => invoiceDetailCols.handleHeaderDragEnd(width, oldWidth, column)"

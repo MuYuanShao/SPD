@@ -333,6 +333,14 @@
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-height: 0;
+  /* 【修复】原来的 `flex: 0 1 auto` 让 body 只按内容高度收缩，
+     于是「明细表」区（.receiving-detail-sheet）拿不到剩余高度，
+     body 底部与页脚之间留下一大段空白（实测 419px），
+     表现为「弹窗样式乱掉」。改成 `1 1 auto` + `height: 100%`，
+     让第 3 行 minmax(0,1fr) 真正把剩余空间分给明细表，
+     明细表内部自行滚动，页脚始终贴底。 */
+  flex: 1 1 auto;
+  height: 100%;
   overflow: hidden;
   background: var(--md-bg-card, var(--spd-p-bg));
 }
@@ -540,8 +548,14 @@
   position: sticky;
   top: 0;
   z-index: 2;
-  background: linear-gradient(180deg, var(--spd-p-bg-muted) 0%, var(--spd-p-text-strong) 100%);
-  color: var(--spd-p-text-secondary);
+  /* 【修复】原来的渐变是 `bg-muted → text-strong`，
+     终点是接近纯黑的 --spd-p-text-strong（#101820），
+     表头文字又是 text-secondary（深灰），对比度极低，
+     读起来「表头快看不清了」。
+     改为与全站统一列表（.ulc-table）完全一致的主色表头：
+     主色底 + 主色上的白字（--spd-c-text-on-primary）。 */
+  background: var(--ulc-primary, var(--spd-p-primary)) !important;
+  color: var(--spd-c-text-on-primary, var(--spd-p-text-on-primary)) !important;
   font-size: var(--spd-font-size-table-head);
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -562,9 +576,11 @@
   opacity: 0.85;
 }
 
+/* 表格底部的阴影条在主色表头上会形成一道脏边，去掉。 */
 .receiving-detail-sheet thead th {
   position: -webkit-sticky;
   position: sticky;
+  box-shadow: none;
 }
 
 .receiving-detail-sheet .check-col {

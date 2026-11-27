@@ -270,7 +270,10 @@
   background: var(--spd-p-bg-muted);
 }
 
-.approval-search,
+/* 「审批单号 / 商品名称」是**一个**合并关键字，
+   筛选控件已统一改用 SpdFilterBar 的标准原生输入框（.md-input），
+   旧的 .approval-search 包装层（div + 图标 + input）已下线：
+   内层 input 会被筛选栏标准规则再画一层边框，视觉上变成两个叠在一起的框。 */
 .filter-select,
 .filter-button {
   min-height: 46px;
@@ -278,24 +281,6 @@
   border-radius: 8px;
   background: var(--spd-p-bg);
   color: var(--spd-p-text);
-  font: inherit;
-}
-
-.approval-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-}
-
-.approval-search svg {
-  color: var(--spd-p-text-muted);
-}
-
-.approval-search input {
-  width: 100%;
-  border: 0;
-  outline: 0;
   font: inherit;
 }
 
@@ -640,7 +625,6 @@
   background: var(--spd-p-bg);
 }
 
-.approval-search,
 .filter-select,
 .filter-button {
   min-height: 38px;
@@ -716,10 +700,11 @@
   vertical-align: middle;
 }
 
-/* 表头保持单行；单元格文字超长换行（不截断） */
+/* 表头标签过长时换行显示（不截断成省略号）；单元格文字超长换行（不截断） */
 .approval-wide-table th {
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .approval-wide-table td {

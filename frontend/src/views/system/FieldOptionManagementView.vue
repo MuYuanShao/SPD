@@ -35,6 +35,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -240,6 +241,7 @@ const fieldOptionCols = useListColumns({
 })
 
 const fieldOptionTableRef = fieldOptionCols.tableRef
+const fillHeightFieldOption = useFillHeightTable({ tableRef: fieldOptionTableRef })
 const isFieldOptionColVisible = (key: string) => fieldOptionCols.isColumnVisible(key)
 const fieldOptionColBinding = (key: string) => fieldOptionCols.columnBinding(key)
 
@@ -377,7 +379,7 @@ ref="fieldOptionColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightFieldOption.maxHeight"
             style="width: 100%"
             :empty-text="'该字段暂无选项'"
             @header-dragend="(width: number, oldWidth: number, column: any) => fieldOptionCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -546,10 +548,10 @@ ref="fieldOptionColSettingsPopRef"
             </label>
             <label>
               <span>状态</span>
-              <select v-model.number="dialogForm.status" class="sys-select">
-                <option :value="1">启用</option>
-                <option :value="0">停用</option>
-              </select>
+              <el-select v-model="dialogForm.status" popper-class="spd-select-popper">
+                <el-option label="启用" :value="1" />
+                <el-option label="停用" :value="0" />
+              </el-select>
             </label>
             <label class="wide">
               <span>备注</span>

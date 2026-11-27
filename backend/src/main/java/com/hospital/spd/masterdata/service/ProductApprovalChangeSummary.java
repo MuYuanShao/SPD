@@ -14,7 +14,6 @@ final class ProductApprovalChangeSummary {
 
         if ("信息变更".equals(type)) {
             diff(changed, pending, current, "product_name", "商品名称");
-            diff(changed, pending, current, "spec_model", "规格型号");
             diff(changed, pending, current, "brand", "品牌");
             diff(changed, pending, current, "manufacturer_name", "生产厂家");
             diff(changed, pending, current, "supplier_name", "供应商");

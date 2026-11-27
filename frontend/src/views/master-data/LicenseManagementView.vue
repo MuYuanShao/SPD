@@ -31,6 +31,7 @@ import {
   type LicenseRow,
   type LicenseType
 } from '../../api/licenses'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const tabs: Array<{ type: LicenseType; label: string; ownerLabel: string }> = [
   { type: 'product', label: '商品证照', ownerLabel: '商品' },
@@ -407,6 +408,7 @@ const licenseCols = useListColumns({
   reservedWidth: 0
 })
 const licenseTableRef = licenseCols.tableRef
+const fillHeightLicense = useFillHeightTable({ tableRef: licenseTableRef })
 
 const isLicenseColVisible = (key: string) => licenseCols.isColumnVisible(key)
 const licenseColWidth = (key: string) => licenseCols.columnWidth(key)
@@ -559,7 +561,7 @@ ref="licenseColSettingsPopRef"
           row-key="id"
           border
           stripe
-          max-height="560" style="width: 100%"
+          :max-height="fillHeightLicense.maxHeight" style="width: 100%"
           :empty-text="`暂无${activeTabInfo.label}数据，点击右上角新增`"
 
           @header-dragend="(width: number, oldWidth: number, column: any) => licenseCols.handleHeaderDragEnd(width, oldWidth, column)">
@@ -774,11 +776,11 @@ ref="licenseColSettingsPopRef"
             </label>
             <label v-if="isContract" class="lf-field">
               <span>所属主体类型</span>
-              <select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" @change="resetOwner">
-                <option value="supplier">供应商</option>
-                <option value="manufacturer">厂家</option>
-                <option value="product">商品</option>
-              </select>
+              <el-select v-model="form.ownerType" :disabled="renewalMode && Boolean(form.ownerId)" popper-class="spd-select-popper" @change="resetOwner">
+                <el-option label="供应商" value="supplier" />
+                <el-option label="厂家" value="manufacturer" />
+                <el-option label="商品" value="product" />
+              </el-select>
             </label>
 
             <div class="lf-field wide lf-owner-picker">
@@ -845,10 +847,10 @@ ref="licenseColSettingsPopRef"
             </label>
             <label class="lf-field">
               <span>状态</span>
-              <select v-model.number="form.status">
-                <option :value="1">有效</option>
-                <option :value="0">失效</option>
-              </select>
+              <el-select v-model="form.status" popper-class="spd-select-popper">
+                <el-option label="有效" :value="1" />
+                <el-option label="失效" :value="0" />
+              </el-select>
             </label>
             <label class="lf-field wide lf-remark">
               <span>备注</span>

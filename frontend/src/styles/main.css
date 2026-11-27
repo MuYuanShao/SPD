@@ -25,6 +25,10 @@
 @import "./components/pagination.css";
 @import "./components/table-overrides.css";
 @import "./components/modal.css";
+/* 浮层层级（el-select / el-popover / el-date-picker / el-tooltip）
+   必须排在 components/modal.css 之后：弹窗遮罩 z-index 为 99999，
+   这些 teleport 到 body 的浮层默认只有 2000，需要抬到遮罩之上才可点击。 */
+@import "./components/popper-layer.css";
 @import "./components/buttons.css";
 @import "./components/layout-shell.css";
 @import "./components/subnav.css";
@@ -79,15 +83,14 @@
 @import "./layout/content-surface.css";
 /* 列宽策略：方案 B（自适应填充），由 feature/ui-col-b-auto-fit 分支引入 */
 @import "./layout/column-strategy-b.css";
-/* 全局配色方案 · 暗夜黑（浅字暗底 + 琥珀金）
-   仅在 <html data-spd-theme="night-black"> 下生效，由顶栏主题切换器切换，全站生效。 */
-@import "./theme/night-black.css";
-/* 全局配色方案 · 静墨宣纸（暖白低墨量）
-   仅在 <html data-spd-theme="calm-paper"> 下生效，由顶栏主题切换器切换，全站生效。 */
-@import "./theme/calm-paper.css";
+/* 全局配色方案 · 标准白（默认）
+   「静墨宣纸」「暗夜黑」两套方案当前暂未开放：
+   切换器里灰显不可选，stores/theme.ts 也会把历史残留值迁移回标准白，
+   因此这两套方案的 CSS 已随之下线（frontend/src/styles/theme/*.css 已删除）。
+   字号档位（小 / 中 / 大）不受影响，照常可用。 */
 
 /* 全局配色方案的浏览器原生控件策略：
-   「暗夜黑」是深色底，需要把滚动条、表单控件、焦点环也切到深色，
+   深色底需要把滚动条、表单控件、焦点环也切到深色，
    否则页面上会残留亮白的系统滚动条与白色下拉面板。
    属性由 stores/theme.ts 的 applyScheme() 写在 <html> 上。 */
 :root[data-color-scheme='dark'] {

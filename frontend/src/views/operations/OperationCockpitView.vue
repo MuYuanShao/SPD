@@ -9,6 +9,7 @@ import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import { fetchOperationCockpit, type OperationCockpitData } from '../../api/operationCockpit'
 import { notifyError } from '../../composables/useNotify'
+import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 
 const now = new Date()
 const selectedMonth = ref(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`)
@@ -103,16 +104,48 @@ let clockTimer = 0
 const totalCategoryAmount = computed(() =>
   data.value.categories.reduce((sum, item) => sum + Number(item.currentAmount || 0), 0)
 )
+
+/**
+ * 耗材消费构成 · 分类配色
+ * ---------------------------------------------------------------------
+ * 原实现用固定三项色表（info / success / success）：
+ *   1) 分类数量超过 3 项时，第 4 项起取到 undefined，
+ *      conic-gradient 直接失效 —— 图表整块塌掉；
+ *   2) 第 1、2 项共用同一个绿，图例圆点与扇形颜色对不上；
+ *   3) 蓝 / 绿 / 青三色互相打架，与全站「青玉主色 + 语义色」的
+ *      配色语言不一致。
+ *
+ * 现在改为：按主色青玉 + 语义色板循环取色，
+ * 调色板长度与分类数量无关（超过板长自动循环），
+ * 且**图例圆点与扇形共用同一个取色函数**，颜色永远对得上。
+ * 全部取自设计令牌，不写死 hex。
+ */
+const CATEGORY_SERIES = [
+  'var(--spd-p-primary)',
+  'var(--spd-p-info)',
+  'var(--spd-p-success)',
+  'var(--spd-p-warning)',
+  'var(--spd-p-slate)',
+  'var(--spd-p-danger)'
+] as const
+
+/** 分类序号 → 配色（与图例圆点共用，保证一致） */
+function categoryColor(index: number) {
+  return CATEGORY_SERIES[index % CATEGORY_SERIES.length]
+}
+
 const categoryGradient = computed(() => {
-  const colors = ['var(--spd-p-info)', 'var(--spd-p-success)', 'var(--spd-p-success)']
   const total = Math.max(1, totalCategoryAmount.value)
   let cursor = 0
-  return `conic-gradient(${data.value.categories.map((item, index) => {
+  const stops = data.value.categories.map((item, index) => {
     const start = cursor
     cursor += Number(item.currentAmount || 0) / total * 100
-    return `${colors[index]} ${start}% ${cursor}%`
-  }).join(',')})`
+    return `${categoryColor(index)} ${start}% ${cursor}%`
+  })
+  if (!stops.length) return 'var(--spd-p-bg-muted)'
+  return `conic-gradient(${stops.join(',')})`
 })
+
 const maxTrend = computed(() => Math.max(1, ...data.value.trend.map(item => Number(item.amount))))
 const trendPoints = computed(() => data.value.trend.map((item, index) => {
   const x = data.value.trend.length <= 1 ? 50 : 5 + index * 90 / (data.value.trend.length - 1)
@@ -144,9 +177,48 @@ function comparisonRate(current: number, previous: number) {
   if (!Number(previous)) return Number(current) ? 100 : 0
   return (Number(current) - Number(previous)) / Number(previous) * 100
 }
-function trendTone(value: number) {
-  return value > 0 ? 'up' : value < 0 ? 'down' : 'flat'
+
+/**
+ * 环比走向 → 语义色调（全站统一词汇：success / warning / danger / info / neutral）
+ * ---------------------------------------------------------------------
+ * 旧实现把「上升」标成红色、「下降」标成绿色，
+ * 颜色方向与业务含义相反（耗材消耗上升并不是异常），
+ * 且整套大屏上红绿对撞，观感刺眼。
+ *
+ * 现在按「变化幅度」而非「方向」定调：
+ *   - 基本持平（±2% 以内） → neutral（不制造噪声）
+ *   - 明显上升（> +2%）     → warning（需要关注，但不是错误）
+ *   - 明显下降（< -2%）     → success（消耗回落是正向结果）
+ *   - 其余边界值            → info
+ * 颜色全部由 SpdStatusChip / 令牌渲染，浅底深字，三套方案自动适配。
+ */
+const TREND_FLAT_THRESHOLD = 2
+function trendTone(value: number): 'up' | 'down' | 'flat' {
+  if (value > TREND_FLAT_THRESHOLD) return 'up'
+  if (value < -TREND_FLAT_THRESHOLD) return 'down'
+  return 'flat'
 }
+/** 环比走向 → SpdStatusChip 语义色调 */
+function trendChipTone(value: number): SpdStatusChipTone {
+  const tone = trendTone(value)
+  if (tone === 'up') return 'warning'
+  if (tone === 'down') return 'success'
+  return 'neutral'
+}
+
+/**
+ * 库存预警条目 → SpdStatusChip 语义色调。
+ * 后端 alertType 形如「库存不足 / 低于阈值」，
+ * 统一按 danger 呈现（预警本身就是需要处理的事项）。
+ */
+function alertTone(alertType: unknown): SpdStatusChipTone {
+  const text = String(alertType ?? '').trim()
+  if (!text) return 'neutral'
+  if (/不足|低于|超限|过期|异常|告警|缺货/.test(text)) return 'danger'
+  if (/预警|关注|临期/.test(text)) return 'warning'
+  return 'info'
+}
+
 function updateClock() {
   clock.value = new Intl.DateTimeFormat('zh-CN', {
     hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
@@ -201,7 +273,11 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
       <span class="cockpit-summary-item">
         <TrendingUp :size="15" />
         <em>环比增长</em>
-        <strong :class="trendTone(data.summary.monthOnMonth)">{{ formatPercent(data.summary.monthOnMonth) }}</strong>
+        <!-- 环比读数走全站通用状态条（浅底深字），
+             不再用「红=上升 / 绿=下降」的自定义配色。 -->
+        <SpdStatusChip :tone="trendChipTone(data.summary.monthOnMonth)" size="sm">
+          {{ formatPercent(data.summary.monthOnMonth) }}
+        </SpdStatusChip>
       </span>
       <span class="cockpit-summary-item">
         <Building2 :size="15" />
@@ -222,7 +298,8 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
           <div class="category-donut" :style="{ background: categoryGradient }"><div><strong>{{ formatWan(totalCategoryAmount) }}</strong><span>万元</span></div></div>
           <div class="category-legend">
             <div v-for="(item, index) in data.categories" :key="item.category" class="legend-item">
-              <i :class="`color-${index}`"></i><span class="legend-label">{{ item.category }}</span><strong>{{ formatWan(item.currentAmount) }}</strong><small>{{ totalCategoryAmount ? (item.currentAmount / totalCategoryAmount * 100).toFixed(1) : '0.0' }}%</small>
+              <!-- 图例圆点与扇形共用同一个取色函数，颜色永远对得上 -->
+              <i :style="{ background: categoryColor(index) }"></i><span class="legend-label">{{ item.category }}</span><strong>{{ formatWan(item.currentAmount) }}</strong><small>{{ totalCategoryAmount ? (item.currentAmount / totalCategoryAmount * 100).toFixed(1) : '0.0' }}%</small>
             </div>
             <p v-if="!data.categories.length" class="cockpit-empty">暂无目录分类消耗数据</p>
           </div>
@@ -233,7 +310,7 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
         <header><h2>月度使用趋势</h2><span class="legend-line"><i></i>消耗金额</span></header>
         <div class="trend-chart">
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="近十二个月耗材使用趋势">
-            <defs><linearGradient id="cockpitTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--spd-p-success)" stop-opacity=".55"/><stop offset="1" stop-color="var(--spd-p-success)" stop-opacity="0"/></linearGradient></defs>
+            <defs><linearGradient id="cockpitTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--spd-p-primary)" stop-opacity=".22"/><stop offset="1" stop-color="var(--spd-p-primary)" stop-opacity="0"/></linearGradient></defs>
             <g class="trend-grid">
               <line v-for="line in [20, 44, 68, 92]" :key="line" x1="5" x2="95" :y1="line" :y2="line" />
             </g>
@@ -251,11 +328,13 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
         <div class="ranking-head"><span>科室</span><span>本月</span><span>上月 / 环比</span></div>
         <div class="department-ranking">
           <div v-for="(item, index) in data.departments" :key="item.code" class="department-row">
-            <span class="rank-no" :class="`rank-${Math.min(index + 1, 3)}`">{{ index + 1 }}</span>
+            <span class="rank-no" :class="`rank-${Math.min(index + 1, 4)}`">{{ index + 1 }}</span>
             <strong :title="item.name">{{ item.name }}</strong>
             <div class="rank-bar"><i :style="{ width: `${Number(item.currentAmount) / maxDepartment * 100}%` }"></i></div>
             <span>{{ formatWan(item.currentAmount) }}</span><small>{{ formatWan(item.previousAmount) }}</small>
-            <em :class="trendTone(comparisonRate(item.currentAmount, item.previousAmount))">{{ formatPercent(comparisonRate(item.currentAmount, item.previousAmount)) }}</em>
+            <SpdStatusChip :tone="trendChipTone(comparisonRate(item.currentAmount, item.previousAmount))" size="sm">
+              {{ formatPercent(comparisonRate(item.currentAmount, item.previousAmount)) }}
+            </SpdStatusChip>
           </div>
           <p v-if="!data.departments.length" class="cockpit-empty">暂无科室消耗数据</p>
         </div>
@@ -283,16 +362,14 @@ onBeforeUnmount(() => window.clearInterval(clockTimer))
           <MdDataTableCard :loading="loading">
             <template #toolbar>
               <div class="cockpit-panel-switch">
-                <button
-                  type="button"
+                <!-- 面板切换也走全站唯一按钮组件 SpdButton，
+                     不再自绘原生 <button>（避免出现第二套按钮样式）。 -->
+                <SpdButton label="科室排名" tone="primary" variant="ghost"
                   :class="{ 'is-active': cockpitTablePanel === 'department' }"
-                  @click="cockpitTablePanel = 'department'"
-                >科室排名</button>
-                <button
-                  type="button"
+                  @click="cockpitTablePanel = 'department'" />
+                <SpdButton label="分类对比" tone="primary" variant="ghost"
                   :class="{ 'is-active': cockpitTablePanel === 'category' }"
-                  @click="cockpitTablePanel = 'category'"
-                >分类对比</button>
+                  @click="cockpitTablePanel = 'category'" />
               </div>
               <div class="ulc-col-settings">
                 <SpdButton label="列设置" tone="neutral" ref="cockpitColSettingsAnchorRef"
@@ -392,9 +469,9 @@ ref="cockpitColSettingsPopRef"
                     <span class="ulc-th-text">环比</span>
                   </template>
                   <template #default="{ row }">
-                    <em :class="trendTone(comparisonRate(row.currentAmount, row.previousAmount))">
+                    <SpdStatusChip :tone="trendChipTone(comparisonRate(row.currentAmount, row.previousAmount))" size="sm">
                       {{ formatPercent(comparisonRate(row.currentAmount, row.previousAmount)) }}
-                    </em>
+                    </SpdStatusChip>
                   </template>
                 </el-table-column>
               </el-table>
@@ -459,7 +536,9 @@ ref="cockpitColSettingsPopRef"
                     <span class="ulc-th-text">环比</span>
                   </template>
                   <template #default="{ row }">
-                    <em :class="trendTone(row.monthOnMonth)">{{ formatPercent(row.monthOnMonth) }}</em>
+                    <SpdStatusChip :tone="trendChipTone(row.monthOnMonth)" size="sm">
+                      {{ formatPercent(row.monthOnMonth) }}
+                    </SpdStatusChip>
                   </template>
                 </el-table-column>
               </el-table>
@@ -475,7 +554,9 @@ ref="cockpitColSettingsPopRef"
         </SpdButton></header>
         <div class="alert-list">
           <div v-for="item in data.alerts" :key="item.productCode" class="alert-row">
-            <span class="alert-type">{{ item.alertType }}</span>
+            <!-- 预警类型走全站通用状态条（浅底深字），
+                 不再自绘「深色底 + 发光文字」的告警块。 -->
+            <SpdStatusChip :tone="alertTone(item.alertType)" size="sm">{{ item.alertType }}</SpdStatusChip>
             <div class="alert-info">
               <strong>{{ item.productName }}</strong>
               <small>{{ item.productCode }} · 可用 {{ item.availableQty }} / 阈值 {{ item.threshold }}</small>
@@ -491,85 +572,46 @@ ref="cockpitColSettingsPopRef"
 
 <style scoped>
 /* =====================================================================
-   运营驾驶舱 OperationCockpitView · 科技风全屏
+   运营驾驶舱 OperationCockpitView
    ---------------------------------------------------------------------
-   设计语言：
-   - 配色：纯黑/深蓝底 + 霓虹渐变描边（青/蓝/紫）+ 玻璃拟态面板
-   - 装饰：扫描线、角标、网格、粒子、辉光、渐变光柱
-   - 排版：等宽数字 / 强字重 / 标题字距
-   - 动效：呼吸光、扫描线、悬停抬升、徽章闪烁
+   【配色重构说明】
+   旧版是「科技风大屏」：纯色霓虹描边 + 玻璃拟态 + 渐变文字 + 扫描线，
+   颜色七零八落（青 / 蓝 / 紫 / 粉 / 琥珀 / 绿），与全站
+   「青玉主色 + 语义色」的设计语言完全不是一套语言，
+   在浅色底上尤其刺眼（用户报：整体配色太怪异）。
+
+   新版配色规则（全部取自设计令牌，三套配色方案自动适配）：
+     1. 中性底 —— 页面底 --spd-p-bg-page，面板 --spd-p-bg，
+        边框 --spd-p-border / --spd-p-border-subtle；
+     2. 唯一强调色 —— 主色青玉 --spd-p-primary，
+        只用于品牌标识、主标题、图表主线、当前月柱；
+     3. 语义色 —— success / warning / danger / info，
+        只通过 SpdStatusChip（浅底深字）表达状态，
+        与列表页、状态条、按钮完全同一套词汇；
+     4. 文字层级 —— --spd-p-text-strong / --spd-p-text-secondary /
+        --spd-p-text-muted，不再用「深底白字」的自定义色。
    ===================================================================== */
 .main-area:has(.operation-cockpit-page) { padding: 0; overflow: auto; background: var(--spd-p-bg-page); }
 .main-area:has(.operation-cockpit-page) > .topbar { display: none; }
 
 .operation-cockpit-page {
-  --bg-base: var(--spd-p-bg-page);
-  --bg-deep: var(--spd-p-bg-page);
-  --neon-cyan: var(--spd-p-primary);
-  --neon-blue: var(--spd-p-info);
-  --neon-purple: var(--spd-p-primary-strong);
-  --neon-pink: var(--spd-p-danger);
-  --neon-amber: var(--spd-p-warning);
-  --neon-green: var(--spd-p-success);
-  --neon-red: var(--spd-p-danger);
-  --panel-stroke: color-mix(in srgb, var(--spd-p-primary) 38%, transparent);
-  --panel-stroke-soft: color-mix(in srgb, var(--spd-p-primary) 16%, transparent);
-  --panel-bg: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-text-strong) 88%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 78%, transparent));
-  /* 本页面板底色已改为浅色（--spd-p-bg-page），
-     因此正文主色必须用深色令牌。此前误取背景令牌 --spd-p-info-bg（#e9f1f5），
-     导致「耗材消费构成」「心内科」等标题在浅底上几乎不可见（对比度 1.05:1 / 1.07:1）。 */
-  --text-main: var(--spd-p-text-strong);
-  --text-dim: var(--spd-p-text-muted);
+  /* 面板层次令牌：全部由 --spd-p-* 派生，不引入新的色相 */
+  --cockpit-panel-border: var(--spd-p-border);
+  --cockpit-panel-border-soft: var(--spd-p-border-subtle);
+  --cockpit-panel-bg: var(--spd-p-bg);
+  --cockpit-text-main: var(--spd-p-text-strong);
+  --cockpit-text-dim: var(--spd-p-text-muted);
+  --cockpit-accent: var(--spd-p-primary);
   min-width: 1280px;
   min-height: 100vh;
-  color: var(--text-main);
-  background:
-    radial-gradient(ellipse 80% 50% at 20% 0%, color-mix(in srgb, var(--spd-p-info) 22%, transparent), transparent 70%),
-    radial-gradient(ellipse 60% 50% at 80% 100%, color-mix(in srgb, var(--spd-p-primary-strong) 18%, transparent), transparent 70%),
-    radial-gradient(ellipse 50% 40% at 50% 50%, color-mix(in srgb, var(--spd-p-primary) 8%, transparent), transparent 70%),
-    linear-gradient(180deg, var(--spd-p-bg-page) 0%, var(--spd-p-bg-page) 50%, var(--spd-p-bg-page) 100%);
+  color: var(--cockpit-text-main);
+  background: var(--spd-p-bg-page);
   padding: 18px 22px 22px;
   font-family: var(--spd-font-family);
   position: relative;
-  overflow: hidden;
 }
 
-/* 全屏网格底纹（科技风点阵 + 网格） */
-.operation-cockpit-page::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(color-mix(in srgb, var(--spd-p-primary) 5%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 5%, transparent) 1px, transparent 1px),
-    radial-gradient(circle, color-mix(in srgb, var(--spd-p-primary) 12%, transparent) 1px, transparent 1.5px);
-  background-size: 40px 40px, 40px 40px, 40px 40px;
-  background-position: 0 0, 0 0, 0 0;
-  mask-image: radial-gradient(ellipse 90% 70% at 50% 50%, black 30%, transparent 100%);
-  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 50%, black 30%, transparent 100%);
-  z-index: 0;
-}
-
-/* 顶部扫描线 */
-.operation-cockpit-page::after {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  box-shadow: var(--spd-p-shadow-3);
-  animation: cockpit-scan 6s linear infinite;
-  z-index: 1;
-}
-@keyframes cockpit-scan {
-  0% { transform: translateY(0); opacity: 1; }
-  10% { opacity: 1; }
-  90% { opacity: 1; }
-  100% { transform: translateY(100vh); opacity: 0; }
-}
-
-.operation-cockpit-page > * { position: relative; z-index: 2; }
+.operation-cockpit-page > * { position: relative; z-index: 1; }
 
 /* ---------- 顶部条 ---------- */
 .cockpit-header {
@@ -585,74 +627,58 @@ ref="cockpitColSettingsPopRef"
   position: relative;
   display: grid;
   place-items: center;
-  width: 50px;
-  height: 50px;
-  border-radius: 12px;
-  color: var(--spd-p-bg-page);
-  background: linear-gradient(135deg, var(--neon-cyan), var(--neon-blue));
-  box-shadow: var(--spd-p-shadow-3);
-  transition: transform .35s cubic-bezier(.4, 0, .2, 1);
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--spd-p-text-on-primary);
+  background: var(--cockpit-accent);
+  transition: transform .25s ease;
 }
-.cockpit-brand-mark::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 14px;
-  background: conic-gradient(from 0deg, var(--neon-cyan), var(--neon-blue), var(--neon-purple), var(--neon-cyan));
-  filter: blur(8px);
-  opacity: .55;
-  z-index: -1;
-  animation: cockpit-spin 8s linear infinite;
-}
-@keyframes cockpit-spin { to { transform: rotate(360deg); } }
-.cockpit-brand:hover .cockpit-brand-mark { transform: rotate(-12deg) scale(1.06); }
+/* 旧版这里是 conic-gradient 旋转光圈 + blur 辉光，
+   在浅底上形成一圈杂色描边；这里改为纯主色方块。 */
+.cockpit-brand:hover .cockpit-brand-mark { transform: scale(1.04); }
 .cockpit-brand div { display: grid; gap: 4px; }
 .cockpit-brand strong {
   font-size: var(--spd-font-size-lg);
-  letter-spacing: .08em;
-  background: linear-gradient(90deg, var(--spd-p-bg), var(--neon-cyan));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  letter-spacing: .04em;
+  color: var(--cockpit-text-main);
   font-weight: 800;
 }
-.cockpit-brand small { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .14em; }
+.cockpit-brand small { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .08em; }
 
 .cockpit-month {
   display: flex;
   align-items: center;
-  height: 42px;
-  border: 1px solid var(--panel-stroke);
-  border-radius: 6px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--spd-p-primary) 6%, transparent), color-mix(in srgb, var(--spd-p-primary) 2%, transparent));
-  position: relative;
+  height: var(--spd-p-field-height);
+  border: 1px solid var(--spd-p-border);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-bg);
   overflow: hidden;
   transition: border-color .2s, box-shadow .2s;
 }
-.cockpit-month::before,
-.cockpit-month::after {
-  content: "";
-  position: absolute;
-  width: 10px; height: 10px;
-  border: 2px solid var(--neon-cyan);
-  opacity: .9;
+.cockpit-month:focus-within {
+  border-color: var(--spd-p-field-focus-border);
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
 }
-.cockpit-month::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; }
-.cockpit-month::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; }
-.cockpit-month:focus-within { border-color: var(--neon-cyan); box-shadow: var(--spd-p-shadow-3); }
-.cockpit-month span { padding: 0 14px; color: var(--neon-cyan); font-size: var(--spd-font-size-sm); letter-spacing: .12em; font-weight: 700; }
+.cockpit-month span {
+  padding: 0 12px;
+  color: var(--cockpit-text-dim);
+  font-size: var(--spd-font-size-sm);
+  letter-spacing: .06em;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .cockpit-month input {
   width: 140px;
   height: 100%;
   border: 0;
-  border-left: 1px solid var(--panel-stroke-soft);
-  color: var(--spd-p-text-strong);
+  border-left: 1px solid var(--spd-p-border-subtle);
+  color: var(--cockpit-text-main);
   background: transparent;
-  padding: 0 12px;
-  color-scheme: dark;
+  padding: 0 10px;
   font: inherit;
   font-weight: 600;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
 }
 
 .cockpit-title {
@@ -667,70 +693,34 @@ ref="cockpitColSettingsPopRef"
   margin: 0;
   /* M-15 驾驶舱主标题：--spd-font-size-5xl（38/40/42px），跟随字号档位 */
   font-size: var(--spd-font-size-5xl);
-  letter-spacing: .22em;
+  letter-spacing: .1em;
   font-weight: 800;
-  background: linear-gradient(180deg, var(--spd-p-bg) 0%, var(--neon-cyan) 60%, var(--neon-blue) 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 0 26px color-mix(in srgb, var(--spd-p-primary) 35%, transparent);
+  /* 旧版用 background-clip:text 渐变字（白→青→蓝），
+     在浅底上对比度极低；这里改为纯 --spd-p-text-strong。 */
+  color: var(--cockpit-text-main);
   position: relative;
   padding: 0 4px;
 }
-.cockpit-title h1::before,
-.cockpit-title h1::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 14px;
-  height: 14px;
-  border: 2px solid var(--neon-cyan);
-  transform: translateY(-50%) rotate(45deg);
-  box-shadow: 0 0 12px var(--neon-cyan);
-}
-.cockpit-title h1::before { left: -22px; }
-.cockpit-title h1::after { right: -22px; }
 .cockpit-title i {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-blue), var(--neon-cyan), transparent);
-  box-shadow: var(--spd-p-shadow-2);
+  background: var(--spd-p-border-subtle);
 }
 
+/* 数据时钟：只保留信息层级，不再发光 */
 .cockpit-clock {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
 }
-.cockpit-clock span { color: var(--neon-cyan); font-size: var(--spd-font-size-xs); letter-spacing: .18em; }
+.cockpit-clock span { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .06em; }
 .cockpit-clock strong {
   font-size: var(--spd-font-size-4xl);
   font-variant-numeric: tabular-nums;
-  color: var(--spd-p-text-strong);
-  text-shadow: 0 0 12px var(--neon-cyan), 0 0 24px color-mix(in srgb, var(--spd-p-primary) 55%, transparent);
-  letter-spacing: .08em;
+  color: var(--cockpit-text-main);
+  letter-spacing: .04em;
   font-weight: 700;
   line-height: 1;
-}
-
-.cockpit-error {
-  margin: 8px 0 0;
-  border: 1px solid color-mix(in srgb, var(--spd-p-danger) 55%, transparent);
-  color: var(--spd-p-danger-text);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-danger) 14%, transparent), color-mix(in srgb, var(--spd-p-danger) 4%, transparent));
-  border-radius: 4px;
-  padding: 9px 16px;
-  font-size: var(--spd-font-size-sm);
-  letter-spacing: .04em;
-  position: relative;
-}
-.cockpit-error::before {
-  content: "";
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 3px;
-  background: var(--neon-red);
-  box-shadow: 0 0 12px var(--neon-red);
 }
 
 /* ---------- 顶部核心指标摘要条 ----------
@@ -743,44 +733,39 @@ ref="cockpitColSettingsPopRef"
   gap: 10px 26px;
   margin: 10px 0;
   padding: 8px 16px;
-  border: 1px solid var(--panel-stroke-soft);
-  border-radius: 6px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 8%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 55%, transparent) 60%, transparent);
+  border: 1px solid var(--spd-p-border-subtle);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-bg);
 }
 .cockpit-summary-item {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--neon-cyan);
+  color: var(--cockpit-accent);
   white-space: nowrap;
 }
 .cockpit-summary-item em {
-  color: var(--text-dim);
+  color: var(--cockpit-text-dim);
   font-size: var(--spd-font-size-sm);
   font-style: normal;
-  letter-spacing: .12em;
+  letter-spacing: .04em;
 }
 .cockpit-summary-item strong {
-  color: var(--spd-p-text-strong);
+  color: var(--cockpit-text-main);
   font-size: var(--spd-font-size-lg);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: .04em;
-  text-shadow: 0 0 12px currentColor;
+  letter-spacing: .02em;
 }
 .cockpit-summary-item strong small {
   margin-left: 4px;
-  color: var(--text-dim);
+  color: var(--cockpit-text-dim);
   font-size: var(--spd-font-size-sm);
   font-weight: 500;
-  letter-spacing: .04em;
+  letter-spacing: .02em;
 }
 
-.operation-cockpit-page .up { color: var(--neon-red) !important; }
-.operation-cockpit-page .down { color: var(--neon-green) !important; }
-.operation-cockpit-page .flat { color: var(--text-dim) !important; }
-
-/* ---------- 6 宫格面板（玻璃拟态 + 角标） ---------- */
+/* ---------- 6 宫格面板 ---------- */
 .cockpit-grid {
   display: grid;
   grid-template-columns: 1.05fr 1.4fr 1.08fr;
@@ -791,67 +776,45 @@ ref="cockpitColSettingsPopRef"
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--panel-stroke);
-  border-radius: 4px;
-  background-color: var(--spd-p-bg-page) !important;
-  background-image: linear-gradient(135deg, color-mix(in srgb, var(--spd-p-primary) 6%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 82%, transparent)) !important;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* 旧版：青玉染色描边 + 玻璃拟态（backdrop-filter）+ 主色渐变底。
+     新版：标准面板边框 + 中性底，与全站列表页卡片一致。 */
+  border: 1px solid var(--cockpit-panel-border);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--cockpit-panel-bg);
   display: flex;
   flex-direction: column;
-  box-shadow: var(--spd-p-shadow-3);
+  box-shadow: var(--spd-p-shadow-1);
 }
-.cockpit-panel::before,
-.cockpit-panel::after {
-  content: "";
-  position: absolute;
-  width: 16px; height: 16px;
-  border: 2px solid var(--neon-cyan);
-  pointer-events: none;
-  z-index: 3;
-}
-.cockpit-panel::before { top: -1px; left: -1px; border-right: 0; border-bottom: 0; box-shadow: 0 0 8px var(--neon-cyan); }
-.cockpit-panel::after { bottom: -1px; right: -1px; border-left: 0; border-top: 0; box-shadow: 0 0 8px var(--neon-cyan); }
 .cockpit-panel > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 46px;
+  min-height: 42px;
   flex: 0 0 auto;
-  border-bottom: 1px solid var(--panel-stroke-soft);
-  padding: 0 18px;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--spd-p-primary) 12%, transparent), transparent 70%);
+  border-bottom: 1px solid var(--cockpit-panel-border-soft);
+  padding: 0 14px;
+  background: var(--spd-p-bg-subtle);
   position: relative;
-}
-.cockpit-panel > header::before {
-  content: "";
-  position: absolute;
-  bottom: -1px; left: 0;
-  width: 56px; height: 2px;
-  background: linear-gradient(90deg, var(--neon-cyan), transparent);
-  box-shadow: 0 0 10px var(--neon-cyan);
 }
 .cockpit-panel h2 {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
   font-size: var(--spd-font-size-lg);
-  letter-spacing: .12em;
-  /* 面板标题：面板底色已改为浅色（--spd-p-bg-page），
-     不能用「主色底上的文字」令牌 --spd-p-text-on-primary（白色），
-     否则标题在浅底上对比度仅 1.05:1、几乎不可见。改用深色正文令牌。 */
-  color: var(--spd-p-text-strong);
+  letter-spacing: .04em;
+  color: var(--cockpit-text-main);
   font-weight: 700;
 }
+/* 面板标题前缀色条：唯一强调色 */
 .cockpit-panel h2::before {
   content: "";
-  width: 4px; height: 16px;
-  background: linear-gradient(180deg, var(--neon-cyan), var(--neon-blue));
-  box-shadow: 0 0 8px var(--neon-cyan);
+  width: 3px;
+  height: 14px;
+  background: var(--cockpit-accent);
   border-radius: 1px;
 }
-.cockpit-panel > header > span { color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .08em; }
+.cockpit-panel > header > span { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .04em; }
 
 /* 耗材消费构成 */
 .category-content {
@@ -860,89 +823,76 @@ ref="cockpitColSettingsPopRef"
   align-items: center;
   flex: 1;
   min-height: 0;
-  padding: 20px 18px;
-  gap: 18px;
+  padding: 16px 14px;
+  gap: 14px;
 }
 .category-donut {
   position: relative;
   display: grid;
   place-items: center;
   aspect-ratio: 1;
-  max-width: 210px;
+  max-width: 190px;
   margin: auto;
   border-radius: 50%;
-  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--spd-p-primary) 35%, transparent));
-}
-.category-donut::before {
-  content: "";
-  position: absolute;
-  inset: -8px;
-  border-radius: 50%;
-  border: 1px dashed var(--panel-stroke-soft);
-  animation: cockpit-spin 22s linear infinite;
 }
 .category-donut > div {
   display: grid;
   place-items: center;
-  width: 60%;
-  height: 60%;
+  width: 62%;
+  height: 62%;
   border-radius: 50%;
-  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--spd-p-bg-page) 90%, transparent), color-mix(in srgb, var(--spd-p-bg-page) 65%, transparent));
-  box-shadow: var(--spd-p-shadow-2);
+  background: var(--cockpit-panel-bg);
 }
 .category-donut strong {
   font-size: var(--spd-font-size-2xl);
   font-weight: 800;
-  color: var(--spd-p-text-strong);
-  text-shadow: 0 0 12px var(--neon-cyan);
+  color: var(--cockpit-text-main);
   font-variant-numeric: tabular-nums;
 }
-.category-donut span { color: var(--text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .12em; }
-.category-legend { display: grid; gap: 12px; align-content: center; }
+.category-donut span { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-xs); letter-spacing: .06em; }
+.category-legend { display: grid; gap: 8px; align-content: center; }
 .category-legend .legend-item {
   display: grid;
-  grid-template-columns: 12px 1fr auto auto;
+  grid-template-columns: 10px 1fr auto auto;
   align-items: center;
   gap: 10px;
-  padding: 5px 0;
-  border-bottom: 1px dashed var(--panel-stroke-soft);
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--cockpit-panel-border-soft);
 }
 .category-legend .legend-item:last-child { border-bottom: 0; }
-.category-legend i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 8px currentColor; }
-.category-legend .color-0 { background: var(--neon-blue); color: var(--neon-blue); }
-.category-legend .color-1 { background: var(--neon-cyan); color: var(--neon-cyan); }
-.category-legend .color-2 { background: var(--neon-green); color: var(--neon-green); }
-.category-legend .legend-label { font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
-.category-legend strong { font-size: var(--spd-font-size-base); font-variant-numeric: tabular-nums; color: var(--spd-p-text-strong); }
-.category-legend small { grid-column: 3 / 5; color: var(--text-dim); text-align: right; font-size: var(--spd-font-size-sm); font-variant-numeric: tabular-nums; }
+/* 图例圆点颜色由模板按 categoryColor(index) 内联设置，
+   与扇形取色同源，这里只保留尺寸，不预设颜色。 */
+.category-legend i { width: 10px; height: 10px; border-radius: 50%; }
+.category-legend .legend-label { font-size: var(--spd-font-size-sm); color: var(--cockpit-text-main); letter-spacing: .02em; }
+.category-legend strong { font-size: var(--spd-font-size-base); font-variant-numeric: tabular-nums; color: var(--cockpit-text-main); }
+.category-legend small { grid-column: 3 / 5; color: var(--cockpit-text-dim); text-align: right; font-size: var(--spd-font-size-sm); font-variant-numeric: tabular-nums; }
 
 /* 月度趋势 */
-.trend-chart { height: 236px; padding: 18px 18px 0; display: flex; flex-direction: column; min-height: 0; }
+.trend-chart { height: 236px; padding: 16px 14px 0; display: flex; flex-direction: column; min-height: 0; }
 .trend-chart svg { width: 100%; flex: 1; min-height: 0; overflow: visible; }
-.trend-grid line { stroke: color-mix(in srgb, var(--spd-p-primary) 18%, transparent); stroke-width: .35; stroke-dasharray: 2 2; }
+.trend-grid line { stroke: var(--spd-p-border-subtle); stroke-width: .35; stroke-dasharray: 2 2; }
 .trend-chart polyline {
   fill: none;
-  stroke: var(--neon-cyan);
+  stroke: var(--cockpit-accent);
   stroke-width: 1.6;
   vector-effect: non-scaling-stroke;
-  filter: drop-shadow(0 0 6px var(--neon-cyan));
 }
-.trend-chart circle { fill: var(--neon-cyan); stroke: var(--bg-deep); stroke-width: .6; filter: drop-shadow(0 0 4px var(--neon-cyan)); }
+.trend-chart circle { fill: var(--cockpit-accent); stroke: var(--cockpit-panel-bg); stroke-width: .6; }
 /* M-18 趋势轴标签：承载刻度读数，按 G-9 提升到 --spd-font-size-sm（13px） */
-.trend-labels { display: grid; grid-template-columns: repeat(12, 1fr); color: var(--text-dim); font-size: var(--spd-font-size-sm); text-align: center; padding-top: 6px; letter-spacing: .04em; }
+.trend-labels { display: grid; grid-template-columns: repeat(12, 1fr); color: var(--cockpit-text-dim); font-size: var(--spd-font-size-sm); text-align: center; padding-top: 6px; letter-spacing: .02em; }
 .trend-panel footer {
   display: flex;
   justify-content: space-between;
-  border-top: 1px solid var(--panel-stroke-soft);
-  padding: 10px 18px;
-  color: var(--text-dim);
+  border-top: 1px solid var(--cockpit-panel-border-soft);
+  padding: 8px 14px;
+  color: var(--cockpit-text-dim);
   font-size: var(--spd-font-size-sm);
-  letter-spacing: .08em;
+  letter-spacing: .02em;
   flex: 0 0 auto;
 }
-.trend-panel footer strong { color: var(--neon-cyan); text-shadow: 0 0 8px var(--neon-cyan); font-weight: 700; }
+.trend-panel footer strong { color: var(--cockpit-accent); font-weight: 700; }
 .legend-line { display: flex; align-items: center; gap: 8px; }
-.legend-line i { width: 22px; height: 2px; background: var(--neon-cyan); box-shadow: 0 0 8px var(--neon-cyan); }
+.legend-line i { width: 22px; height: 2px; background: var(--cockpit-accent); }
 
 /* 科室 TOP 8 */
 .ranking-head {
@@ -950,15 +900,15 @@ ref="cockpitColSettingsPopRef"
   grid-template-columns: 1fr 70px 90px;
   gap: 8px;
   padding: 10px 14px 6px 42px;
-  color: var(--text-dim);
+  color: var(--cockpit-text-dim);
   font-size: var(--spd-font-size-sm);
-  letter-spacing: .14em;
+  letter-spacing: .04em;
   flex: 0 0 auto;
 }
-.department-ranking { display: grid; gap: 9px; padding: 6px 14px 12px; overflow: auto; align-content: start; }
+.department-ranking { display: grid; gap: 8px; padding: 6px 14px 12px; overflow: auto; align-content: start; }
 .department-row {
   display: grid;
-  grid-template-columns: 22px 84px minmax(70px, 1fr) 56px 50px 60px;
+  grid-template-columns: 22px 84px minmax(70px, 1fr) 56px 50px auto;
   align-items: center;
   gap: 8px;
   font-size: var(--spd-font-size-sm);
@@ -970,43 +920,38 @@ ref="cockpitColSettingsPopRef"
   position: absolute;
   left: 0; right: 0; bottom: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--panel-stroke-soft), transparent);
+  background: var(--cockpit-panel-border-soft);
 }
+/* 名次徽标：旧版 1/2/3 名分别用琥珀 / 蓝 / 琥珀三种色相，
+   与青玉主色对撞且 1、3 名同色；现统一为「主色浅底 + 主色深字」。 */
 .rank-no {
   display: grid;
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 4px;
-  color: var(--spd-p-bg-page);
-  background: var(--neon-cyan);
+  border-radius: var(--spd-p-field-radius);
+  color: var(--spd-p-primary-text);
+  background: var(--spd-p-primary-bg);
+  border: 1px solid var(--spd-p-primary-border);
   font-weight: 800;
   font-size: var(--spd-font-size-xs);
   font-variant-numeric: tabular-nums;
-  box-shadow: 0 0 10px var(--neon-cyan);
 }
-.rank-no.rank-1 {
-  background: linear-gradient(135deg, var(--spd-p-warning-border), var(--neon-amber));
-  color: var(--spd-p-warning-text);
-  box-shadow: var(--spd-p-shadow-2);
-}
-.rank-no.rank-2 {
-  background: linear-gradient(135deg, var(--spd-p-info-bg), var(--spd-p-info));
-  /* 名次徽标文字：深色（此前误用浅色底令牌作文字，对比度仅 1.12:1） */
-  color: var(--spd-p-text-strong);
-  box-shadow: var(--spd-p-shadow-2);
-}
+/* 前三名用实心主色底 + 反白字，第四名及以后维持浅底深字，
+   只用「深浅」区分名次，不再引入新的色相。 */
+.rank-no.rank-1,
+.rank-no.rank-2,
 .rank-no.rank-3 {
-  background: linear-gradient(135deg, var(--spd-p-warning-border), var(--spd-p-warning));
-  color: var(--spd-p-warning-text);
-  box-shadow: var(--spd-p-shadow-2);
+  color: var(--spd-p-text-on-primary);
+  background: var(--cockpit-accent);
+  border-color: var(--cockpit-accent);
 }
-.department-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-main); }
+.department-row > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--cockpit-text-main); }
 .rank-bar {
   position: relative;
-  height: 14px;
-  background: color-mix(in srgb, var(--spd-p-primary) 8%, transparent);
-  border: 1px solid var(--panel-stroke-soft);
+  height: 12px;
+  background: var(--spd-p-bg-muted);
+  border: 1px solid var(--cockpit-panel-border-soft);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -1014,43 +959,28 @@ ref="cockpitColSettingsPopRef"
   display: block;
   height: 100%;
   border-radius: 0 1px 1px 0;
-  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
-  box-shadow: var(--spd-p-shadow-2);
-  position: relative;
+  background: var(--cockpit-accent);
 }
-.rank-bar i::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(90deg, transparent 30%, color-mix(in srgb, var(--spd-p-bg) 40%, transparent) 50%, transparent 70%);
-  animation: cockpit-shine 2.5s linear infinite;
-}
-@keyframes cockpit-shine { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-.department-row > span, .department-row > small, .department-row > em { font-variant-numeric: tabular-nums; text-align: right; }
+.department-row > span, .department-row > small { font-variant-numeric: tabular-nums; text-align: right; }
 /* <small> 的 UA 默认 font-size: smaller 会让上月金额跌到 10px，
    低于全站 12px 下限 —— 显式覆盖为辅助层级字号。 */
-.department-row > small { color: var(--text-dim); font-size: var(--spd-font-size-xs); }
-.department-row > em { font-style: normal; font-weight: 700; font-size: var(--spd-font-size-sm); }
+.department-row > small { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-xs); }
 
 /* 重点监控耗材 */
 .focus-panel { grid-column: 1 / 2; }
 .focus-panel > header > span { display: flex; align-items: center; gap: 8px; }
 .current-dot, .previous-dot { width: 10px; height: 10px; border-radius: 2px; }
-.current-dot { background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan); }
-.previous-dot { margin-left: 10px; background: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue); }
-.focus-chart { display: flex; align-items: flex-end; gap: 14px; height: 280px; padding: 36px 18px 12px; flex: 1; min-height: 0; }
+/* 本月 = 主色，上月 = 中性石板色（同一色相家族的明度差） */
+.current-dot { background: var(--cockpit-accent); }
+.previous-dot { margin-left: 10px; background: var(--spd-p-slate); }
+.focus-chart { display: flex; align-items: flex-end; gap: 14px; height: 280px; padding: 32px 14px 12px; flex: 1; min-height: 0; }
 .focus-item { display: grid; grid-template-rows: 1fr 36px; flex: 1; min-width: 0; align-items: end; text-align: center; }
-.focus-bars { display: flex; align-items: flex-end; justify-content: center; gap: 5px; height: 100%; border-bottom: 1px solid var(--panel-stroke-soft); position: relative; }
-.focus-bars::before {
-  content: "";
-  position: absolute;
-  left: 0; right: 0; top: 0; bottom: 0;
-  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--spd-p-primary) 3%, transparent) 50%, transparent 100%);
-  pointer-events: none;
-}
+.focus-bars { display: flex; align-items: flex-end; justify-content: center; gap: 5px; height: 100%; border-bottom: 1px solid var(--cockpit-panel-border-soft); position: relative; }
 .focus-bars i { position: relative; width: 36%; min-height: 4px; border-radius: 2px 2px 0 0; transition: filter .2s; }
-.focus-bars .current { background: linear-gradient(180deg, var(--neon-cyan), var(--spd-p-info-strong)); box-shadow: var(--spd-p-shadow-2); }
-.focus-bars .previous { background: linear-gradient(180deg, var(--neon-blue), var(--spd-p-info-strong)); }
+/* 本月柱用主色实心，上月柱用主色浅色档 —— 同色相深浅区分，
+   不再是「青→蓝渐变」与「蓝→深蓝渐变」两条彩虹。 */
+.focus-bars .current { background: var(--cockpit-accent); }
+.focus-bars .previous { background: var(--spd-p-primary-bg); border: 1px solid var(--spd-p-primary-border); }
 .focus-bars .current span {
   position: absolute;
   top: -20px;
@@ -1059,18 +989,17 @@ ref="cockpitColSettingsPopRef"
   /* 图表数据标签 —— 对应 --spd-chart-font-lg（标准文档 5.4） */
   font-size: var(--spd-chart-font-lg);
   font-weight: 800;
-  color: var(--neon-cyan);
-  background: color-mix(in srgb, var(--spd-p-bg-page) 85%, transparent);
+  color: var(--cockpit-accent);
+  background: var(--cockpit-panel-bg);
   padding: 2px 6px;
   border-radius: 3px;
   white-space: nowrap;
-  border: 1px solid var(--panel-stroke-soft);
-  text-shadow: 0 0 6px var(--neon-cyan);
+  border: 1px solid var(--cockpit-panel-border-soft);
 }
-.focus-item > strong { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: var(--spd-font-size-sm); color: var(--text-main); letter-spacing: .04em; }
+.focus-item > strong { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: var(--spd-font-size-sm); color: var(--cockpit-text-main); letter-spacing: .02em; }
 
-/* 耗材分类对比 —— 改为标准统一列表后，通用表格外观由 unified-list.css 提供；
-   这里只做驾驶舱深色主题下的暗色化覆盖 + 面板切换按钮样式。 */
+/* 耗材分类对比 —— 通用表格外观由 unified-list.css 提供；
+   这里只做驾驶舱面板内的表格容器适配。 */
 .compare-panel { grid-column: 2 / 4; }
 .cockpit-compare-card {
   display: flex;
@@ -1086,7 +1015,7 @@ ref="cockpitColSettingsPopRef"
 }
 .cockpit-compare-card :deep(.md-table-toolbar) {
   background: transparent;
-  border-bottom: 1px solid var(--panel-stroke-soft);
+  border-bottom: 1px solid var(--cockpit-panel-border-soft);
   padding: 0 0 8px;
 }
 .cockpit-compare-card :deep(.md-table-toolbar-main) {
@@ -1094,10 +1023,9 @@ ref="cockpitColSettingsPopRef"
 }
 .cockpit-compare-card :deep(.ulc-table-wrap) {
   background: transparent;
-  border-color: var(--panel-stroke-soft);
+  border-color: var(--cockpit-panel-border-soft);
   box-shadow: none;
 }
-/* 深色主题下的表格底色：让单元格与玻璃拟态面板融为一体 */
 .cockpit-compare-card :deep(.el-table),
 .cockpit-compare-card :deep(.el-table__inner-wrapper),
 .cockpit-compare-card :deep(.el-table__body-wrapper) {
@@ -1108,147 +1036,78 @@ ref="cockpitColSettingsPopRef"
   background: transparent;
 }
 .cockpit-compare-card :deep(.el-table__row--striped td.el-table__cell) {
-  background: color-mix(in srgb, var(--spd-p-primary) 4%, transparent) !important;
+  background: var(--spd-p-bg-muted) !important;
 }
 .cockpit-compare-card :deep(.el-table__row:hover > td.el-table__cell) {
-  background: color-mix(in srgb, var(--spd-p-primary) 7%, transparent) !important;
+  background: var(--spd-p-primary-bg) !important;
 }
 .cockpit-compare-card :deep(.el-table td.el-table__cell) {
-  color: var(--text-main);
-  border-color: var(--panel-stroke-soft) !important;
+  color: var(--cockpit-text-main);
+  border-color: var(--cockpit-panel-border-soft) !important;
 }
 .cockpit-compare-card :deep(.ulc-strong) {
-  color: var(--text-main);
+  color: var(--cockpit-text-main);
 }
 .cockpit-compare-card :deep(.el-table__empty-text) {
-  color: var(--text-dim);
-}
-/* 列设置浮层在深色大屏上需要暗色底 */
-.cockpit-compare-card :deep(.ulc-col-settings-pop) {
-  background: color-mix(in srgb, var(--spd-p-bg-page) 96%, transparent);
-  border-color: var(--panel-stroke);
-  color: var(--text-main);
-}
-.cockpit-compare-card :deep(.ulc-col-settings-pop header strong),
-.cockpit-compare-card :deep(.ulc-col-settings-item span) {
-  color: var(--text-main);
-}
-.cockpit-compare-card :deep(.ulc-col-settings-pop .ulc-link) {
-  color: var(--neon-cyan);
-}
-/* 工具栏按钮在深色大屏上的适配
-   ------------------------------------------------------------------
-   驾驶舱是整屏深色科技风，但工具栏按钮仍需与其它列表页「同款」，
-   否则用户会误以为是另一类控件。
-   这里不用霓虹青，而是沿用标准的主色令牌（--spd-c-*），
-   仅把底色压暗一档以适配深色背景，保持浅底 + 深字（或亮底 + 深字）的
-   标准按钮语义不变。 */
-.cockpit-compare-card :deep(.md-btn) {
-  border-color: var(--spd-c-primary-strong);
-  background: color-mix(in srgb, var(--spd-c-primary) 18%, transparent);
-  color: var(--spd-c-primary-strong);
-  letter-spacing: .08em;
-}
-.cockpit-compare-card :deep(.md-btn:hover:not(:disabled)) {
-  background: color-mix(in srgb, var(--spd-c-primary) 32%, transparent);
-  border-color: var(--spd-c-primary-strong);
-  color: var(--spd-c-primary-strong);
+  color: var(--cockpit-text-dim);
 }
 
-/* 面板切换按钮（科室排名 / 分类对比） */
+/* 面板切换按钮（科室排名 / 分类对比）
+   按钮本体由 SpdButton 渲染（ghost 形态），
+   这里只负责把「选中态」表达为实心主色。 */
 .cockpit-panel-switch {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid var(--panel-stroke-soft);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--spd-p-primary) 5%, transparent);
+  border: 1px solid var(--spd-p-border-subtle);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-bg-muted);
 }
-.cockpit-panel-switch button {
-  border: 0;
-  border-radius: 3px;
-  background: transparent;
-  color: var(--text-dim);
-  padding: 5px 12px;
-  font: inherit;
-  font-size: var(--spd-font-size-sm);
-  letter-spacing: .08em;
-  cursor: pointer;
-  transition: background .2s, color .2s, box-shadow .2s;
+.cockpit-panel-switch :deep(.spd-btn) {
+  letter-spacing: .02em;
 }
-.cockpit-panel-switch button:hover { color: var(--neon-cyan); }
-.cockpit-panel-switch button.is-active {
-  color: var(--spd-p-bg-page);
-  background: var(--neon-cyan);
-  box-shadow: var(--spd-p-shadow-2);
+/* 选中态：实心主色底 + 反白字。
+   同时覆盖 hover / active 伪类，否则共享样式表的
+   ghost 变体 hover 规则会把这层实心底盖掉。 */
+.cockpit-panel-switch :deep(.spd-btn.is-active),
+.cockpit-panel-switch :deep(.spd-btn.is-active:hover:not(:disabled)),
+.cockpit-panel-switch :deep(.spd-btn.is-active:active:not(:disabled)) {
+  color: var(--spd-p-text-on-primary);
+  background: var(--cockpit-accent);
+  border-color: var(--cockpit-accent);
   font-weight: 700;
 }
 
 /* M-19 口径说明：承载统计口径定义，按 G-9 提升到 --spd-font-size-sm（13px） */
-.caliber-note { margin: 10px 16px 12px; color: var(--text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .08em; }
+.caliber-note { margin: 10px 16px 12px; color: var(--cockpit-text-dim); font-size: var(--spd-font-size-sm); letter-spacing: .02em; }
 
 /* 库存与异常提醒 */
-.alert-panel > header button {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  border: 1px solid var(--panel-stroke);
-  border-radius: 4px;
-  color: var(--neon-cyan);
-  background: color-mix(in srgb, var(--spd-p-primary) 6%, transparent);
-  padding: 5px 12px;
-  font: inherit;
-  font-size: var(--spd-font-size-sm);
-  letter-spacing: .1em;
-  cursor: pointer;
-  transition: background .2s, border-color .2s, box-shadow .2s;
-}
-.alert-panel > header button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--spd-p-primary) 16%, transparent);
-  border-color: var(--neon-cyan);
-  box-shadow: var(--spd-p-shadow-2);
-}
-.alert-panel > header button:disabled { opacity: .5; cursor: not-allowed; }
-.alert-list { display: grid; gap: 8px; padding: 12px 14px; height: calc(100% - 92px); overflow: auto; align-content: start; }
+.alert-list { display: grid; gap: 8px; padding: 12px 14px; height: calc(100% - 86px); overflow: auto; align-content: start; }
 .alert-row {
   display: grid;
-  grid-template-columns: 72px 1fr;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: 12px;
-  border-bottom: 1px solid var(--panel-stroke-soft);
+  border-bottom: 1px solid var(--cockpit-panel-border-soft);
   padding: 8px 0;
 }
-.alert-type {
-  border-radius: 3px;
-  color: var(--neon-red);
-  background: color-mix(in srgb, var(--spd-p-danger) 14%, transparent);
-  padding: 5px 8px;
-  /* D-06：预警条目风险等级标记 —— 承载用户需读取判断的等级语义，
-     按 G-9 / L-7 提升到 --spd-font-size-sm（13/15/17px），不再使用 xs。 */
-  font-size: var(--spd-font-size-sm);
-  text-align: center;
-  font-weight: 700;
-  letter-spacing: .12em;
-  border: 1px solid color-mix(in srgb, var(--spd-p-danger) 45%, transparent);
-  text-shadow: 0 0 6px color-mix(in srgb, var(--spd-p-danger) 45%, transparent);
-}
 .alert-info { display: grid; gap: 4px; min-width: 0; }
-.alert-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--spd-font-size-sm); color: var(--text-main); }
-.alert-info small { color: var(--text-dim); font-size: var(--spd-font-size-xs); font-variant-numeric: tabular-nums; }
+.alert-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--spd-font-size-sm); color: var(--cockpit-text-main); }
+.alert-info small { color: var(--cockpit-text-dim); font-size: var(--spd-font-size-xs); font-variant-numeric: tabular-nums; }
 .alert-panel > footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-top: 1px solid var(--panel-stroke-soft);
+  border-top: 1px solid var(--cockpit-panel-border-soft);
   padding: 10px 14px;
-  color: var(--text-dim);
+  color: var(--cockpit-text-dim);
   font-size: var(--spd-font-size-xs);
-  letter-spacing: .12em;
+  letter-spacing: .04em;
   flex: 0 0 auto;
 }
 .alert-panel > footer span { display: flex; align-items: center; gap: 6px; }
-.alert-panel > footer strong { color: var(--neon-red); font-weight: 800; text-shadow: 0 0 6px color-mix(in srgb, var(--spd-p-danger) 50%, transparent); }
+.alert-panel > footer strong { color: var(--spd-p-danger-text); font-weight: 800; }
 /* <small> 的 UA 默认 font-size: smaller 会把 11px 再缩到 9.17px，
    低于全站 12px 下限 —— 显式覆盖为辅助层级字号。 */
 .alert-panel > footer small { font-size: var(--spd-font-size-xs); }
@@ -1257,10 +1116,10 @@ ref="cockpitColSettingsPopRef"
   grid-column: 1 / -1;
   align-self: center;
   margin: auto;
-  color: var(--text-dim);
+  color: var(--cockpit-text-dim);
   text-align: center;
   font-size: var(--spd-font-size-sm);
-  letter-spacing: .14em;
+  letter-spacing: .04em;
   padding: 18px 0;
 }
 
@@ -1268,34 +1127,17 @@ ref="cockpitColSettingsPopRef"
   .operation-cockpit-page { min-width: 1080px; padding: 14px; }
   .cockpit-header { grid-template-columns: 220px 210px 1fr 200px; }
   .cockpit-grid { grid-template-columns: 1fr 1.28fr 1.05fr; }
-  .department-row { grid-template-columns: 20px 70px minmax(55px, 1fr) 50px 46px 54px; gap: 5px; }
+  .department-row { grid-template-columns: 20px 70px minmax(55px, 1fr) 50px 46px auto; gap: 5px; }
   /* M-15 窄屏降档：改用 -4xl 令牌，仍跟随字号档位 */
   .cockpit-title h1 { font-size: var(--spd-font-size-4xl); }
-  .kpi-body strong { font-size: var(--spd-font-size-4xl); }
 }
 
 /* 暗色滚动条 */
 .operation-cockpit-page ::-webkit-scrollbar { width: 8px; height: 8px; }
-.operation-cockpit-page ::-webkit-scrollbar-track { background: color-mix(in srgb, var(--spd-p-primary) 4%, transparent); }
-.operation-cockpit-page ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, var(--neon-cyan), var(--neon-blue)); border-radius: 4px; box-shadow: var(--spd-p-shadow-1); }
-.operation-cockpit-page ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, var(--neon-cyan), var(--neon-purple)); }
-
-/* Element Plus tooltip 暗色化（环形图 hover 显示的"高值/定数..."） */
-.operation-cockpit-page .el-popper,
-.operation-cockpit-page .el-tooltip__popper,
-.operation-cockpit-page .el-tooltip-popper {
-  background: color-mix(in srgb, var(--spd-p-bg-page) 92%, transparent) !important;
-  color: var(--text-main) !important;
-  border: 1px solid var(--panel-stroke) !important;
-  box-shadow: var(--spd-p-shadow-2);
-  backdrop-filter: blur(6px);
-}
-.operation-cockpit-page .el-popper .el-popper__arrow::before,
-.operation-cockpit-page .el-tooltip__popper .el-popper__arrow::before {
-  background: color-mix(in srgb, var(--spd-p-bg-page) 92%, transparent) !important;
-  border-color: var(--panel-stroke) !important;
-}
+.operation-cockpit-page ::-webkit-scrollbar-track { background: var(--spd-p-bg-muted); }
+.operation-cockpit-page ::-webkit-scrollbar-thumb { background: var(--spd-p-border-strong); border-radius: 4px; }
+.operation-cockpit-page ::-webkit-scrollbar-thumb:hover { background: var(--spd-p-slate); }
 
 /* 选区颜色 */
-.operation-cockpit-page ::selection { background: color-mix(in srgb, var(--spd-p-primary) 35%, transparent); color: var(--spd-p-text-on-primary); }
+.operation-cockpit-page ::selection { background: var(--spd-p-primary-bg); color: var(--spd-p-text-strong); }
 </style>

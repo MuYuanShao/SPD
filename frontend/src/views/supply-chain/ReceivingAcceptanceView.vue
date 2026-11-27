@@ -46,6 +46,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { useNotify } from '../../composables/useNotify'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -454,6 +455,7 @@ const receivingListCols = useListColumns({
 })
 
 const receivingListTableRef = receivingListCols.tableRef
+const fillHeightReceivingList = useFillHeightTable({ tableRef: receivingListTableRef })
 const isReceivingListColVisible = (key: string) => receivingListCols.isColumnVisible(key)
 const receivingListColBinding = (key: string) => receivingListCols.columnBinding(key)
 
@@ -517,9 +519,9 @@ const receivingListColSettingsPop = useColSettingsPopover({
         <label><span>供应商</span><input v-model="query.supplierName" class="md-input" placeholder="模糊查询供应商" /></label>
         <label v-if="activeTab === 'completed'">
           <span>状态</span>
-          <select v-model="query.status" class="md-select">
-            <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
+          <el-select v-model="query.status" popper-class="spd-select-popper">
+            <el-option v-for="item in statusOptions" :key="item.value" :label="item.label" :value="item.value" />
+          </el-select>
         </label>
         <label v-else>
           <span>当前范围</span>
@@ -540,9 +542,11 @@ const receivingListColSettingsPop = useColSettingsPopover({
           <SpdButton label="新增收货" tone="primary" v-if="canCreate" :disabled="optionsLoading" @click="openCreateModal">
             <template #icon><PackagePlus :size="18" /></template>
           </SpdButton>
-          <SpdButton label="收货单查询" tone="primary" @click="searchOrders">
-            <template #icon><Search :size="17" /></template>
-          </SpdButton>
+          <!--
+            这里原本还有一个「收货单查询」按钮，与上方筛选栏里的标准「查询」重复，
+            同一页面出现两个查询入口、用户无从分辨。按筛选栏已有的标准「查询」
+            提交表单即可，这里删除冗余按钮，只保留「新增收货」这一个业务动作。
+          -->
         </div>
       </div>
 
@@ -581,7 +585,7 @@ ref="receivingListColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightReceivingList.maxHeight"
             style="width: 100%"
             :empty-text="'暂无收货单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => receivingListCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -789,19 +793,17 @@ ref="receivingListColSettingsPopRef"
           <div class="receiving-form-grid">
             <label class="required">
               <span>收货来源</span>
-              <select v-model="form.sourceType" autofocus @change="changeSourceType">
-                <option value="purchase_order">采购订单收货</option>
-                <option value="temporary">临时收货</option>
-              </select>
+              <el-select v-model="form.sourceType" popper-class="spd-select-popper" @change="changeSourceType">
+                <el-option label="采购订单收货" value="purchase_order" />
+                <el-option label="临时收货" value="temporary" />
+              </el-select>
             </label>
             <label class="required">
               <span>收货库房</span>
-              <select v-model="form.warehouseCode">
-                <option value="">请选择收货库房</option>
-                <option v-for="warehouse in warehouses" :key="warehouse.warehouseCode" :value="warehouse.warehouseCode">
-                  {{ warehouse.warehouseName }}
-                </option>
-              </select>
+              <el-select v-model="form.warehouseCode" popper-class="spd-select-popper" placeholder="请选择收货库房">
+                <el-option label="" value="" />
+                <el-option v-for="warehouse in warehouses" :key="warehouse.warehouseCode" :label="warehouse.warehouseName" :value="warehouse.warehouseCode" />
+              </el-select>
             </label>
             <label class="required supplier-field">
               <span>配送商</span>
@@ -819,21 +821,22 @@ ref="receivingListColSettingsPopRef"
             </label>
             <label v-if="form.sourceType === 'purchase_order'">
               <span>采购订单</span>
-              <select v-model="form.purchaseOrderNo" data-testid="receiving-purchase-order" @change="fillFromPurchaseOrder">
-                <option value="">请选择采购订单</option>
-                <option v-for="order in purchaseOrders" :key="order.orderNo" :value="order.orderNo">
-                  {{ order.orderNo }} · {{ order.supplierName }}
-                </option>
-              </select>
+              <el-select v-model="form.purchaseOrderNo" popper-class="spd-select-popper" data-testid="receiving-purchase-order" placeholder="请选择采购订单" @change="fillFromPurchaseOrder">
+                <el-option label="" value="" />
+                <el-option
+                  v-for="order in purchaseOrders"
+                  :key="order.orderNo"
+                  :label="`${order.orderNo} · ${order.supplierName}`"
+                  :value="order.orderNo"
+                />
+              </el-select>
             </label>
             <label>
               <span>收货类型</span>
-              <select v-model="form.receivingType">
-                <option value="">请选择收货类型</option>
-                <option v-for="option in receivingTypeOptions" :key="option.optionId" :value="option.optionValue">
-                  {{ option.optionLabel }}
-                </option>
-              </select>
+              <el-select v-model="form.receivingType" popper-class="spd-select-popper" placeholder="请选择收货类型">
+                <el-option label="" value="" />
+                <el-option v-for="option in receivingTypeOptions" :key="option.optionId" :label="option.optionLabel" :value="option.optionValue" />
+              </el-select>
             </label>
             <label>
               <span>备注</span>
@@ -958,12 +961,15 @@ ref="receivingListColSettingsPopRef"
           <div class="item-form-grid">
             <label class="required">
               <span>商品</span>
-              <select v-model="itemDraft.productCode" @change="itemDraft.purchaseOrderItemId = undefined">
-                <option value="">请选择商品</option>
-                <option v-for="product in products" :key="product.productCode" :value="product.productCode">
-                  {{ product.productName }} ({{ product.productCode }})
-                </option>
-              </select>
+              <el-select v-model="itemDraft.productCode" popper-class="spd-select-popper" placeholder="请选择商品" @change="itemDraft.purchaseOrderItemId = undefined">
+                <el-option label="" value="" />
+                <el-option
+                  v-for="product in products"
+                  :key="product.productCode"
+                  :label="`${product.productName} (${product.productCode})`"
+                  :value="product.productCode"
+                />
+              </el-select>
             </label>
             <label>
               <span>生产批号</span>
@@ -1127,4 +1133,82 @@ ref="receivingListColSettingsPopRef"
    数字使用等宽字体便于纵向比对。
    具体样式统一由 styles/list/unified-list.css 的 .ulc-number 提供，
    这里不再重复定义，避免各页面出现不同的对齐口径。 */
+
+/* ---------- 明细编辑子弹窗（新增 / 编辑 / 复制收货明细） ----------
+   共享样式表 styles/components/modal.css 里有一条全局规则：
+     .supplier-modal, .purchase-modal, ... {
+       width: min(1280px, calc(100vw - 64px)) !important;
+       max-height: min(60vh, calc(100vh - 48px)) !important;
+       ...
+     }
+   它带 !important，会盖掉 styles/supply-chain/receiving-acceptance.css 里
+   为本子弹窗准备的 width: min(720px, ...)，导致子弹窗被拉成整屏宽：
+   两列表单被撑到 1280px，标签与输入框之间出现巨大空档，右侧留白，
+   视觉上完全不像一个「明细编辑」弹窗。
+
+   共享样式表不属于本页的改动范围，因此在这里用本页 scoped 样式把子弹窗
+   拉回既定规格（720px / 90vh），只影响本页，不影响其他弹窗。 */
+.item-dialog {
+  width: min(720px, calc(100vw - 32px)) !important;
+  max-height: min(720px, 90vh) !important;
+  /* 与正文区同色，避免头部渐变与白色正文之间出现色带割裂 */
+  background: var(--spd-p-bg) !important;
+}
+
+/* 标题栏：改用平台统一的「弱渐变 + 底部描边」观感，
+   避免共享的 --spd-p-info-bg → --spd-p-danger-bg 渐变在浅色方案下
+   近乎纯白、标题文字看起来像没渲染出来。 */
+.item-dialog-titlebar {
+  background: var(--spd-p-bg-subtle) !important;
+  border-bottom: 1px solid var(--spd-p-border) !important;
+}
+
+/* 关闭按钮：共享样式只写了 .item-dialog-titlebar .btn-icon，
+   但 SpdButton 渲染出来的类名是 .spd-btn--icon-only，原规则从未命中，
+   关闭按钮一直是无背景的 ghost 态，在浅色标题栏上几乎看不见。
+   这里补一条命中 SpdButton 实际类名的规则，用 token 描边 + 文字色。 */
+.item-dialog-titlebar .spd-btn--icon-only {
+  background: var(--spd-p-bg) !important;
+  border: 1px solid var(--spd-p-border) !important;
+  color: var(--spd-p-text-secondary) !important;
+}
+
+.item-dialog-titlebar .spd-btn--icon-only:hover {
+  border-color: var(--spd-p-primary) !important;
+  color: var(--spd-p-primary) !important;
+}
+
+/* 表单栅格：弹窗收窄到 720px 后，两列各约 320px，
+   88px 固定标签列会把输入框压得过窄，这里压缩标签列并让标签左对齐，
+   与全站筛选栏 / 表单栅格的「标签在上、控件在下」之外的双列表单保持一致。 */
+.item-form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.item-form-grid label {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.item-form-grid label > span {
+  text-align: left;
+}
+
+/* 控件高度对齐全站标准 --spd-p-field-height（34px） */
+.item-form-grid input,
+.item-form-grid select {
+  height: var(--spd-p-field-height, 34px);
+  min-height: var(--spd-p-field-height, 34px);
+  background: var(--spd-p-bg);
+  color: var(--spd-p-text);
+  border-color: var(--spd-p-border);
+}
+
+/* 底部操作条：与正文同底色，仅用一条顶部描边分隔，
+   避免共享的 --md-bg-muted 灰底在三种配色方案下与正文割裂。 */
+.item-dialog-footer {
+  background: var(--spd-p-bg) !important;
+  border-top: 1px solid var(--spd-p-border) !important;
+}
 </style>

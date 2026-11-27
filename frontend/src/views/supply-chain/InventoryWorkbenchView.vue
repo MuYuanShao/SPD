@@ -42,6 +42,7 @@ import {
   ChevronDown
 } from '@lucide/vue'
 import { formatRemarkText, formatStatusText } from '../../utils/chineseDisplay'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const notify = useNotify()
 
@@ -456,6 +457,7 @@ const invPriceAdjustCols = useListColumns({
 })
 
 const invPriceAdjustTableRef = invPriceAdjustCols.tableRef
+const fillHeightInvPriceAdjust = useFillHeightTable({ tableRef: invPriceAdjustTableRef })
 const isInvPriceAdjustColVisible = (key: string) => invPriceAdjustCols.isColumnVisible(key)
 const invPriceAdjustColBinding = (key: string) => invPriceAdjustCols.columnBinding(key)
 
@@ -510,6 +512,7 @@ const invStocktakingCols = useListColumns({
 })
 
 const invStocktakingTableRef = invStocktakingCols.tableRef
+const fillHeightInvStocktaking = useFillHeightTable({ tableRef: invStocktakingTableRef })
 const isInvStocktakingColVisible = (key: string) => invStocktakingCols.isColumnVisible(key)
 const invStocktakingColBinding = (key: string) => invStocktakingCols.columnBinding(key)
 
@@ -566,6 +569,7 @@ const invLooseStockCols = useListColumns({
 })
 
 const invLooseStockTableRef = invLooseStockCols.tableRef
+const fillHeightInvLooseStock = useFillHeightTable({ tableRef: invLooseStockTableRef })
 const isInvLooseStockColVisible = (key: string) => invLooseStockCols.isColumnVisible(key)
 const invLooseStockColBinding = (key: string) => invLooseStockCols.columnBinding(key)
 
@@ -612,6 +616,7 @@ const invCodeStockCols = useListColumns({
 })
 
 const invCodeStockTableRef = invCodeStockCols.tableRef
+const fillHeightInvCodeStock = useFillHeightTable({ tableRef: invCodeStockTableRef })
 const isInvCodeStockColVisible = (key: string) => invCodeStockCols.isColumnVisible(key)
 const invCodeStockColBinding = (key: string) => invCodeStockCols.columnBinding(key)
 
@@ -660,6 +665,7 @@ const invQuotaStockCols = useListColumns({
 })
 
 const invQuotaStockTableRef = invQuotaStockCols.tableRef
+const fillHeightInvQuotaStock = useFillHeightTable({ tableRef: invQuotaStockTableRef })
 const isInvQuotaStockColVisible = (key: string) => invQuotaStockCols.isColumnVisible(key)
 const invQuotaStockColBinding = (key: string) => invQuotaStockCols.columnBinding(key)
 
@@ -703,6 +709,7 @@ const invBalanceCols = useListColumns({
 })
 
 const invBalanceTableRef = invBalanceCols.tableRef
+const fillHeightInvBalance = useFillHeightTable({ tableRef: invBalanceTableRef })
 const isInvBalanceColVisible = (key: string) => invBalanceCols.isColumnVisible(key)
 const invBalanceColBinding = (key: string) => invBalanceCols.columnBinding(key)
 
@@ -792,7 +799,7 @@ ref="invBalanceColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightInvBalance.maxHeight"
               style="width: 100%"
               :empty-text="'暂无库存汇总数据'"
               @header-dragend="(width: number, oldWidth: number, column: any) => invBalanceCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1024,7 +1031,7 @@ ref="invQuotaStockColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightInvQuotaStock.maxHeight"
               style="width: 100%"
               :empty-text="'暂无定数包库存'"
               @header-dragend="(width: number, oldWidth: number, column: any) => invQuotaStockCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1328,7 +1335,7 @@ ref="invCodeStockColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightInvCodeStock.maxHeight"
               style="width: 100%"
               :empty-text="'暂无唯一码库存'"
               @header-dragend="(width: number, oldWidth: number, column: any) => invCodeStockCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1596,7 +1603,7 @@ ref="invLooseStockColSettingsPopRef"
               border
               stripe
               class="ulc-table is-sticky"
-              max-height="560"
+              :max-height="fillHeightInvLooseStock.maxHeight"
               style="width: 100%"
               :empty-text="'暂无散货库存'"
               @header-dragend="(width: number, oldWidth: number, column: any) => invLooseStockCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1805,7 +1812,7 @@ ref="invStocktakingColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightInvStocktaking.maxHeight"
             style="width: 100%"
             :empty-text="'暂无盘点表'"
             @header-dragend="(width: number, oldWidth: number, column: any) => invStocktakingCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1998,7 +2005,7 @@ ref="invPriceAdjustColSettingsPopRef"
             border
             stripe
             class="ulc-table is-sticky"
-            max-height="560"
+            :max-height="fillHeightInvPriceAdjust.maxHeight"
             style="width: 100%"
             :empty-text="'暂无调价单'"
             @header-dragend="(width: number, oldWidth: number, column: any) => invPriceAdjustCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -2159,21 +2166,17 @@ ref="invPriceAdjustColSettingsPopRef"
           <div class="supplier-form-grid compact">
             <label>
               <span>盘点库房</span>
-              <select v-model="stocktakingSheetForm.warehouseName" @change="loadStocktakingPreview">
-                <option value="">请选择库房</option>
-                <option v-for="item in stocktakingOptions.warehouses" :key="item.warehouseName" :value="item.warehouseName">
-                  {{ item.warehouseName }}
-                </option>
-              </select>
+              <el-select v-model="stocktakingSheetForm.warehouseName" popper-class="spd-select-popper" placeholder="请选择库房" @change="loadStocktakingPreview">
+                <el-option label="" value="" />
+                <el-option v-for="item in stocktakingOptions.warehouses" :key="item.warehouseName" :label="item.warehouseName" :value="item.warehouseName" />
+              </el-select>
             </label>
             <label>
               <span>盘点科室</span>
-              <select v-model="stocktakingSheetForm.deptName">
-                <option value="">全院</option>
-                <option v-for="item in stocktakingOptions.departments" :key="item.deptCode" :value="item.deptName">
-                  {{ item.deptName }}
-                </option>
-              </select>
+              <el-select v-model="stocktakingSheetForm.deptName" popper-class="spd-select-popper" placeholder="全院">
+                <el-option label="全院" value="" />
+                <el-option v-for="item in stocktakingOptions.departments" :key="item.deptCode" :label="item.deptName" :value="item.deptName" />
+              </el-select>
             </label>
           </div>
           <div class="stocktaking-scope-picker">

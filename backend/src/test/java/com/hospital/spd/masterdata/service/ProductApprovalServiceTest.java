@@ -52,7 +52,7 @@ class ProductApprovalServiceTest {
     @Test
     void rejectsNegativeNewAdmissionPriceBeforeWritingApplication() {
         PendingProductApplicationRequest request = new com.fasterxml.jackson.databind.ObjectMapper().convertValue(
-                Map.of("productName", "测试商品", "specModel", "S1", "unit", "支", "purchasePrice", "-1"),
+                Map.of("productName", "测试商品", "unit", "支", "purchasePrice", "-1"),
                 PendingProductApplicationRequest.class);
         assertThatThrownBy(() -> service.createApplication(request)).hasMessageContaining("价格不能为负数");
         verifyNoInteractions(jdbcTemplate);
@@ -95,7 +95,7 @@ class ProductApprovalServiceTest {
         return new PendingProductApplicationDetail(
                 "APP001", applicationType, status,
                 statusLabel(status), "测试商品", "P001",
-                "10ml/支", "品牌A", "厂家A", "供应商A",
+                "品牌A", "厂家A", "供应商A",
                 "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
                 "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", "2025-12-31",
                 "生产许可001", "经营许可001",
@@ -123,7 +123,7 @@ class ProductApprovalServiceTest {
 
     private PendingProductApplicationRequest validApplicationRequest() {
         return new PendingProductApplicationRequest(
-                "new", "P001", "测试商品", "10ml/支",
+                "new", "P001", "测试商品",
                 "品牌A", "厂家A", "供应商A",
                 "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
                 "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
@@ -603,10 +603,49 @@ class ProductApprovalServiceTest {
         }
 
         @Test
+        @DisplayName("不填规格型号也可以提交目录申请")
+        void should_create_application_without_spec_model() {
+            PendingProductApplicationRequest request = new PendingProductApplicationRequest(
+                    "new", "P-NO-SPEC-001", "无规格测试商品",
+                    "品牌A", "厂家A", "供应商A",
+                    "支", BigDecimal.ONE, null, BigDecimal.ONE,
+                    "盒", BigDecimal.ONE, null, "", "", null,
+                    "", "", true, false, true, "",
+                    "一级", "二级", "三级", false, "", 0,
+                    false, false, false, "常温", ""
+            );
+
+            when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), any(Object[].class))).thenReturn(0);
+            when(jdbcTemplate.queryForList(
+                    contains("manufacturer_id FROM manufacturer"),
+                    eq(Long.class), any(Object[].class))
+            ).thenReturn(List.of(10L));
+            when(jdbcTemplate.queryForList(
+                    contains("supplier_id FROM supplier"),
+                    eq(Long.class), any(Object[].class))
+            ).thenReturn(List.of(20L));
+            when(jdbcTemplate.queryForList(
+                    contains("FROM product_category"),
+                    eq(Long.class), any(Object[].class))
+            ).thenReturn(List.of(30L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            Map<String, Object> result = service.createApplication(request);
+
+            assertThat(result).containsKey("applicationNo");
+            assertThat((String) result.get("applicationNo")).startsWith("SP");
+            verify(jdbcTemplate).update(contains("INSERT INTO pending_product_application"),
+                    argsCaptor.capture());
+            // The specification is not collected any more and is persisted as an empty string.
+            assertThat((Object[]) argsCaptor.getValue()).contains("", "无规格测试商品");
+            assertThat((Object[]) argsCaptor.getValue()).doesNotContain("10ml/支");
+        }
+
+        @Test
         @DisplayName("缺少必填字段抛出异常")
         void should_throw_when_required_fields_missing() {
             PendingProductApplicationRequest request = new PendingProductApplicationRequest(
-                    "new", "", "测试商品", "10ml/支",
+                    "new", "", "测试商品",
                     null, null, null,
                     "", null, null, null,
                     null, null, null, null, null, null,
@@ -625,7 +664,7 @@ class ProductApprovalServiceTest {
         @DisplayName("商品编码为空时取招采子编码回填")
         void should_backfill_product_code_from_tender_sub_code_when_blank() {
             PendingProductApplicationRequest request = new PendingProductApplicationRequest(
-                    "new", "", "测试商品", "10ml/支",
+                    "new", "", "测试商品",
                     "品牌A", "厂家A", "供应商A",
                     "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
                     "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
@@ -656,7 +695,7 @@ class ProductApprovalServiceTest {
         @DisplayName("商品编码与招采子编码皆为空时自动生成 SPD 编码")
         void should_generate_spd_code_when_code_and_tender_blank() {
             PendingProductApplicationRequest request = new PendingProductApplicationRequest(
-                    "new", "", "测试商品", "10ml/支",
+                    "new", "", "测试商品",
                     "品牌A", "厂家A", "供应商A",
                     "支", BigDecimal.valueOf(100), BigDecimal.valueOf(150), BigDecimal.ONE,
                     "箱", BigDecimal.valueOf(10), null, "UDI001", "注册证号001", java.time.LocalDate.now().plusYears(1).toString(),
@@ -697,7 +736,7 @@ class ProductApprovalServiceTest {
         @DisplayName("高值耗材设置为定数管理抛出异常")
         void should_throw_when_quota_managed_with_high_value() {
             PendingProductApplicationRequest request = new PendingProductApplicationRequest(
-                    "new", "P001", "测试商品", "10ml/支",
+                    "new", "P001", "测试商品",
                     null, null, null,
                     "支", null, null, null,
                     null, null, null, null, null, null,
@@ -764,6 +803,41 @@ class ProductApprovalServiceTest {
                     eq(Integer.class),
                     any(Object[].class)
             );
+        }
+
+        @Test
+        @DisplayName("重复校验不再比较规格型号，即使配置规则仍列出该字段")
+        void should_not_compare_spec_model_in_duplicate_guard() {
+            PendingProductApplicationRequest request = validApplicationRequest();
+
+            // The admin-configured rule still lists spec_model; it must be ignored.
+            when(jdbcTemplate.queryForObject(contains("FROM sys_validation_rule"), eq(String.class)))
+                    .thenReturn("product_name,spec_model,manufacturer_name,supplier_name,registration_no");
+            when(jdbcTemplate.queryForObject(
+                    contains("FROM product p"),
+                    eq(Integer.class),
+                    any(Object[].class))).thenReturn(0);
+            when(jdbcTemplate.queryForObject(
+                    contains("FROM pending_product_application a"),
+                    eq(Integer.class),
+                    any(Object[].class))).thenReturn(0);
+            when(jdbcTemplate.queryForList(
+                    contains("manufacturer_id FROM manufacturer"),
+                    eq(Long.class), any(Object[].class))).thenReturn(List.of(10L));
+            when(jdbcTemplate.queryForList(
+                    contains("supplier_id FROM supplier"),
+                    eq(Long.class), any(Object[].class))).thenReturn(List.of(20L));
+            when(jdbcTemplate.queryForList(
+                    contains("FROM product_category"),
+                    eq(Long.class), any(Object[].class))).thenReturn(List.of(30L));
+            when(jdbcTemplate.update(anyString(), any(Object[].class))).thenReturn(1);
+
+            service.createApplication(request);
+
+            verify(jdbcTemplate, never()).queryForObject(
+                    argThat(sql -> sql.contains("spec_model")),
+                    eq(Integer.class),
+                    any(Object[].class));
         }
     }
 

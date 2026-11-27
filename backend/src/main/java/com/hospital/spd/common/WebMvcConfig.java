@@ -33,12 +33,32 @@ public class WebMvcConfig implements WebMvcConfigurer {
                     }
                     if (request instanceof MultipartHttpServletRequest multipart) {
                         multipart.getMultiFileMap().values().forEach(files -> files.forEach(
-                                file -> WriteFieldWhitespace.requireValid(file.getOriginalFilename())));
+                                file -> requireValidUploadFileName(file.getOriginalFilename())));
                     }
                 }
                 return true;
             }
         });
+    }
+
+    /**
+     * Uploaded file names are opaque user data, not structured business fields.
+     * Real names legitimately contain spaces (e.g. "营业执照 (1).pdf"), so the no-whitespace
+     * rule used for request parameters and JSON body values does not apply here.
+     * Only control characters are rejected, because they break HTTP headers and log files.
+     * Path separators are also rejected to keep the path-traversal guard meaningful.
+     */
+    private static void requireValidUploadFileName(String originalFileName) {
+        if (originalFileName == null || originalFileName.isEmpty()) return;
+        for (int index = 0; index < originalFileName.length(); index++) {
+            char character = originalFileName.charAt(index);
+            if (character < 0x20 || character == 0x7F) {
+                throw new IllegalArgumentException("附件文件名不允许包含控制字符");
+            }
+        }
+        if (originalFileName.indexOf('/') >= 0 || originalFileName.indexOf('\\') >= 0) {
+            throw new IllegalArgumentException("附件文件名不允许包含路径分隔符");
+        }
     }
 
     @Override

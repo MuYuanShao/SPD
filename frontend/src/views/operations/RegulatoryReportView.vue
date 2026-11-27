@@ -9,7 +9,9 @@ import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import type { SpdStatusChipTone } from '../../components/common/SpdStatusChip.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { notifyError } from '../../composables/useNotify'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import {
   exportCentralizedProcurementProgressExcel,
@@ -180,6 +182,13 @@ const reportColBinding = (key: string) => activeCols.value.columnBinding(key)
 const regulatoryTableRef = ref<any>(null)
 
 /**
+ * 表格高度铺满内容区。
+ * 三种报表共用同一个表格 ref（v-if 互斥切换），因此只需一份测量实例；
+ * 切换报表类型后表格节点被替换，由 composable 内部的观察器重新测量。
+ */
+const fillHeightRegulatoryTable = useFillHeightTable({ tableRef: regulatoryTableRef })
+
+/**
  * 操作列固定规则：出现横向滚动条才固定右侧，没有则不固定。
  * 必须在 setup 顶层展平成 computed —— 模板不会自动解包普通对象里的 computed。
  */
@@ -280,7 +289,42 @@ async function loadReport() {
   }
 }
 
+/* ---------------------------------------------------------------------
+ * 统计时间区间约束：开始时间不能晚于结束时间
+ * ---------------------------------------------------------------------
+ * 两层保障：
+ *   1) disabled-date —— 日历面板里把非法日期置灰；
+ *   2) applyQuery() 里的显式校验 —— 即便绕过置灰，也要拦下来并提示，绝不发请求。
+ * 绑定值是 value-format="YYYY-MM-DD" 的纯字符串，可直接按字典序比较。
+ * ------------------------------------------------------------------- */
+function toDayStart(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** 开始时间：禁用晚于结束时间的日期 */
+function disableAfterEnd(date: Date) {
+  const end = toDayStart(query.dateTo)
+  if (!end) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() > end.getTime()
+}
+
+/** 结束时间：禁用早于开始时间的日期 */
+function disableBeforeStart(date: Date) {
+  const start = toDayStart(query.dateFrom)
+  if (!start) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() < start.getTime()
+}
+
 function applyQuery() {
+  // 开始时间不能晚于结束时间：非法区间直接提示并终止，不发请求
+  if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+    notifyError('开始日期不能晚于结束日期')
+    return
+  }
   query.page = 1
   appliedQuery.value = { ...query }
   void loadReport()
@@ -348,10 +392,33 @@ onMounted(() => {
 
     <section class="report-toolbar">
       <div class="report-filters">
-        <label><span>统计时间</span><div class="date-range"><input v-model="query.dateFrom" type="date" /><i>至</i><input v-model="query.dateTo" type="date" /></div></label>
+        <label><span>统计时间</span><div class="date-range">
+          <el-date-picker
+            v-model="query.dateFrom"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="开始日期"
+            clearable
+            class="report-date-picker"
+            :disabled-date="disableAfterEnd"
+          />
+          <i>至</i>
+          <el-date-picker
+            v-model="query.dateTo"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="结束日期"
+            clearable
+            class="report-date-picker"
+            :disabled-date="disableBeforeStart"
+          />
+        </div></label>
         <template v-if="reportType === 'supplier'">
           <label><span>供应商</span>
             <ElSelect v-model="query.supplierId" aria-label="供应商" clearable filterable
+              popper-class="spd-report-select-popper"
               :loading="supplierOptionsLoading" placeholder="全部供应商">
               <ElOption v-for="supplier in supplierOptions" :key="supplier.id" :value="supplier.id"
                 :label="`${supplier.name} · ${supplier.code}`" />
@@ -360,6 +427,7 @@ onMounted(() => {
           <label><span>物资分类</span><input v-model.trim="query.category" type="search" placeholder="一级 / 二级 / 三级分类" @keyup.enter="applyQuery" /></label>
           <label><span>科室</span>
             <ElSelect v-model="query.supplierDepartment" aria-label="科室" clearable filterable allow-create default-first-option
+              popper-class="spd-report-select-popper"
               :loading="supplierOptionsLoading" placeholder="请选择科室或输入库房名称">
               <ElOption v-for="department in departmentOptions" :key="department.id" :value="department.id"
                 :label="`${department.name} · ${department.code}`" />
@@ -458,7 +526,7 @@ ref="regulatoryColSettingsPopRef"
           border
           row-key="orderNo"
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightRegulatoryTable.maxHeight"
           style="width: 100%"
           :empty-text="loading ? '正在加载供货明细…' : '当前筛选条件下暂无供货数据'"
           @header-dragend="(width: number, oldWidth: number, column: any) => supplierLedgerCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -650,7 +718,7 @@ ref="regulatoryColSettingsPopRef"
           border
           row-key="productCode"
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightRegulatoryTable.maxHeight"
           style="width: 100%"
           :empty-text="loading ? '正在计算集采执行进度…' : '暂无集采任务或中选物资'"
           @header-dragend="(width: number, oldWidth: number, column: any) => centralizedCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -804,7 +872,7 @@ ref="regulatoryColSettingsPopRef"
           border
           row-key="productCode"
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightRegulatoryTable.maxHeight"
           style="width: 100%"
           :empty-text="loading ? '正在读取每日进销存快照…' : '当前筛选条件下暂无每日进销存快照'"
           @header-dragend="(width: number, oldWidth: number, column: any) => inventoryCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -1019,16 +1087,18 @@ ref="regulatoryColSettingsPopRef"
 .report-page > .md-header {
   border-radius: var(--spd-radius-md, 10px);
 }
-/* 工具区：查询 + 动作同一张卡 */
+/* 工具区：查询 + 动作同一张卡
+   边框色与基准页（科室库房目录的 SpdFilterBar）保持一致，
+   统一取 --spd-p-border，不使用更浅的 --spd-p-border-subtle。 */
 .report-toolbar {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   background: var(--spd-p-bg);
-  border: 1px solid var(--spd-line, var(--spd-p-border-subtle));
-  border-radius: 10px;
+  border: 1px solid var(--spd-p-border);
+  border-radius: 12px;
   box-shadow: var(--spd-p-shadow-1);
 }
 .report-filters {
@@ -1041,28 +1111,126 @@ ref="regulatoryColSettingsPopRef"
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: var(--spd-p-text-secondary);
+  color: var(--spd-p-field-label);
   font-size: var(--spd-font-size-sm);
   font-weight: 600;
 }
+/* 原生输入框 / 下拉（物资分类 / 集采中选状态 …）
+   ---------------------------------------------------------------------
+   标准规则 3「字段高度」：所有筛选控件高度严格等于 --spd-p-field-height（34px）。
+   原写法用 min-height: 36px + border-radius: 7px + font-weight: 500，
+   与全站其它筛选控件（34px / 4px / 400）不一致，
+   同一个筛选栏里出现两种高度与两种圆角。
+   这里改用字段令牌（--spd-p-field-*），
+   与 styles/components/spd-input.css 的原生控件规格保持一致。 */
 .report-filters input,
 .report-filters select {
+  box-sizing: border-box;
   width: 100%;
-  min-height: 36px;
-  border: 1px solid var(--spd-line, var(--spd-p-border));
-  border-radius: 7px;
-  background: var(--spd-p-bg);
-  color: var(--spd-p-text);
-  padding: 0 10px;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  border: var(--spd-p-field-border-width) solid var(--spd-p-field-border);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  color: var(--spd-p-field-text);
+  padding: 0 var(--spd-p-field-padding-x);
   font: inherit;
   font-size: var(--spd-font-size-base);
-  font-weight: 500;
+  font-weight: 400;
+}
+.report-filters input:hover,
+.report-filters select:hover {
+  border-color: var(--spd-p-field-border-hover);
 }
 .report-filters input:focus,
 .report-filters select:focus {
   outline: none;
-  border-color: var(--spd-primary, var(--spd-p-primary));
-  box-shadow: var(--spd-p-shadow-1);
+  border-color: var(--spd-p-field-focus-border);
+  box-shadow: 0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+/* el-select（供应商 / 科室）同样锁死字段高度并撑满栅格列宽，
+   避免同一筛选栏里出现「一个 34px、一个 36px」的高低不齐。 */
+.report-filters .el-select {
+  width: 100%;
+}
+.report-filters .el-select__wrapper {
+  box-sizing: border-box;
+  height: var(--spd-p-field-height);
+  min-height: var(--spd-p-field-height);
+  max-height: var(--spd-p-field-height);
+  border-radius: var(--spd-p-field-radius);
+  background: var(--spd-p-field-bg);
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border) inset;
+}
+.report-filters .el-select__wrapper:hover {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-border-hover) inset;
+}
+.report-filters .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 var(--spd-p-field-border-width) var(--spd-p-field-focus-border) inset,
+    0 0 0 var(--spd-p-focus-width) var(--spd-p-field-focus-ring);
+}
+
+/* ---------- 下拉面板：去掉「框中框」 ----------
+   ---------------------------------------------------------------------
+   问题根因（共享样式表，本页不拥有、不修改）：
+     styles/spd-theme.css 给**内层** .el-select-dropdown 加了
+       border: 1px solid var(--spd-color-border-light) !important;
+       box-shadow: var(--spd-shadow-lg) !important;
+       border-radius: var(--spd-radius-lg) !important;
+     而 Element Plus 自己的 .el-select__popper.el-popper 已经带
+       border: 1px solid var(--el-border-color-light);
+       box-shadow: var(--el-box-shadow-light);
+     两者叠加 → 下拉面板出现**两层边框 + 两层阴影**，
+     视觉上就是「框里还有一个框」（用户报：字段套字段）。
+
+     处理方式：
+     下拉面板被 teleport 到 body，scoped 样式无法命中，
+     因此用 ElSelect 的 popper-class 精确圈出本页的两个下拉
+     （供应商 / 科室），再在本页 scoped 样式里用 :global() 中和内层那一层，
+     保留外层 popper 作为唯一边框与阴影来源。
+     共享样式表由其它 worker 统一处理，这里只在页面侧收口，
+     不改动 shared 文件。
+
+   选择器前缀说明：
+     共享样式表里存在 :root[data-spd-theme='calm-paper'] .el-select-dropdown
+     与 :root[data-spd-theme='night-black'] .el-select-dropdown
+     这类「方案级」规则（特指度 0,3,1），且同样带 !important。
+     因此这里的 :global() 选择器也带 :root[data-spd-theme] 前缀
+     （特指度 0,4,0），确保在三种配色方案下都能压过共享规则，
+     内层始终保持「无边框 / 无阴影」。 */
+:global(:root[data-spd-theme] .spd-report-select-popper .el-select-dropdown),
+:global(.spd-report-select-popper .el-select-dropdown) {
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: var(--spd-p-field-radius) !important;
+  background: transparent !important;
+}
+:global(:root[data-spd-theme] .spd-report-select-popper),
+:global(.spd-report-select-popper) {
+  border-radius: var(--spd-p-field-radius) !important;
+  background: var(--spd-p-field-bg) !important;
+  border-color: var(--spd-p-field-border) !important;
+  box-shadow: var(--spd-p-shadow-2) !important;
+}
+:global(:root[data-spd-theme] .spd-report-select-popper .el-popper__arrow::before),
+:global(.spd-report-select-popper .el-popper__arrow::before) {
+  background: var(--spd-p-field-bg) !important;
+  border-color: var(--spd-p-field-border) !important;
+}
+:global(:root[data-spd-theme] .spd-report-select-popper .el-select-dropdown__item),
+:global(.spd-report-select-popper .el-select-dropdown__item) {
+  color: var(--spd-p-field-text);
+  font-size: var(--spd-font-size-base);
+}
+:global(:root[data-spd-theme] .spd-report-select-popper .el-select-dropdown__item.is-hovering),
+:global(.spd-report-select-popper .el-select-dropdown__item.is-hovering) {
+  background: var(--spd-p-primary-bg) !important;
+}
+:global(:root[data-spd-theme] .spd-report-select-popper .el-select-dropdown__item.is-selected),
+:global(.spd-report-select-popper .el-select-dropdown__item.is-selected) {
+  color: var(--spd-p-primary) !important;
+  font-weight: 600;
 }
 .date-range {
   display: grid;
@@ -1071,6 +1239,23 @@ ref="regulatoryColSettingsPopRef"
   gap: 6px;
 }
 .date-range i { color: var(--spd-p-text-muted); font-style: normal; }
+
+/* ---------- Element Plus 中文日期选择器 ----------
+   el-date-picker 外壳是 .el-input__wrapper，共享样式表
+   styles/components/spd-input.css 已把高度 / 圆角 / 边框 / 字号
+   统一到字段令牌（34px / --spd-p-field-radius / 1px 内阴影环 / 基础字号）。
+   这里只补两件事：
+     1) 选择器撑满 .date-range 的两列（EP 默认是 inline-block，不会撑开栅格）；
+     2) 兜住共享样式表里「原生 input 统一规格」那条通用规则，
+        避免内层 input 被画成第二层小框（框中框）。
+   三套配色方案都走同一批令牌，无需额外适配。 */
+.report-date-picker {
+  width: 100%;
+}
+
+.report-date-picker .el-input__wrapper {
+  width: 100%;
+}
 .report-actions {
   display: flex;
   flex-wrap: wrap;

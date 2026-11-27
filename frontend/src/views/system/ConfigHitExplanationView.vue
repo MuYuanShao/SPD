@@ -231,15 +231,15 @@ onMounted(loadKeys)
       <div class="sys-form-grid">
         <label><span>业务页面</span><input v-model.trim="query.businessPage" class="sys-input" /></label>
         <label><span>配置类型</span>
-          <select v-model="query.configType" class="sys-select">
-            <option v-for="t in configTypes" :key="t.code" :value="t.code">{{ t.label }}</option>
-          </select>
+          <el-select v-model="query.configType" popper-class="spd-select-popper">
+            <el-option v-for="t in configTypes" :key="t.code" :label="t.label" :value="t.code" />
+          </el-select>
         </label>
         <label><span>配置项</span>
-          <select v-model="query.configKey" class="sys-select" :disabled="keysLoading || !keyOptions.length">
-            <option value="">{{ keysLoading ? '正在加载配置项' : '请选择配置项' }}</option>
-            <option v-for="option in keyOptions" :key="option.configKey" :value="option.configKey">{{ option.configName }}（{{ option.configKey }}）</option>
-          </select>
+          <el-select v-model="query.configKey" popper-class="spd-select-popper" :disabled="keysLoading || !keyOptions.length" :placeholder="keysLoading ? '正在加载配置项' : '请选择配置项'">
+            <el-option label="" value="" />
+            <el-option v-for="option in keyOptions" :key="option.configKey" :label="`${option.configName}（${option.configKey}）`" :value="option.configKey" />
+          </el-select>
         </label>
         <label><span>用户</span><input v-model.trim="query.userId" class="sys-input" /></label>
         <label><span>模块</span><input v-model.trim="query.moduleId" class="sys-input" /></label>

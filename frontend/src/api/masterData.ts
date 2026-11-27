@@ -348,6 +348,36 @@ export async function fetchMasterDataPage(code: string, query: MasterDataQuery =
 }
 
 /**
+ * 医院目录商品文本字段：允许用户自由输入，可能含空格（如「医用外科缝合线 3-0 尼龙线」）。
+ *
+ * 后端 WriteFieldWhitespace 会拒绝写入请求里的空格/换行，
+ * 因此这些字段在 http 拦截器里按 freeTextFields 规则「就地清洗」（去掉空白）后再提交，
+ * 与待审批目录（pendingProductApplications.ts）保持同一套处理方式。
+ *
+ * productCode 不在列表内：商品编码是主键，必须保持与既有编码完全一致，不能被清洗改写。
+ */
+export const HOSPITAL_PRODUCT_FREE_TEXT_FIELDS = [
+  'productName',
+  'specModel',
+  'brand',
+  'manufacturerName',
+  'supplierName',
+  'unit',
+  'purchaseUnit',
+  'storageCondition',
+  'contractCode',
+  'registrationNo',
+  'registrationExpireDate',
+  'udiCode',
+  'firstCategory',
+  'secondCategory',
+  'thirdCategory',
+  'tenderSubCode',
+  'productionLicenseNo',
+  'businessLicenseNo'
+] as const
+
+/**
  * 获取医院商品目录详情
  * @param productCode - 商品编码
  * @returns 商品详情数据
@@ -370,7 +400,8 @@ export async function fetchHospitalProductPartnerOptions() {
 export async function createHospitalProduct(payload: ProductCreatePayload) {
   return postData<{ productCode: string; applicationNo: string }>(
     '/master-data/hospital-products',
-    payload
+    payload,
+    { freeTextFields: HOSPITAL_PRODUCT_FREE_TEXT_FIELDS }
   )
 }
 
@@ -383,7 +414,8 @@ export async function createHospitalProduct(payload: ProductCreatePayload) {
 export async function updateHospitalProduct(productCode: string, payload: ProductCreatePayload) {
   return putData<{ productCode: string; applicationNo: string }>(
     `/master-data/hospital-products/${encodeURIComponent(productCode)}`,
-    payload
+    payload,
+    { freeTextFields: HOSPITAL_PRODUCT_FREE_TEXT_FIELDS }
   )
 }
 
@@ -395,7 +427,8 @@ export async function updateHospitalProduct(productCode: string, payload: Produc
 export async function batchUpdateHospitalProducts(payload: ProductBatchUpdatePayload) {
   return putData<{ updatedRows: number }>(
     '/master-data/hospital-products/batch-edit',
-    payload
+    payload,
+    { freeTextFields: HOSPITAL_PRODUCT_FREE_TEXT_FIELDS }
   )
 }
 
@@ -421,14 +454,29 @@ export async function submitHospitalProducts(payload: ProductSubmitPayload) {
 }
 
 /**
- * 导出医院商品目录
- * @param query - 导出筛选条件
- * @returns 商品数据列表
+ * 导出医院商品目录的全部匹配数据。
+ *
+ * `/master-data/hospital-products/export` 与列表接口共用同一个分页查询，
+ * 单次请求最多返回 `PageRequest.MAX_SIZE`（200）行。
+ * 导出按钮的语义是「导出当前筛选条件下的全部数据」，
+ * 因此这里按 200 行一页循环翻页，避免只导出了当前列表页。
+ *
+ * @param query - 导出筛选条件（不含分页参数）
+ * @returns 全部匹配的商品数据列表
  */
-export async function exportHospitalProducts(query: MasterDataQuery = {}) {
-  return getData<Record<string, unknown>[]>('/master-data/hospital-products/export', {
-    params: query
-  })
+export async function exportAllHospitalProducts(query: MasterDataQuery = {}) {
+  const pageSize = 200
+  const rows: Record<string, unknown>[] = []
+  let page = 1
+  for (;;) {
+    const chunk = await getData<Record<string, unknown>[]>('/master-data/hospital-products/export', {
+      params: { ...query, page: String(page), size: String(pageSize) }
+    })
+    rows.push(...chunk)
+    if (chunk.length < pageSize) break
+    page += 1
+  }
+  return rows
 }
 
 /**

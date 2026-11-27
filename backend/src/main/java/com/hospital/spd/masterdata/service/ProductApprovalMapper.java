@@ -74,7 +74,6 @@ final class ProductApprovalMapper {
                 statusLabel,
                 rs.getString("product_name"),
                 rs.getString("product_code"),
-                rs.getString("spec_model"),
                 rs.getString("brand"),
                 rs.getString("manufacturer_name"),
                 rs.getString("supplier_name"),

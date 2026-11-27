@@ -2,10 +2,11 @@ import { computed, onActivated, onDeactivated, onMounted, onUnmounted, ref, watc
 import { onBeforeRouteLeave, onBeforeRouteUpdate, useRoute, useRouter } from 'vue-router'
 import { useCatalogApprovalRefreshStore } from '../stores/catalogApprovalRefresh'
 import { useAuthStore } from '../stores/auth'
+import { csvCell, downloadCsvContent } from '../utils/downloadCsv'
 import {
   batchUpdateHospitalProducts,
   createHospitalProduct,
-  exportHospitalProducts,
+  exportAllHospitalProducts,
   fetchHospitalProductDetail,
   fetchHospitalProductPartnerOptions,
   submitHospitalProducts,
@@ -16,6 +17,38 @@ import {
 } from '../api/masterData'
 
 type ProductDialogMode = 'create' | 'edit'
+
+/**
+ * 医院目录导出的列顺序与中文表头。
+ *
+ * 与 `ProductService.hospitalProducts` 返回的字段一一对应，
+ * 保证导出文件与列表展示的字段一致（导出的价格保留原始数值，不做展示格式化）。
+ */
+const HOSPITAL_EXPORT_COLUMNS: Array<{ prop: string; label: string }> = [
+  { prop: 'code', label: '商品编码' },
+  { prop: 'name', label: '商品名称' },
+  { prop: 'spec', label: '规格型号' },
+  { prop: 'brand', label: '品牌' },
+  { prop: 'manufacturer', label: '厂家' },
+  { prop: 'supplier', label: '供应商' },
+  { prop: 'registrationNo', label: '注册证号' },
+  { prop: 'contractCode', label: '合同编码' },
+  { prop: 'firstCategory', label: '一级分类' },
+  { prop: 'secondCategory', label: '二级分类' },
+  { prop: 'thirdCategory', label: '三级分类' },
+  { prop: 'quotaManaged', label: '是否定数管理' },
+  { prop: 'volumeBased', label: '是否带量' },
+  { prop: 'centralized', label: '是否集采' },
+  { prop: 'domestic', label: '是否国产' },
+  { prop: 'chargeable', label: '是否收费' },
+  { prop: 'keyMonitored', label: '重点监控' },
+  { prop: 'tenderSubCode', label: '招采子编码' },
+  { prop: 'unit', label: '单位' },
+  { prop: 'price', label: '采购价' },
+  { prop: 'status', label: '状态' },
+  { prop: 'createTime', label: '创建时间' },
+  { prop: 'updateTime', label: '修改时间' }
+]
 
 function emptyProductForm(): ProductCreatePayload {
   return {
@@ -403,7 +436,14 @@ export function useHospitalProductManagement(options: {
   async function exportHospitalCatalog() {
     options.clearActionState()
     try {
-      const rows = await exportHospitalProducts(options.queryParams.value)
+      // 只保留筛选条件，去掉列表分页参数：导出要的是当前筛选下的全部数据，而不是当前页。
+      const { page, size, ...filters } = options.queryParams.value
+      const rows = await exportAllHospitalProducts(filters)
+      const header = HOSPITAL_EXPORT_COLUMNS.map((column) => column.label)
+      const lines = rows.map((row) =>
+        HOSPITAL_EXPORT_COLUMNS.map((column) => csvCell(row[column.prop])).join(',')
+      )
+      downloadCsvContent('医院目录导出.csv', [header.join(','), ...lines].join('\n'))
       options.actionMessage.value = `已导出 ${rows.length} 条医院目录数据`
     } catch (err) {
       options.actionError.value = err instanceof Error ? err.message : '导出失败'

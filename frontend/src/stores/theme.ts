@@ -10,7 +10,9 @@ import { defineStore } from 'pinia'
 
    - 标准白（default）：默认清爽，竖线网格 + 斑马纹
    - 静墨宣纸（calm-paper）：暖白低墨量，取消竖网格线与斑马纹
+     —— **暂未开放**：整套方案暂时停用（disabled），用户不可切换。
    - 暗夜黑（night-black）：浅字暗底 + 琥珀金强调
+     —— **暂未开放**：整套方案暂时停用（disabled），用户不可切换。
    ===================================================================== */
 export type SchemeId = 'default' | 'calm-paper' | 'night-black'
 
@@ -22,6 +24,15 @@ export interface SchemeDefinition {
   swatch: string
   /** 是否为深色底（影响浏览器滚动条与表单控件的渲染策略） */
   dark?: boolean
+  /**
+   * 是否为「暂未开放」的方案。
+   * 停用的方案保留在 SCHEMES 里（历史 localStorage 值与既有代码仍需能通过类型检查），
+   * 但：
+   *   - 不出现在可切换的配色方案列表里（切换器只渲染 enabled 的方案）；
+   *   - setScheme() 会忽略这些 id；
+   *   - 启动时读到这些 id 会被迁移回默认方案。
+   */
+  disabled?: boolean
 }
 
 export const SCHEMES: SchemeDefinition[] = [
@@ -34,17 +45,22 @@ export const SCHEMES: SchemeDefinition[] = [
   {
     id: 'calm-paper',
     name: '静墨宣纸',
-    hint: '暖白低墨量 · 长时间注视不疲劳',
-    swatch: 'linear-gradient(135deg, #fdfbf7 0%, #e7edeb 100%)'
+    hint: '暂未开放 · 方案打磨中',
+    swatch: 'linear-gradient(135deg, #fdfbf7 0%, #e7edeb 100%)',
+    disabled: true
   },
   {
     id: 'night-black',
     name: '暗夜黑',
-    hint: '浅字暗底 · 琥珀金强调',
+    hint: '暂未开放 · 方案打磨中',
     swatch: 'linear-gradient(135deg, #131920 0%, #d8a24a 100%)',
-    dark: true
+    dark: true,
+    disabled: true
   }
 ]
+
+/** 当前对外开放的配色方案（停用方案不出现在切换器里）。 */
+export const ENABLED_SCHEMES: SchemeDefinition[] = SCHEMES.filter((s) => !s.disabled)
 
 const SCHEME_STORAGE_KEY = 'spd.theme.scheme'
 const DEFAULT_SCHEME: SchemeId = 'default'
@@ -105,12 +121,25 @@ function readStoredFontSize(): FontSizeId {
   return DEFAULT_FONT_SIZE
 }
 
+/**
+ * 读取持久化的配色方案。
+ *
+ * ⚠️ 停用方案的迁移：
+ *   历史用户可能在 localStorage 里存过 'calm-paper' / 'night-black'。
+ *   这两套方案当前「暂未开放」，因此这里一律回落到默认方案，
+ *   并顺手把过期的键改写回 'default'，避免下次启动再读到旧值。
+ */
 function readStoredScheme(): SchemeId {
   if (typeof window === 'undefined') return DEFAULT_SCHEME
   try {
     const raw = window.localStorage.getItem(SCHEME_STORAGE_KEY)
     if (raw && SCHEMES.some((s) => s.id === raw)) {
-      return raw as SchemeId
+      const definition = SCHEMES.find((s) => s.id === raw)!
+      if (!definition.disabled) {
+        return definition.id
+      }
+      // 停用方案 → 迁移回默认方案，并纠正 localStorage
+      window.localStorage.setItem(SCHEME_STORAGE_KEY, DEFAULT_SCHEME)
     }
   } catch {
     // 忽略 localStorage 异常
@@ -121,14 +150,14 @@ function readStoredScheme(): SchemeId {
 /**
  * 将全局配色方案写入 <html data-spd-theme>，驱动全站视觉体系。
  *
- * 「暗夜黑」是深色底，需要额外同步 color-scheme，
- * 让浏览器把滚动条、表单控件、焦点环也切到深色。
+ * 停用方案（暂未开放）一律按默认方案处理，
+ * 保证界面永远不会渲染出已下线的配色。
  */
 function applyScheme(scheme: SchemeId) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
   const definition = SCHEMES.find((s) => s.id === scheme)
-  if (scheme === DEFAULT_SCHEME || !definition) {
+  if (!definition || definition.disabled || scheme === DEFAULT_SCHEME) {
     root.removeAttribute('data-spd-theme')
   } else {
     root.setAttribute('data-spd-theme', scheme)
@@ -171,7 +200,10 @@ export const useThemeStore = defineStore('theme', {
   }),
   getters: {
     fontSizes: () => FONT_SIZES,
+    /** 全部配色方案（含暂未开放的，供内部判断使用） */
     schemes: () => SCHEMES,
+    /** 当前对外开放的配色方案（切换器只渲染这些） */
+    enabledSchemes: () => ENABLED_SCHEMES,
     currentScheme(state): SchemeDefinition {
       return SCHEMES.find((s) => s.id === state.scheme) ?? SCHEMES[0]
     },
@@ -180,8 +212,25 @@ export const useThemeStore = defineStore('theme', {
     }
   },
   actions: {
-    /** 切换全局配色方案（静墨宣纸 / 暗夜黑 / 标准白） */
+    /**
+     * 切换全局配色方案。
+     * 暂未开放（disabled）的方案会被忽略，保持当前方案不变。
+     */
     setScheme(scheme: SchemeId) {
+      const definition = SCHEMES.find((s) => s.id === scheme)
+      if (!definition || definition.disabled) {
+        // 停用方案：回落到默认方案，保证界面永远停留在标准白
+        if (this.scheme !== DEFAULT_SCHEME) {
+          this.scheme = DEFAULT_SCHEME
+          applyScheme(DEFAULT_SCHEME)
+        }
+        try {
+          window.localStorage.setItem(SCHEME_STORAGE_KEY, DEFAULT_SCHEME)
+        } catch {
+          // 忽略写入失败
+        }
+        return
+      }
       this.scheme = scheme
       applyScheme(scheme)
       try {

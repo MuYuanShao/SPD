@@ -5,6 +5,14 @@ import { getSessionAdapter } from './session'
 declare module 'axios' {
   interface AxiosRequestConfig {
     freeTextFields?: readonly string[]
+    /**
+     * 上传类请求（multipart/form-data）专用：
+     * 文件名允许包含空格（真实文件名常见「营业执照 (1).pdf」），
+     * 由后端负责文件名与文件签名一致性校验，前端不做空白拦截。
+     */
+    multipart?: boolean
+    /** 上传类请求的超时时间（毫秒）。大附件默认 10s 会中断，单独放宽。 */
+    uploadTimeout?: number
   }
 }
 
@@ -35,28 +43,76 @@ function validateWriteFields(value: unknown): void {
   if (typeof value === 'string') {
     if (fieldWhitespace.test(value)) throw new Error('不支持空格及换行符存在！')
   } else if (value instanceof File) {
-    validateWriteFields(value.name)
+    // 文件名可能合法包含空格（如「营业执照 (1).pdf」），这里不拦截，
+    // 由后端 PendingProductAttachmentService 负责签名/扩展名一致性校验。
   } else if (value instanceof FormData || value instanceof URLSearchParams) {
     value.forEach(entry => validateWriteFields(entry))
   } else if (Array.isArray(value)) {
     value.forEach(validateWriteFields)
-  } else if (value && Object.getPrototypeOf(value) === Object.prototype) {
+  } else if (isPlainRecord(value)) {
     Object.values(value).forEach(validateWriteFields)
   }
+}
+
+/** 去掉字符串里的全部空白（含换行），用于「先清洗再提交」的字段。 */
+function stripWhitespace(value: string): string {
+  return value.replace(/[\s\u0085]/gu, '')
+}
+
+/**
+ * 判断异常是否来自写入请求的前端字段校验。
+ * 这类异常在请求拦截器里抛出，请求根本没有发出，
+ * 因此不能按「网络错误」归类，否则用户会看到误导性的 `[Network Error]`。
+ */
+function isRequestValidationError(error: unknown): boolean {
+  const anyError = error as { config?: unknown; message?: string; request?: unknown }
+  if (!anyError || typeof anyError !== 'object') return false
+  // axios 会把请求拦截器里抛出的异常挂到 config 上，并附带 request 对象。
+  if (!anyError.config || !anyError.request) return false
+  return typeof anyError.message === 'string' && anyError.message.length > 0
+}
+
+/**
+ * 判断是否是可以逐字段清洗的「普通对象」载荷。
+ * 不能用 `Object.getPrototypeOf(value) === Object.prototype`：
+ * Vue 的 reactive() 返回 Proxy，代理对象的原型判断在部分场景下不可靠，
+ * 会导致 freeTextFields 清洗分支被跳过。
+ * 这里改为排除掉所有特殊类型后按普通对象处理。
+ */
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  if (!value || typeof value !== 'object') return false
+  if (Array.isArray(value)) return false
+  if (value instanceof File || value instanceof Blob || value instanceof FormData) return false
+  if (value instanceof URLSearchParams || value instanceof Date) return false
+  if (typeof (value as { then?: unknown }).then === 'function') return false
+  const proto = Object.getPrototypeOf(value)
+  return proto === Object.prototype || proto === null || !Object.getPrototypeOf(proto)
 }
 
 http.interceptors.request.use(
   (config) => {
     if (writeMethods.has(config.method ?? '')) {
       const data = config.data
-      if (config.freeTextFields?.length && data && Object.getPrototypeOf(data) === Object.prototype) {
+      const freeText = config.freeTextFields
+      if (freeText?.length && isPlainRecord(data)) {
+        // freeTextFields：这些字段允许用户输入空格/换行。
+        // 后端 WriteFieldWhitespace 同样拒绝空白，因此这里不是「放行」，
+        // 而是「就地清洗」——去掉空白后再提交，保证后端能落库。
         for (const [field, value] of Object.entries(data)) {
-          if (!config.freeTextFields.includes(field) || typeof value !== 'string') validateWriteFields(value)
+          if (freeText.includes(field) && typeof value === 'string') {
+            data[field] = stripWhitespace(value)
+          } else {
+            validateWriteFields(value)
+          }
         }
       } else {
         validateWriteFields(data)
       }
       validateWriteFields(config.params)
+    }
+    if (config.multipart) {
+      // 上传大附件时 10s 默认超时容易中断，这里单独放宽。
+      config.timeout = config.uploadTimeout ?? 60000
     }
     const token = getSessionAdapter().getToken()
     if (token) {
@@ -93,6 +149,9 @@ http.interceptors.response.use(
       }
     } else if (error.code === 'ECONNABORTED') {
       console.error('[Network Error] Request timeout')
+    } else if (isRequestValidationError(error)) {
+      // 前端写入请求的字段校验失败（请求未发出），不是网络问题，不要按 Network Error 归类。
+      console.error('[Request Validation Error]', error.message)
     } else {
       console.error('[Network Error]', error.message)
     }

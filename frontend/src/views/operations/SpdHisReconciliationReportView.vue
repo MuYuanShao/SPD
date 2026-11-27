@@ -15,6 +15,7 @@ import MdDataTableCard from '../../components/master-data/MdDataTableCard.vue'
 import MdPagination from '../../components/master-data/MdPagination.vue'
 import StatusMessage from '../../components/common/StatusMessage.vue'
 import { useListColumns, type ListColumnConfig } from '../../composables/useListColumns'
+import { notifyError } from '../../composables/useNotify'
 import { useActionColumnFix } from '../../composables/useActionColumnFix'
 import { useColSettingsPopover } from '../../composables/useColSettingsPopover'
 import {
@@ -25,6 +26,7 @@ import {
   type ReconciliationSummary,
   type SpdHisReconciliationRow,
 } from '../../api/reportCenter'
+import { useFillHeightTable } from '../../composables/useFillHeightTable'
 
 const today = new Date()
 const thirtyDaysAgo = new Date(today)
@@ -84,6 +86,7 @@ const reconciliationCols = useListColumns({
 })
 
 const reconciliationTableRef = reconciliationCols.tableRef
+const fillHeightReconciliation = useFillHeightTable({ tableRef: reconciliationTableRef })
 const isReconciliationColVisible = (key: string) => reconciliationCols.isColumnVisible(key)
 const reconciliationColBinding = (key: string) => reconciliationCols.columnBinding(key)
 
@@ -199,6 +202,48 @@ function changePage(page: number) {
   void loadReport()
 }
 
+/* ---------------------------------------------------------------------
+ * 结算日期区间约束：开始日期不能晚于结束日期
+ * ---------------------------------------------------------------------
+ * 两层保障：
+ *   1) disabled-date —— 日历面板里把非法日期置灰；
+ *   2) applyQuery() 里的显式校验 —— 即便绕过置灰，也要拦下来并提示，绝不发请求。
+ * 绑定值是 value-format="YYYY-MM-DD" 的纯字符串，可直接按字典序比较。
+ * ------------------------------------------------------------------- */
+function toDayStart(value: string) {
+  if (!value) return null
+  const parsed = new Date(`${value}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** 开始日期：禁用晚于结束日期的日期 */
+function disableAfterEnd(date: Date) {
+  const end = toDayStart(query.dateTo)
+  if (!end) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() > end.getTime()
+}
+
+/** 结束日期：禁用早于开始日期的日期 */
+function disableBeforeStart(date: Date) {
+  const start = toDayStart(query.dateFrom)
+  if (!start) return false
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return target.getTime() < start.getTime()
+}
+
+/**
+ * 执行查询：开始日期晚于结束日期时提示并终止，不发请求。
+ */
+function applyQuery() {
+  if (query.dateFrom && query.dateTo && query.dateFrom > query.dateTo) {
+    notifyError('开始日期不能晚于结束日期')
+    return
+  }
+  query.page = 1
+  void loadReport()
+}
+
 function changeSize(size: number) {
   query.size = size
   query.page = 1
@@ -258,15 +303,37 @@ onMounted(() => void loadReport())
         </div>
       </div>
       <div class="report-filters">
-        <label><span>结算日期</span><div class="date-range"><input v-model="query.dateFrom" type="date" /><i>至</i><input v-model="query.dateTo" type="date" /></div></label>
-        <label><span>科室</span><input v-model.trim="query.department" type="search" placeholder="全部科室" @keyup.enter="changePage(1)" /></label>
-        <label><span>耗材</span><input v-model.trim="query.productKeyword" type="search" placeholder="编码 / 名称 / 医保编码" @keyup.enter="changePage(1)" /></label>
-        <label><span>患者</span><input v-model.trim="query.patientKeyword" type="search" placeholder="姓名 / 住院号" @keyup.enter="changePage(1)" /></label>
+        <label><span>结算日期</span><div class="date-range">
+          <el-date-picker
+            v-model="query.dateFrom"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="开始日期"
+            clearable
+            class="report-date-picker"
+            :disabled-date="disableAfterEnd"
+          />
+          <i>至</i>
+          <el-date-picker
+            v-model="query.dateTo"
+            type="date"
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            placeholder="结束日期"
+            clearable
+            class="report-date-picker"
+            :disabled-date="disableBeforeStart"
+          />
+        </div></label>
+        <label><span>科室</span><input v-model.trim="query.department" type="search" placeholder="全部科室" @keyup.enter="applyQuery" /></label>
+        <label><span>耗材</span><input v-model.trim="query.productKeyword" type="search" placeholder="编码 / 名称 / 医保编码" @keyup.enter="applyQuery" /></label>
+        <label><span>患者</span><input v-model.trim="query.patientKeyword" type="search" placeholder="姓名 / 住院号" @keyup.enter="applyQuery" /></label>
         <label><span>风险类型</span><select v-model="query.riskType"><option value="ALL">全部风险</option><option value="MISSING_CHARGE">漏计费</option><option value="DUPLICATE_CHARGE">重复计费</option><option value="SUSPECTED_SWAP">疑似串换</option><option value="CONSISTENT">一致</option></select></label>
         <label class="switch"><input v-model="query.onlyExceptions" type="checkbox" /><span>仅看异常</span></label>
       </div>
       <div class="report-actions">
-        <SpdButton label="查询" tone="primary" :disabled="loading" @click="changePage(1)">
+        <SpdButton label="查询" tone="primary" :disabled="loading" @click="applyQuery">
           <template #icon><Search :size="16" /></template>
         </SpdButton>
         <SpdButton label="重置" tone="neutral" :disabled="loading" @click="resetQuery">
@@ -338,7 +405,7 @@ ref="reconciliationColSettingsPopRef"
           border
           row-key="reconciliationDate"
           class="ulc-table is-sticky"
-          max-height="560"
+          :max-height="fillHeightReconciliation.maxHeight"
           style="width: 100%"
           :empty-text="loading ? '正在加载…' : '当前筛选条件下暂无对账数据'"
           @header-dragend="(width: number, oldWidth: number, column: any) => reconciliationCols.handleHeaderDragEnd(width, oldWidth, column)"
@@ -681,6 +748,23 @@ ref="reconciliationColSettingsPopRef"
 .date-range i {
   color: var(--spd-p-text-muted);
   font-style: normal;
+}
+
+/* ---------- Element Plus 中文日期选择器 ----------
+   el-date-picker 外壳是 .el-input__wrapper，共享样式表
+   styles/components/spd-input.css 已把高度 / 圆角 / 边框 / 字号
+   统一到字段令牌（34px / --spd-p-field-radius / 1px 内阴影环 / 基础字号）。
+   这里只补两件事：
+     1) 选择器撑满 .date-range 的两列（EP 默认是 inline-block，不会撑开栅格）；
+     2) 兜住共享样式表里「原生 input 统一规格」那条通用规则，
+        避免内层 input 被画成第二层小框（框中框）。
+   三套配色方案都走同一批令牌，无需额外适配。 */
+.report-date-picker {
+  width: 100%;
+}
+
+.report-date-picker .el-input__wrapper {
+  width: 100%;
 }
 
 .report-filters label.switch {
